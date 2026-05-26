@@ -112,10 +112,19 @@ public struct CLIServerFeature {
       else {
         return .failure("Workspace not found: \(key)")
       }
+      let peerBundleIds = config.activeProfile?.workspaces
+        .filter { peer in
+          peer.id != workspace.id
+            && (workspace.displayHint == nil || peer.displayHint == workspace.displayHint)
+        }
+        .flatMap { $0.apps.map(\.bundleIdentifier) }
+        .reduce(into: Set<String>()) { $0.insert($1) } ?? []
       await manager.activate(
         ActivationRequest(
           workspace: workspace,
           floatingApps: config.floatingApps,
+          targetDisplay: workspace.displayHint,
+          displayPeerBundleIds: peerBundleIds,
           setFocus: true
         )
       )

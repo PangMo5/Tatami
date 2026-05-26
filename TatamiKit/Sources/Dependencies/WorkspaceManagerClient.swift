@@ -4,9 +4,8 @@ import Foundation
 import OSLog
 
 /// Side-effect surface for "make this workspace active": showing/hiding
-/// macOS apps via `NSRunningApplication`. Future passes will layer
-/// display routing, focus history, PiP corner-hiding, and transitions
-/// on top of this dependency without changing the reducer.
+/// macOS apps via `NSRunningApplication`. Display-aware — hiding only
+/// affects apps whose windows sit on the workspace's target display(s).
 public struct WorkspaceManagerClient: Sendable {
   public var activate: @Sendable (ActivationRequest) async -> Void
 
@@ -16,17 +15,29 @@ public struct WorkspaceManagerClient: Sendable {
 }
 
 /// What the activation engine needs to flip "active" to a workspace.
-///
-/// Kept as a value type so it is trivially Sendable and can be diffed
-/// in tests.
 public struct ActivationRequest: Sendable, Hashable {
   public var workspace: Workspace
   public var floatingApps: [FloatingApp]
+  /// Display this activation targets. `nil` → all displays (dynamic mode).
+  public var targetDisplay: DisplayName?
+  /// Bundle identifiers belonging to *other* workspaces on the same display.
+  /// These are the apps we need to hide. Anything not in this set (and not
+  /// in `workspace.apps` or `floatingApps`) is treated as "unassigned" and
+  /// left visible.
+  public var displayPeerBundleIds: Set<String>
   public var setFocus: Bool
 
-  public init(workspace: Workspace, floatingApps: [FloatingApp], setFocus: Bool = true) {
+  public init(
+    workspace: Workspace,
+    floatingApps: [FloatingApp],
+    targetDisplay: DisplayName?,
+    displayPeerBundleIds: Set<String> = [],
+    setFocus: Bool = true
+  ) {
     self.workspace = workspace
     self.floatingApps = floatingApps
+    self.targetDisplay = targetDisplay
+    self.displayPeerBundleIds = displayPeerBundleIds
     self.setFocus = setFocus
   }
 }
@@ -45,7 +56,9 @@ extension WorkspaceManagerClient: DependencyKey {
         let workspace = request.workspace
         let workspaceBundleIds = Set(workspace.apps.map(\.bundleIdentifier))
         let floatingBundleIds = Set(request.floatingApps.map(\.bundleIdentifier))
-        let keepVisible = workspaceBundleIds.union(floatingBundleIds)
+        let appsToHide = request.displayPeerBundleIds
+          .subtracting(workspaceBundleIds)
+          .subtracting(floatingBundleIds)
 
         await MainActor.run {
           let running = NSWorkspace.shared.runningApplications.filter {
@@ -55,38 +68,34 @@ extension WorkspaceManagerClient: DependencyKey {
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
 
-            if workspaceBundleIds.contains(bundleId) {
-              // Workspace app — raise (unhides + brings forward) without stealing focus.
+            if workspaceBundleIds.contains(bundleId) || floatingBundleIds.contains(bundleId) {
               if app.isHidden {
                 app.unhide()
               }
-            } else if floatingBundleIds.contains(bundleId) {
-              // Floating app — ensure visible, do not focus.
-              if app.isHidden {
-                app.unhide()
-              }
-            } else {
-              // Not in this workspace — hide.
-              if !app.isHidden {
-                app.hide()
-              }
+            } else if appsToHide.contains(bundleId), !app.isHidden {
+              app.hide()
             }
+            // Apps not in any workspace on this display: leave alone.
           }
 
           if request.setFocus, let focusBundleId = workspace.appToFocusBundleId
              ?? workspace.apps.last?.bundleIdentifier
           {
-            let target = running.first { $0.bundleIdentifier == focusBundleId }
-            target?.activate(options: [.activateIgnoringOtherApps])
+            running.first { $0.bundleIdentifier == focusBundleId }?
+              .activate(options: [.activateIgnoringOtherApps])
           } else if request.setFocus {
-            // No explicit focus — front-most workspace app.
-            let app = running.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }
-            app?.activate(options: [.activateIgnoringOtherApps])
+            running.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }?
+              .activate(options: [.activateIgnoringOtherApps])
           }
         }
 
+        let displayLabel = request.targetDisplay?.rawValue ?? "any"
         logger.info(
-          "Activated workspace '\(workspace.name)': show=\(workspaceBundleIds.count) float=\(floatingBundleIds.count)"
+          """
+          Activated workspace '\(workspace.name)' on display '\(displayLabel)': \
+          show=\(workspaceBundleIds.count) float=\(floatingBundleIds.count) \
+          hide=\(appsToHide.count)
+          """
         )
       }
     )

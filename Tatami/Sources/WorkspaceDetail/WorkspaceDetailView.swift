@@ -38,6 +38,8 @@ struct WorkspaceDetailView: View {
           }
         }
 
+        DisplayPickerSection(store: store, workspace: workspace)
+
         Section {
           ForEach(store.apps) { assignment in
             AppRow(
@@ -86,6 +88,7 @@ struct WorkspaceDetailView: View {
       }
       .onAppear { nameDraft = workspace.name }
       .onChange(of: workspace.id) { _, _ in nameDraft = workspace.name }
+      .task { store.send(.onAppear) }
     } else {
       ContentUnavailableView(
         "Workspace Unavailable",
@@ -93,6 +96,30 @@ struct WorkspaceDetailView: View {
         description: Text("This workspace no longer exists.")
       )
     }
+  }
+}
+
+private struct DisplayPickerSection: View {
+  let store: StoreOf<WorkspaceDetailFeature>
+  let workspace: Workspace
+
+  var body: some View {
+    Section("Display") {
+      Picker("Pinned display", selection: binding) {
+        Text("Dynamic (follow apps)").tag(DisplayName?.none)
+        ForEach(store.availableDisplays, id: \.self) { display in
+          Text(display.rawValue).tag(DisplayName?.some(display))
+        }
+      }
+      .pickerStyle(.menu)
+    }
+  }
+
+  private var binding: Binding<DisplayName?> {
+    Binding(
+      get: { workspace.displayHint },
+      set: { store.send(.displayHintChanged($0)) }
+    )
   }
 }
 

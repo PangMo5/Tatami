@@ -62,7 +62,7 @@ struct WorkspaceListView: View {
     HStack {
       Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
       Spacer()
-      if activationStore.activeWorkspaceID == workspace.id {
+      if activationStore.activeWorkspacesByDisplay.values.contains(workspace.id) {
         Image(systemName: "circle.fill")
           .foregroundStyle(.green)
           .imageScale(.small)

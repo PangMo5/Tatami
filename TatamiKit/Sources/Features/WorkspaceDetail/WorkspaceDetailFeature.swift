@@ -14,6 +14,7 @@ public struct WorkspaceDetailFeature {
     public var workspaceId: Workspace.ID
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
+    public var availableDisplays: [DisplayName] = []
 
     public init(workspaceId: Workspace.ID) {
       self.workspaceId = workspaceId
@@ -30,6 +31,7 @@ public struct WorkspaceDetailFeature {
 
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
+    case onAppear
     case addAppButtonTapped
     case appPickerDismissed
     case appPickerAppSelected(MacApp)
@@ -38,9 +40,11 @@ public struct WorkspaceDetailFeature {
     case nameSubmitted(String)
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
+    case displayHintChanged(DisplayName?)
   }
 
   @Dependency(\.runningApps) var runningApps
+  @Dependency(\.displays) var displays
 
   public init() {}
 
@@ -49,6 +53,10 @@ public struct WorkspaceDetailFeature {
     Reduce { state, action in
       switch action {
       case .binding:
+        return .none
+
+      case .onAppear:
+        state.availableDisplays = displays.all()
         return .none
 
       case .addAppButtonTapped:
@@ -116,6 +124,13 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.activateShortcut = hotKey }
+        }
+        return .none
+
+      case .displayHintChanged(let display):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.displayHint = display }
         }
         return .none
       }
