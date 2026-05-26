@@ -31,6 +31,10 @@ public struct AppSettings: Hashable, Sendable, Codable {
   /// via the `toggleSpaceActivated` hotkey.
   public var isPaused: Bool
 
+  /// When true, every insert/remove rebalances the BSP tree so all
+  /// leaves end up with equal area. Yabai's `auto_balance` knob.
+  public var autoBalance: Bool
+
   // MARK: Directional focus
 
   public var focusLeft: HotKey?
@@ -75,6 +79,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option,
     autoFocusBlacklist: [String] = [],
     isPaused: Bool = false,
+    autoBalance: Bool = false,
     focusLeft: HotKey? = nil,
     focusRight: HotKey? = nil,
     focusUp: HotKey? = nil,
@@ -104,6 +109,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.focusFollowsMouseDisableHotkey = focusFollowsMouseDisableHotkey
     self.autoFocusBlacklist = autoFocusBlacklist
     self.isPaused = isPaused
+    self.autoBalance = autoBalance
     self.focusLeft = focusLeft
     self.focusRight = focusRight
     self.focusUp = focusUp
@@ -134,6 +140,7 @@ extension AppSettings {
     case focusFollowsMouseDisableHotkey
     case autoFocusBlacklist
     case isPaused
+    case autoBalance
     case focusLeft, focusRight, focusUp, focusDown
     case switchToNextWorkspace, switchToPreviousWorkspace, switchToRecentWorkspace
     case cycleNextWindow, cyclePreviousWindow
@@ -156,6 +163,7 @@ extension AppSettings {
     )) ?? .option
     self.autoFocusBlacklist = (try? c.decode([String].self, forKey: .autoFocusBlacklist)) ?? []
     self.isPaused = (try? c.decode(Bool.self, forKey: .isPaused)) ?? false
+    self.autoBalance = (try? c.decode(Bool.self, forKey: .autoBalance)) ?? false
     self.focusLeft = try? c.decode(HotKey.self, forKey: .focusLeft)
     self.focusRight = try? c.decode(HotKey.self, forKey: .focusRight)
     self.focusUp = try? c.decode(HotKey.self, forKey: .focusUp)

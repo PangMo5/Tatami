@@ -324,9 +324,10 @@ public struct WorkspaceActivationFeature {
       target: snapshot.targets,
       focused: snapshot.focused
     )
-    state.tilingTrees[workspaceId] = mergedTree
+    let balanced = settings.autoBalance ? mergedTree?.balanced() : mergedTree
+    state.tilingTrees[workspaceId] = balanced
 
-    guard let tree = mergedTree else { return .none }
+    guard let tree = balanced else { return .none }
     let zoomed = state.zoomedWindow[workspaceId]
 
     return .run { [tiler = windowTiler] _ in
@@ -467,7 +468,8 @@ public struct WorkspaceActivationFeature {
         () -> (BSPNode<WindowKey>?, [WindowKey: CGRect]) in
         let keys = discoverWindowKeys(forBundleIds: bundleIds)
         let focused = focusedWindowKey()
-        let tree = Self.mergeTree(existing: existingTree, target: keys, focused: focused)
+        let merged = Self.mergeTree(existing: existingTree, target: keys, focused: focused)
+        let tree = settings.autoBalance ? merged?.balanced() : merged
         let frames = Self.computeFrames(
           tree: tree,
           settings: settings,
