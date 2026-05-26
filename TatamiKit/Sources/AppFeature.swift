@@ -20,7 +20,10 @@ public struct AppFeature {
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
     case cli(CLIServerFeature.Action)
+    case tileCompleted
   }
+
+  @Dependency(\.windowTiler) var windowTiler
 
   public init() {}
 
@@ -37,7 +40,7 @@ public struct AppFeature {
     Scope(state: \.cli, action: \.cli) {
       CLIServerFeature()
     }
-    Reduce { _, action in
+    Reduce { state, action in
       switch action {
       case .task:
         return .merge(
@@ -52,6 +55,25 @@ public struct AppFeature {
            .workspaceList(.workspaceDeleteRequested),
            .workspaceList(.detail(.activateShortcutChanged)):
         return .send(.hotKeys(.refreshBindings))
+
+      case .activation(.activationCompleted(let workspaceId, let display)):
+        guard
+          let workspace = state.workspaceList.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId })
+        else { return .none }
+        let request = TilingRequest(
+          workspaceId: workspace.id,
+          mode: workspace.tilingMode,
+          bundleIdentifiers: workspace.apps.map(\.bundleIdentifier),
+          targetDisplay: display
+        )
+        return .run { [client = windowTiler] send in
+          await client.tile(request)
+          await send(.tileCompleted)
+        }
+
+      case .tileCompleted:
+        return .none
 
       default:
         return .none

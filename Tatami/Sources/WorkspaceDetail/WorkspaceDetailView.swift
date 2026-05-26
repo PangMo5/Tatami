@@ -39,6 +39,7 @@ struct WorkspaceDetailView: View {
         }
 
         DisplayPickerSection(store: store, workspace: workspace)
+        TilingPickerSection(store: store, workspace: workspace)
 
         Section {
           ForEach(store.apps) { assignment in
@@ -119,6 +120,29 @@ private struct DisplayPickerSection: View {
     Binding(
       get: { workspace.displayHint },
       set: { store.send(.displayHintChanged($0)) }
+    )
+  }
+}
+
+private struct TilingPickerSection: View {
+  let store: StoreOf<WorkspaceDetailFeature>
+  let workspace: Workspace
+
+  var body: some View {
+    Section("Tiling") {
+      Picker("Mode", selection: binding) {
+        ForEach(TilingMode.allCases, id: \.self) { mode in
+          Label(mode.displayName, systemImage: mode.symbolIconName).tag(mode)
+        }
+      }
+      .pickerStyle(.menu)
+    }
+  }
+
+  private var binding: Binding<TilingMode> {
+    Binding(
+      get: { workspace.tilingMode },
+      set: { store.send(.tilingModeChanged($0)) }
     )
   }
 }
