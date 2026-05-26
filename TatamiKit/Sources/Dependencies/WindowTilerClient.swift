@@ -47,9 +47,9 @@ extension WindowTilerClient: DependencyKey {
     await MainActor.run {
       logger.info("apply: \(request.bundleIdToFrame.count) frames")
       for (bundleId, frame) in request.bundleIdToFrame {
-        let ok = applyFrame(frame, toFirstWindowOf: bundleId)
-        logger.debug(
-          "apply \(bundleId) → \(frame.debugDescription) = \(ok ? "ok" : "fail")"
+        let outcome = applyFrame(frame, toFirstWindowOf: bundleId)
+        logger.info(
+          "apply \(bundleId, privacy: .public) → \(frame.debugDescription, privacy: .public) = \(outcome, privacy: .public)"
         )
       }
     }
@@ -59,13 +59,15 @@ extension WindowTilerClient: DependencyKey {
   public static let previewValue = testValue
 
   @MainActor
-  @discardableResult
-  private static func applyFrame(_ frame: CGRect, toFirstWindowOf bundleId: String) -> Bool {
+  private static func applyFrame(
+    _ frame: CGRect,
+    toFirstWindowOf bundleId: String
+  ) -> String {
     guard
       let app = NSRunningApplication
         .runningApplications(withBundleIdentifier: bundleId)
         .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
-    else { return false }
+    else { return "app-not-running" }
 
     let axApp = AXUIElementCreateApplication(app.processIdentifier)
     var raw: CFTypeRef?
@@ -74,23 +76,33 @@ extension WindowTilerClient: DependencyKey {
       kAXWindowsAttribute as CFString,
       &raw
     )
-    guard copyResult == .success,
-          let windows = raw as? [AXUIElement],
-          let window = windows.first
-    else { return false }
+    if copyResult != .success {
+      return "windows-copy-fail(\(copyResult.rawValue))"
+    }
+    guard let windows = raw as? [AXUIElement] else {
+      return "windows-cast-fail"
+    }
+    guard let window = windows.first else {
+      return "no-windows"
+    }
 
-    var ok = true
+    var posError = AXError.success
     var position = CGPoint(x: frame.minX, y: frame.minY)
     if let posValue = AXValueCreate(.cgPoint, &position) {
-      let r = AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, posValue)
-      if r != .success { ok = false }
+      posError = AXUIElementSetAttributeValue(
+        window, kAXPositionAttribute as CFString, posValue
+      )
     }
+    var sizeError = AXError.success
     var size = CGSize(width: frame.width, height: frame.height)
     if let sizeValue = AXValueCreate(.cgSize, &size) {
-      let r = AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
-      if r != .success { ok = false }
+      sizeError = AXUIElementSetAttributeValue(
+        window, kAXSizeAttribute as CFString, sizeValue
+      )
     }
-    return ok
+
+    if posError == .success, sizeError == .success { return "ok" }
+    return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
   }
 }
 

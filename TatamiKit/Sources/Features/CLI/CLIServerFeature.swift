@@ -34,6 +34,7 @@ public struct CLIServerFeature {
 
   @Dependency(\.socketServer) var socketServer
   @Dependency(\.workspaceManager) var workspaceManager
+  @Dependency(\.windowTiler) var windowTiler
 
   public init() {}
 
@@ -70,8 +71,14 @@ public struct CLIServerFeature {
       case .incomingRequest(let request, let reply):
         let config = state.config
         let manager = workspaceManager
+        let tiler = windowTiler
         return .run { _ in
-          let response = await Self.handle(request: request, config: config, manager: manager)
+          let response = await Self.handle(
+            request: request,
+            config: config,
+            manager: manager,
+            tiler: tiler
+          )
           reply(response)
         }
       }
@@ -81,7 +88,8 @@ public struct CLIServerFeature {
   static func handle(
     request: CLIMessage.Request,
     config: AppConfig,
-    manager: WorkspaceManagerClient
+    manager: WorkspaceManagerClient,
+    tiler: WindowTilerClient
   ) async -> CLIMessage.Response {
     switch request.command {
     case .version:
@@ -122,6 +130,22 @@ public struct CLIServerFeature {
           mouseHidesOnFocus: config.settings.mouseHidesOnFocus
         )
       )
+      let bundleIds = workspace.apps.map(\.bundleIdentifier)
+      let tree = BSPNode<String>.build(bundleIds, in: .zero)
+      let settings = config.settings
+      let targetDisplay = workspace.displayHint
+      let frames = await MainActor.run {
+        WorkspaceActivationFeature.computeFrames(
+          tree: tree,
+          settings: settings,
+          targetDisplay: targetDisplay
+        )
+      }
+      if !frames.isEmpty {
+        await tiler.apply(
+          FrameApplication(bundleIdToFrame: frames, targetDisplay: targetDisplay)
+        )
+      }
       return .ok("Activated: \(workspace.name)")
     }
   }
