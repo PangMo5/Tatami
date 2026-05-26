@@ -1,0 +1,43 @@
+# Xcode
+xcuserdata/
+*.xcodeproj/*
+*.xcworkspace/*
+!*.xcodeproj/project.xcworkspace/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+*.hmap
+
+# Tuist
+.tuist/
+Derived/
+graph.dot
+graph.png
+
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+.dsyms/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# macOS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+.nvim/
+.cursor/
+
+# Generated Info.plist (Tuist/XcodeGen output)
+**/Info.plist
