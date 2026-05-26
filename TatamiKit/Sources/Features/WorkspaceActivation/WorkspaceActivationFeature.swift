@@ -204,19 +204,45 @@ public struct WorkspaceActivationFeature {
   }
 
   /// Re-tile the workspace currently active on the main display.
-  /// Used when window-level events arrive (create, destroy, app
-  /// launch/terminate) so the layout tracks the live window set.
+  /// The tile set is `workspace.apps` + every currently-visible
+  /// unassigned + non-floating regular app, joined in that order.
+  /// The transient inclusion means apps the user opens ad-hoc (e.g.
+  /// KakaoTalk) join the BSP layout without being permanently
+  /// written into the workspace.
   private func retileActiveWorkspace(state: State) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
     else { return .none }
-    let bundleIds = workspace.apps.map(\.bundleIdentifier)
     let display = workspace.displayHint ?? displays.current()
     let settings = state.config.settings
-    let existing = state.tilingTrees[workspaceId]
-    let tree = Self.rebuildTreeIfNeeded(existing: existing, windows: bundleIds)
+    let registered = workspace.apps.map(\.bundleIdentifier)
+    let registeredSet = Set(registered)
+    let allAssigned = Self.everyAssignedBundleId(in: state.config)
+    let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
+
     return .run { [tiler = windowTiler] _ in
+      let bundleIds: [String] = await MainActor.run {
+        let visibleUnassigned = NSWorkspace.shared.runningApplications
+          .filter {
+            $0.activationPolicy == .regular
+              && !$0.isHidden
+              && !$0.isTerminated
+          }
+          .compactMap(\.bundleIdentifier)
+          .filter { id in
+            !registeredSet.contains(id)
+              && !floatingSet.contains(id)
+              && !allAssigned.contains(id)
+              && id != "dev.PangMo5.Tatami"
+              && id != "dev.PangMo5.Tatami.dev"
+          }
+        return registered + visibleUnassigned
+      }
+      let tree = BSPNode<String>.build(
+        bundleIds,
+        in: CGRect(x: 0, y: 0, width: 1, height: 1)
+      )
       let frames = await MainActor.run {
         Self.computeFrames(tree: tree, settings: settings, targetDisplay: display)
       }
@@ -228,34 +254,32 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  /// When an app launches that is neither floating nor assigned to any
-  /// workspace, auto-join it into the active workspace so the BSP
-  /// layout grows to include it (yabai-style).
+  /// Bundle IDs registered to any workspace anywhere in the config.
+  /// Used to detect "unassigned" apps for transient tiling.
+  private static func everyAssignedBundleId(in config: AppConfig) -> Set<String> {
+    var out: Set<String> = []
+    for profile in config.profiles {
+      for ws in profile.workspaces {
+        for app in ws.apps {
+          out.insert(app.bundleIdentifier)
+        }
+      }
+    }
+    return out
+  }
+
+  /// When any app launches we just retile the active workspace; the
+  /// reflow pass folds in any currently-visible unassigned app on the
+  /// fly without mutating the user's config. Next activation hides
+  /// the unassigned app again, so the inclusion is transient — same
+  /// vibe as yabai treating "windows on the active space" as the tile
+  /// set rather than a saved list.
   private func handleAppLaunched(
-    bundleId: String,
-    appName: String,
+    bundleId _: String,
+    appName _: String,
     state: inout State
   ) -> Effect<Action> {
-    let config = state.config
-    let isFloating = config.floatingApps.contains { $0.bundleIdentifier == bundleId }
-    let isAssigned = config.profiles.contains { profile in
-      profile.workspaces.contains { ws in
-        ws.apps.contains { $0.bundleIdentifier == bundleId }
-      }
-    }
-    guard !isFloating, !isAssigned,
-          let workspaceId = state.primaryActiveWorkspaceID
-    else {
-      return retileActiveWorkspace(state: state)
-    }
-    state.$config.withLock { config in
-      config.mutateWorkspace(workspaceId) { workspace in
-        workspace.apps.append(
-          AppAssignment(bundleIdentifier: bundleId, name: appName)
-        )
-      }
-    }
-    return retileActiveWorkspace(state: state)
+    retileActiveWorkspace(state: state)
   }
 
   private static func rebuildTreeIfNeeded(
