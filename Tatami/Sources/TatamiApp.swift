@@ -1,9 +1,16 @@
 import ComposableArchitecture
+import SQLiteData
 import SwiftUI
 import TatamiKit
 
 @main
 struct TatamiApp: App {
+  init() {
+    prepareDependencies {
+      $0.defaultDatabase = try! TatamiDatabase.make()
+    }
+  }
+
   @State private var appStore = Store(initialState: AppFeature.State()) {
     AppFeature()
   }
