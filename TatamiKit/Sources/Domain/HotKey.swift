@@ -1,35 +1,34 @@
 import Foundation
+import KeyboardShortcuts
 
-/// A keyboard shortcut binding serialized as a human-readable string
-/// (e.g. `"cmd+shift+a"`).
+/// A persisted keyboard shortcut.
 ///
-/// `HotKey` is purely a value carrier — registering it with the system
-/// happens in the HotKeys feature (Phase 3).
-public struct HotKey: RawRepresentable, Hashable, Sendable, Codable, ExpressibleByStringLiteral {
-  public let rawValue: String
+/// Stored as the raw Carbon key code + modifier bitfield so it round-trips
+/// losslessly through TOML/JSON without needing a brittle string parser.
+/// Convert to/from the live `KeyboardShortcuts.Shortcut` at registration
+/// time.
+public struct HotKey: Codable, Hashable, Sendable {
+  public var carbonKeyCode: Int
+  public var carbonModifiers: Int
 
-  public init(rawValue: String) {
-    self.rawValue = rawValue
-  }
-
-  public init(_ rawValue: String) {
-    self.rawValue = rawValue
-  }
-
-  public init(stringLiteral value: StringLiteralType) {
-    rawValue = value
-  }
-
-  public init(from decoder: Decoder) throws {
-    rawValue = try decoder.singleValueContainer().decode(String.self)
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(rawValue)
+  public init(carbonKeyCode: Int, carbonModifiers: Int) {
+    self.carbonKeyCode = carbonKeyCode
+    self.carbonModifiers = carbonModifiers
   }
 }
 
-extension HotKey: CustomStringConvertible {
-  public var description: String { rawValue }
+extension HotKey {
+  public init(_ shortcut: KeyboardShortcuts.Shortcut) {
+    self.init(
+      carbonKeyCode: shortcut.carbonKeyCode,
+      carbonModifiers: shortcut.carbonModifiers
+    )
+  }
+
+  public var shortcut: KeyboardShortcuts.Shortcut {
+    KeyboardShortcuts.Shortcut(
+      carbonKeyCode: carbonKeyCode,
+      carbonModifiers: carbonModifiers
+    )
+  }
 }

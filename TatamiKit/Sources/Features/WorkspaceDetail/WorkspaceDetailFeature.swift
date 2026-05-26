@@ -37,6 +37,7 @@ public struct WorkspaceDetailFeature {
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
     case nameSubmitted(String)
     case symbolIconChanged(String?)
+    case activateShortcutChanged(HotKey?)
   }
 
   @Dependency(\.runningApps) var runningApps
@@ -108,6 +109,13 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.symbolIconName = symbol }
+        }
+        return .none
+
+      case .activateShortcutChanged(let hotKey):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.activateShortcut = hotKey }
         }
         return .none
       }

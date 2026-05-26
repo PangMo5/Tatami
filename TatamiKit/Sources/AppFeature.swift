@@ -9,12 +9,15 @@ public struct AppFeature {
   public struct State: Equatable {
     public var workspaceList = WorkspaceListFeature.State()
     public var activation = WorkspaceActivationFeature.State()
+    public var hotKeys = HotKeysFeature.State()
     public init() {}
   }
 
   public enum Action {
+    case task
     case workspaceList(WorkspaceListFeature.Action)
     case activation(WorkspaceActivationFeature.Action)
+    case hotKeys(HotKeysFeature.Action)
   }
 
   public init() {}
@@ -25,6 +28,26 @@ public struct AppFeature {
     }
     Scope(state: \.activation, action: \.activation) {
       WorkspaceActivationFeature()
+    }
+    Scope(state: \.hotKeys, action: \.hotKeys) {
+      HotKeysFeature()
+    }
+    Reduce { _, action in
+      switch action {
+      case .task:
+        return .send(.hotKeys(.onAppear))
+
+      case .hotKeys(.hotKeyTriggered(let workspaceId)):
+        return .send(.activation(.activate(workspaceId: workspaceId, setFocus: true)))
+
+      case .workspaceList(.addWorkspaceFormSubmitted),
+           .workspaceList(.workspaceDeleteRequested),
+           .workspaceList(.detail(.activateShortcutChanged)):
+        return .send(.hotKeys(.refreshBindings))
+
+      default:
+        return .none
+      }
     }
   }
 }

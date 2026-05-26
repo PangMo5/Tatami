@@ -1,5 +1,6 @@
 import AppKit
 import ComposableArchitecture
+import KeyboardShortcuts
 import SwiftUI
 import TatamiKit
 
@@ -26,6 +27,14 @@ struct WorkspaceDetailView: View {
               Label("Activate", systemImage: "play.fill")
             }
             .disabled(activationStore.isActivating)
+          }
+        }
+
+        Section("Activation Shortcut") {
+          KeyboardShortcuts.Recorder(
+            for: KeyboardShortcuts.Name("tatami.workspace.\(workspace.id.uuidString)")
+          ) { shortcut in
+            store.send(.activateShortcutChanged(shortcut.map(HotKey.init)))
           }
         }
 

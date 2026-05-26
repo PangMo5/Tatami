@@ -10,5 +10,6 @@ struct AppRootView: View {
       store: store.scope(state: \.workspaceList, action: \.workspaceList),
       activationStore: store.scope(state: \.activation, action: \.activation)
     )
+    .task { store.send(.task) }
   }
 }
