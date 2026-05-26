@@ -71,9 +71,7 @@ let project = Project(
       bundleId: "\(bundleIdPrefix).Tatami.CLIProtocol",
       deploymentTargets: deploymentTarget,
       sources: ["TatamiCLIProtocol/Sources/**"],
-      dependencies: [
-        .external(name: "KarrotCodableKit"),
-      ]
+      dependencies: []
     ),
     .target(
       name: "TatamiCLI",

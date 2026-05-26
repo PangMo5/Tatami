@@ -15,8 +15,15 @@ extension SharedReaderKey where Self == FileStorageKey<AppConfig>.Default {
         ConfigLocation.fileURL,
         decode: { data in
           let toml = String(decoding: data, as: UTF8.self)
-          let decoder = TOMLDecoder()
-          return try decoder.decode(AppConfig.self, from: toml)
+          do {
+            let decoder = TOMLDecoder()
+            return try decoder.decode(AppConfig.self, from: toml)
+          } catch {
+            FileHandle.standardError.write(
+              Data("[Tatami] config.toml decode failed: \(error)\n".utf8)
+            )
+            throw error
+          }
         },
         encode: { config in
           let encoder = TOMLEncoder()

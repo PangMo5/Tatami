@@ -10,6 +10,7 @@ public struct AppFeature {
     public var workspaceList = WorkspaceListFeature.State()
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
+    public var cli = CLIServerFeature.State()
     public init() {}
   }
 
@@ -18,6 +19,7 @@ public struct AppFeature {
     case workspaceList(WorkspaceListFeature.Action)
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
+    case cli(CLIServerFeature.Action)
   }
 
   public init() {}
@@ -32,10 +34,16 @@ public struct AppFeature {
     Scope(state: \.hotKeys, action: \.hotKeys) {
       HotKeysFeature()
     }
+    Scope(state: \.cli, action: \.cli) {
+      CLIServerFeature()
+    }
     Reduce { _, action in
       switch action {
       case .task:
-        return .send(.hotKeys(.onAppear))
+        return .merge(
+          .send(.hotKeys(.onAppear)),
+          .send(.cli(.start))
+        )
 
       case .hotKeys(.hotKeyTriggered(let workspaceId)):
         return .send(.activation(.activate(workspaceId: workspaceId, setFocus: true)))
