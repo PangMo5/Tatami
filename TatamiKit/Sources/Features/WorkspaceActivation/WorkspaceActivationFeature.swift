@@ -40,6 +40,8 @@ public struct WorkspaceActivationFeature {
     case bspToggleOrientation
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     case windowChanged(WindowChangeEvent)
+    case windowResizeCommitted(key: WindowKey, frame: CGRect)
+    case windowMoveCommitted(key: WindowKey, frame: CGRect)
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
     case appActivated(bundleId: String)
@@ -54,6 +56,12 @@ public struct WorkspaceActivationFeature {
     case swap(BSPNode<WindowKey>.Side)
     case resize(axis: BSPNode<WindowKey>.SplitAxis, delta: CGFloat)
     case toggleOrientation
+  }
+
+  /// Cancellation identifiers for debounced window-event handling.
+  private enum CancelID: Hashable {
+    case windowResize(WindowKey)
+    case windowMove(WindowKey)
   }
 
   @Dependency(\.workspaceManager) var workspaceManager
@@ -77,14 +85,29 @@ public struct WorkspaceActivationFeature {
       case .windowChanged(let event):
         switch event {
         case .windowResized(let key, let frame):
-          return syncTreeRatio(for: key, frame: frame, state: &state)
-        case .windowMoved:
-          // Drag-to-swap lives in phase 3g-8 — until then we ignore
-          // moves so a drag inside a tile doesn't kick off a retile.
-          return .none
+          // AX fires continuously during the drag; wait for quiescence
+          // before committing the new ratio so we don't fight the user
+          // mid-drag.
+          return .run { send in
+            try? await Task.sleep(for: .milliseconds(150))
+            await send(.windowResizeCommitted(key: key, frame: frame))
+          }
+          .cancellable(id: CancelID.windowResize(key), cancelInFlight: true)
+        case .windowMoved(let key, let frame):
+          return .run { send in
+            try? await Task.sleep(for: .milliseconds(150))
+            await send(.windowMoveCommitted(key: key, frame: frame))
+          }
+          .cancellable(id: CancelID.windowMove(key), cancelInFlight: true)
         case .windowCreated, .windowDestroyed:
           return retileActiveWorkspace(state: &state)
         }
+
+      case .windowResizeCommitted(let key, let frame):
+        return syncTreeRatio(for: key, frame: frame, state: &state)
+
+      case .windowMoveCommitted(let key, let frame):
+        return handleWindowMoved(key: key, frame: frame, state: &state)
 
       case .startObservingAppLaunches:
         return .run { [client = appLaunch] send in
@@ -482,6 +505,59 @@ public struct WorkspaceActivationFeature {
     }
 
     let newTree = tree.updatingRatio(at: parentPath, ratio: newRatio)
+    state.tilingTrees[workspaceId] = newTree
+
+    return .run { [tiler = windowTiler] _ in
+      let frames = await MainActor.run {
+        Self.computeFrames(tree: newTree, settings: settings, targetDisplay: display)
+      }
+      if !frames.isEmpty {
+        await tiler.apply(
+          FrameApplication(windowFrames: frames, targetDisplay: display)
+        )
+      }
+    }
+  }
+
+  // MARK: - Drag-to-swap
+
+  /// AX reported the user moved `key` to `frame`. If the dropped
+  /// window's center lands inside another tile's slot, swap the two
+  /// in the tree. Either way we re-apply the layout, which yanks the
+  /// dragged window back into a real tile slot — yabai's "windows are
+  /// always laid out" guarantee.
+  private func handleWindowMoved(
+    key: WindowKey,
+    frame: CGRect,
+    state: inout State
+  ) -> Effect<Action> {
+    guard let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          let tree = state.tilingTrees[workspaceId],
+          tree.pathTo(window: key) != nil
+    else { return .none }
+
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let workArea = MainActor.assumeIsolated {
+      ScreenGeometry.workArea(for: display).insetBy(
+        dx: CGFloat(settings.gapOuter),
+        dy: CGFloat(settings.gapOuter)
+      )
+    }
+    let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
+    let center = CGPoint(x: frame.midX, y: frame.midY)
+    let swapTarget = allFrames.first(where: { other, rect in
+      other != key && rect.contains(center)
+    })?.key
+
+    let newTree: BSPNode<WindowKey>
+    if let target = swapTarget {
+      newTree = tree.swapping(key, target)
+    } else {
+      newTree = tree
+    }
     state.tilingTrees[workspaceId] = newTree
 
     return .run { [tiler = windowTiler] _ in
