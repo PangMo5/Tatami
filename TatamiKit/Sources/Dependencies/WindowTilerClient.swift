@@ -46,6 +46,9 @@ extension WindowTilerClient: DependencyKey {
       )
       return
     }
+    // Record expected frames so the observer can ignore the AX
+    // resize/move notifications that our own setAttribute calls fire.
+    WindowTilerSuppression.shared.record(request.windowFrames)
     await MainActor.run {
       logger.info("apply: \(request.windowFrames.count) frames")
       // Group frames by pid so we can toggle EnhancedUserInterface
@@ -254,3 +257,41 @@ private func isStandardWindow(_ window: AXUIElement) -> Bool {
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowTiler")
+
+/// Bookkeeping for tiler-driven frame writes so the AX observer can
+/// distinguish notifications we caused from genuine user resize/move
+/// events.
+///
+/// AX delivers resize/move notifications on the main thread within a
+/// few hundred microseconds of `AXUIElementSetAttributeValue`, so a
+/// last-write cache without explicit expiry is enough — user drags
+/// trail the apply call by orders of magnitude. The lookup is
+/// "consume": once an alert matches the recorded frame it's cleared,
+/// so a real user drag that lands on the same coordinates later is
+/// still surfaced.
+public final class WindowTilerSuppression: @unchecked Sendable {
+  public static let shared = WindowTilerSuppression()
+
+  private let lock = NSLock()
+  private var pending: [WindowKey: CGRect] = [:]
+
+  public func record(_ frames: [WindowKey: CGRect]) {
+    lock.lock(); defer { lock.unlock() }
+    for (key, frame) in frames {
+      pending[key] = frame
+    }
+  }
+
+  public func shouldIgnore(key: WindowKey, frame: CGRect) -> Bool {
+    lock.lock(); defer { lock.unlock() }
+    guard let expected = pending[key] else { return false }
+    let tolerance: CGFloat = 2.0
+    let close =
+      abs(expected.minX - frame.minX) <= tolerance
+      && abs(expected.minY - frame.minY) <= tolerance
+      && abs(expected.width - frame.width) <= tolerance
+      && abs(expected.height - frame.height) <= tolerance
+    if close { pending[key] = nil }
+    return close
+  }
+}

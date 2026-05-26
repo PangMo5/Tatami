@@ -74,8 +74,17 @@ public struct WorkspaceActivationFeature {
           }
         }
 
-      case .windowChanged:
-        return retileActiveWorkspace(state: &state)
+      case .windowChanged(let event):
+        switch event {
+        case .windowResized(let key, let frame):
+          return syncTreeRatio(for: key, frame: frame, state: &state)
+        case .windowMoved:
+          // Drag-to-swap lives in phase 3g-8 — until then we ignore
+          // moves so a drag inside a tile doesn't kick off a retile.
+          return .none
+        case .windowCreated, .windowDestroyed:
+          return retileActiveWorkspace(state: &state)
+        }
 
       case .startObservingAppLaunches:
         return .run { [client = appLaunch] send in
@@ -420,6 +429,70 @@ public struct WorkspaceActivationFeature {
         )
       }
       await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
+    }
+  }
+
+  // MARK: - Manual resize sync
+
+  /// AX told us the user finished resizing `key` to `frame`. Translate
+  /// that frame back into a split ratio on the parent branch so the
+  /// tree's geometry tracks what the user actually sees, then reapply
+  /// the layout (the sibling needs to fill the remainder; AX only
+  /// notified us about the one window the user dragged).
+  private func syncTreeRatio(
+    for key: WindowKey,
+    frame: CGRect,
+    state: inout State
+  ) -> Effect<Action> {
+    guard let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          let tree = state.tilingTrees[workspaceId],
+          let path = tree.pathTo(window: key), !path.isEmpty
+    else { return .none }
+
+    let parentPath = Array(path.dropLast())
+    guard let side = path.last,
+          case .branch(let split, _, _, _) = tree.subtree(at: parentPath)
+    else { return .none }
+
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let gap = CGFloat(settings.gapInner)
+    let workArea = MainActor.assumeIsolated {
+      ScreenGeometry.workArea(for: display).insetBy(
+        dx: CGFloat(settings.gapOuter),
+        dy: CGFloat(settings.gapOuter)
+      )
+    }
+    let parentRect = tree.rect(at: parentPath, in: workArea, gap: gap)
+
+    let newRatio: CGFloat
+    switch split {
+    case .vertical:
+      let total = parentRect.width - gap
+      guard total > 0 else { return .none }
+      let leftWidth = side == .left ? frame.width : total - frame.width
+      newRatio = leftWidth / total
+    case .horizontal:
+      let total = parentRect.height - gap
+      guard total > 0 else { return .none }
+      let topHeight = side == .left ? frame.height : total - frame.height
+      newRatio = topHeight / total
+    }
+
+    let newTree = tree.updatingRatio(at: parentPath, ratio: newRatio)
+    state.tilingTrees[workspaceId] = newTree
+
+    return .run { [tiler = windowTiler] _ in
+      let frames = await MainActor.run {
+        Self.computeFrames(tree: newTree, settings: settings, targetDisplay: display)
+      }
+      if !frames.isEmpty {
+        await tiler.apply(
+          FrameApplication(windowFrames: frames, targetDisplay: display)
+        )
+      }
     }
   }
 

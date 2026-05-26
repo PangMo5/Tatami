@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import CoreGraphics
 import Dependencies
 import Foundation
 import OSLog
@@ -27,6 +28,13 @@ public struct WindowObserverClient: Sendable {
 public enum WindowChangeEvent: Sendable, Hashable {
   case windowCreated(bundleId: String)
   case windowDestroyed(bundleId: String)
+  /// User finished a manual resize. Carries the new frame in AX
+  /// top-origin coordinates so the reducer can sync the BSP tree's
+  /// split ratio.
+  case windowResized(key: WindowKey, frame: CGRect)
+  /// User finished dragging a window. Reducer uses this to detect
+  /// drag-to-swap.
+  case windowMoved(key: WindowKey, frame: CGRect)
 }
 
 extension WindowObserverClient: DependencyKey {
@@ -139,24 +147,8 @@ private final class ObservedApp {
     let info = Unmanaged.passUnretained(observed).toOpaque()
     AXObserverAddNotification(observer, appElement, kAXWindowCreatedNotification as CFString, info)
 
-    // Existing windows: subscribe to destruction on each.
-    var windowsRef: CFTypeRef?
-    if AXUIElementCopyAttributeValue(
-      appElement,
-      kAXWindowsAttribute as CFString,
-      &windowsRef
-    ) == .success,
-       let windows = windowsRef as? [AXUIElement]
-    {
-      for window in windows {
-        AXObserverAddNotification(
-          observer,
-          window,
-          kAXUIElementDestroyedNotification as CFString,
-          info
-        )
-      }
-    }
+    // Existing windows: subscribe to destruction + resize + move.
+    observed.refreshWindowSubscriptions()
 
     CFRunLoopAddSource(
       CFRunLoopGetMain(),
@@ -189,7 +181,7 @@ private final class ObservedApp {
     )
   }
 
-  fileprivate func refreshDestructionSubscriptions() {
+  fileprivate func refreshWindowSubscriptions() {
     var raw: CFTypeRef?
     guard AXUIElementCopyAttributeValue(
       appElement,
@@ -204,6 +196,18 @@ private final class ObservedApp {
         observer,
         window,
         kAXUIElementDestroyedNotification as CFString,
+        info
+      )
+      AXObserverAddNotification(
+        observer,
+        window,
+        kAXWindowResizedNotification as CFString,
+        info
+      )
+      AXObserverAddNotification(
+        observer,
+        window,
+        kAXWindowMovedNotification as CFString,
         info
       )
     }
@@ -225,17 +229,64 @@ private func axObserverCallback(
   guard let refcon else { return }
   let app = Unmanaged<ObservedApp>.fromOpaque(refcon).takeUnretainedValue()
   let name = notification as String
+  let boxed = UnsafeAXElement(value: element)
   MainActor.assumeIsolated {
+    let element = boxed.value
     switch name {
     case kAXWindowCreatedNotification as String:
-      app.refreshDestructionSubscriptions()
+      app.refreshWindowSubscriptions()
       app.continuation.yield(.windowCreated(bundleId: app.bundleId))
     case kAXUIElementDestroyedNotification as String:
       app.continuation.yield(.windowDestroyed(bundleId: app.bundleId))
+    case kAXWindowResizedNotification as String:
+      if let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+         let frame = axFrame(of: element),
+         !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
+      {
+        app.continuation.yield(.windowResized(key: key, frame: frame))
+      }
+    case kAXWindowMovedNotification as String:
+      if let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+         let frame = axFrame(of: element),
+         !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
+      {
+        app.continuation.yield(.windowMoved(key: key, frame: frame))
+      }
     default:
       break
     }
   }
+}
+
+/// AX C-callback parameters are non-Sendable but the AX run loop
+/// already executes on the main thread, so the element is safe to use
+/// from a `MainActor.assumeIsolated` block. This box silences Swift 6
+/// strict-concurrency without changing semantics.
+private struct UnsafeAXElement: @unchecked Sendable {
+  let value: AXUIElement
+}
+
+@MainActor
+private func axFrame(of window: AXUIElement) -> CGRect? {
+  var posRaw: CFTypeRef?
+  var sizeRaw: CFTypeRef?
+  guard
+    AXUIElementCopyAttributeValue(
+      window, kAXPositionAttribute as CFString, &posRaw
+    ) == .success,
+    AXUIElementCopyAttributeValue(
+      window, kAXSizeAttribute as CFString, &sizeRaw
+    ) == .success,
+    let posValue = posRaw,
+    let sizeValue = sizeRaw,
+    CFGetTypeID(posValue) == AXValueGetTypeID(),
+    CFGetTypeID(sizeValue) == AXValueGetTypeID()
+  else { return nil }
+  var position = CGPoint.zero
+  var size = CGSize.zero
+  AXValueGetValue(posValue as! AXValue, .cgPoint, &position)
+  AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+  return CGRect(origin: position, size: size)
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowObserver")

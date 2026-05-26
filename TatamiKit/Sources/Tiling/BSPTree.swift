@@ -113,14 +113,47 @@ extension BSPNode {
     }
   }
 
-  /// Subtree at the given path (for internal lookup only).
-  private func subtree(at path: [Side]) -> BSPNode {
+  /// Subtree at the given path. Returns `self` if the path runs past
+  /// a leaf.
+  public func subtree(at path: [Side]) -> BSPNode {
     var current = self
     for side in path {
       guard case .branch(_, _, let left, let right) = current else { return current }
       current = side == .left ? left : right
     }
     return current
+  }
+
+  /// Rect of the subtree at `path` after subdividing `workArea` along
+  /// the same splits that `frames(in:gap:)` walks. Used by the resize
+  /// sync to translate an AX-reported frame back into a parent split's
+  /// ratio.
+  public func rect(at path: [Side], in workArea: CGRect, gap: CGFloat) -> CGRect {
+    var rect = workArea
+    var node = self
+    for side in path {
+      guard case .branch(let split, let ratio, let left, let right) = node else {
+        return rect
+      }
+      let (l, r) = split.subdivide(rect, ratio: ratio, gap: gap)
+      rect = side == .left ? l : r
+      node = side == .left ? left : right
+    }
+    return rect
+  }
+
+  /// Update the split ratio of the branch at `path`. Clamps to
+  /// `[0.1, 0.9]`. No-op if `path` does not land on a branch.
+  public func updatingRatio(at path: [Side], ratio: CGFloat) -> BSPNode {
+    replacing(path: path) { node in
+      guard case .branch(let split, _, let left, let right) = node else { return node }
+      return .branch(
+        split: split,
+        ratio: max(0.1, min(0.9, ratio)),
+        left: left,
+        right: right
+      )
+    }
   }
 
   /// Remove the given window. If the tree has only that window, returns nil.
@@ -323,7 +356,7 @@ extension BSPNode {
 extension BSPNode.SplitAxis {
   /// Subdivide `rect` into left/right children, applying a single
   /// `gap` between them (matching yabai's `area_make_pair`).
-  fileprivate func subdivide(
+  func subdivide(
     _ rect: CGRect,
     ratio: CGFloat,
     gap: CGFloat
