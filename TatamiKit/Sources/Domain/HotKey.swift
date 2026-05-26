@@ -1,14 +1,11 @@
 import Foundation
-import StructuredQueries
 
 /// A keyboard shortcut binding serialized as a human-readable string
 /// (e.g. `"cmd+shift+a"`).
 ///
 /// `HotKey` is purely a value carrier — registering it with the system
 /// happens in the HotKeys feature (Phase 3).
-public struct HotKey:
-  RawRepresentable, QueryBindable, Hashable, Sendable, Codable, ExpressibleByStringLiteral
-{
+public struct HotKey: RawRepresentable, Hashable, Sendable, Codable, ExpressibleByStringLiteral {
   public let rawValue: String
 
   public init(rawValue: String) {

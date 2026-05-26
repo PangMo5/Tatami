@@ -1,12 +1,9 @@
 import Foundation
-import SQLiteData
 
 /// One unit of "what's visible right now": a named set of app assignments,
 /// pinned to a display (or floating across displays in `dynamic` mode).
-@Table("workspaces")
-public struct Workspace: Identifiable, Hashable, Sendable {
-  public let id: UUID
-  public var profileId: Profile.ID
+public struct Workspace: Identifiable, Hashable, Sendable, Codable {
+  public var id: UUID
   public var name: String
   /// Static-mode display assignment. `nil` means dynamic (follow apps).
   public var displayHint: DisplayName?
@@ -21,12 +18,10 @@ public struct Workspace: Identifiable, Hashable, Sendable {
   /// Bundle identifier of the app to focus when this workspace activates.
   /// Nil = focus the most recently active assigned app.
   public var appToFocusBundleId: String?
-  /// Display order within a profile.
-  public var sortOrder: Int
+  public var apps: [AppAssignment]
 
   public init(
     id: UUID = UUID(),
-    profileId: Profile.ID,
     name: String,
     displayHint: DisplayName? = nil,
     activateShortcut: HotKey? = nil,
@@ -34,10 +29,9 @@ public struct Workspace: Identifiable, Hashable, Sendable {
     symbolIconName: String? = nil,
     openAppsOnActivation: Bool = false,
     appToFocusBundleId: String? = nil,
-    sortOrder: Int = 0
+    apps: [AppAssignment] = []
   ) {
     self.id = id
-    self.profileId = profileId
     self.name = name
     self.displayHint = displayHint
     self.activateShortcut = activateShortcut
@@ -45,7 +39,7 @@ public struct Workspace: Identifiable, Hashable, Sendable {
     self.symbolIconName = symbolIconName
     self.openAppsOnActivation = openAppsOnActivation
     self.appToFocusBundleId = appToFocusBundleId
-    self.sortOrder = sortOrder
+    self.apps = apps
   }
 }
 

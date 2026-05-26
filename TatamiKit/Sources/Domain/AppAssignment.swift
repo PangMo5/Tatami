@@ -1,51 +1,37 @@
 import Foundation
-import SQLiteData
 
-/// Many-to-many membership row between a `Workspace` and a `MacApp`.
+/// Inline membership entry: a workspace's reference to a specific app.
 ///
-/// `MacApp`'s columns are embedded directly rather than referenced via a
-/// foreign key — `(workspaceId, bundleIdentifier)` is the natural key and
-/// the same app can legitimately belong to multiple workspaces with
-/// different per-workspace metadata (e.g. autoOpen).
-@Table("app_assignments")
-public struct AppAssignment: Identifiable, Hashable, Sendable {
-  public let id: UUID
-  public var workspaceId: Workspace.ID
+/// `AppAssignment` is identified by its bundle identifier within a
+/// workspace; the same app may legitimately appear in multiple workspaces
+/// with different per-workspace metadata (e.g. autoOpen).
+public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
   public var bundleIdentifier: String
   public var name: String
   public var iconPath: String?
   /// Launch the app automatically when its workspace activates.
   public var autoOpen: Bool
-  public var sortOrder: Int
+
+  public var id: String { bundleIdentifier }
 
   public init(
-    id: UUID = UUID(),
-    workspaceId: Workspace.ID,
     bundleIdentifier: String,
     name: String,
     iconPath: String? = nil,
-    autoOpen: Bool = false,
-    sortOrder: Int = 0
+    autoOpen: Bool = false
   ) {
-    self.id = id
-    self.workspaceId = workspaceId
     self.bundleIdentifier = bundleIdentifier
     self.name = name
     self.iconPath = iconPath
     self.autoOpen = autoOpen
-    self.sortOrder = sortOrder
   }
-}
 
-extension AppAssignment {
-  public init(workspaceId: Workspace.ID, app: MacApp, sortOrder: Int = 0) {
+  public init(_ app: MacApp, autoOpen: Bool = false) {
     self.init(
-      workspaceId: workspaceId,
       bundleIdentifier: app.bundleIdentifier,
       name: app.name,
       iconPath: app.iconPath,
-      autoOpen: false,
-      sortOrder: sortOrder
+      autoOpen: autoOpen
     )
   }
 

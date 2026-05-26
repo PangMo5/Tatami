@@ -1,18 +1,13 @@
 import Foundation
-import SQLiteData
 
 /// Apps that should remain visible across all workspaces, independent of
 /// which workspace is currently active.
-///
-/// Identified by `bundleIdentifier` directly — there is at most one floating
-/// entry per app.
-@Table("floating_apps")
-public struct FloatingApp: Identifiable, Hashable, Sendable {
-  /// The bundle identifier doubles as the primary key.
-  public var id: String { bundleIdentifier }
+public struct FloatingApp: Identifiable, Hashable, Sendable, Codable {
   public var bundleIdentifier: String
   public var name: String
   public var iconPath: String?
+
+  public var id: String { bundleIdentifier }
 
   public init(bundleIdentifier: String, name: String, iconPath: String? = nil) {
     self.bundleIdentifier = bundleIdentifier

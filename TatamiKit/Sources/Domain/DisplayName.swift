@@ -1,12 +1,11 @@
 import Foundation
-import StructuredQueries
 
 /// A macOS display's localized name (e.g. "Built-in Retina Display", "LG UltraFine").
 ///
 /// Tatami pins a `Workspace` to a display by name so reconnecting the same monitor
 /// continues to honor the user's assignment, even if `CGDirectDisplayID` changes.
 public struct DisplayName:
-  RawRepresentable, QueryBindable, Hashable, Sendable, Codable, ExpressibleByStringLiteral
+  RawRepresentable, Hashable, Sendable, Codable, ExpressibleByStringLiteral
 {
   public let rawValue: String
 

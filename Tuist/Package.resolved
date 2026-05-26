@@ -1,5 +1,5 @@
 {
-  "originHash" : "dad34f439368cf86a62c56fd24604f6a397e915c6a9d21378f38a99fd4d355a5",
+  "originHash" : "59dce8e818280556f605da7d8ec9ddb61456c6cbc6c8fb61e7ac335db3113275",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "dcccb979a2183b8df3334237e3dc1ae2b4116a86",
         "version" : "1.2.0"
-      }
-    },
-    {
-      "identity" : "grdb.swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/groue/GRDB.swift",
-      "state" : {
-        "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
-        "version" : "7.10.0"
       }
     },
     {
@@ -44,15 +35,6 @@
       "state" : {
         "revision" : "6276ba2b404829d139c45ff98427cf90e2efc59b",
         "version" : "2.9.2"
-      }
-    },
-    {
-      "identity" : "sqlite-data",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/sqlite-data",
-      "state" : {
-        "revision" : "da3a94ed49c7a30d82853de551c07a93196e8cab",
-        "version" : "1.6.1"
       }
     },
     {
@@ -164,30 +146,21 @@
       }
     },
     {
-      "identity" : "swift-snapshot-testing",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-snapshot-testing",
-      "state" : {
-        "revision" : "ad5e3190cc63dc288f28546f9c6827efc1e9d495",
-        "version" : "1.19.2"
-      }
-    },
-    {
-      "identity" : "swift-structured-queries",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-structured-queries",
-      "state" : {
-        "revision" : "8da8818fccd9959bd683934ddc62cf45bb65b3c8",
-        "version" : "0.31.1"
-      }
-    },
-    {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
         "version" : "601.0.1"
+      }
+    },
+    {
+      "identity" : "swift-toml",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/swift-toml",
+      "state" : {
+        "revision" : "827506c90475e82d5a7f191f950fb3025cbdc0d6",
+        "version" : "2.0.0"
       }
     },
     {
