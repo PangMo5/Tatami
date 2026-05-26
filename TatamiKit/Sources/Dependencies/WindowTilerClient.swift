@@ -90,41 +90,50 @@ extension WindowTilerClient: DependencyKey {
     // rejected with kAXErrorCannotComplete (-25200). Drop fullscreen
     // first so the BSP frame can apply.
     if isFullScreen(window) {
-      var unfull = false as CFBoolean
       _ = AXUIElementSetAttributeValue(
         window,
         "AXFullScreen" as CFString,
-        unfull as CFTypeRef
+        false as CFTypeRef
       )
     }
 
-    var attempt = 0
-    while attempt < 2 {
-      var posError = AXError.success
-      var position = CGPoint(x: frame.minX, y: frame.minY)
-      if let posValue = AXValueCreate(.cgPoint, &position) {
-        posError = AXUIElementSetAttributeValue(
-          window, kAXPositionAttribute as CFString, posValue
-        )
-      }
-      var sizeError = AXError.success
-      var size = CGSize(width: frame.width, height: frame.height)
-      if let sizeValue = AXValueCreate(.cgSize, &size) {
-        sizeError = AXUIElementSetAttributeValue(
-          window, kAXSizeAttribute as CFString, sizeValue
-        )
-      }
-      if posError == .success, sizeError == .success { return "ok" }
-      if attempt == 0, sizeError.rawValue == -25200 {
-        // One more retry after a brief delay — fullscreen exit is
-        // animated, so AX needs a moment before it will resize.
-        Thread.sleep(forTimeInterval: 0.25)
-        attempt += 1
-        continue
-      }
-      return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
+    // Toggle the per-app "enhanced user interface" attribute so AX
+    // resize/move bypasses the system window animation — same trick
+    // yabai and Rectangle use to get instant tile updates.
+    let enhanced = "AXEnhancedUserInterface" as CFString
+    var enhancedWasOn = false
+    var enhancedRaw: CFTypeRef?
+    if AXUIElementCopyAttributeValue(axApp, enhanced, &enhancedRaw) == .success,
+       let value = enhancedRaw as? Bool
+    {
+      enhancedWasOn = value
     }
-    return "retry-exhausted"
+    if !enhancedWasOn {
+      _ = AXUIElementSetAttributeValue(axApp, enhanced, true as CFTypeRef)
+    }
+    defer {
+      if !enhancedWasOn {
+        _ = AXUIElementSetAttributeValue(axApp, enhanced, false as CFTypeRef)
+      }
+    }
+
+    var posError = AXError.success
+    var position = CGPoint(x: frame.minX, y: frame.minY)
+    if let posValue = AXValueCreate(.cgPoint, &position) {
+      posError = AXUIElementSetAttributeValue(
+        window, kAXPositionAttribute as CFString, posValue
+      )
+    }
+    var sizeError = AXError.success
+    var size = CGSize(width: frame.width, height: frame.height)
+    if let sizeValue = AXValueCreate(.cgSize, &size) {
+      sizeError = AXUIElementSetAttributeValue(
+        window, kAXSizeAttribute as CFString, sizeValue
+      )
+    }
+
+    if posError == .success, sizeError == .success { return "ok" }
+    return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
   }
 
   @MainActor
