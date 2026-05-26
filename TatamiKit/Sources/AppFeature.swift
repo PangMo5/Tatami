@@ -23,6 +23,7 @@ public struct AppFeature {
   }
 
   @Dependency(\.focusManager) var focusManager
+  @Dependency(\.focusFollowsMouse) var focusFollowsMouse
 
   public init() {}
 
@@ -42,9 +43,16 @@ public struct AppFeature {
     Reduce { state, action in
       switch action {
       case .task:
+        let config = FocusFollowsMouseConfig(
+          enabled: state.workspaceList.config.settings.focusFollowsMouse,
+          disableModifier: state.workspaceList.config.settings.focusFollowsMouseDisableHotkey
+        )
         return .merge(
           .send(.hotKeys(.onAppear)),
-          .send(.cli(.start))
+          .send(.cli(.start)),
+          .run { [client = focusFollowsMouse] _ in
+            await client.configure(config)
+          }
         )
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
