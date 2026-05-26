@@ -353,6 +353,85 @@ extension BSPNode {
   }
 }
 
+extension BSPNode {
+  /// Equalize every split so child sizes match the number of leaves
+  /// they contain. Matches yabai's `space --balance`: a 1:3 sibling
+  /// split becomes 0.25, regardless of any user-applied ratios.
+  public func balanced() -> BSPNode {
+    switch self {
+    case .leaf:
+      return self
+    case .branch(let split, _, let left, let right):
+      let bl = left.balanced()
+      let br = right.balanced()
+      let lc = bl.leafCount
+      let rc = br.leafCount
+      let total = lc + rc
+      let ratio = total == 0 ? 0.5 : CGFloat(lc) / CGFloat(total)
+      return .branch(
+        split: split,
+        ratio: max(0.1, min(0.9, ratio)),
+        left: bl,
+        right: br
+      )
+    }
+  }
+
+  /// Rotate the entire tree clockwise by 90 / 180 / 270 degrees.
+  /// Translation of yabai's `window_node_rotate` — the swap-and-flip
+  /// rules differ per quadrant so each rotation is one pass.
+  public func rotated(by degrees: Int) -> BSPNode {
+    let d = ((degrees % 360) + 360) % 360
+    switch self {
+    case .leaf:
+      return self
+    case .branch(let split, let ratio, let left, let right):
+      let shouldSwap =
+        (d == 90 && split == .vertical)
+        || (d == 270 && split == .horizontal)
+        || d == 180
+      let newLeft = shouldSwap ? right : left
+      let newRight = shouldSwap ? left : right
+      let newRatio = shouldSwap ? 1 - ratio : ratio
+      let newSplit: SplitAxis = d == 180
+        ? split
+        : (split == .horizontal ? .vertical : .horizontal)
+      return .branch(
+        split: newSplit,
+        ratio: newRatio,
+        left: newLeft.rotated(by: d),
+        right: newRight.rotated(by: d)
+      )
+    }
+  }
+
+  /// Mirror the tree along `axis`. Splits matching the axis flip
+  /// left/right and invert their ratio — splits on the orthogonal
+  /// axis are unchanged. Matches yabai's `space --mirror x-axis`.
+  public func mirrored(axis: SplitAxis) -> BSPNode {
+    switch self {
+    case .leaf:
+      return self
+    case .branch(let split, let ratio, let left, let right):
+      if split == axis {
+        return .branch(
+          split: split,
+          ratio: 1 - ratio,
+          left: right.mirrored(axis: axis),
+          right: left.mirrored(axis: axis)
+        )
+      } else {
+        return .branch(
+          split: split,
+          ratio: ratio,
+          left: left.mirrored(axis: axis),
+          right: right.mirrored(axis: axis)
+        )
+      }
+    }
+  }
+}
+
 /// Compass directions for yabai-style geometric "neighbor of focused"
 /// lookups (swap/focus/resize). North = up, South = down in AX
 /// top-origin coordinates, matching yabai's CLI vocabulary.

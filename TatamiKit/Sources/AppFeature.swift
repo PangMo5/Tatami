@@ -127,10 +127,8 @@ public struct AppFeature {
     case .toggleOrientation:
       return .send(.activation(.bspToggleOrientation))
 
-    // Fullscreen (BSP zoom overlay) is a frame-overlay concern that
-    // doesn't mutate the tree — defer to a later phase.
     case .toggleFullscreen:
-      return .none
+      return .send(.activation(.bspToggleZoom))
     }
   }
 

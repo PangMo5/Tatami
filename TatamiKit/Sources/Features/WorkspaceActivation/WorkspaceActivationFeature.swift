@@ -16,6 +16,10 @@ public struct WorkspaceActivationFeature {
     public var isActivating = false
     /// Per-workspace BSP tree of window keys, kept in-memory only.
     public var tilingTrees: [Workspace.ID: BSPNode<WindowKey>] = [:]
+    /// Per-workspace "zoomed" window — when set, that leaf fills the
+    /// work area and the rest of the tree stays stacked behind it.
+    /// Mirrors yabai's `window --toggle zoom-fullscreen`.
+    public var zoomedWindow: [Workspace.ID: WindowKey] = [:]
 
     public init() {}
 
@@ -38,6 +42,10 @@ public struct WorkspaceActivationFeature {
     case bspSwap(BSPDirection)
     case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspToggleOrientation
+    case bspToggleZoom
+    case bspBalance
+    case bspRotate(degrees: Int)
+    case bspMirror(axis: BSPNode<WindowKey>.SplitAxis)
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     case windowChanged(WindowChangeEvent)
     case windowResizeCommitted(key: WindowKey, frame: CGRect)
@@ -56,6 +64,7 @@ public struct WorkspaceActivationFeature {
     case swap(BSPDirection)
     case resize(BSPDirection, delta: CGFloat)
     case toggleOrientation
+    case toggleZoom
   }
 
   /// Cancellation identifiers for debounced window-event handling.
@@ -222,6 +231,20 @@ public struct WorkspaceActivationFeature {
           .bspOpResolved(windowKey: key, op: .toggleOrientation)
         }
 
+      case .bspToggleZoom:
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .toggleZoom)
+        }
+
+      case .bspBalance:
+        return applyTreeTransform(state: &state) { $0.balanced() }
+
+      case .bspRotate(let degrees):
+        return applyTreeTransform(state: &state) { $0.rotated(by: degrees) }
+
+      case .bspMirror(let axis):
+        return applyTreeTransform(state: &state) { $0.mirrored(axis: axis) }
+
       case .bspOpResolved(let key, let op):
         return applyBSPOp(windowKey: key, op: op, state: &state)
 
@@ -304,10 +327,16 @@ public struct WorkspaceActivationFeature {
     state.tilingTrees[workspaceId] = mergedTree
 
     guard let tree = mergedTree else { return .none }
+    let zoomed = state.zoomedWindow[workspaceId]
 
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
-        Self.computeFrames(tree: tree, settings: settings, targetDisplay: display)
+        Self.computeFrames(
+          tree: tree,
+          settings: settings,
+          targetDisplay: display,
+          zoomed: zoomed
+        )
       }
       if !frames.isEmpty {
         await tiler.apply(
@@ -427,6 +456,7 @@ public struct WorkspaceActivationFeature {
     let settings = state.config.settings
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
     let existingTree = state.tilingTrees[workspace.id]
+    let zoomed = state.zoomedWindow[workspace.id]
 
     return .run { [
       mgr = workspaceManager,
@@ -441,7 +471,8 @@ public struct WorkspaceActivationFeature {
         let frames = Self.computeFrames(
           tree: tree,
           settings: settings,
-          targetDisplay: targetDisplay
+          targetDisplay: targetDisplay,
+          zoomed: zoomed
         )
         return (tree, frames)
       }
@@ -506,10 +537,16 @@ public struct WorkspaceActivationFeature {
 
     let newTree = tree.updatingRatio(at: parentPath, ratio: newRatio)
     state.tilingTrees[workspaceId] = newTree
+    let zoomed = state.zoomedWindow[workspaceId]
 
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
-        Self.computeFrames(tree: newTree, settings: settings, targetDisplay: display)
+        Self.computeFrames(
+          tree: newTree,
+          settings: settings,
+          targetDisplay: display,
+          zoomed: zoomed
+        )
       }
       if !frames.isEmpty {
         await tiler.apply(
@@ -559,10 +596,16 @@ public struct WorkspaceActivationFeature {
       newTree = tree
     }
     state.tilingTrees[workspaceId] = newTree
+    let zoomed = state.zoomedWindow[workspaceId]
 
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
-        Self.computeFrames(tree: newTree, settings: settings, targetDisplay: display)
+        Self.computeFrames(
+          tree: newTree,
+          settings: settings,
+          targetDisplay: display,
+          zoomed: zoomed
+        )
       }
       if !frames.isEmpty {
         await tiler.apply(
@@ -618,21 +661,68 @@ public struct WorkspaceActivationFeature {
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)
+
+    case .toggleZoom:
+      // Toggle the zoom marker for this workspace. The tree itself is
+      // unchanged; computeFrames hands the zoomed leaf the full work
+      // area when one is set.
+      if state.zoomedWindow[workspaceId] == windowKey {
+        state.zoomedWindow[workspaceId] = nil
+      } else {
+        state.zoomedWindow[workspaceId] = windowKey
+      }
     }
 
     state.tilingTrees[workspaceId] = tree
+    let zoomed = state.zoomedWindow[workspaceId]
 
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
         Self.computeFrames(
           tree: tree,
           settings: settings,
-          targetDisplay: display
+          targetDisplay: display,
+          zoomed: zoomed
         )
       }
       await tiler.apply(
         FrameApplication(windowFrames: frames, targetDisplay: display)
       )
+    }
+  }
+
+  /// Apply a pure tree transform to the active workspace's tree and
+  /// reflow the layout. Used by balance/rotate/mirror — all of which
+  /// rewrite split ratios + child positions without needing the
+  /// focused-window context.
+  private func applyTreeTransform(
+    state: inout State,
+    _ transform: (BSPNode<WindowKey>) -> BSPNode<WindowKey>
+  ) -> Effect<Action> {
+    guard let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          let tree = state.tilingTrees[workspaceId]
+    else { return .none }
+    let newTree = transform(tree)
+    state.tilingTrees[workspaceId] = newTree
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let zoomed = state.zoomedWindow[workspaceId]
+    return .run { [tiler = windowTiler] _ in
+      let frames = await MainActor.run {
+        Self.computeFrames(
+          tree: newTree,
+          settings: settings,
+          targetDisplay: display,
+          zoomed: zoomed
+        )
+      }
+      if !frames.isEmpty {
+        await tiler.apply(
+          FrameApplication(windowFrames: frames, targetDisplay: display)
+        )
+      }
     }
   }
 
@@ -655,14 +745,22 @@ public struct WorkspaceActivationFeature {
   static func computeFrames(
     tree: BSPNode<WindowKey>?,
     settings: AppSettings,
-    targetDisplay: DisplayName?
+    targetDisplay: DisplayName?,
+    zoomed: WindowKey? = nil
   ) -> [WindowKey: CGRect] {
     guard let tree else { return [:] }
     let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
       dx: CGFloat(settings.gapOuter),
       dy: CGFloat(settings.gapOuter)
     )
-    return tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
+    var frames = tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
+    // Zoom overrides the leaf's tile rect with the full work area so
+    // the focused window appears "fullscreen within the workspace"
+    // without retiling everything else (yabai's zoom-fullscreen).
+    if let zoomed, frames[zoomed] != nil {
+      frames[zoomed] = workArea
+    }
+    return frames
   }
 }
 
