@@ -9,7 +9,14 @@ let baseSettings: SettingsDictionary = [
   "SWIFT_STRICT_CONCURRENCY": "complete",
   "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
   "DEAD_CODE_STRIPPING": "YES",
-  "ENABLE_HARDENED_RUNTIME": "YES",
+  // Sign with the developer's Apple Development cert so the binary hash
+  // stays stable across rebuilds — otherwise macOS treats every build
+  // as a brand-new app and re-prompts for Accessibility permission.
+  "CODE_SIGN_STYLE": "Automatic",
+  "CODE_SIGN_IDENTITY": "Apple Development",
+  // Hardened Runtime conflicts with development entitlements; turn it
+  // off for local debug builds so dev signing succeeds.
+  "ENABLE_HARDENED_RUNTIME": "NO",
 ]
 
 let project = Project(

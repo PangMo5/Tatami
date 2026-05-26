@@ -1,4 +1,4 @@
-.PHONY: install generate build test format clean
+.PHONY: install generate build test format clean app
 
 install:
 	tuist install
@@ -9,6 +9,20 @@ generate:
 
 build:
 	tuist build Tatami
+
+# Build, re-sign with the local Apple Development cert, and install
+# Tatami.app into /Applications. Run this any time you want the
+# running copy to pick up source changes — sign stays stable so
+# macOS Accessibility/Input Monitoring permissions are preserved
+# across rebuilds.
+app:
+	XCODE_DEVELOPMENT_TEAM=<APPLE_TEAM_ID> xcodebuild \
+		-workspace Tatami.xcworkspace \
+		-scheme Tatami \
+		-configuration Debug \
+		-destination 'generic/platform=macOS' \
+		build | tail -3
+	./Scripts/install-dev-signed.sh
 
 test:
 	tuist test TatamiTests
