@@ -1,0 +1,3 @@
+[tools]
+"aqua:tuist/tuist" = "4.195.6"
+swiftformat = "0.61.1"

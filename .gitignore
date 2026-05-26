@@ -1,34 +1,28 @@
-# Xcode
-xcuserdata/
-*.xcodeproj/*
-*.xcworkspace/*
-!*.xcodeproj/project.xcworkspace/
-*.xcodeproj/project.xcworkspace/xcuserdata/
-DerivedData/
-*.hmap
-
-# Tuist
+# Tuist-generated artifacts
+*.xcodeproj/
+*.xcworkspace/
 .tuist/
 Derived/
 graph.dot
 graph.png
 
-# SwiftPM
+# Xcode user state
+xcuserdata/
+*.hmap
+DerivedData/
+
+# SwiftPM build cache (under Tuist/)
 .build/
 .swiftpm/
-Package.resolved
+
+# Generated Info.plist
+**/Info.plist
 
 # App packaging
 *.ipa
 *.dSYM.zip
 *.dSYM
 .dsyms/
-
-# fastlane
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots/**/*.png
-fastlane/test_output
 
 # macOS
 .DS_Store
@@ -38,6 +32,3 @@ fastlane/test_output
 .idea/
 .nvim/
 .cursor/
-
-# Generated Info.plist (Tuist/XcodeGen output)
-**/Info.plist
