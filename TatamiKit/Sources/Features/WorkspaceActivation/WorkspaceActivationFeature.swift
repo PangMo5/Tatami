@@ -73,7 +73,7 @@ public struct WorkspaceActivationFeature {
         }
 
       case .windowChanged:
-        return retileActiveWorkspace(state: state)
+        return retileActiveWorkspace(state: &state)
 
       case .startObservingAppLaunches:
         return .run { [client = appLaunch] send in
@@ -101,10 +101,10 @@ public struct WorkspaceActivationFeature {
         if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
           return .none
         }
-        return retileActiveWorkspace(state: state)
+        return retileActiveWorkspace(state: &state)
 
       case .appTerminated:
-        return retileActiveWorkspace(state: state)
+        return retileActiveWorkspace(state: &state)
 
       case .activate(let workspaceId, let setFocus):
         return performActivate(
@@ -219,7 +219,13 @@ public struct WorkspaceActivationFeature {
   /// The transient inclusion means apps the user opens ad-hoc (e.g.
   /// KakaoTalk) join the BSP layout without being permanently
   /// written into the workspace.
-  private func retileActiveWorkspace(state: State) -> Effect<Action> {
+  ///
+  /// The tree is merged with the cached one — windows that are gone
+  /// get removed (sibling promotes up), and new windows are inserted
+  /// next to the currently-focused app (yabai-style). User-applied
+  /// ratios on surviving nodes carry over because we mutate the
+  /// cached tree instead of rebuilding from scratch.
+  private func retileActiveWorkspace(state: inout State) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
@@ -230,31 +236,40 @@ public struct WorkspaceActivationFeature {
     let registeredSet = Set(registered)
     let allAssigned = Self.everyAssignedBundleId(in: state.config)
     let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
+    let existing = state.tilingTrees[workspaceId]
+
+    // Resolve targets + focused bundleId synchronously on the main
+    // thread so the tree merge sees a stable snapshot.
+    let snapshot = MainActor.assumeIsolated { () -> (targets: [String], focused: String?) in
+      let visible = NSWorkspace.shared.runningApplications
+        .filter {
+          $0.activationPolicy == .regular
+            && !$0.isHidden
+            && !$0.isTerminated
+        }
+      let visibleUnassigned = visible
+        .compactMap(\.bundleIdentifier)
+        .filter { id in
+          !registeredSet.contains(id)
+            && !floatingSet.contains(id)
+            && !allAssigned.contains(id)
+            && id != "dev.PangMo5.Tatami"
+            && id != "dev.PangMo5.Tatami.dev"
+        }
+      let focused = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+      return (registered + visibleUnassigned, focused)
+    }
+
+    let mergedTree = Self.mergeTree(
+      existing: existing,
+      target: snapshot.targets,
+      focused: snapshot.focused
+    )
+    state.tilingTrees[workspaceId] = mergedTree
 
     return .run { [tiler = windowTiler] _ in
-      let bundleIds: [String] = await MainActor.run {
-        let visibleUnassigned = NSWorkspace.shared.runningApplications
-          .filter {
-            $0.activationPolicy == .regular
-              && !$0.isHidden
-              && !$0.isTerminated
-          }
-          .compactMap(\.bundleIdentifier)
-          .filter { id in
-            !registeredSet.contains(id)
-              && !floatingSet.contains(id)
-              && !allAssigned.contains(id)
-              && id != "dev.PangMo5.Tatami"
-              && id != "dev.PangMo5.Tatami.dev"
-          }
-        return registered + visibleUnassigned
-      }
-      let tree = BSPNode<String>.build(
-        bundleIds,
-        in: CGRect(x: 0, y: 0, width: 1, height: 1)
-      )
       let frames = await MainActor.run {
-        Self.computeFrames(tree: tree, settings: settings, targetDisplay: display)
+        Self.computeFrames(tree: mergedTree, settings: settings, targetDisplay: display)
       }
       if !frames.isEmpty {
         await tiler.apply(
@@ -262,6 +277,49 @@ public struct WorkspaceActivationFeature {
         )
       }
     }
+  }
+
+  /// Yabai-style incremental merge: keep `existing` and reconcile its
+  /// leaves against `target`.
+  ///   * windows in existing but not in target → removed (sibling
+  ///     promotes into the parent slot, preserving user-tuned ratios
+  ///     elsewhere)
+  ///   * windows in target but not in existing → inserted next to
+  ///     `focused` (if focused is a leaf) or at the shallowest leaf
+  ///   * windows in both → left in place
+  private static func mergeTree(
+    existing: BSPNode<String>?,
+    target: [String],
+    focused: String?
+  ) -> BSPNode<String>? {
+    guard !target.isEmpty else { return nil }
+    let targetSet = Set(target)
+    var tree = existing
+
+    // Step 1: remove windows that vanished, keeping surviving ratios.
+    if var current = tree {
+      let stale = current.windows.filter { !targetSet.contains($0) }
+      for id in stale {
+        if let next = current.removing(id) {
+          current = next
+        } else {
+          tree = nil
+          break
+        }
+      }
+      if tree != nil { tree = current }
+    }
+
+    // Step 2: insert any window not yet in the tree next to the
+    // focused window (or shallowest leaf if focused isn't in target).
+    let existingIDs = Set(tree?.windows ?? [])
+    let unitRect = CGRect(x: 0, y: 0, width: 1, height: 1)
+    for id in target where !existingIDs.contains(id) {
+      tree = tree?
+        .inserting(id, near: focused, in: unitRect)
+        ?? .leaf(id)
+    }
+    return tree
   }
 
   /// Bundle IDs registered to any workspace anywhere in the config.
@@ -289,7 +347,7 @@ public struct WorkspaceActivationFeature {
     appName _: String,
     state: inout State
   ) -> Effect<Action> {
-    retileActiveWorkspace(state: state)
+    retileActiveWorkspace(state: &state)
   }
 
   private static func rebuildTreeIfNeeded(

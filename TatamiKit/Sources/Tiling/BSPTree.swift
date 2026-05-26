@@ -56,24 +56,71 @@ extension BSPNode {
     return tree
   }
 
-  /// Insert a window at the shallowest leaf, splitting along the leaf's
-  /// long axis. `rect` is the root display rect; required to evaluate
-  /// the aspect of leaves whose own frames are not yet known.
+  /// Insert a window into the tree. If `focusedWindow` is supplied and
+  /// is already a leaf, the new window splits *that* leaf — the yabai
+  /// "open next to the focused window" behavior. Otherwise falls back
+  /// to splitting the shallowest leaf.
+  ///
+  /// Split axis is chosen from the target leaf's aspect ratio: wider
+  /// than tall → vertical split (side-by-side); taller than wide →
+  /// horizontal split (top/bottom).
   public func inserting(
     _ window: WindowID,
+    near focusedWindow: WindowID? = nil,
     in rect: CGRect,
     defaultRatio: CGFloat = 0.5
   ) -> BSPNode {
     let leaves = leavesByDepth(currentRect: rect)
-    guard let target = leaves.min(by: { $0.depth < $1.depth }) else {
-      return .leaf(window)
-    }
+    let target: LeafInfo? = {
+      if let focused = focusedWindow,
+         let hit = leaves.first(where: { leaf in
+           guard case .leaf(let id) = self.subtree(at: leaf.path) else { return false }
+           return id == focused
+         })
+      {
+        return hit
+      }
+      return leaves.min(by: { $0.depth < $1.depth })
+    }()
+    guard let target else { return .leaf(window) }
     return replacing(path: target.path) { leaf in
       let axis: SplitAxis = target.rect.width >= target.rect.height
         ? .vertical
         : .horizontal
       return .branch(split: axis, ratio: defaultRatio, left: leaf, right: .leaf(window))
     }
+  }
+
+  /// Replace the ratio of the branch whose left subtree contains `window`
+  /// — used to sync manual user resizes back into the tree.
+  public func updatingRatio(containingLeft window: WindowID, ratio: CGFloat) -> BSPNode {
+    guard let path = pathTo(window: window) else { return self }
+    // Walk the path from the root and find the highest ancestor where
+    // this window is in the left subtree.
+    var leftAncestor: [Side]? = nil
+    var partial: [Side] = []
+    for side in path {
+      if side == .left {
+        leftAncestor = partial
+        break
+      }
+      partial.append(side)
+    }
+    guard let ancestorPath = leftAncestor else { return self }
+    return replacing(path: ancestorPath) { node in
+      guard case .branch(let split, _, let left, let right) = node else { return node }
+      return .branch(split: split, ratio: max(0.1, min(0.9, ratio)), left: left, right: right)
+    }
+  }
+
+  /// Subtree at the given path (for internal lookup only).
+  private func subtree(at path: [Side]) -> BSPNode {
+    var current = self
+    for side in path {
+      guard case .branch(_, _, let left, let right) = current else { return current }
+      current = side == .left ? left : right
+    }
+    return current
   }
 
   /// Remove the given window. If the tree has only that window, returns nil.
