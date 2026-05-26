@@ -113,17 +113,17 @@ public struct AppFeature {
       return .send(.activation(.togglePaused))
 
     case .resizeGrow:
-      return .send(.activation(.bspResize(axis: .vertical, delta: 0.05)))
+      return .send(.activation(.bspResize(direction: .east, delta: 0.05)))
     case .resizeShrink:
-      return .send(.activation(.bspResize(axis: .vertical, delta: -0.05)))
+      return .send(.activation(.bspResize(direction: .east, delta: -0.05)))
     case .swapLeft:
-      return .send(.activation(.bspSwap(.left)))
+      return .send(.activation(.bspSwap(.west)))
     case .swapRight:
-      return .send(.activation(.bspSwap(.right)))
+      return .send(.activation(.bspSwap(.east)))
     case .swapUp:
-      return .send(.activation(.bspSwap(.left)))
+      return .send(.activation(.bspSwap(.north)))
     case .swapDown:
-      return .send(.activation(.bspSwap(.right)))
+      return .send(.activation(.bspSwap(.south)))
     case .toggleOrientation:
       return .send(.activation(.bspToggleOrientation))
 

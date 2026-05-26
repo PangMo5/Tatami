@@ -353,6 +353,55 @@ extension BSPNode {
   }
 }
 
+/// Compass directions for yabai-style geometric "neighbor of focused"
+/// lookups (swap/focus/resize). North = up, South = down in AX
+/// top-origin coordinates, matching yabai's CLI vocabulary.
+public enum BSPDirection: Sendable, Hashable {
+  case west, east, north, south
+}
+
+extension BSPNode {
+  /// Closest leaf adjacent to `key` in `direction`. Scores candidates
+  /// by distance along the axis plus a perpendicular penalty — same
+  /// approach yabai's `view_window_in_direction` uses, so windows that
+  /// share an edge with the focused one win over ones diagonally
+  /// further away.
+  public func directionalNeighbor(
+    of key: WindowID,
+    direction: BSPDirection,
+    in workArea: CGRect,
+    gap: CGFloat
+  ) -> WindowID? {
+    let frames = self.frames(in: workArea, gap: gap)
+    guard let mine = frames[key] else { return nil }
+    let myCenter = CGPoint(x: mine.midX, y: mine.midY)
+
+    var best: (id: WindowID, score: CGFloat)?
+    for (other, rect) in frames where other != key {
+      let c = CGPoint(x: rect.midX, y: rect.midY)
+      let score: CGFloat
+      switch direction {
+      case .east:
+        guard c.x > myCenter.x else { continue }
+        score = (c.x - myCenter.x) + abs(c.y - myCenter.y) * 0.5
+      case .west:
+        guard c.x < myCenter.x else { continue }
+        score = (myCenter.x - c.x) + abs(c.y - myCenter.y) * 0.5
+      case .south:
+        guard c.y > myCenter.y else { continue }
+        score = (c.y - myCenter.y) + abs(c.x - myCenter.x) * 0.5
+      case .north:
+        guard c.y < myCenter.y else { continue }
+        score = (myCenter.y - c.y) + abs(c.x - myCenter.x) * 0.5
+      }
+      if best == nil || score < best!.score {
+        best = (other, score)
+      }
+    }
+    return best?.id
+  }
+}
+
 extension BSPNode.SplitAxis {
   /// Subdivide `rect` into left/right children, applying a single
   /// `gap` between them (matching yabai's `area_make_pair`).

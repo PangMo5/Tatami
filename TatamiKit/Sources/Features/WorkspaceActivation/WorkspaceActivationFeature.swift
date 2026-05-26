@@ -35,8 +35,8 @@ public struct WorkspaceActivationFeature {
     case toggleFloatingOnFocusedApp
     case focusedFloatToggleResolved(bundleId: String, name: String)
     case togglePaused
-    case bspSwap(BSPNode<WindowKey>.Side)
-    case bspResize(axis: BSPNode<WindowKey>.SplitAxis, delta: CGFloat)
+    case bspSwap(BSPDirection)
+    case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspToggleOrientation
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     case windowChanged(WindowChangeEvent)
@@ -53,8 +53,8 @@ public struct WorkspaceActivationFeature {
   /// Tag used to dispatch a BSP mutation once we've resolved the
   /// focused window's `WindowKey`.
   public enum BSPOp: Sendable, Hashable {
-    case swap(BSPNode<WindowKey>.Side)
-    case resize(axis: BSPNode<WindowKey>.SplitAxis, delta: CGFloat)
+    case swap(BSPDirection)
+    case resize(BSPDirection, delta: CGFloat)
     case toggleOrientation
   }
 
@@ -207,14 +207,14 @@ public struct WorkspaceActivationFeature {
         }
         return .none
 
-      case .bspSwap(let side):
+      case .bspSwap(let direction):
         return resolveFocusedWindowKey { key in
-          .bspOpResolved(windowKey: key, op: .swap(side))
+          .bspOpResolved(windowKey: key, op: .swap(direction))
         }
 
-      case .bspResize(let axis, let delta):
+      case .bspResize(let direction, let delta):
         return resolveFocusedWindowKey { key in
-          .bspOpResolved(windowKey: key, op: .resize(axis: axis, delta: delta))
+          .bspOpResolved(windowKey: key, op: .resize(direction, delta: delta))
         }
 
       case .bspToggleOrientation:
@@ -585,23 +585,43 @@ public struct WorkspaceActivationFeature {
           var tree = state.tilingTrees[workspaceId]
     else { return .none }
 
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let gap = CGFloat(settings.gapInner)
+    let workArea = MainActor.assumeIsolated {
+      ScreenGeometry.workArea(for: display).insetBy(
+        dx: CGFloat(settings.gapOuter),
+        dy: CGFloat(settings.gapOuter)
+      )
+    }
+
     switch op {
-    case .swap(let side):
-      guard let path = tree.pathTo(window: windowKey), !path.isEmpty else { return .none }
-      let target = sibling(of: windowKey, in: tree, preferredSide: side)
-        ?? firstLeaf(in: tree)
-      guard let target, target != windowKey else { return .none }
+    case .swap(let direction):
+      guard let target = tree.directionalNeighbor(
+        of: windowKey,
+        direction: direction,
+        in: workArea,
+        gap: gap
+      ) else { return .none }
       tree = tree.swapping(windowKey, target)
-    case .resize(let axis, let delta):
+
+    case .resize(let direction, let delta):
+      // Map compass direction to the split axis it acts on: east/west
+      // moves the vertical edge → resize the vertical split; north/
+      // south moves the horizontal edge → horizontal split.
+      let axis: BSPNode<WindowKey>.SplitAxis =
+        (direction == .east || direction == .west) ? .vertical : .horizontal
+      // The sign depends on which side of the parent split the focused
+      // window sits on. updatingRatio clamps internally; resizing()
+      // tweaks the nearest matching-axis ancestor.
       tree = tree.resizing(window: windowKey, axis: axis, delta: delta)
+
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)
     }
 
     state.tilingTrees[workspaceId] = tree
 
-    let display = workspace.displayHint ?? displays.current()
-    let settings = state.config.settings
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
         Self.computeFrames(
@@ -614,24 +634,6 @@ public struct WorkspaceActivationFeature {
         FrameApplication(windowFrames: frames, targetDisplay: display)
       )
     }
-  }
-
-  /// Pick a sibling to swap with. For BSP we don't yet have geometric
-  /// "neighbor in direction" lookup, so fall back to swapping with the
-  /// nearest sibling on the requested side of the parent split.
-  private func sibling(
-    of window: WindowKey,
-    in tree: BSPNode<WindowKey>,
-    preferredSide: BSPNode<WindowKey>.Side
-  ) -> WindowKey? {
-    guard let path = tree.pathTo(window: window), !path.isEmpty else { return nil }
-    let parentPath = Array(path.dropLast())
-    return tree.firstLeafID(at: parentPath + [preferredSide == .left ? .left : .right])
-      ?? tree.firstLeafID(at: parentPath + [path.last == .left ? .right : .left])
-  }
-
-  private func firstLeaf(in tree: BSPNode<WindowKey>) -> WindowKey? {
-    tree.windows.first
   }
 
   // MARK: - Cycle
@@ -686,22 +688,3 @@ func focusedWindowKey() -> WindowKey? {
   )
 }
 
-extension BSPNode {
-  /// Walks the tree following the given path and returns the leaf's
-  /// window ID, if reachable.
-  func firstLeafID(at path: [Side]) -> WindowID? {
-    var current = self
-    for side in path {
-      guard case .branch(_, _, let left, let right) = current else { return nil }
-      current = side == .left ? left : right
-    }
-    switch current {
-    case .leaf(let id): return id
-    case .branch(_, _, let left, _):
-      var node = left
-      while case .branch(_, _, let l, _) = node { node = l }
-      if case .leaf(let id) = node { return id }
-      return nil
-    }
-  }
-}
