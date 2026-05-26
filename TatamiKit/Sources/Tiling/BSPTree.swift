@@ -105,6 +105,95 @@ extension BSPNode {
     return out
   }
 
+  /// Swap the positions of two windows in the tree. No-op if either is
+  /// missing.
+  public func swapping(_ a: WindowID, _ b: WindowID) -> BSPNode {
+    guard a != b else { return self }
+    switch self {
+    case .leaf(let id):
+      if id == a { return .leaf(b) }
+      if id == b { return .leaf(a) }
+      return self
+    case .branch(let split, let ratio, let left, let right):
+      return .branch(
+        split: split,
+        ratio: ratio,
+        left: left.swapping(a, b),
+        right: right.swapping(a, b)
+      )
+    }
+  }
+
+  /// Flip the split axis at the parent of `window`. No-op if `window`
+  /// is at the root.
+  public func togglingSplit(at window: WindowID) -> BSPNode {
+    guard let path = pathTo(window: window), !path.isEmpty else { return self }
+    let parentPath = Array(path.dropLast())
+    return replacing(path: parentPath) { node in
+      switch node {
+      case .branch(let split, let ratio, let left, let right):
+        let flipped: SplitAxis = split == .horizontal ? .vertical : .horizontal
+        return .branch(split: flipped, ratio: ratio, left: left, right: right)
+      case .leaf:
+        return node
+      }
+    }
+  }
+
+  /// Adjust the ratio at the nearest ancestor of `window` whose split
+  /// axis is `axis`. `delta` is added to the current ratio and clamped
+  /// to `[0.1, 0.9]`.
+  public func resizing(
+    window: WindowID,
+    axis: SplitAxis,
+    delta: CGFloat
+  ) -> BSPNode {
+    guard let path = pathTo(window: window) else { return self }
+    let ancestorPath = nearestAncestor(matching: axis, on: path)
+    guard let ancestorPath else { return self }
+    return replacing(path: ancestorPath) { node in
+      guard case .branch(let split, let ratio, let left, let right) = node
+      else { return node }
+      let newRatio = max(0.1, min(0.9, ratio + delta))
+      return .branch(split: split, ratio: newRatio, left: left, right: right)
+    }
+  }
+
+  /// Path of left/right turns from the root to the leaf carrying `window`,
+  /// or `nil` if the window is not in the tree.
+  public func pathTo(window: WindowID) -> [Side]? {
+    switch self {
+    case .leaf(let id):
+      return id == window ? [] : nil
+    case .branch(_, _, let left, let right):
+      if let leftPath = left.pathTo(window: window) {
+        return [.left] + leftPath
+      }
+      if let rightPath = right.pathTo(window: window) {
+        return [.right] + rightPath
+      }
+      return nil
+    }
+  }
+
+  /// Walk `path` from the root, returning the path to the nearest
+  /// ancestor whose split axis matches `axis`. Returns nil if no such
+  /// ancestor exists along the path.
+  private func nearestAncestor(matching axis: SplitAxis, on path: [Side]) -> [Side]? {
+    var current = self
+    var traveled: [Side] = []
+    var best: [Side]?
+    for side in path {
+      guard case .branch(let split, _, let left, let right) = current else { break }
+      if split == axis {
+        best = traveled
+      }
+      current = side == .left ? left : right
+      traveled.append(side)
+    }
+    return best
+  }
+
   // MARK: - Private helpers
 
   private struct LeafInfo {
@@ -113,7 +202,7 @@ extension BSPNode {
     var depth: Int
   }
 
-  fileprivate enum Side { case left, right }
+  public enum Side: Sendable, Hashable { case left, right }
 
   private func leavesByDepth(
     currentRect: CGRect,

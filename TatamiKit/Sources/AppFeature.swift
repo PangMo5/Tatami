@@ -20,10 +20,8 @@ public struct AppFeature {
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
     case cli(CLIServerFeature.Action)
-    case tileCompleted
   }
 
-  @Dependency(\.windowTiler) var windowTiler
   @Dependency(\.focusManager) var focusManager
 
   public init() {}
@@ -56,25 +54,6 @@ public struct AppFeature {
            .workspaceList(.workspaceDeleteRequested),
            .workspaceList(.detail(.activateShortcutChanged)):
         return .send(.hotKeys(.refreshBindings))
-
-      case .activation(.activationCompleted(let workspaceId, let display)):
-        guard
-          let workspace = state.workspaceList.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId })
-        else { return .none }
-        let request = TilingRequest(
-          workspaceId: workspace.id,
-          mode: workspace.tilingMode,
-          bundleIdentifiers: workspace.apps.map(\.bundleIdentifier),
-          targetDisplay: display
-        )
-        return .run { [client = windowTiler] send in
-          await client.tile(request)
-          await send(.tileCompleted)
-        }
-
-      case .tileCompleted:
-        return .none
 
       default:
         return .none
@@ -120,11 +99,24 @@ public struct AppFeature {
     case .toggleSpaceActivated:
       return .send(.activation(.togglePaused))
 
-    // BSP-tree-mutating actions need persistent per-workspace tree
-    // state — landing in a follow-up phase.
-    case .resizeGrow, .resizeShrink,
-         .swapLeft, .swapRight, .swapUp, .swapDown,
-         .toggleOrientation, .toggleFullscreen:
+    case .resizeGrow:
+      return .send(.activation(.bspResize(axis: .vertical, delta: 0.05)))
+    case .resizeShrink:
+      return .send(.activation(.bspResize(axis: .vertical, delta: -0.05)))
+    case .swapLeft:
+      return .send(.activation(.bspSwap(.left)))
+    case .swapRight:
+      return .send(.activation(.bspSwap(.right)))
+    case .swapUp:
+      return .send(.activation(.bspSwap(.left)))
+    case .swapDown:
+      return .send(.activation(.bspSwap(.right)))
+    case .toggleOrientation:
+      return .send(.activation(.bspToggleOrientation))
+
+    // Fullscreen (BSP zoom overlay) is a frame-overlay concern that
+    // doesn't mutate the tree — defer to a later phase.
+    case .toggleFullscreen:
       return .none
     }
   }
