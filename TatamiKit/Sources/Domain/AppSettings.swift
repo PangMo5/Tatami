@@ -8,80 +8,165 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   public var checkForUpdatesAutomatically: Bool
 
+  // MARK: Layout / gaps
+
+  /// Pixels between sibling windows inside a BSP/stack workspace.
+  public var gapInner: Int
+  /// Pixels between the outermost windows and the display work area.
+  public var gapOuter: Int
+
   // MARK: Focus + Mouse (yabai-style)
 
-  /// Move the cursor to the center of the focused window automatically.
   public var mouseFollowsFocus: Bool
-  /// Hide the cursor whenever focus changes (revealed by mouse movement).
   public var mouseHidesOnFocus: Bool
-  /// Focus the window under the cursor while it moves.
   public var focusFollowsMouse: Bool
-  /// Holding this modifier temporarily disables `focusFollowsMouse`.
   public var focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier
 
-  // MARK: Focus Manager hotkeys
+  /// Bundle identifiers that may briefly steal focus without triggering
+  /// a workspace switch (Spotlight, Raycast, KeyCastr, etc.). Mirrors
+  /// rift's `auto_focus_blacklist`.
+  public var autoFocusBlacklist: [String]
+
+  // MARK: Directional focus
 
   public var focusLeft: HotKey?
   public var focusRight: HotKey?
   public var focusUp: HotKey?
   public var focusDown: HotKey?
 
+  // MARK: Workspace navigation
+
+  public var switchToNextWorkspace: HotKey?
+  public var switchToPreviousWorkspace: HotKey?
+  public var switchToRecentWorkspace: HotKey?
+
+  // MARK: Window cycling
+
+  public var cycleNextWindow: HotKey?
+  public var cyclePreviousWindow: HotKey?
+
+  // MARK: BSP operations
+
+  public var resizeGrow: HotKey?
+  public var resizeShrink: HotKey?
+  public var swapLeft: HotKey?
+  public var swapRight: HotKey?
+  public var swapUp: HotKey?
+  public var swapDown: HotKey?
+  public var toggleOrientation: HotKey?
+  public var toggleFullscreen: HotKey?
+
+  // MARK: Misc toggles
+
+  public var toggleFloating: HotKey?
+  public var toggleSpaceActivated: HotKey?
+
   public init(
     checkForUpdatesAutomatically: Bool = true,
+    gapInner: Int = 8,
+    gapOuter: Int = 8,
     mouseFollowsFocus: Bool = false,
     mouseHidesOnFocus: Bool = false,
     focusFollowsMouse: Bool = false,
     focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option,
+    autoFocusBlacklist: [String] = [],
     focusLeft: HotKey? = nil,
     focusRight: HotKey? = nil,
     focusUp: HotKey? = nil,
-    focusDown: HotKey? = nil
+    focusDown: HotKey? = nil,
+    switchToNextWorkspace: HotKey? = nil,
+    switchToPreviousWorkspace: HotKey? = nil,
+    switchToRecentWorkspace: HotKey? = nil,
+    cycleNextWindow: HotKey? = nil,
+    cyclePreviousWindow: HotKey? = nil,
+    resizeGrow: HotKey? = nil,
+    resizeShrink: HotKey? = nil,
+    swapLeft: HotKey? = nil,
+    swapRight: HotKey? = nil,
+    swapUp: HotKey? = nil,
+    swapDown: HotKey? = nil,
+    toggleOrientation: HotKey? = nil,
+    toggleFullscreen: HotKey? = nil,
+    toggleFloating: HotKey? = nil,
+    toggleSpaceActivated: HotKey? = nil
   ) {
     self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
+    self.gapInner = gapInner
+    self.gapOuter = gapOuter
     self.mouseFollowsFocus = mouseFollowsFocus
     self.mouseHidesOnFocus = mouseHidesOnFocus
     self.focusFollowsMouse = focusFollowsMouse
     self.focusFollowsMouseDisableHotkey = focusFollowsMouseDisableHotkey
+    self.autoFocusBlacklist = autoFocusBlacklist
     self.focusLeft = focusLeft
     self.focusRight = focusRight
     self.focusUp = focusUp
     self.focusDown = focusDown
+    self.switchToNextWorkspace = switchToNextWorkspace
+    self.switchToPreviousWorkspace = switchToPreviousWorkspace
+    self.switchToRecentWorkspace = switchToRecentWorkspace
+    self.cycleNextWindow = cycleNextWindow
+    self.cyclePreviousWindow = cyclePreviousWindow
+    self.resizeGrow = resizeGrow
+    self.resizeShrink = resizeShrink
+    self.swapLeft = swapLeft
+    self.swapRight = swapRight
+    self.swapUp = swapUp
+    self.swapDown = swapDown
+    self.toggleOrientation = toggleOrientation
+    self.toggleFullscreen = toggleFullscreen
+    self.toggleFloating = toggleFloating
+    self.toggleSpaceActivated = toggleSpaceActivated
   }
 }
 
 extension AppSettings {
   private enum CodingKeys: String, CodingKey {
     case checkForUpdatesAutomatically
-    case mouseFollowsFocus
-    case mouseHidesOnFocus
-    case focusFollowsMouse
+    case gapInner, gapOuter
+    case mouseFollowsFocus, mouseHidesOnFocus, focusFollowsMouse
     case focusFollowsMouseDisableHotkey
-    case focusLeft
-    case focusRight
-    case focusUp
-    case focusDown
+    case autoFocusBlacklist
+    case focusLeft, focusRight, focusUp, focusDown
+    case switchToNextWorkspace, switchToPreviousWorkspace, switchToRecentWorkspace
+    case cycleNextWindow, cyclePreviousWindow
+    case resizeGrow, resizeShrink
+    case swapLeft, swapRight, swapUp, swapDown
+    case toggleOrientation, toggleFullscreen
+    case toggleFloating, toggleSpaceActivated
   }
 
   public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    checkForUpdatesAutomatically = try container.decodeIfPresent(
-      Bool.self,
-      forKey: .checkForUpdatesAutomatically
-    ) ?? true
-    mouseFollowsFocus = try container.decodeIfPresent(Bool.self, forKey: .mouseFollowsFocus)
-      ?? false
-    mouseHidesOnFocus = try container.decodeIfPresent(Bool.self, forKey: .mouseHidesOnFocus)
-      ?? false
-    focusFollowsMouse = try container.decodeIfPresent(Bool.self, forKey: .focusFollowsMouse)
-      ?? false
-    focusFollowsMouseDisableHotkey = try container.decodeIfPresent(
-      FocusFollowsMouseModifier.self,
-      forKey: .focusFollowsMouseDisableHotkey
-    ) ?? .option
-    focusLeft = try container.decodeIfPresent(HotKey.self, forKey: .focusLeft)
-    focusRight = try container.decodeIfPresent(HotKey.self, forKey: .focusRight)
-    focusUp = try container.decodeIfPresent(HotKey.self, forKey: .focusUp)
-    focusDown = try container.decodeIfPresent(HotKey.self, forKey: .focusDown)
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    self.checkForUpdatesAutomatically = (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
+    self.gapInner = (try? c.decode(Int.self, forKey: .gapInner)) ?? 8
+    self.gapOuter = (try? c.decode(Int.self, forKey: .gapOuter)) ?? 8
+    self.mouseFollowsFocus = (try? c.decode(Bool.self, forKey: .mouseFollowsFocus)) ?? false
+    self.mouseHidesOnFocus = (try? c.decode(Bool.self, forKey: .mouseHidesOnFocus)) ?? false
+    self.focusFollowsMouse = (try? c.decode(Bool.self, forKey: .focusFollowsMouse)) ?? false
+    self.focusFollowsMouseDisableHotkey = (try? c.decode(
+      FocusFollowsMouseModifier.self, forKey: .focusFollowsMouseDisableHotkey
+    )) ?? .option
+    self.autoFocusBlacklist = (try? c.decode([String].self, forKey: .autoFocusBlacklist)) ?? []
+    self.focusLeft = try? c.decode(HotKey.self, forKey: .focusLeft)
+    self.focusRight = try? c.decode(HotKey.self, forKey: .focusRight)
+    self.focusUp = try? c.decode(HotKey.self, forKey: .focusUp)
+    self.focusDown = try? c.decode(HotKey.self, forKey: .focusDown)
+    self.switchToNextWorkspace = try? c.decode(HotKey.self, forKey: .switchToNextWorkspace)
+    self.switchToPreviousWorkspace = try? c.decode(HotKey.self, forKey: .switchToPreviousWorkspace)
+    self.switchToRecentWorkspace = try? c.decode(HotKey.self, forKey: .switchToRecentWorkspace)
+    self.cycleNextWindow = try? c.decode(HotKey.self, forKey: .cycleNextWindow)
+    self.cyclePreviousWindow = try? c.decode(HotKey.self, forKey: .cyclePreviousWindow)
+    self.resizeGrow = try? c.decode(HotKey.self, forKey: .resizeGrow)
+    self.resizeShrink = try? c.decode(HotKey.self, forKey: .resizeShrink)
+    self.swapLeft = try? c.decode(HotKey.self, forKey: .swapLeft)
+    self.swapRight = try? c.decode(HotKey.self, forKey: .swapRight)
+    self.swapUp = try? c.decode(HotKey.self, forKey: .swapUp)
+    self.swapDown = try? c.decode(HotKey.self, forKey: .swapDown)
+    self.toggleOrientation = try? c.decode(HotKey.self, forKey: .toggleOrientation)
+    self.toggleFullscreen = try? c.decode(HotKey.self, forKey: .toggleFullscreen)
+    self.toggleFloating = try? c.decode(HotKey.self, forKey: .toggleFloating)
+    self.toggleSpaceActivated = try? c.decode(HotKey.self, forKey: .toggleSpaceActivated)
   }
 }
 

@@ -26,19 +26,25 @@ public struct ActivationRequest: Sendable, Hashable {
   /// left visible.
   public var displayPeerBundleIds: Set<String>
   public var setFocus: Bool
+  public var mouseFollowsFocus: Bool
+  public var mouseHidesOnFocus: Bool
 
   public init(
     workspace: Workspace,
     floatingApps: [FloatingApp],
     targetDisplay: DisplayName?,
     displayPeerBundleIds: Set<String> = [],
-    setFocus: Bool = true
+    setFocus: Bool = true,
+    mouseFollowsFocus: Bool = false,
+    mouseHidesOnFocus: Bool = false
   ) {
     self.workspace = workspace
     self.floatingApps = floatingApps
     self.targetDisplay = targetDisplay
     self.displayPeerBundleIds = displayPeerBundleIds
     self.setFocus = setFocus
+    self.mouseFollowsFocus = mouseFollowsFocus
+    self.mouseHidesOnFocus = mouseHidesOnFocus
   }
 }
 
@@ -78,14 +84,27 @@ extension WorkspaceManagerClient: DependencyKey {
             // Apps not in any workspace on this display: leave alone.
           }
 
+          let focusedApp: NSRunningApplication?
           if request.setFocus, let focusBundleId = workspace.appToFocusBundleId
              ?? workspace.apps.last?.bundleIdentifier
           {
-            running.first { $0.bundleIdentifier == focusBundleId }?
-              .activate(options: [.activateIgnoringOtherApps])
+            focusedApp = running.first { $0.bundleIdentifier == focusBundleId }
+            focusedApp?.activate(options: [.activateIgnoringOtherApps])
           } else if request.setFocus {
-            running.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }?
-              .activate(options: [.activateIgnoringOtherApps])
+            focusedApp = running.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }
+            focusedApp?.activate(options: [.activateIgnoringOtherApps])
+          } else {
+            focusedApp = nil
+          }
+
+          if request.mouseFollowsFocus, let app = focusedApp,
+             let center = focusedWindowCenter(of: app)
+          {
+            CGWarpMouseCursorPosition(center)
+            CGAssociateMouseAndMouseCursorPosition(1)
+          }
+          if request.mouseHidesOnFocus {
+            CGDisplayHideCursor(CGMainDisplayID())
           }
         }
 
@@ -107,6 +126,36 @@ extension DependencyValues {
     get { self[WorkspaceManagerClient.self] }
     set { self[WorkspaceManagerClient.self] = newValue }
   }
+}
+
+@MainActor
+private func focusedWindowCenter(of app: NSRunningApplication) -> CGPoint? {
+  let axApp = AXUIElementCreateApplication(app.processIdentifier)
+  var focusedValue: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    axApp,
+    kAXFocusedWindowAttribute as CFString,
+    &focusedValue
+  )
+  guard copyResult == .success, let raw = focusedValue,
+        CFGetTypeID(raw) == AXUIElementGetTypeID()
+  else { return nil }
+  let window = raw as! AXUIElement
+
+  var posRef: CFTypeRef?
+  var sizeRef: CFTypeRef?
+  AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posRef)
+  AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef)
+  guard let posRef, let sizeRef,
+        CFGetTypeID(posRef) == AXValueGetTypeID(),
+        CFGetTypeID(sizeRef) == AXValueGetTypeID()
+  else { return nil }
+
+  var pos = CGPoint.zero
+  var size = CGSize.zero
+  AXValueGetValue(posRef as! AXValue, .cgPoint, &pos)
+  AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+  return CGPoint(x: pos.x + size.width / 2, y: pos.y + size.height / 2)
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WorkspaceManager")

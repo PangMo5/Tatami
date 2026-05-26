@@ -39,3 +39,17 @@ public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
     MacApp(bundleIdentifier: bundleIdentifier, name: name, iconPath: iconPath)
   }
 }
+
+extension AppAssignment {
+  private enum CodingKeys: String, CodingKey {
+    case bundleIdentifier, name, iconPath, autoOpen
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    bundleIdentifier = try c.decode(String.self, forKey: .bundleIdentifier)
+    name = try c.decode(String.self, forKey: .name)
+    iconPath = try c.decodeIfPresent(String.self, forKey: .iconPath)
+    autoOpen = (try? c.decode(Bool.self, forKey: .autoOpen)) ?? false
+  }
+}

@@ -54,7 +54,9 @@ public struct WorkspaceActivationFeature {
           floatingApps: state.config.floatingApps,
           targetDisplay: targetDisplay,
           displayPeerBundleIds: peerBundleIds,
-          setFocus: setFocus
+          setFocus: setFocus,
+          mouseFollowsFocus: setFocus && state.config.settings.mouseFollowsFocus,
+          mouseHidesOnFocus: setFocus && state.config.settings.mouseHidesOnFocus
         )
         return .run { [client = workspaceManager] send in
           await client.activate(request)

@@ -125,7 +125,9 @@ public struct CLIServerFeature {
           floatingApps: config.floatingApps,
           targetDisplay: workspace.displayHint,
           displayPeerBundleIds: peerBundleIds,
-          setFocus: true
+          setFocus: true,
+          mouseFollowsFocus: config.settings.mouseFollowsFocus,
+          mouseHidesOnFocus: config.settings.mouseHidesOnFocus
         )
       )
       return .ok("Activated: \(workspace.name)")

@@ -11,6 +11,8 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   public var activateShortcut: HotKey?
   /// Hotkey that assigns the focused app to this workspace.
   public var assignAppShortcut: HotKey?
+  /// Hotkey that moves the focused window into this workspace.
+  public var moveWindowShortcut: HotKey?
   /// SF Symbol name for menu/space-control rendering.
   public var symbolIconName: String?
   /// Whether non-running assigned apps should auto-launch when activated.
@@ -28,6 +30,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     displayHint: DisplayName? = nil,
     activateShortcut: HotKey? = nil,
     assignAppShortcut: HotKey? = nil,
+    moveWindowShortcut: HotKey? = nil,
     symbolIconName: String? = nil,
     openAppsOnActivation: Bool = false,
     appToFocusBundleId: String? = nil,
@@ -39,6 +42,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.displayHint = displayHint
     self.activateShortcut = activateShortcut
     self.assignAppShortcut = assignAppShortcut
+    self.moveWindowShortcut = moveWindowShortcut
     self.symbolIconName = symbolIconName
     self.openAppsOnActivation = openAppsOnActivation
     self.appToFocusBundleId = appToFocusBundleId
@@ -49,7 +53,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
 
 extension Workspace {
   private enum CodingKeys: String, CodingKey {
-    case id, name, displayHint, activateShortcut, assignAppShortcut
+    case id, name, displayHint, activateShortcut, assignAppShortcut, moveWindowShortcut
     case symbolIconName, openAppsOnActivation, appToFocusBundleId
     case tilingMode, apps
   }
@@ -61,6 +65,7 @@ extension Workspace {
     displayHint = try container.decodeIfPresent(DisplayName.self, forKey: .displayHint)
     activateShortcut = try container.decodeIfPresent(HotKey.self, forKey: .activateShortcut)
     assignAppShortcut = try container.decodeIfPresent(HotKey.self, forKey: .assignAppShortcut)
+    moveWindowShortcut = try container.decodeIfPresent(HotKey.self, forKey: .moveWindowShortcut)
     symbolIconName = try container.decodeIfPresent(String.self, forKey: .symbolIconName)
     openAppsOnActivation = try container.decodeIfPresent(Bool.self, forKey: .openAppsOnActivation)
       ?? false
