@@ -2,37 +2,53 @@ import Dependencies
 import Foundation
 import KeyboardShortcuts
 
-/// Side-effect surface for registering global keyboard shortcuts. Wraps
-/// `KeyboardShortcuts` so the reducer can register a flat list of
-/// (workspaceId, shortcut) bindings and subscribe to fire events.
-public struct HotKeysClient: Sendable {
-  public var register: @Sendable ([WorkspaceHotKeyBinding]) async -> Void
-  public var events: @Sendable () -> AsyncStream<WorkspaceHotKeyEvent>
+/// Every distinct keyboard-driven action Tatami can fire. The enum lives
+/// here (not in features) so `HotKeysClient` can stay generic over the
+/// command space — features just register bindings and react to events.
+public enum HotKeyAction: Sendable, Hashable {
+  // Workspace ops
+  case activateWorkspace(Workspace.ID)
+  case moveFocusedWindowToWorkspace(Workspace.ID)
+  case switchToNextWorkspace
+  case switchToPreviousWorkspace
+  case switchToRecentWorkspace
 
-  public init(
-    register: @escaping @Sendable ([WorkspaceHotKeyBinding]) async -> Void,
-    events: @escaping @Sendable () -> AsyncStream<WorkspaceHotKeyEvent>
-  ) {
-    self.register = register
-    self.events = events
-  }
+  // Directional focus
+  case focusLeft, focusRight, focusUp, focusDown
+
+  // Window cycling
+  case cycleNextWindow, cyclePreviousWindow
+
+  // BSP operations
+  case resizeGrow, resizeShrink
+  case swapLeft, swapRight, swapUp, swapDown
+  case toggleOrientation, toggleFullscreen
+
+  // Misc toggles
+  case toggleFloating, toggleSpaceActivated
 }
 
-public struct WorkspaceHotKeyBinding: Sendable, Hashable {
-  public var workspaceId: Workspace.ID
+public struct HotKeyBinding: Sendable, Hashable {
+  public var action: HotKeyAction
   public var hotKey: HotKey
 
-  public init(workspaceId: Workspace.ID, hotKey: HotKey) {
-    self.workspaceId = workspaceId
+  public init(action: HotKeyAction, hotKey: HotKey) {
+    self.action = action
     self.hotKey = hotKey
   }
 }
 
-public struct WorkspaceHotKeyEvent: Sendable, Hashable {
-  public var workspaceId: Workspace.ID
+/// Side-effect surface for registering global keyboard shortcuts.
+public struct HotKeysClient: Sendable {
+  public var register: @Sendable ([HotKeyBinding]) async -> Void
+  public var events: @Sendable () -> AsyncStream<HotKeyAction>
 
-  public init(workspaceId: Workspace.ID) {
-    self.workspaceId = workspaceId
+  public init(
+    register: @escaping @Sendable ([HotKeyBinding]) async -> Void,
+    events: @escaping @Sendable () -> AsyncStream<HotKeyAction>
+  ) {
+    self.register = register
+    self.events = events
   }
 }
 
@@ -41,7 +57,9 @@ extension HotKeysClient: DependencyKey {
     let center = HotKeysCenter()
     return HotKeysClient(
       register: { bindings in
-        await center.register(bindings)
+        await MainActor.run {
+          center.register(bindings)
+        }
       },
       events: { center.events }
     )
@@ -62,41 +80,62 @@ extension DependencyValues {
   }
 }
 
-/// Manages the live KeyboardShortcuts registrations across the lifetime
-/// of the process. `register` is `@MainActor` because KeyboardShortcuts
-/// is itself main-actor; the surrounding state is plumbed via
-/// `@unchecked Sendable` because all mutation happens through that hop.
 private final class HotKeysCenter: @unchecked Sendable {
-  let events: AsyncStream<WorkspaceHotKeyEvent>
-  private let continuation: AsyncStream<WorkspaceHotKeyEvent>.Continuation
-  private var registeredNames: [KeyboardShortcuts.Name] = []
+  let events: AsyncStream<HotKeyAction>
+  private let continuation: AsyncStream<HotKeyAction>.Continuation
+  private var registered: [(KeyboardShortcuts.Name, HotKeyAction)] = []
 
   init() {
-    var continuation: AsyncStream<WorkspaceHotKeyEvent>.Continuation!
-    self.events = AsyncStream { continuation = $0 }
-    self.continuation = continuation
+    var c: AsyncStream<HotKeyAction>.Continuation!
+    self.events = AsyncStream { c = $0 }
+    self.continuation = c
   }
 
   @MainActor
-  func register(_ bindings: [WorkspaceHotKeyBinding]) {
-    if !registeredNames.isEmpty {
-      // No per-name handler removal in KeyboardShortcuts — reset all
-      // workspace handlers and re-install below.
+  func register(_ bindings: [HotKeyBinding]) {
+    if !registered.isEmpty {
       KeyboardShortcuts.removeAllHandlers()
     }
-
-    var newNames: [KeyboardShortcuts.Name] = []
+    var next: [(KeyboardShortcuts.Name, HotKeyAction)] = []
     for binding in bindings {
-      let name = KeyboardShortcuts.Name("tatami.workspace.\(binding.workspaceId.uuidString)")
+      let key = nameKey(for: binding.action)
+      let name = KeyboardShortcuts.Name("tatami.\(key)")
       KeyboardShortcuts.setShortcut(binding.hotKey.shortcut, for: name)
-      let workspaceId = binding.workspaceId
+      let action = binding.action
       let continuation = continuation
       KeyboardShortcuts.onKeyDown(for: name) {
-        continuation.yield(WorkspaceHotKeyEvent(workspaceId: workspaceId))
+        continuation.yield(action)
       }
-      newNames.append(name)
+      next.append((name, binding.action))
     }
+    registered = next
+  }
 
-    registeredNames = newNames
+  private func nameKey(for action: HotKeyAction) -> String {
+    switch action {
+    case .activateWorkspace(let id):
+      return "activate-\(id.uuidString)"
+    case .moveFocusedWindowToWorkspace(let id):
+      return "move-window-\(id.uuidString)"
+    case .switchToNextWorkspace: return "next-workspace"
+    case .switchToPreviousWorkspace: return "prev-workspace"
+    case .switchToRecentWorkspace: return "recent-workspace"
+    case .focusLeft: return "focus-left"
+    case .focusRight: return "focus-right"
+    case .focusUp: return "focus-up"
+    case .focusDown: return "focus-down"
+    case .cycleNextWindow: return "cycle-next"
+    case .cyclePreviousWindow: return "cycle-prev"
+    case .resizeGrow: return "resize-grow"
+    case .resizeShrink: return "resize-shrink"
+    case .swapLeft: return "swap-left"
+    case .swapRight: return "swap-right"
+    case .swapUp: return "swap-up"
+    case .swapDown: return "swap-down"
+    case .toggleOrientation: return "toggle-orientation"
+    case .toggleFullscreen: return "toggle-fullscreen"
+    case .toggleFloating: return "toggle-floating"
+    case .toggleSpaceActivated: return "toggle-space"
+    }
   }
 }

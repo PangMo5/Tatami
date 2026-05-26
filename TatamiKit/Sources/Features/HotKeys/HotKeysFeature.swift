@@ -2,11 +2,8 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 
-/// Owns the registration lifecycle of workspace activation hotkeys.
-///
-/// Reads bindings from `@Shared(.tatamiConfig)`, pushes them to
-/// `HotKeysClient.register`, and surfaces fire events back as actions
-/// the parent can route into `WorkspaceActivationFeature`.
+/// Builds the active set of hotkey bindings from the config and pipes
+/// fire events back as actions.
 @Reducer
 public struct HotKeysFeature {
   @ObservableState
@@ -14,19 +11,52 @@ public struct HotKeysFeature {
     @Shared(.tatamiConfig) public var config = AppConfig()
     public init() {}
 
-    public var bindings: [WorkspaceHotKeyBinding] {
-      (config.activeProfile?.workspaces ?? []).compactMap { workspace in
-        workspace.activateShortcut.map {
-          WorkspaceHotKeyBinding(workspaceId: workspace.id, hotKey: $0)
+    public var bindings: [HotKeyBinding] {
+      var out: [HotKeyBinding] = []
+      let settings = config.settings
+      let workspaces = config.activeProfile?.workspaces ?? []
+
+      for workspace in workspaces {
+        if let key = workspace.activateShortcut {
+          out.append(.init(action: .activateWorkspace(workspace.id), hotKey: key))
+        }
+        if let key = workspace.moveWindowShortcut {
+          out.append(
+            .init(action: .moveFocusedWindowToWorkspace(workspace.id), hotKey: key)
+          )
         }
       }
+
+      func add(_ action: HotKeyAction, _ key: HotKey?) {
+        if let key { out.append(.init(action: action, hotKey: key)) }
+      }
+      add(.switchToNextWorkspace, settings.switchToNextWorkspace)
+      add(.switchToPreviousWorkspace, settings.switchToPreviousWorkspace)
+      add(.switchToRecentWorkspace, settings.switchToRecentWorkspace)
+      add(.focusLeft, settings.focusLeft)
+      add(.focusRight, settings.focusRight)
+      add(.focusUp, settings.focusUp)
+      add(.focusDown, settings.focusDown)
+      add(.cycleNextWindow, settings.cycleNextWindow)
+      add(.cyclePreviousWindow, settings.cyclePreviousWindow)
+      add(.resizeGrow, settings.resizeGrow)
+      add(.resizeShrink, settings.resizeShrink)
+      add(.swapLeft, settings.swapLeft)
+      add(.swapRight, settings.swapRight)
+      add(.swapUp, settings.swapUp)
+      add(.swapDown, settings.swapDown)
+      add(.toggleOrientation, settings.toggleOrientation)
+      add(.toggleFullscreen, settings.toggleFullscreen)
+      add(.toggleFloating, settings.toggleFloating)
+      add(.toggleSpaceActivated, settings.toggleSpaceActivated)
+      return out
     }
   }
 
   public enum Action {
     case onAppear
     case refreshBindings
-    case hotKeyTriggered(workspaceId: Workspace.ID)
+    case actionTriggered(HotKeyAction)
   }
 
   @Dependency(\.hotKeys) var hotKeys
@@ -44,7 +74,7 @@ public struct HotKeysFeature {
           },
           .run { [client = hotKeys] send in
             for await event in client.events() {
-              await send(.hotKeyTriggered(workspaceId: event.workspaceId))
+              await send(.actionTriggered(event))
             }
           }
         )
@@ -55,7 +85,7 @@ public struct HotKeysFeature {
           await client.register(bindings)
         }
 
-      case .hotKeyTriggered:
+      case .actionTriggered:
         return .none
       }
     }

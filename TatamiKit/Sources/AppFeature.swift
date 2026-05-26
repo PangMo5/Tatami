@@ -2,7 +2,7 @@ import ComposableArchitecture
 import Foundation
 
 /// Top-level reducer. Composes the feature reducers that make up the
-/// Tatami app. Add new feature children here as the app grows.
+/// Tatami app and routes global hotkey events to the right child.
 @Reducer
 public struct AppFeature {
   @ObservableState
@@ -48,8 +48,8 @@ public struct AppFeature {
           .send(.cli(.start))
         )
 
-      case .hotKeys(.hotKeyTriggered(let workspaceId)):
-        return .send(.activation(.activate(workspaceId: workspaceId, setFocus: true)))
+      case .hotKeys(.actionTriggered(let hotKeyAction)):
+        return route(hotKeyAction)
 
       case .workspaceList(.addWorkspaceFormSubmitted),
            .workspaceList(.workspaceDeleteRequested),
@@ -78,6 +78,29 @@ public struct AppFeature {
       default:
         return .none
       }
+    }
+  }
+
+  private func route(_ action: HotKeyAction) -> Effect<Action> {
+    switch action {
+    case .activateWorkspace(let id):
+      return .send(.activation(.activate(workspaceId: id, setFocus: true)))
+    case .moveFocusedWindowToWorkspace(let id):
+      return .send(.activation(.moveFocusedAppTo(workspaceId: id)))
+    case .switchToNextWorkspace:
+      return .send(.activation(.activateNext))
+    case .switchToPreviousWorkspace:
+      return .send(.activation(.activatePrevious))
+    case .switchToRecentWorkspace:
+      return .send(.activation(.activateRecent))
+    // Remaining BSP / focus / mouse actions land in upcoming phases.
+    case .focusLeft, .focusRight, .focusUp, .focusDown,
+         .cycleNextWindow, .cyclePreviousWindow,
+         .resizeGrow, .resizeShrink,
+         .swapLeft, .swapRight, .swapUp, .swapDown,
+         .toggleOrientation, .toggleFullscreen,
+         .toggleFloating, .toggleSpaceActivated:
+      return .none
     }
   }
 }
