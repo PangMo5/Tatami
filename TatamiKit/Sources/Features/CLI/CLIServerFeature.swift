@@ -1,4 +1,6 @@
+import AppKit
 import ComposableArchitecture
+import CoreGraphics
 import Foundation
 import Sharing
 import TatamiCLIProtocol
@@ -131,11 +133,15 @@ public struct CLIServerFeature {
         )
       )
       let bundleIds = workspace.apps.map(\.bundleIdentifier)
-      let tree = BSPNode<String>.build(bundleIds, in: .zero)
       let settings = config.settings
       let targetDisplay = workspace.displayHint
-      let frames = await MainActor.run {
-        WorkspaceActivationFeature.computeFrames(
+      let frames = await MainActor.run { () -> [WindowKey: CGRect] in
+        let keys = discoverWindowKeys(forBundleIds: bundleIds)
+        let tree = BSPNode<WindowKey>.build(
+          keys,
+          in: CGRect(x: 0, y: 0, width: 1, height: 1)
+        )
+        return WorkspaceActivationFeature.computeFrames(
           tree: tree,
           settings: settings,
           targetDisplay: targetDisplay
@@ -143,7 +149,7 @@ public struct CLIServerFeature {
       }
       if !frames.isEmpty {
         await tiler.apply(
-          FrameApplication(bundleIdToFrame: frames, targetDisplay: targetDisplay)
+          FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
         )
       }
       return .ok("Activated: \(workspace.name)")

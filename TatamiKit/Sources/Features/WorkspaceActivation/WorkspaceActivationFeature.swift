@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import ComposableArchitecture
 import Foundation
 import Sharing
@@ -13,8 +14,8 @@ public struct WorkspaceActivationFeature {
     public var activeWorkspacesByDisplay: [DisplayName: Workspace.ID] = [:]
     public var previousWorkspaceID: Workspace.ID?
     public var isActivating = false
-    /// Per-workspace BSP tree of bundle identifiers, kept in-memory only.
-    public var tilingTrees: [Workspace.ID: BSPNode<String>] = [:]
+    /// Per-workspace BSP tree of window keys, kept in-memory only.
+    public var tilingTrees: [Workspace.ID: BSPNode<WindowKey>] = [:]
 
     public init() {}
 
@@ -34,23 +35,24 @@ public struct WorkspaceActivationFeature {
     case toggleFloatingOnFocusedApp
     case focusedFloatToggleResolved(bundleId: String, name: String)
     case togglePaused
-    case bspSwap(BSPNode<String>.Side)
-    case bspResize(axis: BSPNode<String>.SplitAxis, delta: CGFloat)
+    case bspSwap(BSPNode<WindowKey>.Side)
+    case bspResize(axis: BSPNode<WindowKey>.SplitAxis, delta: CGFloat)
     case bspToggleOrientation
-    case bspOpResolved(bundleId: String, op: BSPOp)
+    case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     case windowChanged(WindowChangeEvent)
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
     case appActivated(bundleId: String)
     case appTerminated(bundleId: String)
+    case tilingTreeUpdated(workspaceId: Workspace.ID, tree: BSPNode<WindowKey>?)
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
   }
 
   /// Tag used to dispatch a BSP mutation once we've resolved the
-  /// frontmost app's bundle ID from `NSWorkspace`.
+  /// focused window's `WindowKey`.
   public enum BSPOp: Sendable, Hashable {
-    case swap(BSPNode<String>.Side)
-    case resize(axis: BSPNode<String>.SplitAxis, delta: CGFloat)
+    case swap(BSPNode<WindowKey>.Side)
+    case resize(axis: BSPNode<WindowKey>.SplitAxis, delta: CGFloat)
     case toggleOrientation
   }
 
@@ -89,12 +91,8 @@ public struct WorkspaceActivationFeature {
           }
         }
 
-      case .appLaunched(let bundleId, let name):
-        return handleAppLaunched(
-          bundleId: bundleId,
-          appName: name,
-          state: &state
-        )
+      case .appLaunched:
+        return retileActiveWorkspace(state: &state)
 
       case .appActivated(let bundleId):
         // Ignore our own re-activations to avoid retile loops.
@@ -124,7 +122,7 @@ public struct WorkspaceActivationFeature {
         return .send(.activate(workspaceId: id, setFocus: true))
 
       case .moveFocusedAppTo(let workspaceId):
-        return resolveFrontmost { bundleId in
+        return resolveFrontmostBundleId { bundleId in
           .focusedAppResolved(bundleId: bundleId, workspaceId: workspaceId)
         }
 
@@ -178,22 +176,26 @@ public struct WorkspaceActivationFeature {
         return .none
 
       case .bspSwap(let side):
-        return resolveFrontmost { bundleId in
-          .bspOpResolved(bundleId: bundleId, op: .swap(side))
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .swap(side))
         }
 
       case .bspResize(let axis, let delta):
-        return resolveFrontmost { bundleId in
-          .bspOpResolved(bundleId: bundleId, op: .resize(axis: axis, delta: delta))
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .resize(axis: axis, delta: delta))
         }
 
       case .bspToggleOrientation:
-        return resolveFrontmost { bundleId in
-          .bspOpResolved(bundleId: bundleId, op: .toggleOrientation)
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .toggleOrientation)
         }
 
-      case .bspOpResolved(let bundleId, let op):
-        return applyBSPOp(bundleId: bundleId, op: op, state: &state)
+      case .bspOpResolved(let key, let op):
+        return applyBSPOp(windowKey: key, op: op, state: &state)
+
+      case .tilingTreeUpdated(let workspaceId, let tree):
+        state.tilingTrees[workspaceId] = tree
+        return .none
 
       case .activationCompleted(let id, let display):
         state.isActivating = false
@@ -222,7 +224,7 @@ public struct WorkspaceActivationFeature {
   ///
   /// The tree is merged with the cached one — windows that are gone
   /// get removed (sibling promotes up), and new windows are inserted
-  /// next to the currently-focused app (yabai-style). User-applied
+  /// next to the currently-focused window (yabai-style). User-applied
   /// ratios on surviving nodes carry over because we mutate the
   /// cached tree instead of rebuilding from scratch.
   private func retileActiveWorkspace(state: inout State) -> Effect<Action> {
@@ -238,16 +240,16 @@ public struct WorkspaceActivationFeature {
     let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
     let existing = state.tilingTrees[workspaceId]
 
-    // Resolve targets + focused bundleId synchronously on the main
+    // Resolve targets + focused WindowKey synchronously on the main
     // thread so the tree merge sees a stable snapshot.
-    let snapshot = MainActor.assumeIsolated { () -> (targets: [String], focused: String?) in
-      let visible = NSWorkspace.shared.runningApplications
+    let snapshot = MainActor.assumeIsolated {
+      () -> (targets: [WindowKey], focused: WindowKey?) in
+      let visibleUnassigned = NSWorkspace.shared.runningApplications
         .filter {
           $0.activationPolicy == .regular
             && !$0.isHidden
             && !$0.isTerminated
         }
-      let visibleUnassigned = visible
         .compactMap(\.bundleIdentifier)
         .filter { id in
           !registeredSet.contains(id)
@@ -256,8 +258,10 @@ public struct WorkspaceActivationFeature {
             && id != "dev.PangMo5.Tatami"
             && id != "dev.PangMo5.Tatami.dev"
         }
-      let focused = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-      return (registered + visibleUnassigned, focused)
+      let registeredKeys = discoverWindowKeys(forBundleIds: registered)
+      let unassignedKeys = discoverWindowKeys(forBundleIds: visibleUnassigned)
+      let focused = focusedWindowKey()
+      return (registeredKeys + unassignedKeys, focused)
     }
 
     let mergedTree = Self.mergeTree(
@@ -267,13 +271,15 @@ public struct WorkspaceActivationFeature {
     )
     state.tilingTrees[workspaceId] = mergedTree
 
+    guard let tree = mergedTree else { return .none }
+
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
-        Self.computeFrames(tree: mergedTree, settings: settings, targetDisplay: display)
+        Self.computeFrames(tree: tree, settings: settings, targetDisplay: display)
       }
       if !frames.isEmpty {
         await tiler.apply(
-          FrameApplication(bundleIdToFrame: frames, targetDisplay: display)
+          FrameApplication(windowFrames: frames, targetDisplay: display)
         )
       }
     }
@@ -288,10 +294,10 @@ public struct WorkspaceActivationFeature {
   ///     `focused` (if focused is a leaf) or at the shallowest leaf
   ///   * windows in both → left in place
   private static func mergeTree(
-    existing: BSPNode<String>?,
-    target: [String],
-    focused: String?
-  ) -> BSPNode<String>? {
+    existing: BSPNode<WindowKey>?,
+    target: [WindowKey],
+    focused: WindowKey?
+  ) -> BSPNode<WindowKey>? {
     guard !target.isEmpty else { return nil }
     let targetSet = Set(target)
     var tree = existing
@@ -336,28 +342,30 @@ public struct WorkspaceActivationFeature {
     return out
   }
 
-  /// When any app launches we just retile the active workspace; the
-  /// reflow pass folds in any currently-visible unassigned app on the
-  /// fly without mutating the user's config. Next activation hides
-  /// the unassigned app again, so the inclusion is transient — same
-  /// vibe as yabai treating "windows on the active space" as the tile
-  /// set rather than a saved list.
-  private func handleAppLaunched(
-    bundleId _: String,
-    appName _: String,
-    state: inout State
+  // MARK: - Window key resolution
+
+  /// Resolve the WindowKey for the user's currently-focused window on
+  /// the main thread, then dispatch the continuation action.
+  private func resolveFocusedWindowKey(
+    _ continuation: @escaping @Sendable (WindowKey) -> Action
   ) -> Effect<Action> {
-    retileActiveWorkspace(state: &state)
+    .run { send in
+      let key = await MainActor.run { focusedWindowKey() }
+      guard let key else { return }
+      await send(continuation(key))
+    }
   }
 
-  private static func rebuildTreeIfNeeded(
-    existing: BSPNode<String>?,
-    windows: [String]
-  ) -> BSPNode<String>? {
-    guard !windows.isEmpty else { return nil }
-    let target = Set(windows)
-    if let existing, Set(existing.windows) == target { return existing }
-    return BSPNode.build(windows, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+  private func resolveFrontmostBundleId(
+    _ continuation: @escaping @Sendable (String) -> Action
+  ) -> Effect<Action> {
+    .run { send in
+      let bundleId = await MainActor.run {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+      }
+      guard let bundleId, !bundleId.isEmpty else { return }
+      await send(continuation(bundleId))
+    }
   }
 
   // MARK: - Activation
@@ -384,31 +392,31 @@ public struct WorkspaceActivationFeature {
       mouseHidesOnFocus: setFocus && state.config.settings.mouseHidesOnFocus
     )
 
-    // Rebuild the BSP tree against the current set of assigned windows.
-    let bundleIds = workspace.apps.map(\.bundleIdentifier)
-    let tree = updatedTree(
-      existing: state.tilingTrees[workspace.id],
-      windows: bundleIds
-    )
-    state.tilingTrees[workspace.id] = tree
-
     let settings = state.config.settings
+    let bundleIds = workspace.apps.map(\.bundleIdentifier)
+    let existingTree = state.tilingTrees[workspace.id]
 
     return .run { [
       mgr = workspaceManager,
       tiler = windowTiler
     ] send in
       await mgr.activate(request)
-      let frames = await MainActor.run {
-        Self.computeFrames(
+      let (tree, frames) = await MainActor.run {
+        () -> (BSPNode<WindowKey>?, [WindowKey: CGRect]) in
+        let keys = discoverWindowKeys(forBundleIds: bundleIds)
+        let focused = focusedWindowKey()
+        let tree = Self.mergeTree(existing: existingTree, target: keys, focused: focused)
+        let frames = Self.computeFrames(
           tree: tree,
           settings: settings,
           targetDisplay: targetDisplay
         )
+        return (tree, frames)
       }
+      await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
       if !frames.isEmpty {
         await tiler.apply(
-          FrameApplication(bundleIdToFrame: frames, targetDisplay: targetDisplay)
+          FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
         )
       }
       await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
@@ -418,7 +426,7 @@ public struct WorkspaceActivationFeature {
   // MARK: - BSP ops
 
   private func applyBSPOp(
-    bundleId: String,
+    windowKey: WindowKey,
     op: BSPOp,
     state: inout State
   ) -> Effect<Action> {
@@ -430,14 +438,15 @@ public struct WorkspaceActivationFeature {
 
     switch op {
     case .swap(let side):
-      guard let path = tree.pathTo(window: bundleId), !path.isEmpty else { return .none }
-      let target = sibling(of: bundleId, in: tree, preferredSide: side) ?? firstLeaf(in: tree)
-      guard let target, target != bundleId else { return .none }
-      tree = tree.swapping(bundleId, target)
+      guard let path = tree.pathTo(window: windowKey), !path.isEmpty else { return .none }
+      let target = sibling(of: windowKey, in: tree, preferredSide: side)
+        ?? firstLeaf(in: tree)
+      guard let target, target != windowKey else { return .none }
+      tree = tree.swapping(windowKey, target)
     case .resize(let axis, let delta):
-      tree = tree.resizing(window: bundleId, axis: axis, delta: delta)
+      tree = tree.resizing(window: windowKey, axis: axis, delta: delta)
     case .toggleOrientation:
-      tree = tree.togglingSplit(at: bundleId)
+      tree = tree.togglingSplit(at: windowKey)
     }
 
     state.tilingTrees[workspaceId] = tree
@@ -453,7 +462,7 @@ public struct WorkspaceActivationFeature {
         )
       }
       await tiler.apply(
-        FrameApplication(bundleIdToFrame: frames, targetDisplay: display)
+        FrameApplication(windowFrames: frames, targetDisplay: display)
       )
     }
   }
@@ -462,17 +471,17 @@ public struct WorkspaceActivationFeature {
   /// "neighbor in direction" lookup, so fall back to swapping with the
   /// nearest sibling on the requested side of the parent split.
   private func sibling(
-    of window: String,
-    in tree: BSPNode<String>,
-    preferredSide: BSPNode<String>.Side
-  ) -> String? {
+    of window: WindowKey,
+    in tree: BSPNode<WindowKey>,
+    preferredSide: BSPNode<WindowKey>.Side
+  ) -> WindowKey? {
     guard let path = tree.pathTo(window: window), !path.isEmpty else { return nil }
     let parentPath = Array(path.dropLast())
     return tree.firstLeafID(at: parentPath + [preferredSide == .left ? .left : .right])
       ?? tree.firstLeafID(at: parentPath + [path.last == .left ? .right : .left])
   }
 
-  private func firstLeaf(in tree: BSPNode<String>) -> String? {
+  private func firstLeaf(in tree: BSPNode<WindowKey>) -> WindowKey? {
     tree.windows.first
   }
 
@@ -491,24 +500,12 @@ public struct WorkspaceActivationFeature {
 
   // MARK: - Helpers
 
-  /// Either reuse the existing tree (if its windows match) or rebuild.
-  private func updatedTree(
-    existing: BSPNode<String>?,
-    windows: [String]
-  ) -> BSPNode<String>? {
-    guard !windows.isEmpty else { return nil }
-    let target = Set(windows)
-    if let existing, Set(existing.windows) == target { return existing }
-    let display = CGRect(x: 0, y: 0, width: 1, height: 1)  // shape-only for inserts
-    return BSPNode.build(windows, in: display)
-  }
-
   @MainActor
   static func computeFrames(
-    tree: BSPNode<String>?,
+    tree: BSPNode<WindowKey>?,
     settings: AppSettings,
     targetDisplay: DisplayName?
-  ) -> [String: CGRect] {
+  ) -> [WindowKey: CGRect] {
     guard let tree else { return [:] }
     let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
       dx: CGFloat(settings.gapOuter),
@@ -516,19 +513,28 @@ public struct WorkspaceActivationFeature {
     )
     return tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
   }
+}
 
-  private func resolveFrontmost(
-    _ continuation: @escaping @Sendable (String) -> Action
-  ) -> Effect<Action> {
-    .run { send in
-      let bundleId = await MainActor.run {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-      }
-      guard let bundleId, !bundleId.isEmpty else { return }
-      await send(continuation(bundleId))
-    }
-  }
-
+@MainActor
+func focusedWindowKey() -> WindowKey? {
+  guard let app = NSWorkspace.shared.frontmostApplication,
+        let bundleId = app.bundleIdentifier
+  else { return nil }
+  let axApp = AXUIElementCreateApplication(app.processIdentifier)
+  var raw: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(
+    axApp,
+    kAXFocusedWindowAttribute as CFString,
+    &raw
+  ) == .success,
+    let value = raw,
+    CFGetTypeID(value) == AXUIElementGetTypeID()
+  else { return nil }
+  return WindowKey.from(
+    axWindow: value as! AXUIElement,
+    pid: app.processIdentifier,
+    bundleId: bundleId
+  )
 }
 
 extension BSPNode {

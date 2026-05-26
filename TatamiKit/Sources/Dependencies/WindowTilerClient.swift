@@ -4,9 +4,11 @@ import Dependencies
 import Foundation
 import OSLog
 
-/// Applies a precomputed set of `(bundleId → frame)` assignments to the
-/// running apps' windows via Accessibility. BSP tree maths live in the
-/// reducer; this dependency is a thin AX wrapper.
+/// Applies a precomputed set of `(WindowKey → frame)` assignments via
+/// Accessibility. BSP tree maths live in the reducer; this dependency
+/// just talks to AX, handles the macOS-fullscreen exit dance, and
+/// suppresses system animations with the `AXEnhancedUserInterface`
+/// toggle so frames snap into place yabai-style.
 public struct WindowTilerClient: Sendable {
   public var apply: @Sendable (FrameApplication) async -> Void
 
@@ -16,21 +18,21 @@ public struct WindowTilerClient: Sendable {
 }
 
 public struct FrameApplication: Sendable, Hashable {
-  public var bundleIdToFrame: [String: CGRect]
+  public var windowFrames: [WindowKey: CGRect]
   public var targetDisplay: DisplayName?
 
   public init(
-    bundleIdToFrame: [String: CGRect],
+    windowFrames: [WindowKey: CGRect],
     targetDisplay: DisplayName?
   ) {
-    self.bundleIdToFrame = bundleIdToFrame
+    self.windowFrames = windowFrames
     self.targetDisplay = targetDisplay
   }
 }
 
 extension WindowTilerClient: DependencyKey {
   public static let liveValue = WindowTilerClient { request in
-    guard !request.bundleIdToFrame.isEmpty else {
+    guard !request.windowFrames.isEmpty else {
       logger.debug("apply: no frames to apply")
       return
     }
@@ -45,12 +47,12 @@ extension WindowTilerClient: DependencyKey {
       return
     }
     await MainActor.run {
-      logger.info("apply: \(request.bundleIdToFrame.count) frames")
-      for (bundleId, frame) in request.bundleIdToFrame {
-        let outcome = applyFrame(frame, toFirstWindowOf: bundleId)
-        logger.info(
-          "apply \(bundleId, privacy: .public) → \(frame.debugDescription, privacy: .public) = \(outcome, privacy: .public)"
-        )
+      logger.info("apply: \(request.windowFrames.count) frames")
+      // Group frames by pid so we can toggle EnhancedUserInterface
+      // once per app instead of once per window.
+      let grouped = Dictionary(grouping: request.windowFrames, by: { $0.key.pid })
+      for (pid, entries) in grouped {
+        applyForApp(pid: pid, entries: entries)
       }
     }
   }
@@ -59,47 +61,31 @@ extension WindowTilerClient: DependencyKey {
   public static let previewValue = testValue
 
   @MainActor
-  private static func applyFrame(
-    _ frame: CGRect,
-    toFirstWindowOf bundleId: String
-  ) -> String {
-    guard
-      let app = NSRunningApplication
-        .runningApplications(withBundleIdentifier: bundleId)
-        .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
-    else { return "app-not-running" }
+  private static func applyForApp(
+    pid: pid_t,
+    entries: [(key: WindowKey, value: CGRect)]
+  ) {
+    let axApp = AXUIElementCreateApplication(pid)
 
-    let axApp = AXUIElementCreateApplication(app.processIdentifier)
+    // Discover every window once + map CGWindowID → AXUIElement.
     var raw: CFTypeRef?
-    let copyResult = AXUIElementCopyAttributeValue(
+    guard AXUIElementCopyAttributeValue(
       axApp,
       kAXWindowsAttribute as CFString,
       &raw
-    )
-    if copyResult != .success {
-      return "windows-copy-fail(\(copyResult.rawValue))"
-    }
-    guard let windows = raw as? [AXUIElement] else {
-      return "windows-cast-fail"
-    }
-    guard let window = windows.first else {
-      return "no-windows"
+    ) == .success,
+      let windows = raw as? [AXUIElement]
+    else { return }
+
+    var lookup: [CGWindowID: AXUIElement] = [:]
+    for window in windows {
+      var wid: CGWindowID = 0
+      if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
+        lookup[wid] = window
+      }
     }
 
-    // If the window is in macOS native fullscreen, AX setSize is
-    // rejected with kAXErrorCannotComplete (-25200). Drop fullscreen
-    // first so the BSP frame can apply.
-    if isFullScreen(window) {
-      _ = AXUIElementSetAttributeValue(
-        window,
-        "AXFullScreen" as CFString,
-        false as CFTypeRef
-      )
-    }
-
-    // Toggle the per-app "enhanced user interface" attribute so AX
-    // resize/move bypasses the system window animation — same trick
-    // yabai and Rectangle use to get instant tile updates.
+    // Toggle EnhancedUserInterface once per app (suppresses animation).
     let enhanced = "AXEnhancedUserInterface" as CFString
     var enhancedWasOn = false
     var enhancedRaw: CFTypeRef?
@@ -115,6 +101,28 @@ extension WindowTilerClient: DependencyKey {
       if !enhancedWasOn {
         _ = AXUIElementSetAttributeValue(axApp, enhanced, false as CFTypeRef)
       }
+    }
+
+    for (key, frame) in entries {
+      guard let window = lookup[key.windowID] else {
+        logger.info("apply \(key.bundleId, privacy: .public)#\(key.windowID) → missing-window")
+        continue
+      }
+      let outcome = applyFrame(frame, to: window)
+      logger.info(
+        "apply \(key.bundleId, privacy: .public)#\(key.windowID) → \(frame.debugDescription, privacy: .public) = \(outcome, privacy: .public)"
+      )
+    }
+  }
+
+  @MainActor
+  private static func applyFrame(_ frame: CGRect, to window: AXUIElement) -> String {
+    if isFullScreen(window) {
+      _ = AXUIElementSetAttributeValue(
+        window,
+        "AXFullScreen" as CFString,
+        false as CFTypeRef
+      )
     }
 
     var posError = AXError.success
@@ -149,22 +157,6 @@ extension WindowTilerClient: DependencyKey {
   }
 }
 
-/// Returns true when the app already has AX permission; otherwise asks
-/// macOS to surface the prompt. The prompt key lives in a global var
-/// in C, so the conversion to a Swift String is wrapped behind a
-/// `MainActor` hop to keep strict concurrency happy.
-@MainActor
-@discardableResult
-public func ensureAccessibilityTrust() -> Bool {
-  if AXIsProcessTrusted() { return true }
-  // Inline the framework constant; the C symbol itself is `var` and
-  // therefore not concurrency-safe to reference under Swift 6 strict
-  // mode. The string is part of Apple's public API surface and is
-  // documented as immutable.
-  let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-  return AXIsProcessTrustedWithOptions(options)
-}
-
 extension DependencyValues {
   public var windowTiler: WindowTilerClient {
     get { self[WindowTilerClient.self] }
@@ -172,10 +164,9 @@ extension DependencyValues {
   }
 }
 
-/// Resolve the AX work area of the named screen (or the main screen if
-/// `name` is nil). Coordinates are top-origin, anchored to the primary
-/// screen — same convention as `AXUIElementCopyAttributeValue` returns
-/// for `kAXPositionAttribute`.
+/// Resolve the AX work area of the named screen (or the main screen
+/// if `name` is nil). Top-origin, anchored to the primary screen —
+/// same convention as `kAXPositionAttribute`.
 public enum ScreenGeometry {
   @MainActor
   public static func workArea(for name: DisplayName?) -> CGRect {
@@ -192,6 +183,74 @@ public enum ScreenGeometry {
     let axY = primaryHeight - v.origin.y - v.height
     return CGRect(x: v.origin.x, y: axY, width: v.width, height: v.height)
   }
+}
+
+@MainActor
+@discardableResult
+public func ensureAccessibilityTrust() -> Bool {
+  if AXIsProcessTrusted() { return true }
+  let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+  return AXIsProcessTrustedWithOptions(options)
+}
+
+/// All visible, regular, tile-able windows that belong to the given
+/// bundle identifiers, paired with their `WindowKey`s. Used by the
+/// activation reducer to compute the BSP target set.
+@MainActor
+public func discoverWindowKeys(forBundleIds bundleIds: [String]) -> [WindowKey] {
+  var result: [WindowKey] = []
+  for bundleId in bundleIds {
+    guard
+      let app = NSRunningApplication
+        .runningApplications(withBundleIdentifier: bundleId)
+        .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
+    else { continue }
+    let pid = app.processIdentifier
+    let axApp = AXUIElementCreateApplication(pid)
+    var raw: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(
+      axApp,
+      kAXWindowsAttribute as CFString,
+      &raw
+    ) == .success,
+      let windows = raw as? [AXUIElement]
+    else { continue }
+    for window in windows {
+      // Skip minimized + role != AXWindow (sheet/help/etc.).
+      if isMinimized(window) { continue }
+      if !isStandardWindow(window) { continue }
+      if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
+        result.append(key)
+      }
+    }
+  }
+  return result
+}
+
+@MainActor
+private func isMinimized(_ window: AXUIElement) -> Bool {
+  var raw: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(
+    window,
+    kAXMinimizedAttribute as CFString,
+    &raw
+  ) == .success,
+    let value = raw as? Bool
+  else { return false }
+  return value
+}
+
+@MainActor
+private func isStandardWindow(_ window: AXUIElement) -> Bool {
+  var raw: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(
+    window,
+    kAXSubroleAttribute as CFString,
+    &raw
+  ) == .success,
+    let subrole = raw as? String
+  else { return true }
+  return subrole == kAXStandardWindowSubrole as String
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowTiler")
