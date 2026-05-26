@@ -36,4 +36,16 @@ extension AppConfig {
     guard !profiles.isEmpty else { return }
     body(&profiles[0])
   }
+
+  public mutating func mutateWorkspace(
+    _ id: Workspace.ID,
+    _ body: (inout Workspace) -> Void
+  ) {
+    mutateActiveProfile { profile in
+      guard let idx = profile.workspaces.firstIndex(where: { $0.id == id }) else {
+        return
+      }
+      body(&profile.workspaces[idx])
+    }
+  }
 }

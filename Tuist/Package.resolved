@@ -1,5 +1,5 @@
 {
-  "originHash" : "59dce8e818280556f605da7d8ec9ddb61456c6cbc6c8fb61e7ac335db3113275",
+  "originHash" : "11ba541a8dbc10c95ab007622b4a59ec175a07f9350830c1ee0c25353f02010f",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/KeyboardShortcuts",
       "state" : {
-        "revision" : "1aef85578fdd4f9eaeeb8d53b7b4fc31bf08fe27",
-        "version" : "2.4.0"
+        "branch" : "main",
+        "revision" : "81caa542dc81b058a2c30daab3cb2fbd6a90db7b"
       }
     },
     {

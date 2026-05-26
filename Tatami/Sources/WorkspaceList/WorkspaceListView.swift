@@ -37,10 +37,8 @@ struct WorkspaceListView: View {
         }
       }
     } detail: {
-      if let id = store.selectedWorkspaceID,
-         let workspace = store.workspaces.first(where: { $0.id == id })
-      {
-        WorkspaceDetailPlaceholder(workspace: workspace)
+      if let detailStore = store.scope(state: \.detail, action: \.detail) {
+        WorkspaceDetailView(store: detailStore)
       } else {
         ContentUnavailableView(
           "No Workspace Selected",
@@ -78,23 +76,5 @@ private struct AddWorkspaceForm: View {
     }
     .padding()
     .onAppear { nameFieldFocused = true }
-  }
-}
-
-private struct WorkspaceDetailPlaceholder: View {
-  let workspace: Workspace
-
-  var body: some View {
-    VStack(spacing: 12) {
-      Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
-        .font(.system(size: 48))
-        .foregroundStyle(.tint)
-      Text(workspace.name).font(.title2)
-      Text(workspace.id.uuidString)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .textSelection(.enabled)
-    }
-    .padding()
   }
 }

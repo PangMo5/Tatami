@@ -2,12 +2,8 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 
-/// Lists the workspaces of the currently active profile and drives
-/// create/delete/select side effects against the shared config.
-///
-/// The `@Shared(.tatamiConfig)` binding is the single source of truth —
-/// reads observe the on-disk TOML, writes flush back to disk via the
-/// Sharing file-storage strategy.
+/// Sidebar listing of the active profile's workspaces. Drives add/delete
+/// and routes selection into a `WorkspaceDetailFeature` child.
 @Reducer
 public struct WorkspaceListFeature {
   @ObservableState
@@ -16,6 +12,7 @@ public struct WorkspaceListFeature {
     public var selectedWorkspaceID: Workspace.ID?
     public var isAddSheetPresented = false
     public var draftName = ""
+    public var detail: WorkspaceDetailFeature.State?
 
     public init() {}
 
@@ -30,6 +27,7 @@ public struct WorkspaceListFeature {
     case addWorkspaceFormCancelled
     case workspaceDeleteRequested(Workspace.ID)
     case workspaceSelected(Workspace.ID?)
+    case detail(WorkspaceDetailFeature.Action)
     case binding(BindingAction<State>)
   }
 
@@ -53,7 +51,7 @@ public struct WorkspaceListFeature {
         state.$config.withLock { config in
           config.mutateActiveProfile { $0.workspaces.append(workspace) }
         }
-        return .none
+        return .send(.workspaceSelected(workspace.id))
 
       case .addWorkspaceFormCancelled:
         state.isAddSheetPresented = false
@@ -63,6 +61,7 @@ public struct WorkspaceListFeature {
       case .workspaceDeleteRequested(let id):
         if state.selectedWorkspaceID == id {
           state.selectedWorkspaceID = nil
+          state.detail = nil
         }
         state.$config.withLock { config in
           config.mutateActiveProfile { profile in
@@ -73,11 +72,15 @@ public struct WorkspaceListFeature {
 
       case .workspaceSelected(let id):
         state.selectedWorkspaceID = id
+        state.detail = id.map(WorkspaceDetailFeature.State.init(workspaceId:))
         return .none
 
-      case .binding:
+      case .detail, .binding:
         return .none
       }
+    }
+    .ifLet(\.detail, action: \.detail) {
+      WorkspaceDetailFeature()
     }
   }
 }

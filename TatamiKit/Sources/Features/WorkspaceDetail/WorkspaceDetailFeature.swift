@@ -1,0 +1,116 @@
+import ComposableArchitecture
+import Foundation
+import Sharing
+
+/// Edit a single `Workspace`'s apps, display, hotkeys and metadata.
+///
+/// The detail reducer is scoped to a `workspaceId`; all mutations flow
+/// through `state.$config.withLock` and persist to the TOML file.
+@Reducer
+public struct WorkspaceDetailFeature {
+  @ObservableState
+  public struct State: Equatable {
+    @Shared(.tatamiConfig) public var config = AppConfig()
+    public var workspaceId: Workspace.ID
+    public var isAppPickerPresented = false
+    public var availableRunningApps: [MacApp] = []
+
+    public init(workspaceId: Workspace.ID) {
+      self.workspaceId = workspaceId
+    }
+
+    public var workspace: Workspace? {
+      config.activeProfile?.workspaces.first { $0.id == workspaceId }
+    }
+
+    public var apps: [AppAssignment] {
+      workspace?.apps ?? []
+    }
+  }
+
+  public enum Action: BindableAction {
+    case binding(BindingAction<State>)
+    case addAppButtonTapped
+    case appPickerDismissed
+    case appPickerAppSelected(MacApp)
+    case appRemoveRequested(bundleIdentifier: String)
+    case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
+    case nameSubmitted(String)
+    case symbolIconChanged(String?)
+  }
+
+  @Dependency(\.runningApps) var runningApps
+
+  public init() {}
+
+  public var body: some ReducerOf<Self> {
+    BindingReducer()
+    Reduce { state, action in
+      switch action {
+      case .binding:
+        return .none
+
+      case .addAppButtonTapped:
+        let alreadyAssigned = Set(state.apps.map(\.bundleIdentifier))
+        state.availableRunningApps = runningApps.current()
+          .filter { !alreadyAssigned.contains($0.bundleIdentifier) }
+        state.isAppPickerPresented = true
+        return .none
+
+      case .appPickerDismissed:
+        state.isAppPickerPresented = false
+        state.availableRunningApps = []
+        return .none
+
+      case .appPickerAppSelected(let app):
+        state.isAppPickerPresented = false
+        state.availableRunningApps = []
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { workspace in
+            guard !workspace.apps.contains(where: { $0.bundleIdentifier == app.bundleIdentifier })
+            else { return }
+            workspace.apps.append(AppAssignment(app))
+          }
+        }
+        return .none
+
+      case .appRemoveRequested(let bundleId):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { workspace in
+            workspace.apps.removeAll { $0.bundleIdentifier == bundleId }
+          }
+        }
+        return .none
+
+      case .autoOpenToggled(let bundleId, let isOn):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { workspace in
+            guard let idx = workspace.apps.firstIndex(where: { $0.bundleIdentifier == bundleId })
+            else { return }
+            workspace.apps[idx].autoOpen = isOn
+          }
+        }
+        return .none
+
+      case .nameSubmitted(let name):
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .none }
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.name = trimmed }
+        }
+        return .none
+
+      case .symbolIconChanged(let symbol):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.symbolIconName = symbol }
+        }
+        return .none
+      }
+    }
+  }
+}
