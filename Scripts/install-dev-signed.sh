@@ -45,16 +45,30 @@ sleep 1
 rm -rf "$DEST"
 ditto "$SRC" "$DEST"
 
-# Re-sign every embedded framework first (the app's sealed-resources
-# hash includes them), then the app bundle itself.
+# Re-sign every embedded framework + executable dylib first (the app's
+# sealed-resources hash and dyld team-id checks both span the bundle),
+# then the app bundle itself.
 while IFS= read -r -d '' fw; do
   /usr/bin/codesign --force --sign "$CERT_SELECTOR" --options runtime --timestamp=none "$fw" \
     >/dev/null 2>&1 || true
 done < <(find "$DEST/Contents/Frameworks" -name '*.framework' -maxdepth 1 -print0 2>/dev/null)
 
+while IFS= read -r -d '' lib; do
+  /usr/bin/codesign --force --sign "$CERT_SELECTOR" --options runtime --timestamp=none "$lib" \
+    >/dev/null 2>&1 || true
+done < <(find "$DEST/Contents/MacOS" -name '*.dylib' -print0 2>/dev/null)
+
 /usr/bin/codesign --force --sign "$CERT_SELECTOR" \
   --options runtime --timestamp=none \
   --entitlements "$ENTITLEMENTS" \
   "$DEST"
+
+# Remove the DerivedData copy + its Launch Services registration so
+# Spotlight / "Open With" / TCC settings show only the /Applications
+# bundle. The next build will recreate it inside DerivedData but the
+# install step will keep cleaning it up.
+LSREG="/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister"
+"$LSREG" -u "$SRC" >/dev/null 2>&1 || true
+rm -rf "$SRC"
 
 echo "Installed at $DEST (signed with $CERT_SELECTOR)"
