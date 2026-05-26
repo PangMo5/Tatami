@@ -15,8 +15,12 @@ build:
 # running copy to pick up source changes — sign stays stable so
 # macOS Accessibility/Input Monitoring permissions are preserved
 # across rebuilds.
+#
+# Provide XCODE_DEVELOPMENT_TEAM (and optionally TATAMI_CERT_HASH /
+# TATAMI_CERT_NAME) via your shell environment — none of those are
+# checked into the repo.
 app:
-	XCODE_DEVELOPMENT_TEAM=<APPLE_TEAM_ID> xcodebuild \
+	xcodebuild \
 		-workspace Tatami.xcworkspace \
 		-scheme Tatami \
 		-configuration Debug \
