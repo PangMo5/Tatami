@@ -20,8 +20,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// Bundle identifier of the app to focus when this workspace activates.
   /// Nil = focus the most recently active assigned app.
   public var appToFocusBundleId: String?
-  /// How Tatami should arrange this workspace's windows on activation.
-  public var tilingMode: TilingMode
   public var apps: [AppAssignment]
 
   public init(
@@ -34,7 +32,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     symbolIconName: String? = nil,
     openAppsOnActivation: Bool = false,
     appToFocusBundleId: String? = nil,
-    tilingMode: TilingMode = .floating,
     apps: [AppAssignment] = []
   ) {
     self.id = id
@@ -46,7 +43,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.symbolIconName = symbolIconName
     self.openAppsOnActivation = openAppsOnActivation
     self.appToFocusBundleId = appToFocusBundleId
-    self.tilingMode = tilingMode
     self.apps = apps
   }
 }
@@ -55,7 +51,7 @@ extension Workspace {
   private enum CodingKeys: String, CodingKey {
     case id, name, displayHint, activateShortcut, assignAppShortcut, moveWindowShortcut
     case symbolIconName, openAppsOnActivation, appToFocusBundleId
-    case tilingMode, apps
+    case apps
   }
 
   public init(from decoder: Decoder) throws {
@@ -70,7 +66,6 @@ extension Workspace {
     openAppsOnActivation = try container.decodeIfPresent(Bool.self, forKey: .openAppsOnActivation)
       ?? false
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
-    tilingMode = try container.decodeIfPresent(TilingMode.self, forKey: .tilingMode) ?? .floating
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
 }

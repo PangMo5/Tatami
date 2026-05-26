@@ -174,16 +174,10 @@ public struct WorkspaceActivationFeature {
     state.isActivating = true
 
     let targetDisplay = workspace.displayHint ?? displays.current()
-    let peerBundleIds = Self.peerBundleIds(
-      for: workspace,
-      on: targetDisplay,
-      in: profile
-    )
     let request = ActivationRequest(
       workspace: workspace,
       floatingApps: state.config.floatingApps,
       targetDisplay: targetDisplay,
-      displayPeerBundleIds: peerBundleIds,
       setFocus: setFocus,
       mouseFollowsFocus: setFocus && state.config.settings.mouseFollowsFocus,
       mouseHidesOnFocus: setFocus && state.config.settings.mouseHidesOnFocus
@@ -193,14 +187,11 @@ public struct WorkspaceActivationFeature {
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
     let tree = updatedTree(
       existing: state.tilingTrees[workspace.id],
-      windows: bundleIds,
-      mode: workspace.tilingMode
+      windows: bundleIds
     )
     state.tilingTrees[workspace.id] = tree
 
     let settings = state.config.settings
-    let mode = workspace.tilingMode
-    let appBundleIds = workspace.apps.map(\.bundleIdentifier)
 
     return .run { [
       mgr = workspaceManager,
@@ -209,9 +200,7 @@ public struct WorkspaceActivationFeature {
       await mgr.activate(request)
       let frames = await MainActor.run {
         Self.computeFrames(
-          mode: mode,
           tree: tree,
-          appBundleIds: appBundleIds,
           settings: settings,
           targetDisplay: targetDisplay
         )
@@ -235,7 +224,6 @@ public struct WorkspaceActivationFeature {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId }),
-          workspace.tilingMode == .bsp,
           var tree = state.tilingTrees[workspaceId]
     else { return .none }
 
@@ -255,14 +243,10 @@ public struct WorkspaceActivationFeature {
 
     let display = workspace.displayHint ?? displays.current()
     let settings = state.config.settings
-    let mode = workspace.tilingMode
-    let appBundleIds = workspace.apps.map(\.bundleIdentifier)
     return .run { [tiler = windowTiler] _ in
       let frames = await MainActor.run {
         Self.computeFrames(
-          mode: mode,
           tree: tree,
-          appBundleIds: appBundleIds,
           settings: settings,
           targetDisplay: display
         )
@@ -309,10 +293,9 @@ public struct WorkspaceActivationFeature {
   /// Either reuse the existing tree (if its windows match) or rebuild.
   private func updatedTree(
     existing: BSPNode<String>?,
-    windows: [String],
-    mode: TilingMode
+    windows: [String]
   ) -> BSPNode<String>? {
-    guard mode == .bsp else { return nil }
+    guard !windows.isEmpty else { return nil }
     let target = Set(windows)
     if let existing, Set(existing.windows) == target { return existing }
     let display = CGRect(x: 0, y: 0, width: 1, height: 1)  // shape-only for inserts
@@ -321,25 +304,16 @@ public struct WorkspaceActivationFeature {
 
   @MainActor
   static func computeFrames(
-    mode: TilingMode,
     tree: BSPNode<String>?,
-    appBundleIds: [String],
     settings: AppSettings,
     targetDisplay: DisplayName?
   ) -> [String: CGRect] {
+    guard let tree else { return [:] }
     let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
       dx: CGFloat(settings.gapOuter),
       dy: CGFloat(settings.gapOuter)
     )
-    switch mode {
-    case .floating:
-      return [:]
-    case .stack:
-      return Dictionary(uniqueKeysWithValues:
-        appBundleIds.map { ($0, workArea) })
-    case .bsp:
-      return tree?.frames(in: workArea, gap: CGFloat(settings.gapInner)) ?? [:]
-    }
+    return tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
   }
 
   private func resolveFrontmost(
@@ -354,18 +328,6 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  private static func peerBundleIds(
-    for workspace: Workspace,
-    on display: DisplayName?,
-    in profile: Profile
-  ) -> Set<String> {
-    profile.workspaces
-      .filter { peer in
-        peer.id != workspace.id && (display == nil || peer.displayHint == display)
-      }
-      .flatMap { $0.apps.map(\.bundleIdentifier) }
-      .reduce(into: Set<String>()) { $0.insert($1) }
-  }
 }
 
 extension BSPNode {

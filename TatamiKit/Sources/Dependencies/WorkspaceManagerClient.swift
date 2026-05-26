@@ -1,11 +1,21 @@
 import AppKit
+import ApplicationServices
 import Dependencies
 import Foundation
 import OSLog
 
-/// Side-effect surface for "make this workspace active": showing/hiding
-/// macOS apps via `NSRunningApplication`. Display-aware — hiding only
-/// affects apps whose windows sit on the workspace's target display(s).
+/// Side-effect surface for "make this workspace active". Activation
+/// follows FlashSpace's policy:
+///
+///  1. unhide every app belonging to the target workspace
+///  2. unhide every app in `floatingApps`
+///  3. hide every other regular running app on the same display (the
+///     unassigned ones included)
+///  4. focus the workspace's preferred app
+///
+/// The BSP tile pass runs separately (`WindowTilerClient`) after the
+/// show/hide step completes, on the assumption that windows already
+/// belong to the right Spaces.
 public struct WorkspaceManagerClient: Sendable {
   public var activate: @Sendable (ActivationRequest) async -> Void
 
@@ -14,17 +24,11 @@ public struct WorkspaceManagerClient: Sendable {
   }
 }
 
-/// What the activation engine needs to flip "active" to a workspace.
 public struct ActivationRequest: Sendable, Hashable {
   public var workspace: Workspace
   public var floatingApps: [FloatingApp]
-  /// Display this activation targets. `nil` → all displays (dynamic mode).
+  /// Display this activation targets. `nil` → all displays.
   public var targetDisplay: DisplayName?
-  /// Bundle identifiers belonging to *other* workspaces on the same display.
-  /// These are the apps we need to hide. Anything not in this set (and not
-  /// in `workspace.apps` or `floatingApps`) is treated as "unassigned" and
-  /// left visible.
-  public var displayPeerBundleIds: Set<String>
   public var setFocus: Bool
   public var mouseFollowsFocus: Bool
   public var mouseHidesOnFocus: Bool
@@ -33,7 +37,6 @@ public struct ActivationRequest: Sendable, Hashable {
     workspace: Workspace,
     floatingApps: [FloatingApp],
     targetDisplay: DisplayName?,
-    displayPeerBundleIds: Set<String> = [],
     setFocus: Bool = true,
     mouseFollowsFocus: Bool = false,
     mouseHidesOnFocus: Bool = false
@@ -41,7 +44,6 @@ public struct ActivationRequest: Sendable, Hashable {
     self.workspace = workspace
     self.floatingApps = floatingApps
     self.targetDisplay = targetDisplay
-    self.displayPeerBundleIds = displayPeerBundleIds
     self.setFocus = setFocus
     self.mouseFollowsFocus = mouseFollowsFocus
     self.mouseHidesOnFocus = mouseHidesOnFocus
@@ -59,34 +61,34 @@ extension WorkspaceManagerClient: DependencyKey {
   static func live() -> WorkspaceManagerClient {
     WorkspaceManagerClient(
       activate: { request in
-        let workspace = request.workspace
-        let workspaceBundleIds = Set(workspace.apps.map(\.bundleIdentifier))
+        let workspaceBundleIds = Set(request.workspace.apps.map(\.bundleIdentifier))
         let floatingBundleIds = Set(request.floatingApps.map(\.bundleIdentifier))
-        let appsToHide = request.displayPeerBundleIds
-          .subtracting(workspaceBundleIds)
-          .subtracting(floatingBundleIds)
+        let keepVisible = workspaceBundleIds.union(floatingBundleIds)
 
         await MainActor.run {
           let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
           }
 
+          var hiddenCount = 0
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
-
-            if workspaceBundleIds.contains(bundleId) || floatingBundleIds.contains(bundleId) {
-              if app.isHidden {
-                app.unhide()
-              }
-            } else if appsToHide.contains(bundleId), !app.isHidden {
-              app.hide()
+            // Skip ourselves (and any agent app the user keeps).
+            if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+              continue
             }
-            // Apps not in any workspace on this display: leave alone.
+
+            if keepVisible.contains(bundleId) {
+              if app.isHidden { app.unhide() }
+            } else if !app.isHidden {
+              app.hide()
+              hiddenCount += 1
+            }
           }
 
           let focusedApp: NSRunningApplication?
-          if request.setFocus, let focusBundleId = workspace.appToFocusBundleId
-             ?? workspace.apps.last?.bundleIdentifier
+          if request.setFocus, let focusBundleId = request.workspace.appToFocusBundleId
+             ?? request.workspace.apps.last?.bundleIdentifier
           {
             focusedApp = running.first { $0.bundleIdentifier == focusBundleId }
             focusedApp?.activate(options: [.activateIgnoringOtherApps])
@@ -106,16 +108,16 @@ extension WorkspaceManagerClient: DependencyKey {
           if request.mouseHidesOnFocus {
             CGDisplayHideCursor(CGMainDisplayID())
           }
-        }
 
-        let displayLabel = request.targetDisplay?.rawValue ?? "any"
-        logger.info(
-          """
-          Activated workspace '\(workspace.name)' on display '\(displayLabel)': \
-          show=\(workspaceBundleIds.count) float=\(floatingBundleIds.count) \
-          hide=\(appsToHide.count)
-          """
-        )
+          logger.info(
+            """
+            Activated '\(request.workspace.name)' on \
+            \(request.targetDisplay?.rawValue ?? "any"): \
+            show=\(workspaceBundleIds.count) float=\(floatingBundleIds.count) \
+            hide=\(hiddenCount)
+            """
+          )
+        }
       }
     )
   }
