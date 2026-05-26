@@ -86,23 +86,57 @@ extension WindowTilerClient: DependencyKey {
       return "no-windows"
     }
 
-    var posError = AXError.success
-    var position = CGPoint(x: frame.minX, y: frame.minY)
-    if let posValue = AXValueCreate(.cgPoint, &position) {
-      posError = AXUIElementSetAttributeValue(
-        window, kAXPositionAttribute as CFString, posValue
-      )
-    }
-    var sizeError = AXError.success
-    var size = CGSize(width: frame.width, height: frame.height)
-    if let sizeValue = AXValueCreate(.cgSize, &size) {
-      sizeError = AXUIElementSetAttributeValue(
-        window, kAXSizeAttribute as CFString, sizeValue
+    // If the window is in macOS native fullscreen, AX setSize is
+    // rejected with kAXErrorCannotComplete (-25200). Drop fullscreen
+    // first so the BSP frame can apply.
+    if isFullScreen(window) {
+      var unfull = false as CFBoolean
+      _ = AXUIElementSetAttributeValue(
+        window,
+        "AXFullScreen" as CFString,
+        unfull as CFTypeRef
       )
     }
 
-    if posError == .success, sizeError == .success { return "ok" }
-    return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
+    var attempt = 0
+    while attempt < 2 {
+      var posError = AXError.success
+      var position = CGPoint(x: frame.minX, y: frame.minY)
+      if let posValue = AXValueCreate(.cgPoint, &position) {
+        posError = AXUIElementSetAttributeValue(
+          window, kAXPositionAttribute as CFString, posValue
+        )
+      }
+      var sizeError = AXError.success
+      var size = CGSize(width: frame.width, height: frame.height)
+      if let sizeValue = AXValueCreate(.cgSize, &size) {
+        sizeError = AXUIElementSetAttributeValue(
+          window, kAXSizeAttribute as CFString, sizeValue
+        )
+      }
+      if posError == .success, sizeError == .success { return "ok" }
+      if attempt == 0, sizeError.rawValue == -25200 {
+        // One more retry after a brief delay — fullscreen exit is
+        // animated, so AX needs a moment before it will resize.
+        Thread.sleep(forTimeInterval: 0.25)
+        attempt += 1
+        continue
+      }
+      return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
+    }
+    return "retry-exhausted"
+  }
+
+  @MainActor
+  private static func isFullScreen(_ window: AXUIElement) -> Bool {
+    var raw: CFTypeRef?
+    let result = AXUIElementCopyAttributeValue(
+      window,
+      "AXFullScreen" as CFString,
+      &raw
+    )
+    guard result == .success, let value = raw as? Bool else { return false }
+    return value
   }
 }
 

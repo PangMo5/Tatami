@@ -16,6 +16,7 @@ public struct AppLaunchObserverClient: Sendable {
 
 public enum AppLaunchEvent: Sendable, Hashable {
   case launched(bundleId: String, name: String)
+  case activated(bundleId: String)
   case terminated(bundleId: String)
 }
 
@@ -62,6 +63,19 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         app.activationPolicy == .regular
       else { return }
       cont.yield(.launched(bundleId: bundleId, name: app.localizedName ?? bundleId))
+    }
+    nc.addObserver(
+      forName: NSWorkspace.didActivateApplicationNotification,
+      object: nil,
+      queue: .main
+    ) { notification in
+      guard
+        let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+          as? NSRunningApplication,
+        let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
+        app.activationPolicy == .regular
+      else { return }
+      cont.yield(.activated(bundleId: bundleId))
     }
     nc.addObserver(
       forName: NSWorkspace.didTerminateApplicationNotification,

@@ -41,6 +41,7 @@ public struct WorkspaceActivationFeature {
     case windowChanged(WindowChangeEvent)
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
+    case appActivated(bundleId: String)
     case appTerminated(bundleId: String)
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
   }
@@ -80,6 +81,8 @@ public struct WorkspaceActivationFeature {
             switch event {
             case .launched(let bundleId, let name):
               await send(.appLaunched(bundleId: bundleId, name: name))
+            case .activated(let bundleId):
+              await send(.appActivated(bundleId: bundleId))
             case .terminated(let bundleId):
               await send(.appTerminated(bundleId: bundleId))
             }
@@ -92,6 +95,13 @@ public struct WorkspaceActivationFeature {
           appName: name,
           state: &state
         )
+
+      case .appActivated(let bundleId):
+        // Ignore our own re-activations to avoid retile loops.
+        if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+          return .none
+        }
+        return retileActiveWorkspace(state: state)
 
       case .appTerminated:
         return retileActiveWorkspace(state: state)
