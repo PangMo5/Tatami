@@ -39,6 +39,9 @@ public struct WorkspaceActivationFeature {
     case bspToggleOrientation
     case bspOpResolved(bundleId: String, op: BSPOp)
     case windowChanged(WindowChangeEvent)
+    case startObservingAppLaunches
+    case appLaunched(bundleId: String, name: String)
+    case appTerminated(bundleId: String)
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
   }
 
@@ -53,6 +56,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.workspaceManager) var workspaceManager
   @Dependency(\.windowTiler) var windowTiler
   @Dependency(\.windowObserver) var windowObserver
+  @Dependency(\.appLaunch) var appLaunch
   @Dependency(\.displays) var displays
 
   public init() {}
@@ -68,6 +72,28 @@ public struct WorkspaceActivationFeature {
         }
 
       case .windowChanged:
+        return retileActiveWorkspace(state: state)
+
+      case .startObservingAppLaunches:
+        return .run { [client = appLaunch] send in
+          for await event in client.events() {
+            switch event {
+            case .launched(let bundleId, let name):
+              await send(.appLaunched(bundleId: bundleId, name: name))
+            case .terminated(let bundleId):
+              await send(.appTerminated(bundleId: bundleId))
+            }
+          }
+        }
+
+      case .appLaunched(let bundleId, let name):
+        return handleAppLaunched(
+          bundleId: bundleId,
+          appName: name,
+          state: &state
+        )
+
+      case .appTerminated:
         return retileActiveWorkspace(state: state)
 
       case .activate(let workspaceId, let setFocus):
@@ -200,6 +226,36 @@ public struct WorkspaceActivationFeature {
         )
       }
     }
+  }
+
+  /// When an app launches that is neither floating nor assigned to any
+  /// workspace, auto-join it into the active workspace so the BSP
+  /// layout grows to include it (yabai-style).
+  private func handleAppLaunched(
+    bundleId: String,
+    appName: String,
+    state: inout State
+  ) -> Effect<Action> {
+    let config = state.config
+    let isFloating = config.floatingApps.contains { $0.bundleIdentifier == bundleId }
+    let isAssigned = config.profiles.contains { profile in
+      profile.workspaces.contains { ws in
+        ws.apps.contains { $0.bundleIdentifier == bundleId }
+      }
+    }
+    guard !isFloating, !isAssigned,
+          let workspaceId = state.primaryActiveWorkspaceID
+    else {
+      return retileActiveWorkspace(state: state)
+    }
+    state.$config.withLock { config in
+      config.mutateWorkspace(workspaceId) { workspace in
+        workspace.apps.append(
+          AppAssignment(bundleIdentifier: bundleId, name: appName)
+        )
+      }
+    }
+    return retileActiveWorkspace(state: state)
   }
 
   private static func rebuildTreeIfNeeded(

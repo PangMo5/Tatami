@@ -51,6 +51,7 @@ public struct AppFeature {
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),
           .send(.activation(.startObservingWindowEvents)),
+          .send(.activation(.startObservingAppLaunches)),
           .run { [client = focusFollowsMouse] _ in
             await client.configure(config)
           },
