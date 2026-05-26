@@ -115,11 +115,16 @@ public struct AppFeature {
         await client.cycleApp(.previous, bundleIds)
       }
 
-    // BSP / floating / space-pause actions land in upcoming phases.
+    case .toggleFloating:
+      return .send(.activation(.toggleFloatingOnFocusedApp))
+    case .toggleSpaceActivated:
+      return .send(.activation(.togglePaused))
+
+    // BSP-tree-mutating actions need persistent per-workspace tree
+    // state — landing in a follow-up phase.
     case .resizeGrow, .resizeShrink,
          .swapLeft, .swapRight, .swapUp, .swapDown,
-         .toggleOrientation, .toggleFullscreen,
-         .toggleFloating, .toggleSpaceActivated:
+         .toggleOrientation, .toggleFullscreen:
       return .none
     }
   }

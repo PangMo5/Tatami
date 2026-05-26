@@ -29,6 +29,9 @@ public struct WorkspaceActivationFeature {
     case activateRecent
     case moveFocusedAppTo(workspaceId: Workspace.ID)
     case focusedAppResolved(bundleId: String, workspaceId: Workspace.ID)
+    case toggleFloatingOnFocusedApp
+    case focusedFloatToggleResolved(bundleId: String, name: String)
+    case togglePaused
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
   }
 
@@ -81,6 +84,37 @@ public struct WorkspaceActivationFeature {
         }
         return .send(.activate(workspaceId: workspaceId, setFocus: true))
 
+      case .toggleFloatingOnFocusedApp:
+        return .run { send in
+          let resolved = await MainActor.run {
+            NSWorkspace.shared.frontmostApplication.map {
+              (bundleId: $0.bundleIdentifier ?? "", name: $0.localizedName ?? "")
+            }
+          }
+          guard let resolved, !resolved.bundleId.isEmpty else { return }
+          await send(
+            .focusedFloatToggleResolved(bundleId: resolved.bundleId, name: resolved.name)
+          )
+        }
+
+      case .focusedFloatToggleResolved(let bundleId, let name):
+        state.$config.withLock { config in
+          if config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }) {
+            config.floatingApps.removeAll { $0.bundleIdentifier == bundleId }
+          } else {
+            config.floatingApps.append(
+              FloatingApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
+            )
+          }
+        }
+        return .none
+
+      case .togglePaused:
+        state.$config.withLock { config in
+          config.settings.isPaused.toggle()
+        }
+        return .none
+
       case .activationCompleted(let id, let display):
         state.isActivating = false
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
@@ -99,6 +133,7 @@ public struct WorkspaceActivationFeature {
     setFocus: Bool,
     state: inout State
   ) -> Effect<Action> {
+    guard !state.config.settings.isPaused else { return .none }
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces.first(where: { $0.id == workspaceId })
     else { return .none }

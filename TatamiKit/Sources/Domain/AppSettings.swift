@@ -27,6 +27,10 @@ public struct AppSettings: Hashable, Sendable, Codable {
   /// rift's `auto_focus_blacklist`.
   public var autoFocusBlacklist: [String]
 
+  /// When true, `WorkspaceManagerClient.activate` is a no-op. Toggled
+  /// via the `toggleSpaceActivated` hotkey.
+  public var isPaused: Bool
+
   // MARK: Directional focus
 
   public var focusLeft: HotKey?
@@ -70,6 +74,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     focusFollowsMouse: Bool = false,
     focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option,
     autoFocusBlacklist: [String] = [],
+    isPaused: Bool = false,
     focusLeft: HotKey? = nil,
     focusRight: HotKey? = nil,
     focusUp: HotKey? = nil,
@@ -98,6 +103,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.focusFollowsMouse = focusFollowsMouse
     self.focusFollowsMouseDisableHotkey = focusFollowsMouseDisableHotkey
     self.autoFocusBlacklist = autoFocusBlacklist
+    self.isPaused = isPaused
     self.focusLeft = focusLeft
     self.focusRight = focusRight
     self.focusUp = focusUp
@@ -127,6 +133,7 @@ extension AppSettings {
     case mouseFollowsFocus, mouseHidesOnFocus, focusFollowsMouse
     case focusFollowsMouseDisableHotkey
     case autoFocusBlacklist
+    case isPaused
     case focusLeft, focusRight, focusUp, focusDown
     case switchToNextWorkspace, switchToPreviousWorkspace, switchToRecentWorkspace
     case cycleNextWindow, cyclePreviousWindow
@@ -148,6 +155,7 @@ extension AppSettings {
       FocusFollowsMouseModifier.self, forKey: .focusFollowsMouseDisableHotkey
     )) ?? .option
     self.autoFocusBlacklist = (try? c.decode([String].self, forKey: .autoFocusBlacklist)) ?? []
+    self.isPaused = (try? c.decode(Bool.self, forKey: .isPaused)) ?? false
     self.focusLeft = try? c.decode(HotKey.self, forKey: .focusLeft)
     self.focusRight = try? c.decode(HotKey.self, forKey: .focusRight)
     self.focusUp = try? c.decode(HotKey.self, forKey: .focusUp)
