@@ -106,7 +106,7 @@ extension WorkspaceManagerClient: DependencyKey {
             CGAssociateMouseAndMouseCursorPosition(1)
           }
           if request.mouseHidesOnFocus {
-            CGDisplayHideCursor(CGMainDisplayID())
+            CursorHidingController.shared.hideUntilMouseMoves()
           }
 
           logger.info(
@@ -161,3 +161,37 @@ private func focusedWindowCenter(of app: NSRunningApplication) -> CGPoint? {
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WorkspaceManager")
+
+/// Hides the cursor on activation; the first global mouse-moved event
+/// brings it back. Reference-counts hides so back-to-back activations
+/// don't double-hide.
+@MainActor
+final class CursorHidingController {
+  static let shared = CursorHidingController()
+  private var monitor: Any?
+  private var isHidden = false
+
+  func hideUntilMouseMoves() {
+    if !isHidden {
+      CGDisplayHideCursor(CGMainDisplayID())
+      isHidden = true
+    }
+    guard monitor == nil else { return }
+    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+      self?.show()
+    }
+  }
+
+  func show() {
+    if isHidden {
+      CGDisplayShowCursor(CGMainDisplayID())
+      isHidden = false
+    }
+    if let m = monitor {
+      NSEvent.removeMonitor(m)
+      monitor = nil
+    }
+  }
+
+  private init() {}
+}

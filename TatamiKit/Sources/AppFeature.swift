@@ -52,6 +52,9 @@ public struct AppFeature {
           .send(.cli(.start)),
           .run { [client = focusFollowsMouse] _ in
             await client.configure(config)
+          },
+          .run { _ in
+            await MainActor.run { _ = ensureAccessibilityTrust() }
           }
         )
 

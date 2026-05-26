@@ -30,14 +30,27 @@ public struct FrameApplication: Sendable, Hashable {
 
 extension WindowTilerClient: DependencyKey {
   public static let liveValue = WindowTilerClient { request in
-    guard !request.bundleIdToFrame.isEmpty else { return }
-    guard AXIsProcessTrusted() else {
-      logger.warning("Skipping apply — Accessibility permission not granted")
+    guard !request.bundleIdToFrame.isEmpty else {
+      logger.debug("apply: no frames to apply")
+      return
+    }
+    let trusted = await MainActor.run { ensureAccessibilityTrust() }
+    guard trusted else {
+      logger.warning(
+        """
+        Accessibility permission not granted — open System Settings → \
+        Privacy & Security → Accessibility and enable Tatami.
+        """
+      )
       return
     }
     await MainActor.run {
+      logger.info("apply: \(request.bundleIdToFrame.count) frames")
       for (bundleId, frame) in request.bundleIdToFrame {
-        applyFrame(frame, toFirstWindowOf: bundleId)
+        let ok = applyFrame(frame, toFirstWindowOf: bundleId)
+        logger.debug(
+          "apply \(bundleId) → \(frame.debugDescription) = \(ok ? "ok" : "fail")"
+        )
       }
     }
   }
@@ -46,12 +59,13 @@ extension WindowTilerClient: DependencyKey {
   public static let previewValue = testValue
 
   @MainActor
-  private static func applyFrame(_ frame: CGRect, toFirstWindowOf bundleId: String) {
+  @discardableResult
+  private static func applyFrame(_ frame: CGRect, toFirstWindowOf bundleId: String) -> Bool {
     guard
       let app = NSRunningApplication
         .runningApplications(withBundleIdentifier: bundleId)
         .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
-    else { return }
+    else { return false }
 
     let axApp = AXUIElementCreateApplication(app.processIdentifier)
     var raw: CFTypeRef?
@@ -63,17 +77,37 @@ extension WindowTilerClient: DependencyKey {
     guard copyResult == .success,
           let windows = raw as? [AXUIElement],
           let window = windows.first
-    else { return }
+    else { return false }
 
+    var ok = true
     var position = CGPoint(x: frame.minX, y: frame.minY)
     if let posValue = AXValueCreate(.cgPoint, &position) {
-      AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, posValue)
+      let r = AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, posValue)
+      if r != .success { ok = false }
     }
     var size = CGSize(width: frame.width, height: frame.height)
     if let sizeValue = AXValueCreate(.cgSize, &size) {
-      AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
+      let r = AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
+      if r != .success { ok = false }
     }
+    return ok
   }
+}
+
+/// Returns true when the app already has AX permission; otherwise asks
+/// macOS to surface the prompt. The prompt key lives in a global var
+/// in C, so the conversion to a Swift String is wrapped behind a
+/// `MainActor` hop to keep strict concurrency happy.
+@MainActor
+@discardableResult
+public func ensureAccessibilityTrust() -> Bool {
+  if AXIsProcessTrusted() { return true }
+  // Inline the framework constant; the C symbol itself is `var` and
+  // therefore not concurrency-safe to reference under Swift 6 strict
+  // mode. The string is part of Apple's public API surface and is
+  // documented as immutable.
+  let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+  return AXIsProcessTrustedWithOptions(options)
 }
 
 extension DependencyValues {
