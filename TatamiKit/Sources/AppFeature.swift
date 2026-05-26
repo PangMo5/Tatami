@@ -50,6 +50,7 @@ public struct AppFeature {
         return .merge(
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),
+          .send(.activation(.startObservingWindowEvents)),
           .run { [client = focusFollowsMouse] _ in
             await client.configure(config)
           },

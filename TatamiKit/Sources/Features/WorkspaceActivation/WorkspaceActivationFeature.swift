@@ -24,6 +24,7 @@ public struct WorkspaceActivationFeature {
   }
 
   public enum Action {
+    case startObservingWindowEvents
     case activate(workspaceId: Workspace.ID, setFocus: Bool)
     case activateNext
     case activatePrevious
@@ -37,6 +38,7 @@ public struct WorkspaceActivationFeature {
     case bspResize(axis: BSPNode<String>.SplitAxis, delta: CGFloat)
     case bspToggleOrientation
     case bspOpResolved(bundleId: String, op: BSPOp)
+    case windowChanged(WindowChangeEvent)
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
   }
 
@@ -50,6 +52,7 @@ public struct WorkspaceActivationFeature {
 
   @Dependency(\.workspaceManager) var workspaceManager
   @Dependency(\.windowTiler) var windowTiler
+  @Dependency(\.windowObserver) var windowObserver
   @Dependency(\.displays) var displays
 
   public init() {}
@@ -57,6 +60,16 @@ public struct WorkspaceActivationFeature {
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
+      case .startObservingWindowEvents:
+        return .run { [client = windowObserver] send in
+          for await event in client.events() {
+            await send(.windowChanged(event))
+          }
+        }
+
+      case .windowChanged:
+        return retileActiveWorkspace(state: state)
+
       case .activate(let workspaceId, let setFocus):
         return performActivate(
           workspaceId: workspaceId,
@@ -154,9 +167,49 @@ public struct WorkspaceActivationFeature {
         if let display {
           state.activeWorkspacesByDisplay[display] = id
         }
-        return .none
+        let bundleIds = state.config.activeProfile?
+          .workspaces.first(where: { $0.id == id })?
+          .apps.map(\.bundleIdentifier) ?? []
+        return .run { [observer = windowObserver] _ in
+          await observer.observe(bundleIds)
+        }
       }
     }
+  }
+
+  /// Re-tile the workspace currently active on the main display.
+  /// Used when window-level events arrive (create, destroy, app
+  /// launch/terminate) so the layout tracks the live window set.
+  private func retileActiveWorkspace(state: State) -> Effect<Action> {
+    guard let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId })
+    else { return .none }
+    let bundleIds = workspace.apps.map(\.bundleIdentifier)
+    let display = workspace.displayHint ?? displays.current()
+    let settings = state.config.settings
+    let existing = state.tilingTrees[workspaceId]
+    let tree = Self.rebuildTreeIfNeeded(existing: existing, windows: bundleIds)
+    return .run { [tiler = windowTiler] _ in
+      let frames = await MainActor.run {
+        Self.computeFrames(tree: tree, settings: settings, targetDisplay: display)
+      }
+      if !frames.isEmpty {
+        await tiler.apply(
+          FrameApplication(bundleIdToFrame: frames, targetDisplay: display)
+        )
+      }
+    }
+  }
+
+  private static func rebuildTreeIfNeeded(
+    existing: BSPNode<String>?,
+    windows: [String]
+  ) -> BSPNode<String>? {
+    guard !windows.isEmpty else { return nil }
+    let target = Set(windows)
+    if let existing, Set(existing.windows) == target { return existing }
+    return BSPNode.build(windows, in: CGRect(x: 0, y: 0, width: 1, height: 1))
   }
 
   // MARK: - Activation
