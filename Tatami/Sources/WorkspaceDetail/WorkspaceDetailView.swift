@@ -5,6 +5,7 @@ import TatamiKit
 
 struct WorkspaceDetailView: View {
   @Bindable var store: StoreOf<WorkspaceDetailFeature>
+  let activationStore: StoreOf<WorkspaceActivationFeature>
   @State private var nameDraft: String = ""
 
   var body: some View {
@@ -18,6 +19,13 @@ struct WorkspaceDetailView: View {
             TextField("Name", text: $nameDraft)
               .textFieldStyle(.plain)
               .onSubmit { store.send(.nameSubmitted(nameDraft)) }
+            Spacer()
+            Button {
+              activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+            } label: {
+              Label("Activate", systemImage: "play.fill")
+            }
+            .disabled(activationStore.isActivating)
           }
         }
 

@@ -8,11 +8,13 @@ public struct AppFeature {
   @ObservableState
   public struct State: Equatable {
     public var workspaceList = WorkspaceListFeature.State()
+    public var activation = WorkspaceActivationFeature.State()
     public init() {}
   }
 
   public enum Action {
     case workspaceList(WorkspaceListFeature.Action)
+    case activation(WorkspaceActivationFeature.Action)
   }
 
   public init() {}
@@ -21,6 +23,8 @@ public struct AppFeature {
     Scope(state: \.workspaceList, action: \.workspaceList) {
       WorkspaceListFeature()
     }
-    Reduce { _, _ in .none }
+    Scope(state: \.activation, action: \.activation) {
+      WorkspaceActivationFeature()
+    }
   }
 }

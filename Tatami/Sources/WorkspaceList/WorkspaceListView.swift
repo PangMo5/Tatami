@@ -4,15 +4,20 @@ import TatamiKit
 
 struct WorkspaceListView: View {
   @Bindable var store: StoreOf<WorkspaceListFeature>
+  let activationStore: StoreOf<WorkspaceActivationFeature>
 
   var body: some View {
     NavigationSplitView {
       List(selection: $store.selectedWorkspaceID.sending(\.workspaceSelected)) {
         Section("Workspaces") {
           ForEach(store.workspaces) { workspace in
-            Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
+            row(for: workspace)
               .tag(workspace.id as Workspace.ID?)
               .contextMenu {
+                Button("Activate") {
+                  activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+                }
+                Divider()
                 Button("Delete", role: .destructive) {
                   store.send(.workspaceDeleteRequested(workspace.id))
                 }
@@ -38,7 +43,7 @@ struct WorkspaceListView: View {
       }
     } detail: {
       if let detailStore = store.scope(state: \.detail, action: \.detail) {
-        WorkspaceDetailView(store: detailStore)
+        WorkspaceDetailView(store: detailStore, activationStore: activationStore)
       } else {
         ContentUnavailableView(
           "No Workspace Selected",
@@ -49,6 +54,19 @@ struct WorkspaceListView: View {
     }
     .sheet(isPresented: $store.isAddSheetPresented) {
       AddWorkspaceForm(store: store)
+    }
+  }
+
+  @ViewBuilder
+  private func row(for workspace: Workspace) -> some View {
+    HStack {
+      Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
+      Spacer()
+      if activationStore.activeWorkspaceID == workspace.id {
+        Image(systemName: "circle.fill")
+          .foregroundStyle(.green)
+          .imageScale(.small)
+      }
     }
   }
 }
