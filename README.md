@@ -54,11 +54,12 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 ### Homebrew
 
-_Coming soon:_
-
 ```sh
 brew install --cask pangmo5/tap/tatami
 ```
+
+Or download the signed & notarized `.dmg` from the
+[latest release](https://github.com/PangMo5/Tatami/releases/latest).
 
 ### Build from source
 
