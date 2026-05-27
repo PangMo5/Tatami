@@ -94,6 +94,21 @@ struct SettingsView: View {
         shortcut("Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated)
       }
 
+      Section("Workspace Switching") {
+        Toggle(isOn: setting(\.loopWorkspaces)) {
+          Text("Loop around")
+          Text("Wrap from the last workspace back to the first (and vice versa).")
+        }
+        Toggle(isOn: setting(\.skipEmptyWorkspacesOnSwitch)) {
+          Text("Skip empty workspaces")
+          Text("Ignore workspaces with no assigned apps when cycling next/previous.")
+        }
+        Toggle(isOn: setting(\.activeWorkspaceOnFocusChange)) {
+          Text("Follow app focus")
+          Text("Switching to an app activates the workspace it belongs to.")
+        }
+      }
+
       Section("Gestures") {
         Toggle(isOn: setting(\.swipeGesturesEnabled)) {
           Text("Swipe to switch workspaces")

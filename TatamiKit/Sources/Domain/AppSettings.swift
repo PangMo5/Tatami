@@ -39,6 +39,14 @@ public struct AppSettings: Hashable, Sendable, Codable {
   /// A workspace's own `tilingMemory` overrides this when set.
   public var defaultTilingMemory: TilingMemory
 
+  /// Skip workspaces with no assigned apps when cycling next/previous.
+  public var skipEmptyWorkspacesOnSwitch: Bool
+  /// Wrap around from last→first (and first→last) when cycling.
+  public var loopWorkspaces: Bool
+  /// When an app is activated (cmd-tab etc.), switch to the workspace
+  /// that owns it.
+  public var activeWorkspaceOnFocusChange: Bool
+
   /// Horizontal trackpad swipe switches workspaces.
   public var swipeGesturesEnabled: Bool
   /// Number of fingers required for the swipe (3 or 4).
@@ -92,6 +100,9 @@ public struct AppSettings: Hashable, Sendable, Codable {
     isPaused: Bool = false,
     autoBalance: Bool = false,
     defaultTilingMemory: TilingMemory = .session,
+    skipEmptyWorkspacesOnSwitch: Bool = false,
+    loopWorkspaces: Bool = true,
+    activeWorkspaceOnFocusChange: Bool = false,
     swipeGesturesEnabled: Bool = false,
     swipeFingerCount: Int = 3,
     swipeThreshold: Double = 0.3,
@@ -126,6 +137,9 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.isPaused = isPaused
     self.autoBalance = autoBalance
     self.defaultTilingMemory = defaultTilingMemory
+    self.skipEmptyWorkspacesOnSwitch = skipEmptyWorkspacesOnSwitch
+    self.loopWorkspaces = loopWorkspaces
+    self.activeWorkspaceOnFocusChange = activeWorkspaceOnFocusChange
     self.swipeGesturesEnabled = swipeGesturesEnabled
     self.swipeFingerCount = swipeFingerCount
     self.swipeThreshold = swipeThreshold
@@ -161,6 +175,9 @@ extension AppSettings {
     case isPaused
     case autoBalance
     case defaultTilingMemory
+    case skipEmptyWorkspacesOnSwitch
+    case loopWorkspaces
+    case activeWorkspaceOnFocusChange
     case swipeGesturesEnabled
     case swipeFingerCount
     case swipeThreshold
@@ -188,6 +205,9 @@ extension AppSettings {
     self.isPaused = (try? c.decode(Bool.self, forKey: .isPaused)) ?? false
     self.autoBalance = (try? c.decode(Bool.self, forKey: .autoBalance)) ?? false
     self.defaultTilingMemory = (try? c.decode(TilingMemory.self, forKey: .defaultTilingMemory)) ?? .session
+    self.skipEmptyWorkspacesOnSwitch = (try? c.decode(Bool.self, forKey: .skipEmptyWorkspacesOnSwitch)) ?? false
+    self.loopWorkspaces = (try? c.decode(Bool.self, forKey: .loopWorkspaces)) ?? true
+    self.activeWorkspaceOnFocusChange = (try? c.decode(Bool.self, forKey: .activeWorkspaceOnFocusChange)) ?? false
     self.swipeGesturesEnabled = (try? c.decode(Bool.self, forKey: .swipeGesturesEnabled)) ?? false
     self.swipeFingerCount = (try? c.decode(Int.self, forKey: .swipeFingerCount)) ?? 3
     self.swipeThreshold = (try? c.decode(Double.self, forKey: .swipeThreshold)) ?? 0.3

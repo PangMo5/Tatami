@@ -179,6 +179,18 @@ public struct WorkspaceActivationFeature {
         if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
           return .none
         }
+        // activeWorkspaceOnFocusChange: if a non-floating app is focused
+        // and it belongs to a workspace that isn't active, switch to it.
+        // (Skipped while activating to avoid feedback loops.)
+        if !state.isActivating,
+           state.config.settings.activeWorkspaceOnFocusChange,
+           !state.config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }),
+           let owner = state.config.activeProfile?.workspaces.first(where: {
+             $0.apps.contains { $0.bundleIdentifier == bundleId }
+           }),
+           state.primaryActiveWorkspaceID != owner.id {
+          return .send(.activate(workspaceId: owner.id, setFocus: false))
+        }
         // Reconcile this app — if its window set is unchanged (the
         // common focus-churn case) syncAppWindows is a cheap no-op.
         return debouncedSync(bundleId, delayMs: 40)
@@ -1086,12 +1098,40 @@ public struct WorkspaceActivationFeature {
   private func cycle(by direction: Int, state: inout State) -> Effect<Action> {
     guard let workspaces = state.config.activeProfile?.workspaces, !workspaces.isEmpty
     else { return .none }
+    let settings = state.config.settings
     let currentID = state.activeWorkspacesByDisplay.values.first
       ?? state.primaryActiveWorkspaceID
     let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
-    let nextIndex = (currentIndex + direction + count) % count
-    return .send(.activate(workspaceId: workspaces[nextIndex].id, setFocus: true))
+
+    // "Empty" = no *running* app assigned (matches FlashSpace), not just
+    // an empty assignment list.
+    let runningBundleIds: Set<String> = settings.skipEmptyWorkspacesOnSwitch
+      ? MainActor.assumeIsolated {
+        Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+      }
+      : []
+
+    // Step through candidates in `direction`, honoring loop + skip-empty.
+    var index = currentIndex
+    for _ in 0 ..< count {
+      let next = index + direction
+      if settings.loopWorkspaces {
+        index = (next + count) % count
+      } else {
+        guard next >= 0, next < count else { return .none }
+        index = next
+      }
+      let candidate = workspaces[index]
+      if settings.skipEmptyWorkspacesOnSwitch {
+        let hasRunning = candidate.apps.contains {
+          runningBundleIds.contains($0.bundleIdentifier)
+        }
+        if !hasRunning { continue }
+      }
+      return .send(.activate(workspaceId: candidate.id, setFocus: true))
+    }
+    return .none
   }
 
   // MARK: - Helpers
