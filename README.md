@@ -1,4 +1,4 @@
-# 🟫 Tatami
+# Tatami <img src="Resources/Marketing/app-icon.png" align="right" height="128" />
 
 A macOS workspace manager with yabai-style window tiling.
 
