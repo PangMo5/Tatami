@@ -32,6 +32,69 @@ func _AXUIElementGetWindow(
   _ identifier: UnsafeMutablePointer<CGWindowID>
 ) -> AXError
 
+/// Private AX bridge that builds an `AXUIElement` from a "remote token"
+/// (pid + magic + element id). Used to recover window elements that
+/// `kAXWindowsAttribute` omits — some apps (KakaoTalk) and windows on
+/// inactive Spaces. yabai's workaround; attribution: decodism /
+/// alt-tab-macos #1324.
+@_silgen_name("_AXUIElementCreateWithRemoteToken")
+func _AXUIElementCreateWithRemoteToken(_ data: CFData) -> Unmanaged<AXUIElement>?
+
+/// On-screen, layer-0 window ids owned by `pid` (public SkyLight wrapper).
+/// Used to detect windows AX failed to enumerate.
+@MainActor
+func onScreenWindowIDs(pid: pid_t) -> Set<CGWindowID> {
+  let info = CGWindowListCopyWindowInfo(
+    [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+  ) as? [[String: Any]] ?? []
+  var ids: Set<CGWindowID> = []
+  for entry in info {
+    guard (entry[kCGWindowOwnerPID as String] as? pid_t) == pid,
+          (entry[kCGWindowLayer as String] as? Int) == 0,
+          let wid = entry[kCGWindowNumber as String] as? CGWindowID
+    else { continue }
+    ids.insert(wid)
+  }
+  return ids
+}
+
+/// Recover `WindowKey`s for windows present on screen but missing from
+/// `kAXWindowsAttribute`, by brute-forcing the AX remote-token element
+/// id until each missing CGWindowID resolves to an `AXWindow` element.
+@MainActor
+func recoverWindowKeys(
+  pid: pid_t,
+  missing: Set<CGWindowID>,
+  bundleId: String
+) -> [WindowKey] {
+  guard !missing.isEmpty, let data = NSMutableData(length: 0x14) else { return [] }
+  let raw = data.mutableBytes
+  raw.storeBytes(of: UInt32(pid), toByteOffset: 0x0, as: UInt32.self)
+  raw.storeBytes(of: UInt32(0x636f_636f), toByteOffset: 0x8, as: UInt32.self)
+
+  var remaining = missing
+  var result: [WindowKey] = []
+  var elementId: UInt64 = 0
+  while elementId < 0x7fff, !remaining.isEmpty {
+    raw.storeBytes(of: elementId, toByteOffset: 0xc, as: UInt64.self)
+    elementId += 1
+    guard let element = _AXUIElementCreateWithRemoteToken(data as CFData)?
+      .takeRetainedValue()
+    else { continue }
+    var roleRaw: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRaw) == .success,
+          (roleRaw as? String) == kAXWindowRole as String
+    else { continue }
+    var wid: CGWindowID = 0
+    guard _AXUIElementGetWindow(element, &wid) == .success,
+          remaining.contains(wid)
+    else { continue }
+    remaining.remove(wid)
+    result.append(WindowKey(pid: pid, windowID: wid, bundleId: bundleId))
+  }
+  return result
+}
+
 extension WindowKey {
   /// Resolve a window's `WindowKey` from its `AXUIElement`. Returns
   /// nil if the bridge fails (rare — usually means the window has

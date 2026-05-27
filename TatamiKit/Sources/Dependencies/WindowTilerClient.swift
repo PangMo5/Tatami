@@ -227,31 +227,39 @@ public func discoverWindowKeys(forBundleIds bundleIds: [String]) -> [WindowKey] 
     guard let pid = pidByBundle[bundleId] else { continue }
     let axApp = AXUIElementCreateApplication(pid)
     var raw: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(
+    var axWindowIDs: Set<CGWindowID> = []
+    if AXUIElementCopyAttributeValue(
       axApp,
       kAXWindowsAttribute as CFString,
       &raw
-    ) == .success,
-      let windows = raw as? [AXUIElement]
-    else { continue }
-    for window in windows {
-      // One AX round-trip for both filters (minimized + subrole)
-      // instead of two, then one more for the CGWindowID bridge.
-      var valuesRef: CFArray?
-      var minimized = false
-      var subrole: String?
-      if AXUIElementCopyMultipleAttributeValues(
-        window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-      ) == .success, let values = valuesRef as? [Any], values.count == 2 {
-        minimized = (values[0] as? Bool) ?? false
-        subrole = values[1] as? String
-      }
-      if minimized { continue }
-      if let subrole, subrole != kAXStandardWindowSubrole as String { continue }
-      if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
-        result.append(key)
+    ) == .success, let windows = raw as? [AXUIElement] {
+      for window in windows {
+        // One AX round-trip for both filters (minimized + subrole)
+        // instead of two, then one more for the CGWindowID bridge.
+        var valuesRef: CFArray?
+        var minimized = false
+        var subrole: String?
+        if AXUIElementCopyMultipleAttributeValues(
+          window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
+        ) == .success, let values = valuesRef as? [Any], values.count == 2 {
+          minimized = (values[0] as? Bool) ?? false
+          subrole = values[1] as? String
+        }
+        if minimized { continue }
+        if let subrole, subrole != kAXStandardWindowSubrole as String { continue }
+        if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
+          result.append(key)
+          axWindowIDs.insert(key.windowID)
+        }
       }
     }
+
+    // Recover windows on screen that AX failed to enumerate (KakaoTalk,
+    // inactive-Space windows). yabai's remote-token workaround.
+    let missing = onScreenWindowIDs(pid: pid).subtracting(axWindowIDs)
+    result.append(
+      contentsOf: recoverWindowKeys(pid: pid, missing: missing, bundleId: bundleId)
+    )
   }
   return result
 }
