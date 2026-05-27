@@ -16,6 +16,7 @@ public struct AppFeature {
 
   public enum Action {
     case task
+    case swiped(SwipeDirection)
     case workspaceList(WorkspaceListFeature.Action)
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
@@ -24,6 +25,7 @@ public struct AppFeature {
 
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
+  @Dependency(\.gestures) var gestures
 
   public init() {}
 
@@ -50,6 +52,9 @@ public struct AppFeature {
         // Normalize the config on disk: re-save so any legacy carbon
         // hotkey tables migrate to the skhd-style string form.
         state.workspaceList.$config.withLock { $0 = $0 }
+        let gesturesEnabled = state.workspaceList.config.settings.swipeGesturesEnabled
+        let swipeFingers = state.workspaceList.config.settings.swipeFingerCount
+        let swipeThreshold = state.workspaceList.config.settings.swipeThreshold
         return .merge(
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),
@@ -61,8 +66,20 @@ public struct AppFeature {
           },
           .run { _ in
             await MainActor.run { _ = ensureAccessibilityTrust() }
+          },
+          .run { [client = gestures] send in
+            guard gesturesEnabled else { return }
+            await client.start(swipeFingers, swipeThreshold)
+            for await direction in client.events() {
+              await send(.swiped(direction))
+            }
           }
         )
+
+      case .swiped(let direction):
+        // Right swipe → previous workspace, left swipe → next (natural
+        // trackpad direction: content follows fingers).
+        return .send(.activation(direction == .right ? .activatePrevious : .activateNext))
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
         return route(hotKeyAction, state: state)

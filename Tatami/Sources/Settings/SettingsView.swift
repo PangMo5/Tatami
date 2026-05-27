@@ -94,6 +94,21 @@ struct SettingsView: View {
         shortcut("Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated)
       }
 
+      Section("Gestures") {
+        Toggle(isOn: setting(\.swipeGesturesEnabled)) {
+          Text("Swipe to switch workspaces")
+          Text("Swipe left/right on the trackpad to move to the next/previous workspace. (Restart to apply.)")
+        }
+        Picker(selection: setting(\.swipeFingerCount)) {
+          Text("Three fingers").tag(3)
+          Text("Four fingers").tag(4)
+        } label: {
+          Text("Fingers")
+          Text("Number of fingers for the swipe gesture.")
+        }
+        .disabled(!config.settings.swipeGesturesEnabled)
+      }
+
       Section("Updates") {
         Toggle(isOn: setting(\.checkForUpdatesAutomatically)) {
           Text("Check for updates automatically")

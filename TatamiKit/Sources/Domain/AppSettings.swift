@@ -39,6 +39,13 @@ public struct AppSettings: Hashable, Sendable, Codable {
   /// A workspace's own `tilingMemory` overrides this when set.
   public var defaultTilingMemory: TilingMemory
 
+  /// Horizontal trackpad swipe switches workspaces.
+  public var swipeGesturesEnabled: Bool
+  /// Number of fingers required for the swipe (3 or 4).
+  public var swipeFingerCount: Int
+  /// Accumulated normalized swipe distance required to trigger a switch.
+  public var swipeThreshold: Double
+
   // MARK: Directional focus
 
   public var focusLeft: HotKey?
@@ -85,6 +92,9 @@ public struct AppSettings: Hashable, Sendable, Codable {
     isPaused: Bool = false,
     autoBalance: Bool = false,
     defaultTilingMemory: TilingMemory = .session,
+    swipeGesturesEnabled: Bool = false,
+    swipeFingerCount: Int = 3,
+    swipeThreshold: Double = 0.3,
     focusLeft: HotKey? = nil,
     focusRight: HotKey? = nil,
     focusUp: HotKey? = nil,
@@ -116,6 +126,9 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.isPaused = isPaused
     self.autoBalance = autoBalance
     self.defaultTilingMemory = defaultTilingMemory
+    self.swipeGesturesEnabled = swipeGesturesEnabled
+    self.swipeFingerCount = swipeFingerCount
+    self.swipeThreshold = swipeThreshold
     self.focusLeft = focusLeft
     self.focusRight = focusRight
     self.focusUp = focusUp
@@ -148,6 +161,9 @@ extension AppSettings {
     case isPaused
     case autoBalance
     case defaultTilingMemory
+    case swipeGesturesEnabled
+    case swipeFingerCount
+    case swipeThreshold
     case focusLeft, focusRight, focusUp, focusDown
     case switchToNextWorkspace, switchToPreviousWorkspace, switchToRecentWorkspace
     case cycleNextWindow, cyclePreviousWindow
@@ -172,6 +188,9 @@ extension AppSettings {
     self.isPaused = (try? c.decode(Bool.self, forKey: .isPaused)) ?? false
     self.autoBalance = (try? c.decode(Bool.self, forKey: .autoBalance)) ?? false
     self.defaultTilingMemory = (try? c.decode(TilingMemory.self, forKey: .defaultTilingMemory)) ?? .session
+    self.swipeGesturesEnabled = (try? c.decode(Bool.self, forKey: .swipeGesturesEnabled)) ?? false
+    self.swipeFingerCount = (try? c.decode(Int.self, forKey: .swipeFingerCount)) ?? 3
+    self.swipeThreshold = (try? c.decode(Double.self, forKey: .swipeThreshold)) ?? 0.3
     self.focusLeft = try? c.decode(HotKey.self, forKey: .focusLeft)
     self.focusRight = try? c.decode(HotKey.self, forKey: .focusRight)
     self.focusUp = try? c.decode(HotKey.self, forKey: .focusUp)
