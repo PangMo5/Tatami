@@ -107,6 +107,37 @@ struct SettingsView: View {
           Text("Number of fingers for the swipe gesture.")
         }
         .disabled(!config.settings.swipeGesturesEnabled)
+
+        VStack(alignment: .leading, spacing: 4) {
+          // Sensitivity is the inverse of the swipe-distance threshold:
+          // higher sensitivity = shorter swipe needed. Map 0.1...0.8
+          // threshold to a 0–100% display.
+          let sensitivity = 0.9 - config.settings.swipeThreshold
+          HStack {
+            Text("Sensitivity")
+            Spacer()
+            Text("\(Int((sensitivity / 0.8 * 100).rounded()))%")
+              .foregroundStyle(.secondary)
+              .monospacedDigit()
+          }
+          Slider(
+            value: Binding(
+              get: { sensitivity },
+              set: { v in $config.withLock { $0.settings.swipeThreshold = 0.9 - v } }
+            ),
+            in: 0.1 ... 0.8
+          ) {
+            Text("Sensitivity")
+          } minimumValueLabel: {
+            Text("Low")
+          } maximumValueLabel: {
+            Text("High")
+          }
+          Text("How far you must swipe to switch — higher sensitivity needs a shorter swipe.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .disabled(!config.settings.swipeGesturesEnabled)
       }
 
       Section("Updates") {
