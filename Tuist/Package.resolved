@@ -1,5 +1,5 @@
 {
-  "originHash" : "65a96bd44e79743ad5cfce1b213549e686a77fa4e1a35a0716e42a5dd731567e",
+  "originHash" : "de5b39dc6dcbe775f9b7c034e8f82e470f49b80f88a4a855d8ba99339eda7fee",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "dcccb979a2183b8df3334237e3dc1ae2b4116a86",
         "version" : "1.2.0"
-      }
-    },
-    {
-      "identity" : "karrotcodablekit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/daangn/KarrotCodableKit",
-      "state" : {
-        "revision" : "4aade811e572a8a89692e858a752a8ab1fa4d182",
-        "version" : "1.7.0"
       }
     },
     {

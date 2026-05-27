@@ -21,7 +21,6 @@ import PackageDescription
       "CasePaths": .framework,
       "CasePathsCore": .framework,
       "Clocks": .framework,
-      "KarrotCodableKit": .framework,
       "Sparkle": .framework,
       "KeyboardShortcuts": .framework,
       "TOML": .framework,
@@ -35,7 +34,6 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.20.0"),
     .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.5.0"),
-    .package(url: "https://github.com/daangn/KarrotCodableKit", from: "1.4.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.7.0"),
     .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", branch: "main"),
