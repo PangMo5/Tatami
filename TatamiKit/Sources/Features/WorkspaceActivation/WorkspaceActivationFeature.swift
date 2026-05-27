@@ -506,7 +506,6 @@ public struct WorkspaceActivationFeature {
       )
       return (cur, foc, wa)
     }
-
     // Track the insertion point: if focus is on a window already in the
     // tree, that's the most recent intentional focus — remember it.
     if let focused, existing?.windows.contains(focused) == true {
@@ -555,12 +554,25 @@ public struct WorkspaceActivationFeature {
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
-    guard oldWindows != newWindows else { return .none }
 
-    guard let final = balanced else { return .none }
+    // Observe every tree member, plus this app even when it currently
+    // exposes no AX window: an app opened via Notification Center (e.g.
+    // KakaoTalk) reports 0 windows at first, so without subscribing now
+    // we'd never get the windowCreated when its window finally appears.
+    var observeSet = Set(balanced?.windows.map(\.bundleId) ?? [])
+    if eligibleToAdd { observeSet.insert(bundleId) }
+    let observeIds = Array(observeSet)
+    let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
+      await observer.observe(observeIds)
+    }
+
+    // Nothing changed in the tree — still (re)subscribe so a later
+    // window from this app gets noticed.
+    guard oldWindows != newWindows, let final = balanced else {
+      return observeEffect
+    }
+
     let zoomed = state.zoomedWindow[workspaceId]
-    let observeIds = Array(Set(final.windows.map(\.bundleId)))
-
     return .merge(
       .run { [tiler = windowTiler] _ in
         let frames = await MainActor.run {
@@ -578,9 +590,7 @@ public struct WorkspaceActivationFeature {
         }
       }
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
-      .run { [observer = windowObserver] _ in
-        await observer.observe(observeIds)
-      },
+      observeEffect,
       persist(final, for: workspace, default: settings.defaultTilingMemory)
     )
   }
