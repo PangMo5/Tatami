@@ -1,5 +1,10 @@
 # Tatami <img src="Resources/Marketing/app-icon.png" align="right" height="128" />
 
+[![Latest release](https://img.shields.io/github/v/release/PangMo5/Tatami?sort=semver)](https://github.com/PangMo5/Tatami/releases/latest)
+[![Download](https://img.shields.io/github/downloads/PangMo5/Tatami/total)](https://github.com/PangMo5/Tatami/releases)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue)](LICENSE)
+
 A macOS workspace manager with yabai-style window tiling.
 
 Tatami groups your apps into virtual workspaces you switch between with a
