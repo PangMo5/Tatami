@@ -40,7 +40,7 @@ let project = Project(
         "LSApplicationCategoryType": "public.app-category.productivity",
         "CFBundleDisplayName": "Tatami",
         "NSHumanReadableCopyright":
-          "© 2025 Wojciech Kulik. Tatami © 2026 PangMo5. Released under GPL-3.0.",
+          "© 2026 PangMo5. Released under GPL-3.0. Inspired by FlashSpace and yabai.",
         "SUFeedURL": "https://raw.githubusercontent.com/PangMo5/Tatami/main/appcast.xml",
       ]),
       sources: ["Tatami/Sources/**"],

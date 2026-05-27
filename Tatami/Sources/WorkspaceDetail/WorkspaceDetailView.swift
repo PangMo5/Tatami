@@ -159,7 +159,6 @@ extension TilingMemory {
 }
 
 /// Searchable SF Symbol picker backed by SFSafeSymbols' full catalog.
-/// Replaces the archived xnth97/SymbolPicker that FlashSpace used.
 private struct SymbolPicker: View {
   let selected: String?
   let onSelect: (String?) -> Void

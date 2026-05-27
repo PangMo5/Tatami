@@ -35,8 +35,12 @@ func _AXUIElementGetWindow(
 /// Private AX bridge that builds an `AXUIElement` from a "remote token"
 /// (pid + magic + element id). Used to recover window elements that
 /// `kAXWindowsAttribute` omits — some apps (KakaoTalk) and windows on
-/// inactive Spaces. yabai's workaround; attribution: decodism /
-/// alt-tab-macos #1324.
+/// inactive Spaces.
+///
+/// The token's binary layout is an undocumented macOS ABI (the same one
+/// every tiling WM relies on — yabai, AeroSpace, Hammerspoon); the magic
+/// and field offsets below are dictated by the OS, not by any one
+/// project. The technique was first written up publicly by decodism.
 @_silgen_name("_AXUIElementCreateWithRemoteToken")
 func _AXUIElementCreateWithRemoteToken(_ data: CFData) -> Unmanaged<AXUIElement>?
 

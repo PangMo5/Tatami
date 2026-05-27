@@ -2,10 +2,12 @@ import AppKit
 import Dependencies
 import OSLog
 
-/// Three-finger horizontal trackpad swipes, surfaced as a stream of
-/// directions. Ported from FlashSpace's SwipeManager (itself based on
-/// SwipeAeroSpace): a CGEvent tap on gesture events accumulates per-touch
-/// distance and fires when the combined movement crosses a threshold.
+/// Horizontal trackpad swipes, surfaced as a stream of directions.
+///
+/// Built on the public `NSEvent.gesture` event tap. The recognizer tracks
+/// each active touch's displacement from where the gesture began and fires
+/// once the combined horizontal movement crosses a threshold while every
+/// finger agrees on direction.
 public struct GestureClient: Sendable {
   public var start: @Sendable (_ fingerCount: Int, _ threshold: Double) async -> Void
   public var stop: @Sendable () async -> Void
@@ -28,11 +30,13 @@ public enum SwipeDirection: Sendable, Hashable {
 
 extension GestureClient: DependencyKey {
   public static let liveValue: GestureClient = {
-    let center = SwipeCenter()
+    let recognizer = HorizontalSwipeRecognizer()
     return GestureClient(
-      start: { fingers, threshold in await center.start(fingerCount: fingers, threshold: threshold) },
-      stop: { await center.stop() },
-      events: { center.events }
+      start: { fingers, threshold in
+        await recognizer.start(fingers: fingers, threshold: threshold)
+      },
+      stop: { await recognizer.stop() },
+      events: { recognizer.directions }
     )
   }()
 
@@ -53,128 +57,156 @@ extension DependencyValues {
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Gestures")
 
-private struct UncheckedEvent: @unchecked Sendable {
-  let value: NSEvent
-}
+/// Recognizes multi-finger horizontal swipes from the HID gesture tap.
+///
+/// The tap source lives on the main run loop, so all mutable state is
+/// touched only from the main actor. The C callback receives `self` via
+/// the tap's `userInfo` pointer (no global shared instance).
+private final class HorizontalSwipeRecognizer: @unchecked Sendable {
+  let directions: AsyncStream<SwipeDirection>
+  private let emit: AsyncStream<SwipeDirection>.Continuation
 
-/// Owns the CGEvent tap + per-touch accumulation. Lives on the main run
-/// loop (the tap source is added there).
-private final class SwipeCenter: @unchecked Sendable {
-  let events: AsyncStream<SwipeDirection>
-  private let continuation: AsyncStream<SwipeDirection>.Continuation
+  /// Per-touch horizontal travel measured from the gesture's first sample.
+  private struct Travel {
+    let origin: CGFloat
+    var current: CGFloat
+    var displacement: CGFloat { current - origin }
+  }
 
-  private enum State { case idle, inProgress, ended }
+  private var tap: CFMachPort?
+  private var requiredFingers = 3
+  private var threshold = 0.3
 
-  private var eventTap: CFMachPort?
-  private var threshold: Double = 0.3
-  private var fingerCount = 3
-  private var state: State = .ended
-  private var xDistance: [ObjectIdentifier: CGFloat] = [:]
-  private var prevPositions: [ObjectIdentifier: NSPoint] = [:]
-  private var lastTouchDate = Date.distantPast
+  private var travelByTouch: [ObjectIdentifier: Travel] = [:]
+  private var didFireForCurrentGesture = false
+  private var lastSampleAt = Date.distantPast
+
+  /// A new gesture starts once the touchpad has been quiet this long.
+  private let restGap: TimeInterval = 0.8
 
   init() {
-    var c: AsyncStream<SwipeDirection>.Continuation!
-    self.events = AsyncStream(bufferingPolicy: .bufferingNewest(4)) { c = $0 }
-    self.continuation = c
+    var continuation: AsyncStream<SwipeDirection>.Continuation!
+    self.directions = AsyncStream(bufferingPolicy: .bufferingNewest(4)) { continuation = $0 }
+    self.emit = continuation
   }
 
   @MainActor
-  func start(fingerCount: Int, threshold: Double) {
+  func start(fingers: Int, threshold: Double) {
+    self.requiredFingers = min(max(fingers, 2), 4)
     self.threshold = threshold
-    self.fingerCount = max(2, min(4, fingerCount))
-    guard eventTap == nil else { return }
+    guard tap == nil else { return }
 
-    let mask = NSEvent.EventTypeMask.gesture.rawValue
-    let tap = CGEvent.tapCreate(
+    let context = Unmanaged.passUnretained(self).toOpaque()
+    let created = CGEvent.tapCreate(
       tap: .cghidEventTap,
       place: .headInsertEventTap,
       options: .defaultTap,
-      eventsOfInterest: mask,
-      callback: { _, type, cgEvent, _ in
-        SwipeCenter.shared?.handle(type: type, event: cgEvent)
-        return Unmanaged.passUnretained(cgEvent)
+      eventsOfInterest: NSEvent.EventTypeMask.gesture.rawValue,
+      callback: { _, type, event, context in
+        guard let context else { return Unmanaged.passUnretained(event) }
+        let recognizer = Unmanaged<HorizontalSwipeRecognizer>
+          .fromOpaque(context)
+          .takeUnretainedValue()
+        recognizer.consume(type: type, event: event)
+        return Unmanaged.passUnretained(event)
       },
-      userInfo: nil
+      userInfo: context
     )
-    guard let tap else {
+    guard let created else {
       logger.warning("gesture tap creation failed (accessibility?)")
       return
     }
-    eventTap = tap
-    SwipeCenter.shared = self
-    let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
+    tap = created
+    let source = CFMachPortCreateRunLoopSource(nil, created, 0)
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-    CGEvent.tapEnable(tap: tap, enable: true)
+    CGEvent.tapEnable(tap: created, enable: true)
     logger.info("gesture tap started")
   }
 
   @MainActor
   func stop() {
-    guard let tap = eventTap else { return }
+    guard let tap else { return }
     CGEvent.tapEnable(tap: tap, enable: false)
     CFMachPortInvalidate(tap)
-    eventTap = nil
-    if SwipeCenter.shared === self { SwipeCenter.shared = nil }
+    self.tap = nil
+    reset()
     logger.info("gesture tap stopped")
   }
 
-  // C callbacks can't capture context cleanly; route through a shared
-  // pointer (only one tap exists at a time). The tap fires on the main
-  // run loop, so access is effectively main-isolated. Mirrors FlashSpace.
-  nonisolated(unsafe) static weak var shared: SwipeCenter?
-
-  fileprivate func handle(type: CGEventType, event: CGEvent) {
+  /// C-callback entry point. Re-enables the tap if the system disabled it,
+  /// otherwise hops to the main actor to fold the gesture event in.
+  fileprivate func consume(type: CGEventType, event: CGEvent) {
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
-      if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+      if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
       return
     }
     guard type.rawValue == NSEvent.EventType.gesture.rawValue,
           let nsEvent = NSEvent(cgEvent: event)
     else { return }
-    // The tap fires on the main run loop, so it's safe to hop isolation
-    // with the event; box it to satisfy strict concurrency.
-    let boxed = UncheckedEvent(value: nsEvent)
-    MainActor.assumeIsolated { handleGesture(boxed.value) }
+    let boxed = Unchecked(nsEvent)
+    MainActor.assumeIsolated { ingest(boxed.value) }
   }
 
   @MainActor
-  private func handleGesture(_ nsEvent: NSEvent) {
-    let touches = nsEvent.allTouches()
-      .filter { !$0.isResting && $0.phase != .stationary }
-
-    if touches.isEmpty || Date().timeIntervalSince(lastTouchDate) > 0.8 {
-      state = .idle
+  private func ingest(_ event: NSEvent) {
+    let touches = event.allTouches().filter {
+      !$0.isResting && $0.phase != .stationary
     }
-    guard touches.count >= fingerCount else { return }
 
-    if state == .idle {
-      state = .inProgress
-      xDistance = [:]
-      prevPositions = [:]
+    // No fingers down (or a long pause) ends the current gesture.
+    if touches.isEmpty || Date().timeIntervalSince(lastSampleAt) > restGap {
+      reset()
     }
-    guard state == .inProgress else { return }
-    lastTouchDate = Date()
+    guard touches.count >= requiredFingers else { return }
+    lastSampleAt = Date()
 
     for touch in touches {
       let id = ObjectIdentifier(touch.identity)
-      if let prev = prevPositions[id] {
-        xDistance[id, default: 0] += touch.normalizedPosition.x - prev.x
+      let x = touch.normalizedPosition.x
+      if travelByTouch[id] == nil {
+        travelByTouch[id] = Travel(origin: x, current: x)
+      } else {
+        travelByTouch[id]?.current = x
       }
-      prevPositions[id] = touch.normalizedPosition
     }
 
-    let swipes = xDistance.values
-    guard swipes.count == fingerCount else { return }
-    let allRight = swipes.allSatisfy { $0 > 0 }
-    let allLeft = swipes.allSatisfy { $0 < 0 }
-    let perFinger = threshold / (Double(swipes.count) + 2.0)
-    guard swipes.allSatisfy({ abs($0) > perFinger }),
-          abs(swipes.reduce(0, +)) >= threshold,
-          allLeft || allRight
+    guard !didFireForCurrentGesture,
+          travelByTouch.count == requiredFingers,
+          let direction = resolveDirection()
     else { return }
 
-    state = .ended
-    continuation.yield(allRight ? .right : .left)
+    didFireForCurrentGesture = true
+    emit.yield(direction)
+  }
+
+  /// Returns a direction only when every finger has moved the same way and
+  /// the summed travel clears the threshold. A small per-finger floor
+  /// rejects incidental jitter where one finger barely drifts.
+  @MainActor
+  private func resolveDirection() -> SwipeDirection? {
+    let displacements = travelByTouch.values.map(\.displacement)
+    let perFingerFloor = threshold * 0.3
+    let total = displacements.reduce(0, +)
+
+    if displacements.allSatisfy({ $0 > perFingerFloor }), total >= threshold {
+      return .right
+    }
+    if displacements.allSatisfy({ $0 < -perFingerFloor }), -total >= threshold {
+      return .left
+    }
+    return nil
+  }
+
+  @MainActor
+  private func reset() {
+    travelByTouch.removeAll(keepingCapacity: true)
+    didFireForCurrentGesture = false
+  }
+
+  /// Ferries a non-Sendable `NSEvent` across the (already main-bound)
+  /// isolation hop from the C callback.
+  private struct Unchecked: @unchecked Sendable {
+    let value: NSEvent
+    init(_ value: NSEvent) { self.value = value }
   }
 }

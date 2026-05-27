@@ -12,7 +12,7 @@ struct MenuBarLabel: View {
     let activeId = store.activation.primaryActiveWorkspaceID
     let workspace = config.activeProfile?.workspaces.first { $0.id == activeId }
     // macOS renders a Label as icon-only in the menu bar, so compose the
-    // icon and name explicitly to make the title show (matches FlashSpace).
+    // icon and name explicitly to make the title show.
     HStack(spacing: 4) {
       Image(systemName: workspace?.symbolIconName ?? "square.stack.3d.up.fill")
       if config.settings.menuBar.showWorkspaceName, let name = workspace?.name {

@@ -1129,8 +1129,8 @@ public struct WorkspaceActivationFeature {
     let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
 
-    // "Empty" = no *running* app assigned (matches FlashSpace), not just
-    // an empty assignment list.
+    // "Empty" = no *running* app assigned, not just an empty assignment
+    // list.
     let runningBundleIds: Set<String> = settings.switching.skipEmpty
       ? MainActor.assumeIsolated {
         Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))

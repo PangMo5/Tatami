@@ -4,8 +4,8 @@ import Dependencies
 import Foundation
 import OSLog
 
-/// Side-effect surface for "make this workspace active". Activation
-/// follows FlashSpace's policy:
+/// Side-effect surface for "make this workspace active". Activation uses
+/// a show-before-hide policy:
 ///
 ///  1. unhide every app belonging to the target workspace
 ///  2. unhide every app in `floatingApps`
@@ -75,7 +75,7 @@ extension WorkspaceManagerClient: DependencyKey {
 
           // 0. Auto-open: launch assigned apps flagged autoOpen that
           //    aren't running yet. They join the layout later via the
-          //    window-created observer. (FlashSpace openAppsIfNeeded.)
+          //    window-created observer.
           let runningBundleIds = Set(running.compactMap(\.bundleIdentifier))
           for app in request.workspace.apps
           where app.autoOpen && !runningBundleIds.contains(app.bundleIdentifier) {
@@ -113,9 +113,9 @@ extension WorkspaceManagerClient: DependencyKey {
             toFocus.activate(options: [.activateIgnoringOtherApps])
           }
 
-          // 2. Hide everything else. Finder is special-cased like
-          //    FlashSpace: only hide it when a workspace app is actually
-          //    running — otherwise we'd be left on an empty desktop.
+          // 2. Hide everything else. Finder is special-cased: only hide
+          //    it when a workspace app is actually running — otherwise
+          //    we'd be left on an empty desktop.
           var hiddenCount = 0
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
@@ -172,7 +172,7 @@ extension NSRunningApplication {
   /// Bring the app's main window to the front via Accessibility — the
   /// reliable way to surface an app that was just unhidden (plain
   /// `activate` often leaves the window behind Finder). Falls back to
-  /// `unhide()` when there's no main window yet. Mirrors FlashSpace.
+  /// `unhide()` when there's no main window yet.
   fileprivate func raiseMainWindow() {
     guard let mainAXWindow else {
       unhide()
