@@ -1,0 +1,214 @@
+name: Release
+
+# Push a tag like `v0.1.0` to cut a release: builds, signs, notarizes,
+# packages a DMG, signs it for Sparkle, regenerates appcast.xml, publishes a
+# GitHub Release, updates the Homebrew cask, and deploys the appcast to Pages.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    env:
+      TUIST_DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+      TUIST_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION="$(grep -E '^let appVersion' Project.swift | sed -E 's/.*"([^"]+)".*/\1/')"
+          if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
+            echo "::error::Tag ($TAG_VERSION) does not match Project.swift appVersion ($APP_VERSION). Bump appVersion and retag." >&2
+            exit 1
+          fi
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: jdx/mise-action@v2
+
+      - name: Import Developer ID certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productsign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+      - name: Generate Xcode project
+        env:
+          TUIST_BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          tuist install
+          tuist generate --no-open
+
+      - name: Archive (Developer ID, Release)
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -workspace Tatami.xcworkspace \
+            -scheme Tatami \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$RUNNER_TEMP/Tatami.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$TUIST_DEVELOPMENT_TEAM" \
+            ENABLE_HARDENED_RUNTIME=YES \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime"
+
+      - name: Export app
+        run: |
+          set -euo pipefail
+          cp -R "$RUNNER_TEMP/Tatami.xcarchive/Products/Applications/Tatami.app" "$RUNNER_TEMP/Tatami.app"
+
+      - name: Re-sign Sparkle nested helpers
+        run: |
+          set -euo pipefail
+          # xcodebuild re-signs Sparkle.framework itself but leaves its nested
+          # helper bundles/binaries (Updater.app, Autoupdate, XPCServices) with
+          # Sparkle's original signature, which notarization rejects. Re-sign
+          # them inside-out with our Developer ID, hardened runtime + timestamp.
+          APP="$RUNNER_TEMP/Tatami.app"
+          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+          sign() {
+            codesign --force --options runtime --timestamp \
+              --preserve-metadata=entitlements \
+              --sign "Developer ID Application" "$1"
+          }
+          sign "$SPARKLE/Versions/Current/XPCServices/Installer.xpc"
+          sign "$SPARKLE/Versions/Current/XPCServices/Downloader.xpc"
+          sign "$SPARKLE/Versions/Current/Autoupdate"
+          sign "$SPARKLE/Versions/Current/Updater.app"
+          sign "$SPARKLE"
+          sign "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+
+      - name: Create DMG
+        run: |
+          set -euo pipefail
+          brew install create-dmg
+          create-dmg \
+            --volname "Tatami" \
+            --app-drop-link 420 180 \
+            --window-size 600 360 \
+            "$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg" \
+            "$RUNNER_TEMP/Tatami.app"
+
+      - name: Notarize + staple
+        env:
+          AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
+          AC_API_ISSUER_ID: ${{ secrets.AC_API_ISSUER_ID }}
+          AC_API_KEY_P8: ${{ secrets.AC_API_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          echo "$AC_API_KEY_P8" > "$RUNNER_TEMP/ac_api_key.p8"
+          DMG="$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg"
+          SUBMIT_JSON="$(xcrun notarytool submit "$DMG" \
+            --key "$RUNNER_TEMP/ac_api_key.p8" \
+            --key-id "$AC_API_KEY_ID" \
+            --issuer "$AC_API_ISSUER_ID" \
+            --output-format json --wait)"
+          echo "$SUBMIT_JSON"
+          SUB_ID="$(echo "$SUBMIT_JSON" | python3 -c 'import sys, json; print(json.load(sys.stdin)["id"])')"
+          SUB_STATUS="$(echo "$SUBMIT_JSON" | python3 -c 'import sys, json; print(json.load(sys.stdin)["status"])')"
+          if [ "$SUB_STATUS" != "Accepted" ]; then
+            echo "Notarization failed with status: $SUB_STATUS. Fetching log:"
+            xcrun notarytool log "$SUB_ID" \
+              --key "$RUNNER_TEMP/ac_api_key.p8" \
+              --key-id "$AC_API_KEY_ID" \
+              --issuer "$AC_API_ISSUER_ID" || true
+            exit 1
+          fi
+          xcrun stapler staple "$DMG"
+
+      - name: Sign for Sparkle + build appcast
+        env:
+          SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          set -euo pipefail
+          SPARKLE_BIN="$(find Tuist/.build -path '*/Sparkle/bin' -type d | head -1)"
+          mkdir -p "$RUNNER_TEMP/release"
+          cp "$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg" "$RUNNER_TEMP/release/"
+          echo "$SPARKLE_PRIVATE_ED_KEY" > "$RUNNER_TEMP/sparkle_ed_private.key"
+          # generate_appcast signs every archive in the folder and emits appcast.xml
+          "$SPARKLE_BIN/generate_appcast" \
+            --ed-key-file "$RUNNER_TEMP/sparkle_ed_private.key" \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/" \
+            "$RUNNER_TEMP/release"
+
+      - name: Publish GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            "$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update Homebrew cask
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG="$RUNNER_TEMP/Tatami-${VERSION}.dmg"
+          SHA="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+          git clone --depth 1 \
+            "https://x-access-token:${TAP_TOKEN}@github.com/${{ github.repository_owner }}/homebrew-tap.git" \
+            "$RUNNER_TEMP/tap"
+          CASK="$RUNNER_TEMP/tap/Casks/tatami.rb"
+          sed -i.bak -E "s|^  version \".*\"|  version \"${VERSION}\"|" "$CASK"
+          sed -i.bak -E "s|^  sha256 \".*\"|  sha256 \"${SHA}\"|" "$CASK"
+          rm -f "${CASK}.bak"
+          cd "$RUNNER_TEMP/tap"
+          if git diff --quiet; then
+            echo "Cask already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "tatami ${VERSION}"
+          git push
+
+      - name: Publish appcast to GitHub Pages
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/site"
+          cp "$RUNNER_TEMP/release/appcast.xml" "$RUNNER_TEMP/site/appcast.xml"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy-pages:
+    needs: release
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

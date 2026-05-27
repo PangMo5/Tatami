@@ -16,9 +16,10 @@ build:
 # macOS Accessibility/Input Monitoring permissions are preserved
 # across rebuilds.
 #
-# Provide XCODE_DEVELOPMENT_TEAM (and optionally TATAMI_CERT_HASH /
-# TATAMI_CERT_NAME) via your shell environment — none of those are
-# checked into the repo.
+# Provide TUIST_DEVELOPMENT_TEAM (and optionally TATAMI_CERT_HASH /
+# TATAMI_CERT_NAME) via `.mise.local.toml` or your shell environment —
+# none of those are checked into the repo. Run `make generate` after
+# setting the team so it gets baked into the project.
 app:
 	xcodebuild \
 		-workspace Tatami.xcworkspace \

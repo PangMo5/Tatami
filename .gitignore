@@ -15,6 +15,9 @@ DerivedData/
 .build/
 .swiftpm/
 
+# sourcekit-lsp / build server
+buildServer.json
+
 # Generated Info.plist
 **/Info.plist
 
@@ -24,11 +27,25 @@ DerivedData/
 *.dSYM
 .dsyms/
 
+# Local mise overrides (development team, secrets)
+.mise.local.toml
+
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 
 # Editors
 .vscode/
 .idea/
 .nvim/
 .cursor/
+
+# Secrets / signing material
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.pem
+*.certSigningRequest
