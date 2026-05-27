@@ -1,16 +1,14 @@
 import AppKit
 import Dependencies
+import DependenciesMacros
 import Foundation
 
 /// Snapshot of the macOS apps currently runnable by the user. Wrapping
 /// `NSWorkspace.shared.runningApplications` behind a `@Dependency` lets
 /// reducers stay testable.
+@DependencyClient
 public struct RunningAppsClient: Sendable {
-  public var current: @Sendable () -> [MacApp]
-
-  public init(current: @escaping @Sendable () -> [MacApp]) {
-    self.current = current
-  }
+  public var current: @Sendable () -> [MacApp] = { [] }
 }
 
 extension RunningAppsClient: DependencyKey {

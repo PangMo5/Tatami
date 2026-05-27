@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
@@ -16,12 +17,9 @@ import OSLog
 /// The BSP tile pass runs separately (`WindowTilerClient`) after the
 /// show/hide step completes, on the assumption that windows already
 /// belong to the right Spaces.
+@DependencyClient
 public struct WorkspaceManagerClient: Sendable {
   public var activate: @Sendable (ActivationRequest) async -> Void
-
-  public init(activate: @escaping @Sendable (ActivationRequest) async -> Void) {
-    self.activate = activate
-  }
 }
 
 public struct ActivationRequest: Sendable, Hashable {

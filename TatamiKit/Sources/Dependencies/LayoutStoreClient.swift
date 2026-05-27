@@ -1,4 +1,5 @@
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
@@ -8,20 +9,11 @@ import OSLog
 /// `BSPNode<String>` (bundle-id leaves) — `WindowKey`s are process-
 /// scoped and meaningless after a restart, so we serialize the shape
 /// and re-hydrate it against live windows on the next activation.
+@DependencyClient
 public struct LayoutStoreClient: Sendable {
   public var save: @Sendable (UUID, BSPNode<String>) -> Void
   public var load: @Sendable (UUID) -> BSPNode<String>?
   public var clear: @Sendable (UUID) -> Void
-
-  public init(
-    save: @escaping @Sendable (UUID, BSPNode<String>) -> Void,
-    load: @escaping @Sendable (UUID) -> BSPNode<String>?,
-    clear: @escaping @Sendable (UUID) -> Void
-  ) {
-    self.save = save
-    self.load = load
-    self.clear = clear
-  }
 }
 
 extension LayoutStoreClient: DependencyKey {

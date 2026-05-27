@@ -1,16 +1,14 @@
 import AppKit
 import Dependencies
+import DependenciesMacros
 import SwiftUI
 
 /// Shows a brief, centered overlay with the activated workspace's name
 /// and icon — visual feedback for hotkey/menu switches. Auto-dismisses;
 /// re-showing resets the timer.
+@DependencyClient
 public struct WorkspaceHUDClient: Sendable {
   public var show: @Sendable (_ name: String, _ symbolIconName: String?) async -> Void
-
-  public init(show: @escaping @Sendable (_ name: String, _ symbolIconName: String?) async -> Void) {
-    self.show = show
-  }
 }
 
 extension WorkspaceHUDClient: DependencyKey {

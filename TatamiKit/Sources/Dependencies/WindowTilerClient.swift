@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
@@ -9,12 +10,9 @@ import OSLog
 /// just talks to AX, handles the macOS-fullscreen exit dance, and
 /// suppresses system animations with the `AXEnhancedUserInterface`
 /// toggle so frames snap into place yabai-style.
+@DependencyClient
 public struct WindowTilerClient: Sendable {
   public var apply: @Sendable (FrameApplication) async -> Void
-
-  public init(apply: @escaping @Sendable (FrameApplication) async -> Void) {
-    self.apply = apply
-  }
 }
 
 public struct FrameApplication: Sendable, Hashable {

@@ -1,19 +1,17 @@
 import AppKit
 import ApplicationServices
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
 /// Mouse-driven focus: while enabled, the app under the cursor becomes
 /// frontmost. Mirrors yabai's `focus_follows_mouse` with a configurable
 /// modifier that temporarily suspends the behavior.
+@DependencyClient
 public struct FocusFollowsMouseClient: Sendable {
   /// Apply new settings. Pass `enabled = false` to tear the monitor down.
   public var configure: @Sendable (FocusFollowsMouseConfig) async -> Void
-
-  public init(configure: @escaping @Sendable (FocusFollowsMouseConfig) async -> Void) {
-    self.configure = configure
-  }
 }
 
 public struct FocusFollowsMouseConfig: Sendable, Hashable {

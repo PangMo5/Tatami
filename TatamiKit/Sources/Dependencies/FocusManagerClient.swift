@@ -1,23 +1,17 @@
 import AppKit
 import ApplicationServices
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
 /// Directional focus operations. Looks at every visible window on the
 /// active display via Accessibility and picks the next focusable window
 /// in the requested direction.
+@DependencyClient
 public struct FocusManagerClient: Sendable {
   public var moveFocus: @Sendable (FocusDirection) async -> Void
-  public var cycleApp: @Sendable (CycleDirection, [String]) async -> Void
-
-  public init(
-    moveFocus: @escaping @Sendable (FocusDirection) async -> Void,
-    cycleApp: @escaping @Sendable (CycleDirection, [String]) async -> Void
-  ) {
-    self.moveFocus = moveFocus
-    self.cycleApp = cycleApp
-  }
+  public var cycleApp: @Sendable (_ direction: CycleDirection, _ bundleIds: [String]) async -> Void
 }
 
 public enum FocusDirection: Sendable, Hashable {

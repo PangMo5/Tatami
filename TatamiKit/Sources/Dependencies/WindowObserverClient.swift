@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
@@ -10,19 +11,12 @@ import OSLog
 /// destroyed in any of those apps, so the reducer can re-tile the
 /// workspace in real time — matching yabai's "windows are always
 /// laid out" behavior.
+@DependencyClient
 public struct WindowObserverClient: Sendable {
   /// Replace the set of observed bundle identifiers. Pass empty to
   /// stop observing entirely.
   public var observe: @Sendable ([String]) async -> Void
-  public var events: @Sendable () -> AsyncStream<WindowChangeEvent>
-
-  public init(
-    observe: @escaping @Sendable ([String]) async -> Void,
-    events: @escaping @Sendable () -> AsyncStream<WindowChangeEvent>
-  ) {
-    self.observe = observe
-    self.events = events
-  }
+  public var events: @Sendable () -> AsyncStream<WindowChangeEvent> = { AsyncStream { _ in } }
 }
 
 public enum WindowChangeEvent: Sendable, Hashable {

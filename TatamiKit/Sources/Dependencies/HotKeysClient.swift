@@ -1,4 +1,5 @@
 import Dependencies
+import DependenciesMacros
 import Foundation
 import KeyboardShortcuts
 
@@ -74,17 +75,10 @@ public struct HotKeyBinding: Sendable, Hashable {
 }
 
 /// Side-effect surface for registering global keyboard shortcuts.
+@DependencyClient
 public struct HotKeysClient: Sendable {
   public var register: @Sendable ([HotKeyBinding]) async -> Void
-  public var events: @Sendable () -> AsyncStream<HotKeyAction>
-
-  public init(
-    register: @escaping @Sendable ([HotKeyBinding]) async -> Void,
-    events: @escaping @Sendable () -> AsyncStream<HotKeyAction>
-  ) {
-    self.register = register
-    self.events = events
-  }
+  public var events: @Sendable () -> AsyncStream<HotKeyAction> = { AsyncStream { _ in } }
 }
 
 extension HotKeysClient: DependencyKey {

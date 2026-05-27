@@ -1,21 +1,15 @@
 import AppKit
 import Dependencies
+import DependenciesMacros
 import Foundation
 
 /// Read-only view of the connected macOS displays. Tatami identifies
 /// displays by their localized name so reconnecting the same monitor
 /// keeps workspace assignments stable across `CGDirectDisplayID` resets.
+@DependencyClient
 public struct DisplayClient: Sendable {
-  public var all: @Sendable () -> [DisplayName]
+  public var all: @Sendable () -> [DisplayName] = { [] }
   public var current: @Sendable () -> DisplayName?
-
-  public init(
-    all: @escaping @Sendable () -> [DisplayName],
-    current: @escaping @Sendable () -> DisplayName?
-  ) {
-    self.all = all
-    self.current = current
-  }
 }
 
 extension DisplayClient: DependencyKey {

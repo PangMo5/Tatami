@@ -1,17 +1,15 @@
 import AppKit
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 
 /// Streams regular-app launch events from `NSWorkspace`. Used by the
 /// activation reducer so apps that the user opens manually (e.g.
 /// KakaoTalk) get folded into the active workspace's BSP layout.
+@DependencyClient
 public struct AppLaunchObserverClient: Sendable {
-  public var events: @Sendable () -> AsyncStream<AppLaunchEvent>
-
-  public init(events: @escaping @Sendable () -> AsyncStream<AppLaunchEvent>) {
-    self.events = events
-  }
+  public var events: @Sendable () -> AsyncStream<AppLaunchEvent> = { AsyncStream { _ in } }
 }
 
 public enum AppLaunchEvent: Sendable, Hashable {

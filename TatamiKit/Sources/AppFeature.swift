@@ -75,6 +75,8 @@ public struct AppFeature {
           },
           // React to live settings edits (Settings tab writes the shared
           // config) so launch-time integrations reconfigure immediately.
+          // (Sharing's `Observations` would be the modern path, but it
+          // requires macOS 26; on our 14.0 target we use the publisher.)
           .publisher {
             sharedConfig.publisher
               .map(\.settings)

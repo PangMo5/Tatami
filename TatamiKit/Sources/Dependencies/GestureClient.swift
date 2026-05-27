@@ -1,5 +1,6 @@
 import AppKit
 import Dependencies
+import DependenciesMacros
 import OSLog
 
 /// Horizontal trackpad swipes, surfaced as a stream of directions.
@@ -8,20 +9,11 @@ import OSLog
 /// each active touch's displacement from where the gesture began and fires
 /// once the combined horizontal movement crosses a threshold while every
 /// finger agrees on direction.
+@DependencyClient
 public struct GestureClient: Sendable {
   public var start: @Sendable (_ fingerCount: Int, _ threshold: Double) async -> Void
   public var stop: @Sendable () async -> Void
-  public var events: @Sendable () -> AsyncStream<SwipeDirection>
-
-  public init(
-    start: @escaping @Sendable (_ fingerCount: Int, _ threshold: Double) async -> Void,
-    stop: @escaping @Sendable () async -> Void,
-    events: @escaping @Sendable () -> AsyncStream<SwipeDirection>
-  ) {
-    self.start = start
-    self.stop = stop
-    self.events = events
-  }
+  public var events: @Sendable () -> AsyncStream<SwipeDirection> = { AsyncStream { _ in } }
 }
 
 public enum SwipeDirection: Sendable, Hashable {

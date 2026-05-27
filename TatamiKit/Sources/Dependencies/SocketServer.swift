@@ -1,5 +1,6 @@
 import Darwin
 import Dependencies
+import DependenciesMacros
 import Foundation
 import OSLog
 import TatamiCLIProtocol
@@ -12,21 +13,12 @@ import TatamiCLIProtocol
 /// The implementation uses POSIX sockets directly (Darwin) rather than
 /// Network.framework: Unix domain sockets via NWListener are awkward and
 /// this is a low-traffic, blocking-accept loop on a background queue.
+@DependencyClient
 public struct SocketServerClient: Sendable {
   /// Start the listener at `path`. Idempotent — calling twice does nothing.
   public var start: @Sendable (_ path: String) async throws -> Void
   public var stop: @Sendable () async -> Void
-  public var requests: @Sendable () -> AsyncStream<Incoming>
-
-  public init(
-    start: @escaping @Sendable (String) async throws -> Void,
-    stop: @escaping @Sendable () async -> Void,
-    requests: @escaping @Sendable () -> AsyncStream<Incoming>
-  ) {
-    self.start = start
-    self.stop = stop
-    self.requests = requests
-  }
+  public var requests: @Sendable () -> AsyncStream<Incoming> = { AsyncStream { _ in } }
 
   /// A pending CLI request along with a one-shot reply continuation.
   public struct Incoming: Sendable {
