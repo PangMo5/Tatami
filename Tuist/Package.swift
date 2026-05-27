@@ -25,6 +25,14 @@ import PackageDescription
       "KeyboardShortcuts": .framework,
       "TOML": .framework,
       "SFSafeSymbols": .framework,
+    ],
+    targetSettings: [
+      // KeyboardShortcuts (pinned to `main`) crashes the Swift optimizer in
+      // Release builds — SIL EarlyPerfInliner on the NSMenuItem WeakReference
+      // deinit (NSMenuItem++.swift). Disable optimization for just this
+      // package to dodge the compiler bug; it's tiny, so there's no
+      // meaningful perf cost.
+      "KeyboardShortcuts": ["SWIFT_OPTIMIZATION_LEVEL": "-Onone"],
     ]
   )
 #endif
