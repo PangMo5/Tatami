@@ -11,22 +11,22 @@ struct SettingsView: View {
   var body: some View {
     Form {
       Section("Gaps") {
-        Stepper(value: setting(\.gapInner), in: 0 ... 100) {
-          Text("Inner gap: \(config.settings.gapInner) px")
+        Stepper(value: setting(\.layout.gapInner), in: 0 ... 100) {
+          Text("Inner gap: \(config.settings.layout.gapInner) px")
           Text("Space between adjacent tiled windows.")
         }
-        Stepper(value: setting(\.gapOuter), in: 0 ... 100) {
-          Text("Outer gap: \(config.settings.gapOuter) px")
+        Stepper(value: setting(\.layout.gapOuter), in: 0 ... 100) {
+          Text("Outer gap: \(config.settings.layout.gapOuter) px")
           Text("Space between the tiles and the screen edge.")
         }
       }
 
       Section("Layout") {
-        Toggle(isOn: setting(\.autoBalance)) {
+        Toggle(isOn: setting(\.layout.autoBalance)) {
           Text("Auto-balance")
           Text("Equalize every split whenever a window is added or removed.")
         }
-        Picker(selection: setting(\.defaultTilingMemory)) {
+        Picker(selection: setting(\.layout.defaultTilingMemory)) {
           ForEach(TilingMemory.allCases, id: \.self) { memory in
             Text(memory.displayName).tag(memory)
           }
@@ -37,19 +37,19 @@ struct SettingsView: View {
       }
 
       Section("Mouse & Focus") {
-        Toggle(isOn: setting(\.mouseFollowsFocus)) {
+        Toggle(isOn: setting(\.focus.mouseFollowsFocus)) {
           Text("Mouse follows focus")
           Text("Move the cursor to the focused window when you switch workspaces.")
         }
-        Toggle(isOn: setting(\.mouseHidesOnFocus)) {
+        Toggle(isOn: setting(\.focus.mouseHidesOnFocus)) {
           Text("Hide cursor on focus")
           Text("Hide the cursor on a workspace switch until you move the mouse.")
         }
-        Toggle(isOn: setting(\.focusFollowsMouse)) {
+        Toggle(isOn: setting(\.focus.focusFollowsMouse)) {
           Text("Focus follows mouse")
           Text("Focus whatever window sits under the cursor as it moves.")
         }
-        Picker(selection: setting(\.focusFollowsMouseDisableHotkey)) {
+        Picker(selection: setting(\.focus.focusFollowsMouseDisableHotkey)) {
           ForEach(FocusFollowsMouseModifier.allCases, id: \.self) { modifier in
             Text(modifier.displayName).tag(modifier)
           }
@@ -57,7 +57,7 @@ struct SettingsView: View {
           Text("Suspend with modifier")
           Text("Hold this key to temporarily pause focus-follows-mouse.")
         }
-        .disabled(!config.settings.focusFollowsMouse)
+        .disabled(!config.settings.focus.focusFollowsMouse)
       }
 
       Section("Focus") {
@@ -95,39 +95,39 @@ struct SettingsView: View {
       }
 
       Section("Workspace Switching") {
-        Toggle(isOn: setting(\.loopWorkspaces)) {
+        Toggle(isOn: setting(\.switching.loop)) {
           Text("Loop around")
           Text("Wrap from the last workspace back to the first (and vice versa).")
         }
-        Toggle(isOn: setting(\.skipEmptyWorkspacesOnSwitch)) {
+        Toggle(isOn: setting(\.switching.skipEmpty)) {
           Text("Skip empty workspaces")
-          Text("Ignore workspaces with no assigned apps when cycling next/previous.")
+          Text("Ignore workspaces with no running apps when cycling next/previous.")
         }
-        Toggle(isOn: setting(\.activeWorkspaceOnFocusChange)) {
+        Toggle(isOn: setting(\.switching.followAppFocus)) {
           Text("Follow app focus")
           Text("Switching to an app activates the workspace it belongs to.")
         }
       }
 
       Section("Gestures") {
-        Toggle(isOn: setting(\.swipeGesturesEnabled)) {
+        Toggle(isOn: setting(\.gestures.enabled)) {
           Text("Swipe to switch workspaces")
-          Text("Swipe left/right on the trackpad to move to the next/previous workspace. (Restart to apply.)")
+          Text("Swipe left/right on the trackpad to move to the next/previous workspace.")
         }
-        Picker(selection: setting(\.swipeFingerCount)) {
+        Picker(selection: setting(\.gestures.fingerCount)) {
           Text("Three fingers").tag(3)
           Text("Four fingers").tag(4)
         } label: {
           Text("Fingers")
           Text("Number of fingers for the swipe gesture.")
         }
-        .disabled(!config.settings.swipeGesturesEnabled)
+        .disabled(!config.settings.gestures.enabled)
 
         VStack(alignment: .leading, spacing: 4) {
           // Sensitivity is the inverse of the swipe-distance threshold:
           // higher sensitivity = shorter swipe needed. Map 0.1...0.8
           // threshold to a 0–100% display.
-          let sensitivity = 0.9 - config.settings.swipeThreshold
+          let sensitivity = 0.9 - config.settings.gestures.threshold
           HStack {
             Text("Sensitivity")
             Spacer()
@@ -138,7 +138,7 @@ struct SettingsView: View {
           Slider(
             value: Binding(
               get: { sensitivity },
-              set: { v in $config.withLock { $0.settings.swipeThreshold = 0.9 - v } }
+              set: { v in $config.withLock { $0.settings.gestures.threshold = 0.9 - v } }
             ),
             in: 0.1 ... 0.8
           ) {
@@ -152,25 +152,25 @@ struct SettingsView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        .disabled(!config.settings.swipeGesturesEnabled)
+        .disabled(!config.settings.gestures.enabled)
       }
 
       Section("Menu Bar") {
-        Toggle(isOn: setting(\.showWorkspaceNameInMenuBar)) {
+        Toggle(isOn: setting(\.menuBar.showWorkspaceName)) {
           Text("Show workspace name")
           Text("Display the active workspace's name next to its icon in the menu bar.")
         }
       }
 
       Section("Overlay") {
-        Toggle(isOn: setting(\.showWorkspaceHUD)) {
+        Toggle(isOn: setting(\.hud.enabled)) {
           Text("Show workspace HUD")
           Text("Display a brief overlay with the workspace name when switching.")
         }
       }
 
       Section("Updates") {
-        Toggle(isOn: setting(\.checkForUpdatesAutomatically)) {
+        Toggle(isOn: setting(\.general.checkForUpdatesAutomatically)) {
           Text("Check for updates automatically")
           Text("Periodically check for new Tatami releases.")
         }
@@ -182,15 +182,15 @@ struct SettingsView: View {
 
   /// A recorder row bound to a global `HotKeyAction`. The recorder edits
   /// the shared KeyboardShortcuts slot directly (so the live handler
-  /// updates immediately); `onChange` also mirrors it into the config so
-  /// it persists.
+  /// updates immediately); the callback also mirrors it into the config's
+  /// `shortcuts` group so it persists.
   private func shortcut(
     _ title: String,
     _ action: HotKeyAction,
-    _ keyPath: WritableKeyPath<AppSettings, HotKey?>
+    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, HotKey?>
   ) -> some View {
     KeyboardShortcuts.Recorder(title, name: action.keyboardShortcutName) { shortcut in
-      $config.withLock { $0.settings[keyPath: keyPath] = shortcut.map(HotKey.init) }
+      $config.withLock { $0.settings.shortcuts[keyPath: keyPath] = shortcut.map(HotKey.init) }
     }
   }
 

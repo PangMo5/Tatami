@@ -61,7 +61,7 @@ struct WorkspaceDetailView: View {
         DisplayPickerSection(store: store, workspace: workspace)
 
         Section("Tiling Memory") {
-          let globalDefault = store.config.settings.defaultTilingMemory
+          let globalDefault = store.config.settings.layout.defaultTilingMemory
           Picker(
             selection: Binding(
               get: { workspace.tilingMemory },

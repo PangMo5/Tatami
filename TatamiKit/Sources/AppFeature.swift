@@ -85,8 +85,8 @@ public struct AppFeature {
 
       case .settingsChanged(let settings):
         let ffm = FocusFollowsMouseConfig(
-          enabled: settings.focusFollowsMouse,
-          disableModifier: settings.focusFollowsMouseDisableHotkey
+          enabled: settings.focus.focusFollowsMouse,
+          disableModifier: settings.focus.focusFollowsMouseDisableHotkey
         )
         return .merge(
           .run { [client = focusFollowsMouse] _ in
@@ -94,8 +94,8 @@ public struct AppFeature {
           },
           .run { [client = gestures] _ in
             await client.stop()
-            if settings.swipeGesturesEnabled {
-              await client.start(settings.swipeFingerCount, settings.swipeThreshold)
+            if settings.gestures.enabled {
+              await client.start(settings.gestures.fingerCount, settings.gestures.threshold)
             }
           }
         )

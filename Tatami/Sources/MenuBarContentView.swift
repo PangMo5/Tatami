@@ -15,7 +15,7 @@ struct MenuBarLabel: View {
     // icon and name explicitly to make the title show (matches FlashSpace).
     HStack(spacing: 4) {
       Image(systemName: workspace?.symbolIconName ?? "square.stack.3d.up.fill")
-      if config.settings.showWorkspaceNameInMenuBar, let name = workspace?.name {
+      if config.settings.menuBar.showWorkspaceName, let name = workspace?.name {
         Text(name)
       }
     }
@@ -48,7 +48,7 @@ struct MenuBarContentView: View {
       Divider()
     }
 
-    Button(config.settings.isPaused ? "Resume Tiling" : "Pause Tiling") {
+    Button(config.settings.general.isPaused ? "Resume Tiling" : "Pause Tiling") {
       store.send(.activation(.togglePaused))
     }
 

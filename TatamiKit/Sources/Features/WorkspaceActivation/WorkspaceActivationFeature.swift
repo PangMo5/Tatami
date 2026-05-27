@@ -184,7 +184,7 @@ public struct WorkspaceActivationFeature {
         // and it belongs to a workspace that isn't active, switch to it.
         // (Skipped while activating to avoid feedback loops.)
         if !state.isActivating,
-           state.config.settings.activeWorkspaceOnFocusChange,
+           state.config.settings.switching.followAppFocus,
            !state.config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }),
            let owner = state.config.activeProfile?.workspaces.first(where: {
              $0.apps.contains { $0.bundleIdentifier == bundleId }
@@ -281,9 +281,9 @@ public struct WorkspaceActivationFeature {
         return .none
 
       case .togglePaused:
-        let wasPaused = state.config.settings.isPaused
+        let wasPaused = state.config.settings.general.isPaused
         state.$config.withLock { config in
-          config.settings.isPaused.toggle()
+          config.settings.general.isPaused.toggle()
         }
         // Resuming: re-tile right away. Use reflow (not activate) so we
         // don't hide transient members like an ad-hoc KakaoTalk window.
@@ -305,11 +305,11 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         let settings = state.config.settings
         let display = workspace.displayHint ?? displays.current()
-        let gap = CGFloat(settings.gapInner)
+        let gap = CGFloat(settings.layout.gapInner)
         let workArea = MainActor.assumeIsolated {
           ScreenGeometry.workArea(for: display).insetBy(
-            dx: CGFloat(settings.gapOuter),
-            dy: CGFloat(settings.gapOuter)
+            dx: CGFloat(settings.layout.gapOuter),
+            dy: CGFloat(settings.layout.gapOuter)
           )
         }
         // Directional focus stays *within the tiled set* — the neighbor
@@ -321,7 +321,7 @@ public struct WorkspaceActivationFeature {
           in: workArea,
           gap: gap
         ) else { return .none }
-        let warpMouse = settings.mouseFollowsFocus
+        let warpMouse = settings.focus.mouseFollowsFocus
         let zoomed = state.zoomedWindow[workspaceId]
         return .run { [mouse = mouse] _ in
           await MainActor.run {
@@ -409,7 +409,7 @@ public struct WorkspaceActivationFeature {
   /// to whatever changed while paused, but re-activating would hide
   /// transient members (e.g. a KakaoTalk window opened ad-hoc).
   private func reflowActiveWorkspace(state: inout State) -> Effect<Action> {
-    guard !state.config.settings.isPaused,
+    guard !state.config.settings.general.isPaused,
           let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
@@ -436,7 +436,7 @@ public struct WorkspaceActivationFeature {
       let keys = discoverWindowKeys(forBundleIds: registered)
         + discoverWindowKeys(forBundleIds: visibleUnassigned)
       let workArea = ScreenGeometry.workArea(for: display).insetBy(
-        dx: CGFloat(settings.gapOuter), dy: CGFloat(settings.gapOuter)
+        dx: CGFloat(settings.layout.gapOuter), dy: CGFloat(settings.layout.gapOuter)
       )
       return (keys, focusedWindowKey(), workArea)
     }
@@ -447,7 +447,7 @@ public struct WorkspaceActivationFeature {
       focused: snapshot.focused,
       workArea: snapshot.workArea
     )
-    let balanced = settings.autoBalance ? merged?.balanced() : merged
+    let balanced = settings.layout.autoBalance ? merged?.balanced() : merged
     state.tilingTrees[workspaceId] = balanced
     guard let tree = balanced else { return .none }
     state.lastFocusedKey = tree.deepestLeaf
@@ -467,7 +467,7 @@ public struct WorkspaceActivationFeature {
       }
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
-      persist(tree, for: workspace, default: settings.defaultTilingMemory)
+      persist(tree, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -494,7 +494,7 @@ public struct WorkspaceActivationFeature {
   /// stays cheap.
   private func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
     // Paused = tiling is off; don't reflow on window/app churn.
-    guard !state.config.settings.isPaused else { return .none }
+    guard !state.config.settings.general.isPaused else { return .none }
     if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
       return .none
     }
@@ -527,8 +527,8 @@ public struct WorkspaceActivationFeature {
       let cur = discoverWindowKeys(forBundleIds: [bundleId])
       let foc = focusedWindowKey()
       let wa = ScreenGeometry.workArea(for: display).insetBy(
-        dx: CGFloat(settings.gapOuter),
-        dy: CGFloat(settings.gapOuter)
+        dx: CGFloat(settings.layout.gapOuter),
+        dy: CGFloat(settings.layout.gapOuter)
       )
       // Currently-visible apps not assigned anywhere — transient tiling
       // candidates we must keep observing so a window appearing later
@@ -587,7 +587,7 @@ public struct WorkspaceActivationFeature {
       }
     }
 
-    let balanced = settings.autoBalance ? tree?.balanced() : tree
+    let balanced = settings.layout.autoBalance ? tree?.balanced() : tree
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
@@ -632,7 +632,7 @@ public struct WorkspaceActivationFeature {
       }
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       observeEffect,
-      persist(final, for: workspace, default: settings.defaultTilingMemory)
+      persist(final, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -759,7 +759,7 @@ public struct WorkspaceActivationFeature {
     setFocus: Bool,
     state: inout State
   ) -> Effect<Action> {
-    guard !state.config.settings.isPaused else { return .none }
+    guard !state.config.settings.general.isPaused else { return .none }
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces.first(where: { $0.id == workspaceId })
     else { return .none }
@@ -772,14 +772,14 @@ public struct WorkspaceActivationFeature {
       floatingApps: state.config.floatingApps,
       targetDisplay: targetDisplay,
       setFocus: setFocus,
-      mouseHidesOnFocus: setFocus && state.config.settings.mouseHidesOnFocus
+      mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus
     )
-    let warpMouse = setFocus && state.config.settings.mouseFollowsFocus
-    let showHUD = setFocus && state.config.settings.showWorkspaceHUD
+    let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
+    let showHUD = setFocus && state.config.settings.hud.enabled
 
     let settings = state.config.settings
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
-    let memory = workspace.tilingMemory ?? settings.defaultTilingMemory
+    let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
     // .fresh always starts from scratch on (re)activation; .session and
     // .persistent reuse the in-memory tree. .persistent additionally
     // falls back to the on-disk snapshot when there's no live tree
@@ -811,8 +811,8 @@ public struct WorkspaceActivationFeature {
         let keys = discoverWindowKeys(forBundleIds: bundleIds)
         let focused = focusedWindowKey()
         let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
-          dx: CGFloat(settings.gapOuter),
-          dy: CGFloat(settings.gapOuter)
+          dx: CGFloat(settings.layout.gapOuter),
+          dy: CGFloat(settings.layout.gapOuter)
         )
         var base = sessionTree
         if memory == .persistent, base == nil,
@@ -826,7 +826,7 @@ public struct WorkspaceActivationFeature {
           focused: focused,
           workArea: workArea
         )
-        let tree = settings.autoBalance ? merged?.balanced() : merged
+        let tree = settings.layout.autoBalance ? merged?.balanced() : merged
         let frames = Self.computeFrames(
           tree: tree,
           settings: settings,
@@ -883,11 +883,11 @@ public struct WorkspaceActivationFeature {
 
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
-    let gap = CGFloat(settings.gapInner)
+    let gap = CGFloat(settings.layout.gapInner)
     let workArea = MainActor.assumeIsolated {
       ScreenGeometry.workArea(for: display).insetBy(
-        dx: CGFloat(settings.gapOuter),
-        dy: CGFloat(settings.gapOuter)
+        dx: CGFloat(settings.layout.gapOuter),
+        dy: CGFloat(settings.layout.gapOuter)
       )
     }
     let parentRect = tree.rect(at: parentPath, in: workArea, gap: gap)
@@ -926,7 +926,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, for: workspace, default: settings.defaultTilingMemory)
+      persist(newTree, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -953,11 +953,11 @@ public struct WorkspaceActivationFeature {
     let display = workspace.displayHint ?? displays.current()
     let workArea = MainActor.assumeIsolated {
       ScreenGeometry.workArea(for: display).insetBy(
-        dx: CGFloat(settings.gapOuter),
-        dy: CGFloat(settings.gapOuter)
+        dx: CGFloat(settings.layout.gapOuter),
+        dy: CGFloat(settings.layout.gapOuter)
       )
     }
-    let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
+    let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
     let center = CGPoint(x: frame.midX, y: frame.midY)
     let swapTarget = allFrames.first(where: { other, rect in
       other != key && rect.contains(center)
@@ -988,7 +988,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, for: workspace, default: settings.defaultTilingMemory)
+      persist(newTree, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -1007,11 +1007,11 @@ public struct WorkspaceActivationFeature {
 
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
-    let gap = CGFloat(settings.gapInner)
+    let gap = CGFloat(settings.layout.gapInner)
     let workArea = MainActor.assumeIsolated {
       ScreenGeometry.workArea(for: display).insetBy(
-        dx: CGFloat(settings.gapOuter),
-        dy: CGFloat(settings.gapOuter)
+        dx: CGFloat(settings.layout.gapOuter),
+        dy: CGFloat(settings.layout.gapOuter)
       )
     }
 
@@ -1076,7 +1076,7 @@ public struct WorkspaceActivationFeature {
           FrameApplication(windowFrames: frames, targetDisplay: display)
         )
       },
-      persist(tree, for: workspace, default: settings.defaultTilingMemory)
+      persist(tree, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -1114,7 +1114,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, for: workspace, default: settings.defaultTilingMemory)
+      persist(newTree, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -1131,7 +1131,7 @@ public struct WorkspaceActivationFeature {
 
     // "Empty" = no *running* app assigned (matches FlashSpace), not just
     // an empty assignment list.
-    let runningBundleIds: Set<String> = settings.skipEmptyWorkspacesOnSwitch
+    let runningBundleIds: Set<String> = settings.switching.skipEmpty
       ? MainActor.assumeIsolated {
         Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
       }
@@ -1141,14 +1141,14 @@ public struct WorkspaceActivationFeature {
     var index = currentIndex
     for _ in 0 ..< count {
       let next = index + direction
-      if settings.loopWorkspaces {
+      if settings.switching.loop {
         index = (next + count) % count
       } else {
         guard next >= 0, next < count else { return .none }
         index = next
       }
       let candidate = workspaces[index]
-      if settings.skipEmptyWorkspacesOnSwitch {
+      if settings.switching.skipEmpty {
         let hasRunning = candidate.apps.contains {
           runningBundleIds.contains($0.bundleIdentifier)
         }
@@ -1170,10 +1170,10 @@ public struct WorkspaceActivationFeature {
   ) -> [WindowKey: CGRect] {
     guard let tree else { return [:] }
     let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
-      dx: CGFloat(settings.gapOuter),
-      dy: CGFloat(settings.gapOuter)
+      dx: CGFloat(settings.layout.gapOuter),
+      dy: CGFloat(settings.layout.gapOuter)
     )
-    var frames = tree.frames(in: workArea, gap: CGFloat(settings.gapInner))
+    var frames = tree.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
     // Zoom overrides the leaf's tile rect with the full work area so
     // the focused window appears "fullscreen within the workspace"
     // without retiling everything else (yabai's zoom-fullscreen).

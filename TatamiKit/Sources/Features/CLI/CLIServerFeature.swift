@@ -128,7 +128,7 @@ public struct CLIServerFeature {
           floatingApps: config.floatingApps,
           targetDisplay: workspace.displayHint,
           setFocus: true,
-          mouseHidesOnFocus: config.settings.mouseHidesOnFocus
+          mouseHidesOnFocus: config.settings.focus.mouseHidesOnFocus
         )
       )
       let bundleIds = workspace.apps.map(\.bundleIdentifier)
