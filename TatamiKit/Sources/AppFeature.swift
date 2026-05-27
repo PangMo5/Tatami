@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Sharing
 
 /// Top-level reducer. Composes the feature reducers that make up the
 /// Tatami app and routes global hotkey events to the right child.
@@ -7,6 +8,7 @@ import Foundation
 public struct AppFeature {
   @ObservableState
   public struct State: Equatable {
+    @Shared(.tatamiConfig) public var config = AppConfig()
     public var workspaceList = WorkspaceListFeature.State()
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
@@ -17,6 +19,10 @@ public struct AppFeature {
   public enum Action {
     case task
     case swiped(SwipeDirection)
+    /// Global settings changed on disk (e.g. via the Settings tab) —
+    /// reconfigure the launch-time integrations that don't re-read
+    /// config on their own (focus-follows-mouse, gesture tap).
+    case settingsChanged(AppSettings)
     case workspaceList(WorkspaceListFeature.Action)
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
@@ -45,33 +51,51 @@ public struct AppFeature {
     Reduce { state, action in
       switch action {
       case .task:
-        let config = FocusFollowsMouseConfig(
-          enabled: state.workspaceList.config.settings.focusFollowsMouse,
-          disableModifier: state.workspaceList.config.settings.focusFollowsMouseDisableHotkey
-        )
+        let settings = state.config.settings
+        let sharedConfig = state.$config
         // Normalize the config on disk: re-save so any legacy carbon
         // hotkey tables migrate to the skhd-style string form.
-        state.workspaceList.$config.withLock { $0 = $0 }
-        let gesturesEnabled = state.workspaceList.config.settings.swipeGesturesEnabled
-        let swipeFingers = state.workspaceList.config.settings.swipeFingerCount
-        let swipeThreshold = state.workspaceList.config.settings.swipeThreshold
+        state.$config.withLock { $0 = $0 }
         return .merge(
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),
           .send(.activation(.startObservingWindowEvents)),
           .send(.activation(.startObservingAppLaunches)),
           .send(.activation(.activateInitial)),
-          .run { [client = focusFollowsMouse] _ in
-            await client.configure(config)
-          },
+          .send(.settingsChanged(settings)),
           .run { _ in
             await MainActor.run { _ = ensureAccessibilityTrust() }
           },
+          // Always consume swipe events; the tap itself is toggled on/off
+          // in `.settingsChanged`.
           .run { [client = gestures] send in
-            guard gesturesEnabled else { return }
-            await client.start(swipeFingers, swipeThreshold)
             for await direction in client.events() {
               await send(.swiped(direction))
+            }
+          },
+          // React to live settings edits (Settings tab writes the shared
+          // config) so launch-time integrations reconfigure immediately.
+          .publisher {
+            sharedConfig.publisher
+              .map(\.settings)
+              .removeDuplicates()
+              .map(Action.settingsChanged)
+          }
+        )
+
+      case .settingsChanged(let settings):
+        let ffm = FocusFollowsMouseConfig(
+          enabled: settings.focusFollowsMouse,
+          disableModifier: settings.focusFollowsMouseDisableHotkey
+        )
+        return .merge(
+          .run { [client = focusFollowsMouse] _ in
+            await client.configure(ffm)
+          },
+          .run { [client = gestures] _ in
+            await client.stop()
+            if settings.swipeGesturesEnabled {
+              await client.start(settings.swipeFingerCount, settings.swipeThreshold)
             }
           }
         )
