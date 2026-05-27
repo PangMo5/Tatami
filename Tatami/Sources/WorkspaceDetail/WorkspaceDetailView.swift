@@ -40,6 +40,27 @@ struct WorkspaceDetailView: View {
 
         DisplayPickerSection(store: store, workspace: workspace)
 
+        Section("Tiling Memory") {
+          let globalDefault = store.config.settings.defaultTilingMemory
+          Picker(
+            selection: Binding(
+              get: { workspace.tilingMemory },
+              set: { store.send(.tilingMemoryChanged($0)) }
+            )
+          ) {
+            Text("Use Global (\(globalDefault.displayName))").tag(TilingMemory?.none)
+            Divider()
+            ForEach(TilingMemory.allCases, id: \.self) { memory in
+              Text(memory.displayName).tag(TilingMemory?.some(memory))
+            }
+          } label: {
+            Text("Remember layout")
+            Text(workspace.tilingMemory.map(memoryDescription)
+              ?? "Follow the global default — \(globalDefault.displayName). Change it in Settings.")
+          }
+          .pickerStyle(.menu)
+        }
+
         Section {
           ForEach(store.apps) { assignment in
             AppRow(
@@ -95,6 +116,24 @@ struct WorkspaceDetailView: View {
         systemImage: "exclamationmark.triangle",
         description: Text("This workspace no longer exists.")
       )
+    }
+  }
+}
+
+private func memoryDescription(_ memory: TilingMemory) -> String {
+  switch memory {
+  case .fresh: "Lay out fresh every time the workspace activates."
+  case .session: "Keep split ratios while the app runs; reset on restart."
+  case .persistent: "Remember the layout across app restarts."
+  }
+}
+
+extension TilingMemory {
+  var displayName: String {
+    switch self {
+    case .fresh: "Fresh"
+    case .session: "Session"
+    case .persistent: "Persistent"
     }
   }
 }

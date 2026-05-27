@@ -440,7 +440,7 @@ public struct WorkspaceActivationFeature {
       }
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
-      persist(tree, for: workspace)
+      persist(tree, for: workspace, default: settings.defaultTilingMemory)
     )
   }
 
@@ -580,7 +580,7 @@ public struct WorkspaceActivationFeature {
       .run { [observer = windowObserver] _ in
         await observer.observe(observeIds)
       },
-      persist(final, for: workspace)
+      persist(final, for: workspace, default: settings.defaultTilingMemory)
     )
   }
 
@@ -690,9 +690,11 @@ public struct WorkspaceActivationFeature {
   /// keyed so it survives the process-scoped `WindowKey`s dying.
   private func persist(
     _ tree: BSPNode<WindowKey>?,
-    for workspace: Workspace
+    for workspace: Workspace,
+    default defaultMemory: TilingMemory
   ) -> Effect<Action> {
-    guard workspace.tilingMemory == .persistent, let tree else { return .none }
+    let memory = workspace.tilingMemory ?? defaultMemory
+    guard memory == .persistent, let tree else { return .none }
     let id = workspace.id
     let template = tree.mapWindows { $0.bundleId }
     return .run { [store = layoutStore] _ in store.save(id, template) }
@@ -724,12 +726,17 @@ public struct WorkspaceActivationFeature {
 
     let settings = state.config.settings
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
-    let memory = workspace.tilingMemory
+    let memory = workspace.tilingMemory ?? settings.defaultTilingMemory
     // .fresh always starts from scratch on (re)activation; .session and
     // .persistent reuse the in-memory tree. .persistent additionally
     // falls back to the on-disk snapshot when there's no live tree
     // (i.e. first activation after launch).
     let sessionTree = memory == .fresh ? nil : state.tilingTrees[workspace.id]
+    // .fresh starts clean — drop any lingering zoom so the workspace
+    // doesn't reactivate stuck in fullscreen.
+    if memory == .fresh {
+      state.zoomedWindow[workspace.id] = nil
+    }
     let zoomed = state.zoomedWindow[workspace.id]
 
     return .run { [
@@ -849,7 +856,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, for: workspace)
+      persist(newTree, for: workspace, default: settings.defaultTilingMemory)
     )
   }
 
@@ -911,7 +918,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, for: workspace)
+      persist(newTree, for: workspace, default: settings.defaultTilingMemory)
     )
   }
 
@@ -999,7 +1006,7 @@ public struct WorkspaceActivationFeature {
           FrameApplication(windowFrames: frames, targetDisplay: display)
         )
       },
-      persist(tree, for: workspace)
+      persist(tree, for: workspace, default: settings.defaultTilingMemory)
     )
   }
 
@@ -1037,7 +1044,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, for: workspace)
+      persist(newTree, for: workspace, default: settings.defaultTilingMemory)
     )
   }
 

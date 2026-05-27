@@ -41,6 +41,7 @@ public struct WorkspaceDetailFeature {
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
     case displayHintChanged(DisplayName?)
+    case tilingMemoryChanged(TilingMemory?)
   }
 
   @Dependency(\.runningApps) var runningApps
@@ -131,6 +132,13 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.displayHint = display }
+        }
+        return .none
+
+      case .tilingMemoryChanged(let memory):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.tilingMemory = memory }
         }
         return .none
       }

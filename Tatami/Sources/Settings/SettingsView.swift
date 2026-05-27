@@ -25,6 +25,14 @@ struct SettingsView: View {
           Text("Auto-balance")
           Text("Equalize every split whenever a window is added or removed.")
         }
+        Picker(selection: setting(\.defaultTilingMemory)) {
+          ForEach(TilingMemory.allCases, id: \.self) { memory in
+            Text(memory.displayName).tag(memory)
+          }
+        } label: {
+          Text("Default tiling memory")
+          Text("How workspaces remember their layout unless they override it.")
+        }
       }
 
       Section("Mouse & Focus") {

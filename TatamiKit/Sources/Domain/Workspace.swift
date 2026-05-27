@@ -36,7 +36,8 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// Nil = focus the most recently active assigned app.
   public var appToFocusBundleId: String?
   /// How this workspace remembers its BSP layout across activations.
-  public var tilingMemory: TilingMemory
+  /// `nil` inherits the global `AppSettings.defaultTilingMemory`.
+  public var tilingMemory: TilingMemory?
   public var apps: [AppAssignment]
 
   public init(
@@ -49,7 +50,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     symbolIconName: String? = nil,
     openAppsOnActivation: Bool = false,
     appToFocusBundleId: String? = nil,
-    tilingMemory: TilingMemory = .session,
+    tilingMemory: TilingMemory? = nil,
     apps: [AppAssignment] = []
   ) {
     self.id = id
@@ -87,7 +88,6 @@ extension Workspace {
       ?? false
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
     tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
-      ?? .session
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
 }
