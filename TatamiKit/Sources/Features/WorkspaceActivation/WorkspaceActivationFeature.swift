@@ -496,15 +496,26 @@ public struct WorkspaceActivationFeature {
     let isUnassigned = !registeredSet.contains(bundleId) && !allAssigned.contains(bundleId)
     let eligibleToAdd = registeredSet.contains(bundleId) || inTree || isUnassigned
 
-    let (current, focused, workArea) = MainActor.assumeIsolated {
-      () -> (current: [WindowKey], focused: WindowKey?, workArea: CGRect) in
+    let (current, focused, workArea, visibleUnassigned) = MainActor.assumeIsolated {
+      () -> (current: [WindowKey], focused: WindowKey?, workArea: CGRect, unassigned: [String]) in
       let cur = discoverWindowKeys(forBundleIds: [bundleId])
       let foc = focusedWindowKey()
       let wa = ScreenGeometry.workArea(for: display).insetBy(
         dx: CGFloat(settings.gapOuter),
         dy: CGFloat(settings.gapOuter)
       )
-      return (cur, foc, wa)
+      // Currently-visible apps not assigned anywhere — transient tiling
+      // candidates we must keep observing so a window appearing later
+      // (e.g. a Notification-Center-opened KakaoTalk) is noticed.
+      let unassigned = NSWorkspace.shared.runningApplications
+        .filter { $0.activationPolicy == .regular && !$0.isHidden && !$0.isTerminated }
+        .compactMap(\.bundleIdentifier)
+        .filter {
+          !registeredSet.contains($0) && !floatingSet.contains($0)
+            && !allAssigned.contains($0)
+            && $0 != "dev.PangMo5.Tatami" && $0 != "dev.PangMo5.Tatami.dev"
+        }
+      return (cur, foc, wa, unassigned)
     }
     // Track the insertion point: if focus is on a window already in the
     // tree, that's the most recent intentional focus — remember it.
@@ -555,12 +566,16 @@ public struct WorkspaceActivationFeature {
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
 
-    // Observe every tree member, plus this app even when it currently
-    // exposes no AX window: an app opened via Notification Center (e.g.
-    // KakaoTalk) reports 0 windows at first, so without subscribing now
-    // we'd never get the windowCreated when its window finally appears.
+    // Observe set must be stable across per-app syncs: tree members +
+    // the workspace's registered apps + currently-visible unassigned
+    // apps. Otherwise a sync for one app (e.g. ghostty) would reset the
+    // observers to just its own set and drop the subscription for an
+    // app whose window hasn't appeared yet (e.g. a Notification-Center-
+    // opened KakaoTalk that still reports 0 AX windows), so we'd miss
+    // its windowCreated.
     var observeSet = Set(balanced?.windows.map(\.bundleId) ?? [])
-    if eligibleToAdd { observeSet.insert(bundleId) }
+    observeSet.formUnion(registeredSet)
+    observeSet.formUnion(visibleUnassigned)
     let observeIds = Array(observeSet)
     let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
       await observer.observe(observeIds)
