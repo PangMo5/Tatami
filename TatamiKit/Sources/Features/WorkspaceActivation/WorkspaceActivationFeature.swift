@@ -267,8 +267,14 @@ public struct WorkspaceActivationFeature {
         return .none
 
       case .togglePaused:
+        let wasPaused = state.config.settings.isPaused
         state.$config.withLock { config in
           config.settings.isPaused.toggle()
+        }
+        // Resuming: re-tile right away. Use reflow (not activate) so we
+        // don't hide transient members like an ad-hoc KakaoTalk window.
+        if wasPaused {
+          return reflowActiveWorkspace(state: &state)
         }
         return .none
 
@@ -371,6 +377,73 @@ public struct WorkspaceActivationFeature {
     }
   }
 
+  /// Re-tile the active workspace's current windows WITHOUT touching app
+  /// visibility (no hide/show). Used on resume: tiling needs to catch up
+  /// to whatever changed while paused, but re-activating would hide
+  /// transient members (e.g. a KakaoTalk window opened ad-hoc).
+  private func reflowActiveWorkspace(state: inout State) -> Effect<Action> {
+    guard !state.config.settings.isPaused,
+          let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId })
+    else { return .none }
+
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let registered = workspace.apps.map(\.bundleIdentifier)
+    let registeredSet = Set(registered)
+    let allAssigned = Self.everyAssignedBundleId(in: state.config)
+    let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
+    let existing = state.tilingTrees[workspaceId]
+
+    let snapshot = MainActor.assumeIsolated {
+      () -> (targets: [WindowKey], focused: WindowKey?, workArea: CGRect) in
+      let visibleUnassigned = NSWorkspace.shared.runningApplications
+        .filter { $0.activationPolicy == .regular && !$0.isHidden && !$0.isTerminated }
+        .compactMap(\.bundleIdentifier)
+        .filter { id in
+          !registeredSet.contains(id) && !floatingSet.contains(id)
+            && !allAssigned.contains(id)
+            && id != "dev.PangMo5.Tatami" && id != "dev.PangMo5.Tatami.dev"
+        }
+      let keys = discoverWindowKeys(forBundleIds: registered)
+        + discoverWindowKeys(forBundleIds: visibleUnassigned)
+      let workArea = ScreenGeometry.workArea(for: display).insetBy(
+        dx: CGFloat(settings.gapOuter), dy: CGFloat(settings.gapOuter)
+      )
+      return (keys, focusedWindowKey(), workArea)
+    }
+
+    let merged = Self.mergeTree(
+      existing: existing,
+      target: snapshot.targets,
+      focused: snapshot.focused,
+      workArea: snapshot.workArea
+    )
+    let balanced = settings.autoBalance ? merged?.balanced() : merged
+    state.tilingTrees[workspaceId] = balanced
+    guard let tree = balanced else { return .none }
+    state.lastFocusedKey = tree.deepestLeaf
+    let zoomed = state.zoomedWindow[workspaceId]
+    let observeIds = Array(Set(tree.windows.map(\.bundleId)))
+
+    return .merge(
+      .run { [tiler = windowTiler] _ in
+        let frames = await MainActor.run {
+          Self.computeFrames(
+            tree: tree, settings: settings, targetDisplay: display, zoomed: zoomed
+          )
+        }
+        if !frames.isEmpty {
+          await tiler.apply(FrameApplication(windowFrames: frames, targetDisplay: display))
+        }
+      }
+      .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
+      .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
+      persist(tree, for: workspace)
+    )
+  }
+
   /// Debounce a per-app reconcile. macOS fires window/app notifications
   /// in bursts (especially with focus-follows-mouse), so we wait for a
   /// short lull and coalesce per bundle id. `cancelInFlight` keyed by
@@ -393,6 +466,8 @@ public struct WorkspaceActivationFeature {
   /// A no-op (and no AX apply) when nothing changed — so focus churn
   /// stays cheap.
   private func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
+    // Paused = tiling is off; don't reflow on window/app churn.
+    guard !state.config.settings.isPaused else { return .none }
     if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
       return .none
     }
