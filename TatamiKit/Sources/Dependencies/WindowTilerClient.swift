@@ -206,14 +206,25 @@ public func ensureAccessibilityTrust() -> Bool {
 /// activation reducer to compute the BSP target set.
 @MainActor
 public func discoverWindowKeys(forBundleIds bundleIds: [String]) -> [WindowKey] {
+  guard !bundleIds.isEmpty else { return [] }
+
+  // Resolve all running app pids in one pass instead of querying
+  // NSRunningApplication per bundle id.
+  var pidByBundle: [String: pid_t] = [:]
+  for app in NSWorkspace.shared.runningApplications
+  where !app.isTerminated && app.activationPolicy == .regular {
+    if let bid = app.bundleIdentifier, pidByBundle[bid] == nil {
+      pidByBundle[bid] = app.processIdentifier
+    }
+  }
+
   var result: [WindowKey] = []
+  let attrs = [
+    kAXMinimizedAttribute,
+    kAXSubroleAttribute,
+  ] as CFArray
   for bundleId in bundleIds {
-    guard
-      let app = NSRunningApplication
-        .runningApplications(withBundleIdentifier: bundleId)
-        .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
-    else { continue }
-    let pid = app.processIdentifier
+    guard let pid = pidByBundle[bundleId] else { continue }
     let axApp = AXUIElementCreateApplication(pid)
     var raw: CFTypeRef?
     guard AXUIElementCopyAttributeValue(
@@ -224,41 +235,25 @@ public func discoverWindowKeys(forBundleIds bundleIds: [String]) -> [WindowKey] 
       let windows = raw as? [AXUIElement]
     else { continue }
     for window in windows {
-      // Skip minimized + role != AXWindow (sheet/help/etc.).
-      if isMinimized(window) { continue }
-      if !isStandardWindow(window) { continue }
+      // One AX round-trip for both filters (minimized + subrole)
+      // instead of two, then one more for the CGWindowID bridge.
+      var valuesRef: CFArray?
+      var minimized = false
+      var subrole: String?
+      if AXUIElementCopyMultipleAttributeValues(
+        window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
+      ) == .success, let values = valuesRef as? [Any], values.count == 2 {
+        minimized = (values[0] as? Bool) ?? false
+        subrole = values[1] as? String
+      }
+      if minimized { continue }
+      if let subrole, subrole != kAXStandardWindowSubrole as String { continue }
       if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
         result.append(key)
       }
     }
   }
   return result
-}
-
-@MainActor
-private func isMinimized(_ window: AXUIElement) -> Bool {
-  var raw: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(
-    window,
-    kAXMinimizedAttribute as CFString,
-    &raw
-  ) == .success,
-    let value = raw as? Bool
-  else { return false }
-  return value
-}
-
-@MainActor
-private func isStandardWindow(_ window: AXUIElement) -> Bool {
-  var raw: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(
-    window,
-    kAXSubroleAttribute as CFString,
-    &raw
-  ) == .success,
-    let subrole = raw as? String
-  else { return true }
-  return subrole == kAXStandardWindowSubrole as String
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowTiler")

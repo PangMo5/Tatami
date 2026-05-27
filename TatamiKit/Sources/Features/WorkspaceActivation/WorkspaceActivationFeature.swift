@@ -20,6 +20,12 @@ public struct WorkspaceActivationFeature {
     /// work area and the rest of the tree stays stacked behind it.
     /// Mirrors yabai's `window --toggle zoom-fullscreen`.
     public var zoomedWindow: [Workspace.ID: WindowKey] = [:]
+    /// Last window that held focus and was a member of a tree — yabai's
+    /// "insertion point". A freshly opened window is already frontmost
+    /// (so live focus points at it, not the tree) — splitting *this*
+    /// instead reproduces yabai's "open next to the previously focused
+    /// window" behavior.
+    public var lastFocusedKey: WindowKey?
 
     public init() {}
 
@@ -55,7 +61,10 @@ public struct WorkspaceActivationFeature {
     case windowChanged(WindowChangeEvent)
     case windowResizeCommitted(key: WindowKey, frame: CGRect)
     case windowMoveCommitted(key: WindowKey, frame: CGRect)
-    case coalescedRetile
+    /// Incrementally reconcile a single app's windows into the active
+    /// tree (yabai-style): add new windows, drop gone ones, touch
+    /// nothing else. Far cheaper than rescanning the whole workspace.
+    case syncAppWindows(bundleId: String)
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
     case appActivated(bundleId: String)
@@ -77,7 +86,7 @@ public struct WorkspaceActivationFeature {
   private enum CancelID: Hashable {
     case windowResize(WindowKey)
     case windowMove(WindowKey)
-    case retile
+    case sync(String)
   }
 
   @Dependency(\.workspaceManager) var workspaceManager
@@ -116,13 +125,12 @@ public struct WorkspaceActivationFeature {
             await send(.windowMoveCommitted(key: key, frame: frame))
           }
           .cancellable(id: CancelID.windowMove(key), cancelInFlight: true)
-        case .windowCreated:
-          // A new window is a single event, not a burst — retile almost
-          // immediately so tiling feels responsive. (A tiny delay still
-          // lets the window's AX attributes settle.)
-          return debouncedRetile(delayMs: 30)
-        case .windowDestroyed:
-          return debouncedRetile(delayMs: 0)
+        case .windowCreated(let bundleId):
+          // Reconcile just this app's windows — a tiny settle delay lets
+          // the new window's AX attributes populate first.
+          return debouncedSync(bundleId, delayMs: 15)
+        case .windowDestroyed(let bundleId):
+          return debouncedSync(bundleId, delayMs: 0)
         }
 
       case .windowResizeCommitted(let key, let frame):
@@ -131,8 +139,8 @@ public struct WorkspaceActivationFeature {
       case .windowMoveCommitted(let key, let frame):
         return handleWindowMoved(key: key, frame: frame, state: &state)
 
-      case .coalescedRetile:
-        return retileActiveWorkspace(state: &state)
+      case .syncAppWindows(let bundleId):
+        return syncAppWindows(bundleId: bundleId, state: &state)
 
       case .startObservingAppLaunches:
         return .run { [client = appLaunch] send in
@@ -148,20 +156,20 @@ public struct WorkspaceActivationFeature {
           }
         }
 
-      case .appLaunched:
-        return debouncedRetile(delayMs: 40)
+      case .appLaunched(let bundleId, _):
+        return debouncedSync(bundleId, delayMs: 40)
 
       case .appActivated(let bundleId):
-        // Ignore our own re-activations to avoid retile loops.
+        // Ignore our own re-activations to avoid loops.
         if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
           return .none
         }
-        // Focus churn (esp. with focus-follows-mouse) fires this rapidly,
-        // so keep the longer debounce here to coalesce the burst.
-        return debouncedRetile()
+        // Reconcile this app — if its window set is unchanged (the
+        // common focus-churn case) syncAppWindows is a cheap no-op.
+        return debouncedSync(bundleId, delayMs: 40)
 
-      case .appTerminated:
-        return debouncedRetile(delayMs: 0)
+      case .appTerminated(let bundleId):
+        return debouncedSync(bundleId, delayMs: 0)
 
       case .activateInitial:
         guard let profile = state.config.activeProfile,
@@ -344,108 +352,120 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  /// Re-tile the workspace currently active on the main display.
-  /// The tile set is `workspace.apps` + every currently-visible
-  /// unassigned + non-floating regular app, joined in that order.
-  /// The transient inclusion means apps the user opens ad-hoc (e.g.
-  /// KakaoTalk) join the BSP layout without being permanently
-  /// written into the workspace.
-  ///
-  /// The tree is merged with the cached one — windows that are gone
-  /// get removed (sibling promotes up), and new windows are inserted
-  /// next to the currently-focused window (yabai-style). User-applied
-  /// ratios on surviving nodes carry over because we mutate the
-  /// cached tree instead of rebuilding from scratch.
-  /// Collapse a burst of window/app events into a single retile.
-  /// macOS fires didActivate/window notifications rapidly (especially
-  /// with focus-follows-mouse), so launch/activate events wait for an
-  /// 80ms lull. Close/terminate events fire singly and macOS already
-  /// delays them, so we run those immediately (delay 0) to keep the
-  /// layout from feeling sluggish when a window goes away.
-  /// `cancelInFlight` drops superseded retiles either way.
-  private func debouncedRetile(delayMs: Int = 80) -> Effect<Action> {
+  /// Debounce a per-app reconcile. macOS fires window/app notifications
+  /// in bursts (especially with focus-follows-mouse), so we wait for a
+  /// short lull and coalesce per bundle id. `cancelInFlight` keyed by
+  /// bundle id drops superseded syncs for the same app while letting
+  /// different apps reconcile independently.
+  private func debouncedSync(_ bundleId: String, delayMs: Int) -> Effect<Action> {
     .run { send in
       if delayMs > 0 {
         try? await Task.sleep(for: .milliseconds(delayMs))
       }
-      await send(.coalescedRetile)
+      await send(.syncAppWindows(bundleId: bundleId))
     }
-    .cancellable(id: CancelID.retile, cancelInFlight: true)
+    .cancellable(id: CancelID.sync(bundleId), cancelInFlight: true)
   }
 
-  private func retileActiveWorkspace(state: inout State) -> Effect<Action> {
+  /// Incrementally reconcile a single app's windows into the active
+  /// workspace's tree (yabai-style). Scans only that app via AX,
+  /// inserts windows new to the tree (next to focus / spiral tail),
+  /// removes ones that vanished, and leaves every other tile alone.
+  /// A no-op (and no AX apply) when nothing changed — so focus churn
+  /// stays cheap.
+  private func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
+    if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+      return .none
+    }
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
     else { return .none }
-    let display = workspace.displayHint ?? displays.current()
-    let settings = state.config.settings
-    let registered = workspace.apps.map(\.bundleIdentifier)
-    let registeredSet = Set(registered)
-    let allAssigned = Self.everyAssignedBundleId(in: state.config)
-    let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
-    let existing = state.tilingTrees[workspaceId]
 
-    // Resolve targets + focused WindowKey + work area synchronously on
-    // the main thread so the tree merge sees a stable snapshot.
-    let snapshot = MainActor.assumeIsolated {
-      () -> (targets: [WindowKey], focused: WindowKey?, workArea: CGRect) in
-      let visibleUnassigned = NSWorkspace.shared.runningApplications
-        .filter {
-          $0.activationPolicy == .regular
-            && !$0.isHidden
-            && !$0.isTerminated
-        }
-        .compactMap(\.bundleIdentifier)
-        .filter { id in
-          !registeredSet.contains(id)
-            && !floatingSet.contains(id)
-            && !allAssigned.contains(id)
-            && id != "dev.PangMo5.Tatami"
-            && id != "dev.PangMo5.Tatami.dev"
-        }
-      let registeredKeys = discoverWindowKeys(forBundleIds: registered)
-      let unassignedKeys = discoverWindowKeys(forBundleIds: visibleUnassigned)
-      let focused = focusedWindowKey()
-      let workArea = ScreenGeometry.workArea(for: display).insetBy(
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
+    let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
+    let allAssigned = Self.everyAssignedBundleId(in: state.config)
+    let existing = state.tilingTrees[workspaceId]
+    let inTree = existing?.windows.contains { $0.bundleId == bundleId } ?? false
+
+    // Floating apps never tile. Apps assigned to *other* workspaces only
+    // tile here if they're already a transient member of this tree.
+    if floatingSet.contains(bundleId) { return .none }
+    let isUnassigned = !registeredSet.contains(bundleId) && !allAssigned.contains(bundleId)
+    let eligibleToAdd = registeredSet.contains(bundleId) || inTree || isUnassigned
+
+    let (current, focused, workArea) = MainActor.assumeIsolated {
+      () -> (current: [WindowKey], focused: WindowKey?, workArea: CGRect) in
+      let cur = discoverWindowKeys(forBundleIds: [bundleId])
+      let foc = focusedWindowKey()
+      let wa = ScreenGeometry.workArea(for: display).insetBy(
         dx: CGFloat(settings.gapOuter),
         dy: CGFloat(settings.gapOuter)
       )
-      return (registeredKeys + unassignedKeys, focused, workArea)
+      return (cur, foc, wa)
     }
 
-    let mergedTree = Self.mergeTree(
-      existing: existing,
-      target: snapshot.targets,
-      focused: snapshot.focused,
-      workArea: snapshot.workArea
-    )
-    let balanced = settings.autoBalance ? mergedTree?.balanced() : mergedTree
+    // Track the insertion point: if focus is on a window already in the
+    // tree, that's the most recent intentional focus — remember it.
+    if let focused, existing?.windows.contains(focused) == true {
+      state.lastFocusedKey = focused
+    }
+    let insertionPoint = state.lastFocusedKey
 
-    // Skip the AX apply when the window set didn't change. yabai never
-    // reflows on focus change; with focus-follows-mouse this fires
-    // constantly, and re-applying identical frames is what makes the
-    // layout feel laggy / flickery.
+    var tree = existing
+    let currentSet = Set(current)
+
+    // Remove this app's windows that are gone (sibling promotes up).
+    for key in (tree?.windows ?? []) where key.bundleId == bundleId && !currentSet.contains(key) {
+      tree = tree?.removing(key)
+    }
+
+    // Insert windows new to the tree next to the insertion point — the
+    // previously focused tiled window (yabai "open next to focus"). The
+    // live `focused` is unreliable for a brand-new window (it's already
+    // frontmost), so prefer the tracked insertion point, then live
+    // focus, then the spiral tail. After each insert, focus conceptually
+    // moves to the new window, so it becomes the next insertion point —
+    // this is what makes the spiral wind instead of piling every new
+    // window onto one fixed node.
+    if eligibleToAdd {
+      var anchorKey = insertionPoint
+      for key in current {
+        guard let current = tree else {
+          tree = .leaf(key)
+          anchorKey = key
+          state.lastFocusedKey = key
+          continue
+        }
+        if current.windows.contains(key) { continue }
+        let present = Set(current.windows)
+        let anchor = [anchorKey, focused]
+          .compactMap { $0 }
+          .first { present.contains($0) }
+          ?? current.deepestLeaf
+        tree = current.inserting(key, near: anchor, in: workArea)
+        anchorKey = key
+        state.lastFocusedKey = key
+      }
+    }
+
+    let balanced = settings.autoBalance ? tree?.balanced() : tree
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
     guard oldWindows != newWindows else { return .none }
 
-    guard let tree = balanced else { return .none }
+    guard let final = balanced else { return .none }
     let zoomed = state.zoomedWindow[workspaceId]
-
-    // Observe every app that has a window in the tree — not just the
-    // workspace's registered apps. Transient members (e.g. KakaoTalk)
-    // must be observed too, otherwise opening a second window (a chat
-    // window) fires no kAXWindowCreatedNotification and the new window
-    // never gets tiled until some unrelated event triggers a retile.
-    let observeIds = Array(Set(tree.windows.map(\.bundleId)))
+    let observeIds = Array(Set(final.windows.map(\.bundleId)))
 
     return .merge(
       .run { [tiler = windowTiler] _ in
         let frames = await MainActor.run {
           Self.computeFrames(
-            tree: tree,
+            tree: final,
             settings: settings,
             targetDisplay: display,
             zoomed: zoomed
@@ -460,7 +480,7 @@ public struct WorkspaceActivationFeature {
       .run { [observer = windowObserver] _ in
         await observer.observe(observeIds)
       },
-      persist(tree, for: workspace)
+      persist(final, for: workspace)
     )
   }
 
