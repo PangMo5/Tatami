@@ -55,7 +55,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   private var config = FocusFollowsMouseConfig(enabled: false, disableModifier: .option)
   private var lastFireAt = Date.distantPast
   private let throttleInterval: TimeInterval = 0.08
-  private var lastFocusedPID: pid_t = -1
+  private var lastFocusedWindowID: CGWindowID = 0
 
   init() {}
 
@@ -90,12 +90,14 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
 
     let location = flippedCursorLocation()
     guard let info = topmostWindow(at: location) else { return }
-    if info.pid == lastFocusedPID { return }
-    lastFocusedPID = info.pid
+    // Dedup on the window, not the app — moving between two windows of
+    // the same app (e.g. two Ghostty windows) must still move focus.
+    if info.windowID == lastFocusedWindowID { return }
+    lastFocusedWindowID = info.windowID
 
-    if let app = NSRunningApplication(processIdentifier: info.pid) {
-      app.activate(options: [.activateIgnoringOtherApps])
-    }
+    // Raise the specific window under the cursor so focus lands on the
+    // right one even within the same app (shared helper in WindowKey).
+    focusWindow(pid: info.pid, windowID: info.windowID)
   }
 
   private func modifiersIndicateDisable(_ flags: NSEvent.ModifierFlags) -> Bool {
@@ -118,7 +120,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     return CGPoint(x: cocoa.x, y: primary.frame.height - cocoa.y)
   }
 
-  private func topmostWindow(at point: CGPoint) -> (pid: pid_t, bounds: CGRect)? {
+  private func topmostWindow(at point: CGPoint) -> (pid: pid_t, windowID: CGWindowID, bounds: CGRect)? {
     let raw = CGWindowListCopyWindowInfo(
       [.optionOnScreenOnly, .excludeDesktopElements],
       kCGNullWindowID
@@ -126,6 +128,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     for entry in raw {
       guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
       guard let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t else { continue }
+      guard let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID else { continue }
       guard let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
             let x = boundsDict["X"],
             let y = boundsDict["Y"],
@@ -134,7 +137,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       else { continue }
       let rect = CGRect(x: x, y: y, width: w, height: h)
       if rect.contains(point) {
-        return (pidNumber, rect)
+        return (pidNumber, windowNumber, rect)
       }
     }
     return nil

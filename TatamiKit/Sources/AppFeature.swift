@@ -52,6 +52,7 @@ public struct AppFeature {
           .send(.cli(.start)),
           .send(.activation(.startObservingWindowEvents)),
           .send(.activation(.startObservingAppLaunches)),
+          .send(.activation(.activateInitial)),
           .run { [client = focusFollowsMouse] _ in
             await client.configure(config)
           },
@@ -88,21 +89,21 @@ public struct AppFeature {
       return .send(.activation(.activateRecent))
 
     case .focusLeft:
-      return .run { [client = focusManager] _ in await client.moveFocus(.left) }
+      return .send(.activation(.bspFocus(.west)))
     case .focusRight:
-      return .run { [client = focusManager] _ in await client.moveFocus(.right) }
+      return .send(.activation(.bspFocus(.east)))
     case .focusUp:
-      return .run { [client = focusManager] _ in await client.moveFocus(.up) }
+      return .send(.activation(.bspFocus(.north)))
     case .focusDown:
-      return .run { [client = focusManager] _ in await client.moveFocus(.down) }
+      return .send(.activation(.bspFocus(.south)))
 
     case .cycleNextWindow:
-      let bundleIds = currentWorkspaceBundleIds(state)
+      let bundleIds = cycleBundleIds(state)
       return .run { [client = focusManager] _ in
         await client.cycleApp(.next, bundleIds)
       }
     case .cyclePreviousWindow:
-      let bundleIds = currentWorkspaceBundleIds(state)
+      let bundleIds = cycleBundleIds(state)
       return .run { [client = focusManager] _ in
         await client.cycleApp(.previous, bundleIds)
       }
@@ -138,5 +139,15 @@ public struct AppFeature {
             .workspaces.first(where: { $0.id == id })
     else { return [] }
     return ws.apps.map(\.bundleIdentifier)
+  }
+
+  /// Cycle targets for opt+tab: the active workspace's apps plus every
+  /// floating app, so the loop walks all focusable windows including
+  /// floating ones (KeyCastr, Zoom, etc.).
+  private func cycleBundleIds(_ state: State) -> [String] {
+    let workspace = currentWorkspaceBundleIds(state)
+    let floating = state.workspaceList.config.floatingApps.map(\.bundleIdentifier)
+    var seen = Set<String>()
+    return (workspace + floating).filter { seen.insert($0).inserted }
   }
 }

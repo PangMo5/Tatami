@@ -1,5 +1,20 @@
 import Foundation
 
+/// How a workspace remembers its BSP layout across re-activations.
+public enum TilingMemory: String, Hashable, Sendable, Codable, CaseIterable {
+  /// Never remember — every activation lays the windows out fresh and
+  /// evenly. Leaving the workspace discards the tree.
+  case fresh
+  /// Remember for the lifetime of the app process. Switching away and
+  /// back preserves split axes + user-tuned ratios, but a restart
+  /// starts clean. (Default — matches prior behavior.)
+  case session
+  /// Remember across restarts. The tree shape (split axes + ratios) is
+  /// snapshotted to disk keyed by bundle id, and restored when the same
+  /// apps are present again.
+  case persistent
+}
+
 /// One unit of "what's visible right now": a named set of app assignments,
 /// pinned to a display (or floating across displays in `dynamic` mode).
 public struct Workspace: Identifiable, Hashable, Sendable, Codable {
@@ -20,6 +35,8 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// Bundle identifier of the app to focus when this workspace activates.
   /// Nil = focus the most recently active assigned app.
   public var appToFocusBundleId: String?
+  /// How this workspace remembers its BSP layout across activations.
+  public var tilingMemory: TilingMemory
   public var apps: [AppAssignment]
 
   public init(
@@ -32,6 +49,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     symbolIconName: String? = nil,
     openAppsOnActivation: Bool = false,
     appToFocusBundleId: String? = nil,
+    tilingMemory: TilingMemory = .session,
     apps: [AppAssignment] = []
   ) {
     self.id = id
@@ -43,6 +61,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.symbolIconName = symbolIconName
     self.openAppsOnActivation = openAppsOnActivation
     self.appToFocusBundleId = appToFocusBundleId
+    self.tilingMemory = tilingMemory
     self.apps = apps
   }
 }
@@ -51,6 +70,7 @@ extension Workspace {
   private enum CodingKeys: String, CodingKey {
     case id, name, displayHint, activateShortcut, assignAppShortcut, moveWindowShortcut
     case symbolIconName, openAppsOnActivation, appToFocusBundleId
+    case tilingMemory
     case apps
   }
 
@@ -66,6 +86,8 @@ extension Workspace {
     openAppsOnActivation = try container.decodeIfPresent(Bool.self, forKey: .openAppsOnActivation)
       ?? false
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
+    tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
+      ?? .session
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
 }

@@ -239,14 +239,21 @@ private func axObserverCallback(
     case kAXUIElementDestroyedNotification as String:
       app.continuation.yield(.windowDestroyed(bundleId: app.bundleId))
     case kAXWindowResizedNotification as String:
-      if let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+      // Only treat a resize as user-driven when the left mouse button
+      // is held — otherwise this alert is the echo of our own tiling
+      // writes (swap / warp / zoom / retile), and feeding it back into
+      // the tree corrupts the layout. yabai gates the same way (manual
+      // resize happens via mouse drag).
+      if isLeftMouseDown(),
+         let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
          let frame = axFrame(of: element),
          !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
       {
         app.continuation.yield(.windowResized(key: key, frame: frame))
       }
     case kAXWindowMovedNotification as String:
-      if let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+      if isLeftMouseDown(),
+         let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
          let frame = axFrame(of: element),
          !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
       {
@@ -256,6 +263,14 @@ private func axObserverCallback(
       break
     }
   }
+}
+
+/// True while the primary (left) mouse button is held — i.e. the user
+/// is actively dragging. Used to distinguish genuine manual resize/move
+/// from the AX echoes of our own programmatic tiling writes.
+@MainActor
+private func isLeftMouseDown() -> Bool {
+  (NSEvent.pressedMouseButtons & 0x1) != 0
 }
 
 /// AX C-callback parameters are non-Sendable but the AX run loop

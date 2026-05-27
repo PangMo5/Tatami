@@ -16,11 +16,79 @@ public indirect enum BSPNode<WindowID: Hashable & Sendable>: Hashable, Sendable 
   case leaf(WindowID)
   case branch(split: SplitAxis, ratio: CGFloat, left: BSPNode, right: BSPNode)
 
-  public enum SplitAxis: Sendable, Hashable {
+  public enum SplitAxis: String, Sendable, Hashable, Codable {
     /// Cut the area horizontally — children stack top/bottom.
     case horizontal
     /// Cut the area vertically — children sit side-by-side.
     case vertical
+  }
+}
+
+extension BSPNode: Codable where WindowID: Codable {}
+
+extension BSPNode where WindowID == WindowKey {
+  /// Rebuild a live tree from a persisted bundle-id `template`,
+  /// assigning the current `keys` to matching leaves in order. Leaves
+  /// whose bundle id has no available window collapse (sibling
+  /// promotes), so a saved layout gracefully degrades when an app
+  /// isn't running. Windows present in `keys` but absent from the
+  /// template are NOT added here — the caller folds those in via the
+  /// normal merge/insert path afterward.
+  public static func hydrate(
+    template: BSPNode<String>,
+    keys: [WindowKey]
+  ) -> BSPNode<WindowKey>? {
+    var queues: [String: [WindowKey]] = [:]
+    for key in keys {
+      queues[key.bundleId, default: []].append(key)
+    }
+    func build(_ node: BSPNode<String>) -> BSPNode<WindowKey>? {
+      switch node {
+      case .leaf(let bundleId):
+        guard var queue = queues[bundleId], !queue.isEmpty else { return nil }
+        let key = queue.removeFirst()
+        queues[bundleId] = queue
+        return BSPNode<WindowKey>.leaf(key)
+      case .branch(let split, let ratio, let left, let right):
+        let l = build(left)
+        let r = build(right)
+        // SplitAxis is nested in BSPNode, so the String-tree and
+        // WindowKey-tree variants are distinct types — bridge via the
+        // shared String raw value.
+        let axis = BSPNode<WindowKey>.SplitAxis(rawValue: split.rawValue) ?? .vertical
+        switch (l, r) {
+        case (nil, nil): return nil
+        case (let l?, nil): return l
+        case (nil, let r?): return r
+        case (let l?, let r?):
+          return BSPNode<WindowKey>.branch(split: axis, ratio: ratio, left: l, right: r)
+        }
+      }
+    }
+    return build(template)
+  }
+}
+
+extension BSPNode {
+  /// Rebuild the tree with each leaf's window id transformed by `f`,
+  /// preserving every split axis + ratio. Used to convert a live
+  /// `BSPNode<WindowKey>` into a serializable `BSPNode<String>`
+  /// (bundle-id keyed) for persistent layout snapshots.
+  public func mapWindows<T: Hashable & Sendable>(
+    _ f: (WindowID) -> T
+  ) -> BSPNode<T> {
+    switch self {
+    case .leaf(let id):
+      return BSPNode<T>.leaf(f(id))
+    case .branch(let split, let ratio, let left, let right):
+      let axis = BSPNode<T>.SplitAxis(rawValue: split.rawValue) ?? .vertical
+      return BSPNode<T>.branch(
+        split: axis,
+        ratio: ratio,
+        left: left.mapWindows(f),
+        right: right.mapWindows(f)
+      )
+    }
   }
 }
 
@@ -38,6 +106,50 @@ extension BSPNode {
     case .leaf: 1
     case .branch(_, _, let left, let right): left.leafCount + right.leafCount
     }
+  }
+
+  /// The window id of the deepest leaf (ties broken toward the right /
+  /// second child). In a dwindle spiral this is the smallest, most
+  /// recently split tile — the natural anchor for the next insert so
+  /// the spiral keeps winding instead of restarting at the root.
+  public var deepestLeaf: WindowID? {
+    func search(_ node: BSPNode, _ depth: Int) -> (id: WindowID, depth: Int)? {
+      switch node {
+      case .leaf(let id):
+        return (id, depth)
+      case .branch(_, _, let left, let right):
+        let l = search(left, depth + 1)
+        let r = search(right, depth + 1)
+        switch (l, r) {
+        case (nil, nil): return nil
+        case (let l?, nil): return l
+        case (nil, let r?): return r
+        case (let l?, let r?):
+          // Prefer the right/second child on ties (yabai second_child).
+          return r.depth >= l.depth ? r : l
+        }
+      }
+    }
+    return search(self, 0)?.id
+  }
+
+  /// Build a yabai-style dwindle (spiral) tree: insert each window in
+  /// order, splitting the *previously inserted* leaf — exactly what
+  /// yabai produces when you open the same windows one at a time and
+  /// focus follows each new window. The first window takes half the
+  /// space, the next a quarter, and so on, alternating split axis by
+  /// the leaf's aspect. `rect` is the real work area so the axis
+  /// choices match the screen.
+  public static func dwindleBuild(
+    _ windows: [WindowID],
+    in rect: CGRect
+  ) -> BSPNode? {
+    guard let first = windows.first else { return nil }
+    var tree: BSPNode = .leaf(first)
+    for i in 1..<windows.count {
+      tree = tree.inserting(windows[i], near: windows[i - 1], in: rect)
+    }
+    return tree
   }
 
   /// Build a balanced-ish tree from a sequence of windows, in order.
@@ -183,6 +295,32 @@ extension BSPNode {
     var out: [WindowID: CGRect] = [:]
     layout(into: &out, rect: rect, gap: gap)
     return out
+  }
+
+  /// Move `window` in `direction` when there's no tile neighbor to swap
+  /// with — yabai's `window --warp` fallback. Rewrites the window's
+  /// parent split so its axis matches the requested direction
+  /// (east/west → side-by-side, north/south → stacked) and places the
+  /// window on the corresponding side. So two side-by-side windows
+  /// "warped" downward become stacked with the moved window on the
+  /// bottom. No-op if `window` is the root leaf.
+  public func warping(_ window: WindowID, direction: BSPDirection) -> BSPNode {
+    guard let path = pathTo(window: window), let side = path.last else { return self }
+    let parentPath = Array(path.dropLast())
+    let desiredAxis: SplitAxis =
+      (direction == .east || direction == .west) ? .vertical : .horizontal
+    let desiredSide: Side = (direction == .west || direction == .north) ? .left : .right
+    return replacing(path: parentPath) { node in
+      guard case .branch(_, let ratio, let left, let right) = node else { return node }
+      let windowChild = side == .left ? left : right
+      let siblingChild = side == .left ? right : left
+      let newLeft = desiredSide == .left ? windowChild : siblingChild
+      let newRight = desiredSide == .left ? siblingChild : windowChild
+      // Mirror the ratio when the window changes sides so the moved
+      // window keeps roughly its share rather than jumping size.
+      let newRatio = (desiredSide == (side == .left ? .left : .right)) ? ratio : 1 - ratio
+      return .branch(split: desiredAxis, ratio: newRatio, left: newLeft, right: newRight)
+    }
   }
 
   /// Swap the positions of two windows in the tree. No-op if either is

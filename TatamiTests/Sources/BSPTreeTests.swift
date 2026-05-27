@@ -13,6 +13,21 @@ struct BSPTreeTests {
   }
 
   @Test
+  func dwindleSpiralHalvesEachStep() {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.dwindleBuild([1, 2, 3, 4], in: display)
+    let frames = tree?.frames(in: display, gap: 0) ?? [:]
+    // w1 = left half (wide display → vertical split first)
+    #expect(frames[1] == CGRect(x: 0, y: 0, width: 500, height: 600))
+    // w2 = top of right half (right half is 500x600, taller → horizontal)
+    #expect(frames[2] == CGRect(x: 500, y: 0, width: 500, height: 300))
+    // w3 = bottom-right quadrant left (500x300, wider → vertical)
+    #expect(frames[3] == CGRect(x: 500, y: 300, width: 250, height: 300))
+    // w4 = bottom-right quadrant right
+    #expect(frames[4] == CGRect(x: 750, y: 300, width: 250, height: 300))
+  }
+
+  @Test
   func twoWindowsSplitTheWiderAxisFirst() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2], in: display)

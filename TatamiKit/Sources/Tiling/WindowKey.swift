@@ -49,3 +49,28 @@ extension WindowKey {
     return WindowKey(pid: pid, windowID: wid, bundleId: bundleId)
   }
 }
+
+/// Raise + focus a specific window by its owning pid and `CGWindowID`.
+/// Activates the app and then raises the exact window so focus lands on
+/// the right one even when an app owns several (directional focus,
+/// focus-follows-mouse, etc.).
+@MainActor
+public func focusWindow(pid: pid_t, windowID: CGWindowID) {
+  if let app = NSRunningApplication(processIdentifier: pid) {
+    app.activate(options: [.activateIgnoringOtherApps])
+  }
+  let axApp = AXUIElementCreateApplication(pid)
+  var raw: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(
+    axApp, kAXWindowsAttribute as CFString, &raw
+  ) == .success,
+    let windows = raw as? [AXUIElement]
+  else { return }
+  for window in windows {
+    var wid: CGWindowID = 0
+    guard _AXUIElementGetWindow(window, &wid) == .success, wid == windowID else { continue }
+    AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    break
+  }
+}

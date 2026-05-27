@@ -88,7 +88,12 @@ extension WindowTilerClient: DependencyKey {
       }
     }
 
-    // Toggle EnhancedUserInterface once per app (suppresses animation).
+    // With AXEnhancedUserInterface ON, AppKit animates every AX frame
+    // change (Chrome/Electron especially) — the "windows slide into
+    // place" effect. yabai's fix: if it's on, turn it OFF for the
+    // duration of the move/resize, then restore. If it's already off,
+    // don't touch it. (We do NOT turn it on — doing so is what caused
+    // the stray animations.)
     let enhanced = "AXEnhancedUserInterface" as CFString
     var enhancedWasOn = false
     var enhancedRaw: CFTypeRef?
@@ -97,12 +102,12 @@ extension WindowTilerClient: DependencyKey {
     {
       enhancedWasOn = value
     }
-    if !enhancedWasOn {
-      _ = AXUIElementSetAttributeValue(axApp, enhanced, true as CFTypeRef)
+    if enhancedWasOn {
+      _ = AXUIElementSetAttributeValue(axApp, enhanced, kCFBooleanFalse)
     }
     defer {
-      if !enhancedWasOn {
-        _ = AXUIElementSetAttributeValue(axApp, enhanced, false as CFTypeRef)
+      if enhancedWasOn {
+        _ = AXUIElementSetAttributeValue(axApp, enhanced, kCFBooleanTrue)
       }
     }
 
