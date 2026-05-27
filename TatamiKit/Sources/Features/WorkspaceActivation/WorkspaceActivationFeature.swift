@@ -99,6 +99,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.appLaunch) var appLaunch
   @Dependency(\.displays) var displays
   @Dependency(\.layoutStore) var layoutStore
+  @Dependency(\.workspaceHUD) var workspaceHUD
 
   public init() {}
 
@@ -739,11 +740,18 @@ public struct WorkspaceActivationFeature {
     }
     let zoomed = state.zoomedWindow[workspace.id]
 
+    let hudName = workspace.name
+    let hudIcon = workspace.symbolIconName
+
     return .run { [
       mgr = workspaceManager,
       tiler = windowTiler,
-      store = layoutStore
+      store = layoutStore,
+      hud = workspaceHUD
     ] send in
+      if setFocus {
+        await hud.show(hudName, hudIcon)
+      }
       await mgr.activate(request)
       let (tree, frames) = await MainActor.run {
         () -> (BSPNode<WindowKey>?, [WindowKey: CGRect]) in
