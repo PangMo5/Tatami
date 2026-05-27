@@ -28,6 +28,41 @@ public enum HotKeyAction: Sendable, Hashable {
   case toggleFloating, toggleSpaceActivated
 }
 
+extension HotKeyAction {
+  /// Stable key segment used to build the `KeyboardShortcuts.Name`.
+  /// Shared by the registrar and the Settings recorders so both target
+  /// the exact same shortcut slot.
+  public var nameKey: String {
+    switch self {
+    case .activateWorkspace(let id): "activate-\(id.uuidString)"
+    case .moveFocusedWindowToWorkspace(let id): "move-window-\(id.uuidString)"
+    case .switchToNextWorkspace: "next-workspace"
+    case .switchToPreviousWorkspace: "prev-workspace"
+    case .switchToRecentWorkspace: "recent-workspace"
+    case .focusLeft: "focus-left"
+    case .focusRight: "focus-right"
+    case .focusUp: "focus-up"
+    case .focusDown: "focus-down"
+    case .cycleNextWindow: "cycle-next"
+    case .cyclePreviousWindow: "cycle-prev"
+    case .resizeGrow: "resize-grow"
+    case .resizeShrink: "resize-shrink"
+    case .swapLeft: "swap-left"
+    case .swapRight: "swap-right"
+    case .swapUp: "swap-up"
+    case .swapDown: "swap-down"
+    case .toggleOrientation: "toggle-orientation"
+    case .toggleFullscreen: "toggle-fullscreen"
+    case .toggleFloating: "toggle-floating"
+    case .toggleSpaceActivated: "toggle-space"
+    }
+  }
+
+  public var keyboardShortcutName: KeyboardShortcuts.Name {
+    KeyboardShortcuts.Name("tatami.\(nameKey)")
+  }
+}
+
 public struct HotKeyBinding: Sendable, Hashable {
   public var action: HotKeyAction
   public var hotKey: HotKey
@@ -98,8 +133,7 @@ private final class HotKeysCenter: @unchecked Sendable {
     }
     var next: [(KeyboardShortcuts.Name, HotKeyAction)] = []
     for binding in bindings {
-      let key = nameKey(for: binding.action)
-      let name = KeyboardShortcuts.Name("tatami.\(key)")
+      let name = binding.action.keyboardShortcutName
       KeyboardShortcuts.setShortcut(binding.hotKey.shortcut, for: name)
       let action = binding.action
       let continuation = continuation

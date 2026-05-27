@@ -47,6 +47,9 @@ public struct AppFeature {
           enabled: state.workspaceList.config.settings.focusFollowsMouse,
           disableModifier: state.workspaceList.config.settings.focusFollowsMouseDisableHotkey
         )
+        // Normalize the config on disk: re-save so any legacy carbon
+        // hotkey tables migrate to the skhd-style string form.
+        state.workspaceList.$config.withLock { $0 = $0 }
         return .merge(
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),

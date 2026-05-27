@@ -1,3 +1,4 @@
+import KeyboardShortcuts
 import Sharing
 import SwiftUI
 import TatamiKit
@@ -59,6 +60,40 @@ struct SettingsView: View {
         .disabled(!config.settings.focusFollowsMouse)
       }
 
+      Section("Focus") {
+        shortcut("Focus left", .focusLeft, \.focusLeft)
+        shortcut("Focus right", .focusRight, \.focusRight)
+        shortcut("Focus up", .focusUp, \.focusUp)
+        shortcut("Focus down", .focusDown, \.focusDown)
+      }
+
+      Section("Move / Swap") {
+        shortcut("Swap left", .swapLeft, \.swapLeft)
+        shortcut("Swap right", .swapRight, \.swapRight)
+        shortcut("Swap up", .swapUp, \.swapUp)
+        shortcut("Swap down", .swapDown, \.swapDown)
+      }
+
+      Section("Resize & Layout") {
+        shortcut("Grow", .resizeGrow, \.resizeGrow)
+        shortcut("Shrink", .resizeShrink, \.resizeShrink)
+        shortcut("Toggle orientation", .toggleOrientation, \.toggleOrientation)
+        shortcut("Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen)
+      }
+
+      Section("Windows & Workspaces") {
+        shortcut("Cycle next window", .cycleNextWindow, \.cycleNextWindow)
+        shortcut("Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow)
+        shortcut("Next workspace", .switchToNextWorkspace, \.switchToNextWorkspace)
+        shortcut("Previous workspace", .switchToPreviousWorkspace, \.switchToPreviousWorkspace)
+        shortcut("Recent workspace", .switchToRecentWorkspace, \.switchToRecentWorkspace)
+      }
+
+      Section("Toggles") {
+        shortcut("Toggle floating", .toggleFloating, \.toggleFloating)
+        shortcut("Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated)
+      }
+
       Section("Updates") {
         Toggle(isOn: setting(\.checkForUpdatesAutomatically)) {
           Text("Check for updates automatically")
@@ -67,7 +102,21 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .frame(minWidth: 440, minHeight: 420)
+    .frame(minWidth: 460, minHeight: 520)
+  }
+
+  /// A recorder row bound to a global `HotKeyAction`. The recorder edits
+  /// the shared KeyboardShortcuts slot directly (so the live handler
+  /// updates immediately); `onChange` also mirrors it into the config so
+  /// it persists.
+  private func shortcut(
+    _ title: String,
+    _ action: HotKeyAction,
+    _ keyPath: WritableKeyPath<AppSettings, HotKey?>
+  ) -> some View {
+    KeyboardShortcuts.Recorder(title, name: action.keyboardShortcutName) { shortcut in
+      $config.withLock { $0.settings[keyPath: keyPath] = shortcut.map(HotKey.init) }
+    }
   }
 
   /// Two-way binding for a single `AppSettings` field, persisted through
