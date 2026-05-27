@@ -135,6 +135,16 @@ public struct WorkspaceActivationFeature {
           return debouncedSync(bundleId, delayMs: 15)
         case .windowDestroyed(let bundleId):
           return debouncedSync(bundleId, delayMs: 0)
+        case .windowFocused(let key):
+          // Keep the insertion point current even for same-app window
+          // switches (which don't fire didActivateApplication). Pure
+          // state update — no retile.
+          if let wsId = state.primaryActiveWorkspaceID,
+             state.tilingTrees[wsId]?.windows.contains(key) == true
+          {
+            state.lastFocusedKey = key
+          }
+          return .none
         }
 
       case .windowResizeCommitted(let key, let frame):
@@ -331,6 +341,11 @@ public struct WorkspaceActivationFeature {
 
       case .tilingTreeUpdated(let workspaceId, let tree):
         state.tilingTrees[workspaceId] = tree
+        // Seed the insertion point at the spiral tail so the first
+        // window opened after activation lands at the end of the
+        // dwindle — not split off the previously frontmost (often
+        // left-hand) window. A real focus change updates it afterward.
+        state.lastFocusedKey = tree?.deepestLeaf
         return .none
 
       case .activationCompleted(let id, let display):

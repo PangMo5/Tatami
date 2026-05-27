@@ -35,6 +35,10 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// User finished dragging a window. Reducer uses this to detect
   /// drag-to-swap.
   case windowMoved(key: WindowKey, frame: CGRect)
+  /// Focus moved to a different window (including between windows of the
+  /// same app, which `didActivateApplication` doesn't report). Reducer
+  /// uses this to keep the BSP insertion point current.
+  case windowFocused(key: WindowKey)
 }
 
 extension WindowObserverClient: DependencyKey {
@@ -146,6 +150,10 @@ private final class ObservedApp {
 
     let info = Unmanaged.passUnretained(observed).toOpaque()
     AXObserverAddNotification(observer, appElement, kAXWindowCreatedNotification as CFString, info)
+    // App-level: which window holds focus (fires on same-app switches).
+    AXObserverAddNotification(
+      observer, appElement, kAXFocusedWindowChangedNotification as CFString, info
+    )
 
     // Existing windows: subscribe to destruction + resize + move.
     observed.refreshWindowSubscriptions()
@@ -258,6 +266,13 @@ private func axObserverCallback(
          !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
       {
         app.continuation.yield(.windowMoved(key: key, frame: frame))
+      }
+    case kAXFocusedWindowChangedNotification as String:
+      // `element` is the newly focused window. No mouse gate — focus
+      // changes are always meaningful, and this is state-only (no AX
+      // writes), so it can't feed back into a tiling loop.
+      if let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId) {
+        app.continuation.yield(.windowFocused(key: key))
       }
     default:
       break

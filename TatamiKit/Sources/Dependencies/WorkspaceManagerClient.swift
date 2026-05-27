@@ -69,37 +69,49 @@ extension WorkspaceManagerClient: DependencyKey {
           let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
           }
+          let isAnyWorkspaceAppRunning = running.contains {
+            workspaceBundleIds.contains($0.bundleIdentifier ?? "")
+          }
 
+          // Resolve the focus target among the workspace's own apps.
+          let focusBundleId = request.workspace.appToFocusBundleId
+            ?? request.workspace.apps.last?.bundleIdentifier
+          let appsToShow = running.filter { keepVisible.contains($0.bundleIdentifier ?? "") }
+          let toFocus = appsToShow.first { $0.bundleIdentifier == focusBundleId }
+            ?? appsToShow.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }
+
+          // 1. Show the workspace + floating apps and focus FIRST, before
+          //    hiding anything. Hiding first lets macOS surface Finder (or
+          //    another leftover app) as frontmost, which then steals focus.
+          for app in appsToShow where app.isHidden {
+            app.unhide()
+          }
+          if request.setFocus, let toFocus {
+            // unhide → raise → activate: just unhiding + activate leaves
+            // the window behind Finder, so raise the main window via AX
+            // before activating to land focus reliably.
+            toFocus.raiseMainWindow()
+            toFocus.activate(options: [.activateIgnoringOtherApps])
+          }
+
+          // 2. Hide everything else. Finder is special-cased like
+          //    FlashSpace: only hide it when a workspace app is actually
+          //    running — otherwise we'd be left on an empty desktop.
           var hiddenCount = 0
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
-            // Skip ourselves (and any agent app the user keeps).
             if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
               continue
             }
-
-            if keepVisible.contains(bundleId) {
-              if app.isHidden { app.unhide() }
-            } else if !app.isHidden {
+            if keepVisible.contains(bundleId) { continue }
+            if app.isFinder, !isAnyWorkspaceAppRunning { continue }
+            if !app.isHidden {
               app.hide()
               hiddenCount += 1
             }
           }
 
-          let focusedApp: NSRunningApplication?
-          if request.setFocus, let focusBundleId = request.workspace.appToFocusBundleId
-             ?? request.workspace.apps.last?.bundleIdentifier
-          {
-            focusedApp = running.first { $0.bundleIdentifier == focusBundleId }
-            focusedApp?.activate(options: [.activateIgnoringOtherApps])
-          } else if request.setFocus {
-            focusedApp = running.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }
-            focusedApp?.activate(options: [.activateIgnoringOtherApps])
-          } else {
-            focusedApp = nil
-          }
-
-          if request.mouseFollowsFocus, let app = focusedApp,
+          if request.mouseFollowsFocus, let app = toFocus,
              let center = focusedWindowCenter(of: app)
           {
             CGWarpMouseCursorPosition(center)
@@ -127,6 +139,33 @@ extension DependencyValues {
   public var workspaceManager: WorkspaceManagerClient {
     get { self[WorkspaceManagerClient.self] }
     set { self[WorkspaceManagerClient.self] = newValue }
+  }
+}
+
+extension NSRunningApplication {
+  var isFinder: Bool { bundleIdentifier == MacApp.finderBundleId }
+
+  fileprivate var mainAXWindow: AXUIElement? {
+    let app = AXUIElementCreateApplication(processIdentifier)
+    var raw: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(
+      app, kAXMainWindowAttribute as CFString, &raw
+    ) == .success,
+      let raw, CFGetTypeID(raw) == AXUIElementGetTypeID()
+    else { return nil }
+    return (raw as! AXUIElement)
+  }
+
+  /// Bring the app's main window to the front via Accessibility — the
+  /// reliable way to surface an app that was just unhidden (plain
+  /// `activate` often leaves the window behind Finder). Falls back to
+  /// `unhide()` when there's no main window yet. Mirrors FlashSpace.
+  fileprivate func raiseMainWindow() {
+    guard let mainAXWindow else {
+      unhide()
+      return
+    }
+    AXUIElementPerformAction(mainAXWindow, kAXRaiseAction as CFString)
   }
 }
 
