@@ -1,5 +1,6 @@
 import ComposableArchitecture
 import Foundation
+import Perception
 import Sharing
 
 /// Top-level reducer. Composes the feature reducers that make up the
@@ -75,13 +76,13 @@ public struct AppFeature {
           },
           // React to live settings edits (Settings tab writes the shared
           // config) so launch-time integrations reconfigure immediately.
-          // (Sharing's `Observations` would be the modern path, but it
-          // requires macOS 26; on our 14.0 target we use the publisher.)
-          .publisher {
-            sharedConfig.publisher
-              .map(\.settings)
-              .removeDuplicates()
-              .map(Action.settingsChanged)
+          // `Perceptions` is Perception's back-port of Swift's
+          // `Observations` async sequence (Observation requires macOS 26);
+          // observing only `.settings` re-emits just on settings changes.
+          .run { send in
+            for await settings in Perceptions({ sharedConfig.wrappedValue.settings }) {
+              await send(.settingsChanged(settings))
+            }
           }
         )
 
