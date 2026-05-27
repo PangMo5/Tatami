@@ -2,6 +2,26 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
+/// Menu bar status item label: shows the active workspace's name + icon
+/// so the bar reflects where you are, not just a static app glyph.
+struct MenuBarLabel: View {
+  @Bindable var store: StoreOf<AppFeature>
+
+  var body: some View {
+    let config = store.workspaceList.config
+    let activeId = store.activation.primaryActiveWorkspaceID
+    let workspace = config.activeProfile?.workspaces.first { $0.id == activeId }
+    // macOS renders a Label as icon-only in the menu bar, so compose the
+    // icon and name explicitly to make the title show (matches FlashSpace).
+    HStack(spacing: 4) {
+      Image(systemName: workspace?.symbolIconName ?? "square.stack.3d.up.fill")
+      if config.settings.showWorkspaceNameInMenuBar, let name = workspace?.name {
+        Text(name)
+      }
+    }
+  }
+}
+
 struct MenuBarContentView: View {
   @Bindable var store: StoreOf<AppFeature>
   @Environment(\.openWindow) private var openWindow

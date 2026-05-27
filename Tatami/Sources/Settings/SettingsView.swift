@@ -155,6 +155,20 @@ struct SettingsView: View {
         .disabled(!config.settings.swipeGesturesEnabled)
       }
 
+      Section("Menu Bar") {
+        Toggle(isOn: setting(\.showWorkspaceNameInMenuBar)) {
+          Text("Show workspace name")
+          Text("Display the active workspace's name next to its icon in the menu bar.")
+        }
+      }
+
+      Section("Overlay") {
+        Toggle(isOn: setting(\.showWorkspaceHUD)) {
+          Text("Show workspace HUD")
+          Text("Display a brief overlay with the workspace name when switching.")
+        }
+      }
+
       Section("Updates") {
         Toggle(isOn: setting(\.checkForUpdatesAutomatically)) {
           Text("Check for updates automatically")

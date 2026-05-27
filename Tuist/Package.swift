@@ -25,6 +25,7 @@ import PackageDescription
       "Sparkle": .framework,
       "KeyboardShortcuts": .framework,
       "TOML": .framework,
+      "SFSafeSymbols": .framework,
     ]
   )
 #endif
@@ -39,5 +40,6 @@ let package = Package(
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.7.0"),
     .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", branch: "main"),
     .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
+    .package(url: "https://github.com/SFSafeSymbols/SFSafeSymbols", from: "5.3.0"),
   ]
 )

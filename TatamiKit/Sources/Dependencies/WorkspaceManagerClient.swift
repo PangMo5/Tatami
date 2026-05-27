@@ -30,7 +30,9 @@ public struct ActivationRequest: Sendable, Hashable {
   /// Display this activation targets. `nil` → all displays.
   public var targetDisplay: DisplayName?
   public var setFocus: Bool
-  public var mouseFollowsFocus: Bool
+  /// Mouse-follows-focus warps the cursor *after* the BSP tile pass (so
+  /// it lands on the window's final tiled position), so it's handled by
+  /// the activation reducer — not here.
   public var mouseHidesOnFocus: Bool
 
   public init(
@@ -38,14 +40,12 @@ public struct ActivationRequest: Sendable, Hashable {
     floatingApps: [FloatingApp],
     targetDisplay: DisplayName?,
     setFocus: Bool = true,
-    mouseFollowsFocus: Bool = false,
     mouseHidesOnFocus: Bool = false
   ) {
     self.workspace = workspace
     self.floatingApps = floatingApps
     self.targetDisplay = targetDisplay
     self.setFocus = setFocus
-    self.mouseFollowsFocus = mouseFollowsFocus
     self.mouseHidesOnFocus = mouseHidesOnFocus
   }
 }
@@ -130,12 +130,6 @@ extension WorkspaceManagerClient: DependencyKey {
             }
           }
 
-          if request.mouseFollowsFocus, let app = toFocus,
-             let center = focusedWindowCenter(of: app)
-          {
-            CGWarpMouseCursorPosition(center)
-            CGAssociateMouseAndMouseCursorPosition(1)
-          }
           if request.mouseHidesOnFocus {
             CursorHidingController.shared.hideUntilMouseMoves()
           }
@@ -186,36 +180,6 @@ extension NSRunningApplication {
     }
     AXUIElementPerformAction(mainAXWindow, kAXRaiseAction as CFString)
   }
-}
-
-@MainActor
-private func focusedWindowCenter(of app: NSRunningApplication) -> CGPoint? {
-  let axApp = AXUIElementCreateApplication(app.processIdentifier)
-  var focusedValue: CFTypeRef?
-  let copyResult = AXUIElementCopyAttributeValue(
-    axApp,
-    kAXFocusedWindowAttribute as CFString,
-    &focusedValue
-  )
-  guard copyResult == .success, let raw = focusedValue,
-        CFGetTypeID(raw) == AXUIElementGetTypeID()
-  else { return nil }
-  let window = raw as! AXUIElement
-
-  var posRef: CFTypeRef?
-  var sizeRef: CFTypeRef?
-  AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posRef)
-  AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef)
-  guard let posRef, let sizeRef,
-        CFGetTypeID(posRef) == AXValueGetTypeID(),
-        CFGetTypeID(sizeRef) == AXValueGetTypeID()
-  else { return nil }
-
-  var pos = CGPoint.zero
-  var size = CGSize.zero
-  AXValueGetValue(posRef as! AXValue, .cgPoint, &pos)
-  AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
-  return CGPoint(x: pos.x + size.width / 2, y: pos.y + size.height / 2)
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WorkspaceManager")

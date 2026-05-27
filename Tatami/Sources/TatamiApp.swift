@@ -18,8 +18,10 @@ struct TatamiApp: App {
     }
     .windowResizability(.contentSize)
 
-    MenuBarExtra("Tatami", systemImage: "square.stack.3d.up.fill") {
+    MenuBarExtra {
       MenuBarContentView(store: appStore)
+    } label: {
+      MenuBarLabel(store: appStore)
     }
     .menuBarExtraStyle(.menu)
   }

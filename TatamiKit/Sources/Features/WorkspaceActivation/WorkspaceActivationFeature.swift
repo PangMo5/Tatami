@@ -100,6 +100,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.displays) var displays
   @Dependency(\.layoutStore) var layoutStore
   @Dependency(\.workspaceHUD) var workspaceHUD
+  @Dependency(\.mouse) var mouse
 
   public init() {}
 
@@ -320,9 +321,22 @@ public struct WorkspaceActivationFeature {
           in: workArea,
           gap: gap
         ) else { return .none }
-        return .run { _ in
+        let warpMouse = settings.mouseFollowsFocus
+        let zoomed = state.zoomedWindow[workspaceId]
+        return .run { [mouse = mouse] _ in
           await MainActor.run {
             focusWindow(pid: target.pid, windowID: target.windowID)
+            // yabai mouse-follows-focus: keep the cursor on the focused
+            // tile after a directional focus move, not just on workspace
+            // switches.
+            if warpMouse {
+              let frames = Self.computeFrames(
+                tree: tree, settings: settings, targetDisplay: display, zoomed: zoomed
+              )
+              if let rect = frames[target] {
+                mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
+              }
+            }
           }
         }
 
@@ -758,9 +772,10 @@ public struct WorkspaceActivationFeature {
       floatingApps: state.config.floatingApps,
       targetDisplay: targetDisplay,
       setFocus: setFocus,
-      mouseFollowsFocus: setFocus && state.config.settings.mouseFollowsFocus,
       mouseHidesOnFocus: setFocus && state.config.settings.mouseHidesOnFocus
     )
+    let warpMouse = setFocus && state.config.settings.mouseFollowsFocus
+    let showHUD = setFocus && state.config.settings.showWorkspaceHUD
 
     let settings = state.config.settings
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
@@ -784,9 +799,10 @@ public struct WorkspaceActivationFeature {
       mgr = workspaceManager,
       tiler = windowTiler,
       store = layoutStore,
-      hud = workspaceHUD
+      hud = workspaceHUD,
+      mouse = mouse
     ] send in
-      if setFocus {
+      if showHUD {
         await hud.show(hudName, hudIcon)
       }
       await mgr.activate(request)
@@ -827,6 +843,15 @@ public struct WorkspaceActivationFeature {
         await tiler.apply(
           FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
         )
+      }
+      // Mouse-follows-focus: warp to the focused window's *tiled* center,
+      // after the frame pass has moved it into place.
+      if warpMouse {
+        let center = await MainActor.run { () -> CGPoint? in
+          guard let key = focusedWindowKey(), let rect = frames[key] else { return nil }
+          return CGPoint(x: rect.midX, y: rect.midY)
+        }
+        if let center { mouse.warp(center) }
       }
       await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
     }

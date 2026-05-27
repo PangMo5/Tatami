@@ -8,6 +8,12 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   public var checkForUpdatesAutomatically: Bool
 
+  /// Show the active workspace's name next to the icon in the menu bar.
+  public var showWorkspaceNameInMenuBar: Bool
+
+  /// Show the on-screen HUD overlay when switching workspaces.
+  public var showWorkspaceHUD: Bool
+
   // MARK: Layout / gaps
 
   /// Pixels between sibling windows inside a BSP/stack workspace.
@@ -90,6 +96,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   public init(
     checkForUpdatesAutomatically: Bool = true,
+    showWorkspaceNameInMenuBar: Bool = true,
+    showWorkspaceHUD: Bool = true,
     gapInner: Int = 8,
     gapOuter: Int = 8,
     mouseFollowsFocus: Bool = false,
@@ -127,6 +135,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
     toggleSpaceActivated: HotKey? = nil
   ) {
     self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
+    self.showWorkspaceNameInMenuBar = showWorkspaceNameInMenuBar
+    self.showWorkspaceHUD = showWorkspaceHUD
     self.gapInner = gapInner
     self.gapOuter = gapOuter
     self.mouseFollowsFocus = mouseFollowsFocus
@@ -168,6 +178,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
 extension AppSettings {
   private enum CodingKeys: String, CodingKey {
     case checkForUpdatesAutomatically
+    case showWorkspaceNameInMenuBar
+    case showWorkspaceHUD
     case gapInner, gapOuter
     case mouseFollowsFocus, mouseHidesOnFocus, focusFollowsMouse
     case focusFollowsMouseDisableHotkey
@@ -193,6 +205,8 @@ extension AppSettings {
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     self.checkForUpdatesAutomatically = (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
+    self.showWorkspaceNameInMenuBar = (try? c.decode(Bool.self, forKey: .showWorkspaceNameInMenuBar)) ?? true
+    self.showWorkspaceHUD = (try? c.decode(Bool.self, forKey: .showWorkspaceHUD)) ?? true
     self.gapInner = (try? c.decode(Int.self, forKey: .gapInner)) ?? 8
     self.gapOuter = (try? c.decode(Int.self, forKey: .gapOuter)) ?? 8
     self.mouseFollowsFocus = (try? c.decode(Bool.self, forKey: .mouseFollowsFocus)) ?? false

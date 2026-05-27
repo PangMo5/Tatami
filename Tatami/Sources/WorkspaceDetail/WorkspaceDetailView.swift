@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import KeyboardShortcuts
+import SFSafeSymbols
 import SwiftUI
 import TatamiKit
 
@@ -8,18 +9,37 @@ struct WorkspaceDetailView: View {
   @Bindable var store: StoreOf<WorkspaceDetailFeature>
   let activationStore: StoreOf<WorkspaceActivationFeature>
   @State private var nameDraft: String = ""
+  @FocusState private var nameFieldFocused: Bool
+  @State private var symbolPickerPresented = false
 
   var body: some View {
     if let workspace = store.workspace {
       Form {
         Section("Workspace") {
           HStack {
-            Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
-              .font(.title2)
-              .foregroundStyle(.tint)
+            Button {
+              symbolPickerPresented = true
+            } label: {
+              Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Choose an icon for this workspace.")
+            .sheet(isPresented: $symbolPickerPresented) {
+              SymbolPicker(
+                selected: workspace.symbolIconName,
+                onSelect: { store.send(.symbolIconChanged($0)) }
+              )
+            }
             TextField("Name", text: $nameDraft)
-              .textFieldStyle(.plain)
+              .textFieldStyle(.roundedBorder)
+              .focused($nameFieldFocused)
               .onSubmit { store.send(.nameSubmitted(nameDraft)) }
+              .onChange(of: nameFieldFocused) { _, focused in
+                if !focused { store.send(.nameSubmitted(nameDraft)) }
+              }
             Spacer()
             Button {
               activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
@@ -138,6 +158,74 @@ extension TilingMemory {
   }
 }
 
+/// Searchable SF Symbol picker backed by SFSafeSymbols' full catalog.
+/// Replaces the archived xnth97/SymbolPicker that FlashSpace used.
+private struct SymbolPicker: View {
+  let selected: String?
+  let onSelect: (String?) -> Void
+
+  @Environment(\.dismiss) private var dismiss
+  @State private var query = ""
+
+  // Full catalog, sorted once. Some entries require a newer OS than the
+  // deployment target and just render blank — harmless for a picker.
+  private static let allNames: [String] =
+    SFSymbol.allSymbols.map(\.rawValue).sorted()
+
+  private var filtered: [String] {
+    let trimmed = query.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return Self.allNames }
+    return Self.allNames.filter { $0.localizedCaseInsensitiveContains(trimmed) }
+  }
+
+  private let columns = [GridItem(.adaptive(minimum: 40), spacing: 8)]
+
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack {
+        Text("Choose Icon").font(.headline)
+        Spacer()
+        Button("Reset") { onSelect(nil); dismiss() }
+          .buttonStyle(.borderless)
+        Button("Done") { dismiss() }
+          .keyboardShortcut(.defaultAction)
+      }
+      .padding(.horizontal, 12)
+      .padding(.top, 12)
+
+      TextField("Search symbols", text: $query)
+        .textFieldStyle(.roundedBorder)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+
+      Divider()
+
+      ScrollView {
+        LazyVGrid(columns: columns, spacing: 8) {
+          ForEach(filtered, id: \.self) { name in
+            Button {
+              onSelect(name)
+              dismiss()
+            } label: {
+              Image(systemName: name)
+                .font(.system(size: 18))
+                .frame(width: 40, height: 40)
+                .background(
+                  RoundedRectangle(cornerRadius: 8)
+                    .fill(name == selected ? Color.accentColor.opacity(0.3) : Color.clear)
+                )
+            }
+            .buttonStyle(.plain)
+            .help(name)
+          }
+        }
+        .padding(12)
+      }
+    }
+    .frame(width: 420, height: 460)
+  }
+}
+
 private struct DisplayPickerSection: View {
   let store: StoreOf<WorkspaceDetailFeature>
   let workspace: Workspace
@@ -179,12 +267,14 @@ private struct AppRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      Toggle(isOn: autoOpenBinding) {
+      HStack(spacing: 6) {
         Text("Auto-open")
           .font(.caption)
           .foregroundStyle(.secondary)
+        Toggle("Auto-open", isOn: autoOpenBinding)
+          .labelsHidden()
+          .toggleStyle(.switch)
       }
-      .toggleStyle(.switch)
       .help("Launch this app automatically when the workspace activates, if it isn't already running.")
       Button(role: .destructive, action: onRemove) {
         Image(systemName: "minus.circle.fill")

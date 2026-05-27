@@ -50,6 +50,7 @@ let project = Project(
         .target(name: "TatamiKit"),
         .target(name: "TatamiCLIProtocol"),
         .external(name: "Sparkle"),
+        .external(name: "SFSafeSymbols"),
       ],
       settings: .settings(base: [
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",

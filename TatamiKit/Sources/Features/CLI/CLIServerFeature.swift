@@ -128,7 +128,6 @@ public struct CLIServerFeature {
           floatingApps: config.floatingApps,
           targetDisplay: workspace.displayHint,
           setFocus: true,
-          mouseFollowsFocus: config.settings.mouseFollowsFocus,
           mouseHidesOnFocus: config.settings.mouseHidesOnFocus
         )
       )
