@@ -140,9 +140,13 @@ private struct AppRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      Toggle("Auto-open", isOn: autoOpenBinding)
-        .toggleStyle(.switch)
-        .labelsHidden()
+      Toggle(isOn: autoOpenBinding) {
+        Text("Auto-open")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .toggleStyle(.switch)
+      .help("Launch this app automatically when the workspace activates, if it isn't already running.")
       Button(role: .destructive, action: onRemove) {
         Image(systemName: "minus.circle.fill")
           .foregroundStyle(.red)

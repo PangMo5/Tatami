@@ -73,6 +73,25 @@ extension WorkspaceManagerClient: DependencyKey {
             workspaceBundleIds.contains($0.bundleIdentifier ?? "")
           }
 
+          // 0. Auto-open: launch assigned apps flagged autoOpen that
+          //    aren't running yet. They join the layout later via the
+          //    window-created observer. (FlashSpace openAppsIfNeeded.)
+          let runningBundleIds = Set(running.compactMap(\.bundleIdentifier))
+          for app in request.workspace.apps
+          where app.autoOpen && !runningBundleIds.contains(app.bundleIdentifier) {
+            guard let url = NSWorkspace.shared
+              .urlForApplication(withBundleIdentifier: app.bundleIdentifier)
+            else { continue }
+            let config = NSWorkspace.OpenConfiguration()
+            NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
+              if let error {
+                logger.error(
+                  "open \(app.bundleIdentifier, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+              }
+            }
+          }
+
           // Resolve the focus target among the workspace's own apps.
           let focusBundleId = request.workspace.appToFocusBundleId
             ?? request.workspace.apps.last?.bundleIdentifier
