@@ -87,6 +87,10 @@ public struct WorkspaceActivationFeature {
     case windowResize(WindowKey)
     case windowMove(WindowKey)
     case sync(String)
+    /// Coalesces frame application per workspace: a newer layout cancels
+    /// an in-flight apply so a stale (older-tree) apply can't land after
+    /// it and scramble the layout during rapid window churn.
+    case apply(Workspace.ID)
   }
 
   @Dependency(\.workspaceManager) var workspaceManager
@@ -377,6 +381,11 @@ public struct WorkspaceActivationFeature {
     if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
       return .none
     }
+    // While an activation is in flight, performActivate owns the tree
+    // (it builds from a snapshot and writes back asynchronously). Let it
+    // finish — otherwise an incremental sync races it and one clobbers
+    // the other, scrambling the launch layout.
+    guard !state.isActivating else { return .none }
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
@@ -476,7 +485,8 @@ public struct WorkspaceActivationFeature {
             FrameApplication(windowFrames: frames, targetDisplay: display)
           )
         }
-      },
+      }
+      .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       .run { [observer = windowObserver] _ in
         await observer.observe(observeIds)
       },
