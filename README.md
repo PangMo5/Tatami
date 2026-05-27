@@ -76,6 +76,9 @@ Settings live in `~/.config/tatami/config.toml`, grouped into tables —
 floating apps are stored in the same file. Edits made in the app or by hand are
 picked up live.
 
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference —
+every key, its default, and the shortcut syntax.
+
 ## Tech stack
 
 - **Tuist** — project generation
