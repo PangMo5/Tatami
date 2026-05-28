@@ -50,7 +50,7 @@ struct MenuBarContentView: View {
       Divider()
     }
 
-    Button(config.settings.general.isPaused ? "Resume Tiling" : "Pause Tiling") {
+    Button(store.activation.isTilingPaused ? "Resume Tiling" : "Pause Tiling") {
       store.send(.activation(.togglePaused))
     }
 

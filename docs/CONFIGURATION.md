@@ -35,9 +35,9 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
+| `launchAtLogin` | bool | `false` | Register Tatami as a login item so it starts at login. |
 | `checkForUpdatesAutomatically` | bool | `true` | Periodically check for new releases. |
 | `checkInterval` | string | `"daily"` | Background update-check frequency: `hourly`, `daily`, or `weekly`. |
-| `isPaused` | bool | `false` | When true, tiling/activation is suspended (toggled by the pause hotkey). |
 
 ## `[settings.menuBar]`
 

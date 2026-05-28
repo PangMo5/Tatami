@@ -14,6 +14,9 @@ public struct WorkspaceActivationFeature {
     public var activeWorkspacesByDisplay: [DisplayName: Workspace.ID] = [:]
     public var previousWorkspaceID: Workspace.ID?
     public var isActivating = false
+    /// Runtime-only "pause tiling" flag. Workspace switching keeps
+    /// running while tiling is paused; flipped by `togglePaused`.
+    public var isTilingPaused = false
     /// Per-workspace BSP tree of window keys, kept in-memory only.
     public var tilingTrees: [Workspace.ID: BSPNode<WindowKey>] = [:]
     /// Per-workspace "zoomed" window — when set, that leaf fills the
@@ -281,10 +284,8 @@ public struct WorkspaceActivationFeature {
         return .none
 
       case .togglePaused:
-        let wasPaused = state.config.settings.general.isPaused
-        state.$config.withLock { config in
-          config.settings.general.isPaused.toggle()
-        }
+        let wasPaused = state.isTilingPaused
+        state.isTilingPaused.toggle()
         // Resuming: re-tile right away. Use reflow (not activate) so we
         // don't hide transient members like an ad-hoc KakaoTalk window.
         if wasPaused {
@@ -409,7 +410,7 @@ public struct WorkspaceActivationFeature {
   /// to whatever changed while paused, but re-activating would hide
   /// transient members (e.g. a KakaoTalk window opened ad-hoc).
   private func reflowActiveWorkspace(state: inout State) -> Effect<Action> {
-    guard !state.config.settings.general.isPaused,
+    guard !state.isTilingPaused,
           let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
@@ -494,7 +495,7 @@ public struct WorkspaceActivationFeature {
   /// stays cheap.
   private func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
     // Paused = tiling is off; don't reflow on window/app churn.
-    guard !state.config.settings.general.isPaused else { return .none }
+    guard !state.isTilingPaused else { return .none }
     if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
       return .none
     }
@@ -759,12 +760,14 @@ public struct WorkspaceActivationFeature {
     setFocus: Bool,
     state: inout State
   ) -> Effect<Action> {
-    guard !state.config.settings.general.isPaused else { return .none }
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces.first(where: { $0.id == workspaceId })
     else { return .none }
     guard !state.isActivating else { return .none }
     state.isActivating = true
+    // Pause only suppresses the BSP tile pass — workspace switching
+    // (show/hide/focus) still runs so the user can keep navigating.
+    let isPaused = state.isTilingPaused
 
     let targetDisplay = workspace.displayHint ?? displays.current()
     let request = ActivationRequest(
@@ -806,52 +809,56 @@ public struct WorkspaceActivationFeature {
         await hud.show(hudName, hudIcon)
       }
       await mgr.activate(request)
-      let (tree, frames) = await MainActor.run {
-        () -> (BSPNode<WindowKey>?, [WindowKey: CGRect]) in
-        let keys = discoverWindowKeys(forBundleIds: bundleIds)
-        let focused = focusedWindowKey()
-        let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
-          dx: CGFloat(settings.layout.gapOuter),
-          dy: CGFloat(settings.layout.gapOuter)
-        )
-        var base = sessionTree
-        if memory == .persistent, base == nil,
-           let template = store.load(workspaceId)
-        {
-          base = BSPNode.hydrate(template: template, keys: keys)
+      // Skip the BSP tile pass when paused — show/hide/focus is enough
+      // for the user to keep switching workspaces.
+      if !isPaused {
+        let (tree, frames) = await MainActor.run {
+          () -> (BSPNode<WindowKey>?, [WindowKey: CGRect]) in
+          let keys = discoverWindowKeys(forBundleIds: bundleIds)
+          let focused = focusedWindowKey()
+          let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
+            dx: CGFloat(settings.layout.gapOuter),
+            dy: CGFloat(settings.layout.gapOuter)
+          )
+          var base = sessionTree
+          if memory == .persistent, base == nil,
+             let template = store.load(workspaceId)
+          {
+            base = BSPNode.hydrate(template: template, keys: keys)
+          }
+          let merged = Self.mergeTree(
+            existing: base,
+            target: keys,
+            focused: focused,
+            workArea: workArea
+          )
+          let tree = settings.layout.autoBalance ? merged?.balanced() : merged
+          let frames = Self.computeFrames(
+            tree: tree,
+            settings: settings,
+            targetDisplay: targetDisplay,
+            zoomed: zoomed
+          )
+          return (tree, frames)
         }
-        let merged = Self.mergeTree(
-          existing: base,
-          target: keys,
-          focused: focused,
-          workArea: workArea
-        )
-        let tree = settings.layout.autoBalance ? merged?.balanced() : merged
-        let frames = Self.computeFrames(
-          tree: tree,
-          settings: settings,
-          targetDisplay: targetDisplay,
-          zoomed: zoomed
-        )
-        return (tree, frames)
-      }
-      await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
-      if memory == .persistent, let tree {
-        store.save(workspaceId, tree.mapWindows { $0.bundleId })
-      }
-      if !frames.isEmpty {
-        await tiler.apply(
-          FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
-        )
-      }
-      // Mouse-follows-focus: warp to the focused window's *tiled* center,
-      // after the frame pass has moved it into place.
-      if warpMouse {
-        let center = await MainActor.run { () -> CGPoint? in
-          guard let key = focusedWindowKey(), let rect = frames[key] else { return nil }
-          return CGPoint(x: rect.midX, y: rect.midY)
+        await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
+        if memory == .persistent, let tree {
+          store.save(workspaceId, tree.mapWindows { $0.bundleId })
         }
-        if let center { mouse.warp(center) }
+        if !frames.isEmpty {
+          await tiler.apply(
+            FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
+          )
+        }
+        // Mouse-follows-focus: warp to the focused window's *tiled* center,
+        // after the frame pass has moved it into place.
+        if warpMouse {
+          let center = await MainActor.run { () -> CGPoint? in
+            guard let key = focusedWindowKey(), let rect = frames[key] else { return nil }
+            return CGPoint(x: rect.midX, y: rect.midY)
+          }
+          if let center { mouse.warp(center) }
+        }
       }
       await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
     }

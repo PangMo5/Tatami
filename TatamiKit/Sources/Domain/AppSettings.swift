@@ -62,24 +62,19 @@ extension AppSettings {
     public var checkForUpdatesAutomatically: Bool
     /// How often Sparkle checks for updates in the background.
     public var checkInterval: UpdateCheckInterval
-    /// When true, `WorkspaceManagerClient.activate` is a no-op. Toggled
-    /// via the `toggleSpaceActivated` hotkey.
-    public var isPaused: Bool
 
     public init(
       launchAtLogin: Bool = false,
       checkForUpdatesAutomatically: Bool = true,
-      checkInterval: UpdateCheckInterval = .daily,
-      isPaused: Bool = false
+      checkInterval: UpdateCheckInterval = .daily
     ) {
       self.launchAtLogin = launchAtLogin
       self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
       self.checkInterval = checkInterval
-      self.isPaused = isPaused
     }
 
     private enum CodingKeys: String, CodingKey {
-      case launchAtLogin, checkForUpdatesAutomatically, checkInterval, isPaused
+      case launchAtLogin, checkForUpdatesAutomatically, checkInterval
     }
 
     public init(from decoder: Decoder) throws {
@@ -89,7 +84,6 @@ extension AppSettings {
         (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
       self.checkInterval =
         (try? c.decode(UpdateCheckInterval.self, forKey: .checkInterval)) ?? .daily
-      self.isPaused = (try? c.decode(Bool.self, forKey: .isPaused)) ?? false
     }
   }
 }
