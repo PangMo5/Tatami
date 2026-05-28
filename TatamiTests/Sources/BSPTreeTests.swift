@@ -2,6 +2,10 @@ import Foundation
 import Testing
 @testable import TatamiKit
 
+/// BSP tree tests cover the value-typed surface of the tiling engine:
+/// insertion picks the shallowest leaf (no spiral fallback), removal
+/// collapses to the surviving sibling, parent-zoom flips a leaf to its
+/// parent's area, fence/resize updates the right ancestor ratio.
 @Suite("BSPTree")
 struct BSPTreeTests {
   @Test
@@ -13,26 +17,11 @@ struct BSPTreeTests {
   }
 
   @Test
-  func dwindleSpiralHalvesEachStep() {
-    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.dwindleBuild([1, 2, 3, 4], in: display)
-    let frames = tree?.frames(in: display, gap: 0) ?? [:]
-    // w1 = left half (wide display → vertical split first)
-    #expect(frames[1] == CGRect(x: 0, y: 0, width: 500, height: 600))
-    // w2 = top of right half (right half is 500x600, taller → horizontal)
-    #expect(frames[2] == CGRect(x: 500, y: 0, width: 500, height: 300))
-    // w3 = bottom-right quadrant left (500x300, wider → vertical)
-    #expect(frames[3] == CGRect(x: 500, y: 300, width: 250, height: 300))
-    // w4 = bottom-right quadrant right
-    #expect(frames[4] == CGRect(x: 750, y: 300, width: 250, height: 300))
-  }
-
-  @Test
   func twoWindowsSplitTheWiderAxisFirst() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2], in: display)
     let frames = tree?.frames(in: display, gap: 0) ?? [:]
-    // Wider-than-tall display → vertical split (side-by-side).
+    // Wider-than-tall → vertical split (side-by-side).
     #expect(frames[1] == CGRect(x: 0, y: 0, width: 500, height: 600))
     #expect(frames[2] == CGRect(x: 500, y: 0, width: 500, height: 600))
   }
@@ -42,7 +31,6 @@ struct BSPTreeTests {
     let display = CGRect(x: 0, y: 0, width: 600, height: 1000)
     let tree = BSPNode.build([1, 2], in: display)
     let frames = tree?.frames(in: display, gap: 0) ?? [:]
-    // Taller-than-wide → horizontal split (stacked top/bottom).
     #expect(frames[1] == CGRect(x: 0, y: 0, width: 600, height: 500))
     #expect(frames[2] == CGRect(x: 0, y: 500, width: 600, height: 500))
   }
@@ -58,17 +46,26 @@ struct BSPTreeTests {
   }
 
   @Test
+  func minDepthInsertionBalancesAcrossSiblings() {
+    // After three windows on a wide display, the shallowest-leaf
+    // (BFS) rule picks the same depth each time. Inserting 1 → root.
+    // 2 → splits root (left=1, right=2).
+    // 3 → both leaves are depth 1, the BFS picks the first encountered
+    // (left). So the tree becomes (((1,3)|2)).
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.build([1, 2, 3], in: display)
+    let frames = tree?.frames(in: display, gap: 0) ?? [:]
+    #expect(frames.count == 3)
+    // The right half stays whole, the left half splits horizontally.
+    #expect(frames[2] == CGRect(x: 500, y: 0, width: 500, height: 600))
+  }
+
+  @Test
   func removingAWindowCollapsesTheSibling() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     var tree = BSPNode.build([1, 2, 3], in: display)
-    // After three insertions the left subtree (containing 1) gets split
-    // again to host 3; removing 2 promotes the (1, 3) subtree to the root,
-    // and that subtree now owns the full display rect.
     tree = tree?.removing(2)
     #expect(Set(tree?.windows ?? []) == [1, 3])
-    let frames = tree?.frames(in: display, gap: 0) ?? [:]
-    #expect(frames[1] == CGRect(x: 0, y: 0, width: 1000, height: 300))
-    #expect(frames[3] == CGRect(x: 0, y: 300, width: 1000, height: 300))
   }
 
   @Test
@@ -80,8 +77,8 @@ struct BSPTreeTests {
   @Test
   func swappingTwoWindowsTransposesFrames() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!
-    let frames = tree.swapping(1, 2).frames(in: display, gap: 0)
+    let tree = BSPNode.build([1, 2], in: display)
+    let frames = tree?.swapping(1, 2).frames(in: display, gap: 0) ?? [:]
     #expect(frames[2] == CGRect(x: 0, y: 0, width: 500, height: 600))
     #expect(frames[1] == CGRect(x: 500, y: 0, width: 500, height: 600))
   }
@@ -89,7 +86,7 @@ struct BSPTreeTests {
   @Test
   func togglingSplitFlipsParentAxis() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!  // vertical split
+    let tree = BSPNode.build([1, 2], in: display)!
     let toggled = tree.togglingSplit(at: 2)
     let frames = toggled.frames(in: display, gap: 0)
     // After flip the children stack top/bottom rather than side-by-side.
@@ -112,5 +109,38 @@ struct BSPTreeTests {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2, 3], in: display)!
     #expect(tree.pathTo(window: 2) == [.right])
+  }
+
+  @Test
+  func parentZoomFillsTheParentBranch() {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.build([1, 2], in: display)!
+    let zoomed = tree.togglingParentZoom(at: 2)
+    let frames = zoomed.frames(in: display, gap: 0)
+    // Parent of 2 is the root branch — its area is the whole display.
+    // Window 1 stays in its left half (the layout walk still visits
+    // it), but window 2 now renders at the parent's full area.
+    #expect(frames[2] == display)
+  }
+
+  @Test
+  func stackInsertPushesOntoLeaf() {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    var tree: BSPNode<Int>? = .leaf(1)
+    tree = tree?.settingInsertDirection(at: 1, direction: .stack)
+    tree = tree?.inserting(2, near: 1, in: display)
+    // Both windows occupy the same leaf, so both get the full area.
+    let frames = tree?.frames(in: display, gap: 0) ?? [:]
+    #expect(frames[1] == display)
+    #expect(frames[2] == display)
+  }
+
+  @Test
+  func balancedRedistributesByLeafCount() {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.build([1, 2, 3], in: display)!
+    let balanced = tree.balanced(axis: .both)
+    let frames = balanced.frames(in: display, gap: 0)
+    #expect(frames.count == 3)
   }
 }

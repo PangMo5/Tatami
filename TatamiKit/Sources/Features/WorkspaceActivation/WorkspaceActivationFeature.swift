@@ -6,6 +6,11 @@ import Sharing
 
 /// Tracks the active workspace per display, owns per-workspace BSP
 /// trees, and dispatches activation + window-layout side effects.
+///
+/// The reducer plays the event-loop role: window create/destroy/focus
+/// notifications arrive, the BSP tree mutates, and the new layout is
+/// flushed through `WindowTilerClient`. Workspace switching is layered
+/// on top via `WorkspaceManagerClient` (show/hide policy).
 @Reducer
 public struct WorkspaceActivationFeature {
   @ObservableState
@@ -19,17 +24,19 @@ public struct WorkspaceActivationFeature {
     public var isTilingPaused = false
     /// Per-workspace BSP tree of window keys, kept in-memory only.
     public var tilingTrees: [Workspace.ID: BSPNode<WindowKey>] = [:]
-    /// Per-workspace set of "zoomed" windows. Each member fills the work
-    /// area on top of the regular tile pass; the rest of the BSP tree is
-    /// laid out as if these windows weren't there. Allows several
-    /// fullscreen windows side-by-side (focus determines which sits on
-    /// top).
-    public var zoomedWindows: [Workspace.ID: Set<WindowKey>] = [:]
-    /// Last window that held focus and was a member of a tree — the
-    /// insertion point. A freshly opened window is already frontmost
-    /// (so live focus points at it, not the tree) — splitting *this*
-    /// instead opens the new window next to the previously focused one.
-    public var lastFocusedKey: WindowKey?
+    /// Sticky per-workspace insertion point. The next window inserted
+    /// lands next to this one (and the `insertDirection` set on its
+    /// leaf decides north/east/south/west/stack). Updated by focus
+    /// events and by the user's `bspSetInsertDirection` action.
+    public var insertionPoint: [Workspace.ID: WindowKey] = [:]
+    /// Per-workspace set of fullscreen-zoomed windows. Tatami-specific
+    /// multi-window fullscreen: each member is trimmed from the tree
+    /// before layout and rendered at the workspace's work area. Several
+    /// can be active at once; focus determines which sits on top
+    /// visually. Persisted via `LayoutSnapshot.fullscreenZoomedBundleIds`.
+    /// Parent-zoom is *not* tracked here — that one lives inside the
+    /// tree leaves directly.
+    public var fullscreenZoomed: [Workspace.ID: Set<WindowKey>] = [:]
 
     public init() {}
 
@@ -57,30 +64,37 @@ public struct WorkspaceActivationFeature {
     case bspSwap(BSPDirection)
     case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspToggleOrientation
-    case bspToggleZoom
+    /// Per-leaf zoom: the focused leaf renders at its parent
+    /// branch's area, only one active per subtree, tree shape
+    /// unchanged.
+    case bspToggleZoomParent
+    /// Tatami's fullscreen-zoom: multi-window, takes the window out of
+    /// the tree's layout and renders it at the work area.
+    case bspToggleZoomFullscreen
     case bspBalance
     case bspRotate(degrees: Int)
     case bspMirror(axis: BSPNode<WindowKey>.SplitAxis)
+    /// Set the insertion direction on the focused leaf so the next
+    /// inserted window lands there. Pass nil to clear.
+    case bspSetInsertDirection(BSPNode<WindowKey>.InsertDirection?)
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     case windowChanged(WindowChangeEvent)
     case windowResizeCommitted(key: WindowKey, frame: CGRect)
     case windowMoveCommitted(key: WindowKey, frame: CGRect)
     /// Incrementally reconcile a single app's windows into the active
     /// tree: add new windows, drop gone ones, touch nothing else.
-    /// Far cheaper than rescanning the whole workspace.
     case syncAppWindows(bundleId: String)
     /// Wake / native-Space-change / "something on the system shifted":
-    /// re-reconcile every app that we currently track in the active
-    /// workspace's tree, plus its registered + floating bundle ids.
+    /// re-reconcile every tree-resident + registered app.
     case reconcileAllTrackedApps
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
     case appActivated(bundleId: String)
     case appTerminated(bundleId: String)
     case tilingTreeUpdated(workspaceId: Workspace.ID, tree: BSPNode<WindowKey>?)
-    /// Activation discovered zoomed windows stored on disk and we
-    /// resolved them to live `WindowKey`s. Reinstates the in-memory zoom set.
-    case persistedZoomRestored(workspaceId: Workspace.ID, keys: Set<WindowKey>)
+    /// Activation discovered fullscreen-zoomed bundle ids on disk and
+    /// we resolved them to live `WindowKey`s.
+    case persistedFullscreenZoomRestored(workspaceId: Workspace.ID, keys: Set<WindowKey>)
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
   }
 
@@ -90,7 +104,9 @@ public struct WorkspaceActivationFeature {
     case swap(BSPDirection)
     case resize(BSPDirection, delta: CGFloat)
     case toggleOrientation
-    case toggleZoom
+    case toggleZoomParent
+    case toggleZoomFullscreen
+    case setInsertDirection(BSPNode<WindowKey>.InsertDirection?)
   }
 
   /// Cancellation identifiers for debounced window-event handling.
@@ -98,9 +114,8 @@ public struct WorkspaceActivationFeature {
     case windowResize(WindowKey)
     case windowMove(WindowKey)
     case sync(String)
-    /// Coalesces frame application per workspace: a newer layout cancels
-    /// an in-flight apply so a stale (older-tree) apply can't land after
-    /// it and scramble the layout during rapid window churn.
+    /// Coalesces frame application per workspace: a newer layout
+    /// cancels an in-flight apply so a stale one can't land after it.
     case apply(Workspace.ID)
   }
 
@@ -113,6 +128,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.workspaceHUD) var workspaceHUD
   @Dependency(\.mouse) var mouse
   @Dependency(\.marker) var marker
+  @Dependency(\.sls) var sls
 
   public init() {}
 
@@ -144,25 +160,18 @@ public struct WorkspaceActivationFeature {
           }
           .cancellable(id: CancelID.windowMove(key), cancelInFlight: true)
         case .windowCreated(let bundleId):
-          // Reconcile just this app's windows. Debounce stays at 0 and
-          // we rely on the in-sync `pathTo` check to ignore the AX
-          // attribute populate race.
           return debouncedSync(bundleId, delayMs: 0)
         case .windowDestroyed(let bundleId):
           return debouncedSync(bundleId, delayMs: 0)
         case .windowFocused(let bundleId, let key):
-          // Keep the insertion point current even for same-app window
-          // switches (which don't fire didActivateApplication).
-          if let key,
-             let wsId = state.primaryActiveWorkspaceID,
+          // Keep the per-workspace insertion point current — even for
+          // same-app window switches (which don't fire
+          // didActivateApplication).
+          if let key, let wsId = state.primaryActiveWorkspaceID,
              state.tilingTrees[wsId]?.windows.contains(key) == true
           {
-            state.lastFocusedKey = key
+            state.insertionPoint[wsId] = key
           }
-          // Reconcile this app's windows on every focus change — the
-          // front-switch reconcile path. Zero delay (event-driven, no
-          // debounce). `debouncedSync` still coalesces concurrent calls
-          // per bundle id via the cancellable.
           return debouncedSync(bundleId, delayMs: 0)
         }
 
@@ -193,8 +202,7 @@ public struct WorkspaceActivationFeature {
 
       case .reconcileAllTrackedApps:
         // Union of tree members + registered apps in the active
-        // workspace: refresh every app we currently care about when
-        // the system tells us the world may have shifted.
+        // workspace: refresh every app we currently care about.
         var bundleIds: Set<String> = []
         for tree in state.tilingTrees.values {
           for window in tree.windows { bundleIds.insert(window.bundleId) }
@@ -212,13 +220,9 @@ public struct WorkspaceActivationFeature {
         return debouncedSync(bundleId, delayMs: 40)
 
       case .appActivated(let bundleId):
-        // Ignore our own re-activations to avoid loops.
         if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
           return .none
         }
-        // activeWorkspaceOnFocusChange: if a non-floating app is focused
-        // and it belongs to a workspace that isn't active, switch to it.
-        // (Skipped while activating to avoid feedback loops.)
         if !state.isActivating,
            state.config.settings.switching.followAppFocus,
            !state.config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }),
@@ -228,8 +232,6 @@ public struct WorkspaceActivationFeature {
            state.primaryActiveWorkspaceID != owner.id {
           return .send(.activate(workspaceId: owner.id, setFocus: false))
         }
-        // Reconcile this app — if its window set is unchanged (the
-        // common focus-churn case) syncAppWindows is a cheap no-op.
         return debouncedSync(bundleId, delayMs: 40)
 
       case .appTerminated(let bundleId):
@@ -239,9 +241,6 @@ public struct WorkspaceActivationFeature {
         guard let profile = state.config.activeProfile,
               !profile.workspaces.isEmpty
         else { return .none }
-        // Prefer the workspace that owns the currently frontmost app so
-        // launch doesn't yank the user somewhere else; fall back to the
-        // first workspace. setFocus:false keeps the current focus.
         let frontBundle = MainActor.assumeIsolated {
           NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         }
@@ -286,8 +285,6 @@ public struct WorkspaceActivationFeature {
             }
           }
         }
-        // Invalidate the destination workspace's tree so the next
-        // activation rebuilds with the new participant.
         state.tilingTrees[workspaceId] = nil
         return .send(.activate(workspaceId: workspaceId, setFocus: true))
 
@@ -319,8 +316,6 @@ public struct WorkspaceActivationFeature {
       case .togglePaused:
         let wasPaused = state.isTilingPaused
         state.isTilingPaused.toggle()
-        // Resuming: re-tile right away. Use reflow (not activate) so we
-        // don't hide transient members like an ad-hoc KakaoTalk window.
         if wasPaused {
           return reflowActiveWorkspace(state: &state)
         }
@@ -346,26 +341,22 @@ public struct WorkspaceActivationFeature {
             dy: CGFloat(settings.layout.gapOuter)
           )
         }
-        // Directional focus stays *within the tiled set* — the neighbor
-        // is resolved from the BSP tree, so floating/unmanaged windows
-        // are never targeted.
+        // Directional focus stays within the tiled set.
         guard let target = tree.directionalNeighbor(
           of: key,
           direction: direction,
           in: workArea,
-          gap: gap
+          gap: gap,
+          focusOrder: tree.windows
         ) else { return .none }
         let warpMouse = settings.focus.mouseFollowsFocus
-        let zoomed = state.zoomedWindows[workspaceId] ?? []
+        let zoomed = state.fullscreenZoomed[workspaceId] ?? []
         return .run { [mouse = mouse] _ in
           await MainActor.run {
             focusWindow(pid: target.pid, windowID: target.windowID)
-            // Mouse-follows-focus: keep the cursor on the focused tile
-            // after a directional focus move, not just on workspace
-            // switches.
             if warpMouse {
               let frames = Self.computeFrames(
-                tree: tree, settings: settings, targetDisplay: display, zoomed: zoomed
+                tree: tree, settings: settings, targetDisplay: display, fullscreenZoomed: zoomed
               )
               if let rect = frames[target] {
                 mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
@@ -389,13 +380,24 @@ public struct WorkspaceActivationFeature {
           .bspOpResolved(windowKey: key, op: .toggleOrientation)
         }
 
-      case .bspToggleZoom:
+      case .bspToggleZoomParent:
         return resolveFocusedWindowKey { key in
-          .bspOpResolved(windowKey: key, op: .toggleZoom)
+          .bspOpResolved(windowKey: key, op: .toggleZoomParent)
+        }
+
+      case .bspToggleZoomFullscreen:
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .toggleZoomFullscreen)
+        }
+
+      case .bspSetInsertDirection(let direction):
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .setInsertDirection(direction))
         }
 
       case .bspBalance:
-        return applyTreeTransform(state: &state) { $0.balanced() }
+        let axis = bspAxis(for: state.config.settings.layout.autoBalance)
+        return applyTreeTransform(state: &state) { $0.balanced(axis: axis) }
 
       case .bspRotate(let degrees):
         return applyTreeTransform(state: &state) { $0.rotated(by: degrees) }
@@ -406,17 +408,21 @@ public struct WorkspaceActivationFeature {
       case .bspOpResolved(let key, let op):
         return applyBSPOp(windowKey: key, op: op, state: &state)
 
-      case .persistedZoomRestored(let workspaceId, let keys):
-        state.zoomedWindows[workspaceId] = keys.isEmpty ? nil : keys
+      case .persistedFullscreenZoomRestored(let workspaceId, let keys):
+        state.fullscreenZoomed[workspaceId] = keys.isEmpty ? nil : keys
         return .none
 
       case .tilingTreeUpdated(let workspaceId, let tree):
         state.tilingTrees[workspaceId] = tree
-        // Seed the insertion point at the spiral tail so the first
-        // window opened after activation lands at the end of the
-        // dwindle — not split off the previously frontmost (often
-        // left-hand) window. A real focus change updates it afterward.
-        state.lastFocusedKey = tree?.deepestLeaf
+        // Seed the insertion point with the focused leaf's top window
+        // (or first leaf's top if focus isn't in the tree), so the
+        // very next insert has somewhere to anchor.
+        if let tree {
+          let firstLeafWindow = tree.windows.first
+          state.insertionPoint[workspaceId] = firstLeafWindow
+        } else {
+          state.insertionPoint[workspaceId] = nil
+        }
         return .none
 
       case .activationCompleted(let id, let display):
@@ -427,9 +433,6 @@ public struct WorkspaceActivationFeature {
         if let display {
           state.activeWorkspacesByDisplay[display] = id
         }
-        // Observe the tree's actual members (registered + transient)
-        // so a second window on any of them triggers a retile. Falls
-        // back to the registered apps if the tree isn't built yet.
         let treeIds = state.tilingTrees[id]?.windows.map(\.bundleId)
         let registeredIds = state.config.activeProfile?
           .workspaces.first(where: { $0.id == id })?
@@ -443,10 +446,9 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  /// Re-tile the active workspace's current windows WITHOUT touching app
-  /// visibility (no hide/show). Used on resume: tiling needs to catch up
-  /// to whatever changed while paused, but re-activating would hide
-  /// transient members (e.g. a KakaoTalk window opened ad-hoc).
+  /// Re-tile the active workspace's current windows WITHOUT touching
+  /// app visibility. Used on resume so tiling catches up to whatever
+  /// changed while paused.
   private func reflowActiveWorkspace(state: inout State) -> Effect<Action> {
     guard !state.isTilingPaused,
           let workspaceId = state.primaryActiveWorkspaceID,
@@ -457,23 +459,18 @@ public struct WorkspaceActivationFeature {
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
     let registered = workspace.apps.map(\.bundleIdentifier)
-    let registeredSet = Set(registered)
-    let allAssigned = Self.everyAssignedBundleId(in: state.config)
-    let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
     let existing = state.tilingTrees[workspaceId]
+    // On resume from pause we keep any transient (unregistered-anywhere)
+    // members the user may have folded in before pausing. Without the
+    // existing tree's bundle ids we'd discover only the registered apps
+    // and the transient tiles would drop out silently.
+    let existingBundles = existing?.windows.map(\.bundleId) ?? []
+    let discoverBundles = Array(Set(registered + existingBundles))
+    let slsClient = sls
 
     let snapshot = MainActor.assumeIsolated {
       () -> (targets: [WindowKey], focused: WindowKey?, workArea: CGRect) in
-      let visibleUnassigned = NSWorkspace.shared.runningApplications
-        .filter { $0.activationPolicy == .regular && !$0.isHidden && !$0.isTerminated }
-        .compactMap(\.bundleIdentifier)
-        .filter { id in
-          !registeredSet.contains(id) && !floatingSet.contains(id)
-            && !allAssigned.contains(id)
-            && id != "dev.PangMo5.Tatami" && id != "dev.PangMo5.Tatami.dev"
-        }
-      let keys = discoverWindowKeys(forBundleIds: registered)
-        + discoverWindowKeys(forBundleIds: visibleUnassigned)
+      let keys = discoverWindowKeys(forBundleIds: discoverBundles, sls: slsClient)
       let workArea = ScreenGeometry.workArea(for: display).insetBy(
         dx: CGFloat(settings.layout.gapOuter), dy: CGFloat(settings.layout.gapOuter)
       )
@@ -484,20 +481,25 @@ public struct WorkspaceActivationFeature {
       existing: existing,
       target: snapshot.targets,
       focused: snapshot.focused,
-      workArea: snapshot.workArea
+      insertionPoint: state.insertionPoint[workspaceId],
+      workArea: snapshot.workArea,
+      settings: settings
     )
-    let balanced = settings.layout.autoBalance ? merged?.balanced() : merged
+    let axis = bspAxis(for: settings.layout.autoBalance)
+    let balanced = axis == .none ? merged : merged?.balanced(axis: axis)
     state.tilingTrees[workspaceId] = balanced
     guard let tree = balanced else { return .none }
-    state.lastFocusedKey = tree.deepestLeaf
-    let zoomed = state.zoomedWindows[workspaceId] ?? []
+    if state.insertionPoint[workspaceId] == nil {
+      state.insertionPoint[workspaceId] = tree.windows.first
+    }
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     let observeIds = Array(Set(tree.windows.map(\.bundleId)))
 
     return .merge(
       .run { [tiler = windowTiler] _ in
         let frames = await MainActor.run {
           Self.computeFrames(
-            tree: tree, settings: settings, targetDisplay: display, zoomed: zoomed
+            tree: tree, settings: settings, targetDisplay: display, fullscreenZoomed: zoomed
           )
         }
         if !frames.isEmpty {
@@ -506,15 +508,10 @@ public struct WorkspaceActivationFeature {
       }
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
-      persist(tree, zoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
-  /// Debounce a per-app reconcile. macOS fires window/app notifications
-  /// in bursts (especially with focus-follows-mouse), so we wait for a
-  /// short lull and coalesce per bundle id. `cancelInFlight` keyed by
-  /// bundle id drops superseded syncs for the same app while letting
-  /// different apps reconcile independently.
   private func debouncedSync(_ bundleId: String, delayMs: Int) -> Effect<Action> {
     .run { send in
       if delayMs > 0 {
@@ -526,20 +523,16 @@ public struct WorkspaceActivationFeature {
   }
 
   /// Incrementally reconcile a single app's windows into the active
-  /// workspace's tree. Scans only that app via AX, inserts windows new
-  /// to the tree (next to focus / spiral tail), removes ones that
-  /// vanished, and leaves every other tile alone. A no-op (and no AX
-  /// apply) when nothing changed — so focus churn stays cheap.
+  /// workspace's tree. Insert windows new to the tree (next to the
+  /// insertion point), remove vanished ones, leave the rest.
+  /// Unassigned visible apps are *not* folded into the tree.
   private func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
-    // Paused = tiling is off; don't reflow on window/app churn.
     guard !state.isTilingPaused else { return .none }
     if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
       return .none
     }
-    // While an activation is in flight, performActivate owns the tree
-    // (it builds from a snapshot and writes back asynchronously). Let it
-    // finish — otherwise an incremental sync races it and one clobbers
-    // the other, scrambling the launch layout.
+    // performActivate owns the tree during its async build — let it
+    // finish, otherwise an incremental sync races it.
     guard !state.isActivating else { return .none }
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
@@ -550,115 +543,101 @@ public struct WorkspaceActivationFeature {
     let display = workspace.displayHint ?? displays.current()
     let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
     let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
-    let allAssigned = Self.everyAssignedBundleId(in: state.config)
+    let assignedAnywhere = Self.everyAssignedBundleId(in: state.config)
     let existing = state.tilingTrees[workspaceId]
     let inTree = existing?.windows.contains { $0.bundleId == bundleId } ?? false
 
-    // Floating apps never tile. Apps assigned to *other* workspaces only
-    // tile here if they're already a transient member of this tree.
     if floatingSet.contains(bundleId) { return .none }
-    let isUnassigned = !registeredSet.contains(bundleId) && !allAssigned.contains(bundleId)
-    let eligibleToAdd = registeredSet.contains(bundleId) || inTree || isUnassigned
+    // Eligibility:
+    //   * registered in this workspace → always tile.
+    //   * already in the tree (transient member from an earlier sync)
+    //     → keep tiling so the window doesn't suddenly fall out.
+    //   * unregistered anywhere → transient: gets folded into the
+    //     active workspace's tree because the user just opened/raised
+    //     it after activation. The next activation rebuilds the tree
+    //     from the registered set alone, so the transient drops out
+    //     automatically.
+    //   * registered in some *other* workspace → not tiled here;
+    //     followAppFocus (if enabled) jumps to its owning workspace
+    //     instead.
+    let isUnregisteredAnywhere = !assignedAnywhere.contains(bundleId)
+    let eligibleToAdd = registeredSet.contains(bundleId)
+      || inTree
+      || isUnregisteredAnywhere
 
-    let (current, focused, workArea, visibleUnassigned) = MainActor.assumeIsolated {
-      () -> (
-        current: [WindowKey],
-        focused: WindowKey?,
-        workArea: CGRect,
-        unassigned: [String]
-      ) in
-      let cur = discoverWindowKeys(forBundleIds: [bundleId])
+    let slsClient = sls
+    let (current, focused, workArea) = MainActor.assumeIsolated {
+      () -> (current: [WindowKey], focused: WindowKey?, workArea: CGRect) in
+      let cur = discoverWindowKeys(forBundleIds: [bundleId], sls: slsClient)
       let foc = focusedWindowKey()
       let wa = ScreenGeometry.workArea(for: display).insetBy(
         dx: CGFloat(settings.layout.gapOuter),
         dy: CGFloat(settings.layout.gapOuter)
       )
-      // Currently-visible apps not assigned anywhere — transient tiling
-      // candidates we must keep observing so a window appearing later
-      // (e.g. a Notification-Center-opened KakaoTalk) is noticed.
-      let unassigned = NSWorkspace.shared.runningApplications
-        .filter { $0.activationPolicy == .regular && !$0.isHidden && !$0.isTerminated }
-        .compactMap(\.bundleIdentifier)
-        .filter {
-          !registeredSet.contains($0) && !floatingSet.contains($0)
-            && !allAssigned.contains($0)
-            && $0 != "dev.PangMo5.Tatami" && $0 != "dev.PangMo5.Tatami.dev"
-        }
-      return (cur, foc, wa, unassigned)
+      return (cur, foc, wa)
     }
-    // Track the insertion point: if focus is on a window already in the
-    // tree, that's the most recent intentional focus — remember it.
     if let focused, existing?.windows.contains(focused) == true {
-      state.lastFocusedKey = focused
+      state.insertionPoint[workspaceId] = focused
     }
-    let insertionPoint = state.lastFocusedKey
+    let insertionPointKey = state.insertionPoint[workspaceId]
 
     var tree = existing
     let currentSet = Set(current)
-
-    // Remove this app's windows that are gone (sibling promotes up).
     for key in (tree?.windows ?? []) where key.bundleId == bundleId && !currentSet.contains(key) {
       tree = tree?.removing(key)
     }
 
-    // Insert windows new to the tree next to the insertion point — the
-    // previously focused tiled window. The live `focused` is unreliable
-    // for a brand-new window (it's already frontmost), so prefer the
-    // tracked insertion point, then live focus, then the spiral tail.
-    // After each insert, focus conceptually moves to the new window,
-    // so it becomes the next insertion point — this is what makes the
-    // spiral wind instead of piling every new window onto one fixed
-    // node.
+    // Insert new windows next to the insertion point. After each
+    // insert, the new window becomes the insertion anchor — that's
+    // what makes the dwindle wind instead of all-windows piling onto
+    // one node.
     if eligibleToAdd {
-      var anchorKey = insertionPoint
+      let viewSplit = settings.layout.splitType.bspSplitAxis()
+      let placement: BSPNode<WindowKey>.Child = settings.layout.windowPlacement == .first
+        ? .first
+        : .second
+      var anchor = insertionPointKey
       for key in current {
         guard let current = tree else {
           tree = .leaf(key)
-          anchorKey = key
-          state.lastFocusedKey = key
+          anchor = key
+          state.insertionPoint[workspaceId] = key
           continue
         }
         if current.windows.contains(key) { continue }
         let present = Set(current.windows)
-        let anchor = [anchorKey, focused]
+        let resolved = [anchor, focused]
           .compactMap { $0 }
           .first { present.contains($0) }
-          ?? current.deepestLeaf
-        tree = current.inserting(key, near: anchor, in: workArea)
-        anchorKey = key
-        state.lastFocusedKey = key
+        tree = current.inserting(
+          key,
+          near: resolved,
+          in: workArea,
+          viewSplitType: viewSplit,
+          globalPlacement: placement
+        )
+        anchor = key
+        state.insertionPoint[workspaceId] = key
       }
     }
 
-    let balanced = settings.layout.autoBalance ? tree?.balanced() : tree
+    let axis = bspAxis(for: settings.layout.autoBalance)
+    let balanced = axis == .none ? tree : tree?.balanced(axis: axis)
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
 
-    // Observe set must be stable across per-app syncs: tree members +
-    // the workspace's registered apps + currently-visible unassigned
-    // apps. Otherwise a sync for one app (e.g. ghostty) would reset the
-    // observers to just its own set and drop the subscription for an
-    // app whose window hasn't appeared yet (e.g. a Notification-Center-
-    // opened KakaoTalk that still reports 0 AX windows), so we'd miss
-    // its windowCreated.
-    var observeSet = Set(balanced?.windows.map(\.bundleId) ?? [])
-    observeSet.formUnion(registeredSet)
-    observeSet.formUnion(visibleUnassigned)
-    let observeIds = Array(observeSet)
+    let observeIds = Array(Set((balanced?.windows.map(\.bundleId) ?? []) + Array(registeredSet)))
     let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
       await observer.observe(observeIds)
     }
-
     let markerRefresh = refreshMarkers(state: state)
 
-    // Nothing changed in the tree — still (re)subscribe so a later
-    // window from this app gets noticed.
     guard oldWindows != newWindows, let final = balanced else {
       return .merge(observeEffect, markerRefresh)
     }
 
-    let zoomed = state.zoomedWindows[workspaceId] ?? []
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     return .merge(
       .run { [tiler = windowTiler] _ in
         let frames = await MainActor.run {
@@ -666,7 +645,7 @@ public struct WorkspaceActivationFeature {
             tree: final,
             settings: settings,
             targetDisplay: display,
-            zoomed: zoomed
+            fullscreenZoomed: zoomed
           )
         }
         if !frames.isEmpty {
@@ -677,30 +656,43 @@ public struct WorkspaceActivationFeature {
       }
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       observeEffect,
-      persist(final, zoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
+      persist(final, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       markerRefresh
     )
   }
 
-  /// Incremental merge: keep `existing` and reconcile its leaves
-  /// against `target`.
-  ///   * windows in existing but not in target → removed (sibling
-  ///     promotes into the parent slot, preserving user-tuned ratios
-  ///     elsewhere)
-  ///   * windows in target but not in existing → inserted next to
-  ///     `focused` (if focused is a leaf) or at the shallowest leaf
-  ///   * windows in both → left in place
+  /// Bundle ids registered to any workspace anywhere in the config.
+  /// `syncAppWindows` uses this to decide whether a window belongs to
+  /// the active workspace's tree (registered here / unregistered
+  /// anywhere → transient) or to some other workspace (skip).
+  private static func everyAssignedBundleId(in config: AppConfig) -> Set<String> {
+    var out: Set<String> = []
+    for profile in config.profiles {
+      for ws in profile.workspaces {
+        for app in ws.apps {
+          out.insert(app.bundleIdentifier)
+        }
+      }
+    }
+    return out
+  }
+
+  /// Incremental merge. Removes vanished windows (sibling promotes),
+  /// inserts new windows at the insertion point. Fresh trees (no
+  /// existing) build via `BSPNode.build` (which uses the shallowest-
+  /// leaf rule for each new window).
   private static func mergeTree(
     existing: BSPNode<WindowKey>?,
     target: [WindowKey],
     focused: WindowKey?,
-    workArea: CGRect
+    insertionPoint: WindowKey?,
+    workArea: CGRect,
+    settings: AppSettings
   ) -> BSPNode<WindowKey>? {
     guard !target.isEmpty else { return nil }
     let targetSet = Set(target)
     var tree = existing
 
-    // Step 1: remove windows that vanished, keeping surviving ratios.
     if var current = tree {
       let stale = current.windows.filter { !targetSet.contains($0) }
       for id in stale {
@@ -719,48 +711,48 @@ public struct WorkspaceActivationFeature {
     }
     guard !newOnes.isEmpty else { return tree }
 
-    // Fresh tree (first activation / .fresh memory): build a dwindle
-    // spiral — each window splits the previous one, first window gets
-    // half, next a quarter, etc. (autoBalance, applied by the caller
-    // afterward, evens this out if the user wants a grid.)
+    let viewSplit = settings.layout.splitType.bspSplitAxis()
+    let placement: BSPNode<WindowKey>.Child = settings.layout.windowPlacement == .first
+      ? .first
+      : .second
+
     if tree == nil {
-      return BSPNode.dwindleBuild(newOnes, in: workArea)
+      // Fresh tree — each initial insert picks the shallowest leaf,
+      // which `inserting(...)` does when no anchor is supplied.
+      var t: BSPNode<WindowKey>? = nil
+      for key in newOnes {
+        if let cur = t {
+          t = cur.inserting(
+            key, near: nil, in: workArea,
+            viewSplitType: viewSplit, globalPlacement: placement
+          )
+        } else {
+          t = .leaf(key)
+        }
+      }
+      return t
     }
 
-    // Live additions: drop each new window next to the focused window.
-    // When the focused window isn't in the tree — which is the common
-    // case, since a freshly opened window is already frontmost but not
-    // yet tiled — anchor on the deepest leaf so the dwindle spiral
-    // keeps winding instead of falling back to a shallow split (the
-    // left-leaning staircase).
     for id in newOnes {
       let anchor: WindowKey? = {
-        if let focused, tree?.windows.contains(focused) == true { return focused }
-        return tree?.deepestLeaf
+        if let insertionPoint, tree?.windows.contains(insertionPoint) == true {
+          return insertionPoint
+        }
+        if let focused, tree?.windows.contains(focused) == true {
+          return focused
+        }
+        return nil
       }()
-      tree = tree?.inserting(id, near: anchor, in: workArea) ?? .leaf(id)
+      tree = tree?.inserting(
+        id, near: anchor, in: workArea,
+        viewSplitType: viewSplit, globalPlacement: placement
+      ) ?? .leaf(id)
     }
     return tree
   }
 
-  /// Bundle IDs registered to any workspace anywhere in the config.
-  /// Used to detect "unassigned" apps for transient tiling.
-  private static func everyAssignedBundleId(in config: AppConfig) -> Set<String> {
-    var out: Set<String> = []
-    for profile in config.profiles {
-      for ws in profile.workspaces {
-        for app in ws.apps {
-          out.insert(app.bundleIdentifier)
-        }
-      }
-    }
-    return out
-  }
-
   // MARK: - Window key resolution
 
-  /// Resolve the WindowKey for the user's currently-focused window on
-  /// the main thread, then dispatch the continuation action.
   private func resolveFocusedWindowKey(
     _ continuation: @escaping @Sendable (WindowKey) -> Action
   ) -> Effect<Action> {
@@ -784,13 +776,13 @@ public struct WorkspaceActivationFeature {
   }
 
   /// Snapshot the tree to disk when the workspace opted into
-  /// `.persistent` memory. No-op otherwise. The snapshot is bundle-id
-  /// keyed so it survives the process-scoped `WindowKey`s dying, and
-  /// also remembers which (bundle-identified) windows were zoomed so
-  /// zoom-fullscreen persists across launches.
+  /// `.persistent` memory. No-op otherwise. The tree is bundle-id
+  /// keyed (`WindowKey`s die at process exit); fullscreen-zoom is
+  /// recorded so it survives a restart too. Per-leaf parent-zoom is
+  /// carried inside the tree itself.
   private func persist(
     _ tree: BSPNode<WindowKey>?,
-    zoomed: Set<WindowKey>,
+    fullscreenZoomed: Set<WindowKey>,
     for workspace: Workspace,
     default defaultMemory: TilingMemory
   ) -> Effect<Action> {
@@ -798,30 +790,28 @@ public struct WorkspaceActivationFeature {
     guard memory == .persistent, let tree else { return .none }
     let id = workspace.id
     let template = tree.mapWindows { $0.bundleId }
-    let zoomedBundleIds = zoomed.map(\.bundleId).sorted()
-    let snapshot = LayoutSnapshot(tree: template, zoomedBundleIds: zoomedBundleIds)
+    let zoomedBundleIds = fullscreenZoomed.map(\.bundleId).sorted()
+    let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedBundleIds: zoomedBundleIds)
     return .run { [store = layoutStore] _ in store.save(id, snapshot) }
   }
 
   // MARK: - Window marker
 
-  /// Collect every window that should currently show a marker, paired
-  /// with its color. Source: every member of `zoomedWindows` for the
-  /// active workspace + every visible window of each floating app.
   private func markerTargets(state: State) -> [WindowKey: String] {
     var targets: [WindowKey: String] = [:]
     let cfg = state.config.settings.marker
     if cfg.fullscreenEnabled,
        let workspaceId = state.primaryActiveWorkspaceID
     {
-      for key in state.zoomedWindows[workspaceId] ?? [] {
+      for key in state.fullscreenZoomed[workspaceId] ?? [] {
         targets[key] = cfg.fullscreenColorHex
       }
     }
     if cfg.floatingEnabled {
       let bundleIds = state.config.floatingApps.map(\.bundleIdentifier)
+      let slsClient = sls
       let keys = MainActor.assumeIsolated {
-        discoverWindowKeys(forBundleIds: bundleIds)
+        discoverWindowKeys(forBundleIds: bundleIds, sls: slsClient)
       }
       for key in keys { targets[key] = cfg.floatingColorHex }
     }
@@ -851,8 +841,6 @@ public struct WorkspaceActivationFeature {
     else { return .none }
     guard !state.isActivating else { return .none }
     state.isActivating = true
-    // Pause only suppresses the BSP tile pass — workspace switching
-    // (show/hide/focus) still runs so the user can keep navigating.
     let isPaused = state.isTilingPaused
 
     let targetDisplay = workspace.displayHint ?? displays.current()
@@ -869,20 +857,16 @@ public struct WorkspaceActivationFeature {
     let settings = state.config.settings
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
     let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
-    // .fresh always starts from scratch on (re)activation; .session and
-    // .persistent reuse the in-memory tree. .persistent additionally
-    // falls back to the on-disk snapshot when there's no live tree
-    // (i.e. first activation after launch).
     let sessionTree = memory == .fresh ? nil : state.tilingTrees[workspace.id]
-    // .fresh starts clean — drop any lingering zoom so the workspace
-    // doesn't reactivate stuck in fullscreen.
     if memory == .fresh {
-      state.zoomedWindows[workspace.id] = nil
+      state.fullscreenZoomed[workspace.id] = nil
     }
-    let zoomed = state.zoomedWindows[workspace.id] ?? []
+    let zoomed = state.fullscreenZoomed[workspace.id] ?? []
+    let insertionPoint = state.insertionPoint[workspace.id]
 
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
+    let slsClient = sls
 
     return .run { [
       mgr = workspaceManager,
@@ -895,20 +879,14 @@ public struct WorkspaceActivationFeature {
         await hud.show(hudName, hudIcon)
       }
       await mgr.activate(request)
-      // Skip the BSP tile pass when paused — show/hide/focus is enough
-      // for the user to keep switching workspaces.
       if !isPaused {
-        // Load the on-disk snapshot up front so the MainActor closure
-        // below stays synchronous (the LayoutStore actor only exposes
-        // async APIs). Cold-only: a live in-memory tree means we
-        // already restored everything we need from the prior activation.
         let persistedSnapshot: LayoutSnapshot? =
           memory == .persistent && sessionTree == nil
             ? await store.load(workspaceId)
             : nil
         let (tree, frames, restoredZoom) = await MainActor.run {
           () -> (BSPNode<WindowKey>?, [WindowKey: CGRect], Set<WindowKey>) in
-          let keys = discoverWindowKeys(forBundleIds: bundleIds)
+          let keys = discoverWindowKeys(forBundleIds: bundleIds, sls: slsClient)
           let focused = focusedWindowKey()
           let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
             dx: CGFloat(settings.layout.gapOuter),
@@ -918,20 +896,18 @@ public struct WorkspaceActivationFeature {
           var persistedZoomBundleIds: [String] = []
           if let snapshot = persistedSnapshot {
             base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
-            persistedZoomBundleIds = snapshot.zoomedBundleIds
+            persistedZoomBundleIds = snapshot.fullscreenZoomedBundleIds
           }
           let merged = Self.mergeTree(
             existing: base,
             target: keys,
             focused: focused,
-            workArea: workArea
+            insertionPoint: insertionPoint,
+            workArea: workArea,
+            settings: settings
           )
-          let tree = settings.layout.autoBalance ? merged?.balanced() : merged
-          // Persistent zoom: only revive the snapshot's zoom set on a
-          // cold activation (no in-memory `zoomed`), and only for live
-          // windows whose bundle id matches a recorded entry. With
-          // multiple windows per bundle id we attach to the first match
-          // — matching the same heuristic as tree hydration.
+          let axis = bspAxis(for: settings.layout.autoBalance)
+          let tree = axis == .none ? merged : merged?.balanced(axis: axis)
           let resolvedZoom: Set<WindowKey> = {
             if !zoomed.isEmpty { return zoomed }
             guard !persistedZoomBundleIds.isEmpty, let tree else { return [] }
@@ -947,20 +923,20 @@ public struct WorkspaceActivationFeature {
             tree: tree,
             settings: settings,
             targetDisplay: targetDisplay,
-            zoomed: resolvedZoom
+            fullscreenZoomed: resolvedZoom
           )
           return (tree, frames, resolvedZoom)
         }
         await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
         if !restoredZoom.isEmpty, zoomed.isEmpty {
-          await send(.persistedZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
+          await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
         }
         if memory == .persistent, let tree {
           store.save(
             workspaceId,
             LayoutSnapshot(
               tree: tree.mapWindows { $0.bundleId },
-              zoomedBundleIds: restoredZoom.map(\.bundleId).sorted()
+              fullscreenZoomedBundleIds: restoredZoom.map(\.bundleId).sorted()
             )
           )
         }
@@ -969,8 +945,6 @@ public struct WorkspaceActivationFeature {
             FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
           )
         }
-        // Mouse-follows-focus: warp to the focused window's *tiled* center,
-        // after the frame pass has moved it into place.
         if warpMouse {
           let center = await MainActor.run { () -> CGPoint? in
             guard let key = focusedWindowKey(), let rect = frames[key] else { return nil }
@@ -983,13 +957,8 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  // MARK: - Manual resize sync
+  // MARK: - Manual resize sync (AX debounce path)
 
-  /// AX told us the user finished resizing `key` to `frame`. Translate
-  /// that frame back into a split ratio on the parent branch so the
-  /// tree's geometry tracks what the user actually sees, then reapply
-  /// the layout (the sibling needs to fill the remainder; AX only
-  /// notified us about the one window the user dragged).
   private func syncTreeRatio(
     for key: WindowKey,
     frame: CGRect,
@@ -1004,7 +973,7 @@ public struct WorkspaceActivationFeature {
 
     let parentPath = Array(path.dropLast())
     guard let side = path.last,
-          case .branch(let split, _, _, _) = tree.subtree(at: parentPath)
+          case .branch(let branch) = tree.subtree(at: parentPath)
     else { return .none }
 
     let settings = state.config.settings
@@ -1019,7 +988,7 @@ public struct WorkspaceActivationFeature {
     let parentRect = tree.rect(at: parentPath, in: workArea, gap: gap)
 
     let newRatio: CGFloat
-    switch split {
+    switch branch.split {
     case .vertical:
       let total = parentRect.width - gap
       guard total > 0 else { return .none }
@@ -1032,9 +1001,16 @@ public struct WorkspaceActivationFeature {
       newRatio = topHeight / total
     }
 
+    // 1.5 px geometric tolerance — bail out if the change is smaller
+    // than that, which usually means we're seeing our own apply echo
+    // rather than a real user resize.
+    if abs(newRatio - branch.ratio) * (branch.split == .vertical ? parentRect.width : parentRect.height) < 1.5 {
+      return .none
+    }
+
     let newTree = tree.updatingRatio(at: parentPath, ratio: newRatio)
     state.tilingTrees[workspaceId] = newTree
-    let zoomed = state.zoomedWindows[workspaceId] ?? []
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
       .run { [tiler = windowTiler] _ in
@@ -1043,7 +1019,7 @@ public struct WorkspaceActivationFeature {
             tree: newTree,
             settings: settings,
             targetDisplay: display,
-            zoomed: zoomed
+            fullscreenZoomed: zoomed
           )
         }
         if !frames.isEmpty {
@@ -1052,17 +1028,21 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, zoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
-  // MARK: - Drag-to-swap
+  // MARK: - Drag-to-drop (drop-zone triangles)
 
-  /// AX reported the user moved `key` to `frame`. If the dropped
-  /// window's center lands inside another tile's slot, swap the two
-  /// in the tree. Either way we re-apply the layout, which yanks the
-  /// dragged window back into a real tile slot — preserving the
-  /// always-laid-out invariant.
+  /// AX reported the user moved `key` to `frame`. Inspect the drop
+  /// quadrant relative to the target tile:
+  ///   * center → swap (or stack, future config)
+  ///   * top triangle → warp to top child (SPLIT_X, CHILD_FIRST)
+  ///   * right triangle → warp to right child (SPLIT_Y, CHILD_SECOND)
+  ///   * bottom triangle → warp to bottom child (SPLIT_X, CHILD_SECOND)
+  ///   * left triangle → warp to left child (SPLIT_Y, CHILD_FIRST)
+  /// Either way the layout is reapplied, yanking the dragged window
+  /// back to its real tile slot.
   private func handleWindowMoved(
     key: WindowKey,
     frame: CGRect,
@@ -1084,19 +1064,33 @@ public struct WorkspaceActivationFeature {
       )
     }
     let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
-    let center = CGPoint(x: frame.midX, y: frame.midY)
-    let swapTarget = allFrames.first(where: { other, rect in
-      other != key && rect.contains(center)
+    let dropCenter = CGPoint(x: frame.midX, y: frame.midY)
+
+    // Which tile sits under the drop center?
+    let target = allFrames.first(where: { other, rect in
+      other != key && rect.contains(dropCenter)
     })?.key
 
-    let newTree: BSPNode<WindowKey>
-    if let target = swapTarget {
-      newTree = tree.swapping(key, target)
-    } else {
-      newTree = tree
+    var newTree = tree
+    if let target, let targetRect = allFrames[target] {
+      let drop = dropQuadrant(point: dropCenter, in: targetRect)
+      switch drop {
+      case .none:
+        newTree = tree
+      case .center:
+        newTree = tree.swapping(key, target)
+      case .top:
+        newTree = warpInto(tree: tree, source: key, target: target, axis: .horizontal, child: .first)
+      case .right:
+        newTree = warpInto(tree: tree, source: key, target: target, axis: .vertical, child: .second)
+      case .bottom:
+        newTree = warpInto(tree: tree, source: key, target: target, axis: .horizontal, child: .second)
+      case .left:
+        newTree = warpInto(tree: tree, source: key, target: target, axis: .vertical, child: .first)
+      }
     }
     state.tilingTrees[workspaceId] = newTree
-    let zoomed = state.zoomedWindows[workspaceId] ?? []
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
       .run { [tiler = windowTiler] _ in
@@ -1105,7 +1099,7 @@ public struct WorkspaceActivationFeature {
             tree: newTree,
             settings: settings,
             targetDisplay: display,
-            zoomed: zoomed
+            fullscreenZoomed: zoomed
           )
         }
         if !frames.isEmpty {
@@ -1114,8 +1108,55 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, zoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
+  }
+
+  /// Returns which quadrant of `rect` `point` falls into. The center
+  /// is a square covering the middle 50% of the rect; outside it the
+  /// four triangles fan out to the corners.
+  private enum DropQuadrant { case none, center, top, right, bottom, left }
+  private func dropQuadrant(point: CGPoint, in rect: CGRect) -> DropQuadrant {
+    let wp = CGPoint(x: point.x - rect.origin.x, y: point.y - rect.origin.y)
+    let centerRect = CGRect(
+      x: 0.25 * rect.width, y: 0.25 * rect.height,
+      width: 0.5 * rect.width, height: 0.5 * rect.height
+    )
+    if centerRect.contains(wp) { return .center }
+    // Four triangles. Use signed cross products against the rect's
+    // diagonals to classify.
+    let mid = CGPoint(x: 0.5 * rect.width, y: 0.5 * rect.height)
+    let onAboveDownDiag = (wp.x - 0) * (rect.height - 0) - (wp.y - 0) * (rect.width - 0) < 0
+    let onAboveUpDiag = (wp.x - 0) * (0 - rect.height) - (wp.y - rect.height) * (rect.width - 0) < 0
+    _ = mid
+    switch (onAboveDownDiag, onAboveUpDiag) {
+    case (true, true):   return .top
+    case (false, true):  return .right
+    case (false, false): return .bottom
+    case (true, false):  return .left
+    }
+  }
+
+  /// Warp `source` next to `target` with a specific split axis +
+  /// child placement: remove source from current slot, then re-insert
+  /// next to target after seeding the target leaf's `preferredSplit`
+  /// + `preferredChild`.
+  private func warpInto(
+    tree: BSPNode<WindowKey>,
+    source: WindowKey,
+    target: WindowKey,
+    axis: BSPNode<WindowKey>.SplitAxis,
+    child: BSPNode<WindowKey>.Child
+  ) -> BSPNode<WindowKey> {
+    guard let targetPath = tree.pathTo(window: target) else { return tree }
+    let seeded = tree.replacing_(path: targetPath) { node in
+      guard case .leaf(var leaf) = node else { return node }
+      leaf.preferredSplit = axis
+      leaf.preferredChild = child
+      return .leaf(leaf)
+    }
+    guard let removed = seeded.removing(source) else { return tree }
+    return removed.inserting(source, near: target, in: CGRect(x: 0, y: 0, width: 1, height: 1))
   }
 
   // MARK: - BSP ops
@@ -1147,52 +1188,64 @@ public struct WorkspaceActivationFeature {
         of: windowKey,
         direction: direction,
         in: workArea,
-        gap: gap
+        gap: gap,
+        focusOrder: tree.windows
       ) {
-        // A tile exists in that direction — swap positions.
         tree = tree.swapping(windowKey, target)
       } else {
-        // No neighbor that way — warp: reorient the parent split so the
-        // window moves the requested direction. e.g. two side-by-side
-        // windows + swap-down → stacked layout.
         let warped = tree.warping(windowKey, direction: direction)
         guard warped != tree else { return .none }
         tree = warped
       }
 
-    case .resize(_, let delta):
-      // Pick the axis from the focused window's *parent* split so
-      // Grow/Shrink works for both vertical (side-by-side) and
-      // horizontal (top/bottom) splits. The `direction` argument is
-      // intentionally unused here — Tatami only exposes single-knob
-      // Grow/Shrink hotkeys, so resize always acts along whatever axis
-      // the focused leaf shares with its sibling.
-      guard let path = tree.pathTo(window: windowKey), !path.isEmpty,
-            case .branch(let parentSplit, _, _, _) =
-              tree.subtree(at: Array(path.dropLast()))
+    case .resize(let direction, let delta):
+      // Fence-based resize: pick the nearest ancestor whose split
+      // axis matches `direction` and extends past the focused window
+      // in that direction.
+      guard let path = tree.fence(of: windowKey, direction: direction, in: workArea, gap: gap)
       else { break }
-      tree = tree.resizing(window: windowKey, axis: parentSplit, delta: delta)
+      guard case .branch(let parent) = tree.subtree(at: path) else { break }
+      // Positive delta = grow focused window. If the focused window is
+      // on the right/bottom side of the fence, flip sign so growing
+      // means shrinking the parent ratio (which describes the
+      // left/top child's share).
+      guard let focusedPath = tree.pathTo(window: windowKey) else { break }
+      let sideIntoFence = focusedPath[path.count]
+      let signedDelta = sideIntoFence == .left ? delta : -delta
+      let newRatio = max(0.1, min(0.9, parent.ratio + signedDelta))
+      tree = tree.updatingRatio(at: path, ratio: newRatio)
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)
 
-    case .toggleZoom:
-      // Toggle this window's membership in the workspace's zoom set.
-      // The tree itself is unchanged; computeFrames takes the zoom set
-      // out of the layout and drops each member on top, filling the
-      // full work area. Multiple windows can be zoomed at once — focus
-      // determines which of them sits visually on top.
-      var set = state.zoomedWindows[workspaceId] ?? []
+    case .toggleZoomParent:
+      // Per-leaf zoom: tree unchanged, the focused leaf renders at
+      // its parent branch's area on the next layout pass.
+      tree = tree.togglingParentZoom(at: windowKey)
+
+    case .toggleZoomFullscreen:
+      // Tatami-specific multi-window fullscreen. Track in workspace
+      // state; the tree itself is untouched. computeFrames trims
+      // these windows out and overlays them on the work area.
+      var set = state.fullscreenZoomed[workspaceId] ?? []
       if set.contains(windowKey) {
         set.remove(windowKey)
       } else {
         set.insert(windowKey)
       }
-      state.zoomedWindows[workspaceId] = set.isEmpty ? nil : set
+      state.fullscreenZoomed[workspaceId] = set.isEmpty ? nil : set
+
+    case .setInsertDirection(let direction):
+      tree = tree.settingInsertDirection(at: windowKey, direction: direction)
+      // Update the per-workspace insertion point to this window so
+      // the next inserted window honors the direction.
+      if direction != nil {
+        state.insertionPoint[workspaceId] = windowKey
+      }
     }
 
     state.tilingTrees[workspaceId] = tree
-    let zoomed = state.zoomedWindows[workspaceId] ?? []
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
       .run { [tiler = windowTiler] _ in
@@ -1201,22 +1254,18 @@ public struct WorkspaceActivationFeature {
             tree: tree,
             settings: settings,
             targetDisplay: display,
-            zoomed: zoomed
+            fullscreenZoomed: zoomed
           )
         }
         await tiler.apply(
           FrameApplication(windowFrames: frames, targetDisplay: display)
         )
       },
-      persist(tree, zoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
+      persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       refreshMarkers(state: state)
     )
   }
 
-  /// Apply a pure tree transform to the active workspace's tree and
-  /// reflow the layout. Used by balance/rotate/mirror — all of which
-  /// rewrite split ratios + child positions without needing the
-  /// focused-window context.
   private func applyTreeTransform(
     state: inout State,
     _ transform: (BSPNode<WindowKey>) -> BSPNode<WindowKey>
@@ -1230,7 +1279,7 @@ public struct WorkspaceActivationFeature {
     state.tilingTrees[workspaceId] = newTree
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
-    let zoomed = state.zoomedWindows[workspaceId] ?? []
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     return .merge(
       .run { [tiler = windowTiler] _ in
         let frames = await MainActor.run {
@@ -1238,7 +1287,7 @@ public struct WorkspaceActivationFeature {
             tree: newTree,
             settings: settings,
             targetDisplay: display,
-            zoomed: zoomed
+            fullscreenZoomed: zoomed
           )
         }
         if !frames.isEmpty {
@@ -1247,7 +1296,7 @@ public struct WorkspaceActivationFeature {
           )
         }
       },
-      persist(newTree, zoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
@@ -1262,15 +1311,12 @@ public struct WorkspaceActivationFeature {
     let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
 
-    // "Empty" = no *running* app assigned, not just an empty assignment
-    // list.
     let runningBundleIds: Set<String> = settings.switching.skipEmpty
       ? MainActor.assumeIsolated {
         Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
       }
       : []
 
-    // Step through candidates in `direction`, honoring loop + skip-empty.
     var index = currentIndex
     for _ in 0 ..< count {
       let next = index + direction
@@ -1294,12 +1340,15 @@ public struct WorkspaceActivationFeature {
 
   // MARK: - Helpers
 
+  /// Lay the tree out, trimming fullscreen-zoomed windows so the rest
+  /// of the tree shapes around as if they weren't present. Parent-zoom
+  /// is handled inside `tree.frames(...)` directly.
   @MainActor
   static func computeFrames(
     tree: BSPNode<WindowKey>?,
     settings: AppSettings,
     targetDisplay: DisplayName?,
-    zoomed: Set<WindowKey> = []
+    fullscreenZoomed: Set<WindowKey> = []
   ) -> [WindowKey: CGRect] {
     guard let tree else { return [:] }
     let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
@@ -1307,12 +1356,7 @@ public struct WorkspaceActivationFeature {
       dy: CGFloat(settings.layout.gapOuter)
     )
     let gap = CGFloat(settings.layout.gapInner)
-    // Zoomed windows shouldn't eat tile area from their siblings: lay
-    // the tree out as if those leaves weren't in it, then drop each
-    // zoomed window on top filling the whole work area. Toggling any
-    // window's zoom off restores its slot because the source tree
-    // itself is untouched.
-    let activeZoom = zoomed.filter { tree.pathTo(window: $0) != nil }
+    let activeZoom = fullscreenZoomed.filter { tree.pathTo(window: $0) != nil }
     if !activeZoom.isEmpty {
       var trimmed: BSPNode<WindowKey>? = tree
       for key in activeZoom { trimmed = trimmed?.removing(key) }
@@ -1346,3 +1390,67 @@ func focusedWindowKey() -> WindowKey? {
   )
 }
 
+/// Map an `AutoBalanceMode` to the `BSPNode.balanced(axis:)` enum.
+private func bspAxis(for mode: AutoBalanceMode) -> AutoBalanceAxis {
+  switch mode {
+  case .none: return .none
+  case .horizontal: return .horizontal
+  case .vertical: return .vertical
+  case .both: return .both
+  }
+}
+
+extension SplitTypePreference {
+  /// Translate the user-facing preference to the internal split axis
+  /// used by `BSPNode.inserting(...)`. `.auto` returns nil so the
+  /// aspect-ratio heuristic kicks in.
+  func bspSplitAxis() -> BSPNode<WindowKey>.SplitAxis? {
+    switch self {
+    case .auto: return nil
+    case .horizontal: return .horizontal
+    case .vertical: return .vertical
+    }
+  }
+}
+
+// MARK: - BSPNode internal helper used by drag warp
+
+extension BSPNode {
+  /// File-internal `replacing(path:with:)` exposed under a different
+  /// name so the reducer can patch leaf metadata directly. Identical
+  /// implementation to the file-private version inside BSPTree.swift —
+  /// we re-expose it here rather than make the original public so the
+  /// public surface stays terse.
+  fileprivate func replacing_(
+    path: [Side],
+    with transform: (BSPNode) -> BSPNode
+  ) -> BSPNode {
+    guard let next = path.first else {
+      return transform(self)
+    }
+    switch self {
+    case .leaf:
+      return transform(self)
+    case .branch(let b):
+      let rest = Array(path.dropFirst())
+      switch next {
+      case .left:
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: b.ratio,
+          preferredChild: b.preferredChild,
+          left: b.left.replacing_(path: rest, with: transform),
+          right: b.right
+        ))
+      case .right:
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: b.ratio,
+          preferredChild: b.preferredChild,
+          left: b.left,
+          right: b.right.replacing_(path: rest, with: transform)
+        ))
+      }
+    }
+  }
+}

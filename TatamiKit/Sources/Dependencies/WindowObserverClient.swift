@@ -295,21 +295,19 @@ private func axObserverCallback(
     case kAXWindowResizedNotification as String:
       // Only treat a resize as user-driven when the left mouse button
       // is held — otherwise this alert is the echo of our own tiling
-      // writes (swap / warp / zoom / retile), and feeding it back into
-      // the tree corrupts the layout. (Manual resize happens via mouse
-      // drag.)
+      // writes (swap / warp / zoom / retile). The reducer applies an
+      // additional 1.5 px geometric tolerance check against the tile's
+      // expected area before applying the new ratio.
       if isLeftMouseDown(),
          let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-         let frame = axFrame(of: element),
-         !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
+         let frame = axFrame(of: element)
       {
         app.continuation.yield(.windowResized(key: key, frame: frame))
       }
     case kAXWindowMovedNotification as String:
       if isLeftMouseDown(),
          let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-         let frame = axFrame(of: element),
-         !WindowTilerSuppression.shared.shouldIgnore(key: key, frame: frame)
+         let frame = axFrame(of: element)
       {
         app.continuation.yield(.windowMoved(key: key, frame: frame))
       }

@@ -17,44 +17,22 @@ public struct LayoutStoreClient: Sendable {
 }
 
 /// On-disk shape of one workspace's tiling memory. Stored alongside the
-/// tree so a workspace can restore both its BSP layout and which
-/// (bundle-identified) windows were zoomed at the time of the last save.
+/// tree so a workspace can restore its BSP layout and which
+/// (bundle-identified) windows were fullscreen-zoomed at the time of
+/// the last save. Parent-zoom (per-leaf, single-tile) is carried by
+/// the leaf itself inside `tree`.
 public struct LayoutSnapshot: Codable, Hashable, Sendable {
   public var tree: BSPNode<String>
-  /// Bundle identifiers of the zoomed windows at save time. On hydration
-  /// each entry re-attaches to the first live window matching that
-  /// bundle id; with multiple zoomed windows from the same app only one
-  /// of them is restored, mirroring the tree hydration heuristic.
-  public var zoomedBundleIds: [String]
+  /// Bundle identifiers of the *fullscreen*-zoomed windows at save
+  /// time. Tatami-specific multi-window fullscreen: each one renders
+  /// at the workspace work area and is excluded from the rest of the
+  /// tree's layout. On hydration, each entry re-attaches to the first
+  /// live window matching that bundle id.
+  public var fullscreenZoomedBundleIds: [String]
 
-  public init(tree: BSPNode<String>, zoomedBundleIds: [String] = []) {
+  public init(tree: BSPNode<String>, fullscreenZoomedBundleIds: [String] = []) {
     self.tree = tree
-    self.zoomedBundleIds = zoomedBundleIds
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case tree
-    case zoomedBundleIds
-    case zoomedBundleId // legacy single-zoom field
-  }
-
-  public init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    self.tree = try c.decode(BSPNode<String>.self, forKey: .tree)
-    if let many = try? c.decode([String].self, forKey: .zoomedBundleIds) {
-      self.zoomedBundleIds = many
-    } else if let one = try? c.decode(String.self, forKey: .zoomedBundleId) {
-      // Pre-multi-zoom snapshots stored a single bundle id; promote it.
-      self.zoomedBundleIds = [one]
-    } else {
-      self.zoomedBundleIds = []
-    }
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var c = encoder.container(keyedBy: CodingKeys.self)
-    try c.encode(tree, forKey: .tree)
-    try c.encode(zoomedBundleIds, forKey: .zoomedBundleIds)
+    self.fullscreenZoomedBundleIds = fullscreenZoomedBundleIds
   }
 }
 
@@ -112,17 +90,7 @@ private actor LayoutStore {
 
   private func readMap() -> [String: LayoutSnapshot] {
     guard let data = try? Data(contentsOf: fileURL) else { return [:] }
-    let decoder = JSONDecoder()
-    if let map = try? decoder.decode([String: LayoutSnapshot].self, from: data) {
-      return map
-    }
-    // Backward compatibility: pre-snapshot layouts stored a bare
-    // `BSPNode<String>` per workspace. Promote them to snapshots with
-    // no zoom recorded; the next save rewrites the file in the new shape.
-    if let legacy = try? decoder.decode([String: BSPNode<String>].self, from: data) {
-      return legacy.mapValues { LayoutSnapshot(tree: $0) }
-    }
-    return [:]
+    return (try? JSONDecoder().decode([String: LayoutSnapshot].self, from: data)) ?? [:]
   }
 
   private func writeMap(_ map: [String: LayoutSnapshot]) {

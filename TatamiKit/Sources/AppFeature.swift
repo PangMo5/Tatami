@@ -201,7 +201,12 @@ public struct AppFeature {
       return .send(.activation(.bspToggleOrientation))
 
     case .toggleFullscreen:
-      return .send(.activation(.bspToggleZoom))
+      // Multi-window fullscreen: several windows can be fullscreen-
+      // zoomed at once, the tree shapes around their absence, focus
+      // determines which sits on top. The single-tile parent-zoom is
+      // exposed separately via `bspToggleZoomParent` for users who
+      // bind it.
+      return .send(.activation(.bspToggleZoomFullscreen))
     case .balance:
       return .send(.activation(.bspBalance))
     }

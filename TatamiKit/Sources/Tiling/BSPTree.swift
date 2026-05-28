@@ -2,38 +2,162 @@ import Foundation
 
 /// Pure value-typed Binary Space Partitioning tree.
 ///
-/// * leaves carry a single window identifier; internal nodes carry a
-///   split axis + ratio
-/// * insertion places the new window next to the focused/anchor leaf,
-///   and Tatami falls back to the **deepest leaf** of the spiral tail
-///   when no anchor is set — producing a dwindle layout. Split axis is
-///   chosen from the target leaf's aspect (wider → vertical split /
-///   side-by-side; taller → horizontal split / top-bottom)
-/// * removal collapses the surviving sibling into the parent
-/// * frame layout subtracts an inner `gap` at every split so adjacent
-///   siblings share exactly one gap regardless of depth
+/// Value-typed so the TCA reducer can own the tree without aliasing.
+/// Shape:
+///
+///   * each **leaf** carries a stack of window ids (`windowList` =
+///     in-place order, `windowOrder` = focus recency) plus the user's
+///     intended insertion settings on this leaf (`insertDirection`,
+///     `preferredChild`, `preferredSplit`) and a parent-zoom flag.
+///   * each **branch** carries a split axis, a ratio, an optional child
+///     override, and its two children.
+///   * insertion picks the **shallowest** leaf (BFS) when no explicit
+///     `insertionPoint` is set. No spiral/deepest-leaf fallback.
+///   * removing a window collapses the surviving sibling into the
+///     parent's slot.
+///   * **parent-zoom** is per-leaf: the leaf renders at its parent
+///     branch's full area, hiding its sibling but keeping the tree
+///     intact. Only one window's parent-zoom is meaningful per
+///     subtree.
+///   * **fullscreen-zoom** is *not* part of the tree; the activation
+///     reducer keeps a separate `Set<WindowKey>` per workspace and
+///     trims those windows out of the tree before layout. Several
+///     fullscreen-zoomed windows can coexist, each filling the work
+///     area, and the rest of the tree lays out as if those windows
+///     weren't present.
 public indirect enum BSPNode<WindowID: Hashable & Sendable>: Hashable, Sendable {
-  case leaf(WindowID)
-  case branch(split: SplitAxis, ratio: CGFloat, left: BSPNode, right: BSPNode)
+  case leaf(BSPLeaf<WindowID>)
+  case branch(BSPBranch<WindowID>)
 
+  /// Axis along which a branch divides its rectangle.
   public enum SplitAxis: String, Sendable, Hashable, Codable {
-    /// Cut the area horizontally — children stack top/bottom.
+    /// Cut horizontally — children stack top/bottom.
     case horizontal
-    /// Cut the area vertically — children sit side-by-side.
+    /// Cut vertically — children sit side-by-side.
     case vertical
+  }
+
+  /// Which side of a branch a child sits on. Path component used by
+  /// the recursive update helpers.
+  public enum Side: Sendable, Hashable { case left, right }
+
+  /// `first` = the existing window stays in the left/top slot and the
+  /// new window goes right/bottom. `second` reverses it.
+  public enum Child: String, Sendable, Hashable, Codable {
+    case first, second
+  }
+
+  /// Pre-set intent on a leaf: "the next window I insert should split
+  /// this leaf in this direction (or stack on top of it)". `.stack`
+  /// means: don't split, push the new window onto this leaf's stack.
+  public enum InsertDirection: String, Sendable, Hashable, Codable {
+    case north, east, south, west, stack
   }
 }
 
+/// One BSP leaf — the value payload at the tree's terminals.
+public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
+  /// Geometric/visual order of the stack (windowList[0] is the bottom
+  /// of the stack, .last is the most recently inserted). Length 1
+  /// for the common, non-stacked case.
+  public var windowList: [WindowID]
+  /// Focus order — `windowOrder[0]` is the most recently focused.
+  /// Used for swap/warp tiebreaks and stack navigation.
+  public var windowOrder: [WindowID]
+  /// User-set insertion intent on this leaf. nil = no override.
+  public var insertDirection: BSPNode<WindowID>.InsertDirection?
+  /// Child-side override consumed on the next split of this leaf.
+  public var preferredChild: BSPNode<WindowID>.Child?
+  /// Split-axis override consumed on the next split of this leaf.
+  public var preferredSplit: BSPNode<WindowID>.SplitAxis?
+  /// When true, this leaf renders at its parent branch's full area
+  /// (single-tile parent-zoom). Caller resets it when the sibling
+  /// structure changes.
+  public var parentZoom: Bool
+
+  public init(
+    windowList: [WindowID],
+    windowOrder: [WindowID]? = nil,
+    insertDirection: BSPNode<WindowID>.InsertDirection? = nil,
+    preferredChild: BSPNode<WindowID>.Child? = nil,
+    preferredSplit: BSPNode<WindowID>.SplitAxis? = nil,
+    parentZoom: Bool = false
+  ) {
+    self.windowList = windowList
+    self.windowOrder = windowOrder ?? windowList
+    self.insertDirection = insertDirection
+    self.preferredChild = preferredChild
+    self.preferredSplit = preferredSplit
+    self.parentZoom = parentZoom
+  }
+
+  /// True when this leaf participates in a stack (more than one window
+  /// occupies the same area).
+  public var isStack: Bool { windowList.count > 1 }
+
+  /// Top-of-focus window — `windowOrder[0]` if present, else the first
+  /// element of `windowList`.
+  public var topWindow: WindowID? {
+    windowOrder.first ?? windowList.first
+  }
+
+  public func contains(_ id: WindowID) -> Bool {
+    windowList.contains(id)
+  }
+}
+
+/// One BSP branch — the internal node holding a split + two children.
+public struct BSPBranch<WindowID: Hashable & Sendable>: Hashable, Sendable {
+  public var split: BSPNode<WindowID>.SplitAxis
+  public var ratio: CGFloat
+  /// Child-side override consumed on the next split rooted at this
+  /// branch. Rarely used — typically only set when warp/stack ops
+  /// rewrite the parent.
+  public var preferredChild: BSPNode<WindowID>.Child?
+  public var left: BSPNode<WindowID>
+  public var right: BSPNode<WindowID>
+
+  public init(
+    split: BSPNode<WindowID>.SplitAxis,
+    ratio: CGFloat,
+    preferredChild: BSPNode<WindowID>.Child? = nil,
+    left: BSPNode<WindowID>,
+    right: BSPNode<WindowID>
+  ) {
+    self.split = split
+    self.ratio = ratio
+    self.preferredChild = preferredChild
+    self.left = left
+    self.right = right
+  }
+}
+
+extension BSPLeaf: Codable where WindowID: Codable {}
+extension BSPBranch: Codable where WindowID: Codable {}
 extension BSPNode: Codable where WindowID: Codable {}
+
+// MARK: - Convenience constructors
+
+extension BSPNode {
+  /// Single-window leaf shorthand for tests / one-shot tree builds.
+  public static func leaf(_ id: WindowID) -> BSPNode {
+    .leaf(BSPLeaf(windowList: [id]))
+  }
+}
+
+// MARK: - Hydrate (persistent → live)
 
 extension BSPNode where WindowID == WindowKey {
   /// Rebuild a live tree from a persisted bundle-id `template`,
-  /// assigning the current `keys` to matching leaves in order. Leaves
-  /// whose bundle id has no available window collapse (sibling
-  /// promotes), so a saved layout gracefully degrades when an app
-  /// isn't running. Windows present in `keys` but absent from the
-  /// template are NOT added here — the caller folds those in via the
-  /// normal merge/insert path afterward.
+  /// matching bundle ids against live windows from `keys`. Leaves whose
+  /// bundle id has no matching live window collapse (sibling promotes),
+  /// so a saved layout gracefully degrades when an app isn't running.
+  /// Leaf metadata (insertDirection, preferredChild, preferredSplit,
+  /// parentZoom) is preserved; per-leaf stacks are reconstructed
+  /// best-effort by consuming the live key queue in order.
+  /// Windows present in `keys` but absent from the template are NOT
+  /// added here — the caller folds those in via the normal merge/insert
+  /// path afterward.
   public static func hydrate(
     template: BSPNode<String>,
     keys: [WindowKey]
@@ -44,24 +168,59 @@ extension BSPNode where WindowID == WindowKey {
     }
     func build(_ node: BSPNode<String>) -> BSPNode<WindowKey>? {
       switch node {
-      case .leaf(let bundleId):
-        guard var queue = queues[bundleId], !queue.isEmpty else { return nil }
-        let key = queue.removeFirst()
-        queues[bundleId] = queue
-        return BSPNode<WindowKey>.leaf(key)
-      case .branch(let split, let ratio, let left, let right):
-        let l = build(left)
-        let r = build(right)
-        // SplitAxis is nested in BSPNode, so the String-tree and
-        // WindowKey-tree variants are distinct types — bridge via the
-        // shared String raw value.
-        let axis = BSPNode<WindowKey>.SplitAxis(rawValue: split.rawValue) ?? .vertical
+      case .leaf(let stringLeaf):
+        var hydratedList: [WindowKey] = []
+        for bundleId in stringLeaf.windowList {
+          guard var queue = queues[bundleId], !queue.isEmpty else { continue }
+          let key = queue.removeFirst()
+          queues[bundleId] = queue
+          hydratedList.append(key)
+        }
+        guard !hydratedList.isEmpty else { return nil }
+        var hydratedOrder: [WindowKey] = []
+        for bundleId in stringLeaf.windowOrder {
+          if let match = hydratedList.first(where: { $0.bundleId == bundleId }),
+             !hydratedOrder.contains(match)
+          {
+            hydratedOrder.append(match)
+          }
+        }
+        for key in hydratedList where !hydratedOrder.contains(key) {
+          hydratedOrder.append(key)
+        }
+        // SplitAxis / InsertDirection / Child are nested in BSPNode, so
+        // String-tree and WindowKey-tree variants are distinct types.
+        // Bridge via the shared raw value.
+        let leaf = BSPLeaf<WindowKey>(
+          windowList: hydratedList,
+          windowOrder: hydratedOrder,
+          insertDirection: stringLeaf.insertDirection
+            .flatMap { BSPNode<WindowKey>.InsertDirection(rawValue: $0.rawValue) },
+          preferredChild: stringLeaf.preferredChild
+            .flatMap { BSPNode<WindowKey>.Child(rawValue: $0.rawValue) },
+          preferredSplit: stringLeaf.preferredSplit
+            .flatMap { BSPNode<WindowKey>.SplitAxis(rawValue: $0.rawValue) },
+          parentZoom: stringLeaf.parentZoom
+        )
+        return .leaf(leaf)
+      case .branch(let stringBranch):
+        let l = build(stringBranch.left)
+        let r = build(stringBranch.right)
+        let axis = BSPNode<WindowKey>.SplitAxis(rawValue: stringBranch.split.rawValue)
+          ?? .vertical
         switch (l, r) {
         case (nil, nil): return nil
         case (let l?, nil): return l
         case (nil, let r?): return r
         case (let l?, let r?):
-          return BSPNode<WindowKey>.branch(split: axis, ratio: ratio, left: l, right: r)
+          return .branch(BSPBranch(
+            split: axis,
+            ratio: stringBranch.ratio,
+            preferredChild: stringBranch.preferredChild
+              .flatMap { BSPNode<WindowKey>.Child(rawValue: $0.rawValue) },
+            left: l,
+            right: r
+          ))
         }
       }
     }
@@ -70,156 +229,71 @@ extension BSPNode where WindowID == WindowKey {
 }
 
 extension BSPNode {
-  /// Rebuild the tree with each leaf's window id transformed by `f`,
-  /// preserving every split axis + ratio. Used to convert a live
-  /// `BSPNode<WindowKey>` into a serializable `BSPNode<String>`
-  /// (bundle-id keyed) for persistent layout snapshots.
+  /// Rebuild the tree with each leaf's window ids transformed by `f`,
+  /// preserving every leaf-stack, split axis, ratio, and leaf metadata.
+  /// Used to convert a live `BSPNode<WindowKey>` into a serializable
+  /// `BSPNode<String>` for persistent layout snapshots.
   public func mapWindows<T: Hashable & Sendable>(
     _ f: (WindowID) -> T
   ) -> BSPNode<T> {
     switch self {
-    case .leaf(let id):
-      return BSPNode<T>.leaf(f(id))
-    case .branch(let split, let ratio, let left, let right):
-      let axis = BSPNode<T>.SplitAxis(rawValue: split.rawValue) ?? .vertical
-      return BSPNode<T>.branch(
-        split: axis,
-        ratio: ratio,
-        left: left.mapWindows(f),
-        right: right.mapWindows(f)
-      )
+    case .leaf(let leaf):
+      let mappedList = leaf.windowList.map(f)
+      let mappedOrder = leaf.windowOrder.map(f)
+      return .leaf(BSPLeaf<T>(
+        windowList: mappedList,
+        windowOrder: mappedOrder,
+        insertDirection: leaf.insertDirection
+          .flatMap { BSPNode<T>.InsertDirection(rawValue: $0.rawValue) },
+        preferredChild: leaf.preferredChild
+          .flatMap { BSPNode<T>.Child(rawValue: $0.rawValue) },
+        preferredSplit: leaf.preferredSplit
+          .flatMap { BSPNode<T>.SplitAxis(rawValue: $0.rawValue) },
+        parentZoom: leaf.parentZoom
+      ))
+    case .branch(let branch):
+      return .branch(BSPBranch<T>(
+        split: BSPNode<T>.SplitAxis(rawValue: branch.split.rawValue) ?? .vertical,
+        ratio: branch.ratio,
+        preferredChild: branch.preferredChild
+          .flatMap { BSPNode<T>.Child(rawValue: $0.rawValue) },
+        left: branch.left.mapWindows(f),
+        right: branch.right.mapWindows(f)
+      ))
     }
   }
 }
 
+// MARK: - Inspection
+
 extension BSPNode {
-  /// All window IDs in tree order.
+  /// All window ids in tree order. Stacks expand by `windowList` order.
   public var windows: [WindowID] {
     switch self {
-    case .leaf(let id): [id]
-    case .branch(_, _, let left, let right): left.windows + right.windows
+    case .leaf(let leaf): leaf.windowList
+    case .branch(let b): b.left.windows + b.right.windows
     }
   }
 
+  /// Number of leaves (not windows). Used by `balanced(axis:)` to weigh
+  /// each subtree by structural depth.
   public var leafCount: Int {
     switch self {
     case .leaf: 1
-    case .branch(_, _, let left, let right): left.leafCount + right.leafCount
+    case .branch(let b): b.left.leafCount + b.right.leafCount
     }
   }
 
-  /// The window id of the deepest leaf (ties broken toward the right /
-  /// second child). In a dwindle spiral this is the smallest, most
-  /// recently split tile — the natural anchor for the next insert so
-  /// the spiral keeps winding instead of restarting at the root.
-  public var deepestLeaf: WindowID? {
-    func search(_ node: BSPNode, _ depth: Int) -> (id: WindowID, depth: Int)? {
-      switch node {
-      case .leaf(let id):
-        return (id, depth)
-      case .branch(_, _, let left, let right):
-        let l = search(left, depth + 1)
-        let r = search(right, depth + 1)
-        switch (l, r) {
-        case (nil, nil): return nil
-        case (let l?, nil): return l
-        case (nil, let r?): return r
-        case (let l?, let r?):
-          // Prefer the right/second child on ties.
-          return r.depth >= l.depth ? r : l
-        }
-      }
-    }
-    return search(self, 0)?.id
-  }
-
-  /// Build a dwindle (spiral) tree: insert each window in order,
-  /// splitting the *previously inserted* leaf. The first window takes
-  /// half the space, the next a quarter, and so on, alternating split
-  /// axis by the leaf's aspect. `rect` is the real work area so the
-  /// axis choices match the screen.
-  public static func dwindleBuild(
-    _ windows: [WindowID],
-    in rect: CGRect
-  ) -> BSPNode? {
-    guard let first = windows.first else { return nil }
-    var tree: BSPNode = .leaf(first)
-    for i in 1..<windows.count {
-      tree = tree.inserting(windows[i], near: windows[i - 1], in: rect)
-    }
-    return tree
-  }
-
-  /// Build a balanced-ish tree from a sequence of windows, in order.
-  /// Uses the same insertion policy as live edits so the tree shape is
-  /// deterministic across runs.
-  public static func build(
-    _ windows: [WindowID],
-    in rect: CGRect,
-    defaultRatio: CGFloat = 0.5
-  ) -> BSPNode? {
-    var tree: BSPNode? = nil
-    for window in windows {
-      tree = tree?.inserting(window, in: rect, defaultRatio: defaultRatio)
-        ?? .leaf(window)
-    }
-    return tree
-  }
-
-  /// Insert a window into the tree. If `focusedWindow` is supplied and
-  /// is already a leaf, the new window splits *that* leaf — placing it
-  /// next to the focused window. Otherwise falls back to splitting the
-  /// shallowest leaf.
-  ///
-  /// Split axis is chosen from the target leaf's aspect ratio: wider
-  /// than tall → vertical split (side-by-side); taller than wide →
-  /// horizontal split (top/bottom).
-  public func inserting(
-    _ window: WindowID,
-    near focusedWindow: WindowID? = nil,
-    in rect: CGRect,
-    defaultRatio: CGFloat = 0.5
-  ) -> BSPNode {
-    let leaves = leavesByDepth(currentRect: rect)
-    let target: LeafInfo? = {
-      if let focused = focusedWindow,
-         let hit = leaves.first(where: { leaf in
-           guard case .leaf(let id) = self.subtree(at: leaf.path) else { return false }
-           return id == focused
-         })
-      {
-        return hit
-      }
-      return leaves.min(by: { $0.depth < $1.depth })
-    }()
-    guard let target else { return .leaf(window) }
-    return replacing(path: target.path) { leaf in
-      let axis: SplitAxis = target.rect.width >= target.rect.height
-        ? .vertical
-        : .horizontal
-      return .branch(split: axis, ratio: defaultRatio, left: leaf, right: .leaf(window))
-    }
-  }
-
-  /// Replace the ratio of the branch whose left subtree contains `window`
-  /// — used to sync manual user resizes back into the tree.
-  public func updatingRatio(containingLeft window: WindowID, ratio: CGFloat) -> BSPNode {
-    guard let path = pathTo(window: window) else { return self }
-    // Walk the path from the root and find the highest ancestor where
-    // this window is in the left subtree.
-    var leftAncestor: [Side]? = nil
-    var partial: [Side] = []
-    for side in path {
-      if side == .left {
-        leftAncestor = partial
-        break
-      }
-      partial.append(side)
-    }
-    guard let ancestorPath = leftAncestor else { return self }
-    return replacing(path: ancestorPath) { node in
-      guard case .branch(let split, _, let left, let right) = node else { return node }
-      return .branch(split: split, ratio: max(0.1, min(0.9, ratio)), left: left, right: right)
+  /// Path of left/right turns from the root to the leaf containing
+  /// `window`, or `nil` if it isn't in the tree.
+  public func pathTo(window: WindowID) -> [Side]? {
+    switch self {
+    case .leaf(let leaf):
+      return leaf.contains(window) ? [] : nil
+    case .branch(let b):
+      if let l = b.left.pathTo(window: window) { return [.left] + l }
+      if let r = b.right.pathTo(window: window) { return [.right] + r }
+      return nil
     }
   }
 
@@ -228,79 +302,222 @@ extension BSPNode {
   public func subtree(at path: [Side]) -> BSPNode {
     var current = self
     for side in path {
-      guard case .branch(_, _, let left, let right) = current else { return current }
-      current = side == .left ? left : right
+      guard case .branch(let b) = current else { return current }
+      current = side == .left ? b.left : b.right
     }
     return current
   }
 
   /// Rect of the subtree at `path` after subdividing `workArea` along
   /// the same splits that `frames(in:gap:)` walks. Used by the resize
-  /// sync to translate an AX-reported frame back into a parent split's
-  /// ratio.
+  /// sync to translate an AX frame back into a parent split's ratio.
   public func rect(at path: [Side], in workArea: CGRect, gap: CGFloat) -> CGRect {
     var rect = workArea
     var node = self
     for side in path {
-      guard case .branch(let split, let ratio, let left, let right) = node else {
-        return rect
-      }
-      let (l, r) = split.subdivide(rect, ratio: ratio, gap: gap)
+      guard case .branch(let b) = node else { return rect }
+      let (l, r) = b.split.subdivide(rect, ratio: b.ratio, gap: gap)
       rect = side == .left ? l : r
-      node = side == .left ? left : right
+      node = side == .left ? b.left : b.right
     }
     return rect
   }
+}
 
-  /// Update the split ratio of the branch at `path`. Clamps to
-  /// `[0.1, 0.9]`. No-op if `path` does not land on a branch.
-  public func updatingRatio(at path: [Side], ratio: CGFloat) -> BSPNode {
-    replacing(path: path) { node in
-      guard case .branch(let split, _, let left, let right) = node else { return node }
-      return .branch(
-        split: split,
-        ratio: max(0.1, min(0.9, ratio)),
-        left: left,
-        right: right
-      )
+// MARK: - Build
+
+extension BSPNode {
+  /// Build a tree from a sequence of windows in order. Uses the same
+  /// insertion policy as live edits so the tree shape stays
+  /// deterministic across runs.
+  public static func build(
+    _ windows: [WindowID],
+    in rect: CGRect,
+    defaultRatio: CGFloat = 0.5
+  ) -> BSPNode? {
+    var tree: BSPNode? = nil
+    for window in windows {
+      if let current = tree {
+        tree = current.inserting(window, in: rect, defaultRatio: defaultRatio)
+      } else {
+        tree = .leaf(window)
+      }
+    }
+    return tree
+  }
+}
+
+// MARK: - Insertion
+
+extension BSPNode {
+  /// Insert `window` into the tree. Selection rule:
+  ///
+  ///   1. an explicit `near` window — if it resolves to a leaf, that
+  ///      leaf is the target (the sticky workspace insertion point).
+  ///   2. otherwise the shallowest leaf (BFS).
+  ///
+  /// If the target leaf carries `insertDirection == .stack`, the new
+  /// window joins that leaf's stack instead of splitting. Otherwise the
+  /// leaf is split: axis chosen from `preferredSplit ?? viewSplitType
+  /// ?? aspect`, and child placement from `preferredChild ??
+  /// globalPlacement`.
+  public func inserting(
+    _ window: WindowID,
+    near anchor: WindowID? = nil,
+    in rect: CGRect,
+    defaultRatio: CGFloat = 0.5,
+    viewSplitType: SplitAxis? = nil,
+    globalPlacement: Child = .second
+  ) -> BSPNode {
+    let info = leafInfos(currentRect: rect)
+    let target: LeafInfoT? = {
+      if let anchor,
+         let hit = info.first(where: { leaf in
+           if case .leaf(let l) = self.subtree(at: leaf.path) { return l.contains(anchor) }
+           return false
+         })
+      {
+        return hit
+      }
+      return info.min(by: { $0.depth < $1.depth })
+    }()
+    guard let target else { return .leaf(window) }
+    return replacing(path: target.path) { node in
+      guard case .leaf(var leaf) = node else { return node }
+      if leaf.insertDirection == .stack {
+        leaf.windowList.append(window)
+        leaf.windowOrder.insert(window, at: 0)
+        leaf.insertDirection = nil
+        leaf.preferredChild = nil
+        leaf.preferredSplit = nil
+        return .leaf(leaf)
+      }
+      let axis: SplitAxis = {
+        if let s = leaf.preferredSplit { return s }
+        if let s = viewSplitType { return s }
+        return target.rect.width >= target.rect.height ? .vertical : .horizontal
+      }()
+      let placement: Child = leaf.preferredChild ?? globalPlacement
+      // `placement = .first` → new window on the left/top, existing
+      // leaf on the right/bottom.
+      var oldLeaf = leaf
+      oldLeaf.insertDirection = nil
+      oldLeaf.preferredChild = nil
+      oldLeaf.preferredSplit = nil
+      // Parent-zoom is *per-leaf*; on a split it stays with the old
+      // leaf only — the new leaf starts un-zoomed.
+      let newLeaf = BSPLeaf<WindowID>(windowList: [window])
+      let (l, r): (BSPNode, BSPNode) = placement == .first
+        ? (.leaf(newLeaf), .leaf(oldLeaf))
+        : (.leaf(oldLeaf), .leaf(newLeaf))
+      return .branch(BSPBranch(
+        split: axis,
+        ratio: defaultRatio,
+        preferredChild: nil,
+        left: l,
+        right: r
+      ))
     }
   }
 
-  /// Remove the given window. If the tree has only that window, returns nil.
-  /// Otherwise collapses the surviving sibling into its parent's slot.
+  /// Push `window` onto the stack of the leaf currently holding
+  /// `anchor`. No-op if `anchor` isn't in the tree.
+  public func stacking(_ window: WindowID, onto anchor: WindowID) -> BSPNode {
+    guard let path = pathTo(window: anchor) else { return self }
+    return replacing(path: path) { node in
+      guard case .leaf(var leaf) = node else { return node }
+      leaf.windowList.append(window)
+      leaf.windowOrder.insert(window, at: 0)
+      return .leaf(leaf)
+    }
+  }
+}
+
+// MARK: - Removal
+
+extension BSPNode {
+  /// Remove `window`. If it was part of a stacked leaf, only that entry
+  /// is dropped (leaf survives). If it was the sole occupant of a leaf,
+  /// the leaf collapses and its sibling promotes into the parent's slot.
+  /// Returns nil only when removing the very last window in the tree.
   public func removing(_ window: WindowID) -> BSPNode? {
     switch self {
-    case .leaf(let id):
-      return id == window ? nil : self
-
-    case .branch(let split, let ratio, let left, let right):
-      let newLeft = left.removing(window)
-      let newRight = right.removing(window)
+    case .leaf(var leaf):
+      guard leaf.contains(window) else { return self }
+      leaf.windowList.removeAll { $0 == window }
+      leaf.windowOrder.removeAll { $0 == window }
+      return leaf.windowList.isEmpty ? nil : .leaf(leaf)
+    case .branch(let b):
+      let newLeft = b.left.removing(window)
+      let newRight = b.right.removing(window)
       switch (newLeft, newRight) {
       case (nil, let r?): return r
       case (let l?, nil): return l
       case (let l?, let r?):
-        return .branch(split: split, ratio: ratio, left: l, right: r)
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: b.ratio,
+          preferredChild: b.preferredChild,
+          left: l,
+          right: r
+        ))
       case (nil, nil):
         return nil
       }
     }
   }
+}
 
-  /// Resolve every leaf's frame given the display rect and inner gap.
-  /// Returns a dictionary from window ID to frame.
-  public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
-    var out: [WindowID: CGRect] = [:]
-    layout(into: &out, rect: rect, gap: gap)
-    return out
+// MARK: - Swap / warp / split toggle
+
+extension BSPNode {
+  /// Swap positions of two windows. If they live in the same leaf,
+  /// only their stack indices change. Otherwise the leaf payloads are
+  /// exchanged wholesale (stacks travel together).
+  public func swapping(_ a: WindowID, _ b: WindowID) -> BSPNode {
+    guard a != b else { return self }
+    switch self {
+    case .leaf(var leaf):
+      guard leaf.contains(a) || leaf.contains(b) else { return self }
+      func swap(in xs: inout [WindowID]) {
+        guard let ia = xs.firstIndex(of: a), let ib = xs.firstIndex(of: b) else { return }
+        xs.swapAt(ia, ib)
+      }
+      swap(in: &leaf.windowList)
+      swap(in: &leaf.windowOrder)
+      return .leaf(leaf)
+    case .branch(let br):
+      // Find a's and b's enclosing leaves.
+      guard let pa = pathTo(window: a), let pb = pathTo(window: b) else { return self }
+      if pa == pb {
+        return replacing(path: pa) { $0.swapping(a, b) }
+      }
+      // Different leaves: exchange their windowList + windowOrder
+      // wholesale. Stacks travel together.
+      guard case .leaf(let leafA) = subtree(at: pa),
+            case .leaf(let leafB) = subtree(at: pb)
+      else { return self }
+      var newA = leafA
+      newA.windowList = leafB.windowList
+      newA.windowOrder = leafB.windowOrder
+      var newB = leafB
+      newB.windowList = leafA.windowList
+      newB.windowOrder = leafA.windowOrder
+      // Parent-zoom is locality-specific (it refers to the *position*
+      // in the tree, not the window itself) — clear on the moved leaves
+      // so a swap doesn't accidentally fullscreen the destination tile.
+      newA.parentZoom = false
+      newB.parentZoom = false
+      _ = br
+      let withA = replacing(path: pa) { _ in .leaf(newA) }
+      return withA.replacing(path: pb) { _ in .leaf(newB) }
+    }
   }
 
-  /// Move `window` in `direction` when there's no tile neighbor to swap
-  /// with. Rewrites the window's parent split so its axis matches the
-  /// requested direction (east/west → side-by-side, north/south →
-  /// stacked) and places the window on the corresponding side. So two
-  /// side-by-side windows "warped" downward become stacked with the
-  /// moved window on the bottom. No-op if `window` is the root leaf.
+  /// Reorient `window`'s parent split so the window moves in
+  /// `direction` (no neighbor existed to swap with). Two side-by-side
+  /// windows + warp-down become stacked with the moved window on the
+  /// bottom. No-op if `window` is the root leaf.
   public func warping(_ window: WindowID, direction: BSPDirection) -> BSPNode {
     guard let path = pathTo(window: window), let side = path.last else { return self }
     let parentPath = Array(path.dropLast())
@@ -308,146 +525,446 @@ extension BSPNode {
       (direction == .east || direction == .west) ? .vertical : .horizontal
     let desiredSide: Side = (direction == .west || direction == .north) ? .left : .right
     return replacing(path: parentPath) { node in
-      guard case .branch(_, let ratio, let left, let right) = node else { return node }
-      let windowChild = side == .left ? left : right
-      let siblingChild = side == .left ? right : left
+      guard case .branch(let b) = node else { return node }
+      let windowChild = side == .left ? b.left : b.right
+      let siblingChild = side == .left ? b.right : b.left
       let newLeft = desiredSide == .left ? windowChild : siblingChild
       let newRight = desiredSide == .left ? siblingChild : windowChild
-      // Mirror the ratio when the window changes sides so the moved
-      // window keeps roughly its share rather than jumping size.
-      let newRatio = (desiredSide == (side == .left ? .left : .right)) ? ratio : 1 - ratio
-      return .branch(split: desiredAxis, ratio: newRatio, left: newLeft, right: newRight)
+      let newRatio = (desiredSide == side) ? b.ratio : 1 - b.ratio
+      return .branch(BSPBranch(
+        split: desiredAxis,
+        ratio: newRatio,
+        preferredChild: b.preferredChild,
+        left: newLeft,
+        right: newRight
+      ))
     }
   }
 
-  /// Swap the positions of two windows in the tree. No-op if either is
-  /// missing.
-  public func swapping(_ a: WindowID, _ b: WindowID) -> BSPNode {
-    guard a != b else { return self }
-    switch self {
-    case .leaf(let id):
-      if id == a { return .leaf(b) }
-      if id == b { return .leaf(a) }
-      return self
-    case .branch(let split, let ratio, let left, let right):
-      return .branch(
-        split: split,
-        ratio: ratio,
-        left: left.swapping(a, b),
-        right: right.swapping(a, b)
-      )
-    }
-  }
-
-  /// Flip the split axis at the parent of `window`. No-op if `window`
-  /// is at the root.
+  /// Flip the parent split axis of `window`. No-op if `window` is at
+  /// the root.
   public func togglingSplit(at window: WindowID) -> BSPNode {
     guard let path = pathTo(window: window), !path.isEmpty else { return self }
     let parentPath = Array(path.dropLast())
     return replacing(path: parentPath) { node in
-      switch node {
-      case .branch(let split, let ratio, let left, let right):
-        let flipped: SplitAxis = split == .horizontal ? .vertical : .horizontal
-        return .branch(split: flipped, ratio: ratio, left: left, right: right)
-      case .leaf:
-        return node
-      }
+      guard case .branch(let b) = node else { return node }
+      let flipped: SplitAxis = b.split == .horizontal ? .vertical : .horizontal
+      return .branch(BSPBranch(
+        split: flipped,
+        ratio: b.ratio,
+        preferredChild: b.preferredChild,
+        left: b.left,
+        right: b.right
+      ))
     }
   }
+}
 
+// MARK: - Resize / fence
+
+extension BSPNode {
   /// Adjust the ratio at the nearest ancestor of `window` whose split
-  /// axis is `axis`. Positive `delta` always means "grow the focused
-  /// window": the sign is flipped when the focused leaf sits on the
-  /// right/bottom side of the ancestor split, because in that case
-  /// growing the focused window means shrinking the parent ratio (which
-  /// describes the left/top child's share). Result clamped to `[0.1, 0.9]`.
+  /// axis matches `axis`. Positive `delta` always means "grow the
+  /// focused window": the sign is flipped when the focused leaf sits on
+  /// the right/bottom side of the ancestor split. Result clamped to
+  /// `[0.1, 0.9]`.
   public func resizing(
     window: WindowID,
     axis: SplitAxis,
     delta: CGFloat
   ) -> BSPNode {
     guard let path = pathTo(window: window) else { return self }
-    let ancestorPath = nearestAncestor(matching: axis, on: path)
-    guard let ancestorPath else { return self }
-    // The step *into* the ancestor's matching child decides the sign.
+    guard let ancestorPath = nearestAncestor(matching: axis, on: path) else { return self }
     let sideIntoAncestor = path[ancestorPath.count]
     let signedDelta = sideIntoAncestor == .left ? delta : -delta
     return replacing(path: ancestorPath) { node in
-      guard case .branch(let split, let ratio, let left, let right) = node
-      else { return node }
-      let newRatio = max(0.1, min(0.9, ratio + signedDelta))
-      return .branch(split: split, ratio: newRatio, left: left, right: right)
+      guard case .branch(let b) = node else { return node }
+      let newRatio = max(0.1, min(0.9, b.ratio + signedDelta))
+      return .branch(BSPBranch(
+        split: b.split,
+        ratio: newRatio,
+        preferredChild: b.preferredChild,
+        left: b.left,
+        right: b.right
+      ))
     }
   }
 
-  /// Path of left/right turns from the root to the leaf carrying `window`,
-  /// or `nil` if the window is not in the tree.
-  public func pathTo(window: WindowID) -> [Side]? {
+  /// Update the split ratio at `path`. Clamps to `[0.1, 0.9]`. No-op if
+  /// the path lands on a leaf.
+  public func updatingRatio(at path: [Side], ratio: CGFloat) -> BSPNode {
+    replacing(path: path) { node in
+      guard case .branch(let b) = node else { return node }
+      return .branch(BSPBranch(
+        split: b.split,
+        ratio: max(0.1, min(0.9, ratio)),
+        preferredChild: b.preferredChild,
+        left: b.left,
+        right: b.right
+      ))
+    }
+  }
+
+  /// Path to the nearest ancestor of `window` whose split axis matches
+  /// `direction`'s axis and which actually extends past `window` in
+  /// that direction. Returns nil when no such ancestor exists (the
+  /// window is already at the workspace edge). Used by resize so we
+  /// nudge the right join rather than the immediate parent.
+  public func fence(
+    of window: WindowID,
+    direction: BSPDirection,
+    in workArea: CGRect,
+    gap: CGFloat
+  ) -> [Side]? {
+    guard let path = pathTo(window: window) else { return nil }
+    let windowRect = rect(at: path, in: workArea, gap: gap)
+    let targetAxis: SplitAxis = (direction == .east || direction == .west)
+      ? .vertical
+      : .horizontal
+    // Walk from the root toward the leaf, keeping the deepest ancestor
+    // whose area extends past the window in the requested direction.
+    var bestPath: [Side]?
+    for i in (0..<path.count).reversed() {
+      let candidatePath = Array(path.prefix(i))
+      let candidateRect = rect(at: candidatePath, in: workArea, gap: gap)
+      guard case .branch(let b) = subtree(at: candidatePath),
+            b.split == targetAxis
+      else { continue }
+      let extendsPast: Bool = {
+        switch direction {
+        case .north: return candidateRect.minY < windowRect.minY
+        case .south: return candidateRect.maxY > windowRect.maxY
+        case .west:  return candidateRect.minX < windowRect.minX
+        case .east:  return candidateRect.maxX > windowRect.maxX
+        }
+      }()
+      if extendsPast {
+        bestPath = candidatePath
+        break
+      }
+    }
+    return bestPath
+  }
+}
+
+// MARK: - Balance / rotate / mirror
+
+extension BSPNode {
+  /// Equalize every split per axis so child sizes match the number of
+  /// leaves they contain. `.none` is a no-op. `.both` does both axes.
+  public func balanced(axis: AutoBalanceAxis = .both) -> BSPNode {
     switch self {
-    case .leaf(let id):
-      return id == window ? [] : nil
-    case .branch(_, _, let left, let right):
-      if let leftPath = left.pathTo(window: window) {
-        return [.left] + leftPath
-      }
-      if let rightPath = right.pathTo(window: window) {
-        return [.right] + rightPath
-      }
-      return nil
+    case .leaf:
+      return self
+    case .branch(let b):
+      let bl = b.left.balanced(axis: axis)
+      let br = b.right.balanced(axis: axis)
+      let lc = bl.leafCount
+      let rc = br.leafCount
+      let total = lc + rc
+      let shouldBalance: Bool = {
+        switch axis {
+        case .none: return false
+        case .both: return true
+        case .horizontal: return b.split == .horizontal
+        case .vertical:   return b.split == .vertical
+        }
+      }()
+      let ratio = (!shouldBalance || total == 0)
+        ? b.ratio
+        : CGFloat(lc) / CGFloat(total)
+      return .branch(BSPBranch(
+        split: b.split,
+        ratio: max(0.1, min(0.9, ratio)),
+        preferredChild: b.preferredChild,
+        left: bl,
+        right: br
+      ))
     }
   }
 
-  /// Walk `path` from the root, returning the path to the nearest
-  /// ancestor whose split axis matches `axis`. Returns nil if no such
-  /// ancestor exists along the path.
-  private func nearestAncestor(matching axis: SplitAxis, on path: [Side]) -> [Side]? {
-    var current = self
-    var traveled: [Side] = []
-    var best: [Side]?
-    for side in path {
-      guard case .branch(let split, _, let left, let right) = current else { break }
-      if split == axis {
-        best = traveled
-      }
-      current = side == .left ? left : right
-      traveled.append(side)
+  /// Rotate the entire tree clockwise by 90 / 180 / 270 degrees.
+  public func rotated(by degrees: Int) -> BSPNode {
+    let d = ((degrees % 360) + 360) % 360
+    switch self {
+    case .leaf:
+      return self
+    case .branch(let b):
+      let shouldSwap =
+        (d == 90 && b.split == .vertical)
+        || (d == 270 && b.split == .horizontal)
+        || d == 180
+      let newLeft = shouldSwap ? b.right : b.left
+      let newRight = shouldSwap ? b.left : b.right
+      let newRatio = shouldSwap ? 1 - b.ratio : b.ratio
+      let newSplit: SplitAxis = d == 180
+        ? b.split
+        : (b.split == .horizontal ? .vertical : .horizontal)
+      return .branch(BSPBranch(
+        split: newSplit,
+        ratio: newRatio,
+        preferredChild: b.preferredChild,
+        left: newLeft.rotated(by: d),
+        right: newRight.rotated(by: d)
+      ))
     }
-    return best
   }
 
-  // MARK: - Private helpers
+  /// Mirror the tree along `axis`. Splits matching `axis` swap children
+  /// and invert their ratio; splits on the orthogonal axis are
+  /// unchanged.
+  public func mirrored(axis: SplitAxis) -> BSPNode {
+    switch self {
+    case .leaf:
+      return self
+    case .branch(let b):
+      if b.split == axis {
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: 1 - b.ratio,
+          preferredChild: b.preferredChild,
+          left: b.right.mirrored(axis: axis),
+          right: b.left.mirrored(axis: axis)
+        ))
+      } else {
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: b.ratio,
+          preferredChild: b.preferredChild,
+          left: b.left.mirrored(axis: axis),
+          right: b.right.mirrored(axis: axis)
+        ))
+      }
+    }
+  }
+}
 
-  private struct LeafInfo {
+/// Axis selector for `balanced(axis:)`. Per-axis flag exposed as a
+/// plain enum: `.both` equalizes everything, `.horizontal`/`.vertical`
+/// touch only matching joins, `.none` is a no-op.
+public enum AutoBalanceAxis: Sendable, Hashable {
+  case none
+  case horizontal
+  case vertical
+  case both
+}
+
+// MARK: - Frames
+
+extension BSPNode {
+  /// Resolve every window's frame given the work-area rect and the
+  /// inner gap. Parent-zoom leaves render at their parent branch's
+  /// rect (filling the sibling slot as well). Stack leaves emit the
+  /// same rect for every stacked window.
+  public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
+    var out: [WindowID: CGRect] = [:]
+    layout(into: &out, rect: rect, parentRect: rect, gap: gap)
+    return out
+  }
+
+  private func layout(
+    into out: inout [WindowID: CGRect],
+    rect: CGRect,
+    parentRect: CGRect,
+    gap: CGFloat
+  ) {
+    switch self {
+    case .leaf(let leaf):
+      let area = leaf.parentZoom ? parentRect : rect
+      for id in leaf.windowList {
+        out[id] = area.integral
+      }
+    case .branch(let b):
+      let (lRect, rRect) = b.split.subdivide(rect, ratio: b.ratio, gap: gap)
+      b.left.layout(into: &out, rect: lRect, parentRect: rect, gap: gap)
+      b.right.layout(into: &out, rect: rRect, parentRect: rect, gap: gap)
+    }
+  }
+}
+
+// MARK: - Leaf metadata mutation
+
+extension BSPNode {
+  /// Set `direction` on the leaf containing `window`. Pass nil to clear.
+  /// Also derives `preferredChild` + `preferredSplit` from the direction:
+  ///   * north → horizontal split, child .first
+  ///   * south → horizontal split, child .second
+  ///   * east  → vertical split,   child .second
+  ///   * west  → vertical split,   child .first
+  ///   * stack → no axis/child preference
+  public func settingInsertDirection(
+    at window: WindowID,
+    direction: InsertDirection?
+  ) -> BSPNode {
+    guard let path = pathTo(window: window) else { return self }
+    return replacing(path: path) { node in
+      guard case .leaf(var leaf) = node else { return node }
+      leaf.insertDirection = direction
+      switch direction {
+      case .north:
+        leaf.preferredSplit = .horizontal
+        leaf.preferredChild = .first
+      case .south:
+        leaf.preferredSplit = .horizontal
+        leaf.preferredChild = .second
+      case .east:
+        leaf.preferredSplit = .vertical
+        leaf.preferredChild = .second
+      case .west:
+        leaf.preferredSplit = .vertical
+        leaf.preferredChild = .first
+      case .stack, .none:
+        leaf.preferredSplit = nil
+        leaf.preferredChild = nil
+      }
+      return .leaf(leaf)
+    }
+  }
+
+  /// Toggle parent-zoom on the leaf containing `window`. Clears the
+  /// flag on every other leaf so at most one node is parent-zoomed at
+  /// a time.
+  public func togglingParentZoom(at window: WindowID) -> BSPNode {
+    guard let path = pathTo(window: window) else { return self }
+    let cleared = clearingParentZoom(except: path)
+    guard case .leaf(let leaf) = cleared.subtree(at: path) else { return cleared }
+    return cleared.replacing(path: path) { _ in
+      var l = leaf
+      l.parentZoom.toggle()
+      return .leaf(l)
+    }
+  }
+
+  /// Clear `parentZoom` on every leaf except the one at `keepPath`.
+  public func clearingParentZoom(except keepPath: [Side]) -> BSPNode {
+    var node = self
+    let paths = allLeafPaths()
+    for path in paths where path != keepPath {
+      node = node.replacing(path: path) { leafNode in
+        guard case .leaf(var leaf) = leafNode else { return leafNode }
+        leaf.parentZoom = false
+        return .leaf(leaf)
+      }
+    }
+    return node
+  }
+
+  /// All leaf paths in tree order. Used by `clearingParentZoom`.
+  public func allLeafPaths() -> [[Side]] {
+    var out: [[Side]] = []
+    func walk(_ n: BSPNode, _ p: [Side]) {
+      switch n {
+      case .leaf: out.append(p)
+      case .branch(let b):
+        walk(b.left, p + [.left])
+        walk(b.right, p + [.right])
+      }
+    }
+    walk(self, [])
+    return out
+  }
+}
+
+// MARK: - Direction enum
+
+/// Compass directions for geometric neighbor lookups (swap/focus/
+/// resize/warp). North = up, South = down in AX top-origin
+/// coordinates.
+public enum BSPDirection: String, Sendable, Hashable, Codable {
+  case west, east, north, south
+}
+
+// MARK: - Directional neighbor
+
+extension BSPNode {
+  /// Closest leaf adjacent to `key` in `direction`. Score every other
+  /// leaf by axis-aligned distance, tiebreak by recency in the focus
+  /// order (front-to-back), reject candidates that don't actually lie
+  /// in `direction`.
+  public func directionalNeighbor(
+    of key: WindowID,
+    direction: BSPDirection,
+    in workArea: CGRect,
+    gap: CGFloat,
+    focusOrder: [WindowID] = []
+  ) -> WindowID? {
+    let frames = self.frames(in: workArea, gap: gap)
+    guard let mine = frames[key] else { return nil }
+    var best: (id: WindowID, distance: CGFloat, rank: Int)?
+    for (other, rect) in frames where other != key {
+      guard inDirection(from: mine, to: rect, direction: direction) else { continue }
+      let dist = distance(from: mine, to: rect, direction: direction)
+      let rank = focusOrder.firstIndex(of: other) ?? Int.max
+      if let b = best {
+        if dist < b.distance || (dist == b.distance && rank < b.rank) {
+          best = (other, dist, rank)
+        }
+      } else {
+        best = (other, dist, rank)
+      }
+    }
+    return best?.id
+  }
+
+  /// Does `to` actually extend past `from` along `direction`?
+  private func inDirection(from a: CGRect, to b: CGRect, direction: BSPDirection) -> Bool {
+    switch direction {
+    case .north:
+      guard b.maxY <= a.minY + 0.5 else { return false }
+      return overlaps1D(a.minX, a.maxX, b.minX, b.maxX)
+    case .south:
+      guard b.minY >= a.maxY - 0.5 else { return false }
+      return overlaps1D(a.minX, a.maxX, b.minX, b.maxX)
+    case .west:
+      guard b.maxX <= a.minX + 0.5 else { return false }
+      return overlaps1D(a.minY, a.maxY, b.minY, b.maxY)
+    case .east:
+      guard b.minX >= a.maxX - 0.5 else { return false }
+      return overlaps1D(a.minY, a.maxY, b.minY, b.maxY)
+    }
+  }
+
+  private func overlaps1D(_ a0: CGFloat, _ a1: CGFloat, _ b0: CGFloat, _ b1: CGFloat) -> Bool {
+    !(b1 <= a0 || b0 >= a1)
+  }
+
+  private func distance(from a: CGRect, to b: CGRect, direction: BSPDirection) -> CGFloat {
+    switch direction {
+    case .north: return a.minY - b.maxY
+    case .south: return b.minY - a.maxY
+    case .west:  return a.minX - b.maxX
+    case .east:  return b.minX - a.maxX
+    }
+  }
+}
+
+// MARK: - Private helpers
+
+extension BSPNode {
+  /// Path + current rect + depth for a leaf, computed during the
+  /// recursive walk that picks an insertion target.
+  fileprivate struct LeafInfoT {
     var path: [Side]
     var rect: CGRect
     var depth: Int
   }
 
-  public enum Side: Sendable, Hashable { case left, right }
-
-  private func leavesByDepth(
+  fileprivate func leafInfos(
     currentRect: CGRect,
     path: [Side] = [],
     depth: Int = 0
-  ) -> [LeafInfo] {
+  ) -> [LeafInfoT] {
     switch self {
     case .leaf:
-      return [LeafInfo(path: path, rect: currentRect, depth: depth)]
-    case .branch(let split, let ratio, let left, let right):
-      let (lRect, rRect) = split.subdivide(currentRect, ratio: ratio, gap: 0)
-      return left.leavesByDepth(
-        currentRect: lRect,
-        path: path + [.left],
-        depth: depth + 1
-      ) + right.leavesByDepth(
-        currentRect: rRect,
-        path: path + [.right],
-        depth: depth + 1
-      )
+      return [LeafInfoT(path: path, rect: currentRect, depth: depth)]
+    case .branch(let b):
+      let (lRect, rRect) = b.split.subdivide(currentRect, ratio: b.ratio, gap: 0)
+      return b.left.leafInfos(currentRect: lRect, path: path + [.left], depth: depth + 1)
+        + b.right.leafInfos(currentRect: rRect, path: path + [.right], depth: depth + 1)
     }
   }
 
-  private func replacing(
+  fileprivate func replacing(
     path: [Side],
     with transform: (BSPNode) -> BSPNode
   ) -> BSPNode {
@@ -457,169 +974,46 @@ extension BSPNode {
     switch self {
     case .leaf:
       return transform(self)
-    case .branch(let split, let ratio, let left, let right):
+    case .branch(let b):
       let rest = Array(path.dropFirst())
       switch next {
       case .left:
-        return .branch(
-          split: split,
-          ratio: ratio,
-          left: left.replacing(path: rest, with: transform),
-          right: right
-        )
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: b.ratio,
+          preferredChild: b.preferredChild,
+          left: b.left.replacing(path: rest, with: transform),
+          right: b.right
+        ))
       case .right:
-        return .branch(
-          split: split,
-          ratio: ratio,
-          left: left,
-          right: right.replacing(path: rest, with: transform)
-        )
+        return .branch(BSPBranch(
+          split: b.split,
+          ratio: b.ratio,
+          preferredChild: b.preferredChild,
+          left: b.left,
+          right: b.right.replacing(path: rest, with: transform)
+        ))
       }
     }
   }
 
-  private func layout(
-    into out: inout [WindowID: CGRect],
-    rect: CGRect,
-    gap: CGFloat
-  ) {
-    switch self {
-    case .leaf(let id):
-      out[id] = rect.integral
-    case .branch(let split, let ratio, let left, let right):
-      let (lRect, rRect) = split.subdivide(rect, ratio: ratio, gap: gap)
-      left.layout(into: &out, rect: lRect, gap: gap)
-      right.layout(into: &out, rect: rRect, gap: gap)
-    }
-  }
-}
-
-extension BSPNode {
-  /// Equalize every split so child sizes match the number of leaves
-  /// they contain. A 1:3 sibling split becomes 0.25, regardless of any
-  /// user-applied ratios.
-  public func balanced() -> BSPNode {
-    switch self {
-    case .leaf:
-      return self
-    case .branch(let split, _, let left, let right):
-      let bl = left.balanced()
-      let br = right.balanced()
-      let lc = bl.leafCount
-      let rc = br.leafCount
-      let total = lc + rc
-      let ratio = total == 0 ? 0.5 : CGFloat(lc) / CGFloat(total)
-      return .branch(
-        split: split,
-        ratio: max(0.1, min(0.9, ratio)),
-        left: bl,
-        right: br
-      )
-    }
-  }
-
-  /// Rotate the entire tree clockwise by 90 / 180 / 270 degrees.
-  /// The swap-and-flip rules differ per quadrant so each rotation is
-  /// one pass.
-  public func rotated(by degrees: Int) -> BSPNode {
-    let d = ((degrees % 360) + 360) % 360
-    switch self {
-    case .leaf:
-      return self
-    case .branch(let split, let ratio, let left, let right):
-      let shouldSwap =
-        (d == 90 && split == .vertical)
-        || (d == 270 && split == .horizontal)
-        || d == 180
-      let newLeft = shouldSwap ? right : left
-      let newRight = shouldSwap ? left : right
-      let newRatio = shouldSwap ? 1 - ratio : ratio
-      let newSplit: SplitAxis = d == 180
-        ? split
-        : (split == .horizontal ? .vertical : .horizontal)
-      return .branch(
-        split: newSplit,
-        ratio: newRatio,
-        left: newLeft.rotated(by: d),
-        right: newRight.rotated(by: d)
-      )
-    }
-  }
-
-  /// Mirror the tree along `axis`. Splits matching the axis flip
-  /// left/right and invert their ratio — splits on the orthogonal
-  /// axis are unchanged.
-  public func mirrored(axis: SplitAxis) -> BSPNode {
-    switch self {
-    case .leaf:
-      return self
-    case .branch(let split, let ratio, let left, let right):
-      if split == axis {
-        return .branch(
-          split: split,
-          ratio: 1 - ratio,
-          left: right.mirrored(axis: axis),
-          right: left.mirrored(axis: axis)
-        )
-      } else {
-        return .branch(
-          split: split,
-          ratio: ratio,
-          left: left.mirrored(axis: axis),
-          right: right.mirrored(axis: axis)
-        )
+  fileprivate func nearestAncestor(matching axis: SplitAxis, on path: [Side]) -> [Side]? {
+    var current = self
+    var traveled: [Side] = []
+    var best: [Side]?
+    for side in path {
+      guard case .branch(let b) = current else { break }
+      if b.split == axis {
+        best = traveled
       }
+      current = side == .left ? b.left : b.right
+      traveled.append(side)
     }
+    return best
   }
 }
 
-/// Compass directions for geometric "neighbor of focused" lookups
-/// (swap/focus/resize). North = up, South = down in AX top-origin
-/// coordinates.
-public enum BSPDirection: Sendable, Hashable {
-  case west, east, north, south
-}
-
-extension BSPNode {
-  /// Closest leaf adjacent to `key` in `direction`. Scores candidates
-  /// by distance along the axis plus a perpendicular penalty, so
-  /// windows that share an edge with the focused one win over ones
-  /// diagonally further away.
-  public func directionalNeighbor(
-    of key: WindowID,
-    direction: BSPDirection,
-    in workArea: CGRect,
-    gap: CGFloat
-  ) -> WindowID? {
-    let frames = self.frames(in: workArea, gap: gap)
-    guard let mine = frames[key] else { return nil }
-    let myCenter = CGPoint(x: mine.midX, y: mine.midY)
-
-    var best: (id: WindowID, score: CGFloat)?
-    for (other, rect) in frames where other != key {
-      let c = CGPoint(x: rect.midX, y: rect.midY)
-      let score: CGFloat
-      switch direction {
-      case .east:
-        guard c.x > myCenter.x else { continue }
-        score = (c.x - myCenter.x) + abs(c.y - myCenter.y) * 0.5
-      case .west:
-        guard c.x < myCenter.x else { continue }
-        score = (myCenter.x - c.x) + abs(c.y - myCenter.y) * 0.5
-      case .south:
-        guard c.y > myCenter.y else { continue }
-        score = (c.y - myCenter.y) + abs(c.x - myCenter.x) * 0.5
-      case .north:
-        guard c.y < myCenter.y else { continue }
-        score = (myCenter.y - c.y) + abs(c.x - myCenter.x) * 0.5
-      }
-      if best == nil || score < best!.score {
-        best = (other, score)
-      }
-    }
-    return best?.id
-  }
-}
+// MARK: - Geometry
 
 extension BSPNode.SplitAxis {
   /// Subdivide `rect` into left/right children, applying a single

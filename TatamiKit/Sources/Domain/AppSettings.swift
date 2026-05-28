@@ -216,9 +216,20 @@ extension AppSettings {
     public var gapInner: Int
     /// Pixels between the outermost windows and the display work area.
     public var gapOuter: Int
-    /// When true, every insert/remove rebalances the BSP tree so all
-    /// leaves end up with equal area.
-    public var autoBalance: Bool
+    /// Which axes to rebalance after every insert/remove. Exposed as
+    /// an enum instead of a Bool so users can balance just rows, just
+    /// columns, or both.
+    public var autoBalance: AutoBalanceMode
+    /// How a leaf's split axis is chosen when the user hasn't pinned
+    /// one via `--insert`. `.auto` uses the aspect-ratio heuristic.
+    public var splitType: SplitTypePreference
+    /// Which child of the new split holds the newly-inserted window.
+    /// `.second` (default) puts new windows on the right / bottom of
+    /// the new split.
+    public var windowPlacement: WindowPlacement
+    /// Which Space a newly-opened window belongs to. Tatami currently
+    /// only supports the `.default` mode (the window's own Space).
+    public var windowOriginMode: WindowOriginMode
     /// Global default for how workspaces remember their BSP layout.
     /// A workspace's own `tilingMemory` overrides this when set.
     public var defaultTilingMemory: TilingMemory
@@ -226,28 +237,103 @@ extension AppSettings {
     public init(
       gapInner: Int = 8,
       gapOuter: Int = 8,
-      autoBalance: Bool = false,
+      autoBalance: AutoBalanceMode = .none,
+      splitType: SplitTypePreference = .auto,
+      windowPlacement: WindowPlacement = .second,
+      windowOriginMode: WindowOriginMode = .default,
       defaultTilingMemory: TilingMemory = .session
     ) {
       self.gapInner = gapInner
       self.gapOuter = gapOuter
       self.autoBalance = autoBalance
+      self.splitType = splitType
+      self.windowPlacement = windowPlacement
+      self.windowOriginMode = windowOriginMode
       self.defaultTilingMemory = defaultTilingMemory
     }
 
     private enum CodingKeys: String, CodingKey {
-      case gapInner, gapOuter, autoBalance, defaultTilingMemory
+      case gapInner, gapOuter, autoBalance, splitType, windowPlacement
+      case windowOriginMode, defaultTilingMemory
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       self.gapInner = (try? c.decode(Int.self, forKey: .gapInner)) ?? 8
       self.gapOuter = (try? c.decode(Int.self, forKey: .gapOuter)) ?? 8
-      self.autoBalance = (try? c.decode(Bool.self, forKey: .autoBalance)) ?? false
+      // Bool autoBalance values from older configs decode as `.both`
+      // (the Bool-true meaning) or `.none` (Bool-false). Hand-edited
+      // configs with the new enum string take priority.
+      if let mode = try? c.decode(AutoBalanceMode.self, forKey: .autoBalance) {
+        self.autoBalance = mode
+      } else if let flag = try? c.decode(Bool.self, forKey: .autoBalance) {
+        self.autoBalance = flag ? .both : .none
+      } else {
+        self.autoBalance = .none
+      }
+      self.splitType = (try? c.decode(SplitTypePreference.self, forKey: .splitType)) ?? .auto
+      self.windowPlacement = (try? c.decode(WindowPlacement.self, forKey: .windowPlacement))
+        ?? .second
+      self.windowOriginMode = (try? c.decode(WindowOriginMode.self, forKey: .windowOriginMode))
+        ?? .default
       self.defaultTilingMemory =
         (try? c.decode(TilingMemory.self, forKey: .defaultTilingMemory)) ?? .session
     }
   }
+}
+
+/// Auto-balance axis selector. Picks which split axes the tree
+/// re-equalizes after every insert/remove.
+public enum AutoBalanceMode: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case none
+  case horizontal
+  case vertical
+  case both
+  public var id: String { rawValue }
+  public var displayName: String {
+    switch self {
+    case .none: "Off"
+    case .horizontal: "Rows only"
+    case .vertical: "Columns only"
+    case .both: "Both axes"
+    }
+  }
+}
+
+/// Default split axis used when no per-leaf override is set.
+public enum SplitTypePreference: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case auto, horizontal, vertical
+  public var id: String { rawValue }
+  public var displayName: String {
+    switch self {
+    case .auto: "Auto (by aspect)"
+    case .horizontal: "Always horizontal"
+    case .vertical: "Always vertical"
+    }
+  }
+}
+
+/// Which side of the new split holds the newly-inserted window.
+public enum WindowPlacement: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case first
+  case second
+  public var id: String { rawValue }
+  public var displayName: String {
+    switch self {
+    case .first: "Top / left"
+    case .second: "Bottom / right"
+    }
+  }
+}
+
+/// Where a newly-opened window lands. Tatami currently only honors
+/// `.default` (use the window's own Space). The enum is wired so
+/// future expansion doesn't have to migrate persisted configs.
+public enum WindowOriginMode: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case `default`
+  case focused
+  case cursor
+  public var id: String { rawValue }
 }
 
 // MARK: - Focus + mouse

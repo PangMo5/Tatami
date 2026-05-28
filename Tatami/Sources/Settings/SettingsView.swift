@@ -32,9 +32,29 @@ struct SettingsView: View {
       }
 
       Section("Layout") {
-        Toggle(isOn: setting(\.layout.autoBalance)) {
+        Picker(selection: setting(\.layout.autoBalance)) {
+          ForEach(AutoBalanceMode.allCases) { mode in
+            Text(mode.displayName).tag(mode)
+          }
+        } label: {
           Text("Auto-balance")
           Text("Equalize every split whenever a window is added or removed.")
+        }
+        Picker(selection: setting(\.layout.splitType)) {
+          ForEach(SplitTypePreference.allCases) { type in
+            Text(type.displayName).tag(type)
+          }
+        } label: {
+          Text("Split direction")
+          Text("Default axis when a new window splits an existing tile.")
+        }
+        Picker(selection: setting(\.layout.windowPlacement)) {
+          ForEach(WindowPlacement.allCases) { place in
+            Text(place.displayName).tag(place)
+          }
+        } label: {
+          Text("New window placement")
+          Text("Which side of the new split holds the inserted window.")
         }
         Picker(selection: setting(\.layout.defaultTilingMemory)) {
           ForEach(TilingMemory.allCases, id: \.self) { memory in

@@ -22,6 +22,14 @@ public struct WorkspaceManagerClient: Sendable {
   public var activate: @Sendable (ActivationRequest) async -> Void
 }
 
+/// Reads as `@Dependency(\.mouse).hideUntilMouseMoves`. Surfaced via a
+/// dedicated `Sendable` thunk so `WorkspaceManagerClient.live` can
+/// invoke the cursor-hide side effect without reaching for a
+/// singleton.
+private struct CursorHideSink: Sendable {
+  let invoke: @Sendable () -> Void
+}
+
 public struct ActivationRequest: Sendable, Hashable {
   public var workspace: Workspace
   public var floatingApps: [FloatingApp]
@@ -57,6 +65,18 @@ extension WorkspaceManagerClient: DependencyKey {
   })
 
   static func live() -> WorkspaceManagerClient {
+    // Resolve the cursor-hide side effect through the dependency
+    // system instead of a singleton. `withDependencies(_:)` reads the
+    // current scope at call time — so test overrides of `\.mouse`
+    // still win.
+    let cursorHide = CursorHideSink {
+      @Dependency(\.mouse) var mouse
+      mouse.hideUntilMouseMoves()
+    }
+    return _live(cursorHide: cursorHide)
+  }
+
+  private static func _live(cursorHide: CursorHideSink) -> WorkspaceManagerClient {
     WorkspaceManagerClient(
       activate: { request in
         let workspaceBundleIds = Set(request.workspace.apps.map(\.bundleIdentifier))
@@ -129,7 +149,7 @@ extension WorkspaceManagerClient: DependencyKey {
           }
 
           if request.mouseHidesOnFocus {
-            CursorHidingController.shared.hideUntilMouseMoves()
+            cursorHide.invoke()
           }
 
           logger.info(
@@ -181,37 +201,3 @@ extension NSRunningApplication {
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WorkspaceManager")
-
-/// Hides the cursor on activation; the first global mouse-moved event
-/// brings it back. Reference-counts hides so back-to-back activations
-/// don't double-hide.
-@MainActor
-final class CursorHidingController {
-  static let shared = CursorHidingController()
-  private var monitor: Any?
-  private var isHidden = false
-
-  func hideUntilMouseMoves() {
-    if !isHidden {
-      CGDisplayHideCursor(CGMainDisplayID())
-      isHidden = true
-    }
-    guard monitor == nil else { return }
-    monitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
-      self?.show()
-    }
-  }
-
-  func show() {
-    if isHidden {
-      CGDisplayShowCursor(CGMainDisplayID())
-      isHidden = false
-    }
-    if let m = monitor {
-      NSEvent.removeMonitor(m)
-      monitor = nil
-    }
-  }
-
-  private init() {}
-}

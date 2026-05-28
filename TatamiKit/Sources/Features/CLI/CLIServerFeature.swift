@@ -134,8 +134,9 @@ public struct CLIServerFeature {
       let bundleIds = workspace.apps.map(\.bundleIdentifier)
       let settings = config.settings
       let targetDisplay = workspace.displayHint
+      @Dependency(\.sls) var sls
       let frames = await MainActor.run { () -> [WindowKey: CGRect] in
-        let keys = discoverWindowKeys(forBundleIds: bundleIds)
+        let keys = discoverWindowKeys(forBundleIds: bundleIds, sls: sls)
         let tree = BSPNode<WindowKey>.build(
           keys,
           in: CGRect(x: 0, y: 0, width: 1, height: 1)
