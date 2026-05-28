@@ -9,7 +9,7 @@ let developmentTeam = Environment.developmentTeam.getString(default: "")
 let sparklePublicEDKey = Environment.sparklePublicEdKey.getString(default: "")
 // Single source of truth for the marketing version. The release workflow
 // verifies the pushed tag matches this before building.
-let appVersion = "0.1.3"
+let appVersion = "1.0.0"
 // Build number is injected by CI (github.run_number); 1 for local builds.
 let buildNumber = Environment.buildNumber.getString(default: "1")
 
@@ -71,6 +71,14 @@ let project = Project(
         "MARKETING_VERSION": SettingValue(stringLiteral: appVersion),
         "CURRENT_PROJECT_VERSION": SettingValue(stringLiteral: buildNumber),
         "SPARKLE_PUBLIC_ED_KEY": SettingValue(stringLiteral: sparklePublicEDKey),
+        // Tuist defaults macOS app targets to ad-hoc ("-") signing, which
+        // makes macOS re-prompt for every TCC permission on each rebuild
+        // because the binary hash changes. Pin the target back to the
+        // developer's Apple Development cert. The release workflow
+        // overrides these with the Developer ID identity.
+        "CODE_SIGN_STYLE": "Automatic",
+        "CODE_SIGN_IDENTITY": "Apple Development",
+        "DEVELOPMENT_TEAM": SettingValue(stringLiteral: developmentTeam),
       ])
     ),
     .target(
