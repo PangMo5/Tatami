@@ -57,6 +57,8 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
 extension AppSettings {
   public struct General: Hashable, Sendable, Codable {
+    /// Register Tatami as a login item so it starts at login.
+    public var launchAtLogin: Bool
     public var checkForUpdatesAutomatically: Bool
     /// How often Sparkle checks for updates in the background.
     public var checkInterval: UpdateCheckInterval
@@ -65,21 +67,24 @@ extension AppSettings {
     public var isPaused: Bool
 
     public init(
+      launchAtLogin: Bool = false,
       checkForUpdatesAutomatically: Bool = true,
       checkInterval: UpdateCheckInterval = .daily,
       isPaused: Bool = false
     ) {
+      self.launchAtLogin = launchAtLogin
       self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
       self.checkInterval = checkInterval
       self.isPaused = isPaused
     }
 
     private enum CodingKeys: String, CodingKey {
-      case checkForUpdatesAutomatically, checkInterval, isPaused
+      case launchAtLogin, checkForUpdatesAutomatically, checkInterval, isPaused
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      self.launchAtLogin = (try? c.decode(Bool.self, forKey: .launchAtLogin)) ?? false
       self.checkForUpdatesAutomatically =
         (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
       self.checkInterval =

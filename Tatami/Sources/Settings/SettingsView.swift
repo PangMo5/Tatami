@@ -13,6 +13,13 @@ struct SettingsView: View {
 
   var body: some View {
     Form {
+      Section("General") {
+        Toggle(isOn: setting(\.general.launchAtLogin)) {
+          Text("Launch at login")
+          Text("Start Tatami automatically when you log in.")
+        }
+      }
+
       Section("Gaps") {
         Stepper(value: setting(\.layout.gapInner), in: 0 ... 100) {
           Text("Inner gap: \(config.settings.layout.gapInner) px")

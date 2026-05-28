@@ -34,6 +34,7 @@ public struct AppFeature {
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
   @Dependency(\.gestures) var gestures
   @Dependency(\.updater) var updater
+  @Dependency(\.loginItem) var loginItem
 
   public init() {}
 
@@ -93,6 +94,14 @@ public struct AppFeature {
                 automaticallyChecks: general.checkForUpdatesAutomatically,
                 interval: general.checkInterval.seconds
               )
+            }
+          },
+          // Keep the login-item registration in sync with the setting.
+          .run { [loginItem, sharedConfig] _ in
+            for await enabled in Perceptions({
+              sharedConfig.wrappedValue.settings.general.launchAtLogin
+            }) {
+              loginItem.setEnabled(enabled)
             }
           }
         )
