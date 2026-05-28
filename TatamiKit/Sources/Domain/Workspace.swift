@@ -30,8 +30,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   public var moveWindowShortcut: HotKey?
   /// SF Symbol name for menu/space-control rendering.
   public var symbolIconName: String?
-  /// Whether non-running assigned apps should auto-launch when activated.
-  public var openAppsOnActivation: Bool
   /// Bundle identifier of the app to focus when this workspace activates.
   /// Nil = focus the most recently active assigned app.
   public var appToFocusBundleId: String?
@@ -48,7 +46,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     assignAppShortcut: HotKey? = nil,
     moveWindowShortcut: HotKey? = nil,
     symbolIconName: String? = nil,
-    openAppsOnActivation: Bool = false,
     appToFocusBundleId: String? = nil,
     tilingMemory: TilingMemory? = nil,
     apps: [AppAssignment] = []
@@ -60,7 +57,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.assignAppShortcut = assignAppShortcut
     self.moveWindowShortcut = moveWindowShortcut
     self.symbolIconName = symbolIconName
-    self.openAppsOnActivation = openAppsOnActivation
     self.appToFocusBundleId = appToFocusBundleId
     self.tilingMemory = tilingMemory
     self.apps = apps
@@ -70,7 +66,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
 extension Workspace {
   private enum CodingKeys: String, CodingKey {
     case id, name, displayHint, activateShortcut, assignAppShortcut, moveWindowShortcut
-    case symbolIconName, openAppsOnActivation, appToFocusBundleId
+    case symbolIconName, appToFocusBundleId
     case tilingMemory
     case apps
   }
@@ -84,8 +80,6 @@ extension Workspace {
     assignAppShortcut = try container.decodeIfPresent(HotKey.self, forKey: .assignAppShortcut)
     moveWindowShortcut = try container.decodeIfPresent(HotKey.self, forKey: .moveWindowShortcut)
     symbolIconName = try container.decodeIfPresent(String.self, forKey: .symbolIconName)
-    openAppsOnActivation = try container.decodeIfPresent(Bool.self, forKey: .openAppsOnActivation)
-      ?? false
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
     tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
