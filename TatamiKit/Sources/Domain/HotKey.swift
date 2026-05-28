@@ -62,14 +62,24 @@ extension HotKey {
 
     let modPart: String?
     let keyPart: String
-    if let range = s.range(of: "-", options: .backwards),
-       s.distance(from: s.startIndex, to: range.lowerBound) > 0 {
-      // Standard `mods - key`. (Guard against a leading '-' which would
-      // be the minus key itself with no modifiers.)
+    if let range = s.range(of: " - ", options: .backwards) {
+      // Canonical `mods - key` (with spaces around the dash). The
+      // padded match is unambiguous when the key is itself "-", e.g.
+      // `"ctrl + alt - -"`, where a single-dash search would chop the
+      // string after the trailing dash and leave keyPart empty.
+      modPart = String(s[..<range.lowerBound])
+      keyPart = String(s[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+    } else if let range = s.range(of: "-", options: .backwards),
+              s.distance(from: s.startIndex, to: range.lowerBound) > 0,
+              range.upperBound != s.endIndex {
+      // Looser unpadded form like `"cmd-h"` — but only when something
+      // follows the dash (otherwise the dash IS the key) and isn't at
+      // the very start (a leading dash would also be the key).
       modPart = String(s[..<range.lowerBound])
       keyPart = String(s[range.upperBound...]).trimmingCharacters(in: .whitespaces)
     } else if s.contains("+") {
-      // Loose `ctrl+alt+h`: last token is the key, the rest modifiers.
+      // `ctrl+alt+h` / `ctrl+alt+-`: last token is the key, rest are
+      // modifiers. `+` is never a key name so it's safe to split on.
       var tokens = s.split(separator: "+").map { $0.trimmingCharacters(in: .whitespaces) }
       keyPart = tokens.removeLast()
       modPart = tokens.joined(separator: "+")

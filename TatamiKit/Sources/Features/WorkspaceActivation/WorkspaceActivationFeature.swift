@@ -1160,16 +1160,18 @@ public struct WorkspaceActivationFeature {
         tree = warped
       }
 
-    case .resize(let direction, let delta):
-      // Map compass direction to the split axis it acts on: east/west
-      // moves the vertical edge → resize the vertical split; north/
-      // south moves the horizontal edge → horizontal split.
-      let axis: BSPNode<WindowKey>.SplitAxis =
-        (direction == .east || direction == .west) ? .vertical : .horizontal
-      // The sign depends on which side of the parent split the focused
-      // window sits on. updatingRatio clamps internally; resizing()
-      // tweaks the nearest matching-axis ancestor.
-      tree = tree.resizing(window: windowKey, axis: axis, delta: delta)
+    case .resize(_, let delta):
+      // Pick the axis from the focused window's *parent* split so
+      // Grow/Shrink works for both vertical (side-by-side) and
+      // horizontal (top/bottom) splits. The `direction` argument is
+      // intentionally unused here — Tatami only exposes single-knob
+      // Grow/Shrink hotkeys, so resize always acts along whatever axis
+      // the focused leaf shares with its sibling.
+      guard let path = tree.pathTo(window: windowKey), !path.isEmpty,
+            case .branch(let parentSplit, _, _, _) =
+              tree.subtree(at: Array(path.dropLast()))
+      else { break }
+      tree = tree.resizing(window: windowKey, axis: parentSplit, delta: delta)
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)
