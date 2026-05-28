@@ -23,9 +23,9 @@ public struct WindowKey: Hashable, Sendable, Codable {
 
 /// Private Accessibility bridge that maps an `AXUIElement` to its
 /// `CGWindowID`. Apple has shipped this symbol since 10.10; every
-/// modern macOS tiling WM (yabai, AeroSpace, Amethyst) relies on it
-/// because the public AX API has no other way to correlate an AX
-/// window handle with a CGS window record.
+/// common macOS tiling tool relies on it because the public AX API
+/// has no other way to correlate an AX window handle with a CGS
+/// window record.
 @_silgen_name("_AXUIElementGetWindow")
 func _AXUIElementGetWindow(
   _ element: AXUIElement,
@@ -38,9 +38,9 @@ func _AXUIElementGetWindow(
 /// inactive Spaces.
 ///
 /// The token's binary layout is an undocumented macOS ABI (the same one
-/// every tiling WM relies on — yabai, AeroSpace, Hammerspoon); the magic
-/// and field offsets below are dictated by the OS, not by any one
-/// project. The technique was first written up publicly by decodism.
+/// every common macOS tiling tool relies on); the magic and field
+/// offsets below are dictated by the OS, not by any one project. The
+/// technique was first written up publicly by decodism.
 @_silgen_name("_AXUIElementCreateWithRemoteToken")
 func _AXUIElementCreateWithRemoteToken(_ data: CFData) -> Unmanaged<AXUIElement>?
 
@@ -65,6 +65,9 @@ func onScreenWindowIDs(pid: pid_t) -> Set<CGWindowID> {
 /// Recover `WindowKey`s for windows present on screen but missing from
 /// `kAXWindowsAttribute`, by brute-forcing the AX remote-token element
 /// id until each missing CGWindowID resolves to an `AXWindow` element.
+/// Recovered windows go through the same eligibility checks as the AX
+/// walk: standard subrole + movable + resizable. Without that, a
+/// dialog/sheet that AX had hidden could slip into the tree.
 @MainActor
 func recoverWindowKeys(
   pid: pid_t,
@@ -93,10 +96,83 @@ func recoverWindowKeys(
     guard _AXUIElementGetWindow(element, &wid) == .success,
           remaining.contains(wid)
     else { continue }
+    guard isStandardTileable(window: element) else {
+      remaining.remove(wid)
+      continue
+    }
+    if isStickyWindow(wid) {
+      remaining.remove(wid)
+      continue
+    }
     remaining.remove(wid)
     result.append(WindowKey(pid: pid, windowID: wid, bundleId: bundleId))
   }
   return result
+}
+
+/// Standard-window check combined with movability and resizability:
+/// only true if the AX element claims standard subrole AND its
+/// position/size attributes are settable. Non-tileable utility windows
+/// (palettes, fixed-size HUDs) fail one of these.
+@MainActor
+func isStandardTileable(window: AXUIElement) -> Bool {
+  var subroleRaw: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(
+    window, kAXSubroleAttribute as CFString, &subroleRaw
+  ) == .success,
+        (subroleRaw as? String) == kAXStandardWindowSubrole as String
+  else { return false }
+  var movable: DarwinBoolean = false
+  var resizable: DarwinBoolean = false
+  AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
+  AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
+  return movable.boolValue && resizable.boolValue
+}
+
+// MARK: - Sticky (cross-Space) detection via private SkyLight API
+
+private typealias SLSMainConnectionIDFn = @convention(c) () -> Int32
+private typealias SLSCopySpacesForWindowsFn =
+  @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
+
+/// Loaded once at module init; `nil` if the private SkyLight framework
+/// can't be opened (defensive — would only happen on a heavily-modified
+/// system). Without it we just disable sticky filtering.
+private nonisolated(unsafe) let _skyLightHandle: UnsafeMutableRawPointer? = dlopen(
+  "/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight",
+  RTLD_NOW
+)
+
+private nonisolated(unsafe) let _SLSMainConnectionID: SLSMainConnectionIDFn? = {
+  guard let h = _skyLightHandle, let sym = dlsym(h, "SLSMainConnectionID")
+  else { return nil }
+  return unsafeBitCast(sym, to: SLSMainConnectionIDFn.self)
+}()
+
+private nonisolated(unsafe) let _SLSCopySpacesForWindows: SLSCopySpacesForWindowsFn? = {
+  guard let h = _skyLightHandle, let sym = dlsym(h, "SLSCopySpacesForWindows")
+  else { return nil }
+  return unsafeBitCast(sym, to: SLSCopySpacesForWindowsFn.self)
+}()
+
+/// True when the OS reports `windowID` as living in more than one
+/// Space — i.e. it's pinned to "all desktops". Sticky windows must not
+/// be tiled: they'd duplicate themselves into every workspace's tree
+/// and the BSP layout would fight the OS over their position.
+///
+/// Mask `0x7` selects user + system + fullscreen-tile spaces, matching
+/// the upstream sticky-window check.
+@MainActor
+func isStickyWindow(_ windowID: CGWindowID) -> Bool {
+  guard let getConn = _SLSMainConnectionID,
+        let getSpaces = _SLSCopySpacesForWindows
+  else { return false }
+  let cid = getConn()
+  let ids: [CGWindowID] = [windowID]
+  guard let spacesRaw = getSpaces(cid, 0x7, ids as CFArray)?.takeRetainedValue(),
+        let spaces = spacesRaw as? [Any]
+  else { return false }
+  return spaces.count > 1
 }
 
 extension WindowKey {

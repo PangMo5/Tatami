@@ -179,6 +179,46 @@ struct SettingsView: View {
         }
       }
 
+      Section("Window Markers") {
+        Toggle(isOn: setting(\.marker.fullscreenEnabled)) {
+          Text("Mark fullscreen window")
+          Text("Show a small color dot on the workspace's zoomed window.")
+        }
+        ColorPicker(
+          "Fullscreen color",
+          selection: borderColorBinding(\.marker.fullscreenColorHex),
+          supportsOpacity: false
+        )
+        .disabled(!config.settings.marker.fullscreenEnabled)
+
+        Toggle(isOn: setting(\.marker.floatingEnabled)) {
+          Text("Mark floating windows")
+          Text("Show a small color dot on windows of apps in your floating list.")
+        }
+        ColorPicker(
+          "Floating color",
+          selection: borderColorBinding(\.marker.floatingColorHex),
+          supportsOpacity: false
+        )
+        .disabled(!config.settings.marker.floatingEnabled)
+
+        Stepper(value: setting(\.marker.size), in: 8 ... 28, step: 1) {
+          Text("Dot size: \(Int(config.settings.marker.size)) pt")
+        }
+        Picker(selection: setting(\.marker.corner)) {
+          ForEach(MarkerCorner.allCases) { corner in
+            Text(corner.displayName).tag(corner)
+          }
+        } label: {
+          Text("Dot position")
+          Text("Window corner where the dot is anchored.")
+        }
+        Toggle(isOn: setting(\.marker.hideOnHover)) {
+          Text("Fade on hover")
+          Text("Hide the dot while the cursor is over it.")
+        }
+      }
+
       Section("Updates") {
         Toggle(isOn: setting(\.general.checkForUpdatesAutomatically)) {
           Text("Check for updates automatically")
@@ -219,6 +259,19 @@ struct SettingsView: View {
     KeyboardShortcuts.Recorder(title, name: action.keyboardShortcutName) { shortcut in
       $config.withLock { $0.settings.shortcuts[keyPath: keyPath] = shortcut.map(HotKey.init) }
     }
+  }
+
+  /// SwiftUI `Color` binding backed by a hex-string field in settings.
+  private func borderColorBinding(
+    _ keyPath: WritableKeyPath<AppSettings, String>
+  ) -> Binding<Color> {
+    Binding(
+      get: { Color(hex: config.settings[keyPath: keyPath]) ?? .blue },
+      set: { newColor in
+        guard let hex = newColor.toHex() else { return }
+        $config.withLock { $0.settings[keyPath: keyPath] = hex }
+      }
+    )
   }
 
   /// Two-way binding for a single `AppSettings` field, persisted through

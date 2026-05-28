@@ -10,6 +10,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   public var general: General
   public var menuBar: MenuBar
   public var hud: HUD
+  public var marker: Marker
   public var layout: Layout
   public var focus: Focus
   public var switching: Switching
@@ -20,6 +21,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     general: General = General(),
     menuBar: MenuBar = MenuBar(),
     hud: HUD = HUD(),
+    marker: Marker = Marker(),
     layout: Layout = Layout(),
     focus: Focus = Focus(),
     switching: Switching = Switching(),
@@ -29,6 +31,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.general = general
     self.menuBar = menuBar
     self.hud = hud
+    self.marker = marker
     self.layout = layout
     self.focus = focus
     self.switching = switching
@@ -37,7 +40,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case general, menuBar, hud, layout, focus, switching, gestures, shortcuts
+    case general, menuBar, hud, marker, layout, focus, switching, gestures, shortcuts
   }
 
   public init(from decoder: Decoder) throws {
@@ -45,6 +48,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     self.general = (try? c.decode(General.self, forKey: .general)) ?? General()
     self.menuBar = (try? c.decode(MenuBar.self, forKey: .menuBar)) ?? MenuBar()
     self.hud = (try? c.decode(HUD.self, forKey: .hud)) ?? HUD()
+    self.marker = (try? c.decode(Marker.self, forKey: .marker)) ?? Marker()
     self.layout = (try? c.decode(Layout.self, forKey: .layout)) ?? Layout()
     self.focus = (try? c.decode(Focus.self, forKey: .focus)) ?? Focus()
     self.switching = (try? c.decode(Switching.self, forKey: .switching)) ?? Switching()
@@ -108,6 +112,82 @@ extension AppSettings {
   }
 }
 
+// MARK: - Marker
+
+extension AppSettings {
+  public struct Marker: Hashable, Sendable, Codable {
+    /// Show a corner dot on floating windows.
+    public var floatingEnabled: Bool
+    /// Floating-window dot color (`#RRGGBB` or `#RRGGBBAA`).
+    public var floatingColorHex: String
+    /// Show a corner dot on the zoomed (workspace fullscreen) window.
+    public var fullscreenEnabled: Bool
+    /// Fullscreen-window dot color (`#RRGGBB` or `#RRGGBBAA`).
+    public var fullscreenColorHex: String
+    /// Dot diameter in points.
+    public var size: Double
+    /// Which window corner the dot is pinned to.
+    public var corner: MarkerCorner
+    /// Fade the dot out while the cursor hovers over it, so it stops
+    /// blocking the window's title-bar controls.
+    public var hideOnHover: Bool
+
+    public init(
+      floatingEnabled: Bool = true,
+      floatingColorHex: String = "#FF9500",
+      fullscreenEnabled: Bool = true,
+      fullscreenColorHex: String = "#007AFF",
+      size: Double = 14,
+      corner: MarkerCorner = .bottomTrailing,
+      hideOnHover: Bool = true
+    ) {
+      self.floatingEnabled = floatingEnabled
+      self.floatingColorHex = floatingColorHex
+      self.fullscreenEnabled = fullscreenEnabled
+      self.fullscreenColorHex = fullscreenColorHex
+      self.size = size
+      self.corner = corner
+      self.hideOnHover = hideOnHover
+    }
+
+    private enum CodingKeys: String, CodingKey {
+      case floatingEnabled, floatingColorHex
+      case fullscreenEnabled, fullscreenColorHex
+      case size, corner, hideOnHover
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      self.floatingEnabled = (try? c.decode(Bool.self, forKey: .floatingEnabled)) ?? true
+      self.floatingColorHex = (try? c.decode(String.self, forKey: .floatingColorHex)) ?? "#FF9500"
+      self.fullscreenEnabled = (try? c.decode(Bool.self, forKey: .fullscreenEnabled)) ?? true
+      self.fullscreenColorHex = (try? c.decode(String.self, forKey: .fullscreenColorHex)) ?? "#007AFF"
+      self.size = (try? c.decode(Double.self, forKey: .size)) ?? 14
+      self.corner = (try? c.decode(MarkerCorner.self, forKey: .corner)) ?? .bottomTrailing
+      self.hideOnHover = (try? c.decode(Bool.self, forKey: .hideOnHover)) ?? true
+    }
+  }
+}
+
+/// Which corner of the host window a `Marker` dot is pinned to.
+public enum MarkerCorner: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case topLeading
+  case topTrailing
+  case bottomLeading
+  case bottomTrailing
+
+  public var id: String { rawValue }
+
+  public var displayName: String {
+    switch self {
+    case .topLeading: "Top-left"
+    case .topTrailing: "Top-right"
+    case .bottomLeading: "Bottom-left"
+    case .bottomTrailing: "Bottom-right"
+    }
+  }
+}
+
 // MARK: - HUD
 
 extension AppSettings {
@@ -137,7 +217,7 @@ extension AppSettings {
     /// Pixels between the outermost windows and the display work area.
     public var gapOuter: Int
     /// When true, every insert/remove rebalances the BSP tree so all
-    /// leaves end up with equal area. Yabai's `auto_balance` knob.
+    /// leaves end up with equal area.
     public var autoBalance: Bool
     /// Global default for how workspaces remember their BSP layout.
     /// A workspace's own `tilingMemory` overrides this when set.
@@ -170,7 +250,7 @@ extension AppSettings {
   }
 }
 
-// MARK: - Focus + mouse (yabai-style)
+// MARK: - Focus + mouse
 
 extension AppSettings {
   public struct Focus: Hashable, Sendable, Codable {
@@ -412,8 +492,7 @@ public enum UpdateCheckInterval: String, Codable, Hashable, Sendable, CaseIterab
   }
 }
 
-/// Modifier key that temporarily suspends `focusFollowsMouse`, matching
-/// yabai's `focus_follows_mouse_disable_hotkey` config knob.
+/// Modifier key that temporarily suspends `focusFollowsMouse`.
 public enum FocusFollowsMouseModifier: String, Codable, Hashable, Sendable, CaseIterable {
   case none
   case option = "Alt"

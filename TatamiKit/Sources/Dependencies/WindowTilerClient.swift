@@ -9,7 +9,7 @@ import OSLog
 /// Accessibility. BSP tree maths live in the reducer; this dependency
 /// just talks to AX, handles the macOS-fullscreen exit dance, and
 /// suppresses system animations with the `AXEnhancedUserInterface`
-/// toggle so frames snap into place yabai-style.
+/// toggle so frames snap into place without animation.
 @DependencyClient
 public struct WindowTilerClient: Sendable {
   public var apply: @Sendable (FrameApplication) async -> Void
@@ -88,10 +88,10 @@ extension WindowTilerClient: DependencyKey {
 
     // With AXEnhancedUserInterface ON, AppKit animates every AX frame
     // change (Chrome/Electron especially) — the "windows slide into
-    // place" effect. yabai's fix: if it's on, turn it OFF for the
-    // duration of the move/resize, then restore. If it's already off,
-    // don't touch it. (We do NOT turn it on — doing so is what caused
-    // the stray animations.)
+    // place" effect. If it's on, turn it OFF for the duration of the
+    // move/resize, then restore. If it's already off, don't touch it.
+    // (We do NOT turn it on — doing so is what caused the stray
+    // animations.)
     let enhanced = "AXEnhancedUserInterface" as CFString
     var enhancedWasOn = false
     var enhancedRaw: CFTypeRef?
@@ -232,6 +232,15 @@ public func discoverWindowKeys(forBundleIds bundleIds: [String]) -> [WindowKey] 
       &raw
     ) == .success, let windows = raw as? [AXUIElement] {
       for window in windows {
+        // Record every AX-visible window's CGWindowID up front (before
+        // user filters) so the CG-vs-AX diff below correctly excludes
+        // dialogs/sheets that AX already exposed. Otherwise a window
+        // we explicitly chose to skip would re-enter via remote-token
+        // recovery — defeating the filter.
+        var rawID: CGWindowID = 0
+        if _AXUIElementGetWindow(window, &rawID) == .success, rawID != 0 {
+          axWindowIDs.insert(rawID)
+        }
         // One AX round-trip for both filters (minimized + subrole)
         // instead of two, then one more for the CGWindowID bridge.
         var valuesRef: CFArray?
@@ -244,16 +253,30 @@ public func discoverWindowKeys(forBundleIds bundleIds: [String]) -> [WindowKey] 
           subrole = values[1] as? String
         }
         if minimized { continue }
+        // Standard windows only. Dialogs / IME indicators / tooltips
+        // fall outside this set, so they never enter the tree. Apps
+        // whose "real" windows arrive hidden from AX (KakaoTalk chats
+        // opened via the Notification Center, etc.) are caught by the
+        // remote-token recovery pass below.
         if let subrole, subrole != kAXStandardWindowSubrole as String { continue }
+        // Position + size must be settable, else we'd write to a window
+        // the host app rejects.
+        var movable: DarwinBoolean = false
+        var resizable: DarwinBoolean = false
+        AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
+        AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
+        if !movable.boolValue || !resizable.boolValue { continue }
         if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
+          // Sticky windows (pinned to all Spaces) must not be tiled —
+          // they'd duplicate into every workspace's tree.
+          if isStickyWindow(key.windowID) { continue }
           result.append(key)
-          axWindowIDs.insert(key.windowID)
         }
       }
     }
 
     // Recover windows on screen that AX failed to enumerate (KakaoTalk,
-    // inactive-Space windows). yabai's remote-token workaround.
+    // inactive-Space windows) via the remote-token workaround.
     let missing = onScreenWindowIDs(pid: pid).subtracting(axWindowIDs)
     result.append(
       contentsOf: recoverWindowKeys(pid: pid, missing: missing, bundleId: bundleId)

@@ -2,13 +2,13 @@ import Foundation
 
 /// Pure value-typed Binary Space Partitioning tree.
 ///
-/// Algorithm follows yabai's `view.c`:
 /// * leaves carry a single window identifier; internal nodes carry a
 ///   split axis + ratio
-/// * insertion places the new window at the **shallowest leaf** (BFS)
-///   and chooses the split axis from the **target leaf's aspect**
-///   (wider → vertical split / side-by-side; taller → horizontal split
-///   / top-bottom)
+/// * insertion places the new window next to the focused/anchor leaf,
+///   and Tatami falls back to the **deepest leaf** of the spiral tail
+///   when no anchor is set — producing a dwindle layout. Split axis is
+///   chosen from the target leaf's aspect (wider → vertical split /
+///   side-by-side; taller → horizontal split / top-bottom)
 /// * removal collapses the surviving sibling into the parent
 /// * frame layout subtracts an inner `gap` at every split so adjacent
 ///   siblings share exactly one gap regardless of depth
@@ -125,7 +125,7 @@ extension BSPNode {
         case (let l?, nil): return l
         case (nil, let r?): return r
         case (let l?, let r?):
-          // Prefer the right/second child on ties (yabai second_child).
+          // Prefer the right/second child on ties.
           return r.depth >= l.depth ? r : l
         }
       }
@@ -133,13 +133,11 @@ extension BSPNode {
     return search(self, 0)?.id
   }
 
-  /// Build a yabai-style dwindle (spiral) tree: insert each window in
-  /// order, splitting the *previously inserted* leaf — exactly what
-  /// yabai produces when you open the same windows one at a time and
-  /// focus follows each new window. The first window takes half the
-  /// space, the next a quarter, and so on, alternating split axis by
-  /// the leaf's aspect. `rect` is the real work area so the axis
-  /// choices match the screen.
+  /// Build a dwindle (spiral) tree: insert each window in order,
+  /// splitting the *previously inserted* leaf. The first window takes
+  /// half the space, the next a quarter, and so on, alternating split
+  /// axis by the leaf's aspect. `rect` is the real work area so the
+  /// axis choices match the screen.
   public static func dwindleBuild(
     _ windows: [WindowID],
     in rect: CGRect
@@ -169,9 +167,9 @@ extension BSPNode {
   }
 
   /// Insert a window into the tree. If `focusedWindow` is supplied and
-  /// is already a leaf, the new window splits *that* leaf — the yabai
-  /// "open next to the focused window" behavior. Otherwise falls back
-  /// to splitting the shallowest leaf.
+  /// is already a leaf, the new window splits *that* leaf — placing it
+  /// next to the focused window. Otherwise falls back to splitting the
+  /// shallowest leaf.
   ///
   /// Split axis is chosen from the target leaf's aspect ratio: wider
   /// than tall → vertical split (side-by-side); taller than wide →
@@ -298,12 +296,11 @@ extension BSPNode {
   }
 
   /// Move `window` in `direction` when there's no tile neighbor to swap
-  /// with — yabai's `window --warp` fallback. Rewrites the window's
-  /// parent split so its axis matches the requested direction
-  /// (east/west → side-by-side, north/south → stacked) and places the
-  /// window on the corresponding side. So two side-by-side windows
-  /// "warped" downward become stacked with the moved window on the
-  /// bottom. No-op if `window` is the root leaf.
+  /// with. Rewrites the window's parent split so its axis matches the
+  /// requested direction (east/west → side-by-side, north/south →
+  /// stacked) and places the window on the corresponding side. So two
+  /// side-by-side windows "warped" downward become stacked with the
+  /// moved window on the bottom. No-op if `window` is the root leaf.
   public func warping(_ window: WindowID, direction: BSPDirection) -> BSPNode {
     guard let path = pathTo(window: window), let side = path.last else { return self }
     let parentPath = Array(path.dropLast())
@@ -493,8 +490,8 @@ extension BSPNode {
 
 extension BSPNode {
   /// Equalize every split so child sizes match the number of leaves
-  /// they contain. Matches yabai's `space --balance`: a 1:3 sibling
-  /// split becomes 0.25, regardless of any user-applied ratios.
+  /// they contain. A 1:3 sibling split becomes 0.25, regardless of any
+  /// user-applied ratios.
   public func balanced() -> BSPNode {
     switch self {
     case .leaf:
@@ -516,8 +513,8 @@ extension BSPNode {
   }
 
   /// Rotate the entire tree clockwise by 90 / 180 / 270 degrees.
-  /// Translation of yabai's `window_node_rotate` — the swap-and-flip
-  /// rules differ per quadrant so each rotation is one pass.
+  /// The swap-and-flip rules differ per quadrant so each rotation is
+  /// one pass.
   public func rotated(by degrees: Int) -> BSPNode {
     let d = ((degrees % 360) + 360) % 360
     switch self {
@@ -545,7 +542,7 @@ extension BSPNode {
 
   /// Mirror the tree along `axis`. Splits matching the axis flip
   /// left/right and invert their ratio — splits on the orthogonal
-  /// axis are unchanged. Matches yabai's `space --mirror x-axis`.
+  /// axis are unchanged.
   public func mirrored(axis: SplitAxis) -> BSPNode {
     switch self {
     case .leaf:
@@ -570,19 +567,18 @@ extension BSPNode {
   }
 }
 
-/// Compass directions for yabai-style geometric "neighbor of focused"
-/// lookups (swap/focus/resize). North = up, South = down in AX
-/// top-origin coordinates, matching yabai's CLI vocabulary.
+/// Compass directions for geometric "neighbor of focused" lookups
+/// (swap/focus/resize). North = up, South = down in AX top-origin
+/// coordinates.
 public enum BSPDirection: Sendable, Hashable {
   case west, east, north, south
 }
 
 extension BSPNode {
   /// Closest leaf adjacent to `key` in `direction`. Scores candidates
-  /// by distance along the axis plus a perpendicular penalty — same
-  /// approach yabai's `view_window_in_direction` uses, so windows that
-  /// share an edge with the focused one win over ones diagonally
-  /// further away.
+  /// by distance along the axis plus a perpendicular penalty, so
+  /// windows that share an edge with the focused one win over ones
+  /// diagonally further away.
   public func directionalNeighbor(
     of key: WindowID,
     direction: BSPDirection,
@@ -621,7 +617,7 @@ extension BSPNode {
 
 extension BSPNode.SplitAxis {
   /// Subdivide `rect` into left/right children, applying a single
-  /// `gap` between them (matching yabai's `area_make_pair`).
+  /// `gap` between them.
   func subdivide(
     _ rect: CGRect,
     ratio: CGFloat,

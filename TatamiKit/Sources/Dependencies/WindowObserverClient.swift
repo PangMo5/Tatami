@@ -9,8 +9,7 @@ import OSLog
 /// Watches the windows of a fixed set of bundle identifiers via
 /// `AXObserver`. Emits an event whenever a window is created or
 /// destroyed in any of those apps, so the reducer can re-tile the
-/// workspace in real time — matching yabai's "windows are always
-/// laid out" behavior.
+/// workspace in real time — preserving the always-laid-out invariant.
 @DependencyClient
 public struct WindowObserverClient: Sendable {
   /// Replace the set of observed bundle identifiers. Pass empty to
@@ -30,9 +29,12 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// drag-to-swap.
   case windowMoved(key: WindowKey, frame: CGRect)
   /// Focus moved to a different window (including between windows of the
-  /// same app, which `didActivateApplication` doesn't report). Reducer
-  /// uses this to keep the BSP insertion point current.
-  case windowFocused(key: WindowKey)
+  /// same app, which `didActivateApplication` doesn't report). `key` is
+  /// nil when the focused AX element couldn't be resolved to a tracked
+  /// `WindowKey` (e.g. AX-hidden windows opened via Notification Center
+  /// dispatches). The bundle id is still emitted so the reducer can
+  /// re-reconcile that app's windows — the front-switch reconcile path.
+  case windowFocused(bundleId: String, key: WindowKey?)
 }
 
 extension WindowObserverClient: DependencyKey {
@@ -63,6 +65,17 @@ extension DependencyValues {
 
 /// Lives for the lifetime of the process. All AX work hops to the main
 /// thread because the observer runs on the main run loop.
+///
+/// Observers are kept for the process lifetime of each observed app:
+/// `observe(bundleIds:)` is purely additive, never tears anything down
+/// just because a bundle id disappeared from the caller's "interesting"
+/// set. Once an `AXObserver` is wired up for a pid we keep it until the
+/// pid actually exits. Tearing the observer down and rebuilding it on
+/// every sync would lose any `kAXWindowCreated` that fired in the gap
+/// (a known source of the "Notification-Center-opened KakaoTalk window
+/// is invisible" bug).
+/// Termination cleanup runs on each `observe` call and on every event
+/// hop.
 private final class WindowObserverCenter: @unchecked Sendable {
   let events: AsyncStream<WindowChangeEvent>
   private let continuation: AsyncStream<WindowChangeEvent>.Continuation
@@ -82,29 +95,31 @@ private final class WindowObserverCenter: @unchecked Sendable {
 
   @MainActor
   private func installOrUpdate(bundleIds: [String]) {
-    let targets = bundleIds.compactMap { bundleId -> (String, pid_t)? in
-      guard let app = NSRunningApplication
-        .runningApplications(withBundleIdentifier: bundleId)
-        .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
-      else { return nil }
-      return (bundleId, app.processIdentifier)
-    }
-
-    let nextPIDs = Set(targets.map(\.1))
-
-    // Tear down observers no longer needed.
-    for (pid, obs) in observed where !nextPIDs.contains(pid) {
+    // Drop observers whose pid has died. Anything still running stays
+    // observed even if it's no longer in the caller's interest set —
+    // the next focus/launch event will surface it again, and we'd
+    // otherwise have to rebuild the AXObserver from scratch (losing
+    // any window-created event in flight).
+    for (pid, obs) in observed where !ObservedApp.isPidAlive(pid) {
       obs.tearDown()
+      observed.removeValue(forKey: pid)
     }
-    observed = observed.filter { nextPIDs.contains($0.key) }
 
-    for (bundleId, pid) in targets where observed[pid] == nil {
-      if let obs = ObservedApp.install(
-        pid: pid,
-        bundleId: bundleId,
-        continuation: continuation
-      ) {
-        observed[pid] = obs
+    // Add observers for any new (pid, bundleId) pair we haven't seen
+    // yet. Apps with multiple processes (e.g. helper instances) each
+    // get their own AXObserver.
+    for bundleId in bundleIds {
+      let apps = NSRunningApplication
+        .runningApplications(withBundleIdentifier: bundleId)
+        .filter { !$0.isTerminated && $0.activationPolicy == .regular }
+      for app in apps where observed[app.processIdentifier] == nil {
+        if let obs = ObservedApp.install(
+          pid: app.processIdentifier,
+          bundleId: bundleId,
+          continuation: continuation
+        ) {
+          observed[app.processIdentifier] = obs
+        }
       }
     }
   }
@@ -121,6 +136,14 @@ private final class ObservedApp {
   let observer: AXObserver
   let appElement: AXUIElement
   let continuation: AsyncStream<WindowChangeEvent>.Continuation
+  /// While a menu is open AX briefly hops focus to the menu element
+  /// and back, which would otherwise trigger reconciles. Toggled by
+  /// `kAXMenuOpened/Closed` to gate focus events.
+  fileprivate var isMenuOpen = false
+
+  fileprivate static func isPidAlive(_ pid: pid_t) -> Bool {
+    NSRunningApplication(processIdentifier: pid).map { !$0.isTerminated } ?? false
+  }
 
   fileprivate static func install(
     pid: pid_t,
@@ -147,6 +170,35 @@ private final class ObservedApp {
     // App-level: which window holds focus (fires on same-app switches).
     AXObserverAddNotification(
       observer, appElement, kAXFocusedWindowChangedNotification as CFString, info
+    )
+    // App-level: which window is "main" — fires for apps that swap
+    // their main window without re-firing focused-window-changed
+    // (e.g. Notification-Center dispatches that change which chat
+    // window is foreground). Treated the same as focused-changed.
+    AXObserverAddNotification(
+      observer, appElement, kAXMainWindowChangedNotification as CFString, info
+    )
+    // App-level miniaturize/deminiaturize — without these, minimizing a
+    // window doesn't get noticed until the next focus/launch event and
+    // the BSP tree silently holds onto a tile for an invisible window.
+    AXObserverAddNotification(
+      observer, appElement, kAXWindowMiniaturizedNotification as CFString, info
+    )
+    AXObserverAddNotification(
+      observer, appElement, kAXWindowDeminiaturizedNotification as CFString, info
+    )
+    // Menu-opened gating: suppress focus reconciles while a menu is
+    // open because focus briefly hops to the menu element and back.
+    // Title changes are cosmetic but kept as an observer so we can
+    // surface them later if needed.
+    AXObserverAddNotification(
+      observer, appElement, kAXMenuOpenedNotification as CFString, info
+    )
+    AXObserverAddNotification(
+      observer, appElement, kAXMenuClosedNotification as CFString, info
+    )
+    AXObserverAddNotification(
+      observer, appElement, kAXTitleChangedNotification as CFString, info
     )
 
     // Existing windows: subscribe to destruction + resize + move.
@@ -244,8 +296,8 @@ private func axObserverCallback(
       // Only treat a resize as user-driven when the left mouse button
       // is held — otherwise this alert is the echo of our own tiling
       // writes (swap / warp / zoom / retile), and feeding it back into
-      // the tree corrupts the layout. yabai gates the same way (manual
-      // resize happens via mouse drag).
+      // the tree corrupts the layout. (Manual resize happens via mouse
+      // drag.)
       if isLeftMouseDown(),
          let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
          let frame = axFrame(of: element),
@@ -261,13 +313,32 @@ private func axObserverCallback(
       {
         app.continuation.yield(.windowMoved(key: key, frame: frame))
       }
-    case kAXFocusedWindowChangedNotification as String:
-      // `element` is the newly focused window. No mouse gate — focus
-      // changes are always meaningful, and this is state-only (no AX
-      // writes), so it can't feed back into a tiling loop.
-      if let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId) {
-        app.continuation.yield(.windowFocused(key: key))
-      }
+    case kAXFocusedWindowChangedNotification as String,
+         kAXMainWindowChangedNotification as String:
+      // `element` is the newly focused/main window. No mouse gate —
+      // these are state-only (no AX writes), so they can't feed back
+      // into a tiling loop. Emit even when `WindowKey.from` fails
+      // (some apps' windows are AX-hidden until reconciled with
+      // CGWindowList) so the reducer can still trigger a per-app
+      // reconcile — the front-switch reconcile pattern.
+      // Skip while a menu is open: AX briefly bounces focus to the
+      // menu element and back, which would just churn the BSP.
+      if app.isMenuOpen { break }
+      let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId)
+      app.continuation.yield(.windowFocused(bundleId: app.bundleId, key: key))
+    case kAXWindowMiniaturizedNotification as String,
+         kAXWindowDeminiaturizedNotification as String:
+      // Treat both as a reason to reconcile — minimized windows drop
+      // out of `discoverWindowKeys` (subrole filter), restored ones
+      // need to come back into the tree.
+      app.continuation.yield(.windowCreated(bundleId: app.bundleId))
+    case kAXMenuOpenedNotification as String:
+      app.isMenuOpen = true
+    case kAXMenuClosedNotification as String:
+      app.isMenuOpen = false
+    case kAXTitleChangedNotification as String:
+      // Cosmetic; subscribed for completeness, no reconcile work needed.
+      break
     default:
       break
     }
