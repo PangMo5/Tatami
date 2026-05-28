@@ -36,6 +36,7 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `checkForUpdatesAutomatically` | bool | `true` | Periodically check for new releases. |
+| `checkInterval` | string | `"daily"` | Background update-check frequency: `hourly`, `daily`, or `weekly`. |
 | `isPaused` | bool | `false` | When true, tiling/activation is suspended (toggled by the pause hotkey). |
 
 ## `[settings.menuBar]`
@@ -73,7 +74,6 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
 | `focusFollowsMouseDisableHotkey` | string | `"Alt"` | Modifier that temporarily suspends focus-follows-mouse: `None`, `Alt`, `Cmd`, `Ctrl`, `Shift`. |
-| `autoFocusBlacklist` | [string] | `[]` | Bundle IDs allowed to steal focus without triggering a workspace switch (Spotlight, Raycast, …). |
 
 ## `[settings.switching]`
 

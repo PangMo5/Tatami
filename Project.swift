@@ -86,6 +86,7 @@ let project = Project(
         .external(name: "Sharing"),
         .external(name: "KeyboardShortcuts"),
         .external(name: "TOML"),
+        .external(name: "Sparkle"),
       ]
     ),
     .target(

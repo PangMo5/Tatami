@@ -33,6 +33,7 @@ public struct AppFeature {
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
   @Dependency(\.gestures) var gestures
+  @Dependency(\.updater) var updater
 
   public init() {}
 
@@ -82,6 +83,16 @@ public struct AppFeature {
           .run { send in
             for await settings in Perceptions({ sharedConfig.wrappedValue.settings }) {
               await send(.settingsChanged(settings))
+            }
+          },
+          // Reading `updater` starts Sparkle's background schedule; keep
+          // its auto-check preference + interval in sync with settings.
+          .run { [updater, sharedConfig] _ in
+            for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
+              updater.configure(
+                automaticallyChecks: general.checkForUpdatesAutomatically,
+                interval: general.checkInterval.seconds
+              )
             }
           }
         )

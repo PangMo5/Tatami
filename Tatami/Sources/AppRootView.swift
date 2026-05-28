@@ -15,6 +15,9 @@ struct AppRootView: View {
 
       SettingsView()
         .tabItem { Label("Settings", systemImage: "gearshape") }
+
+      AboutView()
+        .tabItem { Label("About", systemImage: "info.circle") }
     }
     .task { store.send(.task) }
   }

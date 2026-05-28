@@ -58,26 +58,32 @@ public struct AppSettings: Hashable, Sendable, Codable {
 extension AppSettings {
   public struct General: Hashable, Sendable, Codable {
     public var checkForUpdatesAutomatically: Bool
+    /// How often Sparkle checks for updates in the background.
+    public var checkInterval: UpdateCheckInterval
     /// When true, `WorkspaceManagerClient.activate` is a no-op. Toggled
     /// via the `toggleSpaceActivated` hotkey.
     public var isPaused: Bool
 
     public init(
       checkForUpdatesAutomatically: Bool = true,
+      checkInterval: UpdateCheckInterval = .daily,
       isPaused: Bool = false
     ) {
       self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
+      self.checkInterval = checkInterval
       self.isPaused = isPaused
     }
 
     private enum CodingKeys: String, CodingKey {
-      case checkForUpdatesAutomatically, isPaused
+      case checkForUpdatesAutomatically, checkInterval, isPaused
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       self.checkForUpdatesAutomatically =
         (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
+      self.checkInterval =
+        (try? c.decode(UpdateCheckInterval.self, forKey: .checkInterval)) ?? .daily
       self.isPaused = (try? c.decode(Bool.self, forKey: .isPaused)) ?? false
     }
   }
@@ -173,28 +179,22 @@ extension AppSettings {
     public var mouseHidesOnFocus: Bool
     public var focusFollowsMouse: Bool
     public var focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier
-    /// Bundle identifiers that may briefly steal focus without triggering
-    /// a workspace switch (Spotlight, Raycast, KeyCastr, etc.). Mirrors
-    /// rift's `auto_focus_blacklist`.
-    public var autoFocusBlacklist: [String]
 
     public init(
       mouseFollowsFocus: Bool = false,
       mouseHidesOnFocus: Bool = false,
       focusFollowsMouse: Bool = false,
-      focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option,
-      autoFocusBlacklist: [String] = []
+      focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option
     ) {
       self.mouseFollowsFocus = mouseFollowsFocus
       self.mouseHidesOnFocus = mouseHidesOnFocus
       self.focusFollowsMouse = focusFollowsMouse
       self.focusFollowsMouseDisableHotkey = focusFollowsMouseDisableHotkey
-      self.autoFocusBlacklist = autoFocusBlacklist
     }
 
     private enum CodingKeys: String, CodingKey {
       case mouseFollowsFocus, mouseHidesOnFocus, focusFollowsMouse
-      case focusFollowsMouseDisableHotkey, autoFocusBlacklist
+      case focusFollowsMouseDisableHotkey
     }
 
     public init(from decoder: Decoder) throws {
@@ -205,7 +205,6 @@ extension AppSettings {
       self.focusFollowsMouseDisableHotkey = (try? c.decode(
         FocusFollowsMouseModifier.self, forKey: .focusFollowsMouseDisableHotkey
       )) ?? .option
-      self.autoFocusBlacklist = (try? c.decode([String].self, forKey: .autoFocusBlacklist)) ?? []
     }
   }
 }
@@ -385,6 +384,31 @@ extension AppSettings {
       self.toggleFullscreen = try? c.decode(HotKey.self, forKey: .toggleFullscreen)
       self.toggleFloating = try? c.decode(HotKey.self, forKey: .toggleFloating)
       self.toggleSpaceActivated = try? c.decode(HotKey.self, forKey: .toggleSpaceActivated)
+    }
+  }
+}
+
+/// How often Sparkle checks for updates in the background.
+public enum UpdateCheckInterval: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case hourly
+  case daily
+  case weekly
+
+  public var id: String { rawValue }
+
+  public var seconds: TimeInterval {
+    switch self {
+    case .hourly: 3600
+    case .daily: 86400
+    case .weekly: 604_800
+    }
+  }
+
+  public var displayName: String {
+    switch self {
+    case .hourly: "Every hour"
+    case .daily: "Every day"
+    case .weekly: "Every week"
     }
   }
 }

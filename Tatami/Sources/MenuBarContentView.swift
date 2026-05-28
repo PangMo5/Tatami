@@ -25,6 +25,8 @@ struct MenuBarLabel: View {
 struct MenuBarContentView: View {
   @Bindable var store: StoreOf<AppFeature>
   @Environment(\.openWindow) private var openWindow
+  @Dependency(\.updater) private var updater
+  @State private var canCheckForUpdates = false
 
   var body: some View {
     let config = store.workspaceList.config
@@ -57,6 +59,16 @@ struct MenuBarContentView: View {
     Button("Open Tatami") {
       openWindow(id: "main")
       NSApp.activate(ignoringOtherApps: true)
+    }
+
+    Button("Check for Updates…") {
+      updater.checkForUpdates()
+    }
+    .disabled(!canCheckForUpdates)
+    .task {
+      for await value in updater.canCheckForUpdates() {
+        canCheckForUpdates = value
+      }
     }
 
     Divider()
