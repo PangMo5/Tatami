@@ -120,7 +120,12 @@ public struct AppFeature {
             if settings.gestures.enabled {
               await client.start(settings.gestures.fingerCount, settings.gestures.threshold)
             }
-          }
+          },
+          // Re-register hotkey handlers so a shortcut newly recorded in
+          // the Settings tab actually fires. Without this the
+          // KeyboardShortcuts library slot gets the new combo but our
+          // `onKeyDown` handler was never wired for it.
+          .send(.hotKeys(.refreshBindings))
         )
 
       case .swiped(let direction):
@@ -197,6 +202,8 @@ public struct AppFeature {
 
     case .toggleFullscreen:
       return .send(.activation(.bspToggleZoom))
+    case .balance:
+      return .send(.activation(.bspBalance))
     }
   }
 

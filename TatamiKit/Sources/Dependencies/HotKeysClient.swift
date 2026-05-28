@@ -24,6 +24,7 @@ public enum HotKeyAction: Sendable, Hashable {
   case resizeGrow, resizeShrink
   case swapLeft, swapRight, swapUp, swapDown
   case toggleOrientation, toggleFullscreen
+  case balance
 
   // Misc toggles
   case toggleFloating, toggleSpaceActivated
@@ -54,6 +55,7 @@ extension HotKeyAction {
     case .swapDown: "swap-down"
     case .toggleOrientation: "toggle-orientation"
     case .toggleFullscreen: "toggle-fullscreen"
+    case .balance: "balance"
     case .toggleFloating: "toggle-floating"
     case .toggleSpaceActivated: "toggle-space"
     }
@@ -162,6 +164,7 @@ private final class HotKeysCenter: @unchecked Sendable {
     case .swapDown: return "swap-down"
     case .toggleOrientation: return "toggle-orientation"
     case .toggleFullscreen: return "toggle-fullscreen"
+    case .balance: return "balance"
     case .toggleFloating: return "toggle-floating"
     case .toggleSpaceActivated: return "toggle-space"
     }

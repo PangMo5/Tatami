@@ -89,6 +89,7 @@ struct SettingsView: View {
         shortcut("Shrink", .resizeShrink, \.resizeShrink)
         shortcut("Toggle orientation", .toggleOrientation, \.toggleOrientation)
         shortcut("Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen)
+        shortcut("Balance", .balance, \.balance)
       }
 
       Section("Windows & Workspaces") {

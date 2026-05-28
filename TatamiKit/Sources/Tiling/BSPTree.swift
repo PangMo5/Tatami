@@ -356,8 +356,11 @@ extension BSPNode {
   }
 
   /// Adjust the ratio at the nearest ancestor of `window` whose split
-  /// axis is `axis`. `delta` is added to the current ratio and clamped
-  /// to `[0.1, 0.9]`.
+  /// axis is `axis`. Positive `delta` always means "grow the focused
+  /// window": the sign is flipped when the focused leaf sits on the
+  /// right/bottom side of the ancestor split, because in that case
+  /// growing the focused window means shrinking the parent ratio (which
+  /// describes the left/top child's share). Result clamped to `[0.1, 0.9]`.
   public func resizing(
     window: WindowID,
     axis: SplitAxis,
@@ -366,10 +369,13 @@ extension BSPNode {
     guard let path = pathTo(window: window) else { return self }
     let ancestorPath = nearestAncestor(matching: axis, on: path)
     guard let ancestorPath else { return self }
+    // The step *into* the ancestor's matching child decides the sign.
+    let sideIntoAncestor = path[ancestorPath.count]
+    let signedDelta = sideIntoAncestor == .left ? delta : -delta
     return replacing(path: ancestorPath) { node in
       guard case .branch(let split, let ratio, let left, let right) = node
       else { return node }
-      let newRatio = max(0.1, min(0.9, ratio + delta))
+      let newRatio = max(0.1, min(0.9, ratio + signedDelta))
       return .branch(split: split, ratio: newRatio, left: left, right: right)
     }
   }

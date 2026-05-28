@@ -385,6 +385,7 @@ extension AppSettings {
     public var swapDown: HotKey?
     public var toggleOrientation: HotKey?
     public var toggleFullscreen: HotKey?
+    public var balance: HotKey?
 
     // Misc toggles
     public var toggleFloating: HotKey?
@@ -408,6 +409,7 @@ extension AppSettings {
       swapDown: HotKey? = nil,
       toggleOrientation: HotKey? = nil,
       toggleFullscreen: HotKey? = nil,
+      balance: HotKey? = nil,
       toggleFloating: HotKey? = nil,
       toggleSpaceActivated: HotKey? = nil
     ) {
@@ -428,6 +430,7 @@ extension AppSettings {
       self.swapDown = swapDown
       self.toggleOrientation = toggleOrientation
       self.toggleFullscreen = toggleFullscreen
+      self.balance = balance
       self.toggleFloating = toggleFloating
       self.toggleSpaceActivated = toggleSpaceActivated
     }
@@ -439,6 +442,7 @@ extension AppSettings {
       case resizeGrow, resizeShrink
       case swapLeft, swapRight, swapUp, swapDown
       case toggleOrientation, toggleFullscreen
+      case balance
       case toggleFloating, toggleSpaceActivated
     }
 
@@ -461,6 +465,7 @@ extension AppSettings {
       self.swapDown = try? c.decode(HotKey.self, forKey: .swapDown)
       self.toggleOrientation = try? c.decode(HotKey.self, forKey: .toggleOrientation)
       self.toggleFullscreen = try? c.decode(HotKey.self, forKey: .toggleFullscreen)
+      self.balance = try? c.decode(HotKey.self, forKey: .balance)
       self.toggleFloating = try? c.decode(HotKey.self, forKey: .toggleFloating)
       self.toggleSpaceActivated = try? c.decode(HotKey.self, forKey: .toggleSpaceActivated)
     }

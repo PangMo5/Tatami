@@ -48,6 +48,7 @@ public struct HotKeysFeature {
       add(.swapDown, shortcuts.swapDown)
       add(.toggleOrientation, shortcuts.toggleOrientation)
       add(.toggleFullscreen, shortcuts.toggleFullscreen)
+      add(.balance, shortcuts.balance)
       add(.toggleFloating, shortcuts.toggleFloating)
       add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
       return out
