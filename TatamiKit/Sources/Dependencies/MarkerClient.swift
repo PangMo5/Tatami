@@ -85,15 +85,10 @@ private final class MarkerController {
       // the actual window by tens of ms.
       syncFrames()
       refreshTimerState()
-      // The activation reducer commits drag/resize 150 ms after
-      // mouse-up and then re-tiles (fullscreen-zoom snaps back, BSP
-      // siblings flush their ratios). One more sync past that lull so
-      // the dot follows the *re-applied* frame instead of staying
-      // where the user happened to drop it.
-      Task { @MainActor [weak self] in
-        try? await Task.sleep(for: .milliseconds(300))
-        self?.syncFrames()
-      }
+      // Reducer's debounced drag/resize commit lands ~150 ms later and
+      // may re-tile (fullscreen-zoom snap-back, BSP ratio flush). One
+      // deferred sync past that lull keeps the dot aligned.
+      scheduleDeferredSync()
       return
     }
     refreshTimerState()
@@ -101,6 +96,22 @@ private final class MarkerController {
 
   private func refreshTimerState() {
     setTimer(active: !panels.isEmpty && mouseDown)
+  }
+
+  /// Cancellable token for the post-mutation deferred sync. Each new
+  /// `setTargets` / mouseUp coalesces onto the latest one.
+  private var deferredSyncTask: Task<Void, Never>?
+
+  /// Run one more `syncFrames` 250 ms from now. Used to catch up to
+  /// re-tile passes that land just after a target / focus update
+  /// (fullscreen-zoom toggle, post-drag layout snap-back, …).
+  private func scheduleDeferredSync() {
+    deferredSyncTask?.cancel()
+    deferredSyncTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(250))
+      guard !Task.isCancelled else { return }
+      self?.syncFrames()
+    }
   }
 
   private var panels: [WindowKey: NSPanel] = [:]
@@ -163,6 +174,11 @@ private final class MarkerController {
     }
     syncFrames()
     refreshTimerState()
+    // Programmatic layout shifts (fullscreen-zoom toggle, BSP
+    // re-tile, …) flow through here. The AX frame may not be settled
+    // yet — apply effects are dispatched concurrently with this call.
+    // One deferred sync past the typical re-tile latency catches up.
+    scheduleDeferredSync()
   }
 
   /// Record the currently-frontmost window. wid 0 means "no focused
