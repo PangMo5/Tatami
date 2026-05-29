@@ -56,6 +56,10 @@ public struct WorkspaceActivationFeature {
     }
     public var pendingResize: PendingDrag?
     public var pendingDrop: PendingDrop?
+    /// The window currently being dragged (set on `windowMoved`). On drag-end,
+    /// if no swap/insert/resize was committed, the workspace re-tiles to snap
+    /// it back to its slot.
+    public var draggedWindow: WindowKey?
 
     public init() {}
 
@@ -177,6 +181,7 @@ public struct WorkspaceActivationFeature {
           // Cursor-based drop preview: find the tile + region under the
           // cursor and highlight it. Freeze the decision so the mouse-up
           // commit lands exactly where the overlay showed.
+          state.draggedWindow = key
           let decision = dropDecision(dragged: key, state: state)
           state.pendingDrop = decision.map {
             State.PendingDrop(dragged: key, target: $0.target, zone: $0.zone)
@@ -191,14 +196,21 @@ public struct WorkspaceActivationFeature {
           }
         case .windowDragEnded:
           let preview = dragPreview
+          let resize = state.pendingResize
+          let drop = state.pendingDrop
+          let didMove = state.draggedWindow != nil
+          state.pendingResize = nil
+          state.pendingDrop = nil
+          state.draggedWindow = nil
           var effects: [Effect<Action>] = [.run { _ in preview.hide() }]
-          if let pending = state.pendingResize {
-            state.pendingResize = nil
-            effects.append(syncTreeRatio(for: pending.key, frame: pending.frame, state: &state))
-          }
-          if let drop = state.pendingDrop {
-            state.pendingDrop = nil
+          if let resize {
+            effects.append(syncTreeRatio(for: resize.key, frame: resize.frame, state: &state))
+          } else if let drop {
             effects.append(applyDrop(drop, state: &state))
+          } else if didMove {
+            // Dragged but nothing committed (dropped on empty space / back on
+            // itself) → snap the window back to its tile.
+            effects.append(retileActive(state: state))
           }
           return .merge(effects)
         case .windowCreated(let bundleId):
@@ -1143,23 +1155,40 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  // MARK: - Manual resize sync (AX debounce path)
+  // MARK: - Manual resize / snap-back
+
+  /// Re-apply the active workspace's current tree frames (no tree change) —
+  /// snaps a dragged window back to its slot when the drag committed nothing.
+  private func retileActive(state: State) -> Effect<Action> {
+    guard let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          let tree = state.tilingTrees[workspaceId]
+    else { return .none }
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    return .run { [tiler = windowTiler] _ in
+      let frames = await MainActor.run {
+        Self.computeFrames(
+          tree: tree, settings: settings, targetDisplay: display, fullscreenZoomed: zoomed
+        )
+      }
+      if !frames.isEmpty {
+        await tiler.apply(FrameApplication(windowFrames: frames, targetDisplay: display))
+      }
+    }
+  }
 
   private func syncTreeRatio(
     for key: WindowKey,
-    frame: CGRect,
+    frame newFrame: CGRect,
     state: inout State
   ) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId }),
-          let tree = state.tilingTrees[workspaceId],
-          let path = tree.pathTo(window: key), !path.isEmpty
-    else { return .none }
-
-    let parentPath = Array(path.dropLast())
-    guard let side = path.last,
-          case .branch(let branch) = tree.subtree(at: parentPath)
+          let tree = state.tilingTrees[workspaceId]
     else { return .none }
 
     let settings = state.config.settings
@@ -1171,30 +1200,50 @@ public struct WorkspaceActivationFeature {
         dy: CGFloat(settings.layout.gapOuter)
       )
     }
-    let parentRect = tree.rect(at: parentPath, in: workArea, gap: gap)
 
-    let newRatio: CGFloat
-    switch branch.split {
-    case .vertical:
-      let total = parentRect.width - gap
-      guard total > 0 else { return .none }
-      let leftWidth = side == .left ? frame.width : total - frame.width
-      newRatio = leftWidth / total
-    case .horizontal:
-      let total = parentRect.height - gap
-      guard total > 0 else { return .none }
-      let topHeight = side == .left ? frame.height : total - frame.height
-      newRatio = topHeight / total
+    // The window's currently-tiled frame; compared against the new AX frame
+    // to see which edge(s) the user dragged. (1.5 px tolerance also rejects
+    // the echo of our own apply.)
+    guard let expected = tree.frames(in: workArea, gap: gap)[key] else { return .none }
+    let tolerance: CGFloat = 1.5
+
+    // Each dragged edge maps to the nearest ancestor split running along it
+    // (its `fence`); set that split's divider to the edge's new position. This
+    // resizes against the *right join* — unlike the immediate parent, which
+    // controls a single axis and can't express, say, a height change when it
+    // happens to be a vertical (left/right) split.
+    var newTree = tree
+    func adjust(_ direction: BSPDirection, edge: CGFloat) {
+      guard let fencePath = newTree.fence(of: key, direction: direction, in: workArea, gap: gap),
+            case .branch(let branch) = newTree.subtree(at: fencePath)
+      else { return }
+      let fenceRect = newTree.rect(at: fencePath, in: workArea, gap: gap)
+      // `subdivide` lays children out as [first][gap][second]. For a window in
+      // the *second* child (the .west / .north fence) the dragged edge is that
+      // child's leading edge = divider + gap, so back the gap out to recover
+      // the divider position; first-child edges (.east / .south) sit on it.
+      let ratio: CGFloat
+      switch branch.split {
+      case .vertical:
+        let total = fenceRect.width - gap
+        guard total > 0 else { return }
+        let divider = direction == .west ? edge - gap : edge
+        ratio = (divider - fenceRect.minX) / total
+      case .horizontal:
+        let total = fenceRect.height - gap
+        guard total > 0 else { return }
+        let divider = direction == .north ? edge - gap : edge
+        ratio = (divider - fenceRect.minY) / total
+      }
+      newTree = newTree.updatingRatio(at: fencePath, ratio: ratio)
     }
 
-    // 1.5 px geometric tolerance — bail out if the change is smaller
-    // than that, which usually means we're seeing our own apply echo
-    // rather than a real user resize.
-    if abs(newRatio - branch.ratio) * (branch.split == .vertical ? parentRect.width : parentRect.height) < 1.5 {
-      return .none
-    }
+    if abs(newFrame.minX - expected.minX) > tolerance { adjust(.west, edge: newFrame.minX) }
+    if abs(newFrame.maxX - expected.maxX) > tolerance { adjust(.east, edge: newFrame.maxX) }
+    if abs(newFrame.minY - expected.minY) > tolerance { adjust(.north, edge: newFrame.minY) }
+    if abs(newFrame.maxY - expected.maxY) > tolerance { adjust(.south, edge: newFrame.maxY) }
 
-    let newTree = tree.updatingRatio(at: parentPath, ratio: newRatio)
+    guard newTree != tree else { return .none }
     state.tilingTrees[workspaceId] = newTree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
