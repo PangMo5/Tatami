@@ -512,8 +512,11 @@ public struct WorkspaceActivationFeature {
         }
 
       case .bspBalance:
-        let axis = bspAxis(for: state.config.settings.layout.autoBalance)
-        return applyTreeTransform(state: &state) { $0.balanced(axis: axis) }
+        // The manual balance command always equalizes both axes. The
+        // `autoBalance` setting governs only the automatic balancing applied
+        // on activation (see `performActivate`); gating the hotkey on it made
+        // balance a no-op whenever auto-balance was off — which is the default.
+        return applyTreeTransform(state: &state) { $0.balanced(axis: .both) }
 
       case .bspRotate(let degrees):
         return applyTreeTransform(state: &state) { $0.rotated(by: degrees) }
@@ -1355,21 +1358,15 @@ public struct WorkspaceActivationFeature {
       }
 
     case .resize(let direction, let delta):
-      // Fence-based resize: pick the nearest ancestor whose split
-      // axis matches `direction` and extends past the focused window
-      // in that direction.
-      guard let path = tree.fence(of: windowKey, direction: direction, in: workArea, gap: gap)
-      else { break }
-      guard case .branch(let parent) = tree.subtree(at: path) else { break }
-      // Positive delta = grow focused window. If the focused window is
-      // on the right/bottom side of the fence, flip sign so growing
-      // means shrinking the parent ratio (which describes the
-      // left/top child's share).
-      guard let focusedPath = tree.pathTo(window: windowKey) else { break }
-      let sideIntoFence = focusedPath[path.count]
-      let signedDelta = sideIntoFence == .left ? delta : -delta
-      let newRatio = max(0.1, min(0.9, parent.ratio + signedDelta))
-      tree = tree.updatingRatio(at: path, ratio: newRatio)
+      // Grow/shrink the focused window along the axis implied by the
+      // direction. `resizing` walks to the nearest ancestor whose split
+      // matches that axis and flips the sign by side, so a positive delta
+      // always grows the focused window — including when it sits on the
+      // east/south edge. (The previous fence-based path returned nil at the
+      // edge, which made grow/shrink a no-op for edge windows.)
+      let axis: BSPNode<WindowKey>.SplitAxis =
+        (direction == .east || direction == .west) ? .vertical : .horizontal
+      tree = tree.resizing(window: windowKey, axis: axis, delta: delta)
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)
