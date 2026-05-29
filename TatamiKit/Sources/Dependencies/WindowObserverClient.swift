@@ -35,6 +35,10 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// dispatches). The bundle id is still emitted so the reducer can
   /// re-reconcile that app's windows — the front-switch reconcile path.
   case windowFocused(bundleId: String, key: WindowKey?)
+  /// The primary mouse button was released. Lets the reducer flush a pending
+  /// manual move/resize exactly at drag-end instead of guessing with a time
+  /// debounce.
+  case windowDragEnded
 }
 
 extension WindowObserverClient: DependencyKey {
@@ -80,6 +84,9 @@ private final class WindowObserverCenter: @unchecked Sendable {
   let events: AsyncStream<WindowChangeEvent>
   private let continuation: AsyncStream<WindowChangeEvent>.Continuation
   private var observed: [pid_t: ObservedApp] = [:]
+  /// Global mouse-up monitor; emits `.windowDragEnded` so the reducer commits
+  /// a manual move/resize at the true end of the drag.
+  private var dragEndMonitor: Any?
 
   init() {
     var c: AsyncStream<WindowChangeEvent>.Continuation!
@@ -96,6 +103,16 @@ private final class WindowObserverCenter: @unchecked Sendable {
   @MainActor
   private func installOrUpdate(bundleIds: [String]) {
     @Dependency(\.debugLog) var debugLog
+    // Install the global mouse-up monitor once. The reducer flushes a pending
+    // manual move/resize on `.windowDragEnded`, so the commit lands at the
+    // real end of the drag rather than on a time guess. Global monitors only
+    // see other apps' events — exactly where window drags happen.
+    if dragEndMonitor == nil {
+      let cont = continuation
+      dragEndMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
+        cont.yield(.windowDragEnded)
+      }
+    }
     // Drop observers whose pid has died. Anything still running stays
     // observed even if it's no longer in the caller's interest set —
     // the next focus/launch event will surface it again, and we'd

@@ -38,6 +38,17 @@ public struct WorkspaceActivationFeature {
     /// tree leaves directly.
     public var fullscreenZoomed: [Workspace.ID: Set<WindowKey>] = [:]
 
+    /// Latest manual resize / move geometry, captured while the user drags
+    /// and flushed to the tree on mouse-up (`.windowDragEnded`). Committing
+    /// at the true drag-end (rather than on a time guess) avoids re-tiling
+    /// the siblings under the cursor mid-drag, which made dragging jumpy.
+    public struct PendingDrag: Equatable, Sendable {
+      public var key: WindowKey
+      public var frame: CGRect
+    }
+    public var pendingResize: PendingDrag?
+    public var pendingMove: PendingDrag?
+
     public init() {}
 
     public var primaryActiveWorkspaceID: Workspace.ID? {
@@ -84,8 +95,6 @@ public struct WorkspaceActivationFeature {
     case bspSetInsertDirection(BSPNode<WindowKey>.InsertDirection?)
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     case windowChanged(WindowChangeEvent)
-    case windowResizeCommitted(key: WindowKey, frame: CGRect)
-    case windowMoveCommitted(key: WindowKey, frame: CGRect)
     /// Incrementally reconcile a single app's windows into the active
     /// tree: add new windows, drop gone ones, touch nothing else.
     case syncAppWindows(bundleId: String)
@@ -116,8 +125,6 @@ public struct WorkspaceActivationFeature {
 
   /// Cancellation identifiers for debounced window-event handling.
   private enum CancelID: Hashable {
-    case windowResize(WindowKey)
-    case windowMove(WindowKey)
     case sync(String)
     /// Coalesces frame application per workspace: a newer layout
     /// cancels an in-flight apply so a stale one can't land after it.
@@ -151,20 +158,26 @@ public struct WorkspaceActivationFeature {
       case .windowChanged(let event):
         switch event {
         case .windowResized(let key, let frame):
-          // AX fires continuously during the drag; wait for quiescence
-          // before committing the new ratio so we don't fight the user
-          // mid-drag.
-          return .run { send in
-            try? await Task.sleep(for: .milliseconds(50))
-            await send(.windowResizeCommitted(key: key, frame: frame))
-          }
-          .cancellable(id: CancelID.windowResize(key), cancelInFlight: true)
+          // Defer to drag-end: AX fires continuously during the drag, and
+          // committing mid-drag re-tiles the siblings under the cursor.
+          // Record the latest geometry; `.windowDragEnded` (mouse-up) flushes
+          // it once, so the commit lands at the true end of the drag.
+          state.pendingResize = State.PendingDrag(key: key, frame: frame)
+          return .none
         case .windowMoved(let key, let frame):
-          return .run { send in
-            try? await Task.sleep(for: .milliseconds(50))
-            await send(.windowMoveCommitted(key: key, frame: frame))
+          state.pendingMove = State.PendingDrag(key: key, frame: frame)
+          return .none
+        case .windowDragEnded:
+          var effects: [Effect<Action>] = []
+          if let pending = state.pendingResize {
+            state.pendingResize = nil
+            effects.append(syncTreeRatio(for: pending.key, frame: pending.frame, state: &state))
           }
-          .cancellable(id: CancelID.windowMove(key), cancelInFlight: true)
+          if let pending = state.pendingMove {
+            state.pendingMove = nil
+            effects.append(handleWindowMoved(key: pending.key, frame: pending.frame, state: &state))
+          }
+          return effects.isEmpty ? .none : .merge(effects)
         case .windowCreated(let bundleId):
           return debouncedSync(bundleId, delayMs: 0)
         case .windowDestroyed(let bundleId):
@@ -193,12 +206,6 @@ public struct WorkspaceActivationFeature {
             }
           )
         }
-
-      case .windowResizeCommitted(let key, let frame):
-        return syncTreeRatio(for: key, frame: frame, state: &state)
-
-      case .windowMoveCommitted(let key, let frame):
-        return handleWindowMoved(key: key, frame: frame, state: &state)
 
       case .syncAppWindows(let bundleId):
         return syncAppWindows(bundleId: bundleId, state: &state)
