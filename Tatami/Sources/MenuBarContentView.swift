@@ -35,14 +35,21 @@ struct MenuBarContentView: View {
     if let workspaces = config.activeProfile?.workspaces, !workspaces.isEmpty {
       Section("Workspaces") {
         ForEach(workspaces) { workspace in
-          Button {
-            store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
-          } label: {
+          // Toggle inside a menu renders as a labeled item with a
+          // trailing checkmark when the binding is `true` — the
+          // macOS-native "active" indicator. We swallow the off-write
+          // so re-clicking the active workspace just re-activates it
+          // (matching the toolbar Activate button's behavior).
+          Toggle(isOn: Binding(
+            get: { workspace.id == activeId },
+            set: { newValue in
+              guard newValue else { return }
+              store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+            }
+          )) {
             Label(
               workspace.name,
-              systemImage: workspace.id == activeId
-                ? "checkmark.circle.fill"
-                : (workspace.symbolIconName ?? "square.dashed")
+              systemImage: workspace.symbolIconName ?? "square.dashed"
             )
           }
         }

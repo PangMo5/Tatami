@@ -123,6 +123,11 @@ struct SettingsView: View {
       Section("Toggles") {
         shortcut("Toggle floating", .toggleFloating, \.toggleFloating)
         shortcut("Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated)
+        shortcut(
+          "Toggle app in workspace",
+          .toggleFocusedAppInActiveWorkspace,
+          \.toggleFocusedAppInActiveWorkspace
+        )
       }
 
       Section("Workspace Switching") {

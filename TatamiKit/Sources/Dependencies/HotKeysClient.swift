@@ -28,6 +28,11 @@ public enum HotKeyAction: Sendable, Hashable {
 
   // Misc toggles
   case toggleFloating, toggleSpaceActivated
+  /// Toggle the focused window's app's membership in the active
+  /// workspace's registered set — equivalent to manually adding /
+  /// removing the app on the workspace detail screen, but without
+  /// taking the user out of whatever they're doing.
+  case toggleFocusedAppInActiveWorkspace
 }
 
 extension HotKeyAction {
@@ -58,6 +63,7 @@ extension HotKeyAction {
     case .balance: "balance"
     case .toggleFloating: "toggle-floating"
     case .toggleSpaceActivated: "toggle-space"
+    case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
     }
   }
 
@@ -167,6 +173,7 @@ private final class HotKeysCenter: @unchecked Sendable {
     case .balance: return "balance"
     case .toggleFloating: return "toggle-floating"
     case .toggleSpaceActivated: return "toggle-space"
+    case .toggleFocusedAppInActiveWorkspace: return "toggle-focused-app-membership"
     }
   }
 }

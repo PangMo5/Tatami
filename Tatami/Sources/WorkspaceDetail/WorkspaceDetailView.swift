@@ -12,18 +12,25 @@ struct WorkspaceDetailView: View {
   @FocusState private var nameFieldFocused: Bool
   @State private var symbolPickerPresented = false
 
+  /// True when *this* workspace is the currently-active one on any
+  /// display. Drives the toolbar Activate button's disabled state.
+  private func isActive(_ workspace: Workspace) -> Bool {
+    activationStore.activeWorkspacesByDisplay.values.contains(workspace.id)
+  }
+
   var body: some View {
     if let workspace = store.workspace {
       Form {
         Section("Workspace") {
-          HStack {
+          // Icon picker — opens the SF Symbol grid on tap.
+          LabeledContent("Icon") {
             Button {
               symbolPickerPresented = true
             } label: {
               Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
                 .font(.title2)
                 .foregroundStyle(.tint)
-                .frame(width: 28)
+                .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
             .help("Choose an icon for this workspace.")
@@ -33,20 +40,17 @@ struct WorkspaceDetailView: View {
                 onSelect: { store.send(.symbolIconChanged($0)) }
               )
             }
-            TextField("Name", text: $nameDraft)
+          }
+
+          // Name — separate row, commits on blur or Return.
+          LabeledContent("Name") {
+            TextField("", text: $nameDraft)
               .textFieldStyle(.roundedBorder)
               .focused($nameFieldFocused)
               .onSubmit { store.send(.nameSubmitted(nameDraft)) }
               .onChange(of: nameFieldFocused) { _, focused in
                 if !focused { store.send(.nameSubmitted(nameDraft)) }
               }
-            Spacer()
-            Button {
-              activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
-            } label: {
-              Label("Activate", systemImage: "play.fill")
-            }
-            .disabled(activationStore.isActivating)
           }
         }
 
@@ -120,6 +124,21 @@ struct WorkspaceDetailView: View {
       }
       .formStyle(.grouped)
       .navigationTitle(workspace.name)
+      .toolbar {
+        ToolbarItem(placement: .primaryAction) {
+          let active = isActive(workspace)
+          Button {
+            activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+          } label: {
+            Label(
+              active ? "Active" : "Activate",
+              systemImage: active ? "checkmark.circle.fill" : "play.fill"
+            )
+          }
+          .disabled(active || activationStore.isActivating)
+          .help(active ? "This workspace is already active." : "Activate this workspace.")
+        }
+      }
       .sheet(isPresented: $store.isAppPickerPresented) {
         AppPickerSheet(
           apps: store.availableRunningApps,

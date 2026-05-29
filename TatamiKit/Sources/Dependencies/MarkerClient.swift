@@ -17,6 +17,12 @@ public struct MarkerClient: Sendable {
     _ corner: MarkerCorner,
     _ hideOnHover: Bool
   ) -> Void
+  /// Tell the marker controller which window is currently frontmost so
+  /// it can render a dot only on that window. Pushed from the AX
+  /// observer's `windowFocused` events + the workspace app-activation
+  /// flow — cheaper and more responsive than polling AX every 50 ms.
+  /// Pass `windowID = 0` to clear (no focused window).
+  public var setFocused: @Sendable (_ pid: pid_t, _ windowID: CGWindowID) -> Void
 }
 
 extension MarkerClient: DependencyKey {
@@ -27,6 +33,9 @@ extension MarkerClient: DependencyKey {
         Task { @MainActor in
           controller.setTargets(targets, size: size, corner: corner, hideOnHover: hideOnHover)
         }
+      },
+      setFocused: { pid, wid in
+        Task { @MainActor in controller.setFocused(pid: pid, windowID: wid) }
       }
     )
   }
@@ -46,6 +55,54 @@ private final class MarkerController {
     var size: Double
   }
 
+  init() {
+    // Drag-gated tick: only run the position-tracking timer while the
+    // user actually has the mouse button held. Global monitors catch
+    // events in *other* apps' processes — which is exactly when the
+    // user is dragging a marked window.
+    mouseDownMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: .leftMouseDown
+    ) { [weak self] _ in
+      Task { @MainActor [weak self] in self?.handleMouseDown(true) }
+    }
+    mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(
+      matching: .leftMouseUp
+    ) { [weak self] _ in
+      Task { @MainActor [weak self] in self?.handleMouseDown(false) }
+    }
+  }
+
+  // Controller lives for the process lifetime, so we don't need to
+  // tear down the NSEvent monitors. (deinit would need to hop to the
+  // main actor to touch the captured tokens, which Swift 6 refuses.)
+
+  private func handleMouseDown(_ down: Bool) {
+    if mouseDown == down { return }
+    mouseDown = down
+    if !down {
+      // Drag just ended — settle on the release position. Without this
+      // the dot lingers at its last polled location, which can lag
+      // the actual window by tens of ms.
+      syncFrames()
+      refreshTimerState()
+      // The activation reducer commits drag/resize 150 ms after
+      // mouse-up and then re-tiles (fullscreen-zoom snaps back, BSP
+      // siblings flush their ratios). One more sync past that lull so
+      // the dot follows the *re-applied* frame instead of staying
+      // where the user happened to drop it.
+      Task { @MainActor [weak self] in
+        try? await Task.sleep(for: .milliseconds(300))
+        self?.syncFrames()
+      }
+      return
+    }
+    refreshTimerState()
+  }
+
+  private func refreshTimerState() {
+    setTimer(active: !panels.isEmpty && mouseDown)
+  }
+
   private var panels: [WindowKey: NSPanel] = [:]
   private var styles: [WindowKey: Style] = [:]
   private var lastFrame: [WindowKey: NSRect] = [:]
@@ -55,6 +112,16 @@ private final class MarkerController {
   private let interval: TimeInterval = 0.05
   private var hideOnHover = true
   private var corner: MarkerCorner = .bottomTrailing
+  /// Last focused window pushed in via `setFocused`. nil = no focus
+  /// (or unknown — markers stay hidden, which is the safe default).
+  private var focused: (pid: pid_t, windowID: CGWindowID)?
+  /// True while the user is mid-drag (primary mouse button held).
+  /// Toggled by global NSEvent monitors so the position-tracking timer
+  /// only runs during the small windows when window geometry is
+  /// actually moving.
+  private var mouseDown = false
+  private var mouseDownMonitor: Any?
+  private var mouseUpMonitor: Any?
   /// Distance from the chosen window corner to the dot's edge.
   private let inset: CGFloat = 10
   /// Small panel padding so the dot's faint drop shadow isn't clipped
@@ -95,7 +162,17 @@ private final class MarkerController {
       styles[key] = style
     }
     syncFrames()
-    setTimer(active: !targets.isEmpty)
+    refreshTimerState()
+  }
+
+  /// Record the currently-frontmost window. wid 0 means "no focused
+  /// window", which keeps every marker hidden.
+  func setFocused(pid: pid_t, windowID: CGWindowID) {
+    let next: (pid: pid_t, windowID: CGWindowID)? = windowID == 0 ? nil : (pid, windowID)
+    if let new = next, let old = focused, new == old { return }
+    if next == nil && focused == nil { return }
+    focused = next
+    syncFrames()
   }
 
   private func setTimer(active: Bool) {
@@ -109,8 +186,11 @@ private final class MarkerController {
     }
   }
 
-  /// Move each panel onto its window's configured corner. While the
-  /// cursor is over a dot, fade it out so it doesn't block the window.
+  /// Move each panel onto its window's configured corner. The dot is
+  /// only visible when (1) its window is the frontmost focused window
+  /// (pushed in via `setFocused`) and (2) the cursor isn't sitting
+  /// over the dot — otherwise it fades out so it doesn't block the
+  /// window or pollute other apps' screens.
   private func syncFrames() {
     var lost: [WindowKey] = []
     let cursor = NSEvent.mouseLocation  // Cocoa coordinates (bottom-left)
@@ -129,11 +209,15 @@ private final class MarkerController {
         lastFrame[key] = cocoa
       }
       if !panel.isVisible { panel.orderFrontRegardless() }
+      // Focus gate: hide when this window isn't the user's current
+      // window. Matched on (pid, wid) so two windows of the same app
+      // don't share a marker.
+      let isFocused = focused.map { $0.pid == key.pid && $0.windowID == key.windowID } ?? false
       // Hover fade: only react when the cursor sits over the dot's
       // visible circle, not the surrounding glow padding.
       let hoverRect = cocoa.insetBy(dx: glowPadding, dy: glowPadding)
       let hovering = hideOnHover && hoverRect.contains(cursor)
-      let target: CGFloat = hovering ? 0 : 1
+      let target: CGFloat = (isFocused && !hovering) ? 1 : 0
       if abs(panel.alphaValue - target) > 0.01 {
         NSAnimationContext.runAnimationGroup { ctx in
           ctx.duration = 0.15
@@ -147,7 +231,7 @@ private final class MarkerController {
       styles.removeValue(forKey: key)
       lastFrame.removeValue(forKey: key)
     }
-    if panels.isEmpty { setTimer(active: false) }
+    if panels.isEmpty { refreshTimerState() }
   }
 
   /// Place the panel near the chosen window corner in top-left CG coords.

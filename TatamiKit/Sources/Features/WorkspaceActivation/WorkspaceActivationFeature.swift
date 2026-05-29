@@ -56,6 +56,11 @@ public struct WorkspaceActivationFeature {
     case activateRecent
     case moveFocusedAppTo(workspaceId: Workspace.ID)
     case focusedAppResolved(bundleId: String, workspaceId: Workspace.ID)
+    /// Hotkey entry point: add/remove the focused window's app to the
+    /// active workspace (single-membership — adding takes it away from
+    /// any other workspace it was registered in).
+    case toggleFocusedAppInActiveWorkspace
+    case focusedAppMembershipResolved(bundleId: String, name: String)
     case toggleFloatingOnFocusedApp
     case focusedFloatToggleResolved(bundleId: String, name: String)
     case togglePaused
@@ -173,7 +178,20 @@ public struct WorkspaceActivationFeature {
           {
             state.insertionPoint[wsId] = key
           }
-          return debouncedSync(bundleId, delayMs: 0)
+          // Forward the focus change to the marker controller so it
+          // can render the dot only on the now-focused window.
+          let markerClient = marker
+          let focusedKey = key
+          return .merge(
+            debouncedSync(bundleId, delayMs: 0),
+            .run { _ in
+              if let focusedKey {
+                markerClient.setFocused(focusedKey.pid, focusedKey.windowID)
+              } else {
+                markerClient.setFocused(0, 0)
+              }
+            }
+          )
         }
 
       case .windowResizeCommitted(let key, let frame):
@@ -224,6 +242,19 @@ public struct WorkspaceActivationFeature {
         if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
           return .none
         }
+        // Refresh marker focus on every app activation. AX
+        // `kAXFocusedWindowChanged` is only fired for the apps we
+        // already observe, so a switch *into* a previously-unobserved
+        // app wouldn't otherwise wake the marker.
+        let markerClient = marker
+        let markerEffect = Effect<Action>.run { _ in
+          let key = await MainActor.run { focusedWindowKey() }
+          if let key {
+            markerClient.setFocused(key.pid, key.windowID)
+          } else {
+            markerClient.setFocused(0, 0)
+          }
+        }
         if !state.isActivating,
            state.config.settings.switching.followAppFocus,
            !state.config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }),
@@ -231,9 +262,12 @@ public struct WorkspaceActivationFeature {
              $0.apps.contains { $0.bundleIdentifier == bundleId }
            }),
            state.primaryActiveWorkspaceID != owner.id {
-          return .send(.activate(workspaceId: owner.id, setFocus: false))
+          return .merge(
+            markerEffect,
+            .send(.activate(workspaceId: owner.id, setFocus: false))
+          )
         }
-        return debouncedSync(bundleId, delayMs: 40)
+        return .merge(markerEffect, debouncedSync(bundleId, delayMs: 40))
 
       case .appTerminated(let bundleId):
         return debouncedSync(bundleId, delayMs: 0)
@@ -289,6 +323,72 @@ public struct WorkspaceActivationFeature {
         state.tilingTrees[workspaceId] = nil
         return .send(.activate(workspaceId: workspaceId, setFocus: true))
 
+      case .toggleFocusedAppInActiveWorkspace:
+        guard state.primaryActiveWorkspaceID != nil else { return .none }
+        return .run { send in
+          let resolved = await MainActor.run {
+            NSWorkspace.shared.frontmostApplication.map {
+              (bundleId: $0.bundleIdentifier ?? "", name: $0.localizedName ?? "")
+            }
+          }
+          guard let resolved, !resolved.bundleId.isEmpty else { return }
+          await send(
+            .focusedAppMembershipResolved(bundleId: resolved.bundleId, name: resolved.name)
+          )
+        }
+
+      case .focusedAppMembershipResolved(let bundleId, let name):
+        guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
+        // Skip Tatami itself so the user can't accidentally assign it.
+        if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+          return .none
+        }
+        var didAdd = false
+        state.$config.withLock { config in
+          config.mutateActiveProfile { profile in
+            guard let idx = profile.workspaces.firstIndex(where: { $0.id == workspaceId })
+            else { return }
+            let alreadyMember = profile.workspaces[idx].apps
+              .contains { $0.bundleIdentifier == bundleId }
+            if alreadyMember {
+              profile.workspaces[idx].apps.removeAll { $0.bundleIdentifier == bundleId }
+            } else {
+              // Single-membership: take it away from any other workspace
+              // first so an app never lives in two registered sets.
+              for i in profile.workspaces.indices {
+                profile.workspaces[i].apps.removeAll { $0.bundleIdentifier == bundleId }
+              }
+              profile.workspaces[idx].apps.append(
+                AppAssignment(
+                  bundleIdentifier: bundleId,
+                  name: name.isEmpty ? bundleId : name
+                )
+              )
+              didAdd = true
+            }
+          }
+        }
+        // Re-activate so the hide/show pass + tree rebuild reflect the
+        // new membership. setFocus stays false — the user just used a
+        // hotkey, no need to steal focus from whatever they had.
+        if didAdd {
+          state.tilingTrees[workspaceId] = nil
+        }
+        let workspaceName = state.config.activeProfile?
+          .workspaces.first(where: { $0.id == workspaceId })?.name ?? ""
+        let displayName = name.isEmpty ? bundleId : name
+        let hudTitle = didAdd
+          ? "Added \(displayName) → \(workspaceName)"
+          : "Removed \(displayName) ← \(workspaceName)"
+        let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
+        let showHUD = state.config.settings.hud.enabled
+        return .merge(
+          showHUD
+            ? .run { [hud = workspaceHUD] _ in await hud.show(hudTitle, hudIcon) }
+            : .none,
+          .send(.activate(workspaceId: workspaceId, setFocus: false))
+        )
+
       case .toggleFloatingOnFocusedApp:
         return .run { send in
           let resolved = await MainActor.run {
@@ -303,6 +403,7 @@ public struct WorkspaceActivationFeature {
         }
 
       case .focusedFloatToggleResolved(let bundleId, let name):
+        var nowFloating = false
         state.$config.withLock { config in
           if config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }) {
             config.floatingApps.removeAll { $0.bundleIdentifier == bundleId }
@@ -310,9 +411,23 @@ public struct WorkspaceActivationFeature {
             config.floatingApps.append(
               FloatingApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
             )
+            nowFloating = true
           }
         }
-        return refreshMarkers(state: state)
+        let displayName = name.isEmpty ? bundleId : name
+        let hudTitle = nowFloating
+          ? "Floating: \(displayName)"
+          : "Tiled: \(displayName)"
+        // Different glyphs for the two states so the HUD reads at a
+        // glance — open frame for floating, filled stack for tiled.
+        let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
+        let showHUD = state.config.settings.hud.enabled
+        return .merge(
+          refreshMarkers(state: state),
+          showHUD
+            ? .run { [hud = workspaceHUD] _ in await hud.show(hudTitle, hudIcon) }
+            : .none
+        )
 
       case .togglePaused:
         let wasPaused = state.isTilingPaused

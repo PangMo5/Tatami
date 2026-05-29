@@ -484,6 +484,9 @@ extension AppSettings {
     // Misc toggles
     public var toggleFloating: HotKey?
     public var toggleSpaceActivated: HotKey?
+    /// Toggle the focused window's app's membership in the active
+    /// workspace's registered set.
+    public var toggleFocusedAppInActiveWorkspace: HotKey?
 
     public init(
       focusLeft: HotKey? = nil,
@@ -505,7 +508,8 @@ extension AppSettings {
       toggleFullscreen: HotKey? = nil,
       balance: HotKey? = nil,
       toggleFloating: HotKey? = nil,
-      toggleSpaceActivated: HotKey? = nil
+      toggleSpaceActivated: HotKey? = nil,
+      toggleFocusedAppInActiveWorkspace: HotKey? = nil
     ) {
       self.focusLeft = focusLeft
       self.focusRight = focusRight
@@ -527,6 +531,7 @@ extension AppSettings {
       self.balance = balance
       self.toggleFloating = toggleFloating
       self.toggleSpaceActivated = toggleSpaceActivated
+      self.toggleFocusedAppInActiveWorkspace = toggleFocusedAppInActiveWorkspace
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -538,6 +543,7 @@ extension AppSettings {
       case toggleOrientation, toggleFullscreen
       case balance
       case toggleFloating, toggleSpaceActivated
+      case toggleFocusedAppInActiveWorkspace
     }
 
     public init(from decoder: Decoder) throws {
@@ -562,6 +568,8 @@ extension AppSettings {
       self.balance = try? c.decode(HotKey.self, forKey: .balance)
       self.toggleFloating = try? c.decode(HotKey.self, forKey: .toggleFloating)
       self.toggleSpaceActivated = try? c.decode(HotKey.self, forKey: .toggleSpaceActivated)
+      self.toggleFocusedAppInActiveWorkspace =
+        try? c.decode(HotKey.self, forKey: .toggleFocusedAppInActiveWorkspace)
     }
   }
 }

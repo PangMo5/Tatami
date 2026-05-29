@@ -197,6 +197,8 @@ public struct AppFeature {
       return .send(.activation(.toggleFloatingOnFocusedApp))
     case .toggleSpaceActivated:
       return .send(.activation(.togglePaused))
+    case .toggleFocusedAppInActiveWorkspace:
+      return .send(.activation(.toggleFocusedAppInActiveWorkspace))
 
     case .resizeGrow:
       return .send(.activation(.bspResize(direction: .east, delta: 0.05)))
