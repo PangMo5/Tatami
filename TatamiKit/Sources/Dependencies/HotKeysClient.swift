@@ -146,34 +146,4 @@ private final class HotKeysCenter: @unchecked Sendable {
     }
     registered = next
   }
-
-  private func nameKey(for action: HotKeyAction) -> String {
-    switch action {
-    case .activateWorkspace(let id):
-      return "activate-\(id.uuidString)"
-    case .moveFocusedWindowToWorkspace(let id):
-      return "move-window-\(id.uuidString)"
-    case .switchToNextWorkspace: return "next-workspace"
-    case .switchToPreviousWorkspace: return "prev-workspace"
-    case .switchToRecentWorkspace: return "recent-workspace"
-    case .focusLeft: return "focus-left"
-    case .focusRight: return "focus-right"
-    case .focusUp: return "focus-up"
-    case .focusDown: return "focus-down"
-    case .cycleNextWindow: return "cycle-next"
-    case .cyclePreviousWindow: return "cycle-prev"
-    case .resizeGrow: return "resize-grow"
-    case .resizeShrink: return "resize-shrink"
-    case .swapLeft: return "swap-left"
-    case .swapRight: return "swap-right"
-    case .swapUp: return "swap-up"
-    case .swapDown: return "swap-down"
-    case .toggleOrientation: return "toggle-orientation"
-    case .toggleFullscreen: return "toggle-fullscreen"
-    case .balance: return "balance"
-    case .toggleFloating: return "toggle-floating"
-    case .toggleSpaceActivated: return "toggle-space"
-    case .toggleFocusedAppInActiveWorkspace: return "toggle-focused-app-membership"
-    }
-  }
 }

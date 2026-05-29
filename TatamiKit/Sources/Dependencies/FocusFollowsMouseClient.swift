@@ -61,12 +61,16 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   init() {}
 
   func configure(_ next: FocusFollowsMouseConfig) async {
-    await MainActor.run {
-      self.installOrTearDown(next)
+    // Tap install/teardown runs on the shared event-tap thread so the tap
+    // callback (a `CGWindowListCopyWindowInfo` hit-test on every throttled
+    // mouse-move) executes off the main thread. The controller's state is
+    // only ever touched from that thread, so it stays lock-free.
+    EventTapThread.shared.perform { [self] in
+      installOrTearDown(next)
     }
   }
 
-  @MainActor
+  /// Runs on the event-tap thread (via `configure` / the tap callback).
   private func installOrTearDown(_ next: FocusFollowsMouseConfig) {
     config = next
     if next.enabled, eventTap == nil {
@@ -76,7 +80,6 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
   }
 
-  @MainActor
   private func install() {
     // Listen for mouseMoved + the two tap-disabled signals so we can
     // re-enable if the system hangs the tap.
@@ -96,19 +99,21 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       logger.error("CGEvent.tapCreate failed — check Accessibility permission")
       return
     }
-    let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-    CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+    guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+      logger.error("focus-follows-mouse: failed to create run loop source")
+      return
+    }
+    EventTapThread.shared.addSource(source)
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
     logger.info("focus-follows-mouse: event tap installed")
   }
 
-  @MainActor
   private func teardown() {
     if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
     if let src = runLoopSource {
-      CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes)
+      EventTapThread.shared.removeSource(src)
     }
     eventTap = nil
     runLoopSource = nil
@@ -118,14 +123,16 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// Macros / heavy work in some apps can starve the tap; macOS responds
   /// by sending a `tapDisabledByTimeout` event and turning the tap off.
   /// Flip it back on so focus-follows-mouse keeps working.
-  @MainActor
   fileprivate func reEnableTap() {
     if let tap = eventTap {
       CGEvent.tapEnable(tap: tap, enable: true)
     }
   }
 
-  @MainActor
+  /// Runs on the event-tap thread. The hit-test (`CGWindowListCopyWindowInfo`)
+  /// and throttle bookkeeping stay off the main thread; only the actual
+  /// focus change — which touches AppKit + Accessibility — hops to the main
+  /// actor.
   fileprivate func handle(location: CGPoint, flags: CGEventFlags) {
     if modifiersIndicateDisable(flags) { return }
     let now = Date()
@@ -142,7 +149,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
 
     // Raise the specific window under the cursor so focus lands on the
     // right one even within the same app (shared helper in WindowKey).
-    focusWindow(pid: info.pid, windowID: info.windowID)
+    // `focusWindow` is `@MainActor` (AppKit activate + AX raise), so hop.
+    let pid = info.pid
+    let windowID = info.windowID
+    Task { @MainActor in focusWindow(pid: pid, windowID: windowID) }
   }
 
   private func modifiersIndicateDisable(_ flags: CGEventFlags) -> Bool {
@@ -191,21 +201,18 @@ private func focusFollowsMouseCallback(
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let controller = Unmanaged<LiveFocusFollowsMouseController>
     .fromOpaque(refcon).takeUnretainedValue()
-  // Run loop source is on the main run loop, so the callback is already
-  // on the main thread — assumeIsolated is safe. Extract the event's
-  // Sendable scalars (location + flags) before hopping so we don't
-  // carry the non-Sendable `CGEvent` across the isolation boundary.
+  // The run-loop source lives on the shared event-tap thread, so this
+  // callback already runs there — the controller's state is touched only
+  // from this thread, so we call straight in. Extract the event's Sendable
+  // scalars (location + flags) so we never retain the non-Sendable
+  // `CGEvent` beyond the callback.
   switch type {
   case .mouseMoved:
     let location = event.location
     let flags = event.flags
-    MainActor.assumeIsolated {
-      controller.handle(location: location, flags: flags)
-    }
+    controller.handle(location: location, flags: flags)
   case .tapDisabledByTimeout, .tapDisabledByUserInput:
-    MainActor.assumeIsolated {
-      controller.reEnableTap()
-    }
+    controller.reEnableTap()
   default:
     break
   }

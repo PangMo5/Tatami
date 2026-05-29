@@ -90,10 +90,13 @@ private typealias SLPSPostEventRecordToFn =
     UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>
   ) -> OSStatus
 
-/// Single-instance holder for the SkyLight handles. `nonisolated(unsafe)`
-/// covers the dlopen pointers (they're read-only once initialized);
-/// per-call work is dispatched onto a serial queue so the underlying SLS
-/// state machine stays single-threaded.
+/// Single-instance holder for the SkyLight handles. `@unchecked Sendable`
+/// is sound because every stored property is set once in `init` and only
+/// read afterwards: the `dlopen` handle and the `dlsym` function pointers
+/// are immutable after initialization. The SLS entry points themselves are
+/// WindowServer IPC (mach messages over the process-wide connection id) and
+/// are issued directly on the caller's thread — there is no per-instance
+/// mutable state to serialize.
 private final class SLSCenter: @unchecked Sendable {
   let connectionID: Int32
 

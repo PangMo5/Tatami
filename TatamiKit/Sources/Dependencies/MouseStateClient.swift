@@ -116,10 +116,17 @@ private final class MouseStateController: @unchecked Sendable {
   }
 
   func configure(_ config: MouseStateConfig) async {
-    await MainActor.run { self.installTap(modifier: config.modifier) }
+    // The tap lives on the shared event-tap thread, not the main run loop,
+    // so its callback (a `CGWindowListCopyWindowInfo` hit-test on every
+    // mouse-down) stays off the main thread. Install is idempotent and
+    // serialized on that thread, so there's nothing to await back.
+    EventTapThread.shared.perform { [self] in
+      installTap(modifier: config.modifier)
+    }
   }
 
-  @MainActor
+  /// Runs on the event-tap thread (via `configure`). All controller state
+  /// below is only ever touched from that thread, so it needs no lock.
   private func installTap(modifier: NSEvent.ModifierFlags) {
     self.modifier = modifier
     guard tap == nil else { return }
@@ -139,9 +146,9 @@ private final class MouseStateController: @unchecked Sendable {
           .takeUnretainedValue()
         let location = event.location
         let flags = event.flags
-        MainActor.assumeIsolated {
-          ctrl.handle(type: type, location: location, flags: flags)
-        }
+        // Already on the event-tap thread — `handle` only emits Sendable
+        // drag events into an AsyncStream, so no isolation hop is needed.
+        ctrl.handle(type: type, location: location, flags: flags)
         return Unmanaged.passUnretained(event)
       },
       userInfo: context
@@ -152,12 +159,11 @@ private final class MouseStateController: @unchecked Sendable {
     self.tap = port
     self.runLoopSource = CFMachPortCreateRunLoopSource(nil, port, 0)
     if let src = self.runLoopSource {
-      CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
+      EventTapThread.shared.addSource(src)
     }
     CGEvent.tapEnable(tap: port, enable: true)
   }
 
-  @MainActor
   private func handle(type: CGEventType, location: CGPoint, flags: CGEventFlags) {
     switch type {
     case .leftMouseDown:

@@ -120,9 +120,27 @@ private actor SocketServer {
 
     let listenFD = fd
     let continuation = continuation
-    Task.detached(priority: .utility) {
-      Self.acceptLoop(listenFD: listenFD, continuation: continuation)
+    // POSIX `accept`/`read` are blocking syscalls and must NOT run on the
+    // Swift cooperative thread pool: a parked pool thread starves every
+    // other async task because the pool is sized to the core count. Run
+    // the accept loop on a dedicated `Thread`, and hand each accepted
+    // connection to a concurrent libdispatch queue (which grows its own
+    // worker threads as workers block) so a slow reply can't wedge the
+    // accept loop.
+    let connections = DispatchQueue(
+      label: "dev.PangMo5.Tatami.socket-connections",
+      attributes: .concurrent
+    )
+    let acceptThread = Thread {
+      Self.acceptLoop(
+        listenFD: listenFD,
+        continuation: continuation,
+        connections: connections
+      )
     }
+    acceptThread.name = "dev.PangMo5.Tatami.socket-accept"
+    acceptThread.qualityOfService = .utility
+    acceptThread.start()
   }
 
   func stop() {
@@ -136,7 +154,8 @@ private actor SocketServer {
 
   private static func acceptLoop(
     listenFD: Int32,
-    continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
+    continuation: AsyncStream<SocketServerClient.Incoming>.Continuation,
+    connections: DispatchQueue
   ) {
     while true {
       let clientFD = Darwin.accept(listenFD, nil, nil)
@@ -145,7 +164,7 @@ private actor SocketServer {
         logger.info("accept failed: \(errno) — exiting accept loop")
         return
       }
-      Task.detached(priority: .utility) {
+      connections.async {
         handleConnection(clientFD: clientFD, continuation: continuation)
       }
     }
@@ -164,19 +183,23 @@ private actor SocketServer {
       return
     }
 
+    // Hand the request to the reducer and park *this* connection thread
+    // until the reply closure fires. The semaphore is signalled from the
+    // reply, so the thread sleeps (no CPU-burning poll) until woken or the
+    // 5s deadline elapses.
     let responseBox = ResponseBox()
+    let replied = DispatchSemaphore(value: 0)
     let incoming = SocketServerClient.Incoming(request: request) { response in
       responseBox.set(response)
+      replied.signal()
     }
     continuation.yield(incoming)
 
-    // Wait up to 5s for the reducer to fulfill the reply.
-    let deadline = Date().addingTimeInterval(5)
-    while !responseBox.isSet, Date() < deadline {
-      Thread.sleep(forTimeInterval: 0.01)
+    if replied.wait(timeout: .now() + 5) == .timedOut {
+      writeResponse(fd: clientFD, response: .failure("Timeout"))
+      return
     }
-    let response = responseBox.value ?? .failure("Timeout")
-    writeResponse(fd: clientFD, response: response)
+    writeResponse(fd: clientFD, response: responseBox.value ?? .failure("Timeout"))
   }
 
   private static func readLine(fd: Int32) -> String? {
@@ -209,12 +232,6 @@ private final class ResponseBox: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     return _value
-  }
-
-  var isSet: Bool {
-    lock.lock()
-    defer { lock.unlock() }
-    return _value != nil
   }
 
   func set(_ response: CLIMessage.Response) {

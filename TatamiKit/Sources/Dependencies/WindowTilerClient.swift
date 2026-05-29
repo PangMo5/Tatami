@@ -65,6 +65,10 @@ extension WindowTilerClient: DependencyKey {
     entries: [(key: WindowKey, value: CGRect)]
   ) {
     let axApp = AXUIElementCreateApplication(pid)
+    // Cap how long any single AX write can block the main thread. The
+    // default has no practical ceiling, so one unresponsive app could
+    // wedge the whole tile pass (and the UI) indefinitely.
+    AXUIElementSetMessagingTimeout(axApp, 1.0)
 
     // Discover every window once + map CGWindowID → AXUIElement.
     var raw: CFTypeRef?
@@ -235,6 +239,9 @@ public func discoverWindowKeys(
       continue
     }
     let axApp = AXUIElementCreateApplication(pid)
+    // Same rationale as the tile pass: bound the per-message wait so a
+    // hung app can't stall discovery (and the main thread) indefinitely.
+    AXUIElementSetMessagingTimeout(axApp, 1.0)
     var raw: CFTypeRef?
     guard AXUIElementCopyAttributeValue(
       axApp,

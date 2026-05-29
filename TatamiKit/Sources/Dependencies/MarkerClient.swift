@@ -117,6 +117,13 @@ private final class MarkerController {
   private var panels: [WindowKey: NSPanel] = [:]
   private var styles: [WindowKey: Style] = [:]
   private var lastFrame: [WindowKey: NSRect] = [:]
+  /// Resolved `AXUIElement` per marked window. AX calls are synchronous
+  /// cross-process IPC and must stay on the main thread, so the lever for
+  /// the 20 Hz drag-tracking timer is *fewer round-trips*: resolve each
+  /// window's element once and reuse it across ticks (the panel set is
+  /// stable mid-drag). Invalidated when the target set changes or an
+  /// element goes stale.
+  private var axWindowCache: [WindowKey: AXUIElement] = [:]
   private var timer: Timer?
   /// Polling cadence: enough to track window drags smoothly and to
   /// react to the cursor moving over a dot.
@@ -158,6 +165,7 @@ private final class MarkerController {
       panels.removeValue(forKey: key)
       styles.removeValue(forKey: key)
       lastFrame.removeValue(forKey: key)
+      axWindowCache.removeValue(forKey: key)
     }
     // Add or update panels for each target.
     for (key, hex) in targets {
@@ -208,11 +216,12 @@ private final class MarkerController {
   /// over the dot — otherwise it fades out so it doesn't block the
   /// window or pollute other apps' screens.
   private func syncFrames() {
+    ensureAXCacheCoversPanels()
     var lost: [WindowKey] = []
     let cursor = NSEvent.mouseLocation  // Cocoa coordinates (bottom-left)
     for (key, panel) in panels {
       guard let style = styles[key],
-            let windowFrame = windowFrame(pid: key.pid, windowID: key.windowID)
+            let windowFrame = frame(for: key)
       else {
         lost.append(key)
         continue
@@ -246,6 +255,7 @@ private final class MarkerController {
       panels.removeValue(forKey: key)
       styles.removeValue(forKey: key)
       lastFrame.removeValue(forKey: key)
+      axWindowCache.removeValue(forKey: key)
     }
     if panels.isEmpty { refreshTimerState() }
   }
@@ -303,39 +313,66 @@ private final class MarkerController {
     )
   }
 
-  /// Resolve the AX `kAXPosition` / `kAXSize` for a window owned by `pid`
-  /// matching `windowID`. Returns nil if the window has gone away.
-  private func windowFrame(pid: pid_t, windowID: CGWindowID) -> CGRect? {
-    let app = AXUIElementCreateApplication(pid)
-    var raw: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(
-      app, kAXWindowsAttribute as CFString, &raw
-    ) == .success,
-      let windows = raw as? [AXUIElement]
-    else { return nil }
-    for window in windows {
-      var wid: CGWindowID = 0
-      guard _AXUIElementGetWindow(window, &wid) == .success, wid == windowID else {
-        continue
+  /// Resolve every still-unresolved marked window to its `AXUIElement` in
+  /// one `kAXWindowsAttribute` enumeration per owning app. During a drag
+  /// the panel set is stable, so after the first tick every key is already
+  /// cached and this returns immediately — turning the per-window
+  /// enumeration that used to run on every 20 Hz tick into a one-shot.
+  private func ensureAXCacheCoversPanels() {
+    let missing = panels.keys.filter { axWindowCache[$0] == nil }
+    guard !missing.isEmpty else { return }
+    let byPid = Dictionary(grouping: missing, by: { $0.pid })
+    for (pid, keys) in byPid {
+      let app = AXUIElementCreateApplication(pid)
+      // Bound the per-message wait: a hung target app must not stall the
+      // main thread for the default 6 s while we poll frames at 20 Hz.
+      AXUIElementSetMessagingTimeout(app, 0.25)
+      var raw: CFTypeRef?
+      guard AXUIElementCopyAttributeValue(
+        app, kAXWindowsAttribute as CFString, &raw
+      ) == .success,
+        let windows = raw as? [AXUIElement]
+      else { continue }
+      var widToElement: [CGWindowID: AXUIElement] = [:]
+      for window in windows {
+        var wid: CGWindowID = 0
+        if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
+          widToElement[wid] = window
+        }
       }
-      return axFrame(of: window)
+      for key in keys {
+        if let element = widToElement[key.windowID] { axWindowCache[key] = element }
+      }
     }
-    return nil
   }
 
+  /// Current AX frame for a marked window via its cached element. Drops a
+  /// stale element (window closed / app quit) so the next tick re-resolves.
+  private func frame(for key: WindowKey) -> CGRect? {
+    guard let element = axWindowCache[key] else { return nil }
+    guard let frame = axFrame(of: element) else {
+      axWindowCache.removeValue(forKey: key)
+      return nil
+    }
+    return frame
+  }
+
+  /// Read `kAXPosition` + `kAXSize` in a single multi-attribute IPC round
+  /// trip instead of two separate `AXUIElementCopyAttributeValue` calls.
   private func axFrame(of window: AXUIElement) -> CGRect? {
-    var posRef: CFTypeRef?
-    var sizeRef: CFTypeRef?
-    AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &posRef)
-    AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef)
-    guard let posRef, let sizeRef,
-          CFGetTypeID(posRef) == AXValueGetTypeID(),
-          CFGetTypeID(sizeRef) == AXValueGetTypeID()
+    let attrs = [kAXPositionAttribute, kAXSizeAttribute] as CFArray
+    var valuesRef: CFArray?
+    guard AXUIElementCopyMultipleAttributeValues(
+      window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
+    ) == .success,
+      let values = valuesRef as? [CFTypeRef], values.count == 2,
+      CFGetTypeID(values[0]) == AXValueGetTypeID(),
+      CFGetTypeID(values[1]) == AXValueGetTypeID()
     else { return nil }
     var pos = CGPoint.zero
     var size = CGSize.zero
-    AXValueGetValue(posRef as! AXValue, .cgPoint, &pos)
-    AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+    AXValueGetValue(values[0] as! AXValue, .cgPoint, &pos)
+    AXValueGetValue(values[1] as! AXValue, .cgSize, &size)
     guard size.width > 1, size.height > 1 else { return nil }
     return CGRect(origin: pos, size: size)
   }
