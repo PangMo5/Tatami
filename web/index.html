@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tatami — yabai-style window tiling for macOS</title>
+<meta name="description" content="Tatami is a macOS workspace manager with yabai-style BSP window tiling. Group apps into virtual workspaces and tile their windows automatically — no SIP changes, no shell scripting." />
+<meta name="theme-color" content="#000000" />
+<link rel="icon" type="image/png" href="./icon.png" />
+<link rel="stylesheet" href="./style.css" />
+<meta property="og:title" content="Tatami" />
+<meta property="og:description" content="yabai-style window tiling for macOS. No SIP changes, no scripts." />
+<meta property="og:image" content="./icon.png" />
+<meta property="og:type" content="website" />
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="./"><img src="./icon.png" alt="" /> <span class="brand-name">Tatami</span></a>
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" />
+    <label for="nav-toggle" class="nav-burger" aria-label="Menu"><span></span></label>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="./configuration.html">Configuration</a>
+      <a href="./releases.html">Releases</a>
+      <a href="https://github.com/PangMo5/Tatami">GitHub</a>
+    </div>
+    <label for="nav-toggle" class="nav-scrim" aria-hidden="true"></label>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <img class="hero-icon" src="./icon.png" alt="Tatami app icon" />
+    <h1>Tatami</h1>
+    <p class="sub">yabai-style window tiling for macOS.<br />No SIP changes. No scripts.</p>
+    <div class="cta">
+      <a class="btn btn-primary download-link" href="https://github.com/PangMo5/Tatami/releases/download/v__VERSION__/Tatami-__VERSION__.dmg">Download for macOS</a>
+      <a class="btn btn-link" href="https://github.com/PangMo5/Tatami">View on GitHub&nbsp;&rsaquo;</a>
+    </div>
+    <div class="brew">
+      <code id="brew-cmd">brew install --cask pangmo5/tap/tatami</code>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('brew-cmd').textContent)">Copy</button>
+    </div>
+    <p class="meta">Version <span id="version">__VERSION__</span> · Requires macOS 14 · Free &amp; open source</p>
+  </div>
+</section>
+
+<section class="showcase">
+  <div class="scene">
+    <div class="screen" id="screen">
+      <div class="menubar"><span class="ws"><b></b><span id="ws-name">1 · Code</span></span></div>
+      <div class="hud" id="hud"></div>
+    </div>
+    <div class="caption-wrap">
+      <p class="scene-caption" id="cap">Open a window and it tiles itself.</p>
+      <div class="keyhint" id="keys"></div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow">Tiling that just works</p>
+    <h2>No SIP changes. No shell scripts.</h2>
+    <p class="sub">A yabai-style BSP engine tiles your windows automatically, with virtual workspaces and a scriptable CLI — all native, all without disabling System Integrity Protection.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="ico">▦</div>
+        <h3>Automatic tiling</h3>
+        <p>A binary space partitioning engine tiles windows as you open them. Focus, swap, resize, zoom, and rotate with vim-style keys.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🗂️</div>
+        <h3>Virtual workspaces</h3>
+        <p>Group apps into workspaces and switch with a hotkey, a trackpad swipe, or a jump to the most recent — across multiple displays.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">⌨️</div>
+        <h3>Scriptable &amp; native</h3>
+        <p>skhd-style shortcuts, a plain-TOML config that hot-reloads, a CLI for scripting, and native SwiftUI settings.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-dark" id="download">
+  <div class="wrap">
+    <h2>Get Tatami.</h2>
+    <p class="sub">Free, open source, and lives in your menu bar.</p>
+    <div class="cta">
+      <a class="btn btn-primary download-link" href="https://github.com/PangMo5/Tatami/releases/download/v__VERSION__/Tatami-__VERSION__.dmg">Download for macOS</a>
+      <a class="btn btn-link" href="./releases.html">Release notes&nbsp;&rsaquo;</a>
+    </div>
+    <div class="brew">
+      <code id="brew-cmd-2">brew install --cask pangmo5/tap/tatami</code>
+      <button onclick="navigator.clipboard.writeText(document.getElementById('brew-cmd-2').textContent)">Copy</button>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-links">
+      <a href="https://github.com/PangMo5/Tatami">GitHub</a>
+      <a href="./releases.html">Releases</a>
+      <a href="./configuration.html">Configuration</a>
+      <a href="https://github.com/PangMo5/Tatami/blob/main/LICENSE">License</a>
+    </div>
+    <p>Tatami is open source under the GPL-3.0 license. Inspired by FlashSpace and yabai. Not affiliated with Apple Inc.</p>
+  </div>
+</footer>
+
+<script>
+  // Looping product demo: walks through tiling, directional focus, swap, zoom,
+  // workspace switching, and floating windows. CSS transitions animate moves.
+  (() => {
+    const screen = document.getElementById("screen");
+    const cap = document.getElementById("cap");
+    const keys = document.getElementById("keys");
+    const hud = document.getElementById("hud");
+    const wsName = document.getElementById("ws-name");
+    if (!screen) return;
+
+    const G = 2, TOP = 9, BOT = 98, LFT = 2, RGT = 98, MX = 50, MY = 53.5;
+    const r = (x, y, w, h) => ({ x, y, w, h });
+    const R = {
+      full: r(LFT, TOP, RGT - LFT, BOT - TOP),
+      left: r(LFT, TOP, MX - LFT - G / 2, BOT - TOP),
+      right: r(MX + G / 2, TOP, RGT - MX - G / 2, BOT - TOP),
+      rtop: r(MX + G / 2, TOP, RGT - MX - G / 2, MY - TOP - G / 2),
+      rbot: r(MX + G / 2, MY + G / 2, RGT - MX - G / 2, BOT - MY - G / 2),
+      ltop: r(LFT, TOP, MX - LFT - G / 2, MY - TOP - G / 2),
+      lbot: r(LFT, MY + G / 2, MX - LFT - G / 2, BOT - MY - G / 2),
+      float: r(28, 32, 44, 40),
+    };
+
+    const els = {};
+    function win(app) {
+      if (els[app]) return els[app];
+      const el = document.createElement("div");
+      el.className = "win";
+      el.innerHTML =
+        '<div class="wtitle"><span class="dots"><i></i><i></i><i></i></span>' + app + "</div>" +
+        '<div class="wbody"></div>';
+      screen.appendChild(el);
+      els[app] = el;
+      return el;
+    }
+    ["Terminal", "Safari", "Notes", "Music", "Photos", "Messages", "Calculator"].forEach(win);
+
+    const stages = [
+      { cap: "Open a window…", ws: "1 · Code", wins: { Terminal: { r: "full", f: 1 } } },
+      { cap: "Open another — it tiles automatically", ws: "1 · Code", wins: { Terminal: { r: "left" }, Safari: { r: "right", f: 1 } } },
+      { cap: "BSP inserts at the shallowest tile", ws: "1 · Code", wins: { Terminal: { r: "left" }, Safari: { r: "rtop" }, Notes: { r: "rbot", f: 1 } } },
+      { cap: "Move focus with h j k l", keys: "h", ws: "1 · Code", wins: { Terminal: { r: "left", f: 1 }, Safari: { r: "rtop" }, Notes: { r: "rbot" } } },
+      { cap: "Move focus with h j k l", keys: "l", ws: "1 · Code", wins: { Terminal: { r: "left" }, Safari: { r: "rtop", f: 1 }, Notes: { r: "rbot" } } },
+      { cap: "Swap windows in any direction", ws: "1 · Code", wins: { Safari: { r: "left" }, Terminal: { r: "rtop", f: 1 }, Notes: { r: "rbot" } } },
+      { cap: "Zoom a window to fill the workspace", ws: "1 · Code", wins: { Terminal: { r: "full", f: 1 } } },
+      { cap: "Rotate, mirror, and balance the tree", ws: "1 · Code", wins: { Terminal: { r: "ltop" }, Safari: { r: "lbot" }, Notes: { r: "right", f: 1 } } },
+      { cap: "Switch workspaces with a hotkey or swipe", ws: "2 · Media", hud: "2 · Media", wins: { Music: { r: "left", f: 1 }, Photos: { r: "right" } } },
+      { cap: "Each workspace groups its own apps", ws: "2 · Media", wins: { Music: { r: "left" }, Photos: { r: "rtop" }, Messages: { r: "rbot", f: 1 } } },
+      { cap: "Keep some apps floating above the tiles", ws: "2 · Media", wins: { Music: { r: "left" }, Photos: { r: "rtop" }, Messages: { r: "rbot" }, Calculator: { r: "float", float: 1, f: 1 } } },
+    ];
+
+    function apply(s) {
+      cap.style.opacity = "0";
+      setTimeout(() => { cap.textContent = s.cap; cap.style.opacity = "1"; }, 170);
+      wsName.textContent = s.ws;
+      hud.textContent = s.hud || "";
+      hud.classList.toggle("show", !!s.hud);
+      keys.innerHTML = "";
+      if (s.keys) {
+        ["h", "j", "k", "l"].forEach((k) => {
+          const kb = document.createElement("kbd");
+          kb.textContent = k;
+          if (k === s.keys) kb.classList.add("on");
+          keys.appendChild(kb);
+        });
+      }
+      const visible = new Set(Object.keys(s.wins));
+      for (const app in els) {
+        if (!visible.has(app)) els[app].classList.remove("show", "focused", "floating");
+      }
+      for (const app in s.wins) {
+        const w = s.wins[app], el = els[app], rc = R[w.r];
+        el.style.left = rc.x + "%"; el.style.top = rc.y + "%";
+        el.style.width = rc.w + "%"; el.style.height = rc.h + "%";
+        el.classList.add("show");
+        el.classList.toggle("focused", !!w.f);
+        el.classList.toggle("floating", !!w.float);
+      }
+    }
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { apply(stages[2]); return; }
+    let i = 0;
+    apply(stages[0]);
+    setInterval(() => { i = (i + 1) % stages.length; apply(stages[i]); }, 2600);
+  })();
+</script>
+
+<script>
+  // Point the download buttons + version label at the latest GitHub release.
+  // The build-time values stay as a no-JS / offline fallback.
+  (async () => {
+    try {
+      const res = await fetch("https://api.github.com/repos/PangMo5/Tatami/releases/latest", {
+        headers: { Accept: "application/vnd.github+json" },
+      });
+      if (!res.ok) return;
+      const rel = await res.json();
+      const version = (rel.tag_name || "").replace(/^v/, "");
+      const dmg = (rel.assets || []).find((a) => /\.dmg$/i.test(a.name));
+      if (version) {
+        const v = document.getElementById("version");
+        if (v) v.textContent = version;
+      }
+      // Only trust an https github.com asset URL before rewriting the button.
+      if (dmg && /^https:\/\/github\.com\//.test(dmg.browser_download_url)) {
+        document.querySelectorAll("a.download-link").forEach((a) => { a.href = dmg.browser_download_url; });
+      }
+    } catch (e) { /* keep the static fallback */ }
+  })();
+</script>
+
+</body>
+</html>
