@@ -21,7 +21,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Directional focus, swap, and resize (vim-like `h` / `j` / `k` / `l`)
 - Zoom a window to fill the workspace; toggle split orientation
 - Rotate, mirror, and balance the layout tree
-- Drag-to-swap, plus manual resize that syncs back into the layout
+- Drag a window to swap or re-insert it next to another — a live overlay previews where it'll land (center = swap, edges = insert that side); manual edge-resize syncs back into the tree
 - Configurable inner / outer gaps
 
 ### Workspaces

@@ -61,12 +61,11 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `autoBalance` | string | `"none"` | Re-equalize splits after every insert/remove. One of `none`, `horizontal`, `vertical`, `both`. (Legacy bool values still decode: `true` → `both`, `false` → `none`.) |
 | `splitType` | string | `"auto"` | Default split axis when a new window splits a tile: `auto` (aspect-based), `horizontal`, `vertical`. |
 | `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
-| `defaultTilingMemory` | string | `"session"` | How workspaces remember their layout: `fresh`, `session`, or `persistent`. A workspace can override this. |
+| `defaultTilingMemory` | string | `"session"` | How workspaces remember their layout: `session` or `persistent`. A workspace can override this. |
 
 `defaultTilingMemory` values:
 
-- `fresh` — lay out from scratch on every activation
-- `session` — keep split ratios while the app runs; reset on restart
+- `session` — keep the layout (split axes + ratios) while the app runs; reset on restart
 - `persistent` — remember the layout across app restarts (saved to disk)
 
 ## `[settings.focus]`
@@ -106,7 +105,7 @@ action unbound.
 | `resizeGrow` / `resizeShrink` | Resize the focused tile |
 | `toggleOrientation` | Toggle the focused split's orientation |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
-| `balance` | Re-equalize splits per `settings.layout.autoBalance` |
+| `balance` | Re-equalize every split so siblings share their space evenly |
 | `cycleNextWindow` / `cyclePreviousWindow` | Cycle focus across the workspace's windows |
 | `switchToNextWorkspace` / `switchToPreviousWorkspace` | Cycle workspaces |
 | `switchToRecentWorkspace` | Jump to the previously active workspace |
@@ -158,7 +157,7 @@ Workspace fields:
 | `symbolIconName` | string? | SF Symbol used in the menu bar / sidebar. |
 | `activateShortcut` | string? | Shortcut to activate this workspace. |
 | `moveWindowShortcut` | string? | Shortcut to move the focused app here. |
-| `tilingMemory` | string? | `fresh` / `session` / `persistent`; omit to use the global default. |
+| `tilingMemory` | string? | `session` / `persistent`; omit to use the global default. |
 | `displayHint` | string? | Pin the workspace to a display; omit to follow apps dynamically. |
 
 App assignment fields:
