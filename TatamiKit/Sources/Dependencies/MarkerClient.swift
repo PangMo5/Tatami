@@ -55,91 +55,35 @@ private final class MarkerController {
     var size: Double
   }
 
-  init() {
-    // Drag-gated tick: only run the position-tracking timer while the
-    // user actually has the mouse button held. Global monitors catch
-    // events in *other* apps' processes — which is exactly when the
-    // user is dragging a marked window.
-    mouseDownMonitor = NSEvent.addGlobalMonitorForEvents(
-      matching: .leftMouseDown
-    ) { [weak self] _ in
-      Task { @MainActor [weak self] in self?.handleMouseDown(true) }
-    }
-    mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(
-      matching: .leftMouseUp
-    ) { [weak self] _ in
-      Task { @MainActor [weak self] in self?.handleMouseDown(false) }
-    }
-  }
-
-  // Controller lives for the process lifetime, so we don't need to
-  // tear down the NSEvent monitors. (deinit would need to hop to the
-  // main actor to touch the captured tokens, which Swift 6 refuses.)
-
-  private func handleMouseDown(_ down: Bool) {
-    if mouseDown == down { return }
-    mouseDown = down
-    if !down {
-      // Drag just ended — settle on the release position. Without this
-      // the dot lingers at its last polled location, which can lag
-      // the actual window by tens of ms.
-      syncFrames()
-      refreshTimerState()
-      // Reducer's debounced drag/resize commit lands ~150 ms later and
-      // may re-tile (fullscreen-zoom snap-back, BSP ratio flush). One
-      // deferred sync past that lull keeps the dot aligned.
-      scheduleDeferredSync()
-      return
-    }
-    refreshTimerState()
-  }
-
-  private func refreshTimerState() {
-    setTimer(active: !panels.isEmpty && mouseDown)
-  }
-
-  /// Cancellable token for the post-mutation deferred sync. Each new
-  /// `setTargets` / mouseUp coalesces onto the latest one.
-  private var deferredSyncTask: Task<Void, Never>?
-
-  /// Run one more `syncFrames` 250 ms from now. Used to catch up to
-  /// re-tile passes that land just after a target / focus update
-  /// (fullscreen-zoom toggle, post-drag layout snap-back, …).
-  private func scheduleDeferredSync() {
-    deferredSyncTask?.cancel()
-    deferredSyncTask = Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .milliseconds(250))
-      guard !Task.isCancelled else { return }
-      self?.syncFrames()
-    }
-  }
-
   private var panels: [WindowKey: NSPanel] = [:]
   private var styles: [WindowKey: Style] = [:]
   private var lastFrame: [WindowKey: NSRect] = [:]
-  /// Resolved `AXUIElement` per marked window. AX calls are synchronous
-  /// cross-process IPC and must stay on the main thread, so the lever for
-  /// the 20 Hz drag-tracking timer is *fewer round-trips*: resolve each
-  /// window's element once and reuse it across ticks (the panel set is
-  /// stable mid-drag). Invalidated when the target set changes or an
-  /// element goes stale.
+  /// Resolved `AXUIElement` per marked window — the element we read the
+  /// frame from and subscribe geometry notifications on. AX calls are
+  /// synchronous cross-process IPC and must stay on the main thread, so we
+  /// resolve each window's element once and reuse it.
   private var axWindowCache: [WindowKey: AXUIElement] = [:]
-  private var timer: Timer?
-  /// Polling cadence: enough to track window drags smoothly and to
-  /// react to the cursor moving over a dot.
-  private let interval: TimeInterval = 0.05
+  /// One `AXObserver` per owning pid. The marker subscribes
+  /// `kAXWindowMoved` / `kAXWindowResized` on each marked window so dots
+  /// follow the window event-driven — there is no polling timer. Unlike the
+  /// BSP `WindowObserver` these are deliberately *not* mouse-gated, so they
+  /// also track programmatic re-tiles (fullscreen-zoom toggle, layout
+  /// snap-back), which is what the old design needed a deferred sync for.
+  private var axObservers: [pid_t: AXObserver] = [:]
+  private var subscribed: Set<WindowKey> = []
+  /// Global mouse-moved monitor, installed only while a dot can be visible,
+  /// so the hover-fade reacts without a polling timer. Hover needs the
+  /// cursor position — a mouse event — which SwiftUI `.onHover` can't give
+  /// us here: the panels are `ignoresMouseEvents` (click-through), so they
+  /// receive no tracking events at all. A global monitor sees movement in
+  /// *other* apps, which is exactly where the dots live.
+  private var hoverMonitor: Any?
+
   private var hideOnHover = true
   private var corner: MarkerCorner = .bottomTrailing
   /// Last focused window pushed in via `setFocused`. nil = no focus
   /// (or unknown — markers stay hidden, which is the safe default).
   private var focused: (pid: pid_t, windowID: CGWindowID)?
-  /// True while the user is mid-drag (primary mouse button held).
-  /// Toggled by global NSEvent monitors so the position-tracking timer
-  /// only runs during the small windows when window geometry is
-  /// actually moving.
-  private var mouseDown = false
-  private var mouseDownMonitor: Any?
-  private var mouseUpMonitor: Any?
   /// Distance from the chosen window corner to the dot's edge.
   private let inset: CGFloat = 10
   /// Small panel padding so the dot's faint drop shadow isn't clipped
@@ -159,13 +103,11 @@ private final class MarkerController {
       // changed, so cached frames are stale.
       lastFrame.removeAll()
     }
-    // Tear down panels for windows no longer marked.
-    for (key, panel) in panels where targets[key] == nil {
-      panel.orderOut(nil)
-      panels.removeValue(forKey: key)
-      styles.removeValue(forKey: key)
-      lastFrame.removeValue(forKey: key)
-      axWindowCache.removeValue(forKey: key)
+    // Tear down panels (+ AX subscriptions) for windows no longer marked.
+    // The reducer owns the target set, so this is the authoritative point
+    // at which a dot's lifecycle ends.
+    for key in panels.keys.filter({ targets[$0] == nil }) {
+      removeWindow(key)
     }
     // Add or update panels for each target.
     for (key, hex) in targets {
@@ -181,12 +123,6 @@ private final class MarkerController {
       styles[key] = style
     }
     syncFrames()
-    refreshTimerState()
-    // Programmatic layout shifts (fullscreen-zoom toggle, BSP
-    // re-tile, …) flow through here. The AX frame may not be settled
-    // yet — apply effects are dispatched concurrently with this call.
-    // One deferred sync past the typical re-tile latency catches up.
-    scheduleDeferredSync()
   }
 
   /// Record the currently-frontmost window. wid 0 means "no focused
@@ -199,66 +135,208 @@ private final class MarkerController {
     syncFrames()
   }
 
-  private func setTimer(active: Bool) {
-    if active, timer == nil {
-      timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-        Task { @MainActor in self?.syncFrames() }
+  // MARK: - Sync (one-shot; no timer)
+
+  /// Full pass: resolve elements, (re)subscribe AX geometry notifications,
+  /// then position every dot and update its visibility. Called only on
+  /// target / focus changes — the per-window AX observer drives every
+  /// reposition in between, and the hover monitor drives the fade.
+  private func syncFrames() {
+    ensureAXCacheCoversPanels()
+    ensureSubscriptions()
+    let cursor = NSEvent.mouseLocation  // Cocoa coordinates (bottom-left)
+    for key in Array(panels.keys) {
+      refresh(key, cursor: cursor)
+    }
+    refreshHoverMonitor()
+  }
+
+  /// Position + visibility for one dot from the live AX frame. On a frame
+  /// read failure (transient AX timeout, or window not yet ready) the dot is
+  /// hidden but kept — the next geometry event or `syncFrames` retries; the
+  /// reducer drops it via `setTargets` once it's truly gone.
+  private func refresh(_ key: WindowKey, cursor: NSPoint) {
+    guard let style = styles[key], let panel = panels[key] else { return }
+    guard let windowFrame = frame(for: key) else {
+      if panel.alphaValue > 0.01 { panel.alphaValue = 0 }
+      return
+    }
+    let cocoa = flipToCocoa(dotRect(in: windowFrame, size: CGFloat(style.size), corner: corner))
+    if lastFrame[key] != cocoa {
+      panel.setFrame(cocoa, display: true, animate: false)
+      lastFrame[key] = cocoa
+    }
+    if !panel.isVisible { panel.orderFrontRegardless() }
+    updateAlpha(for: key, cursor: cursor)
+  }
+
+  /// Visibility only, from the *cached* dot rect — no AX round trip. Used by
+  /// the hover monitor so moving the cursor never triggers AX IPC.
+  private func updateAlpha(for key: WindowKey, cursor: NSPoint) {
+    guard let panel = panels[key], let cocoa = lastFrame[key] else { return }
+    // Focus gate: hide when this window isn't the user's current window.
+    // Matched on (pid, wid) so two windows of the same app don't share a dot.
+    let isFocused = focused.map { $0.pid == key.pid && $0.windowID == key.windowID } ?? false
+    // Hover fade: only react when the cursor sits over the dot's visible
+    // circle, not the surrounding glow padding.
+    let hovering = hideOnHover && cocoa.insetBy(dx: glowPadding, dy: glowPadding).contains(cursor)
+    let target: CGFloat = (isFocused && !hovering) ? 1 : 0
+    if abs(panel.alphaValue - target) > 0.01 {
+      NSAnimationContext.runAnimationGroup { ctx in
+        ctx.duration = 0.15
+        panel.animator().alphaValue = target
       }
-    } else if !active, let t = timer {
-      t.invalidate()
-      timer = nil
     }
   }
 
-  /// Move each panel onto its window's configured corner. The dot is
-  /// only visible when (1) its window is the frontmost focused window
-  /// (pushed in via `setFocused`) and (2) the cursor isn't sitting
-  /// over the dot — otherwise it fades out so it doesn't block the
-  /// window or pollute other apps' screens.
-  private func syncFrames() {
-    ensureAXCacheCoversPanels()
-    var lost: [WindowKey] = []
-    let cursor = NSEvent.mouseLocation  // Cocoa coordinates (bottom-left)
-    for (key, panel) in panels {
-      guard let style = styles[key],
-            let windowFrame = frame(for: key)
-      else {
-        lost.append(key)
-        continue
-      }
-      let size = CGFloat(style.size)
-      let dotCG = dotRect(in: windowFrame, size: size, corner: corner)
-      let cocoa = flipToCocoa(dotCG)
-      if lastFrame[key] != cocoa {
-        panel.setFrame(cocoa, display: true, animate: false)
-        lastFrame[key] = cocoa
-      }
-      if !panel.isVisible { panel.orderFrontRegardless() }
-      // Focus gate: hide when this window isn't the user's current
-      // window. Matched on (pid, wid) so two windows of the same app
-      // don't share a marker.
-      let isFocused = focused.map { $0.pid == key.pid && $0.windowID == key.windowID } ?? false
-      // Hover fade: only react when the cursor sits over the dot's
-      // visible circle, not the surrounding glow padding.
-      let hoverRect = cocoa.insetBy(dx: glowPadding, dy: glowPadding)
-      let hovering = hideOnHover && hoverRect.contains(cursor)
-      let target: CGFloat = (isFocused && !hovering) ? 1 : 0
-      if abs(panel.alphaValue - target) > 0.01 {
-        NSAnimationContext.runAnimationGroup { ctx in
-          ctx.duration = 0.15
-          panel.animator().alphaValue = target
+  /// `kAXWindowMoved` / `kAXWindowResized` arrived for `windowID` (delivered
+  /// on the main run loop). Reposition just that dot.
+  fileprivate func handleGeometryChange(windowID: CGWindowID) {
+    guard let key = panels.keys.first(where: { $0.windowID == windowID }) else { return }
+    refresh(key, cursor: NSEvent.mouseLocation)
+  }
+
+  // MARK: - AX geometry subscriptions
+
+  /// Subscribe `kAXWindowMoved` / `kAXWindowResized` on every marked window
+  /// we haven't subscribed yet (one `AXObserver` per owning pid).
+  private func ensureSubscriptions() {
+    let refcon = Unmanaged.passUnretained(self).toOpaque()
+    for (key, element) in axWindowCache where panels[key] != nil && !subscribed.contains(key) {
+      guard let observer = observer(for: key.pid) else { continue }
+      // AlreadyRegistered is fine — these calls are idempotent.
+      AXObserverAddNotification(observer, element, kAXWindowMovedNotification as CFString, refcon)
+      AXObserverAddNotification(observer, element, kAXWindowResizedNotification as CFString, refcon)
+      subscribed.insert(key)
+    }
+  }
+
+  private func observer(for pid: pid_t) -> AXObserver? {
+    if let existing = axObservers[pid] { return existing }
+    var observer: AXObserver?
+    guard AXObserverCreate(pid, markerAXGeometryCallback, &observer) == .success,
+          let observer
+    else { return nil }
+    CFRunLoopAddSource(
+      CFRunLoopGetMain(),
+      AXObserverGetRunLoopSource(observer),
+      .defaultMode
+    )
+    axObservers[pid] = observer
+    return observer
+  }
+
+  /// Drop a window's panel + AX subscription. Tears the pid's observer down
+  /// once it no longer owns any marked window.
+  private func removeWindow(_ key: WindowKey) {
+    if subscribed.remove(key) != nil,
+       let element = axWindowCache[key],
+       let observer = axObservers[key.pid]
+    {
+      AXObserverRemoveNotification(observer, element, kAXWindowMovedNotification as CFString)
+      AXObserverRemoveNotification(observer, element, kAXWindowResizedNotification as CFString)
+    }
+    panels[key]?.orderOut(nil)
+    panels.removeValue(forKey: key)
+    styles.removeValue(forKey: key)
+    lastFrame.removeValue(forKey: key)
+    axWindowCache.removeValue(forKey: key)
+    if !panels.keys.contains(where: { $0.pid == key.pid }),
+       let observer = axObservers.removeValue(forKey: key.pid)
+    {
+      CFRunLoopRemoveSource(
+        CFRunLoopGetMain(),
+        AXObserverGetRunLoopSource(observer),
+        .defaultMode
+      )
+    }
+  }
+
+  // MARK: - Hover monitor
+
+  /// Install the global mouse-moved monitor only while at least one dot can
+  /// be visible; remove it otherwise so an idle marker set costs nothing.
+  private func refreshHoverMonitor() {
+    let needed = hideOnHover && focused != nil && !panels.isEmpty
+    if needed, hoverMonitor == nil {
+      hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+        Task { @MainActor [weak self] in
+          self?.handleHover(cursor: NSEvent.mouseLocation)
         }
       }
+    } else if !needed, let monitor = hoverMonitor {
+      NSEvent.removeMonitor(monitor)
+      hoverMonitor = nil
     }
-    for key in lost {
-      panels[key]?.orderOut(nil)
-      panels.removeValue(forKey: key)
-      styles.removeValue(forKey: key)
-      lastFrame.removeValue(forKey: key)
-      axWindowCache.removeValue(forKey: key)
-    }
-    if panels.isEmpty { refreshTimerState() }
   }
+
+  private func handleHover(cursor: NSPoint) {
+    for key in panels.keys { updateAlpha(for: key, cursor: cursor) }
+  }
+
+  // MARK: - AX frame resolution
+
+  /// Resolve every still-unresolved marked window to its `AXUIElement` in
+  /// one `kAXWindowsAttribute` enumeration per owning app. After a window is
+  /// first cached this no-ops for it, so the cost is paid once per marked
+  /// window, not on every event.
+  private func ensureAXCacheCoversPanels() {
+    let missing = panels.keys.filter { axWindowCache[$0] == nil }
+    guard !missing.isEmpty else { return }
+    let byPid = Dictionary(grouping: missing, by: { $0.pid })
+    for (pid, keys) in byPid {
+      let app = AXUIElementCreateApplication(pid)
+      // Bound the per-message wait so a hung target app can't stall the
+      // main thread for the default ceiling.
+      AXUIElementSetMessagingTimeout(app, 0.25)
+      var raw: CFTypeRef?
+      guard AXUIElementCopyAttributeValue(
+        app, kAXWindowsAttribute as CFString, &raw
+      ) == .success,
+        let windows = raw as? [AXUIElement]
+      else { continue }
+      var widToElement: [CGWindowID: AXUIElement] = [:]
+      for window in windows {
+        var wid: CGWindowID = 0
+        if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
+          widToElement[wid] = window
+        }
+      }
+      for key in keys {
+        if let element = widToElement[key.windowID] { axWindowCache[key] = element }
+      }
+    }
+  }
+
+  /// Current AX frame for a marked window via its cached element. Returns nil
+  /// on a transient failure without dropping the element — the live window
+  /// keeps its subscription and re-resolves on the next event.
+  private func frame(for key: WindowKey) -> CGRect? {
+    guard let element = axWindowCache[key] else { return nil }
+    return axFrame(of: element)
+  }
+
+  /// Read `kAXPosition` + `kAXSize` in a single multi-attribute IPC round
+  /// trip instead of two separate `AXUIElementCopyAttributeValue` calls.
+  private func axFrame(of window: AXUIElement) -> CGRect? {
+    let attrs = [kAXPositionAttribute, kAXSizeAttribute] as CFArray
+    var valuesRef: CFArray?
+    guard AXUIElementCopyMultipleAttributeValues(
+      window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
+    ) == .success,
+      let values = valuesRef as? [CFTypeRef], values.count == 2,
+      CFGetTypeID(values[0]) == AXValueGetTypeID(),
+      CFGetTypeID(values[1]) == AXValueGetTypeID()
+    else { return nil }
+    var pos = CGPoint.zero
+    var size = CGSize.zero
+    AXValueGetValue(values[0] as! AXValue, .cgPoint, &pos)
+    AXValueGetValue(values[1] as! AXValue, .cgSize, &size)
+    guard size.width > 1, size.height > 1 else { return nil }
+    return CGRect(origin: pos, size: size)
+  }
+
+  // MARK: - Geometry helpers
 
   /// Place the panel near the chosen window corner in top-left CG coords.
   /// The panel is sized to include `glowPadding` so the colored shadow
@@ -313,70 +391,6 @@ private final class MarkerController {
     )
   }
 
-  /// Resolve every still-unresolved marked window to its `AXUIElement` in
-  /// one `kAXWindowsAttribute` enumeration per owning app. During a drag
-  /// the panel set is stable, so after the first tick every key is already
-  /// cached and this returns immediately — turning the per-window
-  /// enumeration that used to run on every 20 Hz tick into a one-shot.
-  private func ensureAXCacheCoversPanels() {
-    let missing = panels.keys.filter { axWindowCache[$0] == nil }
-    guard !missing.isEmpty else { return }
-    let byPid = Dictionary(grouping: missing, by: { $0.pid })
-    for (pid, keys) in byPid {
-      let app = AXUIElementCreateApplication(pid)
-      // Bound the per-message wait: a hung target app must not stall the
-      // main thread for the default 6 s while we poll frames at 20 Hz.
-      AXUIElementSetMessagingTimeout(app, 0.25)
-      var raw: CFTypeRef?
-      guard AXUIElementCopyAttributeValue(
-        app, kAXWindowsAttribute as CFString, &raw
-      ) == .success,
-        let windows = raw as? [AXUIElement]
-      else { continue }
-      var widToElement: [CGWindowID: AXUIElement] = [:]
-      for window in windows {
-        var wid: CGWindowID = 0
-        if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
-          widToElement[wid] = window
-        }
-      }
-      for key in keys {
-        if let element = widToElement[key.windowID] { axWindowCache[key] = element }
-      }
-    }
-  }
-
-  /// Current AX frame for a marked window via its cached element. Drops a
-  /// stale element (window closed / app quit) so the next tick re-resolves.
-  private func frame(for key: WindowKey) -> CGRect? {
-    guard let element = axWindowCache[key] else { return nil }
-    guard let frame = axFrame(of: element) else {
-      axWindowCache.removeValue(forKey: key)
-      return nil
-    }
-    return frame
-  }
-
-  /// Read `kAXPosition` + `kAXSize` in a single multi-attribute IPC round
-  /// trip instead of two separate `AXUIElementCopyAttributeValue` calls.
-  private func axFrame(of window: AXUIElement) -> CGRect? {
-    let attrs = [kAXPositionAttribute, kAXSizeAttribute] as CFArray
-    var valuesRef: CFArray?
-    guard AXUIElementCopyMultipleAttributeValues(
-      window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-    ) == .success,
-      let values = valuesRef as? [CFTypeRef], values.count == 2,
-      CFGetTypeID(values[0]) == AXValueGetTypeID(),
-      CFGetTypeID(values[1]) == AXValueGetTypeID()
-    else { return nil }
-    var pos = CGPoint.zero
-    var size = CGSize.zero
-    AXValueGetValue(values[0] as! AXValue, .cgPoint, &pos)
-    AXValueGetValue(values[1] as! AXValue, .cgSize, &size)
-    guard size.width > 1, size.height > 1 else { return nil }
-    return CGRect(origin: pos, size: size)
-  }
-
   /// AX/CG frames use top-left origin against the primary screen.
   /// `NSWindow.setFrame` wants bottom-left Cocoa coordinates.
   private func flipToCocoa(_ frame: CGRect) -> NSRect {
@@ -388,6 +402,26 @@ private final class MarkerController {
       width: frame.width,
       height: frame.height
     )
+  }
+}
+
+/// `AXObserver` C callback for marker geometry. The run-loop source is added
+/// to the main run loop, so this already runs on the main thread and hops
+/// straight onto the MainActor-isolated controller. Only the window id (a
+/// Sendable scalar) is read from the non-Sendable element before the hop, so
+/// nothing non-Sendable crosses the boundary.
+private func markerAXGeometryCallback(
+  observer: AXObserver,
+  element: AXUIElement,
+  notification: CFString,
+  refcon: UnsafeMutableRawPointer?
+) {
+  guard let refcon else { return }
+  var windowID: CGWindowID = 0
+  guard _AXUIElementGetWindow(element, &windowID) == .success, windowID != 0 else { return }
+  let controller = Unmanaged<MarkerController>.fromOpaque(refcon).takeUnretainedValue()
+  MainActor.assumeIsolated {
+    controller.handleGeometryChange(windowID: windowID)
   }
 }
 
