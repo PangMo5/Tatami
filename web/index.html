@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tatami — yabai-style window tiling for macOS</title>
+<title>Tatami — macOS workspace manager with yabai-style window tiling</title>
 <meta name="description" content="Tatami is a macOS workspace manager with yabai-style BSP window tiling. Group apps into virtual workspaces and tile their windows automatically — no SIP changes, no shell scripting." />
 <meta name="theme-color" content="#000000" />
 <link rel="icon" type="image/png" href="./icon.png" />
 <link rel="stylesheet" href="./style.css" />
 <meta property="og:title" content="Tatami" />
-<meta property="og:description" content="yabai-style window tiling for macOS. No SIP changes, no scripts." />
+<meta property="og:description" content="A macOS workspace manager with yabai-style window tiling." />
 <meta property="og:image" content="./icon.png" />
 <meta property="og:type" content="website" />
 </head>
@@ -34,7 +34,7 @@
   <div class="wrap">
     <img class="hero-icon" src="./icon.png" alt="Tatami app icon" />
     <h1>Tatami</h1>
-    <p class="sub">yabai-style window tiling for macOS.<br />No SIP changes. No scripts.</p>
+    <p class="sub">A macOS workspace manager,<br />with yabai-style window tiling.</p>
     <div class="cta">
       <a class="btn btn-primary download-link" href="https://github.com/PangMo5/Tatami/releases/download/v__VERSION__/Tatami-__VERSION__.dmg">Download for macOS</a>
       <a class="btn btn-link" href="https://github.com/PangMo5/Tatami">View on GitHub&nbsp;&rsaquo;</a>
@@ -50,31 +50,36 @@
 <section class="showcase">
   <div class="scene">
     <div class="screen" id="screen">
-      <div class="menubar"><span class="ws"><b></b><span id="ws-name">1 · Code</span></span></div>
+      <div class="menubar">
+        <div class="wsrail" id="wsrail">
+          <span class="wspill" data-ws="1">1 Code</span>
+          <span class="wspill" data-ws="2">2 Design</span>
+          <span class="wspill" data-ws="3">3 Chat</span>
+        </div>
+      </div>
       <div class="hud" id="hud"></div>
     </div>
     <div class="caption-wrap">
       <p class="scene-caption" id="cap">Open a window and it tiles itself.</p>
-      <div class="keyhint" id="keys"></div>
     </div>
   </div>
 </section>
 
 <section id="features">
   <div class="wrap">
-    <p class="eyebrow">Tiling that just works</p>
-    <h2>No SIP changes. No shell scripts.</h2>
-    <p class="sub">A yabai-style BSP engine tiles your windows automatically, with virtual workspaces and a scriptable CLI — all native, all without disabling System Integrity Protection.</p>
+    <p class="eyebrow">Workspaces, tiled</p>
+    <h2>A space for every task — tiled automatically.</h2>
+    <p class="sub">Group your apps into virtual workspaces and let a yabai-style BSP engine tile their windows for you — all native, with no SIP changes and no shell scripting.</p>
     <div class="features">
-      <div class="feature">
-        <div class="ico">▦</div>
-        <h3>Automatic tiling</h3>
-        <p>A binary space partitioning engine tiles windows as you open them. Focus, swap, resize, zoom, and rotate with vim-style keys.</p>
-      </div>
       <div class="feature">
         <div class="ico">🗂️</div>
         <h3>Virtual workspaces</h3>
-        <p>Group apps into workspaces and switch with a hotkey, a trackpad swipe, or a jump to the most recent — across multiple displays.</p>
+        <p>Group your apps into workspaces and switch with a hotkey, a trackpad swipe, or a jump to the most recent — across multiple displays.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">▦</div>
+        <h3>Automatic tiling</h3>
+        <p>A yabai-style BSP engine tiles each workspace's windows as you open them. Focus, swap, resize, zoom, and rotate with vim-style keys.</p>
       </div>
       <div class="feature">
         <div class="ico">⌨️</div>
@@ -118,9 +123,7 @@
   (() => {
     const screen = document.getElementById("screen");
     const cap = document.getElementById("cap");
-    const keys = document.getElementById("keys");
     const hud = document.getElementById("hud");
-    const wsName = document.getElementById("ws-name");
     if (!screen) return;
 
     const G = 2, TOP = 9, BOT = 98, LFT = 2, RGT = 98, MX = 50, MY = 53.5;
@@ -131,9 +134,9 @@
       right: r(MX + G / 2, TOP, RGT - MX - G / 2, BOT - TOP),
       rtop: r(MX + G / 2, TOP, RGT - MX - G / 2, MY - TOP - G / 2),
       rbot: r(MX + G / 2, MY + G / 2, RGT - MX - G / 2, BOT - MY - G / 2),
-      ltop: r(LFT, TOP, MX - LFT - G / 2, MY - TOP - G / 2),
-      lbot: r(LFT, MY + G / 2, MX - LFT - G / 2, BOT - MY - G / 2),
-      float: r(28, 32, 44, 40),
+      // Bottom-right split in two, for the dwindle (spiral) layout.
+      rbl: r(MX + G / 2, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
+      rbr: r(MX + G / 2 + (RGT - MX - G / 2 - G) / 2 + G, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
     };
 
     const els = {};
@@ -148,40 +151,38 @@
       els[app] = el;
       return el;
     }
-    ["Terminal", "Safari", "Notes", "Music", "Photos", "Messages", "Calculator"].forEach(win);
+    ["Terminal", "Code", "Safari", "Notes", "Figma", "Photos", "Messages", "Mail", "Calendar"].forEach(win);
+
+    const WS = { 1: "Code", 2: "Design", 3: "Chat" };
 
     const stages = [
-      { cap: "Open a window…", ws: "1 · Code", wins: { Terminal: { r: "full", f: 1 } } },
-      { cap: "Open another — it tiles automatically", ws: "1 · Code", wins: { Terminal: { r: "left" }, Safari: { r: "right", f: 1 } } },
-      { cap: "BSP inserts at the shallowest tile", ws: "1 · Code", wins: { Terminal: { r: "left" }, Safari: { r: "rtop" }, Notes: { r: "rbot", f: 1 } } },
-      { cap: "Move focus with h j k l", keys: "h", ws: "1 · Code", wins: { Terminal: { r: "left", f: 1 }, Safari: { r: "rtop" }, Notes: { r: "rbot" } } },
-      { cap: "Move focus with h j k l", keys: "l", ws: "1 · Code", wins: { Terminal: { r: "left" }, Safari: { r: "rtop", f: 1 }, Notes: { r: "rbot" } } },
-      { cap: "Swap windows in any direction", ws: "1 · Code", wins: { Safari: { r: "left" }, Terminal: { r: "rtop", f: 1 }, Notes: { r: "rbot" } } },
-      { cap: "Zoom a window to fill the workspace", ws: "1 · Code", wins: { Terminal: { r: "full", f: 1 } } },
-      { cap: "Rotate, mirror, and balance the tree", ws: "1 · Code", wins: { Terminal: { r: "ltop" }, Safari: { r: "lbot" }, Notes: { r: "right", f: 1 } } },
-      { cap: "Switch workspaces with a hotkey or swipe", ws: "2 · Media", hud: "2 · Media", wins: { Music: { r: "left", f: 1 }, Photos: { r: "right" } } },
-      { cap: "Each workspace groups its own apps", ws: "2 · Media", wins: { Music: { r: "left" }, Photos: { r: "rtop" }, Messages: { r: "rbot", f: 1 } } },
-      { cap: "Keep some apps floating above the tiles", ws: "2 · Media", wins: { Music: { r: "left" }, Photos: { r: "rtop" }, Messages: { r: "rbot" }, Calculator: { r: "float", float: 1, f: 1 } } },
+      // Act 1 — Tatami tiles your windows as they open. Each new window splits
+      // off the focused one, so the first window stays the largest (dwindle).
+      { cap: "Open a window…", ws: 1, wins: { Terminal: { r: "full", f: 1 } } },
+      { cap: "Open another and Tatami tiles it for you", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "right", f: 1 } } },
+      { cap: "Each new window splits off the focused one", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbot", f: 1 } } },
+      { cap: "A dwindle layout keeps your first window largest", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Notes: { r: "rbr", f: 1 } } },
+      // Swap: the focused window travels to another tile and grows into it.
+      { cap: "Swap the focused window into a bigger tile", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
+      { cap: "Zoom a window to fill the screen", ws: 1, wins: { Notes: { r: "full", f: 1 } } },
+      // Act 2 — workspaces, each with its own assigned apps and layout.
+      { cap: "Group apps into workspaces — switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" } } },
+      { cap: "Each workspace has its own apps and layout", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 } } },
+      // Payoff — only a workspace's assigned apps come back.
+      { cap: "Switch back to Code — only its assigned app, Terminal, comes back", ws: 1, hud: 1, wins: { Terminal: { r: "full", f: 1 } } },
     ];
+
+    const pills = Array.from(document.querySelectorAll(".wspill"));
 
     function apply(s) {
       cap.style.opacity = "0";
       setTimeout(() => { cap.textContent = s.cap; cap.style.opacity = "1"; }, 170);
-      wsName.textContent = s.ws;
-      hud.textContent = s.hud || "";
+      pills.forEach((p) => p.classList.toggle("active", +p.dataset.ws === s.ws));
+      hud.textContent = s.hud ? s.ws + " · " + WS[s.ws] : "";
       hud.classList.toggle("show", !!s.hud);
-      keys.innerHTML = "";
-      if (s.keys) {
-        ["h", "j", "k", "l"].forEach((k) => {
-          const kb = document.createElement("kbd");
-          kb.textContent = k;
-          if (k === s.keys) kb.classList.add("on");
-          keys.appendChild(kb);
-        });
-      }
       const visible = new Set(Object.keys(s.wins));
       for (const app in els) {
-        if (!visible.has(app)) els[app].classList.remove("show", "focused", "floating");
+        if (!visible.has(app)) els[app].classList.remove("show", "focused");
       }
       for (const app in s.wins) {
         const w = s.wins[app], el = els[app], rc = R[w.r];
@@ -189,7 +190,6 @@
         el.style.width = rc.w + "%"; el.style.height = rc.h + "%";
         el.classList.add("show");
         el.classList.toggle("focused", !!w.f);
-        el.classList.toggle("floating", !!w.float);
       }
     }
 
@@ -197,7 +197,7 @@
     if (reduce) { apply(stages[2]); return; }
     let i = 0;
     apply(stages[0]);
-    setInterval(() => { i = (i + 1) % stages.length; apply(stages[i]); }, 2600);
+    setInterval(() => { i = (i + 1) % stages.length; apply(stages[i]); }, 2700);
   })();
 </script>
 
