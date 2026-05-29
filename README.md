@@ -17,7 +17,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 ### Tiling (yabai-style BSP)
 
-- Automatic binary space partitioning with a dwindle (spiral) layout
+- Automatic binary space partitioning that inserts at the shallowest tile
 - Directional focus, swap, and resize (vim-like `h` / `j` / `k` / `l`)
 - Zoom a window to fill the workspace; toggle split orientation
 - Rotate, mirror, and balance the layout tree

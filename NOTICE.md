@@ -5,13 +5,9 @@ Tatami is an independent project, not a fork. Its design draws on prior work:
 - The virtual workspace-switching concept is inspired by [FlashSpace] by
   Wojciech Kulik (GPL-3.0). Tatami reimplements comparable behavior on its own
   stack rather than copying FlashSpace source code.
-- The window-tiling model and its BSP operations (dwindle build, warp,
-  balance, rotate, mirror) are adapted from [yabai] by koekeishiya, which
+- The window-tiling model and its BSP operations (warp, balance, rotate,
+  mirror, fence-based resize) are adapted from [yabai] by koekeishiya, which
   is MIT-licensed. The relevant copyright notice is reproduced below.
-- The private-API "remote token" technique used to recover Accessibility
-  window elements is an undocumented macOS ABI used by every tiling WM; it
-  was first documented publicly by decodism. No third-party source was
-  copied for it.
 
 Tatami is licensed under [GPL-3.0](LICENSE). It is not affiliated with,
 endorsed by, or otherwise connected to FlashSpace, yabai, or their authors.

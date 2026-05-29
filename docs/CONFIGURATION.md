@@ -38,6 +38,7 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `launchAtLogin` | bool | `false` | Register Tatami as a login item so it starts at login. |
 | `checkForUpdatesAutomatically` | bool | `true` | Periodically check for new releases. |
 | `checkInterval` | string | `"daily"` | Background update-check frequency: `hourly`, `daily`, or `weekly`. |
+| `debugLogging` | bool | `false` | Append diagnostic events to `~/.config/tatami/tatami.log`. Truncated when first enabled. |
 
 ## `[settings.menuBar]`
 
@@ -57,7 +58,9 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | --- | --- | --- | --- |
 | `gapInner` | int | `8` | Pixels between adjacent tiled windows. |
 | `gapOuter` | int | `8` | Pixels between the tiles and the screen edge. |
-| `autoBalance` | bool | `false` | Rebalance the tree to equal areas on every insert/remove. |
+| `autoBalance` | string | `"none"` | Re-equalize splits after every insert/remove. One of `none`, `horizontal`, `vertical`, `both`. (Legacy bool values still decode: `true` → `both`, `false` → `none`.) |
+| `splitType` | string | `"auto"` | Default split axis when a new window splits a tile: `auto` (aspect-based), `horizontal`, `vertical`. |
+| `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
 | `defaultTilingMemory` | string | `"session"` | How workspaces remember their layout: `fresh`, `session`, or `persistent`. A workspace can override this. |
 
 `defaultTilingMemory` values:
@@ -103,10 +106,12 @@ action unbound.
 | `resizeGrow` / `resizeShrink` | Resize the focused tile |
 | `toggleOrientation` | Toggle the focused split's orientation |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
+| `balance` | Re-equalize splits per `settings.layout.autoBalance` |
 | `cycleNextWindow` / `cyclePreviousWindow` | Cycle focus across the workspace's windows |
 | `switchToNextWorkspace` / `switchToPreviousWorkspace` | Cycle workspaces |
 | `switchToRecentWorkspace` | Jump to the previously active workspace |
 | `toggleFloating` | Toggle floating for the focused app |
+| `toggleFocusedAppInActiveWorkspace` | Add the focused window's app to the active workspace (or remove it if already a member) |
 | `toggleSpaceActivated` | Pause/resume tiling |
 
 ## `[[floatingApps]]`
