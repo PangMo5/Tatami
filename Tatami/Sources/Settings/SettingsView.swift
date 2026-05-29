@@ -21,14 +21,20 @@ struct SettingsView: View {
       }
 
       Section("Gaps") {
-        Stepper(value: setting(\.layout.gapInner), in: 0 ... 100) {
-          Text("Inner gap: \(config.settings.layout.gapInner) px")
-          Text("Space between adjacent tiled windows.")
-        }
-        Stepper(value: setting(\.layout.gapOuter), in: 0 ... 100) {
-          Text("Outer gap: \(config.settings.layout.gapOuter) px")
-          Text("Space between the tiles and the screen edge.")
-        }
+        DebouncedStepper(
+          external: config.settings.layout.gapInner,
+          range: 0 ... 100,
+          detail: "Space between adjacent tiled windows.",
+          label: { "Inner gap: \($0) px" },
+          commit: { v in $config.withLock { $0.settings.layout.gapInner = v } }
+        )
+        DebouncedStepper(
+          external: config.settings.layout.gapOuter,
+          range: 0 ... 100,
+          detail: "Space between the tiles and the screen edge.",
+          label: { "Outer gap: \($0) px" },
+          commit: { v in $config.withLock { $0.settings.layout.gapOuter = v } }
+        )
       }
 
       Section("Layout") {
@@ -228,9 +234,13 @@ struct SettingsView: View {
         )
         .disabled(!config.settings.marker.floatingEnabled)
 
-        Stepper(value: setting(\.marker.size), in: 8 ... 28, step: 1) {
-          Text("Dot size: \(Int(config.settings.marker.size)) pt")
-        }
+        DebouncedStepper(
+          external: config.settings.marker.size,
+          range: 8 ... 28,
+          label: { "Dot size: \(Int($0)) pt" },
+          commit: { v in $config.withLock { $0.settings.marker.size = v } }
+        )
+
         Picker(selection: setting(\.marker.corner)) {
           ForEach(MarkerCorner.allCases) { corner in
             Text(corner.displayName).tag(corner)
@@ -330,6 +340,61 @@ struct SettingsView: View {
         $config.withLock { $0.settings[keyPath: keyPath] = newValue }
       }
     )
+  }
+
+}
+
+/// A `Stepper` whose value lives in local `@State`, committed to the shared
+/// config on a short debounce. Binding a `Stepper` directly to the observed
+/// `@Shared` config made a single click run away: each step wrote the config,
+/// which synchronously re-rendered the whole `SettingsView` (its label also
+/// reads the config), and that re-render churned the Stepper's press tracking
+/// so it auto-repeated to the range bound. Stepping local `@State` keeps the
+/// press loop free of the observed store; the debounced `commit` persists once
+/// the user stops.
+private struct DebouncedStepper<V: Strideable>: View {
+  let external: V
+  let range: ClosedRange<V>
+  let step: V.Stride
+  let detail: String?
+  let label: (V) -> String
+  let commit: (V) -> Void
+  @State private var local: V
+
+  init(
+    external: V,
+    range: ClosedRange<V>,
+    step: V.Stride = 1,
+    detail: String? = nil,
+    label: @escaping (V) -> String,
+    commit: @escaping (V) -> Void
+  ) {
+    self.external = external
+    self.range = range
+    self.step = step
+    self.detail = detail
+    self.label = label
+    self.commit = commit
+    _local = State(initialValue: external)
+  }
+
+  var body: some View {
+    Stepper(value: $local, in: range, step: step) {
+      Text(label(local))
+      if let detail { Text(detail) }
+    }
+    // Persist after the user stops stepping. `.task(id:)` cancels the prior
+    // run whenever `local` changes, so rapid steps coalesce into one write.
+    .task(id: local) {
+      guard local != external else { return }
+      try? await Task.sleep(for: .milliseconds(120))
+      guard !Task.isCancelled else { return }
+      commit(local)
+    }
+    // Reflect external changes (config edited elsewhere) back into the value.
+    .onChange(of: external) { _, newValue in
+      if newValue != local { local = newValue }
+    }
   }
 }
 
