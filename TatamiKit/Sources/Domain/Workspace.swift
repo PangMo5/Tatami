@@ -2,9 +2,6 @@ import Foundation
 
 /// How a workspace remembers its BSP layout across re-activations.
 public enum TilingMemory: String, Hashable, Sendable, Codable, CaseIterable {
-  /// Never remember — every activation lays the windows out fresh and
-  /// evenly. Leaving the workspace discards the tree.
-  case fresh
   /// Remember for the lifetime of the app process. Switching away and
   /// back preserves split axes + user-tuned ratios, but a restart
   /// starts clean. (Default — matches prior behavior.)

@@ -868,8 +868,8 @@ public struct WorkspaceActivationFeature {
       : .second
 
     if tree == nil {
-      // Fresh tree — each initial insert picks the shallowest leaf,
-      // which `inserting(...)` does when no anchor is supplied.
+      // Initial tree — each insert picks the shallowest leaf, which
+      // `inserting(...)` does when no anchor is supplied.
       var t: BSPNode<WindowKey>? = nil
       for key in newOnes {
         if let cur = t {
@@ -1016,10 +1016,7 @@ public struct WorkspaceActivationFeature {
     let settings = state.config.settings
     let bundleIds = workspace.apps.map(\.bundleIdentifier)
     let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
-    let sessionTree = memory == .fresh ? nil : state.tilingTrees[workspace.id]
-    if memory == .fresh {
-      state.fullscreenZoomed[workspace.id] = nil
-    }
+    let sessionTree = state.tilingTrees[workspace.id]
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
 

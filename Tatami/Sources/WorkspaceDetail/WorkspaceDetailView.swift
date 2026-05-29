@@ -161,7 +161,6 @@ struct WorkspaceDetailView: View {
 
 private func memoryDescription(_ memory: TilingMemory) -> String {
   switch memory {
-  case .fresh: "Lay out fresh every time the workspace activates."
   case .session: "Keep split ratios while the app runs; reset on restart."
   case .persistent: "Remember the layout across app restarts."
   }
@@ -170,7 +169,6 @@ private func memoryDescription(_ memory: TilingMemory) -> String {
 extension TilingMemory {
   var displayName: String {
     switch self {
-    case .fresh: "Fresh"
     case .session: "Session"
     case .persistent: "Persistent"
     }
