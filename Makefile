@@ -1,4 +1,4 @@
-.PHONY: install generate build test format clean app
+.PHONY: install generate build test format clean
 
 install:
 	tuist install
@@ -7,30 +7,15 @@ install:
 generate:
 	tuist generate --no-open
 
-build:
-	tuist build Tatami
+# `tuist build` is deprecated; the supported path is to generate, then drive
+# the generated project through the `tuist xcodebuild` wrapper.
+build: generate
+	tuist xcodebuild build -scheme Tatami -workspace Tatami.xcworkspace -configuration Debug -destination 'platform=macOS'
 
-# Build, re-sign with the local Apple Development cert, and install
-# Tatami.app into /Applications. Run this any time you want the
-# running copy to pick up source changes — sign stays stable so
-# macOS Accessibility/Input Monitoring permissions are preserved
-# across rebuilds.
-#
-# Provide TUIST_DEVELOPMENT_TEAM (and optionally TATAMI_CERT_HASH /
-# TATAMI_CERT_NAME) via `.mise.local.toml` or your shell environment —
-# none of those are checked into the repo. Run `make generate` after
-# setting the team so it gets baked into the project.
-app:
-	xcodebuild \
-		-workspace Tatami.xcworkspace \
-		-scheme Tatami \
-		-configuration Debug \
-		-destination 'generic/platform=macOS' \
-		build | tail -3
-	./Scripts/install-dev-signed.sh
-
+# Bare `tuist test` runs the auto-generated workspace test action (the
+# Swift Testing suites). There is no standalone `TatamiTests` scheme.
 test:
-	tuist test TatamiTests
+	tuist test
 
 format:
 	swiftformat .
