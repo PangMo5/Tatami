@@ -35,6 +35,7 @@ public struct AppFeature {
   @Dependency(\.gestures) var gestures
   @Dependency(\.updater) var updater
   @Dependency(\.loginItem) var loginItem
+  @Dependency(\.debugLog) var debugLog
 
   public init() {}
 
@@ -102,6 +103,18 @@ public struct AppFeature {
               sharedConfig.wrappedValue.settings.general.launchAtLogin
             }) {
               loginItem.setEnabled(enabled)
+            }
+          },
+          // Mirror the debug-log toggle into the writer so flipping it
+          // in Settings opens/closes the log file immediately.
+          .run { [debugLog, sharedConfig] _ in
+            for await enabled in Perceptions({
+              sharedConfig.wrappedValue.settings.general.debugLogging
+            }) {
+              debugLog.setEnabled(enabled)
+              if enabled {
+                debugLog.log("App", "debug log enabled (settings toggle)")
+              }
             }
           }
         )

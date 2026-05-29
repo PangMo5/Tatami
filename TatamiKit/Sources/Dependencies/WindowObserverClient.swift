@@ -95,12 +95,14 @@ private final class WindowObserverCenter: @unchecked Sendable {
 
   @MainActor
   private func installOrUpdate(bundleIds: [String]) {
+    @Dependency(\.debugLog) var debugLog
     // Drop observers whose pid has died. Anything still running stays
     // observed even if it's no longer in the caller's interest set —
     // the next focus/launch event will surface it again, and we'd
     // otherwise have to rebuild the AXObserver from scratch (losing
     // any window-created event in flight).
     for (pid, obs) in observed where !ObservedApp.isPidAlive(pid) {
+      debugLog.log("Observer", "teardown pid=\(pid) bundle=\(obs.bundleId): pid dead")
       obs.tearDown()
       observed.removeValue(forKey: pid)
     }
@@ -112,13 +114,33 @@ private final class WindowObserverCenter: @unchecked Sendable {
       let apps = NSRunningApplication
         .runningApplications(withBundleIdentifier: bundleId)
         .filter { !$0.isTerminated && $0.activationPolicy == .regular }
-      for app in apps where observed[app.processIdentifier] == nil {
+      if apps.isEmpty {
+        debugLog.log("Observer", "skip \(bundleId): no running .regular app")
+        continue
+      }
+      for app in apps {
+        if observed[app.processIdentifier] != nil {
+          debugLog.log(
+            "Observer",
+            "already-observed pid=\(app.processIdentifier) bundle=\(bundleId)"
+          )
+          continue
+        }
         if let obs = ObservedApp.install(
           pid: app.processIdentifier,
           bundleId: bundleId,
           continuation: continuation
         ) {
           observed[app.processIdentifier] = obs
+          debugLog.log(
+            "Observer",
+            "installed pid=\(app.processIdentifier) bundle=\(bundleId) initialWindows=\(obs.lastSubscribedWindowCount)"
+          )
+        } else {
+          debugLog.log(
+            "Observer",
+            "install FAILED pid=\(app.processIdentifier) bundle=\(bundleId)"
+          )
         }
       }
     }
@@ -140,6 +162,19 @@ private final class ObservedApp {
   /// and back, which would otherwise trigger reconciles. Toggled by
   /// `kAXMenuOpened/Closed` to gate focus events.
   fileprivate var isMenuOpen = false
+  /// Number of AX windows subscribed on the last `refreshWindowSubscriptions`
+  /// run. Surfaced through the debug log so we can tell whether an app's
+  /// `kAXWindowsAttribute` actually returned the windows we expected.
+  fileprivate var lastSubscribedWindowCount = 0
+  /// True until every `AXObserverAddNotification` call below has
+  /// succeeded. Freshly-launched Electron apps (Notion) return
+  /// `kAXErrorCannotComplete (-25204)` because their AX layer isn't
+  /// ready yet, and macOS never re-attempts on its own — the
+  /// notification is permanently missing until we retry.
+  fileprivate var needsAXRetry = false
+  /// Cancellation token for the in-flight retry task. Avoids stacking
+  /// concurrent retries while one is already running.
+  fileprivate var retryTask: Task<Void, Never>?
 
   fileprivate static func isPidAlive(_ pid: pid_t) -> Bool {
     NSRunningApplication(processIdentifier: pid).map { !$0.isTerminated } ?? false
@@ -150,9 +185,14 @@ private final class ObservedApp {
     bundleId: String,
     continuation: AsyncStream<WindowChangeEvent>.Continuation
   ) -> ObservedApp? {
+    @Dependency(\.debugLog) var debugLog
     var observer: AXObserver?
     let createResult = AXObserverCreate(pid, axObserverCallback, &observer)
     guard createResult == .success, let observer else {
+      debugLog.log(
+        "Observer",
+        "AXObserverCreate FAILED pid=\(pid) bundle=\(bundleId) err=\(createResult.rawValue)"
+      )
       logger.debug("AXObserverCreate failed for \(bundleId): \(createResult.rawValue)")
       return nil
     }
@@ -166,40 +206,7 @@ private final class ObservedApp {
     )
 
     let info = Unmanaged.passUnretained(observed).toOpaque()
-    AXObserverAddNotification(observer, appElement, kAXWindowCreatedNotification as CFString, info)
-    // App-level: which window holds focus (fires on same-app switches).
-    AXObserverAddNotification(
-      observer, appElement, kAXFocusedWindowChangedNotification as CFString, info
-    )
-    // App-level: which window is "main" — fires for apps that swap
-    // their main window without re-firing focused-window-changed
-    // (e.g. Notification-Center dispatches that change which chat
-    // window is foreground). Treated the same as focused-changed.
-    AXObserverAddNotification(
-      observer, appElement, kAXMainWindowChangedNotification as CFString, info
-    )
-    // App-level miniaturize/deminiaturize — without these, minimizing a
-    // window doesn't get noticed until the next focus/launch event and
-    // the BSP tree silently holds onto a tile for an invisible window.
-    AXObserverAddNotification(
-      observer, appElement, kAXWindowMiniaturizedNotification as CFString, info
-    )
-    AXObserverAddNotification(
-      observer, appElement, kAXWindowDeminiaturizedNotification as CFString, info
-    )
-    // Menu-opened gating: suppress focus reconciles while a menu is
-    // open because focus briefly hops to the menu element and back.
-    // Title changes are cosmetic but kept as an observer so we can
-    // surface them later if needed.
-    AXObserverAddNotification(
-      observer, appElement, kAXMenuOpenedNotification as CFString, info
-    )
-    AXObserverAddNotification(
-      observer, appElement, kAXMenuClosedNotification as CFString, info
-    )
-    AXObserverAddNotification(
-      observer, appElement, kAXTitleChangedNotification as CFString, info
-    )
+    observed.registerNotifications(info: info)
 
     // Existing windows: subscribe to destruction + resize + move.
     observed.refreshWindowSubscriptions()
@@ -210,7 +217,90 @@ private final class ObservedApp {
       .defaultMode
     )
 
+    if observed.needsAXRetry {
+      observed.scheduleAXRetry(attemptsRemaining: 10)
+    }
+
     return observed
+  }
+
+  /// Register every app-level notification we care about. Returns true
+  /// when every call succeeded; sets `needsAXRetry` otherwise so the
+  /// caller can schedule a retry.
+  @discardableResult
+  fileprivate func registerNotifications(info: UnsafeMutableRawPointer) -> Bool {
+    @Dependency(\.debugLog) var debugLog
+    let appNotifications: [(CFString, String)] = [
+      (kAXWindowCreatedNotification as CFString, "kAXWindowCreated"),
+      (kAXFocusedWindowChangedNotification as CFString, "kAXFocusedWindowChanged"),
+      (kAXMainWindowChangedNotification as CFString, "kAXMainWindowChanged"),
+      (kAXWindowMiniaturizedNotification as CFString, "kAXWindowMiniaturized"),
+      (kAXWindowDeminiaturizedNotification as CFString, "kAXWindowDeminiaturized"),
+      (kAXMenuOpenedNotification as CFString, "kAXMenuOpened"),
+      (kAXMenuClosedNotification as CFString, "kAXMenuClosed"),
+      (kAXTitleChangedNotification as CFString, "kAXTitleChanged"),
+    ]
+    var allOK = true
+    for (name, label) in appNotifications {
+      let r = AXObserverAddNotification(observer, appElement, name, info)
+      // `notificationAlreadyRegistered` is fine — that just means a
+      // previous attempt already got this one through.
+      if r != .success && r.rawValue != Int32(-25208) /* AlreadyRegistered */ {
+        allOK = false
+        if r.rawValue == -25204 /* CannotComplete */ {
+          needsAXRetry = true
+        }
+        debugLog.log(
+          "Observer",
+          "addNotification \(label) FAILED pid=\(pid) bundle=\(bundleId) err=\(r.rawValue)"
+        )
+      }
+    }
+    if allOK {
+      // Recovered — clear the retry flag in case this was a retry pass.
+      needsAXRetry = false
+    }
+    return allOK
+  }
+
+  /// Delayed retry of the AX notification setup. Matches the upstream
+  /// `ax_retry` loop: 200 ms between attempts, capped at `attemptsRemaining`.
+  fileprivate func scheduleAXRetry(attemptsRemaining: Int) {
+    @Dependency(\.debugLog) var debugLog
+    retryTask?.cancel()
+    let id = Unmanaged.passUnretained(self).toOpaque()
+    retryTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(200))
+      guard let self else { return }
+      debugLog.log(
+        "Observer",
+        "ax retry pid=\(self.pid) bundle=\(self.bundleId) remaining=\(attemptsRemaining)"
+      )
+      let ok = self.registerNotifications(info: id)
+      self.refreshWindowSubscriptions()
+      if ok && self.lastSubscribedWindowCount > 0 {
+        debugLog.log(
+          "Observer",
+          "ax retry SUCCEEDED pid=\(self.pid) bundle=\(self.bundleId) windows=\(self.lastSubscribedWindowCount)"
+        )
+        self.retryTask = nil
+        // Force a reconcile now that AX woke up — the windowCreated
+        // notifications we missed during the cannotComplete window
+        // need to be replayed somehow, and the cheapest path is to
+        // synthesize a windowCreated event so the reducer rediscovers.
+        self.continuation.yield(.windowCreated(bundleId: self.bundleId))
+        return
+      }
+      if attemptsRemaining > 1 {
+        self.scheduleAXRetry(attemptsRemaining: attemptsRemaining - 1)
+      } else {
+        debugLog.log(
+          "Observer",
+          "ax retry GAVE UP pid=\(self.pid) bundle=\(self.bundleId) (ax never became ready)"
+        )
+        self.retryTask = nil
+      }
+    }
   }
 
   fileprivate init(
@@ -228,6 +318,8 @@ private final class ObservedApp {
   }
 
   fileprivate func tearDown() {
+    retryTask?.cancel()
+    retryTask = nil
     CFRunLoopRemoveSource(
       CFRunLoopGetMain(),
       AXObserverGetRunLoopSource(observer),
@@ -236,6 +328,7 @@ private final class ObservedApp {
   }
 
   fileprivate func refreshWindowSubscriptions() {
+    @Dependency(\.debugLog) var debugLog
     var raw: CFTypeRef?
     guard AXUIElementCopyAttributeValue(
       appElement,
@@ -243,7 +336,19 @@ private final class ObservedApp {
       &raw
     ) == .success,
           let windows = raw as? [AXUIElement]
-    else { return }
+    else {
+      debugLog.log(
+        "Observer",
+        "refreshSubs pid=\(pid) bundle=\(bundleId): kAXWindowsAttribute empty/failed"
+      )
+      lastSubscribedWindowCount = 0
+      return
+    }
+    lastSubscribedWindowCount = windows.count
+    debugLog.log(
+      "Observer",
+      "refreshSubs pid=\(pid) bundle=\(bundleId) windows=\(windows.count)"
+    )
     let info = Unmanaged.passUnretained(self).toOpaque()
     for window in windows {
       AXObserverAddNotification(
@@ -286,11 +391,24 @@ private func axObserverCallback(
   let boxed = UnsafeAXElement(value: element)
   MainActor.assumeIsolated {
     let element = boxed.value
+    @Dependency(\.debugLog) var debugLog
     switch name {
     case kAXWindowCreatedNotification as String:
       app.refreshWindowSubscriptions()
+      var wid: CGWindowID = 0
+      _ = _AXUIElementGetWindow(element, &wid)
+      debugLog.log(
+        "AX",
+        "windowCreated pid=\(app.pid) bundle=\(app.bundleId) elementWid=\(wid)"
+      )
       app.continuation.yield(.windowCreated(bundleId: app.bundleId))
     case kAXUIElementDestroyedNotification as String:
+      var wid: CGWindowID = 0
+      _ = _AXUIElementGetWindow(element, &wid)
+      debugLog.log(
+        "AX",
+        "windowDestroyed pid=\(app.pid) bundle=\(app.bundleId) elementWid=\(wid)"
+      )
       app.continuation.yield(.windowDestroyed(bundleId: app.bundleId))
     case kAXWindowResizedNotification as String:
       // Only treat a resize as user-driven when the left mouse button
@@ -323,12 +441,20 @@ private func axObserverCallback(
       // menu element and back, which would just churn the BSP.
       if app.isMenuOpen { break }
       let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId)
+      debugLog.log(
+        "AX",
+        "windowFocused pid=\(app.pid) bundle=\(app.bundleId) key=\(key?.windowID.description ?? "nil")"
+      )
       app.continuation.yield(.windowFocused(bundleId: app.bundleId, key: key))
     case kAXWindowMiniaturizedNotification as String,
          kAXWindowDeminiaturizedNotification as String:
       // Treat both as a reason to reconcile — minimized windows drop
       // out of `discoverWindowKeys` (subrole filter), restored ones
       // need to come back into the tree.
+      debugLog.log(
+        "AX",
+        "miniaturizeChange pid=\(app.pid) bundle=\(app.bundleId) name=\(name)"
+      )
       app.continuation.yield(.windowCreated(bundleId: app.bundleId))
     case kAXMenuOpenedNotification as String:
       app.isMenuOpen = true

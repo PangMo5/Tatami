@@ -213,6 +213,7 @@ public func discoverWindowKeys(
   sls: SLSClient
 ) -> [WindowKey] {
   guard !bundleIds.isEmpty else { return [] }
+  @Dependency(\.debugLog) var debugLog
 
   // Resolve all running app pids in one pass.
   var pidByBundle: [String: pid_t] = [:]
@@ -229,15 +230,25 @@ public func discoverWindowKeys(
     kAXSubroleAttribute,
   ] as CFArray
   for bundleId in bundleIds {
-    guard let pid = pidByBundle[bundleId] else { continue }
+    guard let pid = pidByBundle[bundleId] else {
+      debugLog.log("Tiler", "discover \(bundleId): no running pid")
+      continue
+    }
     let axApp = AXUIElementCreateApplication(pid)
     var raw: CFTypeRef?
     guard AXUIElementCopyAttributeValue(
       axApp,
       kAXWindowsAttribute as CFString,
       &raw
-    ) == .success, let windows = raw as? [AXUIElement] else { continue }
+    ) == .success, let windows = raw as? [AXUIElement] else {
+      debugLog.log("Tiler", "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute empty/failed")
+      continue
+    }
+    let before = result.count
+    var rejected: [String] = []
     for window in windows {
+      var widProbe: CGWindowID = 0
+      _ = _AXUIElementGetWindow(window, &widProbe)
       var valuesRef: CFArray?
       var minimized = false
       var subrole: String?
@@ -247,24 +258,43 @@ public func discoverWindowKeys(
         minimized = (values[0] as? Bool) ?? false
         subrole = values[1] as? String
       }
-      if minimized { continue }
+      if minimized {
+        rejected.append("\(widProbe):minimized")
+        continue
+      }
       // Standard windows only. Dialogs / IME indicators / tooltips
       // fall outside this set, so they never enter the tree.
-      if let subrole, subrole != kAXStandardWindowSubrole as String { continue }
+      if let subrole, subrole != kAXStandardWindowSubrole as String {
+        rejected.append("\(widProbe):subrole=\(subrole)")
+        continue
+      }
       // Position + size must be settable, else we'd write to a window
       // the host app rejects.
       var movable: DarwinBoolean = false
       var resizable: DarwinBoolean = false
       AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
       AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
-      if !movable.boolValue || !resizable.boolValue { continue }
+      if !movable.boolValue || !resizable.boolValue {
+        rejected.append("\(widProbe):notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
+        continue
+      }
       if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
         // Sticky windows (pinned to all Spaces) must not be tiled —
         // they'd duplicate into every workspace's tree.
-        if sls.spacesForWindow(key.windowID).count > 1 { continue }
+        if sls.spacesForWindow(key.windowID).count > 1 {
+          rejected.append("\(widProbe):sticky")
+          continue
+        }
         result.append(key)
+      } else {
+        rejected.append("\(widProbe):noWid")
       }
     }
+    let kept = result[before...].map { $0.windowID }
+    debugLog.log(
+      "Tiler",
+      "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)"
+    )
   }
   return result
 }

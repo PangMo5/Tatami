@@ -129,6 +129,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.mouse) var mouse
   @Dependency(\.marker) var marker
   @Dependency(\.sls) var sls
+  @Dependency(\.debugLog) var debugLog
 
   public init() {}
 
@@ -438,6 +439,12 @@ public struct WorkspaceActivationFeature {
           .workspaces.first(where: { $0.id == id })?
           .apps.map(\.bundleIdentifier) ?? []
         let observeIds = Array(Set(treeIds ?? registeredIds))
+        debugLog.log(
+          "Activate",
+          "completed workspaceId=\(id) "
+            + "treeWindows=\(state.tilingTrees[id]?.windows.map { $0.windowID } ?? []) "
+            + "observe=\(observeIds)"
+        )
         return .merge(
           .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
           refreshMarkers(state: state)
@@ -527,17 +534,26 @@ public struct WorkspaceActivationFeature {
   /// insertion point), remove vanished ones, leave the rest.
   /// Unassigned visible apps are *not* folded into the tree.
   private func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
-    guard !state.isTilingPaused else { return .none }
+    guard !state.isTilingPaused else {
+      debugLog.log("Sync", "skip \(bundleId): tiling paused")
+      return .none
+    }
     if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
       return .none
     }
     // performActivate owns the tree during its async build — let it
     // finish, otherwise an incremental sync races it.
-    guard !state.isActivating else { return .none }
+    guard !state.isActivating else {
+      debugLog.log("Sync", "skip \(bundleId): activation in flight")
+      return .none
+    }
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId })
-    else { return .none }
+    else {
+      debugLog.log("Sync", "skip \(bundleId): no active workspace")
+      return .none
+    }
 
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
@@ -580,6 +596,15 @@ public struct WorkspaceActivationFeature {
       state.insertionPoint[workspaceId] = focused
     }
     let insertionPointKey = state.insertionPoint[workspaceId]
+
+    let treeBefore = existing?.windows.map { $0.windowID } ?? []
+    debugLog.log(
+      "Sync",
+      "enter \(bundleId) ws=\(workspace.name) eligible=\(eligibleToAdd) "
+        + "(registered=\(registeredSet.contains(bundleId)) "
+        + "inTree=\(inTree) unregistered=\(isUnregisteredAnywhere)) "
+        + "discovered=\(current.map { $0.windowID }) treeBefore=\(treeBefore)"
+    )
 
     var tree = existing
     let currentSet = Set(current)
@@ -626,6 +651,14 @@ public struct WorkspaceActivationFeature {
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
+
+    let added = newWindows.subtracting(oldWindows).map { $0.windowID }
+    let removed = oldWindows.subtracting(newWindows).map { $0.windowID }
+    debugLog.log(
+      "Sync",
+      "result \(bundleId): added=\(added) removed=\(removed) "
+        + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
+    )
 
     let observeIds = Array(Set((balanced?.windows.map(\.bundleId) ?? []) + Array(registeredSet)))
     let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
@@ -839,9 +872,17 @@ public struct WorkspaceActivationFeature {
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces.first(where: { $0.id == workspaceId })
     else { return .none }
-    guard !state.isActivating else { return .none }
+    guard !state.isActivating else {
+      debugLog.log("Activate", "skip workspaceId=\(workspaceId): already activating")
+      return .none
+    }
     state.isActivating = true
     let isPaused = state.isTilingPaused
+    debugLog.log(
+      "Activate",
+      "start workspace=\(workspace.name) setFocus=\(setFocus) "
+        + "paused=\(isPaused) registeredApps=\(workspace.apps.map(\.bundleIdentifier))"
+    )
 
     let targetDisplay = workspace.displayHint ?? displays.current()
     let request = ActivationRequest(

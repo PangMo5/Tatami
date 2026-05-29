@@ -263,6 +263,25 @@ struct SettingsView: View {
           }
         }
       }
+
+      Section("Debug") {
+        Toggle(isOn: setting(\.general.debugLogging)) {
+          Text("Debug logging")
+          Text("Append diagnostic events to ~/.config/tatami/tatami.log. Off by default.")
+        }
+        if config.settings.general.debugLogging {
+          HStack {
+            Text("Log file")
+              .foregroundStyle(.secondary)
+            Spacer()
+            Button("Reveal in Finder") {
+              let url = ConfigLocation.directory
+                .appendingPathComponent("tatami.log", isDirectory: false)
+              NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+          }
+        }
+      }
     }
     .formStyle(.grouped)
     .frame(minWidth: 460, minHeight: 520)

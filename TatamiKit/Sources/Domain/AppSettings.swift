@@ -66,19 +66,26 @@ extension AppSettings {
     public var checkForUpdatesAutomatically: Bool
     /// How often Sparkle checks for updates in the background.
     public var checkInterval: UpdateCheckInterval
+    /// When on, the diagnostic log file is opened and every
+    /// instrumented hot-path appends a line. File at
+    /// `~/.config/tatami/tatami.log`. Off by default — it churns disk
+    /// and adds work on every window event.
+    public var debugLogging: Bool
 
     public init(
       launchAtLogin: Bool = false,
       checkForUpdatesAutomatically: Bool = true,
-      checkInterval: UpdateCheckInterval = .daily
+      checkInterval: UpdateCheckInterval = .daily,
+      debugLogging: Bool = false
     ) {
       self.launchAtLogin = launchAtLogin
       self.checkForUpdatesAutomatically = checkForUpdatesAutomatically
       self.checkInterval = checkInterval
+      self.debugLogging = debugLogging
     }
 
     private enum CodingKeys: String, CodingKey {
-      case launchAtLogin, checkForUpdatesAutomatically, checkInterval
+      case launchAtLogin, checkForUpdatesAutomatically, checkInterval, debugLogging
     }
 
     public init(from decoder: Decoder) throws {
@@ -88,6 +95,7 @@ extension AppSettings {
         (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
       self.checkInterval =
         (try? c.decode(UpdateCheckInterval.self, forKey: .checkInterval)) ?? .daily
+      self.debugLogging = (try? c.decode(Bool.self, forKey: .debugLogging)) ?? false
     }
   }
 }
