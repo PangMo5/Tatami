@@ -46,8 +46,16 @@ public struct WorkspaceActivationFeature {
       public var key: WindowKey
       public var frame: CGRect
     }
+    /// The drop decision computed live (cursor-based) during a window drag,
+    /// frozen at the last `windowMoved` so the mouse-up commit matches the
+    /// previewed overlay exactly.
+    public struct PendingDrop: Equatable, Sendable {
+      public var dragged: WindowKey
+      public var target: WindowKey
+      public var zone: DropZone
+    }
     public var pendingResize: PendingDrag?
-    public var pendingMove: PendingDrag?
+    public var pendingDrop: PendingDrop?
 
     public init() {}
 
@@ -140,6 +148,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.workspaceHUD) var workspaceHUD
   @Dependency(\.mouse) var mouse
   @Dependency(\.marker) var marker
+  @Dependency(\.dragPreview) var dragPreview
   @Dependency(\.sls) var sls
   @Dependency(\.debugLog) var debugLog
 
@@ -164,20 +173,34 @@ public struct WorkspaceActivationFeature {
           // it once, so the commit lands at the true end of the drag.
           state.pendingResize = State.PendingDrag(key: key, frame: frame)
           return .none
-        case .windowMoved(let key, let frame):
-          state.pendingMove = State.PendingDrag(key: key, frame: frame)
-          return .none
+        case .windowMoved(let key, _):
+          // Cursor-based drop preview: find the tile + region under the
+          // cursor and highlight it. Freeze the decision so the mouse-up
+          // commit lands exactly where the overlay showed.
+          let decision = dropDecision(dragged: key, state: state)
+          state.pendingDrop = decision.map {
+            State.PendingDrop(dragged: key, target: $0.target, zone: $0.zone)
+          }
+          let preview = dragPreview
+          return .run { _ in
+            if let decision {
+              preview.show(decision.targetRect, decision.zone)
+            } else {
+              preview.hide()
+            }
+          }
         case .windowDragEnded:
-          var effects: [Effect<Action>] = []
+          let preview = dragPreview
+          var effects: [Effect<Action>] = [.run { _ in preview.hide() }]
           if let pending = state.pendingResize {
             state.pendingResize = nil
             effects.append(syncTreeRatio(for: pending.key, frame: pending.frame, state: &state))
           }
-          if let pending = state.pendingMove {
-            state.pendingMove = nil
-            effects.append(handleWindowMoved(key: pending.key, frame: pending.frame, state: &state))
+          if let drop = state.pendingDrop {
+            state.pendingDrop = nil
+            effects.append(applyDrop(drop, state: &state))
           }
-          return effects.isEmpty ? .none : .merge(effects)
+          return .merge(effects)
         case .windowCreated(let bundleId):
           return debouncedSync(bundleId, delayMs: 0)
         case .windowDestroyed(let bundleId):
@@ -1206,51 +1229,80 @@ public struct WorkspaceActivationFeature {
   ///   * left triangle → warp to left child (SPLIT_Y, CHILD_FIRST)
   /// Either way the layout is reapplied, yanking the dragged window
   /// back to its real tile slot.
-  private func handleWindowMoved(
-    key: WindowKey,
-    frame: CGRect,
+  /// Live, cursor-based drop decision for a window being dragged: which tile
+  /// the cursor is over and which region of it (→ swap or directional
+  /// insert). Returns nil when the cursor isn't over another tile. Used both
+  /// to drive the overlay and — frozen into `pendingDrop` — to commit on
+  /// mouse-up, so preview and result always agree.
+  private func dropDecision(
+    dragged: WindowKey,
+    state: State
+  ) -> (target: WindowKey, targetRect: CGRect, zone: DropZone)? {
+    guard let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          let tree = state.tilingTrees[workspaceId],
+          tree.pathTo(window: dragged) != nil
+    else { return nil }
+
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let (workArea, cursor) = MainActor.assumeIsolated { () -> (CGRect, CGPoint) in
+      let area = ScreenGeometry.workArea(for: display).insetBy(
+        dx: CGFloat(settings.layout.gapOuter),
+        dy: CGFloat(settings.layout.gapOuter)
+      )
+      // Cursor in AX top-left coords (matches `frames` / `workArea`).
+      let cocoa = NSEvent.mouseLocation
+      let primaryHeight = NSScreen.screens.first?.frame.height ?? cocoa.y
+      return (area, CGPoint(x: cocoa.x, y: primaryHeight - cocoa.y))
+    }
+
+    let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
+    guard let target = allFrames.first(where: { other, rect in
+            other != dragged && rect.contains(cursor)
+          })?.key,
+          let targetRect = allFrames[target]
+    else { return nil }
+
+    switch dropQuadrant(point: cursor, in: targetRect) {
+    case .none: return nil
+    case .center: return (target, targetRect, .swap)
+    case .top: return (target, targetRect, .top)
+    case .right: return (target, targetRect, .right)
+    case .bottom: return (target, targetRect, .bottom)
+    case .left: return (target, targetRect, .left)
+    }
+  }
+
+  /// Commit a frozen drop decision: swap the two windows in place, or warp
+  /// the dragged one into the chosen side of the target. Re-tiles + persists.
+  private func applyDrop(
+    _ drop: State.PendingDrop,
     state: inout State
   ) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces.first(where: { $0.id == workspaceId }),
           let tree = state.tilingTrees[workspaceId],
-          tree.pathTo(window: key) != nil
+          tree.pathTo(window: drop.dragged) != nil,
+          tree.pathTo(window: drop.target) != nil
     else { return .none }
 
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
-    let workArea = MainActor.assumeIsolated {
-      ScreenGeometry.workArea(for: display).insetBy(
-        dx: CGFloat(settings.layout.gapOuter),
-        dy: CGFloat(settings.layout.gapOuter)
-      )
-    }
-    let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
-    let dropCenter = CGPoint(x: frame.midX, y: frame.midY)
-
-    // Which tile sits under the drop center?
-    let target = allFrames.first(where: { other, rect in
-      other != key && rect.contains(dropCenter)
-    })?.key
-
-    var newTree = tree
-    if let target, let targetRect = allFrames[target] {
-      let drop = dropQuadrant(point: dropCenter, in: targetRect)
-      switch drop {
-      case .none:
-        newTree = tree
-      case .center:
-        newTree = tree.swapping(key, target)
-      case .top:
-        newTree = warpInto(tree: tree, source: key, target: target, axis: .horizontal, child: .first)
-      case .right:
-        newTree = warpInto(tree: tree, source: key, target: target, axis: .vertical, child: .second)
-      case .bottom:
-        newTree = warpInto(tree: tree, source: key, target: target, axis: .horizontal, child: .second)
-      case .left:
-        newTree = warpInto(tree: tree, source: key, target: target, axis: .vertical, child: .first)
-      }
+    let newTree: BSPNode<WindowKey>
+    switch drop.zone {
+    case .swap:
+      newTree = tree.swapping(drop.dragged, drop.target)
+    case .top:
+      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .horizontal, child: .first)
+    case .right:
+      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .vertical, child: .second)
+    case .bottom:
+      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .horizontal, child: .second)
+    case .left:
+      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .vertical, child: .first)
     }
     state.tilingTrees[workspaceId] = newTree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
@@ -1292,10 +1344,12 @@ public struct WorkspaceActivationFeature {
     let onAboveDownDiag = (wp.x - 0) * (rect.height - 0) - (wp.y - 0) * (rect.width - 0) < 0
     let onAboveUpDiag = (wp.x - 0) * (0 - rect.height) - (wp.y - rect.height) * (rect.width - 0) < 0
     _ = mid
+    // Coordinates are AX top-left (y grows downward), so the *top* triangle
+    // is the small-y one, `(false, false)`, and the bottom is `(true, true)`.
     switch (onAboveDownDiag, onAboveUpDiag) {
-    case (true, true):   return .top
+    case (false, false): return .top
     case (false, true):  return .right
-    case (false, false): return .bottom
+    case (true, true):   return .bottom
     case (true, false):  return .left
     }
   }
