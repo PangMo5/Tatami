@@ -55,7 +55,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   private var runLoopSource: CFRunLoopSource?
   fileprivate var config = FocusFollowsMouseConfig(enabled: false, disableModifier: .option)
   fileprivate var lastFireAt = Date.distantPast
-  fileprivate let throttleInterval: TimeInterval = 0.08
+  fileprivate let throttleInterval: TimeInterval = 0.05
   fileprivate var lastFocusedWindowID: CGWindowID = 0
 
   init() {}

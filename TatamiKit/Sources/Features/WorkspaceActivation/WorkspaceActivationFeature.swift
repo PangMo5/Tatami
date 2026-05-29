@@ -155,13 +155,13 @@ public struct WorkspaceActivationFeature {
           // before committing the new ratio so we don't fight the user
           // mid-drag.
           return .run { send in
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(50))
             await send(.windowResizeCommitted(key: key, frame: frame))
           }
           .cancellable(id: CancelID.windowResize(key), cancelInFlight: true)
         case .windowMoved(let key, let frame):
           return .run { send in
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(50))
             await send(.windowMoveCommitted(key: key, frame: frame))
           }
           .cancellable(id: CancelID.windowMove(key), cancelInFlight: true)
@@ -233,10 +233,10 @@ public struct WorkspaceActivationFeature {
           for app in workspace.apps { bundleIds.insert(app.bundleIdentifier) }
         }
         guard !bundleIds.isEmpty else { return .none }
-        return .merge(bundleIds.map { debouncedSync($0, delayMs: 40) })
+        return .merge(bundleIds.map { debouncedSync($0, delayMs: 10) })
 
       case .appLaunched(let bundleId, _):
-        return debouncedSync(bundleId, delayMs: 40)
+        return debouncedSync(bundleId, delayMs: 10)
 
       case .appActivated(let bundleId):
         if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
@@ -267,7 +267,7 @@ public struct WorkspaceActivationFeature {
             .send(.activate(workspaceId: owner.id, setFocus: false))
           )
         }
-        return .merge(markerEffect, debouncedSync(bundleId, delayMs: 40))
+        return .merge(markerEffect, debouncedSync(bundleId, delayMs: 10))
 
       case .appTerminated(let bundleId):
         return debouncedSync(bundleId, delayMs: 0)
