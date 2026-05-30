@@ -1,17 +1,17 @@
-import Dependencies
+import ComposableArchitecture
 import KeyboardShortcuts
 import Sharing
 import SwiftUI
 import TatamiKit
 
-/// Edits global `AppSettings` backed directly by the shared TOML config.
-/// Writes go through `$config.withLock` so they persist immediately.
+/// Edits global `AppSettings` (declarative `@Shared` config bindings) and
+/// drives the system-touching bits — CLI install, Accessibility, updates —
+/// through `SettingsFeature`.
 struct SettingsView: View {
   @Shared(.tatamiConfig) private var config = AppConfig()
-  @Dependency(\.updater) private var updater
-  @State private var canCheckForUpdates = false
-  @State private var cliInstalled = false
-  @State private var hasAXPermission = true
+  @State private var store = Store(initialState: SettingsFeature.State()) {
+    SettingsFeature()
+  }
 
   var body: some View {
     Form {
@@ -24,33 +24,30 @@ struct SettingsView: View {
 
       Section("Permissions") {
         HStack {
-          Image(systemName: hasAXPermission ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-            .foregroundStyle(hasAXPermission ? .green : .orange)
+          Image(systemName: store.hasAXPermission ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(store.hasAXPermission ? .green : .orange)
           VStack(alignment: .leading) {
             Text("Accessibility")
-            Text(hasAXPermission
+            Text(store.hasAXPermission
               ? "Granted — Tatami can move, resize, and focus windows."
               : "Required for tiling. Enable it in System Settings, then relaunch.")
               .font(.caption)
               .foregroundStyle(.secondary)
           }
           Spacer()
-          if hasAXPermission {
-            Button("Open System Settings") { openAccessibilitySettings() }
+          if store.hasAXPermission {
+            Button("Open System Settings") { store.send(.openAccessibilitySettingsTapped) }
           } else {
-            Button("Grant…") {
-              _ = ensureAccessibilityTrust()
-              openAccessibilitySettings()
-            }
+            Button("Grant…") { store.send(.grantAccessibilityTapped) }
           }
         }
-        if !hasAXPermission {
+        if !store.hasAXPermission {
           HStack {
             Text("macOS only applies a new grant after a relaunch.")
               .font(.caption)
               .foregroundStyle(.secondary)
             Spacer()
-            Button("Relaunch Tatami") { relaunch() }
+            Button("Relaunch Tatami") { store.send(.relaunchTapped) }
           }
         }
       }
@@ -310,20 +307,15 @@ struct SettingsView: View {
         }
         .disabled(!config.settings.general.checkForUpdatesAutomatically)
         Button("Check for Updates…") {
-          updater.checkForUpdates()
+          store.send(.checkForUpdatesTapped)
         }
-        .disabled(!canCheckForUpdates)
-        .task {
-          for await value in updater.canCheckForUpdates() {
-            canCheckForUpdates = value
-          }
-        }
+        .disabled(!store.canCheckForUpdates)
       }
 
       Section("Command Line") {
         HStack {
-          Image(systemName: cliInstalled ? "checkmark.circle.fill" : "terminal")
-            .foregroundStyle(cliInstalled ? .green : .secondary)
+          Image(systemName: store.cli.isInstalled ? "checkmark.circle.fill" : "terminal")
+            .foregroundStyle(store.cli.isInstalled ? .green : .secondary)
           VStack(alignment: .leading) {
             Text("tatami CLI")
             Text(cliStatusDetail)
@@ -331,19 +323,13 @@ struct SettingsView: View {
               .foregroundStyle(.secondary)
           }
           Spacer()
-          if CLIInstaller.isInstalledViaHomebrew {
+          if store.cli.viaHomebrew {
             Text("Homebrew").foregroundStyle(.secondary)
-          } else if cliInstalled {
-            Button("Uninstall") {
-              CLIInstaller.uninstall()
-              cliInstalled = CLIInstaller.isInstalled
-            }
+          } else if store.cli.isInstalled {
+            Button("Uninstall") { store.send(.uninstallCLITapped) }
           } else {
-            Button("Install…") {
-              CLIInstaller.install()
-              cliInstalled = CLIInstaller.isInstalled
-            }
-            .disabled(!CLIInstaller.isBundled)
+            Button("Install…") { store.send(.installCLITapped) }
+              .disabled(!store.cli.isBundled)
           }
         }
         Text("Symlinks `tatami` into /usr/local/bin so you can script Tatami from the terminal — e.g. `tatami activate <workspace>`, `tatami list-workspaces`.")
@@ -372,54 +358,22 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .frame(minWidth: 460, minHeight: 520)
-    .task {
-      cliInstalled = CLIInstaller.isInstalled
-      hasAXPermission = isAccessibilityTrusted()
-    }
-    // No polling, no auto-relaunch. `com.apple.accessibility.api` is a *global*
-    // broadcast (fires for any app's trust change), so we only use it — and
-    // app re-activation — to re-read our own status. Revokes apply to the
-    // running process and show instantly here. A new *grant* does NOT apply
-    // live (AXIsProcessTrusted stays stale until relaunch), so applying it is
-    // the explicit "Relaunch Tatami" button below — same as yabai/AeroSpace.
-    .onReceive(
-      DistributedNotificationCenter.default()
-        .publisher(for: Notification.Name("com.apple.accessibility.api"))
-    ) { _ in hasAXPermission = isAccessibilityTrusted() }
-    .onReceive(
-      NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
-    ) { _ in hasAXPermission = isAccessibilityTrusted() }
-  }
-
-  /// Relaunch the app so a freshly-granted Accessibility permission takes
-  /// effect — macOS doesn't apply it to the already-running process. `open -n`
-  /// runs independently, so it survives this process terminating.
-  private func relaunch() {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-    task.arguments = ["-n", Bundle.main.bundleURL.path]
-    try? task.run()
-    NSApp.terminate(nil)
-  }
-
-  /// Opens System Settings → Privacy & Security → Accessibility.
-  private func openAccessibilitySettings() {
-    guard let url = URL(
-      string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-    ) else { return }
-    NSWorkspace.shared.open(url)
+    // All side effects (status reads, permission/CLI/update streams, the AX
+    // change subscription) live in the reducer — the view just starts it.
+    .task { await store.send(.task).finish() }
   }
 
   /// One-line status describing where the CLI is (or would be) installed.
   private var cliStatusDetail: String {
-    if CLIInstaller.isInstalledViaHomebrew {
-      "Installed via Homebrew at \(CLIInstaller.homebrewPath)"
-    } else if cliInstalled {
-      "Installed at \(CLIInstaller.symlinkPath)"
-    } else if CLIInstaller.isBundled {
-      "Not installed — will symlink to \(CLIInstaller.symlinkPath)"
+    let cli = store.cli
+    if cli.viaHomebrew {
+      return "Installed via Homebrew at \(cli.homebrewPath)"
+    } else if cli.isInstalled {
+      return "Installed at \(cli.symlinkPath)"
+    } else if cli.isBundled {
+      return "Not installed — will symlink to \(cli.symlinkPath)"
     } else {
-      "Not bundled with this build"
+      return "Not bundled with this build"
     }
   }
 

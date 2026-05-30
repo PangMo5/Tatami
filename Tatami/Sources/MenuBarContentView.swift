@@ -25,8 +25,6 @@ struct MenuBarLabel: View {
 struct MenuBarContentView: View {
   @Bindable var store: StoreOf<AppFeature>
   @Environment(\.openWindow) private var openWindow
-  @Dependency(\.updater) private var updater
-  @State private var canCheckForUpdates = false
 
   var body: some View {
     let config = store.workspaceList.config
@@ -72,14 +70,9 @@ struct MenuBarContentView: View {
     .keyboardShortcut(",", modifiers: .command)
 
     Button("Check for Updates…") {
-      updater.checkForUpdates()
+      store.send(.checkForUpdatesTapped)
     }
-    .disabled(!canCheckForUpdates)
-    .task {
-      for await value in updater.canCheckForUpdates() {
-        canCheckForUpdates = value
-      }
-    }
+    .disabled(!store.canCheckForUpdates)
 
     Divider()
 

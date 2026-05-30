@@ -1,0 +1,101 @@
+import AppKit
+import ApplicationServices
+import Dependencies
+import DependenciesMacros
+import Foundation
+
+/// Accessibility (AX) permission: status, prompting, and applying a new grant.
+///
+/// macOS does not apply a *new* grant to the already-running process —
+/// `AXIsProcessTrusted()` stays stale until relaunch (revokes do apply live).
+/// So a fresh grant is applied by relaunching, the same way yabai/AeroSpace
+/// require. There is no reliable in-process "grant detected" signal, hence no
+/// polling.
+@DependencyClient
+public struct AccessibilityClient: Sendable {
+  /// Current trust state (non-prompting). Reflects revokes immediately.
+  public var isTrusted: @Sendable () -> Bool = { false }
+  /// Prompt for Accessibility access (shows the system dialog if untrusted).
+  public var requestAccess: @Sendable () async -> Void
+  /// Open System Settings → Privacy & Security → Accessibility.
+  public var openSettings: @Sendable () async -> Void
+  /// Relaunch the app so a freshly-granted permission takes effect.
+  public var relaunch: @Sendable () async -> Void
+  /// Ticks whenever the trust DB changes or the app re-activates — a cue to
+  /// re-read `isTrusted()`. (The broadcast is global, so callers just re-read;
+  /// it carries no per-app payload.)
+  public var changes: @Sendable () -> AsyncStream<Void> = { .finished }
+}
+
+/// Holds notification observers so they can be torn down from the stream's
+/// `@Sendable` termination handler. The tokens/centers aren't `Sendable`, but
+/// they're only ever touched on the notification machinery, so the box is a
+/// documented `@unchecked Sendable`.
+private final class ObserverTokens: @unchecked Sendable {
+  let distributed = DistributedNotificationCenter.default()
+  let local = NotificationCenter.default
+  var tokens: [any NSObjectProtocol] = []
+  func removeAll() {
+    for token in tokens { distributed.removeObserver(token); local.removeObserver(token) }
+    tokens = []
+  }
+}
+
+extension AccessibilityClient: DependencyKey {
+  public static let liveValue = AccessibilityClient(
+    isTrusted: { AXIsProcessTrusted() },
+    requestAccess: {
+      await MainActor.run { _ = ensureAccessibilityTrust() }
+    },
+    openSettings: {
+      await MainActor.run {
+        guard let url = URL(
+          string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        ) else { return }
+        NSWorkspace.shared.open(url)
+      }
+    },
+    relaunch: {
+      await MainActor.run {
+        // `open -n` runs independently, so it survives this process exiting.
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["-n", Bundle.main.bundleURL.path]
+        try? task.run()
+        NSApp.terminate(nil)
+      }
+    },
+    changes: {
+      AsyncStream { continuation in
+        let observers = ObserverTokens()
+        observers.tokens = [
+          observers.distributed.addObserver(
+            forName: Notification.Name("com.apple.accessibility.api"),
+            object: nil, queue: nil
+          ) { _ in continuation.yield() },
+          observers.local.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil, queue: nil
+          ) { _ in continuation.yield() },
+        ]
+        continuation.onTermination = { _ in observers.removeAll() }
+      }
+    }
+  )
+
+  public static let testValue = AccessibilityClient(
+    isTrusted: { true },
+    requestAccess: {},
+    openSettings: {},
+    relaunch: {},
+    changes: { .finished }
+  )
+  public static let previewValue = testValue
+}
+
+extension DependencyValues {
+  public var accessibility: AccessibilityClient {
+    get { self[AccessibilityClient.self] }
+    set { self[AccessibilityClient.self] = newValue }
+  }
+}
