@@ -17,6 +17,13 @@ struct TatamiApp: App {
       AppRootView(store: appStore)
     }
     .windowResizability(.contentSize)
+    .commands {
+      // Standard ⌘, opens the main Tatami window (the Workspaces / Settings /
+      // About tab view).
+      CommandGroup(replacing: .appSettings) {
+        OpenSettingsButton()
+      }
+    }
 
     MenuBarExtra {
       MenuBarContentView(store: appStore)
@@ -24,5 +31,19 @@ struct TatamiApp: App {
       MenuBarLabel(store: appStore)
     }
     .menuBarExtraStyle(.menu)
+  }
+}
+
+/// Opens the main window. A dedicated view so it can read the `openWindow`
+/// environment action from inside `.commands`.
+private struct OpenSettingsButton: View {
+  @Environment(\.openWindow) private var openWindow
+
+  var body: some View {
+    Button("Settings…") {
+      openWindow(id: "main")
+      NSApp.activate(ignoringOtherApps: true)
+    }
+    .keyboardShortcut(",", modifiers: .command)
   }
 }

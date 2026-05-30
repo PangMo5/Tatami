@@ -22,8 +22,13 @@ struct WorkspaceDetailView: View {
     if let workspace = store.workspace {
       Form {
         Section("Workspace") {
-          // Icon picker — opens the SF Symbol grid on tap.
-          LabeledContent("Icon") {
+          // Icon picker — opens the SF Symbol grid on tap. Plain HStack with
+          // center alignment so the label sits vertically centered against
+          // the icon (LabeledContent aligns to the text baseline, which
+          // floats the label above taller controls).
+          HStack {
+            Text("Icon")
+            Spacer()
             Button {
               symbolPickerPresented = true
             } label: {
@@ -43,9 +48,12 @@ struct WorkspaceDetailView: View {
           }
 
           // Name — separate row, commits on blur or Return.
-          LabeledContent("Name") {
+          HStack {
+            Text("Name")
+            Spacer(minLength: 16)
             TextField("", text: $nameDraft)
               .textFieldStyle(.roundedBorder)
+              .frame(maxWidth: 360)
               .focused($nameFieldFocused)
               .onSubmit { store.send(.nameSubmitted(nameDraft)) }
               .onChange(of: nameFieldFocused) { _, focused in
@@ -54,12 +62,25 @@ struct WorkspaceDetailView: View {
           }
         }
 
-        Section("Activation Shortcut") {
+        Section {
           KeyboardShortcuts.Recorder(
-            for: KeyboardShortcuts.Name("tatami.workspace.\(workspace.id.uuidString)")
+            "Activate",
+            name: KeyboardShortcuts.Name("tatami.workspace.\(workspace.id.uuidString)")
           ) { shortcut in
             store.send(.activateShortcutChanged(shortcut.map(HotKey.init)))
           }
+          KeyboardShortcuts.Recorder(
+            "Assign focused app here",
+            name: KeyboardShortcuts.Name("tatami.workspace.assign.\(workspace.id.uuidString)")
+          ) { shortcut in
+            store.send(.assignAppShortcutChanged(shortcut.map(HotKey.init)))
+          }
+        } header: {
+          Text("Shortcuts")
+        } footer: {
+          Text("Assign adds the focused app to this workspace (keeping it in any workspace it's already in) and switches here.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         DisplayPickerSection(store: store, workspace: workspace)
@@ -81,6 +102,24 @@ struct WorkspaceDetailView: View {
             Text("Remember layout")
             Text(workspace.tilingMemory.map(memoryDescription)
               ?? "Follow the global default — \(globalDefault.displayName). Change it in Settings.")
+          }
+          .pickerStyle(.menu)
+        }
+
+        Section("On Activation") {
+          Picker(
+            selection: Binding(
+              get: { workspace.appToFocusBundleId },
+              set: { store.send(.appToFocusChanged($0)) }
+            )
+          ) {
+            Text("Most recently used").tag(String?.none)
+            ForEach(workspace.apps, id: \.bundleIdentifier) { app in
+              Text(app.name).tag(String?.some(app.bundleIdentifier))
+            }
+          } label: {
+            Text("Focus app")
+            Text("Which assigned app gets focus when this workspace activates.")
           }
           .pickerStyle(.menu)
         }

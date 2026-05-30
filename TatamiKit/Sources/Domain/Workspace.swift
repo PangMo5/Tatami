@@ -21,10 +21,9 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   public var displayHint: DisplayName?
   /// Hotkey that activates this workspace.
   public var activateShortcut: HotKey?
-  /// Hotkey that assigns the focused app to this workspace.
+  /// Hotkey that assigns the focused app to this workspace (duplicate
+  /// assignment — keeps existing memberships) and switches to it.
   public var assignAppShortcut: HotKey?
-  /// Hotkey that moves the focused window into this workspace.
-  public var moveWindowShortcut: HotKey?
   /// SF Symbol name for menu/space-control rendering.
   public var symbolIconName: String?
   /// Bundle identifier of the app to focus when this workspace activates.
@@ -41,7 +40,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     displayHint: DisplayName? = nil,
     activateShortcut: HotKey? = nil,
     assignAppShortcut: HotKey? = nil,
-    moveWindowShortcut: HotKey? = nil,
     symbolIconName: String? = nil,
     appToFocusBundleId: String? = nil,
     tilingMemory: TilingMemory? = nil,
@@ -52,7 +50,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.displayHint = displayHint
     self.activateShortcut = activateShortcut
     self.assignAppShortcut = assignAppShortcut
-    self.moveWindowShortcut = moveWindowShortcut
     self.symbolIconName = symbolIconName
     self.appToFocusBundleId = appToFocusBundleId
     self.tilingMemory = tilingMemory
@@ -62,7 +59,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
 
 extension Workspace {
   private enum CodingKeys: String, CodingKey {
-    case id, name, displayHint, activateShortcut, assignAppShortcut, moveWindowShortcut
+    case id, name, displayHint, activateShortcut, assignAppShortcut
     case symbolIconName, appToFocusBundleId
     case tilingMemory
     case apps
@@ -75,7 +72,6 @@ extension Workspace {
     displayHint = try container.decodeIfPresent(DisplayName.self, forKey: .displayHint)
     activateShortcut = try container.decodeIfPresent(HotKey.self, forKey: .activateShortcut)
     assignAppShortcut = try container.decodeIfPresent(HotKey.self, forKey: .assignAppShortcut)
-    moveWindowShortcut = try container.decodeIfPresent(HotKey.self, forKey: .moveWindowShortcut)
     symbolIconName = try container.decodeIfPresent(String.self, forKey: .symbolIconName)
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
     tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)

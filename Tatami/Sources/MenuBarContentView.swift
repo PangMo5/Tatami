@@ -63,10 +63,13 @@ struct MenuBarContentView: View {
 
     Divider()
 
-    Button("Open Tatami") {
+    // Opens the main window (the Workspaces / Settings / About tab view).
+    // ⌘, is also wired globally via the app's commands.
+    Button("Settings") {
       openWindow(id: "main")
       NSApp.activate(ignoringOtherApps: true)
     }
+    .keyboardShortcut(",", modifiers: .command)
 
     Button("Check for Updates…") {
       updater.checkForUpdates()

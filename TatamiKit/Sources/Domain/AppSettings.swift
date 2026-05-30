@@ -466,6 +466,10 @@ extension AppSettings {
     public var switchToPreviousWorkspace: HotKey?
     public var switchToRecentWorkspace: HotKey?
 
+    // Move the focused app to an adjacent workspace (relocate + switch)
+    public var moveToNextWorkspace: HotKey?
+    public var moveToPreviousWorkspace: HotKey?
+
     // Window cycling
     public var cycleNextWindow: HotKey?
     public var cyclePreviousWindow: HotKey?
@@ -496,6 +500,8 @@ extension AppSettings {
       switchToNextWorkspace: HotKey? = nil,
       switchToPreviousWorkspace: HotKey? = nil,
       switchToRecentWorkspace: HotKey? = nil,
+      moveToNextWorkspace: HotKey? = nil,
+      moveToPreviousWorkspace: HotKey? = nil,
       cycleNextWindow: HotKey? = nil,
       cyclePreviousWindow: HotKey? = nil,
       resizeGrow: HotKey? = nil,
@@ -518,6 +524,8 @@ extension AppSettings {
       self.switchToNextWorkspace = switchToNextWorkspace
       self.switchToPreviousWorkspace = switchToPreviousWorkspace
       self.switchToRecentWorkspace = switchToRecentWorkspace
+      self.moveToNextWorkspace = moveToNextWorkspace
+      self.moveToPreviousWorkspace = moveToPreviousWorkspace
       self.cycleNextWindow = cycleNextWindow
       self.cyclePreviousWindow = cyclePreviousWindow
       self.resizeGrow = resizeGrow
@@ -537,6 +545,7 @@ extension AppSettings {
     private enum CodingKeys: String, CodingKey {
       case focusLeft, focusRight, focusUp, focusDown
       case switchToNextWorkspace, switchToPreviousWorkspace, switchToRecentWorkspace
+      case moveToNextWorkspace, moveToPreviousWorkspace
       case cycleNextWindow, cyclePreviousWindow
       case resizeGrow, resizeShrink
       case swapLeft, swapRight, swapUp, swapDown
@@ -555,6 +564,8 @@ extension AppSettings {
       self.switchToNextWorkspace = try? c.decode(HotKey.self, forKey: .switchToNextWorkspace)
       self.switchToPreviousWorkspace = try? c.decode(HotKey.self, forKey: .switchToPreviousWorkspace)
       self.switchToRecentWorkspace = try? c.decode(HotKey.self, forKey: .switchToRecentWorkspace)
+      self.moveToNextWorkspace = try? c.decode(HotKey.self, forKey: .moveToNextWorkspace)
+      self.moveToPreviousWorkspace = try? c.decode(HotKey.self, forKey: .moveToPreviousWorkspace)
       self.cycleNextWindow = try? c.decode(HotKey.self, forKey: .cycleNextWindow)
       self.cyclePreviousWindow = try? c.decode(HotKey.self, forKey: .cyclePreviousWindow)
       self.resizeGrow = try? c.decode(HotKey.self, forKey: .resizeGrow)

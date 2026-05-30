@@ -60,9 +60,29 @@ let project = Project(
       sources: ["Tatami/Sources/**"],
       resources: ["Tatami/Resources/**"],
       entitlements: .file(path: "Tatami/Tatami.entitlements"),
+      scripts: [
+        // Embed the `tatami` CLI (built by the TatamiCLI dependency) into the
+        // app bundle's Resources, so Settings → Command Line can symlink it
+        // onto PATH. The binary is already signed by its own target build, so
+        // copying preserves its signature; the app's final code-sign seals it.
+        .post(
+          script: """
+          set -euo pipefail
+          SRC="${BUILT_PRODUCTS_DIR}/tatami"
+          DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+          mkdir -p "${DEST}"
+          cp -f "${SRC}" "${DEST}/tatami"
+          """,
+          name: "Embed Tatami CLI",
+          inputPaths: ["$(BUILT_PRODUCTS_DIR)/tatami"],
+          outputPaths: ["$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tatami"]
+        ),
+      ],
       dependencies: [
         .target(name: "TatamiKit"),
         .target(name: "TatamiCLIProtocol"),
+        // Build the CLI alongside the app so the embed script can copy it.
+        .target(name: "TatamiCLI"),
         .external(name: "Sparkle"),
         .external(name: "SFSafeSymbols"),
       ],
@@ -119,6 +139,13 @@ let project = Project(
       ],
       settings: .settings(base: [
         "PRODUCT_NAME": "tatami",
+        // Embed an Info.plist section in the CLI binary so it can report its
+        // version at runtime from the same `appVersion` source as the app —
+        // no hardcoded string to drift (see TatamiCLI `--version`).
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "CREATE_INFOPLIST_SECTION_IN_BINARY": "YES",
+        "MARKETING_VERSION": SettingValue(stringLiteral: appVersion),
+        "CURRENT_PROJECT_VERSION": SettingValue(stringLiteral: buildNumber),
       ])
     ),
     .target(

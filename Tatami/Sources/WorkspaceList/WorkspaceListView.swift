@@ -39,6 +39,7 @@ struct WorkspaceListView: View {
           } label: {
             Label("Add Workspace", systemImage: "plus")
           }
+          .keyboardShortcut("n", modifiers: .command)
         }
       }
     } detail: {

@@ -40,6 +40,8 @@ public struct WorkspaceDetailFeature {
     case nameSubmitted(String)
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
+    case assignAppShortcutChanged(HotKey?)
+    case appToFocusChanged(String?)
     case displayHintChanged(DisplayName?)
     case tilingMemoryChanged(TilingMemory?)
   }
@@ -125,6 +127,20 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.activateShortcut = hotKey }
+        }
+        return .none
+
+      case .assignAppShortcutChanged(let hotKey):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.assignAppShortcut = hotKey }
+        }
+        return .none
+
+      case .appToFocusChanged(let bundleId):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.appToFocusBundleId = bundleId }
         }
         return .none
 

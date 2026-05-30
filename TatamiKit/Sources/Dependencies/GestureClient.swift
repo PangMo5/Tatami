@@ -89,10 +89,17 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     guard tap == nil else { return }
 
     let context = Unmanaged.passUnretained(self).toOpaque()
+    // Listen-only: the recognizer only observes gesture events to detect
+    // swipes — it never modifies or swallows them. An *active* (`.defaultTap`)
+    // tap sits inline in the HID event stream, so every event (including
+    // clicks) must pass through it; if it isn't serviced promptly — e.g. when
+    // the system disables it after Accessibility is revoked — those events get
+    // held and clicks appear to "stop working". A listen-only tap receives a
+    // passive copy and never gates delivery.
     let created = CGEvent.tapCreate(
       tap: .cghidEventTap,
       place: .headInsertEventTap,
-      options: .defaultTap,
+      options: .listenOnly,
       eventsOfInterest: NSEvent.EventTypeMask.gesture.rawValue,
       callback: { _, type, event, context in
         guard let context else { return Unmanaged.passUnretained(event) }

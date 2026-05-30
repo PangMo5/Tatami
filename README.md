@@ -74,6 +74,22 @@ tuist install && tuist generate --no-open
 open Tatami.xcworkspace
 ```
 
+## Command line
+
+Tatami ships a `tatami` CLI inside the app bundle. Install it from
+**Settings → Command Line → Install** — this symlinks `tatami` into
+`/usr/local/bin` (you'll be asked for your password once). Then:
+
+```sh
+tatami list-workspaces          # workspace names in the active profile
+tatami list-apps <workspace>    # bundle IDs assigned to a workspace
+tatami activate <workspace>     # activate a workspace
+tatami version                  # version of the running app
+```
+
+The CLI talks to the running app over a local socket, so Tatami must be
+running. (Homebrew installs are detected automatically.)
+
 ## Configuration
 
 Settings live in `~/.config/tatami/config.toml`, grouped into tables —

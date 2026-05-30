@@ -77,6 +77,9 @@ public struct WorkspaceActivationFeature {
     case activateNext
     case activatePrevious
     case activateRecent
+    /// Relocate the focused app to the next (`+1`) / previous (`-1`)
+    /// workspace and switch to it — honors loop / skip-empty like cycling.
+    case moveFocusedAppToAdjacent(direction: Int)
     case moveFocusedAppTo(workspaceId: Workspace.ID)
     case focusedAppResolved(bundleId: String, workspaceId: Workspace.ID)
     /// Hotkey entry point: add/remove the focused window's app to the
@@ -84,6 +87,11 @@ public struct WorkspaceActivationFeature {
     /// any other workspace it was registered in).
     case toggleFocusedAppInActiveWorkspace
     case focusedAppMembershipResolved(bundleId: String, name: String)
+    /// Hotkey entry point: assign the focused window's app to a *specific*
+    /// workspace (single-membership) without switching to it — unlike
+    /// `moveFocusedAppTo`, which also activates the target.
+    case assignFocusedAppTo(workspaceId: Workspace.ID)
+    case assignedAppResolved(bundleId: String, name: String, workspaceId: Workspace.ID)
     case toggleFloatingOnFocusedApp
     case focusedFloatToggleResolved(bundleId: String, name: String)
     case togglePaused
@@ -344,6 +352,10 @@ public struct WorkspaceActivationFeature {
         guard let id = state.previousWorkspaceID else { return .none }
         return .send(.activate(workspaceId: id, setFocus: true))
 
+      case .moveFocusedAppToAdjacent(let direction):
+        guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
+        return .send(.moveFocusedAppTo(workspaceId: id))
+
       case .moveFocusedAppTo(let workspaceId):
         return resolveFrontmostBundleId { bundleId in
           .focusedAppResolved(bundleId: bundleId, workspaceId: workspaceId)
@@ -430,6 +442,45 @@ public struct WorkspaceActivationFeature {
             : .none,
           .send(.activate(workspaceId: workspaceId, setFocus: false))
         )
+
+      case .assignFocusedAppTo(let workspaceId):
+        return .run { send in
+          let resolved = await MainActor.run {
+            NSWorkspace.shared.frontmostApplication.map {
+              (bundleId: $0.bundleIdentifier ?? "", name: $0.localizedName ?? "")
+            }
+          }
+          guard let resolved, !resolved.bundleId.isEmpty else { return }
+          await send(
+            .assignedAppResolved(
+              bundleId: resolved.bundleId, name: resolved.name, workspaceId: workspaceId
+            )
+          )
+        }
+
+      case .assignedAppResolved(let bundleId, let name, let workspaceId):
+        // Skip Tatami itself so the user can't accidentally assign it.
+        if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+          return .none
+        }
+        state.$config.withLock { config in
+          config.mutateActiveProfile { profile in
+            guard let idx = profile.workspaces.firstIndex(where: { $0.id == workspaceId })
+            else { return }
+            // Duplicate assignment: add to the target *without* removing it
+            // from any workspace it already belongs to. (Unlike `move`, which
+            // relocates the app to a single workspace.)
+            guard !profile.workspaces[idx].apps
+              .contains(where: { $0.bundleIdentifier == bundleId })
+            else { return }
+            profile.workspaces[idx].apps.append(
+              AppAssignment(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
+            )
+          }
+        }
+        state.tilingTrees[workspaceId] = nil
+        // Switch to the target so the just-assigned app is visible there.
+        return .send(.activate(workspaceId: workspaceId, setFocus: true))
 
       case .toggleFloatingOnFocusedApp:
         return .run { send in
@@ -1563,8 +1614,17 @@ public struct WorkspaceActivationFeature {
   // MARK: - Cycle
 
   private func cycle(by direction: Int, state: inout State) -> Effect<Action> {
+    guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
+    return .send(.activate(workspaceId: id, setFocus: true))
+  }
+
+  /// The workspace `direction` steps from the active one, honoring the
+  /// `loop` / `skipEmpty` switching preferences. Shared by cycling and by
+  /// "move focused app to next/previous workspace". Returns `nil` when there
+  /// is no eligible target (e.g. at an end with looping off).
+  private func adjacentWorkspaceId(by direction: Int, state: State) -> Workspace.ID? {
     guard let workspaces = state.config.activeProfile?.workspaces, !workspaces.isEmpty
-    else { return .none }
+    else { return nil }
     let settings = state.config.settings
     let currentID = state.activeWorkspacesByDisplay.values.first
       ?? state.primaryActiveWorkspaceID
@@ -1583,7 +1643,7 @@ public struct WorkspaceActivationFeature {
       if settings.switching.loop {
         index = (next + count) % count
       } else {
-        guard next >= 0, next < count else { return .none }
+        guard next >= 0, next < count else { return nil }
         index = next
       }
       let candidate = workspaces[index]
@@ -1593,9 +1653,9 @@ public struct WorkspaceActivationFeature {
         }
         if !hasRunning { continue }
       }
-      return .send(.activate(workspaceId: candidate.id, setFocus: true))
+      return candidate.id
     }
-    return .none
+    return nil
   }
 
   // MARK: - Helpers

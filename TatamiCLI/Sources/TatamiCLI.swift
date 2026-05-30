@@ -7,7 +7,9 @@ struct TatamiCLI: ParsableCommand {
   static let configuration = CommandConfiguration(
     commandName: "tatami",
     abstract: "Tatami CLI — interact with the Tatami workspace manager.",
-    version: "0.1.0",
+    // Read from the Info.plist section embedded in the binary (see Project.swift),
+    // so `--version` tracks the app's marketing version without a hardcoded string.
+    version: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev",
     subcommands: [
       Version.self,
       ListWorkspaces.self,

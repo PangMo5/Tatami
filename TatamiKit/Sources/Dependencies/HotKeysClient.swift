@@ -9,10 +9,16 @@ import KeyboardShortcuts
 public enum HotKeyAction: Sendable, Hashable {
   // Workspace ops
   case activateWorkspace(Workspace.ID)
-  case moveFocusedWindowToWorkspace(Workspace.ID)
+  /// Assign the focused app to a specific workspace (duplicate assignment)
+  /// and switch to it.
+  case assignFocusedAppToWorkspace(Workspace.ID)
   case switchToNextWorkspace
   case switchToPreviousWorkspace
   case switchToRecentWorkspace
+
+  // Move the focused app to an adjacent workspace (relocate + switch)
+  case moveFocusedAppToNextWorkspace
+  case moveFocusedAppToPreviousWorkspace
 
   // Directional focus
   case focusLeft, focusRight, focusUp, focusDown
@@ -42,10 +48,12 @@ extension HotKeyAction {
   public var nameKey: String {
     switch self {
     case .activateWorkspace(let id): "activate-\(id.uuidString)"
-    case .moveFocusedWindowToWorkspace(let id): "move-window-\(id.uuidString)"
+    case .assignFocusedAppToWorkspace(let id): "assign-app-\(id.uuidString)"
     case .switchToNextWorkspace: "next-workspace"
     case .switchToPreviousWorkspace: "prev-workspace"
     case .switchToRecentWorkspace: "recent-workspace"
+    case .moveFocusedAppToNextWorkspace: "move-app-next-workspace"
+    case .moveFocusedAppToPreviousWorkspace: "move-app-prev-workspace"
     case .focusLeft: "focus-left"
     case .focusRight: "focus-right"
     case .focusUp: "focus-up"

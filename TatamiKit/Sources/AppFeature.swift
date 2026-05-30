@@ -164,14 +164,18 @@ public struct AppFeature {
     switch action {
     case .activateWorkspace(let id):
       return .send(.activation(.activate(workspaceId: id, setFocus: true)))
-    case .moveFocusedWindowToWorkspace(let id):
-      return .send(.activation(.moveFocusedAppTo(workspaceId: id)))
+    case .assignFocusedAppToWorkspace(let id):
+      return .send(.activation(.assignFocusedAppTo(workspaceId: id)))
     case .switchToNextWorkspace:
       return .send(.activation(.activateNext))
     case .switchToPreviousWorkspace:
       return .send(.activation(.activatePrevious))
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
+    case .moveFocusedAppToNextWorkspace:
+      return .send(.activation(.moveFocusedAppToAdjacent(direction: 1)))
+    case .moveFocusedAppToPreviousWorkspace:
+      return .send(.activation(.moveFocusedAppToAdjacent(direction: -1)))
 
     case .focusLeft:
       return .send(.activation(.bspFocus(.west)))

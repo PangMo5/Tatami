@@ -35,7 +35,10 @@ extension WindowTilerClient: DependencyKey {
       logger.debug("apply: no frames to apply")
       return
     }
-    let trusted = await MainActor.run { ensureAccessibilityTrust() }
+    // Non-prompting check: prompting here would re-pop the system dialog on
+    // every tile pass while ungranted. The single startup prompt + the
+    // Settings → Permissions UI own the prompting.
+    let trusted = await MainActor.run { isAccessibilityTrusted() }
     guard trusted else {
       logger.warning(
         """
@@ -199,6 +202,13 @@ public func ensureAccessibilityTrust() -> Bool {
   if AXIsProcessTrusted() { return true }
   let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
   return AXIsProcessTrustedWithOptions(options)
+}
+
+/// Non-prompting check of the current Accessibility trust state. Use for
+/// status display; use `ensureAccessibilityTrust()` to also prompt.
+@MainActor
+public func isAccessibilityTrusted() -> Bool {
+  AXIsProcessTrusted()
 }
 
 /// All visible, regular, tile-able windows that belong to the given

@@ -20,9 +20,9 @@ public struct HotKeysFeature {
         if let key = workspace.activateShortcut {
           out.append(.init(action: .activateWorkspace(workspace.id), hotKey: key))
         }
-        if let key = workspace.moveWindowShortcut {
+        if let key = workspace.assignAppShortcut {
           out.append(
-            .init(action: .moveFocusedWindowToWorkspace(workspace.id), hotKey: key)
+            .init(action: .assignFocusedAppToWorkspace(workspace.id), hotKey: key)
           )
         }
       }
@@ -34,6 +34,8 @@ public struct HotKeysFeature {
       add(.switchToNextWorkspace, shortcuts.switchToNextWorkspace)
       add(.switchToPreviousWorkspace, shortcuts.switchToPreviousWorkspace)
       add(.switchToRecentWorkspace, shortcuts.switchToRecentWorkspace)
+      add(.moveFocusedAppToNextWorkspace, shortcuts.moveToNextWorkspace)
+      add(.moveFocusedAppToPreviousWorkspace, shortcuts.moveToPreviousWorkspace)
       add(.focusLeft, shortcuts.focusLeft)
       add(.focusRight, shortcuts.focusRight)
       add(.focusUp, shortcuts.focusUp)
