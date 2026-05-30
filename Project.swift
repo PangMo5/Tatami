@@ -53,7 +53,7 @@ let project = Project(
         "CFBundleDisplayName": "Tatami",
         "NSHumanReadableCopyright":
           "© 2026 PangMo5. Released under GPL-3.0. Inspired by FlashSpace and yabai.",
-        "SUFeedURL": "https://pangmo5.github.io/Tatami/appcast.xml",
+        "SUFeedURL": "https://pangmo5.dev/Tatami/appcast.xml",
         "SUEnableAutomaticChecks": true,
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
       ]),
