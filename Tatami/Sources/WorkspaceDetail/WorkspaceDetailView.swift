@@ -300,7 +300,7 @@ private struct DisplayPickerSection: View {
   let onSelect: (DisplayName?) -> Void
 
   var body: some View {
-    Section("Display") {
+    Section {
       Picker("Pinned display", selection: binding) {
         Text("Dynamic (follow apps)").tag(DisplayName?.none)
         ForEach(pickerItems, id: \.self) { display in
@@ -308,6 +308,12 @@ private struct DisplayPickerSection: View {
         }
       }
       .pickerStyle(.menu)
+    } header: {
+      Text("Display")
+    } footer: {
+      Text("Pin this workspace to always open on one display. Dynamic instead follows your apps — it opens on whichever display you're using.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
   }
 

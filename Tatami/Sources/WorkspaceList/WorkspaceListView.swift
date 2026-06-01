@@ -40,6 +40,7 @@ struct WorkspaceListView: View {
             Label("Add Workspace", systemImage: "plus")
           }
           .keyboardShortcut("n", modifiers: .command)
+          .help("Add a workspace (⌘N)")
         }
       }
     } detail: {
@@ -94,9 +95,15 @@ private struct AddWorkspaceForm: View {
 
   var body: some View {
     Form {
-      TextField("Name", text: $store.draftName)
-        .focused($nameFieldFocused)
-        .onSubmit { store.send(.addWorkspaceFormSubmitted) }
+      Section {
+        TextField("Name", text: $store.draftName)
+          .focused($nameFieldFocused)
+          .onSubmit { store.send(.addWorkspaceFormSubmitted) }
+      } footer: {
+        Text("Starts pinned to the display you're on. Change this anytime in the workspace's Display section.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
     }
     .formStyle(.grouped)
     .frame(width: 360)

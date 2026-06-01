@@ -145,34 +145,69 @@ struct SettingsView: View {
       Section("Resize & Layout") {
         shortcut("Grow", .resizeGrow, \.resizeGrow)
         shortcut("Shrink", .resizeShrink, \.resizeShrink)
-        shortcut("Toggle orientation", .toggleOrientation, \.toggleOrientation)
-        shortcut("Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen)
-        shortcut("Balance", .balance, \.balance)
+        shortcut(
+          "Toggle orientation", .toggleOrientation, \.toggleOrientation,
+          description: "Flip the split between the focused window and its neighbour (side-by-side ↔ stacked)."
+        )
+        shortcut(
+          "Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen,
+          description: "Zoom the focused window to fill the workspace. Tatami can keep several windows zoomed at once."
+        )
+        shortcut(
+          "Balance", .balance, \.balance,
+          description: "Reset every split in the layout to equal sizes."
+        )
       }
 
       Section("Windows & Workspaces") {
-        shortcut("Cycle next window", .cycleNextWindow, \.cycleNextWindow)
-        shortcut("Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow)
+        shortcut(
+          "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
+          description: "Move focus to the next window in the active workspace."
+        )
+        shortcut(
+          "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
+          description: "Move focus to the previous window in the active workspace."
+        )
         shortcut("Next workspace", .switchToNextWorkspace, \.switchToNextWorkspace)
         shortcut("Previous workspace", .switchToPreviousWorkspace, \.switchToPreviousWorkspace)
-        shortcut("Recent workspace", .switchToRecentWorkspace, \.switchToRecentWorkspace)
-        shortcut("Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace)
+        shortcut(
+          "Recent workspace", .switchToRecentWorkspace, \.switchToRecentWorkspace,
+          description: "Switch back to the previously active workspace."
+        )
+        shortcut(
+          "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
+          description: "Move the focused app to the next workspace and follow it there."
+        )
         shortcut(
           "Move app to previous workspace",
           .moveFocusedAppToPreviousWorkspace,
-          \.moveToPreviousWorkspace
+          \.moveToPreviousWorkspace,
+          description: "Move the focused app to the previous workspace and follow it there."
         )
-        shortcut("Focus next display", .focusNextDisplay, \.focusNextDisplay)
-        shortcut("Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay)
+        shortcut(
+          "Focus next display", .focusNextDisplay, \.focusNextDisplay,
+          description: "Focus the active workspace on the next display (loops around)."
+        )
+        shortcut(
+          "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
+          description: "Focus the active workspace on the previous display (loops around)."
+        )
       }
 
       Section("Toggles") {
-        shortcut("Toggle floating", .toggleFloating, \.toggleFloating)
-        shortcut("Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated)
+        shortcut(
+          "Toggle floating", .toggleFloating, \.toggleFloating,
+          description: "Float the focused window so tiling leaves it alone; toggle again to re-tile it."
+        )
+        shortcut(
+          "Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated,
+          description: "Pause or resume tiling for the active workspace. While paused, windows keep their current frames."
+        )
         shortcut(
           "Toggle app in workspace",
           .toggleFocusedAppInActiveWorkspace,
-          \.toggleFocusedAppInActiveWorkspace
+          \.toggleFocusedAppInActiveWorkspace,
+          description: "Add the focused app to the active workspace, or remove it if it's already assigned."
         )
       }
 
@@ -386,13 +421,28 @@ struct SettingsView: View {
   /// the shared KeyboardShortcuts slot directly (so the live handler
   /// updates immediately); the callback also mirrors it into the config's
   /// `shortcuts` group so it persists.
+  @ViewBuilder
   private func shortcut(
     _ title: String,
     _ action: HotKeyAction,
-    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, HotKey?>
+    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    description: String? = nil
   ) -> some View {
-    KeyboardShortcuts.Recorder(title, name: action.keyboardShortcutName) { shortcut in
+    let recorder = KeyboardShortcuts.Recorder(title, name: action.keyboardShortcutName) { shortcut in
       $config.withLock { $0.settings.shortcuts[keyPath: keyPath] = shortcut.map(HotKey.init) }
+    }
+    // Non-obvious actions get a caption below the recorder, matching the
+    // toggle/picker rows; self-explanatory directional ones pass none.
+    if let description {
+      VStack(alignment: .leading, spacing: 4) {
+        recorder
+        Text(description)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    } else {
+      recorder
     }
   }
 
