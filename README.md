@@ -30,7 +30,8 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Switch by hotkey, trackpad swipe, or "recent workspace"
 - Optional loop-around, skip-empty, and follow-app-focus behaviors
 - Auto-open assigned apps when a workspace activates
-- Pin a workspace to a display or follow apps dynamically (multi-display)
+- Per-display workspaces — pin one to a display or follow apps dynamically; each display keeps its own active workspace, and you can cycle per-display or across every display
+- Jump focus between displays, or move the focused app to another workspace
 - Floating apps that never tile
 
 ### Focus & cursor

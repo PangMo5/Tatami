@@ -84,6 +84,7 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `loop` | bool | `true` | Wrap from the last workspace back to the first (and vice versa). |
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when cycling next/previous. |
 | `followAppFocus` | bool | `false` | Activating an app switches to the workspace that owns it. |
+| `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
 
 ## `[settings.gestures]`
 
@@ -109,6 +110,8 @@ action unbound.
 | `cycleNextWindow` / `cyclePreviousWindow` | Cycle focus across the workspace's windows |
 | `switchToNextWorkspace` / `switchToPreviousWorkspace` | Cycle workspaces |
 | `switchToRecentWorkspace` | Jump to the previously active workspace |
+| `moveToNextWorkspace` / `moveToPreviousWorkspace` | Move the focused app to the next/previous workspace and follow it there |
+| `focusNextDisplay` / `focusPreviousDisplay` | Focus the active workspace on the next/previous display (loops around) |
 | `toggleFloating` | Toggle floating for the focused app |
 | `toggleFocusedAppInActiveWorkspace` | Add the focused window's app to the active workspace (or remove it if already a member) |
 | `toggleSpaceActivated` | Pause/resume tiling |
@@ -138,9 +141,10 @@ id = "00000000-0000-0000-0000-000000000010"
 name = "Browser"
 symbolIconName = "safari.fill"        # any SF Symbol name
 activateShortcut = "ctrl + alt + shift - b"
-moveWindowShortcut = "alt + shift + cmd - b"
+assignAppShortcut = "alt + shift + cmd - b"
 tilingMemory = "session"               # optional: overrides defaultTilingMemory
-displayHint = "..."                    # optional: pin to a display, else dynamic
+displayHint = "Built-in Retina Display"           # optional: pin to a display ("<uuid>::<name>" or "<name>")
+appToFocusBundleId = "app.zen-browser.zen"        # optional: focus this app on activation
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "app.zen-browser.zen"
@@ -156,9 +160,10 @@ Workspace fields:
 | `name` | string | Display name. |
 | `symbolIconName` | string? | SF Symbol used in the menu bar / sidebar. |
 | `activateShortcut` | string? | Shortcut to activate this workspace. |
-| `moveWindowShortcut` | string? | Shortcut to move the focused app here. |
+| `assignAppShortcut` | string? | Shortcut to add the focused app to this workspace (keeping its other memberships) and switch here. |
+| `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation; omit for most-recently-used. |
 | `tilingMemory` | string? | `session` / `persistent`; omit to use the global default. |
-| `displayHint` | string? | Pin the workspace to a display; omit to follow apps dynamically. |
+| `displayHint` | string? | Pin the workspace to a display — `"<uuid>::<name>"` or just `"<name>"`. Omit to follow apps dynamically. Falls back to the primary display when the pinned monitor is absent. |
 
 App assignment fields:
 

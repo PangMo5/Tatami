@@ -4,6 +4,27 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## Unreleased
+
+### New
+- **Multi-monitor, per display.** Each display tracks its own active and recent workspaces. Activation, "recent workspace", and next/previous cycling all act on the display under the cursor, and new workspaces start pinned to the current display.
+  - **Focus next / previous display** — move focus to the active workspace on the next monitor, looping around (`focusNextDisplay` / `focusPreviousDisplay`).
+  - **Cycle across all displays** — option to make next/previous workspace span every display's workspaces instead of only the one under the cursor (`settings.switching.cycleAcrossDisplays`).
+  - Displays are identified by a stable UUID (with a name fallback), so reconnecting the same monitor keeps its assignments; everything falls back to the primary display when a monitor is absent.
+  - Per-display dot colors in the sidebar show which monitor each workspace is active on.
+- **Move app to next / previous workspace** — relocate the focused app one workspace over and follow it there (`moveToNextWorkspace` / `moveToPreviousWorkspace`).
+- **Assign focused app to a workspace** — a per-workspace shortcut that adds the focused app (keeping its other memberships) and switches there.
+- **Focus app on activation** — choose which assigned app gets focus when a workspace activates (defaults to most-recently-used).
+- **Bundled CLI installer** — install / uninstall the `tatami` CLI from **Settings → Command Line** (Homebrew installs are detected). Accessibility permission status and a one-click grant now live in **Settings → Permissions**.
+- In-app descriptions for the non-obvious shortcuts, plus a Pinned-vs-Dynamic explainer in a workspace's Display section.
+
+### Fixes
+- **focus-follows-mouse** no longer grabs a full-screen window showing through the gaps between tiled windows.
+- Hot keys re-register immediately after recording a workspace's **Assign** shortcut (previously needed a relaunch).
+- **Persistent layouts** restore each fullscreen-zoomed window of the *same* app to a distinct window instead of collapsing them onto one.
+- The workspace **Display picker** now lists every connected display when switching between workspaces.
+- `tatami version` reports the running app's real version.
+
 ## 1.0.0 — 2026-05-29
 
 The first stable release. Here's what changed since v0.1.3.
