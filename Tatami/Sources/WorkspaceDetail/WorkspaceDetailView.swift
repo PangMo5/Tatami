@@ -83,7 +83,11 @@ struct WorkspaceDetailView: View {
             .foregroundStyle(.secondary)
         }
 
-        DisplayPickerSection(store: store, workspace: workspace)
+        DisplayPickerSection(
+          availableDisplays: store.availableDisplays,
+          selectedHint: workspace.displayHint,
+          onSelect: { store.send(.displayHintChanged($0)) }
+        )
 
         Section("Tiling Memory") {
           let globalDefault = store.config.settings.layout.defaultTilingMemory
@@ -187,7 +191,14 @@ struct WorkspaceDetailView: View {
       }
       .onAppear { nameDraft = workspace.name }
       .onChange(of: workspace.id) { _, _ in nameDraft = workspace.name }
-      .task { store.send(.onAppear) }
+      // Keyed on the workspace so re-running per selection re-fetches the
+      // display list (a plain `.task` only fires on first appearance, which
+      // left later workspaces' pickers showing just their own pinned display).
+      .task(id: workspace.id) { store.send(.onAppear) }
+      // Refresh the pinned-display picker when monitors are plugged/unplugged.
+      .onReceive(
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+      ) { _ in store.send(.refreshDisplays) }
     } else {
       ContentUnavailableView(
         "Workspace Unavailable",
@@ -282,25 +293,43 @@ private struct SymbolPicker: View {
 }
 
 private struct DisplayPickerSection: View {
-  let store: StoreOf<WorkspaceDetailFeature>
-  let workspace: Workspace
+  // Plain values passed by the parent (which is `@Bindable` and observes the
+  // store), so this section reliably re-renders when the display list loads.
+  let availableDisplays: [DisplayName]
+  let selectedHint: DisplayName?
+  let onSelect: (DisplayName?) -> Void
 
   var body: some View {
     Section("Display") {
       Picker("Pinned display", selection: binding) {
         Text("Dynamic (follow apps)").tag(DisplayName?.none)
-        ForEach(store.availableDisplays, id: \.self) { display in
-          Text(display.rawValue).tag(DisplayName?.some(display))
+        ForEach(pickerItems, id: \.self) { display in
+          Text(display.name).tag(DisplayName?.some(display))
         }
       }
       .pickerStyle(.menu)
     }
   }
 
+  /// Connected displays, plus the pinned display itself when it's currently
+  /// disconnected — so the picker can still show the existing selection.
+  private var pickerItems: [DisplayName] {
+    var items = availableDisplays
+    if let hint = selectedHint, !items.contains(where: { $0.matches(hint) }) {
+      items.append(hint)
+    }
+    return items
+  }
+
   private var binding: Binding<DisplayName?> {
     Binding(
-      get: { workspace.displayHint },
-      set: { store.send(.displayHintChanged($0)) }
+      get: {
+        guard let hint = selectedHint else { return nil }
+        // Resolve the hint to the actual picker item (UUID-or-name match) so a
+        // legacy / name-only hint still highlights the right display.
+        return pickerItems.first { $0.matches(hint) } ?? hint
+      },
+      set: { onSelect($0) }
     )
   }
 }

@@ -7,8 +7,6 @@ import Sparkle
 /// Sparkle's background check schedule.
 @DependencyClient
 public struct UpdaterClient: Sendable {
-  /// Emits whether the updater can currently start a check.
-  public var canCheckForUpdates: @Sendable () -> AsyncStream<Bool> = { AsyncStream { _ in } }
   /// Triggers a user-initiated update check.
   public var checkForUpdates: @Sendable () -> Void
   /// Applies the scheduled-check preferences to the underlying updater.
@@ -24,17 +22,6 @@ extension UpdaterClient: DependencyKey {
     )
     let updater = controller.updater
     return UpdaterClient(
-      canCheckForUpdates: {
-        AsyncStream { continuation in
-          let task = Task { @MainActor in
-            for await value in updater.publisher(for: \.canCheckForUpdates).values {
-              continuation.yield(value)
-            }
-            continuation.finish()
-          }
-          continuation.onTermination = { _ in task.cancel() }
-        }
-      },
       checkForUpdates: {
         Task { @MainActor in updater.checkForUpdates() }
       },

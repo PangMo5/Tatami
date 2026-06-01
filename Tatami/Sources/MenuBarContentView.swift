@@ -72,7 +72,6 @@ struct MenuBarContentView: View {
     Button("Check for Updates…") {
       store.send(.checkForUpdatesTapped)
     }
-    .disabled(!store.canCheckForUpdates)
 
     Divider()
 

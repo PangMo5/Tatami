@@ -20,6 +20,10 @@ public enum HotKeyAction: Sendable, Hashable {
   case moveFocusedAppToNextWorkspace
   case moveFocusedAppToPreviousWorkspace
 
+  // Focus the workspace on the next / previous display (looping)
+  case focusNextDisplay
+  case focusPreviousDisplay
+
   // Directional focus
   case focusLeft, focusRight, focusUp, focusDown
 
@@ -54,6 +58,8 @@ extension HotKeyAction {
     case .switchToRecentWorkspace: "recent-workspace"
     case .moveFocusedAppToNextWorkspace: "move-app-next-workspace"
     case .moveFocusedAppToPreviousWorkspace: "move-app-prev-workspace"
+    case .focusNextDisplay: "focus-next-display"
+    case .focusPreviousDisplay: "focus-prev-display"
     case .focusLeft: "focus-left"
     case .focusRight: "focus-right"
     case .focusUp: "focus-up"

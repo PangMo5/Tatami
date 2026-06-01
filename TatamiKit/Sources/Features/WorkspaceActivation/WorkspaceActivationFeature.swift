@@ -17,7 +17,17 @@ public struct WorkspaceActivationFeature {
   public struct State: Equatable {
     @Shared(.tatamiConfig) public var config = AppConfig()
     public var activeWorkspacesByDisplay: [DisplayName: Workspace.ID] = [:]
-    public var previousWorkspaceID: Workspace.ID?
+    /// Per-display "most recent" workspace, for switch-to-recent on the
+    /// display the user is currently on (multi-monitor aware).
+    public var previousWorkspacesByDisplay: [DisplayName: Workspace.ID] = [:]
+    /// Last display each workspace was activated on (including dynamic /
+    /// unpinned ones), so cycling can scope dynamic workspaces to the monitor
+    /// they were last on.
+    public var lastActiveDisplay: [Workspace.ID: DisplayName] = [:]
+    /// The display the user is currently acting on (cursor screen), refreshed
+    /// before focus-sensitive ops so "the current workspace" resolves to the
+    /// right monitor instead of an arbitrary one.
+    public var focusedDisplay: DisplayName?
     public var isActivating = false
     /// Runtime-only "pause tiling" flag. Workspace switching keeps
     /// running while tiling is paused; flipped by `togglePaused`.
@@ -63,13 +73,23 @@ public struct WorkspaceActivationFeature {
 
     public init() {}
 
+    /// The active workspace on the display the user is currently on. Falls
+    /// back to any active workspace (single-display, or before `focusedDisplay`
+    /// is known). Hotkey ops resolve their target through this, so they act on
+    /// the focused monitor rather than an arbitrary one.
     public var primaryActiveWorkspaceID: Workspace.ID? {
-      activeWorkspacesByDisplay.values.first
+      if let focusedDisplay, let id = activeWorkspacesByDisplay[focusedDisplay] {
+        return id
+      }
+      return activeWorkspacesByDisplay.values.first
     }
   }
 
   public enum Action {
     case startObservingWindowEvents
+    /// Connected displays changed — drop active/recent state for displays
+    /// that are gone so multi-monitor tracking doesn't hold stale entries.
+    case displaysReconfigured([DisplayName])
     /// Activate a sensible workspace on launch so tiling starts
     /// immediately instead of waiting for the first manual switch.
     case activateInitial
@@ -77,6 +97,9 @@ public struct WorkspaceActivationFeature {
     case activateNext
     case activatePrevious
     case activateRecent
+    /// Focus the workspace active on the next (`+1`) / previous (`-1`)
+    /// connected display, looping around.
+    case focusAdjacentDisplay(direction: Int)
     /// Relocate the focused app to the next (`+1`) / previous (`-1`)
     /// workspace and switch to it — honors loop / skip-empty like cycling.
     case moveFocusedAppToAdjacent(direction: Int)
@@ -168,13 +191,43 @@ public struct WorkspaceActivationFeature {
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
+      // Track the display the user is acting on so "the current workspace"
+      // resolves to the focused monitor. Skip `windowChanged` (drag / window
+      // events) so the dragged window's workspace stays stable even as the
+      // cursor crosses monitors mid-drag.
+      if case .windowChanged = action {} else {
+        state.focusedDisplay = displays.current()
+      }
+
       switch action {
       case .startObservingWindowEvents:
-        return .run { [client = windowObserver] send in
-          for await event in client.events() {
-            await send(.windowChanged(event))
+        return .merge(
+          .run { [client = windowObserver] send in
+            for await event in client.events() {
+              await send(.windowChanged(event))
+            }
+          },
+          .run { [displays] send in
+            for await names in displays.changes() {
+              await send(.displaysReconfigured(names))
+            }
           }
+        )
+
+      case .displaysReconfigured(let names):
+        let connected = Set(names)
+        state.activeWorkspacesByDisplay = state.activeWorkspacesByDisplay
+          .filter { connected.contains($0.key) }
+        state.previousWorkspacesByDisplay = state.previousWorkspacesByDisplay
+          .filter { connected.contains($0.key) }
+        // Drop last-display records for displays that are gone so dynamic
+        // workspaces aren't stranded off-screen in the cycle.
+        state.lastActiveDisplay = state.lastActiveDisplay
+          .filter { connected.contains($0.value) }
+        if let focused = state.focusedDisplay, !connected.contains(focused) {
+          state.focusedDisplay = nil
         }
+        return .none
 
       case .windowChanged(let event):
         switch event {
@@ -349,8 +402,24 @@ public struct WorkspaceActivationFeature {
         return cycle(by: -1, state: &state)
 
       case .activateRecent:
-        guard let id = state.previousWorkspaceID else { return .none }
-        return .send(.activate(workspaceId: id, setFocus: true))
+        // The recent workspace on the display the user is on (falls back to
+        // any recent for single-display / unknown focus).
+        let recent = state.focusedDisplay.flatMap { state.previousWorkspacesByDisplay[$0] }
+          ?? state.previousWorkspacesByDisplay.values.first
+        guard let recent else { return .none }
+        return .send(.activate(workspaceId: recent, setFocus: true))
+
+      case .focusAdjacentDisplay(let direction):
+        let ordered = displays.all()
+        guard ordered.count > 1 else { return .none }
+        let startIndex = state.focusedDisplay
+          .flatMap { f in ordered.firstIndex { $0.matches(f) } } ?? 0
+        let nextDisplay = ordered[(startIndex + direction + ordered.count) % ordered.count]
+        // The workspace currently active on that display, if any.
+        guard let wsId = state.activeWorkspacesByDisplay
+          .first(where: { $0.key.matches(nextDisplay) })?.value
+        else { return .none }
+        return .send(.activate(workspaceId: wsId, setFocus: true))
 
       case .moveFocusedAppToAdjacent(let direction):
         guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
@@ -640,10 +709,11 @@ public struct WorkspaceActivationFeature {
       case .activationCompleted(let id, let display):
         state.isActivating = false
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
-          state.previousWorkspaceID = previous
+          state.previousWorkspacesByDisplay[display] = previous
         }
         if let display {
           state.activeWorkspacesByDisplay[display] = id
+          state.lastActiveDisplay[id] = display
         }
         let treeIds = state.tilingTrees[id]?.windows.map(\.bundleId)
         let registeredIds = state.config.activeProfile?
@@ -921,6 +991,26 @@ public struct WorkspaceActivationFeature {
     return out
   }
 
+  /// Map persisted fullscreen-zoom bundle ids back onto live windows,
+  /// consuming a distinct window per entry so that several zoomed windows
+  /// of the *same* app each resolve to a different window (mirrors
+  /// `BSPNode.hydrate`, which drains a per-bundle queue). Entries with no
+  /// remaining live match are dropped — the layout degrades gracefully
+  /// when an app has fewer windows than it did at save time.
+  static func resolveFullscreenZoom(
+    bundleIds: [String],
+    among windows: [WindowKey]
+  ) -> Set<WindowKey> {
+    var available = windows
+    var resolved: Set<WindowKey> = []
+    for bundleId in bundleIds {
+      guard let i = available.firstIndex(where: { $0.bundleId == bundleId })
+      else { continue }
+      resolved.insert(available.remove(at: i))
+    }
+    return resolved
+  }
+
   /// Incremental merge. Removes vanished windows (sibling promotes),
   /// inserts new windows at the insertion point. Fresh trees (no
   /// existing) build via `BSPNode.build` (which uses the shallowest-
@@ -1095,7 +1185,25 @@ public struct WorkspaceActivationFeature {
         + "paused=\(isPaused) registeredApps=\(workspace.apps.map(\.bundleIdentifier))"
     )
 
-    let targetDisplay = workspace.displayHint ?? displays.current()
+    // Resolve the pinned display to where it actually tiles: the connected
+    // screen (UUID → name match), else the primary display as fallback.
+    // Learn the UUID for a name-only hint so future matching is UUID-stable.
+    let targetDisplay: DisplayName?
+    if let hint = workspace.displayHint {
+      let connected = MainActor.assumeIsolated {
+        DisplayResolver.connectedScreen(for: hint)?.displayName
+      }
+      if let connected, hint.uuid != connected.uuid {
+        state.$config.withLock { config in
+          config.mutateWorkspace(workspaceId) { $0.displayHint = connected }
+        }
+      }
+      targetDisplay = connected
+        ?? MainActor.assumeIsolated { DisplayResolver.primaryScreen()?.displayName }
+        ?? hint
+    } else {
+      targetDisplay = displays.current()
+    }
     let request = ActivationRequest(
       workspace: workspace,
       floatingApps: state.config.floatingApps,
@@ -1159,14 +1267,10 @@ public struct WorkspaceActivationFeature {
           let tree = axis == .none ? merged : merged?.balanced(axis: axis)
           let resolvedZoom: Set<WindowKey> = {
             if !zoomed.isEmpty { return zoomed }
-            guard !persistedZoomBundleIds.isEmpty, let tree else { return [] }
-            var resolved: Set<WindowKey> = []
-            for bundleId in persistedZoomBundleIds {
-              if let key = tree.windows.first(where: { $0.bundleId == bundleId }) {
-                resolved.insert(key)
-              }
-            }
-            return resolved
+            guard let tree else { return [] }
+            return Self.resolveFullscreenZoom(
+              bundleIds: persistedZoomBundleIds, among: tree.windows
+            )
           }()
           let frames = Self.computeFrames(
             tree: tree,
@@ -1623,11 +1727,35 @@ public struct WorkspaceActivationFeature {
   /// "move focused app to next/previous workspace". Returns `nil` when there
   /// is no eligible target (e.g. at an end with looping off).
   private func adjacentWorkspaceId(by direction: Int, state: State) -> Workspace.ID? {
-    guard let workspaces = state.config.activeProfile?.workspaces, !workspaces.isEmpty
+    guard let all = state.config.activeProfile?.workspaces, !all.isEmpty
     else { return nil }
     let settings = state.config.settings
-    let currentID = state.activeWorkspacesByDisplay.values.first
-      ?? state.primaryActiveWorkspaceID
+    // Scope the cycle. `cycleAcrossDisplays` → every workspace. Otherwise stay
+    // on the cursor's display: pinned workspaces by their display, dynamic
+    // (unpinned) ones by the display they were last activated on (never-active
+    // ones are included so they stay reachable).
+    let workspaces: [Workspace]
+    if !settings.switching.cycleAcrossDisplays, let focused = state.focusedDisplay {
+      workspaces = all.filter { ws in
+        if let hint = ws.displayHint {
+          // A pinned workspace belongs to the display it actually tiles on —
+          // the connected screen, or the primary as fallback — so one pinned
+          // to a *disconnected* display stays reachable on the primary.
+          let resolved = MainActor.assumeIsolated {
+            DisplayResolver.screenOrPrimary(for: hint)?.displayName
+          }
+          return resolved?.matches(focused) ?? true
+        }
+        // Dynamic: the monitor it was last on (or include if never activated).
+        if let last = state.lastActiveDisplay[ws.id] { return last.matches(focused) }
+        return true
+      }
+    } else {
+      workspaces = all
+    }
+    guard !workspaces.isEmpty else { return nil }
+    // Anchor at the active workspace on the focused display.
+    let currentID = state.primaryActiveWorkspaceID
     let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
 

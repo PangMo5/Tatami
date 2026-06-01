@@ -393,19 +393,25 @@ extension AppSettings {
     /// When an app is activated (cmd-tab etc.), switch to the workspace
     /// that owns it.
     public var followAppFocus: Bool
+    /// Next/previous-workspace cycling spans every display's workspaces.
+    /// When `false` (default), cycling stays within the workspaces on the
+    /// display under the cursor.
+    public var cycleAcrossDisplays: Bool
 
     public init(
       loop: Bool = true,
       skipEmpty: Bool = false,
-      followAppFocus: Bool = false
+      followAppFocus: Bool = false,
+      cycleAcrossDisplays: Bool = false
     ) {
       self.loop = loop
       self.skipEmpty = skipEmpty
       self.followAppFocus = followAppFocus
+      self.cycleAcrossDisplays = cycleAcrossDisplays
     }
 
     private enum CodingKeys: String, CodingKey {
-      case loop, skipEmpty, followAppFocus
+      case loop, skipEmpty, followAppFocus, cycleAcrossDisplays
     }
 
     public init(from decoder: Decoder) throws {
@@ -413,6 +419,8 @@ extension AppSettings {
       self.loop = (try? c.decode(Bool.self, forKey: .loop)) ?? true
       self.skipEmpty = (try? c.decode(Bool.self, forKey: .skipEmpty)) ?? false
       self.followAppFocus = (try? c.decode(Bool.self, forKey: .followAppFocus)) ?? false
+      self.cycleAcrossDisplays =
+        (try? c.decode(Bool.self, forKey: .cycleAcrossDisplays)) ?? false
     }
   }
 }
@@ -470,6 +478,10 @@ extension AppSettings {
     public var moveToNextWorkspace: HotKey?
     public var moveToPreviousWorkspace: HotKey?
 
+    // Focus the workspace active on the next / previous display
+    public var focusNextDisplay: HotKey?
+    public var focusPreviousDisplay: HotKey?
+
     // Window cycling
     public var cycleNextWindow: HotKey?
     public var cyclePreviousWindow: HotKey?
@@ -502,6 +514,8 @@ extension AppSettings {
       switchToRecentWorkspace: HotKey? = nil,
       moveToNextWorkspace: HotKey? = nil,
       moveToPreviousWorkspace: HotKey? = nil,
+      focusNextDisplay: HotKey? = nil,
+      focusPreviousDisplay: HotKey? = nil,
       cycleNextWindow: HotKey? = nil,
       cyclePreviousWindow: HotKey? = nil,
       resizeGrow: HotKey? = nil,
@@ -526,6 +540,8 @@ extension AppSettings {
       self.switchToRecentWorkspace = switchToRecentWorkspace
       self.moveToNextWorkspace = moveToNextWorkspace
       self.moveToPreviousWorkspace = moveToPreviousWorkspace
+      self.focusNextDisplay = focusNextDisplay
+      self.focusPreviousDisplay = focusPreviousDisplay
       self.cycleNextWindow = cycleNextWindow
       self.cyclePreviousWindow = cyclePreviousWindow
       self.resizeGrow = resizeGrow
@@ -546,6 +562,7 @@ extension AppSettings {
       case focusLeft, focusRight, focusUp, focusDown
       case switchToNextWorkspace, switchToPreviousWorkspace, switchToRecentWorkspace
       case moveToNextWorkspace, moveToPreviousWorkspace
+      case focusNextDisplay, focusPreviousDisplay
       case cycleNextWindow, cyclePreviousWindow
       case resizeGrow, resizeShrink
       case swapLeft, swapRight, swapUp, swapDown
@@ -566,6 +583,8 @@ extension AppSettings {
       self.switchToRecentWorkspace = try? c.decode(HotKey.self, forKey: .switchToRecentWorkspace)
       self.moveToNextWorkspace = try? c.decode(HotKey.self, forKey: .moveToNextWorkspace)
       self.moveToPreviousWorkspace = try? c.decode(HotKey.self, forKey: .moveToPreviousWorkspace)
+      self.focusNextDisplay = try? c.decode(HotKey.self, forKey: .focusNextDisplay)
+      self.focusPreviousDisplay = try? c.decode(HotKey.self, forKey: .focusPreviousDisplay)
       self.cycleNextWindow = try? c.decode(HotKey.self, forKey: .cycleNextWindow)
       self.cyclePreviousWindow = try? c.decode(HotKey.self, forKey: .cyclePreviousWindow)
       self.resizeGrow = try? c.decode(HotKey.self, forKey: .resizeGrow)

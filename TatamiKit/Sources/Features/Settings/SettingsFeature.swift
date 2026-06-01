@@ -12,7 +12,6 @@ public struct SettingsFeature {
     public var cli = CLIStatus()
     /// Default `true` to avoid a "not granted" flash before the first read.
     public var hasAXPermission = true
-    public var canCheckForUpdates = false
 
     public init() {}
   }
@@ -29,7 +28,6 @@ public struct SettingsFeature {
     case openAccessibilitySettingsTapped
     case relaunchTapped
     case checkForUpdatesTapped
-    case canCheckForUpdatesChanged(Bool)
   }
 
   @Dependency(\.cliInstaller) var cliInstaller
@@ -44,19 +42,12 @@ public struct SettingsFeature {
       case .task:
         state.cli = cliInstaller.status()
         state.hasAXPermission = accessibility.isTrusted()
-        return .merge(
-          .run { [updater] send in
-            for await value in updater.canCheckForUpdates() {
-              await send(.canCheckForUpdatesChanged(value))
-            }
-          },
-          .run { [accessibility] send in
-            // Trust-DB change / app re-activation → re-read AX status.
-            for await _ in accessibility.changes() {
-              await send(.accessibilityChanged)
-            }
+        return .run { [accessibility] send in
+          // Trust-DB change / app re-activation → re-read AX status.
+          for await _ in accessibility.changes() {
+            await send(.accessibilityChanged)
           }
-        )
+        }
 
       case .refreshCLIStatus:
         state.cli = cliInstaller.status()
@@ -92,10 +83,6 @@ public struct SettingsFeature {
 
       case .checkForUpdatesTapped:
         updater.checkForUpdates()
-        return .none
-
-      case .canCheckForUpdatesChanged(let value):
-        state.canCheckForUpdates = value
         return .none
       }
     }

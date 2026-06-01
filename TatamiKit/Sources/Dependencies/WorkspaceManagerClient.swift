@@ -134,6 +134,20 @@ extension WorkspaceManagerClient: DependencyKey {
           // 2. Hide everything else. Finder is special-cased: only hide
           //    it when a workspace app is actually running — otherwise
           //    we'd be left on an empty desktop.
+          //
+          // Multi-display: scope the hide pass to apps whose windows live on
+          // this workspace's target display, so switching one display's
+          // workspace leaves the *other* display's active workspace visible.
+          // (Single display → `nil` → hide globally as before.) `hide()` is
+          // app-level, so an app spanning two displays still hides on both —
+          // that's the no-SIP limit, same as FlashSpace.
+          let pidsOnTargetDisplay: Set<pid_t>? = {
+            guard NSScreen.screens.count > 1,
+                  let target = request.targetDisplay
+            else { return nil }
+            return Self.pids(onDisplay: target)
+          }()
+
           var hiddenCount = 0
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
@@ -142,6 +156,10 @@ extension WorkspaceManagerClient: DependencyKey {
             }
             if keepVisible.contains(bundleId) { continue }
             if app.isFinder, !isAnyWorkspaceAppRunning { continue }
+            if let pidsOnTargetDisplay,
+               !pidsOnTargetDisplay.contains(app.processIdentifier) {
+              continue
+            }
             if !app.isHidden {
               app.hide()
               hiddenCount += 1
@@ -155,7 +173,7 @@ extension WorkspaceManagerClient: DependencyKey {
           logger.info(
             """
             Activated '\(request.workspace.name)' on \
-            \(request.targetDisplay?.rawValue ?? "any"): \
+            \(request.targetDisplay?.name ?? "any"): \
             show=\(workspaceBundleIds.count) float=\(floatingBundleIds.count) \
             hide=\(hiddenCount)
             """
@@ -163,6 +181,39 @@ extension WorkspaceManagerClient: DependencyKey {
         }
       }
     )
+  }
+
+  /// pids whose on-screen, layer-0 windows are centered on the named display.
+  /// One `CGWindowListCopyWindowInfo` snapshot (cheaper than per-app AX), used
+  /// to scope an activation's hide pass to a single display.
+  @MainActor
+  private static func pids(onDisplay ref: DisplayName) -> Set<pid_t> {
+    guard let primary = DisplayResolver.primaryScreen(),
+          let screen = DisplayResolver.connectedScreen(for: ref)
+    else { return [] }
+    // CGWindowList bounds are top-left / Quartz, primary-anchored. Convert the
+    // target screen's Cocoa frame into that space (same flip as ScreenGeometry).
+    let primaryHeight = primary.frame.height
+    let f = screen.frame
+    let target = CGRect(
+      x: f.origin.x,
+      y: primaryHeight - f.origin.y - f.height,
+      width: f.width,
+      height: f.height
+    )
+    let windows = CGWindowListCopyWindowInfo(
+      [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+    ) as? [[String: Any]] ?? []
+    var pids: Set<pid_t> = []
+    for entry in windows {
+      guard (entry[kCGWindowLayer as String] as? Int) == 0,
+            let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+            let b = entry[kCGWindowBounds as String] as? [String: CGFloat],
+            let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"]
+      else { continue }
+      if target.contains(CGPoint(x: x + w / 2, y: y + h / 2)) { pids.insert(pid) }
+    }
+    return pids
   }
 }
 

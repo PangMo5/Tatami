@@ -181,14 +181,10 @@ extension DependencyValues {
 public enum ScreenGeometry {
   @MainActor
   public static func workArea(for name: DisplayName?) -> CGRect {
-    let screen: NSScreen?
-    if let name {
-      screen = NSScreen.screens.first(where: { $0.localizedName == name.rawValue })
-        ?? NSScreen.main
-    } else {
-      screen = NSScreen.main
-    }
-    guard let screen, let primary = NSScreen.screens.first else { return .zero }
+    // Resolve UUID → name → primary; the primary display also anchors the
+    // AX (top-left) coordinate flip.
+    guard let screen = DisplayResolver.screenOrPrimary(for: name),
+          let primary = DisplayResolver.primaryScreen() else { return .zero }
     let primaryHeight = primary.frame.height
     let v = screen.visibleFrame
     let axY = primaryHeight - v.origin.y - v.height

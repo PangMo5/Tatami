@@ -44,6 +44,7 @@ public struct WorkspaceDetailFeature {
     case appToFocusChanged(String?)
     case displayHintChanged(DisplayName?)
     case tilingMemoryChanged(TilingMemory?)
+    case refreshDisplays
   }
 
   @Dependency(\.runningApps) var runningApps
@@ -59,6 +60,12 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .onAppear:
+        state.availableDisplays = displays.all()
+        return .none
+
+      case .refreshDisplays:
+        // Re-read the live display list (driven by the view's screen-change
+        // observer) so the pinned-display picker reflects plug/unplug.
         state.availableDisplays = displays.all()
         return .none
 

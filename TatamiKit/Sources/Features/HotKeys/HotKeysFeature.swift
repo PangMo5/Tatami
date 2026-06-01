@@ -36,6 +36,8 @@ public struct HotKeysFeature {
       add(.switchToRecentWorkspace, shortcuts.switchToRecentWorkspace)
       add(.moveFocusedAppToNextWorkspace, shortcuts.moveToNextWorkspace)
       add(.moveFocusedAppToPreviousWorkspace, shortcuts.moveToPreviousWorkspace)
+      add(.focusNextDisplay, shortcuts.focusNextDisplay)
+      add(.focusPreviousDisplay, shortcuts.focusPreviousDisplay)
       add(.focusLeft, shortcuts.focusLeft)
       add(.focusRight, shortcuts.focusRight)
       add(.focusUp, shortcuts.focusUp)

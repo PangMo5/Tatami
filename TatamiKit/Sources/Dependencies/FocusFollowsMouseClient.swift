@@ -170,22 +170,58 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       [.optionOnScreenOnly, .excludeDesktopElements],
       kCGNullWindowID
     ) as? [[String: Any]] ?? []
-    for entry in raw {
-      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
-      guard let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t else { continue }
-      guard let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID else { continue }
-      guard let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
-            let x = boundsDict["X"],
-            let y = boundsDict["Y"],
-            let w = boundsDict["Width"],
-            let h = boundsDict["Height"]
-      else { continue }
-      let rect = CGRect(x: x, y: y, width: w, height: h)
-      if rect.contains(point) {
-        return (pidNumber, windowNumber, rect)
-      }
+    // Layer-0 windows in front-to-back z-order (the list's natural order).
+    let windows: [(pid: pid_t, windowID: CGWindowID, bounds: CGRect)] = raw.compactMap { entry in
+      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
+            let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
+            let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID,
+            let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
+            let x = boundsDict["X"], let y = boundsDict["Y"],
+            let w = boundsDict["Width"], let h = boundsDict["Height"]
+      else { return nil }
+      return (pidNumber, windowNumber, CGRect(x: x, y: y, width: w, height: h))
     }
-    return nil
+    guard let idx = windows.firstIndex(where: { $0.bounds.contains(point) }) else { return nil }
+    let candidate = windows[idx]
+
+    // Gap guard: the cursor's frontmost window fills its display. If the
+    // cursor is wedged in the spacing right next to a smaller window layered
+    // in front (a tile), it's hovering a gap — the full-screen window only
+    // shows through there, so keep the current focus. A cursor far from every
+    // front tile is over the background's own open area and focuses normally,
+    // so a lone full-screen window (or one with a small floater far away) is
+    // unaffected.
+    if let display = displayBounds(containing: point), covers(candidate.bounds, display) {
+      let gapMargin: CGFloat = 24
+      let inTileGap = windows[..<idx].contains { window in
+        display.intersects(window.bounds)
+          && !covers(window.bounds, display)
+          && window.bounds.insetBy(dx: -gapMargin, dy: -gapMargin).contains(point)
+      }
+      if inTileGap { return nil }
+    }
+    return candidate
+  }
+
+  /// True when `rect` fills at least 90% of `display` — i.e. a full-screen /
+  /// maximized window rather than a tiled region.
+  private func covers(_ rect: CGRect, _ display: CGRect) -> Bool {
+    let overlap = rect.intersection(display)
+    guard !overlap.isNull else { return false }
+    let displayArea = display.width * display.height
+    guard displayArea > 0 else { return false }
+    return (overlap.width * overlap.height) / displayArea >= 0.9
+  }
+
+  /// Bounds of the display under `point`, in the global top-left Quartz space
+  /// that `CGWindowList` bounds and `CGEvent` locations also use. Uses Core
+  /// Graphics display services, which are safe to call off the main thread.
+  private func displayBounds(containing point: CGPoint) -> CGRect? {
+    var count: UInt32 = 0
+    guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return nil }
+    var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+    guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return nil }
+    return ids.lazy.map(CGDisplayBounds).first { $0.contains(point) }
   }
 }
 

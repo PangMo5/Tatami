@@ -31,6 +31,8 @@ public struct WorkspaceListFeature {
     case binding(BindingAction<State>)
   }
 
+  @Dependency(\.displays) var displays
+
   public init() {}
 
   public var body: some ReducerOf<Self> {
@@ -47,7 +49,10 @@ public struct WorkspaceListFeature {
         state.isAddSheetPresented = false
         state.draftName = ""
         guard !trimmed.isEmpty else { return .none }
-        let workspace = Workspace(name: trimmed)
+        // Default to static: pin new workspaces to the current display so
+        // multi-monitor placement is predictable (workspace ↔ monitor). The
+        // user can switch a workspace back to Dynamic in its Display picker.
+        let workspace = Workspace(name: trimmed, displayHint: displays.current())
         state.$config.withLock { config in
           config.mutateActiveProfile { $0.workspaces.append(workspace) }
         }

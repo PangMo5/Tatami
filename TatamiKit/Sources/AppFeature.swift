@@ -14,9 +14,6 @@ public struct AppFeature {
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
     public var cli = CLIServerFeature.State()
-    /// Whether Sparkle can run a manual update check right now (drives the
-    /// menu bar "Check for Updates…" item's enabled state).
-    public var canCheckForUpdates = false
     public init() {}
   }
 
@@ -32,7 +29,6 @@ public struct AppFeature {
     case hotKeys(HotKeysFeature.Action)
     case cli(CLIServerFeature.Action)
     case checkForUpdatesTapped
-    case canCheckForUpdatesChanged(Bool)
   }
 
   @Dependency(\.focusManager) var focusManager
@@ -121,21 +117,11 @@ public struct AppFeature {
                 debugLog.log("App", "debug log enabled (settings toggle)")
               }
             }
-          },
-          // Track whether a manual update check is currently allowed.
-          .run { [updater] send in
-            for await value in updater.canCheckForUpdates() {
-              await send(.canCheckForUpdatesChanged(value))
-            }
           }
         )
 
       case .checkForUpdatesTapped:
         updater.checkForUpdates()
-        return .none
-
-      case .canCheckForUpdatesChanged(let value):
-        state.canCheckForUpdates = value
         return .none
 
       case .settingsChanged(let settings):
@@ -170,7 +156,8 @@ public struct AppFeature {
 
       case .workspaceList(.addWorkspaceFormSubmitted),
            .workspaceList(.workspaceDeleteRequested),
-           .workspaceList(.detail(.activateShortcutChanged)):
+           .workspaceList(.detail(.activateShortcutChanged)),
+           .workspaceList(.detail(.assignAppShortcutChanged)):
         return .send(.hotKeys(.refreshBindings))
 
       default:
@@ -195,6 +182,10 @@ public struct AppFeature {
       return .send(.activation(.moveFocusedAppToAdjacent(direction: 1)))
     case .moveFocusedAppToPreviousWorkspace:
       return .send(.activation(.moveFocusedAppToAdjacent(direction: -1)))
+    case .focusNextDisplay:
+      return .send(.activation(.focusAdjacentDisplay(direction: 1)))
+    case .focusPreviousDisplay:
+      return .send(.activation(.focusAdjacentDisplay(direction: -1)))
 
     case .focusLeft:
       return .send(.activation(.bspFocus(.west)))

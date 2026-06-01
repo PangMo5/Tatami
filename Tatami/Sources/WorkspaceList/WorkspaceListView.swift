@@ -63,12 +63,28 @@ struct WorkspaceListView: View {
     HStack {
       Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
       Spacer()
-      if activationStore.activeWorkspacesByDisplay.values.contains(workspace.id) {
+      if let display = activeDisplay(for: workspace) {
         Image(systemName: "circle.fill")
-          .foregroundStyle(.green)
+          .foregroundStyle(dotColor(for: display))
           .imageScale(.small)
+          .help("Active on \(display.name)")
       }
     }
+  }
+
+  /// The display this workspace is currently active on, if any.
+  private func activeDisplay(for workspace: Workspace) -> DisplayName? {
+    activationStore.activeWorkspacesByDisplay.first { $0.value == workspace.id }?.key
+  }
+
+  /// A distinct dot color per active display (so each monitor's active
+  /// workspace is visually distinguishable); plain green with one display.
+  private func dotColor(for display: DisplayName) -> Color {
+    let displays = activationStore.activeWorkspacesByDisplay.keys
+      .sorted { $0.name < $1.name }
+    guard displays.count > 1, let index = displays.firstIndex(of: display) else { return .green }
+    let palette: [Color] = [.green, .blue, .orange, .purple, .pink, .teal]
+    return palette[index % palette.count]
   }
 }
 

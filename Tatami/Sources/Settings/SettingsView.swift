@@ -162,6 +162,8 @@ struct SettingsView: View {
           .moveFocusedAppToPreviousWorkspace,
           \.moveToPreviousWorkspace
         )
+        shortcut("Focus next display", .focusNextDisplay, \.focusNextDisplay)
+        shortcut("Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay)
       }
 
       Section("Toggles") {
@@ -186,6 +188,10 @@ struct SettingsView: View {
         Toggle(isOn: setting(\.switching.followAppFocus)) {
           Text("Follow app focus")
           Text("Switching to an app activates the workspace it belongs to.")
+        }
+        Toggle(isOn: setting(\.switching.cycleAcrossDisplays)) {
+          Text("Cycle across all displays")
+          Text("Next/previous workspace cycles through every display's workspaces instead of just the one under the cursor.")
         }
       }
 
@@ -309,7 +315,6 @@ struct SettingsView: View {
         Button("Check for Updates…") {
           store.send(.checkForUpdatesTapped)
         }
-        .disabled(!store.canCheckForUpdates)
       }
 
       Section("Command Line") {
