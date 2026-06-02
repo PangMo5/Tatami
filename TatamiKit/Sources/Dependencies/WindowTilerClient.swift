@@ -225,12 +225,15 @@ public func discoverWindowKeys(
   guard !bundleIds.isEmpty else { return [] }
   @Dependency(\.debugLog) var debugLog
 
-  // Resolve all running app pids in one pass.
-  var pidByBundle: [String: pid_t] = [:]
+  // Resolve *every* running pid per bundle id. Some apps (e.g. Neovide)
+  // run one process per window under a shared bundle id, so keying by
+  // bundle id alone — taking only the first pid — misses every window
+  // owned by a sibling process. Scan them all.
+  var pidsByBundle: [String: [pid_t]] = [:]
   for app in NSWorkspace.shared.runningApplications
   where !app.isTerminated && app.activationPolicy == .regular {
-    if let bid = app.bundleIdentifier, pidByBundle[bid] == nil {
-      pidByBundle[bid] = app.processIdentifier
+    if let bid = app.bundleIdentifier {
+      pidsByBundle[bid, default: []].append(app.processIdentifier)
     }
   }
 
@@ -240,74 +243,77 @@ public func discoverWindowKeys(
     kAXSubroleAttribute,
   ] as CFArray
   for bundleId in bundleIds {
-    guard let pid = pidByBundle[bundleId] else {
+    let pids = pidsByBundle[bundleId] ?? []
+    guard !pids.isEmpty else {
       debugLog.log("Tiler", "discover \(bundleId): no running pid")
       continue
     }
-    let axApp = AXUIElementCreateApplication(pid)
-    // Same rationale as the tile pass: bound the per-message wait so a
-    // hung app can't stall discovery (and the main thread) indefinitely.
-    AXUIElementSetMessagingTimeout(axApp, 1.0)
-    var raw: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(
-      axApp,
-      kAXWindowsAttribute as CFString,
-      &raw
-    ) == .success, let windows = raw as? [AXUIElement] else {
-      debugLog.log("Tiler", "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute empty/failed")
-      continue
-    }
-    let before = result.count
-    var rejected: [String] = []
-    for window in windows {
-      var widProbe: CGWindowID = 0
-      _ = _AXUIElementGetWindow(window, &widProbe)
-      var valuesRef: CFArray?
-      var minimized = false
-      var subrole: String?
-      if AXUIElementCopyMultipleAttributeValues(
-        window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-      ) == .success, let values = valuesRef as? [Any], values.count == 2 {
-        minimized = (values[0] as? Bool) ?? false
-        subrole = values[1] as? String
-      }
-      if minimized {
-        rejected.append("\(widProbe):minimized")
+    for pid in pids {
+      let axApp = AXUIElementCreateApplication(pid)
+      // Same rationale as the tile pass: bound the per-message wait so a
+      // hung app can't stall discovery (and the main thread) indefinitely.
+      AXUIElementSetMessagingTimeout(axApp, 1.0)
+      var raw: CFTypeRef?
+      guard AXUIElementCopyAttributeValue(
+        axApp,
+        kAXWindowsAttribute as CFString,
+        &raw
+      ) == .success, let windows = raw as? [AXUIElement] else {
+        debugLog.log("Tiler", "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute empty/failed")
         continue
       }
-      // Standard windows only. Dialogs / IME indicators / tooltips
-      // fall outside this set, so they never enter the tree.
-      if let subrole, subrole != kAXStandardWindowSubrole as String {
-        rejected.append("\(widProbe):subrole=\(subrole)")
-        continue
-      }
-      // Position + size must be settable, else we'd write to a window
-      // the host app rejects.
-      var movable: DarwinBoolean = false
-      var resizable: DarwinBoolean = false
-      AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
-      AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
-      if !movable.boolValue || !resizable.boolValue {
-        rejected.append("\(widProbe):notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
-        continue
-      }
-      if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
-        // Sticky windows (pinned to all Spaces) must not be tiled —
-        // they'd duplicate into every workspace's tree.
-        if sls.spacesForWindow(key.windowID).count > 1 {
-          rejected.append("\(widProbe):sticky")
+      let before = result.count
+      var rejected: [String] = []
+      for window in windows {
+        var widProbe: CGWindowID = 0
+        _ = _AXUIElementGetWindow(window, &widProbe)
+        var valuesRef: CFArray?
+        var minimized = false
+        var subrole: String?
+        if AXUIElementCopyMultipleAttributeValues(
+          window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
+        ) == .success, let values = valuesRef as? [Any], values.count == 2 {
+          minimized = (values[0] as? Bool) ?? false
+          subrole = values[1] as? String
+        }
+        if minimized {
+          rejected.append("\(widProbe):minimized")
           continue
         }
-        result.append(key)
-      } else {
-        rejected.append("\(widProbe):noWid")
+        // Standard windows only. Dialogs / IME indicators / tooltips
+        // fall outside this set, so they never enter the tree.
+        if let subrole, subrole != kAXStandardWindowSubrole as String {
+          rejected.append("\(widProbe):subrole=\(subrole)")
+          continue
+        }
+        // Position + size must be settable, else we'd write to a window
+        // the host app rejects.
+        var movable: DarwinBoolean = false
+        var resizable: DarwinBoolean = false
+        AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
+        AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
+        if !movable.boolValue || !resizable.boolValue {
+          rejected.append("\(widProbe):notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
+          continue
+        }
+        if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
+          // Sticky windows (pinned to all Spaces) must not be tiled —
+          // they'd duplicate into every workspace's tree.
+          if sls.spacesForWindow(key.windowID).count > 1 {
+            rejected.append("\(widProbe):sticky")
+            continue
+          }
+          result.append(key)
+        } else {
+          rejected.append("\(widProbe):noWid")
+        }
       }
+      let kept = result[before...].map { $0.windowID }
+      debugLog.log(
+        "Tiler",
+        "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)"
+      )
     }
-    let kept = result[before...].map { $0.windowID }
-    debugLog.log(
-      "Tiler",
-      "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)"
-    )
   }
   return result
 }

@@ -104,7 +104,7 @@ public struct WorkspaceActivationFeature {
     /// workspace and switch to it — honors loop / skip-empty like cycling.
     case moveFocusedAppToAdjacent(direction: Int)
     case moveFocusedAppTo(workspaceId: Workspace.ID)
-    case focusedAppResolved(bundleId: String, workspaceId: Workspace.ID)
+    case focusedAppResolved(bundleId: String, name: String, workspaceId: Workspace.ID)
     /// Hotkey entry point: add/remove the focused window's app to the
     /// active workspace (single-membership — adding takes it away from
     /// any other workspace it was registered in).
@@ -426,19 +426,26 @@ public struct WorkspaceActivationFeature {
         return .send(.moveFocusedAppTo(workspaceId: id))
 
       case .moveFocusedAppTo(let workspaceId):
-        return resolveFrontmostBundleId { bundleId in
-          .focusedAppResolved(bundleId: bundleId, workspaceId: workspaceId)
+        return resolveFrontmostApp { bundleId, name in
+          .focusedAppResolved(bundleId: bundleId, name: name, workspaceId: workspaceId)
         }
 
-      case .focusedAppResolved(let bundleId, let workspaceId):
+      case .focusedAppResolved(let bundleId, let name, let workspaceId):
         state.$config.withLock { config in
           config.mutateActiveProfile { profile in
+            // Carry the app's existing assignment (display name, icon,
+            // auto-open) across the move; fall back to the live name for an
+            // app that wasn't assigned to any workspace yet.
+            let existing = profile.workspaces
+              .flatMap(\.apps)
+              .first { $0.bundleIdentifier == bundleId }
             for i in profile.workspaces.indices {
               profile.workspaces[i].apps.removeAll { $0.bundleIdentifier == bundleId }
             }
             if let idx = profile.workspaces.firstIndex(where: { $0.id == workspaceId }) {
               profile.workspaces[idx].apps.append(
-                AppAssignment(bundleIdentifier: bundleId, name: bundleId)
+                existing
+                  ?? AppAssignment(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
               )
             }
           }
@@ -1097,15 +1104,17 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  private func resolveFrontmostBundleId(
-    _ continuation: @escaping @Sendable (String) -> Action
+  private func resolveFrontmostApp(
+    _ continuation: @escaping @Sendable (_ bundleId: String, _ name: String) -> Action
   ) -> Effect<Action> {
     .run { send in
-      let bundleId = await MainActor.run {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+      let resolved = await MainActor.run {
+        NSWorkspace.shared.frontmostApplication.map {
+          (bundleId: $0.bundleIdentifier ?? "", name: $0.localizedName ?? "")
+        }
       }
-      guard let bundleId, !bundleId.isEmpty else { return }
-      await send(continuation(bundleId))
+      guard let resolved, !resolved.bundleId.isEmpty else { return }
+      await send(continuation(resolved.bundleId, resolved.name))
     }
   }
 
