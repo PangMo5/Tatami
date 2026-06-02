@@ -17,10 +17,17 @@ public struct FocusFollowsMouseClient: Sendable {
 public struct FocusFollowsMouseConfig: Sendable, Hashable {
   public var enabled: Bool
   public var disableModifier: FocusFollowsMouseModifier
+  /// Skip windows that fill the whole display (full-screen / maximized).
+  public var ignoreFullscreen: Bool
 
-  public init(enabled: Bool, disableModifier: FocusFollowsMouseModifier) {
+  public init(
+    enabled: Bool,
+    disableModifier: FocusFollowsMouseModifier,
+    ignoreFullscreen: Bool = true
+  ) {
     self.enabled = enabled
     self.disableModifier = disableModifier
+    self.ignoreFullscreen = ignoreFullscreen
   }
 }
 
@@ -184,14 +191,17 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     guard let idx = windows.firstIndex(where: { $0.bounds.contains(point) }) else { return nil }
     let candidate = windows[idx]
 
-    // Gap guard: the cursor's frontmost window fills its display. If the
-    // cursor is wedged in the spacing right next to a smaller window layered
-    // in front (a tile), it's hovering a gap — the full-screen window only
-    // shows through there, so keep the current focus. A cursor far from every
-    // front tile is over the background's own open area and focuses normally,
-    // so a lone full-screen window (or one with a small floater far away) is
-    // unaffected.
+    // The cursor's frontmost window fills its display (full-screen /
+    // maximized).
     if let display = displayBounds(containing: point), covers(candidate.bounds, display) {
+      // Opt-in: never hover-focus a full-screen window — you reach those by
+      // clicking, not by skimming the cursor across them.
+      if config.ignoreFullscreen { return nil }
+      // Otherwise, gap guard: only skip when the cursor is wedged in the
+      // spacing right next to a smaller window layered in front (a tile) — the
+      // full-screen window shows through there, so keep the current focus. A
+      // cursor far from every front tile is over the background's own open
+      // area and focuses normally.
       let gapMargin: CGFloat = 24
       let inTileGap = windows[..<idx].contains { window in
         display.intersects(window.bounds)

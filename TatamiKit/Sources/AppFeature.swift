@@ -127,7 +127,8 @@ public struct AppFeature {
       case .settingsChanged(let settings):
         let ffm = FocusFollowsMouseConfig(
           enabled: settings.focus.focusFollowsMouse,
-          disableModifier: settings.focus.focusFollowsMouseDisableHotkey
+          disableModifier: settings.focus.focusFollowsMouseDisableHotkey,
+          ignoreFullscreen: settings.focus.focusFollowsMouseIgnoreFullscreen
         )
         return .merge(
           .run { [client = focusFollowsMouse] _ in

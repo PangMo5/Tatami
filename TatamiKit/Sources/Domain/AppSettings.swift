@@ -352,22 +352,29 @@ extension AppSettings {
     public var mouseHidesOnFocus: Bool
     public var focusFollowsMouse: Bool
     public var focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier
+    /// When `focusFollowsMouse` is on, don't shift focus to a window that
+    /// fills the whole display (a full-screen / maximized window) — you reach
+    /// those by clicking, not by skimming the cursor across them.
+    public var focusFollowsMouseIgnoreFullscreen: Bool
 
     public init(
       mouseFollowsFocus: Bool = false,
       mouseHidesOnFocus: Bool = false,
       focusFollowsMouse: Bool = false,
-      focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option
+      focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option,
+      focusFollowsMouseIgnoreFullscreen: Bool = true
     ) {
       self.mouseFollowsFocus = mouseFollowsFocus
       self.mouseHidesOnFocus = mouseHidesOnFocus
       self.focusFollowsMouse = focusFollowsMouse
       self.focusFollowsMouseDisableHotkey = focusFollowsMouseDisableHotkey
+      self.focusFollowsMouseIgnoreFullscreen = focusFollowsMouseIgnoreFullscreen
     }
 
     private enum CodingKeys: String, CodingKey {
       case mouseFollowsFocus, mouseHidesOnFocus, focusFollowsMouse
       case focusFollowsMouseDisableHotkey
+      case focusFollowsMouseIgnoreFullscreen
     }
 
     public init(from decoder: Decoder) throws {
@@ -378,6 +385,9 @@ extension AppSettings {
       self.focusFollowsMouseDisableHotkey = (try? c.decode(
         FocusFollowsMouseModifier.self, forKey: .focusFollowsMouseDisableHotkey
       )) ?? .option
+      self.focusFollowsMouseIgnoreFullscreen = (try? c.decode(
+        Bool.self, forKey: .focusFollowsMouseIgnoreFullscreen
+      )) ?? true
     }
   }
 }

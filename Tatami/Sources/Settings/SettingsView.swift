@@ -117,6 +117,11 @@ struct SettingsView: View {
           Text("Focus follows mouse")
           Text("Focus whatever window sits under the cursor as it moves.")
         }
+        Toggle(isOn: setting(\.focus.focusFollowsMouseIgnoreFullscreen)) {
+          Text("Ignore full-screen windows")
+          Text("Don't shift focus to a window that fills the whole display as the cursor passes over it.")
+        }
+        .disabled(!config.settings.focus.focusFollowsMouse)
         Picker(selection: setting(\.focus.focusFollowsMouseDisableHotkey)) {
           ForEach(FocusFollowsMouseModifier.allCases, id: \.self) { modifier in
             Text(modifier.displayName).tag(modifier)

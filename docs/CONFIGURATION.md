@@ -75,6 +75,7 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `mouseFollowsFocus` | bool | `false` | Warp the cursor to the focused window's tiled position. |
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
+| `focusFollowsMouseIgnoreFullscreen` | bool | `true` | While focus-follows-mouse is on, don't shift focus to a window that fills the whole display (full-screen / maximized). |
 | `focusFollowsMouseDisableHotkey` | string | `"Alt"` | Modifier that temporarily suspends focus-follows-mouse: `None`, `Alt`, `Cmd`, `Ctrl`, `Shift`. |
 
 ## `[settings.switching]`
