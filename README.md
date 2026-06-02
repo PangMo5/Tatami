@@ -108,6 +108,7 @@ every key, its default, and the shortcut syntax.
 - **The Composable Architecture (TCA)** — app architecture
 - **swift-sharing** — cross-feature state sharing
 - **swift-toml** — config persistence
+- **swift-yyjson** — fast JSON for the layout store and CLI protocol
 - **KeyboardShortcuts** — global hotkey recording
 - **SFSafeSymbols** — type-safe SF Symbol catalog
 - **Sparkle** — app updates

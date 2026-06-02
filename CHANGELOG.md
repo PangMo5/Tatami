@@ -22,6 +22,8 @@ an Install / Update section when publishing).
 - **focus-follows-mouse** no longer grabs a full-screen window showing through the gaps between tiled windows.
 - Hot keys re-register immediately after recording a workspace's **Assign** shortcut (previously needed a relaunch).
 - **Persistent layouts** restore each fullscreen-zoomed window of the *same* app to a distinct window instead of collapsing them onto one.
+- Apps that run one process per window under a shared bundle id (e.g. **Neovide**) now tile — window discovery scans every process, not just the first.
+- Moving an app to another workspace keeps its name, icon, and auto-open setting instead of relabeling it with the bundle id.
 - The workspace **Display picker** now lists every connected display when switching between workspaces.
 - `tatami version` reports the running app's real version.
 
