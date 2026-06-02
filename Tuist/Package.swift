@@ -25,6 +25,10 @@ import PackageDescription
       "KeyboardShortcuts": .framework,
       "TOML": .framework,
       "SFSafeSymbols": .framework,
+      // Static (the Tuist default): the `tatami` command-line tool links
+      // YYJSON, and a command-line tool can't embed/resolve a dynamic
+      // framework at runtime (dyld can't find YYJSON.framework). Static
+      // linking also works for the app, which links it via TatamiKit.
     ],
     targetSettings: [
       // KeyboardShortcuts (pinned to `main`) crashes the Swift optimizer in
@@ -47,5 +51,6 @@ let package = Package(
     .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", branch: "main"),
     .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
     .package(url: "https://github.com/SFSafeSymbols/SFSafeSymbols", from: "5.3.0"),
+    .package(url: "https://github.com/mattt/swift-yyjson", from: "0.6.0"),
   ]
 )

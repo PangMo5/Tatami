@@ -1,5 +1,5 @@
 {
-  "originHash" : "de5b39dc6dcbe775f9b7c034e8f82e470f49b80f88a4a855d8ba99339eda7fee",
+  "originHash" : "db096ef51014945549852c88c408d4c1616d9957521c3e62670914458455df94",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -161,6 +161,15 @@
       "state" : {
         "revision" : "827506c90475e82d5a7f191f950fb3025cbdc0d6",
         "version" : "2.0.0"
+      }
+    },
+    {
+      "identity" : "swift-yyjson",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/swift-yyjson",
+      "state" : {
+        "revision" : "ecccc733f4817f483f79db348f34237c39a6bcce",
+        "version" : "0.6.0"
       }
     },
     {

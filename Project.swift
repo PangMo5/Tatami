@@ -115,6 +115,7 @@ let project = Project(
         .external(name: "KeyboardShortcuts"),
         .external(name: "TOML"),
         .external(name: "Sparkle"),
+        .external(name: "YYJSON"),
       ]
     ),
     .target(
@@ -136,6 +137,7 @@ let project = Project(
       dependencies: [
         .target(name: "TatamiCLIProtocol"),
         .external(name: "ArgumentParser"),
+        .external(name: "YYJSON"),
       ],
       settings: .settings(base: [
         "PRODUCT_NAME": "tatami",

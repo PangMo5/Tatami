@@ -2,6 +2,7 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import OSLog
+import YYJSON
 
 /// Persists per-workspace BSP layout snapshots so workspaces with
 /// `tilingMemory == .persistent` keep their split axes + ratios across
@@ -90,13 +91,13 @@ private actor LayoutStore {
 
   private func readMap() -> [String: LayoutSnapshot] {
     guard let data = try? Data(contentsOf: fileURL) else { return [:] }
-    return (try? JSONDecoder().decode([String: LayoutSnapshot].self, from: data)) ?? [:]
+    return (try? YYJSONDecoder().decode([String: LayoutSnapshot].self, from: data)) ?? [:]
   }
 
   private func writeMap(_ map: [String: LayoutSnapshot]) {
     do {
       try ConfigLocation.ensureDirectoryExists()
-      let data = try JSONEncoder().encode(map)
+      let data = try YYJSONEncoder().encode(map)
       try data.write(to: fileURL, options: .atomic)
     } catch {
       logger.error("layout save failed: \(error.localizedDescription, privacy: .public)")

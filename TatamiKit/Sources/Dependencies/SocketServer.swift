@@ -4,6 +4,7 @@ import DependenciesMacros
 import Foundation
 import OSLog
 import TatamiCLIProtocol
+import YYJSON
 
 /// Accepts CLI connections on a Unix domain socket and exposes incoming
 /// `Request`s as an `AsyncStream`. Each request carries a continuation
@@ -177,7 +178,7 @@ private actor SocketServer {
     defer { Darwin.close(clientFD) }
     guard let line = readLine(fd: clientFD), !line.isEmpty else { return }
     guard let data = line.data(using: .utf8),
-          let request = try? JSONDecoder().decode(CLIMessage.Request.self, from: data)
+          let request = try? YYJSONDecoder().decode(CLIMessage.Request.self, from: data)
     else {
       writeResponse(fd: clientFD, response: .failure("Invalid request format"))
       return
@@ -216,7 +217,7 @@ private actor SocketServer {
   }
 
   private static func writeResponse(fd: Int32, response: CLIMessage.Response) {
-    guard var data = try? JSONEncoder().encode(response) else { return }
+    guard var data = try? YYJSONEncoder().encode(response) else { return }
     data.append(0x0A)
     _ = data.withUnsafeBytes { ptr in
       Darwin.write(fd, ptr.baseAddress, ptr.count)

@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import TatamiCLIProtocol
+import YYJSON
 
 /// Minimal blocking client for the Tatami app's Unix domain socket.
 /// One connection per request — the server replies once and closes.
@@ -29,7 +30,7 @@ enum SocketClient {
       throw Error.connect(errno)
     }
 
-    var data = try JSONEncoder().encode(request)
+    var data = try YYJSONEncoder().encode(request)
     data.append(0x0A)
     _ = data.withUnsafeBytes { ptr in
       Darwin.write(fd, ptr.baseAddress, ptr.count)
@@ -46,7 +47,7 @@ enum SocketClient {
     }
 
     guard !responseBytes.isEmpty else { throw Error.emptyResponse }
-    return try JSONDecoder().decode(CLIMessage.Response.self, from: Data(responseBytes))
+    return try YYJSONDecoder().decode(CLIMessage.Response.self, from: Data(responseBytes))
   }
 
   enum Error: Swift.Error, CustomStringConvertible {
