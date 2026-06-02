@@ -113,6 +113,10 @@ struct SettingsView: View {
           Text("Hide cursor on focus")
           Text("Hide the cursor on a workspace switch until you move the mouse.")
         }
+        Toggle(isOn: setting(\.focus.refocusOnClose)) {
+          Text("Refocus when a window closes")
+          Text("Move focus to a remaining window in the workspace when the focused one closes — so closing a chat window hands focus back to your editor instead of stranding it.")
+        }
         Toggle(isOn: setting(\.focus.focusFollowsMouse)) {
           Text("Focus follows mouse")
           Text("Focus whatever window sits under the cursor as it moves.")

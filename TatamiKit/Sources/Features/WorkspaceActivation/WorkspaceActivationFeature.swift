@@ -958,6 +958,24 @@ public struct WorkspaceActivationFeature {
       return .merge(observeEffect, markerRefresh)
     }
 
+    // When a window closed and focus would otherwise be stranded on a
+    // now-windowless app (the frontmost window is no longer part of this
+    // workspace), pull focus to a remaining window so typing has a home.
+    // Gated on `focused ∉ newWindows` so closing a *background* window while
+    // a tiled window keeps focus never steals it.
+    let refocusEffect: Effect<Action> = {
+      guard settings.focus.refocusOnClose,
+            !removed.isEmpty,
+            focused == nil || !newWindows.contains(focused!)
+      else { return .none }
+      let target = (insertionPointKey.flatMap { newWindows.contains($0) ? $0 : nil })
+        ?? final.windows.first
+      guard let target else { return .none }
+      return .run { _ in
+        await MainActor.run { focusWindow(pid: target.pid, windowID: target.windowID) }
+      }
+    }()
+
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     return .merge(
       .run { [tiler = windowTiler] _ in
@@ -978,7 +996,8 @@ public struct WorkspaceActivationFeature {
       .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true),
       observeEffect,
       persist(final, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
-      markerRefresh
+      markerRefresh,
+      refocusEffect
     )
   }
 

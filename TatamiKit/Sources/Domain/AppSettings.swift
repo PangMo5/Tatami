@@ -356,25 +356,32 @@ extension AppSettings {
     /// fills the whole display (a full-screen / maximized window) — you reach
     /// those by clicking, not by skimming the cursor across them.
     public var focusFollowsMouseIgnoreFullscreen: Bool
+    /// When the focused window in a workspace closes (and focus would
+    /// otherwise be stranded on a now-windowless app), move focus to a
+    /// remaining window in that workspace.
+    public var refocusOnClose: Bool
 
     public init(
       mouseFollowsFocus: Bool = false,
       mouseHidesOnFocus: Bool = false,
       focusFollowsMouse: Bool = false,
       focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier = .option,
-      focusFollowsMouseIgnoreFullscreen: Bool = true
+      focusFollowsMouseIgnoreFullscreen: Bool = true,
+      refocusOnClose: Bool = true
     ) {
       self.mouseFollowsFocus = mouseFollowsFocus
       self.mouseHidesOnFocus = mouseHidesOnFocus
       self.focusFollowsMouse = focusFollowsMouse
       self.focusFollowsMouseDisableHotkey = focusFollowsMouseDisableHotkey
       self.focusFollowsMouseIgnoreFullscreen = focusFollowsMouseIgnoreFullscreen
+      self.refocusOnClose = refocusOnClose
     }
 
     private enum CodingKeys: String, CodingKey {
       case mouseFollowsFocus, mouseHidesOnFocus, focusFollowsMouse
       case focusFollowsMouseDisableHotkey
       case focusFollowsMouseIgnoreFullscreen
+      case refocusOnClose
     }
 
     public init(from decoder: Decoder) throws {
@@ -388,6 +395,7 @@ extension AppSettings {
       self.focusFollowsMouseIgnoreFullscreen = (try? c.decode(
         Bool.self, forKey: .focusFollowsMouseIgnoreFullscreen
       )) ?? true
+      self.refocusOnClose = (try? c.decode(Bool.self, forKey: .refocusOnClose)) ?? true
     }
   }
 }
