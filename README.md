@@ -37,6 +37,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 ### Focus & cursor
 
 - focus-follows-mouse and mouse-follows-focus (yabai-style)
+- Refocus a remaining window when the focused one closes
 - Optionally hide the cursor on a workspace switch
 
 ### Interface & config

@@ -4,6 +4,12 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## 1.2.0 — 2026-06-02
+
+### New
+- **Refocus when a window closes** — when the focused window closes and focus would otherwise be stranded on a now-windowless app (e.g. KakaoTalk, Notion Calendar, which keep running with no window), focus moves to a remaining window in the workspace. Toggle in **Settings → Mouse & Focus**.
+- **Ignore full-screen windows in focus-follows-mouse** — an option (on by default) to keep focus-follows-mouse from grabbing a window that fills the whole display as the cursor skims across it.
+
 ## 1.1.0 — 2026-06-02
 
 ### New
