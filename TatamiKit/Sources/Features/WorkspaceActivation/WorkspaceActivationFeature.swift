@@ -141,6 +141,11 @@ public struct WorkspaceActivationFeature {
     /// Incrementally reconcile a single app's windows into the active
     /// tree: add new windows, drop gone ones, touch nothing else.
     case syncAppWindows(bundleId: String)
+    /// Drop active-workspace tree windows that are no longer on screen.
+    /// Catches apps that *hide* their window on close (Electron apps like
+    /// Discord) instead of destroying it — there's no AX destroy event, so a
+    /// focus change to another app is the only trigger we get.
+    case pruneOffscreenWindows
     /// Wake / native-Space-change / "something on the system shifted":
     /// re-reconcile every tree-resident + registered app.
     case reconcileAllTrackedApps
@@ -172,6 +177,8 @@ public struct WorkspaceActivationFeature {
     /// Coalesces frame application per workspace: a newer layout
     /// cancels an in-flight apply so a stale one can't land after it.
     case apply(Workspace.ID)
+    /// Debounces the off-screen prune so rapid app switches collapse into one.
+    case prune
   }
 
   @Dependency(\.workspaceManager) var workspaceManager
@@ -367,10 +374,14 @@ public struct WorkspaceActivationFeature {
            state.primaryActiveWorkspaceID != owner.id {
           return .merge(
             markerEffect,
-            .send(.activate(workspaceId: owner.id, setFocus: false))
+            .send(.activate(workspaceId: owner.id, setFocus: false)),
+            debouncedPrune()
           )
         }
-        return .merge(markerEffect, debouncedSync(bundleId, delayMs: 10))
+        return .merge(markerEffect, debouncedSync(bundleId, delayMs: 10), debouncedPrune())
+
+      case .pruneOffscreenWindows:
+        return pruneOffscreenWindows(state: &state)
 
       case .appTerminated(let bundleId):
         return debouncedSync(bundleId, delayMs: 0)
@@ -815,6 +826,17 @@ public struct WorkspaceActivationFeature {
       await send(.syncAppWindows(bundleId: bundleId))
     }
     .cancellable(id: CancelID.sync(bundleId), cancelInFlight: true)
+  }
+
+  /// Schedule an off-screen prune after a short delay — a hidden window is
+  /// still on screen for an instant after focus moves off it, so let it
+  /// settle before snapshotting the on-screen set.
+  private func debouncedPrune() -> Effect<Action> {
+    .run { send in
+      try? await Task.sleep(for: .milliseconds(120))
+      await send(.pruneOffscreenWindows)
+    }
+    .cancellable(id: CancelID.prune, cancelInFlight: true)
   }
 
   /// Incrementally reconcile a single app's windows into the active
@@ -1342,6 +1364,85 @@ public struct WorkspaceActivationFeature {
 
   /// Re-apply the active workspace's current tree frames (no tree change) —
   /// snaps a dragged window back to its slot when the drag committed nothing.
+  /// Drop active-workspace tree windows that have left the screen without an
+  /// AX destroy event. Electron apps like Discord `hide()` their window on
+  /// close instead of destroying it, so no `kAXUIElementDestroyedNotification`
+  /// fires and the slot lingers; the on-screen window list is the only signal.
+  /// Re-tiles the survivors and, when focus was stranded, pulls it to one.
+  private func pruneOffscreenWindows(state: inout State) -> Effect<Action> {
+    guard !state.isTilingPaused, !state.isActivating,
+          let workspaceId = state.primaryActiveWorkspaceID,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          let tree = state.tilingTrees[workspaceId]
+    else { return .none }
+
+    let (onScreen, focused) = MainActor.assumeIsolated {
+      () -> (Set<CGWindowID>, WindowKey?) in
+      let raw = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+      ) as? [[String: Any]] ?? []
+      var ids = Set<CGWindowID>()
+      for entry in raw {
+        if let n = entry[kCGWindowNumber as String] as? CGWindowID { ids.insert(n) }
+      }
+      return (ids, focusedWindowKey())
+    }
+
+    let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
+    guard !gone.isEmpty else { return .none }
+
+    var pruned: BSPNode<WindowKey>? = tree
+    for key in gone { pruned = pruned?.removing(key) }
+    let settings = state.config.settings
+    let axis = bspAxis(for: settings.layout.autoBalance)
+    let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
+    state.tilingTrees[workspaceId] = balanced
+    let newWindows = Set(balanced?.windows ?? [])
+
+    debugLog.log(
+      "Prune",
+      "ws=\(workspace.name) removed=\(gone.map { $0.windowID }) "
+        + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
+    )
+
+    let display = workspace.displayHint ?? displays.current()
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+
+    let refocusEffect: Effect<Action> = {
+      guard settings.focus.refocusOnClose, !newWindows.isEmpty,
+            focused == nil || !newWindows.contains(focused!)
+      else { return .none }
+      let target = (state.insertionPoint[workspaceId].flatMap { newWindows.contains($0) ? $0 : nil })
+        ?? balanced?.windows.first
+      guard let target else { return .none }
+      return .run { _ in
+        await MainActor.run { focusWindow(pid: target.pid, windowID: target.windowID) }
+      }
+    }()
+
+    let retile: Effect<Action> = balanced.map { final in
+      .run { [tiler = windowTiler] _ in
+        let frames = await MainActor.run {
+          Self.computeFrames(
+            tree: final, settings: settings, targetDisplay: display, fullscreenZoomed: zoomed
+          )
+        }
+        if !frames.isEmpty {
+          await tiler.apply(FrameApplication(windowFrames: frames, targetDisplay: display))
+        }
+      }
+      .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true)
+    } ?? .none
+
+    return .merge(
+      retile,
+      persist(balanced, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
+      refreshMarkers(state: state),
+      refocusEffect
+    )
+  }
+
   private func retileActive(state: State) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
