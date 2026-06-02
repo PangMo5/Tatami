@@ -4,6 +4,11 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## 1.2.1 — 2026-06-02
+
+### Fixes
+- Detect windows that **hide instead of close** — Electron apps like Discord hide their window on close (no Accessibility destroy event), which left a phantom tile slot. Tatami now prunes a tiled window once it leaves the screen and re-tiles the survivors.
+
 ## 1.2.0 — 2026-06-02
 
 ### New
