@@ -1,0 +1,71 @@
+# Demo workspaces for recording — mirrors the website demo's three workspaces
+# (Code / Design / Chat). `use-demo-config.sh apply` keeps your real settings
+# and floatingApps and only swaps in this profile, so nothing here touches your
+# gaps, shortcuts, markers, etc.
+
+[[profiles]]
+id = "00000000-0000-0000-0000-0000000000d0"
+name = "Demo"
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-0000000000c1"
+name = "Code"
+symbolIconName = "chevron.left.forwardslash.chevron.right"
+activateShortcut = "ctrl + alt + shift - 1"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.terminal"
+name = "Terminal"
+autoOpen = false
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.code"
+name = "Code"
+autoOpen = false
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.safari"
+name = "Safari"
+autoOpen = false
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.notes"
+name = "Notes"
+autoOpen = false
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-0000000000c2"
+name = "Design"
+symbolIconName = "paintpalette"
+activateShortcut = "ctrl + alt + shift - 2"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.figma"
+name = "Figma"
+autoOpen = false
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.photos"
+name = "Photos"
+autoOpen = false
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-0000000000c3"
+name = "Chat"
+symbolIconName = "message"
+activateShortcut = "ctrl + alt + shift - 3"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.messages"
+name = "Messages"
+autoOpen = false
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.mail"
+name = "Mail"
+autoOpen = false
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.calendar"
+name = "Calendar"
+autoOpen = false
