@@ -45,6 +45,7 @@ jobs:
           echo "Latest version: ${VERSION:-<none>}"
 
           cp web/*.html web/*.css "$SITE/"
+          cp web/*.mp4 web/*.jpg "$SITE/" 2>/dev/null || true
           if [ -n "$VERSION" ]; then
             sed -i "s/__VERSION__/${VERSION}/g" "$SITE/index.html"
           fi

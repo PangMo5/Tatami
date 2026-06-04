@@ -13,6 +13,16 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 > **Status:** In active development. Config format and shortcuts may still change.
 
+## Demo
+
+<p align="center">
+  <a href="https://pangmo5.dev/Tatami#demo">
+    <img src="web/tatami-demo-poster.jpg" alt="Tatami demo — click to watch" width="760" />
+  </a>
+</p>
+
+<p align="center"><a href="https://pangmo5.dev/Tatami#demo">▶ Watch the demo</a></p>
+
 ## Features
 
 ### Tiling (yabai-style BSP)

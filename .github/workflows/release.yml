@@ -282,6 +282,7 @@ jobs:
           # Static pages (configuration.html / releases.html render their source
           # of truth at runtime; index.html gets the release version injected).
           cp web/*.html web/*.css "$RUNNER_TEMP/site/"
+          cp web/*.mp4 web/*.jpg "$RUNNER_TEMP/site/" 2>/dev/null || true
           sed "s/__VERSION__/${VERSION}/g" web/index.html > "$RUNNER_TEMP/site/index.html"
           cp Resources/Marketing/app-icon.png "$RUNNER_TEMP/site/icon.png"
           # Cache-bust the stylesheet so a CSS change is never masked by a
