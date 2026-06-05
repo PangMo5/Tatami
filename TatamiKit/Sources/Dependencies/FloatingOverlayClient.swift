@@ -40,7 +40,8 @@ public struct FloatingOverlayClient: Sendable {
 
 extension FloatingOverlayClient: DependencyKey {
   public static let liveValue: FloatingOverlayClient = MainActor.assumeIsolated {
-    let controller = FloatingOverlayController()
+    @Dependency(\.debugLog) var debugLog
+    let controller = FloatingOverlayController(debugLog: debugLog)
     // Pre-focus hook: `focusWindow` (always main-actor) announces the pid
     // it is about to focus, so mirrors restore *before* the z-order change
     // instead of one notification later. Returns whether anything was
@@ -85,17 +86,17 @@ private final class FloatingOverlayController {
   private var axObservers: [pid_t: AXObserver] = [:]
   private var subscribed: Set<WindowKey> = []
   private var lastFrame: [WindowKey: NSRect] = [:]
-  /// Mirrors whose app is the active one. Hard-suppressed mirrors are
-  /// hidden (stream stopped); soft-suppressed ones stay visible but
-  /// click-through — see `suppressMirror`.
+  /// Mirrors currently hidden (click-through, stream stopped): the
+  /// focused floating app's own windows, plus — while a float holds
+  /// focus — sibling floats whose real window isn't covered by any tile,
+  /// which therefore show themselves and need no mirror.
   private var suppressed: Set<WindowKey> = []
-  /// The subset of `suppressed` kept visible: when another floating
-  /// mirror overlaps this window, hiding ours would force ordering the
-  /// `.normal`-level demotion dance against real-window z-changes, which
-  /// is unwinnable (raises composite later than every signal we get).
-  /// Keeping the focused float's live mirror on top of OUR floating band
-  /// solves the stacking entirely within windows we control.
-  private var softSuppressed: Set<WindowKey> = []
+  /// Sibling mirrors dropped to `.normal` level just below the focused
+  /// float's real window (tile-occluded siblings that must keep their
+  /// mirror while a float holds focus). Demotion happens only *after*
+  /// the focused window's raise is verified — ordering a panel against
+  /// an unverified raise was the source of the old demotion blinks.
+  private var demoted: Set<WindowKey> = []
   /// In-flight fade-out task per window.
   private var hideTasks: [WindowKey: Task<Void, Never>] = [:]
   /// `NSWorkspace.didActivateApplicationNotification` subscription — the
@@ -117,8 +118,10 @@ private final class FloatingOverlayController {
   /// and the didActivate notification arrives after the z-order already
   /// changed (the intermittent "floating dips behind, then pops back up").
   private var clickTap: MirrorClickTap?
+  private let debugLog: DebugLogClient
 
-  init() {
+  init(debugLog: DebugLogClient) {
+    self.debugLog = debugLog
     clickTap = MirrorClickTap { [weak self] in
       Task { @MainActor [weak self] in self?.handleOutsideClick() }
     }
@@ -205,10 +208,20 @@ private final class FloatingOverlayController {
     // Touching the mirror = the user wants the real window. Activation is
     // all that happens here; the didActivateApplication notification then
     // suppresses the mirror once the raise actually lands.
+    //
+    // Suppressed gate: `ignoresMouseEvents` only stops *click* routing —
+    // tracking-area mouseEntered still fires for a hidden, event-ignoring
+    // panel. Without the gate, brushing the cursor across a hidden
+    // mirror's frame (e.g. the overlap of two floats) hover-activated its
+    // app and stole focus from the float the user was actually on.
     view.onHoverChange = { [weak self] hovering in
-      if hovering { self?.activateRealWindow(key) }
+      guard let self, hovering, !self.suppressed.contains(key) else { return }
+      self.activateRealWindow(key)
     }
-    view.onClick = { [weak self] in self?.activateRealWindow(key) }
+    view.onClick = { [weak self] in
+      guard let self, !self.suppressed.contains(key) else { return }
+      self.activateRealWindow(key)
+    }
     panel.contentView = view
     return panel
   }
@@ -233,10 +246,15 @@ private final class FloatingOverlayController {
     axWindowCache.removeValue(forKey: key)
     hideTasks.removeValue(forKey: key)?.cancel()
     suppressed.remove(key)
-    softSuppressed.remove(key)
+    demoted.remove(key)
     cursorInside.removeValue(forKey: key)
     syncSuppressedFrames()
     removeCursorMonitorIfIdle()
+    // Don't let a stale focused-float pid (whose panels just went away,
+    // e.g. on a workspace switch) gate the next workspace's mirrors.
+    if let pid = focusedFloatPid, !panels.keys.contains(where: { $0.pid == pid }) {
+      focusedFloatPid = nil
+    }
     if panels.isEmpty { clickTap?.setEnabled(false) }
     if !panels.keys.contains(where: { $0.pid == key.pid }),
        let observer = axObservers.removeValue(forKey: key.pid)
@@ -280,13 +298,24 @@ private final class FloatingOverlayController {
   /// floating app, and so on.
   private var floatingMRU: [pid_t] = []
 
-  /// The active app changed — mirrors of the now-active app hide, every
-  /// other mirror comes back (its real window just dropped behind whatever
-  /// was focused).
+  /// The active app changed — mirrors of the now-active app hide. What
+  /// happens to the *other* mirrors depends on who took focus:
+  ///
+  ///   * a non-floating app → it raises above everything at the normal
+  ///     level, so every float needs its mirror back.
+  ///   * a floating app → sibling floats whose real window isn't covered
+  ///     by a tile need no mirror either: the real windows show
+  ///     themselves and stack natively by activation recency. With every
+  ///     mirror hidden there is no stream (recording indicator clears),
+  ///     no ghost panel trailing a drag, and no hidden panel for hover
+  ///     events to fall through to. Only a sibling genuinely covered by
+  ///     a tile keeps its mirror.
   private func handleAppActivated(_ pid: pid_t) {
+    debugLog.log("FocusDiag", "didActivate pid=\(pid)")
     noteFocus(pid)
-    for key in panels.keys {
-      if key.pid == pid {
+    let targetIsFloating = panels.keys.contains { $0.pid == pid }
+    for key in panels.keys where key.pid != pid {
+      if targetIsFloating, isVisuallyOnTop(key) {
         suppressMirror(key)
       } else {
         restoreMirror(key)
@@ -295,19 +324,30 @@ private final class FloatingOverlayController {
         showPanel(key)
       }
     }
-    applyStackOrder()
+    for key in panels.keys where key.pid == pid {
+      suppressMirror(key)
+    }
+    applyStackOrder(liftDemoted: !targetIsFloating)
   }
 
   /// Tatami is about to move focus to `pid`'s window (`focusWindow` hook).
-  /// Restore the other mirrors *now*, before the activation, so they're
-  /// already painted when the floating window drops behind the new focus —
-  /// the didActivate notification alone arrives one beat too late. Returns
-  /// whether any mirror was actually restored: the caller then delays the
-  /// activation a beat so the restore commits first.
+  /// Restore the mirrors that need to be up *now*, before the activation,
+  /// so they're already painted when the floating window drops behind the
+  /// new focus — the didActivate notification alone arrives one beat too
+  /// late. Returns whether any mirror was actually restored: the caller
+  /// then delays the activation a beat so the restore commits first.
   fileprivate func handleWillFocus(_ pid: pid_t) -> Bool {
     noteFocus(pid)
+    let targetIsFloating = panels.keys.contains { $0.pid == pid }
     var needsCommit = false
     for key in panels.keys where key.pid != pid {
+      // Same occlusion rule as didActivate: when focus moves to a float,
+      // an unoccluded sibling float keeps showing its real window — no
+      // mirror needed.
+      if targetIsFloating, isVisuallyOnTop(key) {
+        suppressMirror(key)
+        continue
+      }
       // "Needs a commit beat" = this turn is flipping the panel visible.
       // Checking `suppressed` here is NOT equivalent: the cursor-exit
       // restore un-suppresses first and then waits for a fresh frame with
@@ -317,31 +357,40 @@ private final class FloatingOverlayController {
       restoreMirror(key)
       showPanel(key)
     }
-    applyStackOrder()
+    applyStackOrder(liftDemoted: !targetIsFloating)
     return needsCommit
   }
 
-  /// Record `pid` as the focus target: bump it in the floating recency
-  /// order (no-op for non-floating apps).
+  /// pid of the floating app that currently holds focus, if any. Gates
+  /// the cursor-exit restore: only the focused float's mirror returns
+  /// when the cursor leaves it — a hidden unoccluded sibling must not
+  /// pop its mirror back just because the cursor brushed across it.
+  private var focusedFloatPid: pid_t?
+
+  /// Record `pid` as the focus target: track whether a float holds focus
+  /// and bump it in the floating recency order.
   private func noteFocus(_ pid: pid_t) {
-    guard panels.keys.contains(where: { $0.pid == pid }) else { return }
+    let isFloating = panels.keys.contains { $0.pid == pid }
+    focusedFloatPid = isFloating ? pid : nil
+    guard isFloating else { return }
     floatingMRU.removeAll { $0 == pid }
     floatingMRU.insert(pid, at: 0)
   }
 
   /// Stack the floating band by focus recency — most recently focused on
-  /// top (the focused float's own mirror, when soft-suppressed, included).
-  /// Mirrors never leave the `.floating` level: every attempt to express
-  /// "focused float above the others" through `.normal`-level demotion
-  /// raced real-window raises (which composite later than every signal we
-  /// get) and blinked.
-  private func applyStackOrder() {
+  /// top. `liftDemoted` controls whether previously demoted mirrors come
+  /// back up to the floating band: true when a non-floating app takes
+  /// focus (every mirror must cover its window again), false while a
+  /// float keeps focus (demoted siblings stay tucked under it; lifting
+  /// them here only to re-demote after the next raise verification would
+  /// flap them across levels).
+  private func applyStackOrder(liftDemoted: Bool = true) {
+    if liftDemoted { demoted.removeAll() }
     let ordered = panels.keys.sorted { mruIndex($0.pid) < mruIndex($1.pid) }
     var previousNumber: Int?
     for key in ordered {
-      guard let panel = panels[key],
-            !suppressed.contains(key) || softSuppressed.contains(key)
-      else { continue }
+      guard let panel = panels[key], !suppressed.contains(key) else { continue }
+      if demoted.contains(key) { continue }
       panel.level = .floating
       if let previousNumber {
         panel.order(.below, relativeTo: previousNumber)
@@ -352,33 +401,49 @@ private final class FloatingOverlayController {
     }
   }
 
+  /// Slot every still-visible sibling mirror at `.normal` level directly
+  /// below `key`'s real window, in focus-recency order: focused float >
+  /// tile-occluded sibling mirrors > tiles. Called only after `key`'s
+  /// raise has been verified (`order(.below relativeTo:)` accepts another
+  /// app's window number). Also takes these mirrors out of the hover
+  /// path: sitting below the focused window, they no longer swallow the
+  /// cursor at overlaps.
+  private func demoteVisibleSiblings(below key: WindowKey) {
+    let siblings = panels.keys
+      .filter { $0.pid != key.pid && !suppressed.contains($0) }
+      .sorted { mruIndex($0.pid) < mruIndex($1.pid) }
+    var previousNumber: Int?
+    for sibling in siblings {
+      guard let panel = panels[sibling] else { continue }
+      demoted.insert(sibling)
+      panel.level = .normal
+      panel.order(.below, relativeTo: previousNumber ?? Int(key.windowID))
+      previousNumber = panel.windowNumber
+    }
+  }
+
   private func mruIndex(_ pid: pid_t) -> Int {
     floatingMRU.firstIndex(of: pid) ?? .max
   }
 
   /// Per-window maintenance used by geometry refreshes and the cursor-exit
-  /// restore; full recency stacking happens in `applyStackOrder`.
+  /// restore; full recency stacking happens in `applyStackOrder`. Demoted
+  /// mirrors are left alone — a geometry event must not lift them back
+  /// over the focused float.
   private func applyOrdering(_ key: WindowKey) {
-    guard let panel = panels[key] else { return }
+    guard let panel = panels[key], !demoted.contains(key) else { return }
     panel.level = .floating
     if !panel.isVisible { panel.orderFrontRegardless() }
   }
 
-  /// `key`'s app just became active. Always goes click-through so the
-  /// user interacts with the real window; whether the mirror also *hides*
-  /// depends on what hiding would cost:
-  ///
-  ///   * Soft — another visible floating mirror overlaps this window:
-  ///     keep the live mirror up, stacked on top of the floating band.
-  ///     Hiding it would force expressing "focused float above the other
-  ///     mirrors" against real-window z-order, which is unwinnable.
-  ///   * Hard — sole / non-overlapping float: fade out and stop the
-  ///     stream (clears the recording indicator), but only after the real
-  ///     window is *verifiably* above everything that could show through.
-  ///     There is no notification for "raise composited" — a blind timer
-  ///     raced slow apps' raises (Xcode) and let the tile underneath
-  ///     flash through; the bounded per-frame z-order check is the only
-  ///     reliable gate.
+  /// Hide `key`'s mirror: its real window is (or is about to be) showing
+  /// itself — either its app took focus, or a sibling float took focus
+  /// while this window sits unoccluded above the tiles. Goes
+  /// click-through immediately; the fade waits until the real window is
+  /// *verifiably* not covered by any tile. There is no notification for
+  /// "raise composited" — a blind timer raced slow apps' raises (Xcode)
+  /// and let the tile underneath flash through; the bounded per-frame
+  /// z-order check is the only reliable gate.
   private func suppressMirror(_ key: WindowKey) {
     guard !suppressed.contains(key), let panel = panels[key] else { return }
     suppressed.insert(key)
@@ -387,11 +452,6 @@ private final class FloatingOverlayController {
     panel.ignoresMouseEvents = true
     ensureCursorMonitor()
     hideTasks.removeValue(forKey: key)?.cancel()
-    if overlapsOtherVisibleMirror(key) {
-      softSuppressed.insert(key)
-      applyStackOrder()
-      return
-    }
     hideTasks[key] = Task { @MainActor [weak self] in
       // Wait for the raise to land (≤ ~600 ms, one display frame per
       // step; almost always 0–2 iterations). Bail out — mirror stays up,
@@ -406,6 +466,11 @@ private final class FloatingOverlayController {
         try? await Task.sleep(for: .milliseconds(16))
       }
       guard raised, let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
+      // The focused window is verifiably above the tiles — now (and only
+      // now) it's safe to slot still-mirrored siblings underneath it.
+      if key.pid == self.focusedFloatPid {
+        self.demoteVisibleSiblings(below: key)
+      }
       await NSAnimationContext.runAnimationGroup { ctx in
         ctx.duration = 0.08
         panel.animator().alphaValue = 0
@@ -427,27 +492,21 @@ private final class FloatingOverlayController {
     }
   }
 
-  /// Another floating app's mirror is visible and overlaps `key`'s window.
-  private func overlapsOtherVisibleMirror(_ key: WindowKey) -> Bool {
-    guard let frame = lastFrame[key] else { return false }
-    return panels.contains { other, panel in
-      other.pid != key.pid
-        && (!suppressed.contains(other) || softSuppressed.contains(other))
-        && panel.alphaValue > 0
-        && panel.frame.intersects(frame)
-    }
-  }
-
-  /// No other app's normal-level window overlaps `key` above it — i.e.
-  /// hiding the mirror would reveal the real window, not something else.
+  /// No *non-floating* window of another app overlaps `key` above it —
+  /// i.e. hiding the mirror would reveal the real window, not a tile.
+  /// Floating apps' own windows are deliberately excluded: while a float
+  /// holds focus, the floats sort themselves through native activation
+  /// z-order, so a sibling float above is never a reason to keep a mirror.
   private func isVisuallyOnTop(_ key: WindowKey) -> Bool {
     guard let above = CGWindowListCopyWindowInfo(
       .optionOnScreenAboveWindow, key.windowID
     ) as? [[String: Any]] else { return true }
     guard let frame = lastFrame[key].map(flipToCG) else { return true }
+    let floatingPids = Set(panels.keys.map(\.pid))
     for entry in above {
       guard (entry[kCGWindowLayer as String] as? Int) == 0,
-            (entry[kCGWindowOwnerPID as String] as? pid_t) != key.pid,
+            let owner = entry[kCGWindowOwnerPID as String] as? pid_t,
+            !floatingPids.contains(owner),
             ((entry[kCGWindowAlpha as String] as? Double) ?? 1) > 0,
             let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat]
       else { continue }
@@ -469,16 +528,12 @@ private final class FloatingOverlayController {
   /// there a stale frame beats a missing mirror.
   private func restoreMirror(_ key: WindowKey, waitForFrame: Bool = false) {
     guard suppressed.remove(key) != nil else { return }
-    let wasSoft = softSuppressed.remove(key) != nil
     cursorInside.removeValue(forKey: key)
     syncSuppressedFrames()
     hideTasks.removeValue(forKey: key)?.cancel()
     removeCursorMonitorIfIdle()
     guard let panel = panels[key] else { return }
     panel.ignoresMouseEvents = false
-    // A soft-suppressed mirror never hid and its stream never stopped —
-    // flipping the events back on is the whole restore.
-    if wasSoft { return }
     let capture = captures[key]
     if waitForFrame, let capture, !capture.isRunning {
       Task {
@@ -531,12 +586,16 @@ private final class FloatingOverlayController {
   /// never beat the z-order change; cursor-exit restores don't have to.
   private func handleCursorMoved(_ cursor: NSPoint) {
     for key in Array(suppressed) {
-      // Soft-suppressed mirrors are already visible — nothing to restore.
-      guard !softSuppressed.contains(key), let panel = panels[key] else { continue }
+      // Only the *focused* float swaps back to its mirror when the cursor
+      // leaves it. A hidden unoccluded sibling stays hidden — its real
+      // window shows itself, and brushing the cursor across it must not
+      // pop a mirror.
+      guard key.pid == focusedFloatPid, let panel = panels[key] else { continue }
       let inside = panel.frame.contains(cursor)
       let wasInside = cursorInside[key] ?? true
       cursorInside[key] = inside
       if wasInside, !inside {
+        debugLog.log("FocusDiag", "cursor-exit restore \(key.bundleId)#\(key.windowID)")
         restoreMirror(key, waitForFrame: true)
         applyOrdering(key)
       }
@@ -548,6 +607,7 @@ private final class FloatingOverlayController {
   /// the snap only writes when the two have actually drifted — a redundant
   /// AX move/resize makes some apps redraw, which reads as a flicker.
   private func activateRealWindow(_ key: WindowKey) {
+    debugLog.log("FocusDiag", "mirror hover/click activate \(key.bundleId)#\(key.windowID)")
     ensureAXCacheCoversPanels()
     if let element = axWindowCache[key] {
       if let cocoa = lastFrame[key] {
@@ -577,6 +637,7 @@ private final class FloatingOverlayController {
   /// ahead of the raise; the didActivate notification settles final state.
   private func handleOutsideClick() {
     guard !suppressed.isEmpty else { return }
+    focusedFloatPid = nil
     for key in panels.keys {
       restoreMirror(key)
       showPanel(key)

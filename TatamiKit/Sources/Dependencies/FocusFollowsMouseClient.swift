@@ -33,7 +33,8 @@ public struct FocusFollowsMouseConfig: Sendable, Hashable {
 
 extension FocusFollowsMouseClient: DependencyKey {
   public static let liveValue: FocusFollowsMouseClient = {
-    let controller = LiveFocusFollowsMouseController()
+    @Dependency(\.debugLog) var debugLog
+    let controller = LiveFocusFollowsMouseController(debugLog: debugLog)
     return FocusFollowsMouseClient { config in
       await controller.configure(config)
     }
@@ -64,8 +65,11 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   fileprivate var lastFireAt = Date.distantPast
   fileprivate let throttleInterval: TimeInterval = 0.05
   fileprivate var lastFocusedWindowID: CGWindowID = 0
+  fileprivate let debugLog: DebugLogClient
 
-  init() {}
+  init(debugLog: DebugLogClient) {
+    self.debugLog = debugLog
+  }
 
   func configure(_ next: FocusFollowsMouseConfig) async {
     // Tap install/teardown runs on the shared event-tap thread so the tap
@@ -153,6 +157,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // the same app (e.g. two Ghostty windows) must still move focus.
     if info.windowID == lastFocusedWindowID { return }
     lastFocusedWindowID = info.windowID
+    debugLog.log(
+      "FocusDiag",
+      "ffm fire pid=\(info.pid) wid=\(info.windowID) at=(\(Int(location.x)),\(Int(location.y)))"
+    )
 
     // Raise the specific window under the cursor so focus lands on the
     // right one even within the same app (shared helper in WindowKey).
@@ -194,6 +202,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       if alpha > 0,
          let target = MirrorWindowRegistry.shared.target(forMirror: windowNumber)
       {
+        debugLog.log(
+          "FocusDiag",
+          "ffm mirror-redirect panel=\(windowNumber) alpha=\(alpha) -> pid=\(target.pid) wid=\(target.windowID)"
+        )
         return (target.pid, target.windowID, bounds)
       }
       guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { return nil }

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import Dependencies
 import Foundation
 
 /// Stable, hashable identifier for a single macOS window.
@@ -85,6 +86,8 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID) {
   // race, which showed as the floating window dipping behind for an
   // instant. The focus-follows-mouse throttle (50 ms) dwarfs the delay.
   let restoredMirrors = MirrorWindowRegistry.shared.notifyWillFocus(pid: pid)
+  @Dependency(\.debugLog) var debugLog
+  debugLog.log("FocusDiag", "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors)")
   if restoredMirrors {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
       MainActor.assumeIsolated { performFocus(pid: pid, windowID: windowID) }

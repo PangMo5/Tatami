@@ -179,7 +179,19 @@ private final class MarkerController {
     }
     let cocoa = flipToCocoa(dotRect(in: windowFrame, size: CGFloat(style.size), corner: corner))
     if lastFrame[key] != cocoa {
-      panel.setFrame(cocoa, display: true, animate: false)
+      if lastFrame[key] == nil {
+        // First placement: land directly, no glide in from nowhere.
+        panel.setFrame(cocoa, display: true, animate: false)
+      } else {
+        // AX geometry events arrive sparsely during a drag; a short
+        // ease-out glide between them reads as the dot following the
+        // window instead of teleporting event-to-event.
+        NSAnimationContext.runAnimationGroup { ctx in
+          ctx.duration = 0.12
+          ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+          panel.animator().setFrame(cocoa, display: true)
+        }
+      }
       lastFrame[key] = cocoa
     }
     if !panel.isVisible { panel.orderFrontRegardless() }
