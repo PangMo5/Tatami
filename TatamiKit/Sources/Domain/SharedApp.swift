@@ -1,18 +1,17 @@
 import Foundation
 
-/// Inline membership entry: a workspace's reference to a specific app.
+/// An app present in *every* workspace (shared), independent of which
+/// workspace is active.
 ///
-/// `AppAssignment` is identified by its bundle identifier within a
-/// workspace; the same app may legitimately appear in multiple workspaces
-/// with different per-workspace metadata (e.g. autoOpen).
-public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
+/// `floating` is the layout axis: when `false` the app is tiled into each
+/// workspace's BSP layout; when `true` it's left untiled and kept above the
+/// tiles (a "shared floating" window that drifts across all screens).
+public struct SharedApp: Identifiable, Hashable, Sendable, Codable {
   public var bundleIdentifier: String
   public var name: String
   public var iconPath: String?
-  /// Launch the app automatically when its workspace activates.
-  public var autoOpen: Bool
-  /// `true` → not tiled in this workspace; left untiled and kept above the
-  /// tiles (a per-workspace floating window).
+  /// `true` → not tiled, kept on top, drifts across all workspaces.
+  /// `false` → tiled into each workspace's layout.
   public var floating: Bool
 
   public var id: String { bundleIdentifier }
@@ -21,22 +20,19 @@ public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
     bundleIdentifier: String,
     name: String,
     iconPath: String? = nil,
-    autoOpen: Bool = false,
     floating: Bool = false
   ) {
     self.bundleIdentifier = bundleIdentifier
     self.name = name
     self.iconPath = iconPath
-    self.autoOpen = autoOpen
     self.floating = floating
   }
 
-  public init(_ app: MacApp, autoOpen: Bool = false, floating: Bool = false) {
+  public init(_ app: MacApp, floating: Bool = false) {
     self.init(
       bundleIdentifier: app.bundleIdentifier,
       name: app.name,
       iconPath: app.iconPath,
-      autoOpen: autoOpen,
       floating: floating
     )
   }
@@ -44,11 +40,9 @@ public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
   public var app: MacApp {
     MacApp(bundleIdentifier: bundleIdentifier, name: name, iconPath: iconPath)
   }
-}
 
-extension AppAssignment {
   private enum CodingKeys: String, CodingKey {
-    case bundleIdentifier, name, iconPath, autoOpen, floating
+    case bundleIdentifier, name, iconPath, floating
   }
 
   public init(from decoder: Decoder) throws {
@@ -56,7 +50,6 @@ extension AppAssignment {
     bundleIdentifier = try c.decode(String.self, forKey: .bundleIdentifier)
     name = try c.decode(String.self, forKey: .name)
     iconPath = try c.decodeIfPresent(String.self, forKey: .iconPath)
-    autoOpen = (try? c.decode(Bool.self, forKey: .autoOpen)) ?? false
     floating = (try? c.decode(Bool.self, forKey: .floating)) ?? false
   }
 }

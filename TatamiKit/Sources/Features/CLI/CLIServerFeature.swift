@@ -125,7 +125,7 @@ public struct CLIServerFeature {
       await manager.activate(
         ActivationRequest(
           workspace: workspace,
-          floatingApps: config.floatingApps,
+          sharedApps: config.sharedApps,
           targetDisplay: workspace.displayHint,
           setFocus: true,
           mouseHidesOnFocus: config.settings.focus.mouseHidesOnFocus

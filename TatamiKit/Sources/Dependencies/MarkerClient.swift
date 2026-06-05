@@ -7,12 +7,25 @@ import SwiftUI
 /// Draws a tiny colored dot on a configurable corner of selected windows
 /// (zoomed + floating) as a passive identifier. Fades out while the
 /// cursor hovers over it so it never blocks clicks.
+/// What to draw on one marked window: the dot color, plus whether the dot
+/// shows regardless of focus. Floating windows keep their dot up always —
+/// the mark is what tells a mirrored window apart from a tiled one — while
+/// fullscreen-zoom dots only show on the focused window.
+public struct MarkerTarget: Sendable, Equatable {
+  public var colorHex: String
+  public var alwaysVisible: Bool
+
+  public init(colorHex: String, alwaysVisible: Bool = false) {
+    self.colorHex = colorHex
+    self.alwaysVisible = alwaysVisible
+  }
+}
+
 @DependencyClient
 public struct MarkerClient: Sendable {
-  /// Replace the set of marked windows, one hex color per window.
-  /// Pass `[:]` to clear all.
+  /// Replace the set of marked windows. Pass `[:]` to clear all.
   public var setTargets: @Sendable (
-    _ targets: [WindowKey: String],
+    _ targets: [WindowKey: MarkerTarget],
     _ size: Double,
     _ corner: MarkerCorner,
     _ hideOnHover: Bool
@@ -57,6 +70,8 @@ private final class MarkerController {
 
   private var panels: [WindowKey: NSPanel] = [:]
   private var styles: [WindowKey: Style] = [:]
+  /// Windows whose dot ignores the focus gate (floating windows).
+  private var alwaysVisible: Set<WindowKey> = []
   private var lastFrame: [WindowKey: NSRect] = [:]
   /// Resolved `AXUIElement` per marked window — the element we read the
   /// frame from and subscribe geometry notifications on. AX calls are
@@ -91,7 +106,7 @@ private final class MarkerController {
   private let glowPadding: CGFloat = 2
 
   func setTargets(
-    _ targets: [WindowKey: String],
+    _ targets: [WindowKey: MarkerTarget],
     size: Double,
     corner: MarkerCorner,
     hideOnHover: Bool
@@ -109,9 +124,10 @@ private final class MarkerController {
     for key in panels.keys.filter({ targets[$0] == nil }) {
       removeWindow(key)
     }
+    alwaysVisible = Set(targets.filter(\.value.alwaysVisible).keys)
     // Add or update panels for each target.
-    for (key, hex) in targets {
-      let style = Style(hex: hex, size: size)
+    for (key, target) in targets {
+      let style = Style(hex: target.colorHex, size: size)
       if panels[key] == nil {
         panels[key] = makePanel(style: style)
       } else if styles[key] != style,
@@ -174,13 +190,16 @@ private final class MarkerController {
   /// the hover monitor so moving the cursor never triggers AX IPC.
   private func updateAlpha(for key: WindowKey, cursor: NSPoint) {
     guard let panel = panels[key], let cocoa = lastFrame[key] else { return }
-    // Focus gate: hide when this window isn't the user's current window.
-    // Matched on (pid, wid) so two windows of the same app don't share a dot.
+    // Focus gate: hide when this window isn't the user's current window —
+    // except always-visible marks (floating windows), which stay up so the
+    // mark identifies the mirror at a glance. Matched on (pid, wid) so two
+    // windows of the same app don't share a dot.
     let isFocused = focused.map { $0.pid == key.pid && $0.windowID == key.windowID } ?? false
+    let shown = isFocused || alwaysVisible.contains(key)
     // Hover fade: only react when the cursor sits over the dot's visible
     // circle, not the surrounding glow padding.
     let hovering = hideOnHover && cocoa.insetBy(dx: glowPadding, dy: glowPadding).contains(cursor)
-    let target: CGFloat = (isFocused && !hovering) ? 1 : 0
+    let target: CGFloat = (shown && !hovering) ? 1 : 0
     if abs(panel.alphaValue - target) > 0.01 {
       NSAnimationContext.runAnimationGroup { ctx in
         ctx.duration = 0.15
@@ -257,7 +276,8 @@ private final class MarkerController {
   /// Install the global mouse-moved monitor only while at least one dot can
   /// be visible; remove it otherwise so an idle marker set costs nothing.
   private func refreshHoverMonitor() {
-    let needed = hideOnHover && focused != nil && !panels.isEmpty
+    let needed = hideOnHover && !panels.isEmpty
+      && (focused != nil || !alwaysVisible.isEmpty)
     if needed, hoverMonitor == nil {
       hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
         Task { @MainActor [weak self] in
@@ -374,7 +394,9 @@ private final class MarkerController {
     panel.backgroundColor = .clear
     panel.hasShadow = false
     panel.ignoresMouseEvents = true
-    panel.level = .floating
+    // One notch above the floating-mirror panels (also `.floating`), so a
+    // floating window's dot draws on top of its mirror instead of under it.
+    panel.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
     // `.transient` makes macOS hide the panel during Exposé / Mission
     // Control / App Switcher overlays automatically — without it the
     // dots float on top of the scaled window thumbnails.

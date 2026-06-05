@@ -11,17 +11,55 @@ import Foundation
 /// watcher.
 public struct AppConfig: Hashable, Sendable, Codable {
   public var profiles: [Profile]
-  public var floatingApps: [FloatingApp]
+  /// Apps present in every workspace. Each carries a `floating` flag: tiled
+  /// into each workspace's layout when `false`, untiled + on top when `true`.
+  public var sharedApps: [SharedApp]
   public var settings: AppSettings
 
   public init(
     profiles: [Profile] = [Profile.makeDefault()],
-    floatingApps: [FloatingApp] = [],
+    sharedApps: [SharedApp] = [],
     settings: AppSettings = AppSettings()
   ) {
     self.profiles = profiles
-    self.floatingApps = floatingApps
+    self.sharedApps = sharedApps
     self.settings = settings
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case profiles, sharedApps, settings
+    // DEPRECATED: legacy key, read once to migrate into `sharedApps`. The
+    // first GUI/CLI write re-serializes as `sharedApps`, so it disappears.
+    // Remove after a few releases.
+    case floatingApps
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    // Robust defaults so a partial / hand-edited config can't fail to decode.
+    self.profiles = (try? c.decode([Profile].self, forKey: .profiles))
+      ?? [Profile.makeDefault()]
+    self.settings = (try? c.decode(AppSettings.self, forKey: .settings)) ?? AppSettings()
+    if let shared = try? c.decode([SharedApp].self, forKey: .sharedApps) {
+      self.sharedApps = shared
+    } else if let legacy = try? c.decode([FloatingApp].self, forKey: .floatingApps) {
+      // One-time migration: old floating apps were "untiled + everywhere",
+      // which is exactly a shared floating app.
+      self.sharedApps = legacy.map {
+        SharedApp(bundleIdentifier: $0.bundleIdentifier, name: $0.name,
+                  iconPath: $0.iconPath, floating: true)
+      }
+    } else {
+      self.sharedApps = []
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: CodingKeys.self)
+    try c.encode(profiles, forKey: .profiles)
+    try c.encode(sharedApps, forKey: .sharedApps)
+    try c.encode(settings, forKey: .settings)
+    // Legacy `floatingApps` is intentionally never written.
   }
 }
 

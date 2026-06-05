@@ -179,14 +179,25 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     ) as? [[String: Any]] ?? []
     // Layer-0 windows in front-to-back z-order (the list's natural order).
     let windows: [(pid: pid_t, windowID: CGWindowID, bounds: CGRect)] = raw.compactMap { entry in
-      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
-            let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
+      guard let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
             let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID,
             let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
             let x = boundsDict["X"], let y = boundsDict["Y"],
             let w = boundsDict["Width"], let h = boundsDict["Height"]
       else { return nil }
-      return (pidNumber, windowNumber, CGRect(x: x, y: y, width: w, height: h))
+      let bounds = CGRect(x: x, y: y, width: w, height: h)
+      // A visible floating-mirror panel stands in for the window it
+      // mirrors: hovering the mirror must focus the real floating window,
+      // not the tile that happens to sit underneath the panel — otherwise
+      // FFM and the overlay fight over focus during the hand-off.
+      let alpha = (entry[kCGWindowAlpha as String] as? Double) ?? 1
+      if alpha > 0,
+         let target = MirrorWindowRegistry.shared.target(forMirror: windowNumber)
+      {
+        return (target.pid, target.windowID, bounds)
+      }
+      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { return nil }
+      return (pidNumber, windowNumber, bounds)
     }
     guard let idx = windows.firstIndex(where: { $0.bounds.contains(point) }) else { return nil }
     let candidate = windows[idx]

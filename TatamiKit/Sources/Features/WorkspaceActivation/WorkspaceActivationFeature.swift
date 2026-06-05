@@ -192,6 +192,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.marker) var marker
   @Dependency(\.dragPreview) var dragPreview
   @Dependency(\.sls) var sls
+  @Dependency(\.floatingOverlay) var floatingOverlay
   @Dependency(\.debugLog) var debugLog
 
   public init() {}
@@ -367,7 +368,7 @@ public struct WorkspaceActivationFeature {
         }
         if !state.isActivating,
            state.config.settings.switching.followAppFocus,
-           !state.config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }),
+           !state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }),
            let owner = state.config.activeProfile?.workspaces.first(where: {
              $0.apps.contains { $0.bundleIdentifier == bundleId }
            }),
@@ -583,17 +584,27 @@ public struct WorkspaceActivationFeature {
         }
 
       case .focusedFloatToggleResolved(let bundleId, let name):
+        guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
         var nowFloating = false
         state.$config.withLock { config in
-          if config.floatingApps.contains(where: { $0.bundleIdentifier == bundleId }) {
-            config.floatingApps.removeAll { $0.bundleIdentifier == bundleId }
-          } else {
-            config.floatingApps.append(
-              FloatingApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
-            )
-            nowFloating = true
+          config.mutateWorkspace(workspaceId) { workspace in
+            if let idx = workspace.apps.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
+              workspace.apps[idx].floating.toggle()
+              nowFloating = workspace.apps[idx].floating
+            } else {
+              // Floating a window that isn't assigned here yet adds it to this
+              // workspace as a floating member.
+              workspace.apps.append(
+                AppAssignment(
+                  bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, floating: true
+                )
+              )
+              nowFloating = true
+            }
           }
         }
+        // Rebuild the tree so the window drops out of / back into the layout.
+        state.tilingTrees[workspaceId] = nil
         let displayName = name.isEmpty ? bundleId : name
         let hudTitle = nowFloating
           ? "Floating: \(displayName)"
@@ -603,7 +614,7 @@ public struct WorkspaceActivationFeature {
         let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
         let showHUD = state.config.settings.hud.enabled
         return .merge(
-          refreshMarkers(state: state),
+          .send(.activate(workspaceId: workspaceId, setFocus: false)),
           showHUD
             ? .run { [hud = workspaceHUD] _ in await hud.show(hudTitle, hudIcon) }
             : .none
@@ -868,14 +879,27 @@ public struct WorkspaceActivationFeature {
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()
     let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
-    let floatingSet = Set(state.config.floatingApps.map(\.bundleIdentifier))
+    // Floating = shown but never tiled (excluded from the tree): this
+    // workspace's per-window floating apps + shared floating apps.
+    let floatingSet = Set(workspace.apps.filter(\.floating).map(\.bundleIdentifier))
+      .union(state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier))
+    // Shared tiled apps tile into every workspace's layout.
+    let sharedTiledSet = Set(
+      state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier)
+    )
     let assignedAnywhere = Self.everyAssignedBundleId(in: state.config)
     let existing = state.tilingTrees[workspaceId]
     let inTree = existing?.windows.contains { $0.bundleId == bundleId } ?? false
 
-    if floatingSet.contains(bundleId) { return .none }
+    // Floating apps never enter the tree. Instead, refresh their mirror
+    // overlays so a window opening / closing on a floating app is reflected
+    // on top live (not just on the next activation).
+    if floatingSet.contains(bundleId) {
+      return refreshFloatingOverlay(state: state)
+    }
     // Eligibility:
     //   * registered in this workspace → always tile.
+    //   * a shared tiled app → tiles into every workspace.
     //   * already in the tree (transient member from an earlier sync)
     //     → keep tiling so the window doesn't suddenly fall out.
     //   * unregistered anywhere → transient: gets folded into the
@@ -888,6 +912,7 @@ public struct WorkspaceActivationFeature {
     //     instead.
     let isUnregisteredAnywhere = !assignedAnywhere.contains(bundleId)
     let eligibleToAdd = registeredSet.contains(bundleId)
+      || sharedTiledSet.contains(bundleId)
       || inTree
       || isUnregisteredAnywhere
 
@@ -1181,25 +1206,55 @@ public struct WorkspaceActivationFeature {
 
   // MARK: - Window marker
 
-  private func markerTargets(state: State) -> [WindowKey: String] {
-    var targets: [WindowKey: String] = [:]
+  private func markerTargets(state: State) -> [WindowKey: MarkerTarget] {
+    var targets: [WindowKey: MarkerTarget] = [:]
     let cfg = state.config.settings.marker
     if cfg.fullscreenEnabled,
        let workspaceId = state.primaryActiveWorkspaceID
     {
       for key in state.fullscreenZoomed[workspaceId] ?? [] {
-        targets[key] = cfg.fullscreenColorHex
+        targets[key] = MarkerTarget(colorHex: cfg.fullscreenColorHex)
       }
     }
     if cfg.floatingEnabled {
-      let bundleIds = state.config.floatingApps.map(\.bundleIdentifier)
+      // Mark floating windows only: shared floating apps + the active
+      // workspace's per-window floating apps. Always visible (not focus-
+      // gated) — the dot is what identifies a floating window / its mirror
+      // at a glance.
+      let activeFloating = state.primaryActiveWorkspaceID
+        .flatMap { id in state.config.activeProfile?.workspaces.first { $0.id == id } }
+        .map { $0.apps.filter(\.floating).map(\.bundleIdentifier) } ?? []
+      let bundleIds = state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
+        + activeFloating
       let slsClient = sls
       let keys = MainActor.assumeIsolated {
-        discoverWindowKeys(forBundleIds: bundleIds, sls: slsClient)
+        discoverWindowKeys(forBundleIds: bundleIds, sls: slsClient, requireResizable: false)
       }
-      for key in keys { targets[key] = cfg.floatingColorHex }
+      for key in keys {
+        targets[key] = MarkerTarget(colorHex: cfg.floatingColorHex, alwaysVisible: true)
+      }
     }
     return targets
+  }
+
+  /// Resolve the active workspace's floating apps (per-workspace + shared) to
+  /// live windows and push them to the mirror overlay. Empty set tears every
+  /// mirror down. Used on activation and whenever a floating app's windows
+  /// change.
+  private func refreshFloatingOverlay(state: State) -> Effect<Action> {
+    let perWorkspace = state.primaryActiveWorkspaceID
+      .flatMap { id in state.config.activeProfile?.workspaces.first { $0.id == id } }
+      .map { $0.apps.filter(\.floating).map(\.bundleIdentifier) } ?? []
+    let shared = state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
+    let bundleIds = Array(Set(perWorkspace + shared))
+    let slsClient = sls
+    let overlay = floatingOverlay
+    return .run { _ in
+      let keys = await MainActor.run {
+        Set(discoverWindowKeys(forBundleIds: bundleIds, sls: slsClient, requireResizable: false))
+      }
+      overlay.setFloating(keys)
+    }
   }
 
   private func refreshMarkers(state: State) -> Effect<Action> {
@@ -1256,7 +1311,7 @@ public struct WorkspaceActivationFeature {
     }
     let request = ActivationRequest(
       workspace: workspace,
-      floatingApps: state.config.floatingApps,
+      sharedApps: state.config.sharedApps,
       targetDisplay: targetDisplay,
       setFocus: setFocus,
       mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus
@@ -1265,7 +1320,15 @@ public struct WorkspaceActivationFeature {
     let showHUD = setFocus && state.config.settings.hud.enabled
 
     let settings = state.config.settings
-    let bundleIds = workspace.apps.map(\.bundleIdentifier)
+    // Tile target: this workspace's tiled apps + shared tiled apps. Floating
+    // apps (per-workspace or shared) are shown by the manager but kept out of
+    // the tree.
+    let bundleIds = workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
+      + state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier)
+    // Floating apps (per-workspace + shared) are raised above the tiles after
+    // the tile pass.
+    let floatingBundleIds = workspace.apps.filter(\.floating).map(\.bundleIdentifier)
+      + state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
     let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
     let sessionTree = state.tilingTrees[workspace.id]
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
@@ -1280,11 +1343,16 @@ public struct WorkspaceActivationFeature {
       tiler = windowTiler,
       store = layoutStore,
       hud = workspaceHUD,
-      mouse = mouse
+      mouse = mouse,
+      overlay = floatingOverlay
     ] send in
       if showHUD {
         await hud.show(hudName, hudIcon)
       }
+      // Tear down the outgoing workspace's mirrors in the same beat as the
+      // hide pass — leaving them to the post-tile `setFloating` made the
+      // floating windows visibly outlive the windows they mirror.
+      overlay.retainOnly(Set(floatingBundleIds))
       await mgr.activate(request)
       if !isPaused {
         let persistedSnapshot: LayoutSnapshot? =
@@ -1348,6 +1416,17 @@ public struct WorkspaceActivationFeature {
             FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
           )
         }
+        // Mirror floating windows onto always-on-top panels (the Topit /
+        // Floaty technique): a foreign window's level can't be raised without
+        // SIP, so instead of trying we paint a live mirror above the tiles.
+        // Passing the resolved set (possibly empty) also tears down mirrors
+        // for apps that were just un-floated or belong to another workspace.
+        let floatingKeys = await MainActor.run {
+          Set(discoverWindowKeys(
+            forBundleIds: floatingBundleIds, sls: slsClient, requireResizable: false
+          ))
+        }
+        overlay.setFloating(floatingKeys)
         if warpMouse {
           let center = await MainActor.run { () -> CGPoint? in
             guard let key = focusedWindowKey(), let rect = frames[key] else { return nil }

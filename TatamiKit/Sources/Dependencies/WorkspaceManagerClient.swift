@@ -9,7 +9,7 @@ import OSLog
 /// a show-before-hide policy:
 ///
 ///  1. unhide every app belonging to the target workspace
-///  2. unhide every app in `floatingApps`
+///  2. unhide every app in `sharedApps`
 ///  3. hide every other regular running app on the same display (the
 ///     unassigned ones included)
 ///  4. focus the workspace's preferred app
@@ -32,7 +32,7 @@ private struct CursorHideSink: Sendable {
 
 public struct ActivationRequest: Sendable, Hashable {
   public var workspace: Workspace
-  public var floatingApps: [FloatingApp]
+  public var sharedApps: [SharedApp]
   /// Display this activation targets. `nil` → all displays.
   public var targetDisplay: DisplayName?
   public var setFocus: Bool
@@ -43,13 +43,13 @@ public struct ActivationRequest: Sendable, Hashable {
 
   public init(
     workspace: Workspace,
-    floatingApps: [FloatingApp],
+    sharedApps: [SharedApp],
     targetDisplay: DisplayName?,
     setFocus: Bool = true,
     mouseHidesOnFocus: Bool = false
   ) {
     self.workspace = workspace
-    self.floatingApps = floatingApps
+    self.sharedApps = sharedApps
     self.targetDisplay = targetDisplay
     self.setFocus = setFocus
     self.mouseHidesOnFocus = mouseHidesOnFocus
@@ -80,8 +80,8 @@ extension WorkspaceManagerClient: DependencyKey {
     WorkspaceManagerClient(
       activate: { request in
         let workspaceBundleIds = Set(request.workspace.apps.map(\.bundleIdentifier))
-        let floatingBundleIds = Set(request.floatingApps.map(\.bundleIdentifier))
-        let keepVisible = workspaceBundleIds.union(floatingBundleIds)
+        let sharedBundleIds = Set(request.sharedApps.map(\.bundleIdentifier))
+        let keepVisible = workspaceBundleIds.union(sharedBundleIds)
 
         await MainActor.run {
           let running = NSWorkspace.shared.runningApplications.filter {
@@ -91,12 +91,26 @@ extension WorkspaceManagerClient: DependencyKey {
             workspaceBundleIds.contains($0.bundleIdentifier ?? "")
           }
 
-          // 0. Auto-open: launch assigned apps flagged autoOpen that
-          //    aren't running yet. They join the layout later via the
-          //    window-created observer.
-          let runningBundleIds = Set(running.compactMap(\.bundleIdentifier))
-          for app in request.workspace.apps
-          where app.autoOpen && !runningBundleIds.contains(app.bundleIdentifier) {
+          // 0. Auto-open: (re)open assigned apps flagged autoOpen that have no
+          //    visible window — whether fully quit or just running with their
+          //    window closed (Electron apps that hide on close, etc.). Opening
+          //    the app URL launches it, or replays a Dock-style "reopen" that
+          //    brings the window back. They join the layout via the
+          //    window-created observer. Apps that already have a window on
+          //    screen are left alone.
+          let onScreenOwnerPids: Set<pid_t> = {
+            let raw = CGWindowListCopyWindowInfo(
+              [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+            ) as? [[String: Any]] ?? []
+            return Set(raw.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t })
+          }()
+          let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
+          for app in request.workspace.apps where app.autoOpen {
+            let instances = runningByBundle[app.bundleIdentifier] ?? []
+            let hasVisibleWindow = instances.contains {
+              onScreenOwnerPids.contains($0.processIdentifier)
+            }
+            if hasVisibleWindow { continue }
             guard let url = NSWorkspace.shared
               .urlForApplication(withBundleIdentifier: app.bundleIdentifier)
             else { continue }
@@ -174,7 +188,7 @@ extension WorkspaceManagerClient: DependencyKey {
             """
             Activated '\(request.workspace.name)' on \
             \(request.targetDisplay?.name ?? "any"): \
-            show=\(workspaceBundleIds.count) float=\(floatingBundleIds.count) \
+            show=\(workspaceBundleIds.count) float=\(sharedBundleIds.count) \
             hide=\(hiddenCount)
             """
           )

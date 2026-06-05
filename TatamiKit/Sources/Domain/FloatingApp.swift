@@ -1,7 +1,10 @@
 import Foundation
 
-/// Apps that should remain visible across all workspaces, independent of
-/// which workspace is currently active.
+/// DEPRECATED: replaced by `SharedApp` (whose `floating` flag distinguishes
+/// tiled vs floating shared apps). Kept only so `AppConfig` can read a legacy
+/// `floatingApps` config and migrate it to `sharedApps` once. Remove in a few
+/// releases, once stored configs have been rewritten.
+@available(*, deprecated, message: "Use SharedApp; legacy config migration only.")
 public struct FloatingApp: Identifiable, Hashable, Sendable, Codable {
   public var bundleIdentifier: String
   public var name: String

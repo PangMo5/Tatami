@@ -37,6 +37,7 @@ public struct WorkspaceDetailFeature {
     case appPickerAppSelected(MacApp)
     case appRemoveRequested(bundleIdentifier: String)
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
+    case floatingToggled(bundleIdentifier: String, isOn: Bool)
     case nameSubmitted(String)
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
@@ -112,6 +113,19 @@ public struct WorkspaceDetailFeature {
             workspace.apps[idx].autoOpen = isOn
           }
         }
+        return .none
+
+      case .floatingToggled(let bundleId, let isOn):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { workspace in
+            guard let idx = workspace.apps.firstIndex(where: { $0.bundleIdentifier == bundleId })
+            else { return }
+            workspace.apps[idx].floating = isOn
+          }
+        }
+        // Re-tile so the window drops out of (or back into) the layout
+        // immediately when this workspace is active — handled in AppFeature.
         return .none
 
       case .nameSubmitted(let name):

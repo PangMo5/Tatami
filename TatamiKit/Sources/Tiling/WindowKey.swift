@@ -76,6 +76,26 @@ extension WindowKey {
 /// override existing layering, route through `SLSClient.focusWindow`.
 @MainActor
 public func focusWindow(pid: pid_t, windowID: CGWindowID) {
+  // Let the floating overlay put its mirrors back up *before* the focus
+  // moves, so a floating window never visibly drops behind the newly
+  // focused tile (see MirrorWindowRegistry.setWillFocusHandler). When a
+  // mirror was actually restored in this turn, give the window server one
+  // beat (~a frame) to commit it before activating — issuing both in the
+  // same runloop turn intermittently let the target's raise win the frame
+  // race, which showed as the floating window dipping behind for an
+  // instant. The focus-follows-mouse throttle (50 ms) dwarfs the delay.
+  let restoredMirrors = MirrorWindowRegistry.shared.notifyWillFocus(pid: pid)
+  if restoredMirrors {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+      MainActor.assumeIsolated { performFocus(pid: pid, windowID: windowID) }
+    }
+  } else {
+    performFocus(pid: pid, windowID: windowID)
+  }
+}
+
+@MainActor
+private func performFocus(pid: pid_t, windowID: CGWindowID) {
   if let app = NSRunningApplication(processIdentifier: pid) {
     app.activate(options: [.activateIgnoringOtherApps])
   }

@@ -217,10 +217,16 @@ public func isAccessibilityTrusted() -> Bool {
 /// via remote-token brute-force — that fallback was removed for
 /// being too brittle. Windows the OS hides from AX (e.g. some apps'
 /// Notification-Center popups) will simply not be tiled.
+///
+/// `requireResizable` is the tiling default: the BSP pass must be able to
+/// write the window's size. Floating discovery passes `false` — a mirror
+/// only needs the window to be movable, and fixed-size windows (the iOS
+/// Simulator's device windows report `AXSize` as not settable) float fine.
 @MainActor
 public func discoverWindowKeys(
   forBundleIds bundleIds: [String],
-  sls: SLSClient
+  sls: SLSClient,
+  requireResizable: Bool = true
 ) -> [WindowKey] {
   guard !bundleIds.isEmpty else { return [] }
   @Dependency(\.debugLog) var debugLog
@@ -286,13 +292,13 @@ public func discoverWindowKeys(
           rejected.append("\(widProbe):subrole=\(subrole)")
           continue
         }
-        // Position + size must be settable, else we'd write to a window
-        // the host app rejects.
+        // Position must be settable, else we'd write to a window the host
+        // app rejects; size additionally for tiling (see `requireResizable`).
         var movable: DarwinBoolean = false
         var resizable: DarwinBoolean = false
         AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
         AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
-        if !movable.boolValue || !resizable.boolValue {
+        if !movable.boolValue || (requireResizable && !resizable.boolValue) {
           rejected.append("\(widProbe):notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
           continue
         }

@@ -161,6 +161,14 @@ public struct AppFeature {
            .workspaceList(.detail(.assignAppShortcutChanged)):
         return .send(.hotKeys(.refreshBindings))
 
+      case .workspaceList(.detail(.floatingToggled)):
+        // Re-tile now if the edited workspace is the active one, so the window
+        // drops out of (or back into) the layout immediately.
+        guard let wsId = state.workspaceList.detail?.workspaceId,
+              state.activation.activeWorkspacesByDisplay.values.contains(wsId)
+        else { return .none }
+        return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
+
       default:
         return .none
       }
@@ -255,8 +263,8 @@ public struct AppFeature {
   /// floating ones (KeyCastr, Zoom, etc.).
   private func cycleBundleIds(_ state: State) -> [String] {
     let workspace = currentWorkspaceBundleIds(state)
-    let floating = state.workspaceList.config.floatingApps.map(\.bundleIdentifier)
+    let shared = state.workspaceList.config.sharedApps.map(\.bundleIdentifier)
     var seen = Set<String>()
-    return (workspace + floating).filter { seen.insert($0).inserted }
+    return (workspace + shared).filter { seen.insert($0).inserted }
   }
 }

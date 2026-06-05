@@ -140,6 +140,14 @@ struct WorkspaceDetailView: View {
                   )
                 }
               ),
+              floatingBinding: Binding(
+                get: { assignment.floating },
+                set: { value in
+                  store.send(
+                    .floatingToggled(bundleIdentifier: assignment.bundleIdentifier, isOn: value)
+                  )
+                }
+              ),
               onRemove: {
                 store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
               }
@@ -343,6 +351,7 @@ private struct DisplayPickerSection: View {
 private struct AppRow: View {
   let assignment: AppAssignment
   let autoOpenBinding: Binding<Bool>
+  let floatingBinding: Binding<Bool>
   let onRemove: () -> Void
 
   var body: some View {
@@ -357,6 +366,15 @@ private struct AppRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
+      HStack(spacing: 6) {
+        Text("Float")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Toggle("Float", isOn: floatingBinding)
+          .labelsHidden()
+          .toggleStyle(.switch)
+      }
+      .help("Keep this app untiled and above the tiles in this workspace.")
       HStack(spacing: 6) {
         Text("Auto-open")
           .font(.caption)
