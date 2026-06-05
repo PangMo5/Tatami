@@ -12,19 +12,25 @@ import ScreenCaptureKit
 /// The reducer resolves the floating apps to live `WindowKey`s and pushes
 /// the set here after every activation / sync.
 ///
-/// Visibility model — driven by ONE signal, app activation:
+/// Visibility model — a mirror exists only while the real window would
+/// otherwise be covered by a non-floating window:
 ///
-///   * floating app NOT active → its real window sits behind the tiles,
-///     so the mirror is shown (and receives hover/click, which activates
-///     the real app).
-///   * floating app active → macOS has its real windows on top anyway,
-///     so the mirror hides and goes click-through; the user interacts
-///     with the real window directly (move, resize, type, drag).
+///   * non-floating app focused → every float needs its mirror (shown,
+///     streaming; hover/click hands focus to the real window).
+///   * floating app focused → its own mirrors hide, and so do sibling
+///     floats' that sit unoccluded above the tiles — the real windows
+///     show themselves and stack natively by activation recency. Only a
+///     sibling genuinely covered by a tile keeps its mirror, demoted
+///     below the focused window once its raise is verified.
 ///
-/// Cursor position deliberately plays no part in hiding/showing: a fully
-/// transparent panel stops receiving tracking events, so any cursor-based
-/// scheme oscillates (hide → spurious mouseExited → show → mouseEntered →
-/// hide …) — that was the "blinking" bug.
+/// Race rules learned the hard way (each violation was a shipped blink):
+///
+///   * never hide or demote against an *unverified* raise — there is no
+///     "raise composited" notification, only the CGWindowList z-check;
+///   * restore *before* focus moves (cursor-exit / pre-focus hook /
+///     mouse-down tap), never only after didActivate;
+///   * hidden panels still get tracking-area events, so hover/click
+///     callbacks gate on the suppressed state.
 @DependencyClient
 public struct FloatingOverlayClient: Sendable {
   /// Replace the set of windows mirrored on top. Pass `[]` to tear every
@@ -74,6 +80,21 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Floating
 
 @MainActor
 private final class FloatingOverlayController {
+  /// The only time-based values in the overlay — everything else is
+  /// event- or verification-driven.
+  private enum Timing {
+    /// One display frame between raise-verification checks. Not a poll:
+    /// the z-order has no change notification, so this is the finest
+    /// granularity at which "did the raise composite?" can be observed.
+    static let verifyStep: Duration = .milliseconds(16)
+    /// Give up verifying after ~640 ms and keep the mirror up (truthful
+    /// fallback) instead of exposing whatever sits behind it.
+    static let verifyMaxSteps = 40
+    /// Cosmetic fade for a verified hide — runs strictly after the
+    /// z-order check, so its length is taste, not correctness.
+    static let hideFade: TimeInterval = 0.08
+  }
+
   private var panels: [WindowKey: NSPanel] = [:]
   private var captures: [WindowKey: WindowMirrorCapture] = [:]
   /// Resolved `AXUIElement` per mirrored window — used to read the live
@@ -429,9 +450,13 @@ private final class FloatingOverlayController {
   /// Per-window maintenance used by geometry refreshes and the cursor-exit
   /// restore; full recency stacking happens in `applyStackOrder`. Demoted
   /// mirrors are left alone — a geometry event must not lift them back
-  /// over the focused float.
+  /// over the focused float — and hidden (suppressed) panels have nothing
+  /// to order.
   private func applyOrdering(_ key: WindowKey) {
-    guard let panel = panels[key], !demoted.contains(key) else { return }
+    guard let panel = panels[key],
+          !demoted.contains(key),
+          !suppressed.contains(key)
+    else { return }
     panel.level = .floating
     if !panel.isVisible { panel.orderFrontRegardless() }
   }
@@ -453,17 +478,16 @@ private final class FloatingOverlayController {
     ensureCursorMonitor()
     hideTasks.removeValue(forKey: key)?.cancel()
     hideTasks[key] = Task { @MainActor [weak self] in
-      // Wait for the raise to land (≤ ~600 ms, one display frame per
-      // step; almost always 0–2 iterations). Bail out — mirror stays up,
-      // truthfully — if it never does.
+      // Wait for the raise to land (almost always 0–2 iterations). Bail
+      // out — mirror stays up, truthfully — if it never does.
       var raised = false
-      for _ in 0..<40 {
+      for _ in 0..<Timing.verifyMaxSteps {
         guard let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
         if self.isVisuallyOnTop(key) {
           raised = true
           break
         }
-        try? await Task.sleep(for: .milliseconds(16))
+        try? await Task.sleep(for: Timing.verifyStep)
       }
       guard raised, let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
       // The focused window is verifiably above the tiles — now (and only
@@ -472,7 +496,7 @@ private final class FloatingOverlayController {
         self.demoteVisibleSiblings(below: key)
       }
       await NSAnimationContext.runAnimationGroup { ctx in
-        ctx.duration = 0.08
+        ctx.duration = Timing.hideFade
         panel.animator().alphaValue = 0
       }
       guard !Task.isCancelled, self.suppressed.contains(key) else { return }

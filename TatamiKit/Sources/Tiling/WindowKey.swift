@@ -89,13 +89,19 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID) {
   @Dependency(\.debugLog) var debugLog
   debugLog.log("FocusDiag", "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors)")
   if restoredMirrors {
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + mirrorCommitBeat) {
       MainActor.assumeIsolated { performFocus(pid: pid, windowID: windowID) }
     }
   } else {
     performFocus(pid: pid, windowID: windowID)
   }
 }
+
+/// How long a just-restored mirror gets to commit to the window server
+/// before the activation raises the target — roughly two display frames.
+/// Issuing both in the same runloop turn intermittently let the raise win
+/// the frame race; the focus-follows-mouse throttle (50 ms) dwarfs this.
+private let mirrorCommitBeat: TimeInterval = 0.03
 
 @MainActor
 private func performFocus(pid: pid_t, windowID: CGWindowID) {
