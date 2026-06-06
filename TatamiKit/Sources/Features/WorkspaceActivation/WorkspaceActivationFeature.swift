@@ -1197,8 +1197,10 @@ public struct WorkspaceActivationFeature {
   /// tiled, or transient) and no *per-workspace* floating window — so jump
   /// back to the recent workspace. Shared apps don't anchor: they join
   /// every workspace, and a shared float follows you to the recent one
-  /// anyway. Callers gate on an actual removal, so deliberately sitting on
-  /// an empty workspace never bounces you out.
+  /// anyway. The tile-sync and prune callers gate on an actual removal;
+  /// the floating-branch caller relies on the live floating re-discovery
+  /// below — either way, deliberately sitting on an empty workspace never
+  /// bounces you out.
   private func switchToRecentIfEmpty(
     state: State,
     workspaceId: Workspace.ID

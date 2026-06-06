@@ -4,7 +4,10 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
-## Unreleased
+## 1.3.1 — 2026-06-07
+
+A quick follow-up to 1.3.0 — updating from 1.2.x? The 1.3.0 notes included
+below apply to you too.
 
 ### New
 - **Back to recent when empty** (`settings.switching.switchToRecentWhenEmpty`, off by default) — when the active workspace's last window closes, switch to the recent workspace instead of staring at an empty desktop. Shared apps don't count as content (they join every workspace), and a deliberately empty workspace never bounces you out — only an actual close triggers the switch.
@@ -14,6 +17,26 @@ an Install / Update section when publishing).
 - **Floating mirrors with focus-follows-mouse off**: hovering a mirror no longer steals focus (that was FFM in disguise) — scrolls, clicks, and drags on a mirror now forward to the real window, and focus moves on click. With FFM on, hover keeps handing focus over as before.
 - Two floating-window blinks with focus-follows-mouse off: a sibling float dipped behind a clicked tile for a beat, and the focused float dipped behind an overlapping sibling when the cursor left it.
 - Quitting a floating app now removes its marker dot immediately instead of on the next focus change.
+
+---
+
+*Included from **1.3.0** (released the day before), for everyone updating from 1.2.x:*
+
+### ⚠️ Breaking Changes (1.3.0)
+- **`[[floatingApps]]` is now `[[sharedApps]]`** — configs migrate automatically on first launch: each floating entry becomes a shared app with `floating = true`. Shared apps are part of *every* workspace — tiled into each layout by default, or floating everywhere. Manage them in **Workspaces → Shared Apps**; dotfiles that template the config should switch to the new key.
+- **Floating windows now need the Screen Recording permission** — they stay above the tiles via ScreenCaptureKit mirrors, and without the grant they won't stay on top. Grant it in **Settings → General → Permissions**, then relaunch.
+
+### New in 1.3.0
+- **Floating windows that stay above the tiles — without disabling SIP.** Mark any app as floating per workspace (the Float toggle next to Auto-open, or the `toggleFloating` hotkey): its windows stay untiled and are kept on top by mirroring them onto Tatami-owned ScreenCaptureKit panels. Reach for a floating window and the real one is handed back to you; while a floating app has focus the mirrors (and the screen-recording indicator) get out of the way. Multiple floating windows stack by focus recency.
+- **Shared Apps editor** in the Workspaces sidebar — add/remove shared apps and flip their Float toggle, presented like a special workspace.
+- **Settings reorganized** into a System Settings-style sidebar (General, Tiling, Focus & Mouse, Workspaces, Shortcuts, Appearance), with a new Screen Recording row under Permissions.
+- **Shared hotkeys** — `toggleSharedFloating` floats the focused app everywhere (joins Shared Apps as floating if needed; toggling off flips it to shared tiled), and `toggleAppInSharedApps` adds/removes the focused app in Shared Apps.
+- **Per-action HUD** — floating changes, app membership, tiling pause, fullscreen zoom, and balance now show a brief overlay, each individually toggleable in **Settings → Appearance → Overlay** (plus the master switch and a configurable duration). Un-floating an app that stays in its workspace / Shared Apps shows a follow-up hint with the shortcut that removes it entirely.
+- **What's New on first launch after an update** — a one-time window summarizing setup-affecting changes (with a Screen Recording grant button when needed) and feature highlights; the full changelog is also viewable from **About → View Changelog**.
+- Missing Screen Recording no longer fails silently: the first activation that needs floating mirrors shows the system prompt and a warning HUD pointing at the Settings row.
+- Auto-open apps **reopen on workspace re-entry** when their window was closed, not just on first activation.
+- Fixed-size windows (e.g. the iOS **Simulator**) can float — resizability is only required for tiling.
+- Floating windows' marker dots are always visible (not just on the focused window), and dots follow window drags with a smooth glide.
 
 ## 1.3.0 — 2026-06-06
 

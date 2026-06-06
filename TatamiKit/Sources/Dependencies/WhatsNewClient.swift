@@ -43,6 +43,11 @@ extension DependencyValues {
 @MainActor
 private final class WhatsNewController {
   private static let lastShownKey = "whatsNew.lastShownVersion"
+
+  /// "1.3.1" → "1.3" — the granularity at which What's New content exists.
+  private func majorMinor(_ version: String) -> String {
+    version.split(separator: ".").prefix(2).joined(separator: ".")
+  }
   private var window: NSWindow?
   private let screenRecording: ScreenRecordingClient
 
@@ -58,6 +63,9 @@ private final class WhatsNewController {
     UserDefaults.standard.set(current, forKey: Self.lastShownKey)
     // Fresh install: no migrated config, nothing to explain.
     guard hasExistingConfig else { return }
+    // Patch releases share their minor's feature wave — someone who saw
+    // 1.3.0's window must not get the identical one again on 1.3.1.
+    if let lastShown, majorMinor(lastShown) == majorMinor(current) { return }
 
     let window = NSWindow(
       contentRect: .zero,
