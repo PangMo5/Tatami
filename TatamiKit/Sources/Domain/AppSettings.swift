@@ -451,21 +451,28 @@ extension AppSettings {
     /// When `false` (default), cycling stays within the workspaces on the
     /// display under the cursor.
     public var cycleAcrossDisplays: Bool
+    /// When the active workspace's last window closes (nothing tiled and
+    /// no workspace-specific floating window left), switch to the recent
+    /// workspace. Shared apps don't count — they join every workspace, so
+    /// they can't anchor you to an empty one.
+    public var switchToRecentWhenEmpty: Bool
 
     public init(
       loop: Bool = true,
       skipEmpty: Bool = false,
       followAppFocus: Bool = false,
-      cycleAcrossDisplays: Bool = false
+      cycleAcrossDisplays: Bool = false,
+      switchToRecentWhenEmpty: Bool = false
     ) {
       self.loop = loop
       self.skipEmpty = skipEmpty
       self.followAppFocus = followAppFocus
       self.cycleAcrossDisplays = cycleAcrossDisplays
+      self.switchToRecentWhenEmpty = switchToRecentWhenEmpty
     }
 
     private enum CodingKeys: String, CodingKey {
-      case loop, skipEmpty, followAppFocus, cycleAcrossDisplays
+      case loop, skipEmpty, followAppFocus, cycleAcrossDisplays, switchToRecentWhenEmpty
     }
 
     public init(from decoder: Decoder) throws {
@@ -475,6 +482,8 @@ extension AppSettings {
       self.followAppFocus = (try? c.decode(Bool.self, forKey: .followAppFocus)) ?? false
       self.cycleAcrossDisplays =
         (try? c.decode(Bool.self, forKey: .cycleAcrossDisplays)) ?? false
+      self.switchToRecentWhenEmpty =
+        (try? c.decode(Bool.self, forKey: .switchToRecentWhenEmpty)) ?? false
     }
   }
 }

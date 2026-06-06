@@ -1016,9 +1016,16 @@ public struct WorkspaceActivationFeature {
     // the same beat — floating dots are discovered from live windows, so
     // skipping this left a quit app's dot up until the next focus change.
     if floatingSet.contains(bundleId) {
+      // A *per-workspace* floating window closing can empty the workspace;
+      // shared floats aren't workspace content, so their events don't bounce.
+      let emptySwitch = workspace.apps
+        .contains { $0.floating && $0.bundleIdentifier == bundleId }
+        ? switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+        : Effect<Action>.none
       return .merge(
         refreshFloatingOverlay(state: state),
-        refreshMarkers(state: state)
+        refreshMarkers(state: state),
+        emptySwitch
       )
     }
     // Eligibility:
@@ -1130,9 +1137,15 @@ public struct WorkspaceActivationFeature {
       await observer.observe(observeIds)
     }
     let markerRefresh = refreshMarkers(state: state)
+    // Only a sync that actually removed windows can have emptied the
+    // workspace — launch/no-op syncs must never bounce the user off a
+    // deliberately empty one.
+    let emptySwitch = removed.isEmpty
+      ? Effect<Action>.none
+      : switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
 
     guard oldWindows != newWindows, let final = balanced else {
-      return .merge(observeEffect, markerRefresh)
+      return .merge(observeEffect, markerRefresh, emptySwitch)
     }
 
     // When a window closed and focus would otherwise be stranded on a
@@ -1174,8 +1187,45 @@ public struct WorkspaceActivationFeature {
       observeEffect,
       persist(final, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       markerRefresh,
-      refocusEffect
+      refocusEffect,
+      emptySwitch
     )
+  }
+
+  /// `switchToRecentWhenEmpty`: a close left the active workspace with
+  /// nothing of its own on screen — nothing tiled (registered, shared
+  /// tiled, or transient) and no *per-workspace* floating window — so jump
+  /// back to the recent workspace. Shared apps don't anchor: they join
+  /// every workspace, and a shared float follows you to the recent one
+  /// anyway. Callers gate on an actual removal, so deliberately sitting on
+  /// an empty workspace never bounces you out.
+  private func switchToRecentIfEmpty(
+    state: State,
+    workspaceId: Workspace.ID
+  ) -> Effect<Action> {
+    guard state.config.settings.switching.switchToRecentWhenEmpty,
+          !state.isActivating,
+          state.primaryActiveWorkspaceID == workspaceId,
+          let workspace = state.config.activeProfile?
+            .workspaces.first(where: { $0.id == workspaceId }),
+          state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
+    else { return .none }
+    // Recent on the workspace's display (falls back to any recent).
+    let display = workspace.displayHint ?? displays.current()
+    let recent = display.flatMap { state.previousWorkspacesByDisplay[$0] }
+      ?? state.previousWorkspacesByDisplay.values.first
+    guard let recent, recent != workspaceId else { return .none }
+    // A still-open per-workspace floating window anchors the workspace.
+    let floatingIds = workspace.apps.filter(\.floating).map(\.bundleIdentifier)
+    let slsClient = sls
+    let hasFloating = MainActor.assumeIsolated {
+      !floatingIds.isEmpty && !discoverWindowKeys(
+        forBundleIds: floatingIds, sls: slsClient, requireResizable: false
+      ).isEmpty
+    }
+    guard !hasFloating else { return .none }
+    debugLog.log("Sync", "ws=\(workspace.name) empty → switch to recent")
+    return .send(.activate(workspaceId: recent, setFocus: true))
   }
 
   /// Bundle ids registered to any workspace anywhere in the config.
@@ -1685,7 +1735,9 @@ public struct WorkspaceActivationFeature {
       retile,
       persist(balanced, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       refreshMarkers(state: state),
-      refocusEffect
+      refocusEffect,
+      // Pruning only runs when windows actually left the screen.
+      switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
     )
   }
 

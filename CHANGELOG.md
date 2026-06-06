@@ -7,6 +7,7 @@ an Install / Update section when publishing).
 ## Unreleased
 
 ### New
+- **Back to recent when empty** (`settings.switching.switchToRecentWhenEmpty`, off by default) — when the active workspace's last window closes, switch to the recent workspace instead of staring at an empty desktop. Shared apps don't count as content (they join every workspace), and a deliberately empty workspace never bounces you out — only an actual close triggers the switch.
 - **Internal failures now show up in the UI** instead of dying in a log: a broken `config.toml` (syntax error, invalid shortcut string), a `layouts.json` that won't read or write, a CLI server that fails to start, unavailable floating mirrors, or a failed Launch-at-Login registration all show a warning HUD with the error detail and a ⚠️ in the menu bar (with a Problems section) until the problem is fixed — fixing it (e.g. correcting the config) clears the badge with a confirmation HUD.
 
 ### Fixes

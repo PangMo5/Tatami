@@ -320,6 +320,10 @@ struct SettingsView: View {
         Text("Cycle across all displays")
         Text("Next/previous workspace cycles through every display's workspaces instead of just the one under the cursor.")
       }
+      Toggle(isOn: setting(\.switching.switchToRecentWhenEmpty)) {
+        Text("Back to recent when empty")
+        Text("When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway.")
+      }
     }
 
     Section("Gestures") {
