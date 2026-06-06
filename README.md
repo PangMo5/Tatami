@@ -25,15 +25,6 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 ## Features
 
-### Tiling (yabai-style BSP)
-
-- Automatic binary space partitioning that inserts at the shallowest tile
-- Directional focus, swap, and resize (vim-like `h` / `j` / `k` / `l`)
-- Zoom a window to fill the workspace; toggle split orientation
-- Rotate, mirror, and balance the layout tree
-- Drag a window to swap or re-insert it next to another — a live overlay previews where it'll land (center = swap, edges = insert that side); manual edge-resize syncs back into the tree
-- Configurable inner / outer gaps
-
 ### Workspaces
 
 - Group apps into virtual workspaces with per-workspace app assignments
@@ -42,8 +33,22 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Auto-open assigned apps when a workspace activates — and reopen them on re-entry if their window was closed
 - Per-display workspaces — pin one to a display or follow apps dynamically; each display keeps its own active workspace, and you can cycle per-display or across every display
 - Jump focus between displays, or move the focused app to another workspace
-- Shared apps that join every workspace — tiled into each layout, or floating
-- Floating windows (per-workspace or shared) stay above the tiles **without disabling SIP** — Tatami mirrors them onto its own always-on-top panels and hands you the real window the moment you reach for it
+- Shared apps that join every workspace
+
+### Window tiling (yabai-style BSP)
+
+- Automatic binary space partitioning that inserts at the shallowest tile
+- Directional focus, swap, and resize (vim-like `h` / `j` / `k` / `l`)
+- Zoom a window to fill the workspace; toggle split orientation
+- Rotate, mirror, and balance the layout tree
+- Drag a window to swap or re-insert it next to another — a live overlay previews where it'll land (center = swap, edges = insert that side); manual edge-resize syncs back into the tree
+- Configurable inner / outer gaps
+
+### Floating windows
+
+- Float an app in a single workspace, or add it to Shared Apps to float it everywhere — one toggle in the GUI, one hotkey anywhere
+- Floats stay above the tiles **without disabling SIP** — Tatami mirrors them onto its own always-on-top ScreenCaptureKit panels, and hands you the real window the moment you reach for it
+- Multiple floating windows stack by focus recency; needs the Screen Recording permission
 
 ### Focus & cursor
 
