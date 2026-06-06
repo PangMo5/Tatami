@@ -21,7 +21,9 @@
     <input type="checkbox" id="nav-toggle" class="nav-toggle" />
     <label for="nav-toggle" class="nav-burger" aria-label="Menu"><span></span></label>
     <div class="nav-links">
-      <a href="#features">Features</a>
+      <a href="#workspaces">Workspaces</a>
+      <a href="#tiling">Tiling</a>
+      <a href="#floating">Floating</a>
       <a href="./configuration.html">Configuration</a>
       <a href="./releases.html">Releases</a>
       <a href="https://github.com/PangMo5/Tatami">GitHub</a>
@@ -84,26 +86,76 @@
   </div>
 </section>
 
-<section id="features">
+<section id="workspaces">
   <div class="wrap">
-    <p class="eyebrow">Workspaces, tiled</p>
-    <h2>A space for every task — tiled automatically.</h2>
-    <p class="sub">Group your apps into virtual workspaces and let a yabai-style BSP engine tile their windows for you — all native, with no SIP changes and no shell scripting.</p>
+    <p class="eyebrow">Virtual workspaces</p>
+    <h2>A space for every task.</h2>
+    <p class="sub">Group your apps into workspaces and jump between them in a keystroke — each one brings exactly the windows you assigned it, on the display you want.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">🗂️</div>
-        <h3>Virtual workspaces</h3>
-        <p>Group your apps into workspaces and switch with a hotkey, a trackpad swipe, or a jump to the most recent — across multiple displays.</p>
+        <h3>Switch your way</h3>
+        <p>Hotkeys, a trackpad swipe, a jump to the most recent — or let focus follow the app, so activating an app pulls up its workspace.</p>
       </div>
       <div class="feature">
+        <div class="ico">🖥️</div>
+        <h3>Per-display workspaces</h3>
+        <p>Pin a workspace to a monitor or let it follow your apps. Every display keeps its own active workspace, and you can cycle per-display or across all of them.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🚀</div>
+        <h3>Auto-open &amp; shared apps</h3>
+        <p>Assigned apps launch when their workspace activates — and reopen on re-entry. Shared apps join every workspace.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section-gray" id="tiling">
+  <div class="wrap">
+    <p class="eyebrow">Window tiling</p>
+    <h2>Tiled automatically, controlled precisely.</h2>
+    <p class="sub">A binary-space-partitioning engine tiles each workspace's windows as you open them — all native, no shell scripting.</p>
+    <div class="features">
+      <div class="feature">
         <div class="ico">▦</div>
-        <h3>Automatic tiling</h3>
-        <p>A yabai-style BSP engine tiles each workspace's windows as you open them. Focus, swap, resize, zoom, and rotate with vim-style keys.</p>
+        <h3>Automatic BSP</h3>
+        <p>New windows split the shallowest tile and drop into place, with configurable inner and outer gaps. Switch away, and unassigned strays clean themselves up.</p>
       </div>
       <div class="feature">
         <div class="ico">⌨️</div>
-        <h3>Scriptable &amp; native</h3>
-        <p>skhd-style shortcuts, a plain-TOML config that hot-reloads, a CLI for scripting, and native SwiftUI settings.</p>
+        <h3>Vim-style control</h3>
+        <p>Focus, swap, and resize with <code>h</code> <code>j</code> <code>k</code> <code>l</code>. Zoom a window to the workspace, flip a split, rotate, mirror, or balance the whole tree.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🖱️</div>
+        <h3>Drag to rearrange</h3>
+        <p>Drag a window onto another — a live overlay previews swap or insert before you drop. Resize an edge by hand and the layout remembers the ratio.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="floating">
+  <div class="wrap">
+    <p class="eyebrow">New — floating windows</p>
+    <h2>Float anything above the tiles.</h2>
+    <p class="sub">Some windows belong on top — a video call, a simulator, a music player. Mark the app as floating and Tatami keeps its windows above the layout.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="ico">🪟</div>
+        <h3>Per-workspace or shared</h3>
+        <p>Float an app in a single workspace, or add it to Shared Apps to float it everywhere — one toggle in the GUI, one hotkey anywhere.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🎯</div>
+        <h3>The real window, on demand</h3>
+        <p>Reach for a floating window and Tatami hands you the actual window — type, drag, and resize as usual. Focused floats stack on top, by recency.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">🛡️</div>
+        <h3>No SIP, no hacks</h3>
+        <p>Built on ScreenCaptureKit mirrors with the Screen Recording permission — not injected window levels. System Integrity Protection stays on.</p>
       </div>
     </div>
   </div>
@@ -157,6 +209,8 @@
       // Bottom-right split in two, for the dwindle (spiral) layout.
       rbl: r(MX + G / 2, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
       rbr: r(MX + G / 2 + (RGT - MX - G / 2 - G) / 2 + G, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
+      // Free-floating window — portrait, like a phone simulator.
+      float: r(38, 17, 24, 62),
     };
 
     const els = {};
@@ -171,7 +225,7 @@
       els[app] = el;
       return el;
     }
-    ["Terminal", "Code", "Safari", "Notes", "Figma", "Photos", "Messages", "Mail", "Calendar"].forEach(win);
+    ["Terminal", "Code", "Safari", "Notes", "Figma", "Photos", "Messages", "Mail", "Calendar", "Simulator"].forEach(win);
 
     const WS = { 1: "Code", 2: "Design", 3: "Chat" };
 
@@ -185,11 +239,15 @@
       // Swap: the focused window travels to another tile and grows into it.
       { cap: "Swap the focused window into a bigger tile", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
       { cap: "Zoom a window to fill the screen", ws: 1, wins: { Notes: { r: "full", f: 1 } } },
-      // Act 2 — workspaces, each with its own assigned apps and layout.
-      { cap: "Group apps into workspaces — switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" } } },
-      { cap: "Each workspace has its own apps and layout", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 } } },
-      // Payoff — only a workspace's assigned apps come back.
-      { cap: "Switch back to Code — only its assigned app, Terminal, comes back", ws: 1, hud: 1, wins: { Terminal: { r: "full", f: 1 } } },
+      { cap: "Zoom off — the layout snaps right back", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
+      // Act 2 — floating: a new app opens floating above the tiles; the
+      // layout underneath doesn't move for it.
+      { cap: "Floating apps open above the tiles — no tile taken", ws: 1, wins: { Notes: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", f: 1, fl: 1 } } },
+      // Act 3 — workspaces, each with its own assigned apps and layout.
+      { cap: "Group apps into workspaces — switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" }, Simulator: { r: "float", fl: 1 } } },
+      { cap: "Shared floating apps follow you to every workspace", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 }, Simulator: { r: "float", fl: 1 } } },
+      // Payoff — the workspace comes back exactly as it was left, float included.
+      { cap: "Switch back — everything is right where you left it", ws: 1, hud: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", fl: 1 } } },
     ];
 
     const pills = Array.from(document.querySelectorAll(".wspill"));
@@ -202,7 +260,7 @@
       hud.classList.toggle("show", !!s.hud);
       const visible = new Set(Object.keys(s.wins));
       for (const app in els) {
-        if (!visible.has(app)) els[app].classList.remove("show", "focused");
+        if (!visible.has(app)) els[app].classList.remove("show", "focused", "floating");
       }
       for (const app in s.wins) {
         const w = s.wins[app], el = els[app], rc = R[w.r];
@@ -210,6 +268,7 @@
         el.style.width = rc.w + "%"; el.style.height = rc.h + "%";
         el.classList.add("show");
         el.classList.toggle("focused", !!w.f);
+        el.classList.toggle("floating", !!w.fl);
       }
     }
 
