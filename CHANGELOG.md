@@ -8,6 +8,11 @@ an Install / Update section when publishing).
 
 ### New
 - **Internal failures now show up in the UI** instead of dying in a log: a broken `config.toml` (syntax error, invalid shortcut string), a `layouts.json` that won't read or write, a CLI server that fails to start, unavailable floating mirrors, or a failed Launch-at-Login registration all show a warning HUD with the error detail and a ⚠️ in the menu bar (with a Problems section) until the problem is fixed — fixing it (e.g. correcting the config) clears the badge with a confirmation HUD.
+- **Floating windows now play nice with focus-follows-mouse off.** Hovering a mirror no longer steals focus (that was FFM in disguise) — instead scrolls, clicks, and drags on a mirror are forwarded to the real window: scroll without focusing, a single click focuses *and* lands, and you can drag the window by its title bar through the mirror. (With FFM on, hover keeps handing focus over as before.)
+
+### Fixes
+- Two floating-window blinks with focus-follows-mouse off: a sibling float dipped behind a clicked tile for a beat, and the focused float dipped behind an overlapping sibling when the cursor left it.
+- Quitting a floating app now removes its marker dot immediately instead of on the next focus change.
 
 ## 1.3.0 — 2026-06-06
 

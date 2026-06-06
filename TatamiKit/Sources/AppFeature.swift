@@ -39,6 +39,7 @@ public struct AppFeature {
 
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
+  @Dependency(\.floatingOverlay) var floatingOverlay
   @Dependency(\.gestures) var gestures
   @Dependency(\.updater) var updater
   @Dependency(\.loginItem) var loginItem
@@ -184,6 +185,11 @@ public struct AppFeature {
         return .merge(
           .run { [client = focusFollowsMouse] _ in
             await client.configure(ffm)
+          },
+          // Mirror hover-handover follows the same setting: with FFM off,
+          // hovering a floating mirror must not move focus.
+          .run { [client = floatingOverlay] _ in
+            client.setHoverActivation(settings.focus.focusFollowsMouse)
           },
           .run { [client = gestures] _ in
             await client.stop()

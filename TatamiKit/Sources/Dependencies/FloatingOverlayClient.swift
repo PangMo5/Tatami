@@ -42,6 +42,12 @@ public struct FloatingOverlayClient: Sendable {
   /// the tile pass and vanish noticeably later than the windows they
   /// mirror (`setFloating` reconciles the full set afterwards).
   public var retainOnly: @Sendable (_ bundleIds: Set<String>) -> Void
+  /// Whether hovering a mirror hands focus to its real window. Mirrored
+  /// from the focus-follows-mouse setting: with FFM off, focus must only
+  /// move on click — hover-activation would *be* focus-follows-mouse for
+  /// floating windows. (The focused app's own mirror still hands back on
+  /// hover either way; that moves no focus.)
+  public var setHoverActivation: @Sendable (_ enabled: Bool) -> Void
 }
 
 extension FloatingOverlayClient: DependencyKey {
@@ -61,6 +67,9 @@ extension FloatingOverlayClient: DependencyKey {
       },
       retainOnly: { bundleIds in
         Task { @MainActor in controller.retainOnly(bundleIds) }
+      },
+      setHoverActivation: { enabled in
+        Task { @MainActor in controller.hoverActivates = enabled }
       }
     )
   }
@@ -139,6 +148,11 @@ private final class FloatingOverlayController {
   /// and the didActivate notification arrives after the z-order already
   /// changed (the intermittent "floating dips behind, then pops back up").
   private var clickTap: MirrorClickTap?
+  /// Hover-handover gate, mirrored from the focus-follows-mouse setting
+  /// (`setHoverActivation`). With FFM off, hovering a mirror must not move
+  /// focus — only the already-focused app's mirror hands back on hover
+  /// (no focus change involved); other mirrors hand over on click.
+  var hoverActivates = true
   private let debugLog: DebugLogClient
 
   init(debugLog: DebugLogClient) {
@@ -243,12 +257,42 @@ private final class FloatingOverlayController {
     // mirror's frame (e.g. the overlap of two floats) hover-activated its
     // app and stole focus from the float the user was actually on.
     view.onHoverChange = { [weak self] hovering in
-      guard let self, hovering, !self.suppressed.contains(key) else { return }
+      // Demoted gate: tracking areas fire on geometry, not occlusion — a
+      // demoted mirror tucked *below* the focused float's real window
+      // still gets mouseEntered at their overlap, and must not react.
+      guard let self, hovering,
+            !self.suppressed.contains(key), !self.demoted.contains(key)
+      else { return }
+      // With focus-follows-mouse off, hover must not move focus (that
+      // would be FFM in disguise, just for floats) — the mirror stays up
+      // and scrolls forward via `onScroll`; focus moves on click. The
+      // focused app's own mirror still hands back on hover: revealing the
+      // real window of the app that already has focus moves no focus.
+      guard self.hoverActivates
+        || NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid
+      else { return }
       self.activateRealWindow(key)
     }
     view.onClick = { [weak self] in
-      guard let self, !self.suppressed.contains(key) else { return }
+      guard let self, !self.suppressed.contains(key), !self.demoted.contains(key) else { return }
       self.activateRealWindow(key)
+    }
+    // Input parity with real windows: with FFM off the mirror sits under
+    // the cursor, so scrolls, clicks, and drags land on the panel. Repost
+    // each event to the owning app, tagged with the real window's id — a
+    // bare posted event carries no window number, and an *inactive* app's
+    // AppKit drops window-less mouse events instead of hit-testing them
+    // (scrolls only started working after a click, i.e. once the handover
+    // made them native). The real window sits at exactly the mirror's
+    // frame, so the event's global location needs no translation.
+    view.onForwardEvent = { event in
+      guard let cg = event.cgEvent?.copy() else { return }
+      // 51 = the CGS event-record window id (the field the window server
+      // stamps on routed events; same one yabai sets on synthetic clicks).
+      cg.setIntegerValueField(
+        CGEventField(rawValue: 51)!, value: Int64(key.windowID)
+      )
+      cg.postToPid(key.pid)
     }
     panel.contentView = view
     return panel
@@ -570,7 +614,14 @@ private final class FloatingOverlayController {
   /// resumed stream delivers a fresh frame and the swap is invisible. The
   /// focus-driven paths (hook / notification / click tap) pass `false` —
   /// there a stale frame beats a missing mirror.
-  private func restoreMirror(_ key: WindowKey, waitForFrame: Bool = false) {
+  /// `onShown` (if given) runs right after the panel turns opaque — i.e.
+  /// after the first fresh frame on the `waitForFrame` path — so callers
+  /// can sequence z-order work against the moment the mirror is visible.
+  private func restoreMirror(
+    _ key: WindowKey,
+    waitForFrame: Bool = false,
+    onShown: (() -> Void)? = nil
+  ) {
     guard suppressed.contains(key) else { return }
     // Funnel for every restore path (focus handlers, click tap, cursor
     // exit): a dead window's mirror never comes back — tear it down. The
@@ -578,6 +629,7 @@ private final class FloatingOverlayController {
     // used to resurrect a quit app's mirror on the first mouse move.
     guard windowExists(key) else {
       removeWindow(key)
+      onShown?()
       return
     }
     suppressed.remove(key)
@@ -585,13 +637,17 @@ private final class FloatingOverlayController {
     syncSuppressedFrames()
     hideTasks.removeValue(forKey: key)?.cancel()
     removeCursorMonitorIfIdle()
-    guard let panel = panels[key] else { return }
+    guard let panel = panels[key] else {
+      onShown?()
+      return
+    }
     panel.ignoresMouseEvents = false
     let capture = captures[key]
     if waitForFrame, let capture, !capture.isRunning {
       Task {
         await capture.resume(maxFPS: maxFPS) { [weak self] in
           self?.showPanel(key)
+          onShown?()
         }
       }
     } else {
@@ -599,6 +655,7 @@ private final class FloatingOverlayController {
       if let capture, !capture.isRunning {
         Task { await capture.resume(maxFPS: maxFPS) }
       }
+      onShown?()
     }
   }
 
@@ -649,31 +706,27 @@ private final class FloatingOverlayController {
       cursorInside[key] = inside
       if wasInside, !inside {
         debugLog.log("FocusDiag", "cursor-exit restore \(key.bundleId)#\(key.windowID)")
-        restoreMirror(key, waitForFrame: true)
-        applyOrdering(key)
+        // Lift demoted siblings back to the floating band on cursor exit —
+        // the last race-free moment before a possible native click-focus
+        // on a tile: a demoted (.normal) mirror left below would get
+        // raised over by the clicked window before the mouse-down tap's
+        // main-actor hop lands (the "sibling dips behind, pops back up"
+        // flicker with focus-follows-mouse off). But only *after* this
+        // mirror is opaque: lifting in the same beat puts a sibling's
+        // .floating mirror above the still-uncovered real window
+        // (.normal), visibly dropping the focused float behind the
+        // sibling at their overlap until the first fresh frame lands.
+        restoreMirror(key, waitForFrame: true) { [weak self] in
+          self?.applyStackOrder()
+        }
       }
     }
   }
 
   /// Bring the mirrored window's real counterpart to the front and focus it.
-  /// In no-park mode the real window already sits at the mirror's frame, so
-  /// the snap only writes when the two have actually drifted — a redundant
-  /// AX move/resize makes some apps redraw, which reads as a flicker.
   private func activateRealWindow(_ key: WindowKey) {
     debugLog.log("FocusDiag", "mirror hover/click activate \(key.bundleId)#\(key.windowID)")
-    ensureAXCacheCoversPanels()
-    if let element = axWindowCache[key] {
-      if let cocoa = lastFrame[key] {
-        let target = flipToCG(cocoa)
-        let current = axFrame(of: element)
-        let drifted = current.map {
-          abs($0.minX - target.minX) > 1 || abs($0.minY - target.minY) > 1
-            || abs($0.width - target.width) > 1 || abs($0.height - target.height) > 1
-        } ?? true
-        if drifted { setAXFrame(element, frame: target) }
-      }
-      AXUIElementPerformAction(element, kAXRaiseAction as CFString)
-    }
+    raiseAXWindow(key)
     NSRunningApplication(processIdentifier: key.pid)?
       .activate(options: [.activateIgnoringOtherApps])
     // An already-frontmost app fires no didActivate notification — settle
@@ -683,6 +736,25 @@ private final class FloatingOverlayController {
     if NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid {
       handleAppActivated(key.pid)
     }
+  }
+
+  /// Snap a drifted real window back to its mirror's frame and AX-raise it.
+  /// In no-park mode the real window already sits at the mirror's frame, so
+  /// the snap only writes when the two have actually drifted — a redundant
+  /// AX move/resize makes some apps redraw, which reads as a flicker.
+  private func raiseAXWindow(_ key: WindowKey) {
+    ensureAXCacheCoversPanels()
+    guard let element = axWindowCache[key] else { return }
+    if let cocoa = lastFrame[key] {
+      let target = flipToCG(cocoa)
+      let current = axFrame(of: element)
+      let drifted = current.map {
+        abs($0.minX - target.minX) > 1 || abs($0.minY - target.minY) > 1
+          || abs($0.width - target.width) > 1 || abs($0.height - target.height) > 1
+      } ?? true
+      if drifted { setAXFrame(element, frame: target) }
+    }
+    AXUIElementPerformAction(element, kAXRaiseAction as CFString)
   }
 
   /// A mouse-down landed outside every suppressed floating window — focus

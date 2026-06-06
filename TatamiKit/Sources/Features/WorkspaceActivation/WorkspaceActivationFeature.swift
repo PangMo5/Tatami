@@ -1012,9 +1012,14 @@ public struct WorkspaceActivationFeature {
 
     // Floating apps never enter the tree. Instead, refresh their mirror
     // overlays so a window opening / closing on a floating app is reflected
-    // on top live (not just on the next activation).
+    // on top live (not just on the next activation). Markers re-resolve in
+    // the same beat — floating dots are discovered from live windows, so
+    // skipping this left a quit app's dot up until the next focus change.
     if floatingSet.contains(bundleId) {
-      return refreshFloatingOverlay(state: state)
+      return .merge(
+        refreshFloatingOverlay(state: state),
+        refreshMarkers(state: state)
+      )
     }
     // Eligibility:
     //   * registered in this workspace → always tile.

@@ -185,6 +185,15 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
 final class MirrorView: NSView {
   var onHoverChange: ((Bool) -> Void)?
   var onClick: (() -> Void)?
+  /// Mouse and scroll events land on the mirror panel whenever it sits
+  /// under the cursor (focus-follows-mouse off keeps it there) — without
+  /// forwarding they'd die in the panel: scrolls would never reach the
+  /// floating window, a click would need a second tap after the handover,
+  /// and a drag begun on the mirror would go nowhere. The drag/up events
+  /// of a click stay routed to this panel even after the handover hides
+  /// it (the gesture owner doesn't change mid-gesture), so forwarding the
+  /// whole sequence keeps single-click and click-drag natural.
+  var onForwardEvent: ((NSEvent) -> Void)?
 
   private let videoLayer: AVSampleBufferDisplayLayer
   /// Last-known-frame still, kept *under* the video layer so the mirror is
@@ -232,5 +241,20 @@ final class MirrorView: NSView {
 
   override func mouseEntered(with event: NSEvent) { onHoverChange?(true) }
   override func mouseExited(with event: NSEvent) { onHoverChange?(false) }
-  override func mouseDown(with event: NSEvent) { onClick?() }
+  override func mouseDown(with event: NSEvent) {
+    onClick?()
+    onForwardEvent?(event)
+  }
+  override func mouseDragged(with event: NSEvent) { onForwardEvent?(event) }
+  override func mouseUp(with event: NSEvent) { onForwardEvent?(event) }
+  override func rightMouseDown(with event: NSEvent) { onForwardEvent?(event) }
+  override func rightMouseDragged(with event: NSEvent) { onForwardEvent?(event) }
+  override func rightMouseUp(with event: NSEvent) { onForwardEvent?(event) }
+  override func otherMouseDown(with event: NSEvent) { onForwardEvent?(event) }
+  override func otherMouseDragged(with event: NSEvent) { onForwardEvent?(event) }
+  override func otherMouseUp(with event: NSEvent) { onForwardEvent?(event) }
+  override func scrollWheel(with event: NSEvent) {
+    guard let onForwardEvent else { return super.scrollWheel(with: event) }
+    onForwardEvent(event)
+  }
 }
