@@ -233,15 +233,20 @@ jobs:
         run: |
           set -euo pipefail
           DMG="$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg"
+          # appcast.xml rides along as a release asset: it's the canonical
+          # Sparkle feed for this version, and the site deploy re-publishes it
+          # from here — so a site deploy racing the release can never pin a
+          # stale feed (Pages deployments are deduped per commit SHA).
+          APPCAST="$RUNNER_TEMP/release/appcast.xml"
           # Idempotent: if a re-run (recovering from a later-step failure) finds
           # the release already published, update it instead of erroring.
           if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-            gh release upload "${{ github.ref_name }}" "$DMG" --clobber
+            gh release upload "${{ github.ref_name }}" "$DMG" "$APPCAST" --clobber
             gh release edit "${{ github.ref_name }}" \
               --title "${{ github.ref_name }}" \
               --notes-file "$RUNNER_TEMP/release-notes.md"
           else
-            gh release create "${{ github.ref_name }}" "$DMG" \
+            gh release create "${{ github.ref_name }}" "$DMG" "$APPCAST" \
               --title "${{ github.ref_name }}" \
               --notes-file "$RUNNER_TEMP/release-notes.md"
           fi

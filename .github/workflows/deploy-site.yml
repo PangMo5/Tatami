@@ -57,12 +57,22 @@ jobs:
           sed -i "s#\"./style.css\"#\"./style.css?v=${BUST}\"#g" "$SITE"/*.html
 
           # Preserve the Sparkle feed. GitHub Pages replaces the whole site on
-          # deploy, so re-publish the live appcast.xml. Fail rather than deploy
-          # without it (deploying without it would break in-app updates).
-          OWNER_LC="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
-          NAME="${REPO##*/}"
-          curl -fsSL "https://${OWNER_LC}.github.io/${NAME}/appcast.xml" -o "$SITE/appcast.xml"
-          echo "Bundled appcast.xml ($(wc -c < "$SITE/appcast.xml") bytes)"
+          # deploy, so re-publish appcast.xml. The canonical copy is the latest
+          # release's appcast.xml asset (the release workflow signs + uploads
+          # it) — the live site is only a fallback for releases that predate
+          # the asset. Sourcing from the release keeps this deploy correct even
+          # when it races (or same-SHA-dedupes against) the release's own Pages
+          # deploy. Fail rather than deploy without a feed (that would break
+          # in-app updates).
+          if gh release download --repo "$REPO" --pattern appcast.xml --dir "$SITE" 2>/dev/null; then
+            echo "Bundled appcast.xml from the latest release asset"
+          else
+            OWNER_LC="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+            NAME="${REPO##*/}"
+            curl -fsSL "https://${OWNER_LC}.github.io/${NAME}/appcast.xml" -o "$SITE/appcast.xml"
+            echo "Bundled appcast.xml from the live site (no release asset)"
+          fi
+          echo "appcast.xml: $(wc -c < "$SITE/appcast.xml") bytes"
 
       - uses: actions/upload-pages-artifact@v5
         with:
