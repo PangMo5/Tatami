@@ -172,11 +172,18 @@ private final class FloatingOverlayController {
 
   private func addMirrors(for keys: Set<WindowKey>) async {
     let content: SCShareableContent
+    @Dependency(\.errorReporter) var reporter
     do {
       content = try await SCShareableContent.current
+      reporter.resolve("Floating")
     } catch {
       logger.error(
         "SCShareableContent failed (screen-recording permission?): \(error.localizedDescription, privacy: .public)"
+      )
+      reporter.report(
+        "Floating",
+        "Floating mirrors unavailable — Screen Recording permission?",
+        ErrorReportClient.describe(error)
       )
       return
     }

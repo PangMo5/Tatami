@@ -17,6 +17,7 @@ extension LoginItemClient: DependencyKey {
   public static let liveValue = LoginItemClient(
     setEnabled: { enabled in
       let service = SMAppService.mainApp
+      @Dependency(\.errorReporter) var reporter
       do {
         switch (enabled, service.status) {
         case (true, let status) where status != .enabled:
@@ -26,8 +27,14 @@ extension LoginItemClient: DependencyKey {
         default:
           break
         }
+        reporter.resolve("Login Item")
       } catch {
         logger.error("login item \(enabled ? "register" : "unregister") failed: \(error.localizedDescription, privacy: .public)")
+        reporter.report(
+          "Login Item",
+          "Launch at Login could not be \(enabled ? "enabled" : "disabled")",
+          ErrorReportClient.describe(error)
+        )
       }
     },
     isEnabled: { SMAppService.mainApp.status == .enabled }

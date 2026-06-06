@@ -14,6 +14,11 @@ struct MenuBarLabel: View {
     // macOS renders a Label as icon-only in the menu bar, so compose the
     // icon and name explicitly to make the title show.
     HStack(spacing: 4) {
+      // Persistent problem indicator — clears when the failure resolves
+      // (e.g. the config edit that fixes the parse) or is dismissed.
+      if !store.errorReports.isEmpty {
+        Image(systemName: "exclamationmark.triangle.fill")
+      }
       Image(systemName: workspace?.symbolIconName ?? "square.stack.3d.up.fill")
       if config.settings.menuBar.showWorkspaceName, let name = workspace?.name {
         Text(name)
@@ -29,6 +34,24 @@ struct MenuBarContentView: View {
   var body: some View {
     let config = store.workspaceList.config
     let activeId = store.activation.primaryActiveWorkspaceID
+
+    if !store.errorReports.isEmpty {
+      Section("Problems") {
+        ForEach(store.errorReports) { report in
+          // Clicking a problem opens config.toml's folder — every report
+          // domain so far is fixed by editing files that live there.
+          Button {
+            NSWorkspace.shared.activateFileViewerSelecting([ConfigLocation.fileURL])
+          } label: {
+            Label(report.message, systemImage: "exclamationmark.triangle.fill")
+          }
+        }
+        Button("Dismiss") {
+          store.send(.errorReportsDismissed)
+        }
+      }
+      Divider()
+    }
 
     if let workspaces = config.activeProfile?.workspaces, !workspaces.isEmpty {
       Section("Workspaces") {

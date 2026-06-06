@@ -4,6 +4,11 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## Unreleased
+
+### New
+- **Internal failures now show up in the UI** instead of dying in a log: a broken `config.toml` (syntax error, invalid shortcut string), a `layouts.json` that won't read or write, a CLI server that fails to start, unavailable floating mirrors, or a failed Launch-at-Login registration all show a warning HUD with the error detail and a ⚠️ in the menu bar (with a Problems section) until the problem is fixed — fixing it (e.g. correcting the config) clears the badge with a confirmation HUD.
+
 ## 1.3.0 — 2026-06-06
 
 ### ⚠️ Breaking Changes

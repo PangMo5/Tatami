@@ -14,6 +14,9 @@ public struct AppFeature {
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
     public var cli = CLIServerFeature.State()
+    /// Standing internal failures (config parse errors, invalid shortcuts,
+    /// I/O failures) surfaced via the menu bar until resolved or dismissed.
+    public var errorReports: IdentifiedArrayOf<ErrorReport> = []
     public init() {}
   }
 
@@ -29,6 +32,9 @@ public struct AppFeature {
     case hotKeys(HotKeysFeature.Action)
     case cli(CLIServerFeature.Action)
     case checkForUpdatesTapped
+    /// An internal failure was reported or resolved (ErrorReportClient).
+    case errorReportEvent(ErrorReportEvent)
+    case errorReportsDismissed
   }
 
   @Dependency(\.focusManager) var focusManager
@@ -38,6 +44,8 @@ public struct AppFeature {
   @Dependency(\.loginItem) var loginItem
   @Dependency(\.whatsNew) var whatsNew
   @Dependency(\.debugLog) var debugLog
+  @Dependency(\.errorReporter) var errorReporter
+  @Dependency(\.workspaceHUD) var workspaceHUD
 
   public init() {}
 
@@ -124,11 +132,47 @@ public struct AppFeature {
                 debugLog.log("App", "debug log enabled (settings toggle)")
               }
             }
+          },
+          // Surface internal failures (config parse, invalid shortcuts,
+          // I/O errors) in the UI. Replays anything reported before this
+          // subscription — the initial config decode runs at the first
+          // `@Shared` access, well before `.task`.
+          .run { [errorReporter] send in
+            for await event in errorReporter.events() {
+              await send(.errorReportEvent(event))
+            }
           }
         )
 
       case .checkForUpdatesTapped:
         updater.checkForUpdates()
+        return .none
+
+      case .errorReportEvent(.reported(let report)):
+        state.errorReports[id: report.id] = report
+        // Errors always show, regardless of the HUD category toggles —
+        // gating them would hide exactly what the user asked to see.
+        // Linger longer than action HUDs so the detail is readable.
+        let duration = max(state.config.settings.hud.durationMs * 2, 2400)
+        return .run { [workspaceHUD] _ in
+          await workspaceHUD.show(
+            report.message, "exclamationmark.triangle.fill", report.detail, duration
+          )
+        }
+
+      case .errorReportEvent(.resolved(let domain)):
+        guard state.errorReports[id: domain] != nil else { return .none }
+        state.errorReports.remove(id: domain)
+        // Confirm the recovery (e.g. the config edit that fixed the parse).
+        let duration = max(state.config.settings.hud.durationMs, 900)
+        return .run { [workspaceHUD] _ in
+          await workspaceHUD.show(
+            "\(domain) issue resolved", "checkmark.circle", nil, duration
+          )
+        }
+
+      case .errorReportsDismissed:
+        state.errorReports.removeAll()
         return .none
 
       case .settingsChanged(let settings):

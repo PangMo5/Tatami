@@ -37,6 +37,7 @@ public struct CLIServerFeature {
   @Dependency(\.socketServer) var socketServer
   @Dependency(\.workspaceManager) var workspaceManager
   @Dependency(\.windowTiler) var windowTiler
+  @Dependency(\.errorReporter) var errorReporter
 
   public init() {}
 
@@ -63,11 +64,16 @@ public struct CLIServerFeature {
         )
 
       case .startCompleted(.success):
+        errorReporter.resolve("CLI")
         return .none
 
       case .startCompleted(.failure(let error)):
         state.isRunning = false
-        print("[Tatami] socket server failed to start: \(error)")
+        errorReporter.report(
+          "CLI",
+          "Command-line server failed to start — `tatami` CLI won't respond",
+          ErrorReportClient.describe(error)
+        )
         return .none
 
       case .incomingRequest(let request, let reply):

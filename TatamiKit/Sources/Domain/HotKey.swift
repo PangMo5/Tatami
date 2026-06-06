@@ -1,3 +1,4 @@
+import Dependencies
 import Foundation
 import KeyboardShortcuts
 
@@ -118,10 +119,24 @@ extension HotKey: Codable {
   public init(from decoder: Decoder) throws {
     // Preferred: skhd-style string.
     if let container = try? decoder.singleValueContainer(),
-       let string = try? container.decode(String.self),
-       let parsed = HotKey(parsing: string) {
-      self = parsed
-      return
+       let string = try? container.decode(String.self) {
+      if let parsed = HotKey(parsing: string) {
+        self = parsed
+        return
+      }
+      // A string that doesn't parse is a hand-edit typo — surface it
+      // instead of silently leaving the shortcut unbound. The throw below
+      // makes the owning `try?` field fall back to "no shortcut".
+      @Dependency(\.errorReporter) var reporter
+      reporter.report(
+        "Shortcuts",
+        "Invalid shortcut \"\(string)\" in config.toml — not registered",
+        "expected skhd-style syntax, e.g. \"ctrl + alt - h\""
+      )
+      throw DecodingError.dataCorrupted(.init(
+        codingPath: decoder.codingPath,
+        debugDescription: "unparseable shortcut string: \(string)"
+      ))
     }
     // Legacy: { carbonKeyCode, carbonModifiers } table.
     let keyed = try decoder.container(keyedBy: CodingKeys.self)

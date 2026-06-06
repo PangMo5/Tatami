@@ -90,17 +90,36 @@ private actor LayoutStore {
   }
 
   private func readMap() -> [String: LayoutSnapshot] {
+    // A missing file is the normal first-run state; a file that exists but
+    // doesn't decode means stored layouts are being dropped — surface that.
     guard let data = try? Data(contentsOf: fileURL) else { return [:] }
-    return (try? YYJSONDecoder().decode([String: LayoutSnapshot].self, from: data)) ?? [:]
+    do {
+      return try YYJSONDecoder().decode([String: LayoutSnapshot].self, from: data)
+    } catch {
+      @Dependency(\.errorReporter) var reporter
+      reporter.report(
+        "Layouts",
+        "layouts.json could not be read — saved layouts reset",
+        ErrorReportClient.describe(error)
+      )
+      return [:]
+    }
   }
 
   private func writeMap(_ map: [String: LayoutSnapshot]) {
+    @Dependency(\.errorReporter) var reporter
     do {
       try ConfigLocation.ensureDirectoryExists()
       let data = try YYJSONEncoder().encode(map)
       try data.write(to: fileURL, options: .atomic)
+      reporter.resolve("Layouts")
     } catch {
       logger.error("layout save failed: \(error.localizedDescription, privacy: .public)")
+      reporter.report(
+        "Layouts",
+        "layouts.json could not be saved — layout changes won't persist",
+        ErrorReportClient.describe(error)
+      )
     }
   }
 }
