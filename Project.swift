@@ -58,7 +58,8 @@ let project = Project(
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
       ]),
       sources: ["Tatami/Sources/**"],
-      resources: ["Tatami/Resources/**"],
+      // CHANGELOG.md ships in the bundle so About can show release notes.
+      resources: ["Tatami/Resources/**", "CHANGELOG.md"],
       entitlements: .file(path: "Tatami/Tatami.entitlements"),
       scripts: [
         // Embed the `tatami` CLI (built by the TatamiCLI dependency) into the

@@ -6,16 +6,24 @@ an Install / Update section when publishing).
 
 ## Unreleased
 
+### ⚠️ Breaking Changes
+- **`[[floatingApps]]` is now `[[sharedApps]]`** — configs migrate automatically on first launch: each floating entry becomes a shared app with `floating = true`. Shared apps are part of *every* workspace — tiled into each layout by default, or floating everywhere. Manage them in **Workspaces → Shared Apps**; dotfiles that template the config should switch to the new key.
+- **Floating windows now need the Screen Recording permission** — they stay above the tiles via ScreenCaptureKit mirrors, and without the grant they won't stay on top. Grant it in **Settings → General → Permissions**, then relaunch.
+
 ### New
-- **Floating windows that stay above the tiles — without disabling SIP.** Mark any app as floating per workspace (the Float toggle next to Auto-open, or the `toggleFloating` hotkey): its windows stay untiled and are kept on top by mirroring them onto Tatami-owned ScreenCaptureKit panels. Reach for a floating window and the real one is handed back to you; while a floating app has focus the mirrors (and the screen-recording indicator) get out of the way. Multiple floating windows stack by focus recency. Requires the Screen Recording permission.
-- **Shared apps** — `[[floatingApps]]` is now `[[sharedApps]]`: shared apps are part of *every* workspace — tiled into each layout by default, or floating everywhere with `floating = true`. Legacy `[[floatingApps]]` configs migrate automatically (each entry becomes a floating shared app).
+- **Floating windows that stay above the tiles — without disabling SIP.** Mark any app as floating per workspace (the Float toggle next to Auto-open, or the `toggleFloating` hotkey): its windows stay untiled and are kept on top by mirroring them onto Tatami-owned ScreenCaptureKit panels. Reach for a floating window and the real one is handed back to you; while a floating app has focus the mirrors (and the screen-recording indicator) get out of the way. Multiple floating windows stack by focus recency.
 - **Shared Apps editor** in the Workspaces sidebar — add/remove shared apps and flip their Float toggle, presented like a special workspace.
 - **Settings reorganized** into a System Settings-style sidebar (General, Tiling, Focus & Mouse, Workspaces, Shortcuts, Appearance), with a new Screen Recording row under Permissions.
 - **Shared hotkeys** — `toggleSharedFloating` floats the focused app everywhere (joins Shared Apps as floating if needed; toggling off flips it to shared tiled), and `toggleAppInSharedApps` adds/removes the focused app in Shared Apps.
 - **Per-action HUD** — floating changes, app membership, tiling pause, fullscreen zoom, and balance now show a brief overlay, each individually toggleable in **Settings → Appearance → Overlay** (plus the master switch and a configurable duration). Un-floating an app that stays in its workspace / Shared Apps shows a follow-up hint with the shortcut that removes it entirely.
+- **What's New on first launch after an update** — a one-time window summarizing setup-affecting changes (with a Screen Recording grant button when needed) and feature highlights; the full changelog is also viewable from **About → View Changelog**.
+- Missing Screen Recording no longer fails silently: the first activation that needs floating mirrors shows the system prompt and a warning HUD pointing at the Settings row.
 - Auto-open apps **reopen on workspace re-entry** when their window was closed, not just on first activation.
 - Fixed-size windows (e.g. the iOS **Simulator**) can float — resizability is only required for tiling.
 - Floating windows' marker dots are always visible (not just on the focused window), and dots follow window drags with a smooth glide.
+
+### Fixes
+- HUD overlays sometimes vanished instantly instead of fading out — the panel's window-alpha animation only ran reliably once per launch; the fade now runs on the content view.
 
 ## 1.2.1 — 2026-06-02
 

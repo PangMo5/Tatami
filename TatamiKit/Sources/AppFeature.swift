@@ -36,6 +36,7 @@ public struct AppFeature {
   @Dependency(\.gestures) var gestures
   @Dependency(\.updater) var updater
   @Dependency(\.loginItem) var loginItem
+  @Dependency(\.whatsNew) var whatsNew
   @Dependency(\.debugLog) var debugLog
 
   public init() {}
@@ -58,10 +59,16 @@ public struct AppFeature {
       case .task:
         let settings = state.config.settings
         let sharedConfig = state.$config
+        // Existing setup = at least one configured workspace or shared app;
+        // a brand-new install has nothing migrated worth announcing.
+        let hasExistingConfig =
+          !(state.config.activeProfile?.workspaces.isEmpty ?? true)
+            || !state.config.sharedApps.isEmpty
         // Normalize the config on disk: re-save so any legacy carbon
         // hotkey tables migrate to the skhd-style string form.
         state.$config.withLock { $0 = $0 }
         return .merge(
+          .run { [whatsNew] _ in await whatsNew.showIfNeeded(hasExistingConfig) },
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),
           .send(.activation(.startObservingWindowEvents)),

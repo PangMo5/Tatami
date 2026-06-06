@@ -37,7 +37,7 @@ extension WindowTilerClient: DependencyKey {
     }
     // Non-prompting check: prompting here would re-pop the system dialog on
     // every tile pass while ungranted. The single startup prompt + the
-    // Settings → Permissions UI own the prompting.
+    // Settings → General → Permissions UI own the prompting.
     let trusted = await MainActor.run { isAccessibilityTrusted() }
     guard trusted else {
       logger.warning(

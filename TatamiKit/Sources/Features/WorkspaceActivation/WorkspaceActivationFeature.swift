@@ -64,6 +64,12 @@ public struct WorkspaceActivationFeature {
       public var target: WindowKey
       public var zone: DropZone
     }
+    /// Warned about missing Screen Recording once already (per session) —
+    /// floating windows silently lose their always-on-top mirrors without
+    /// it, so the first activation that needs mirrors surfaces a system
+    /// prompt + HUD instead of failing quietly.
+    public var didWarnMissingScreenRecording = false
+
     public var pendingResize: PendingDrag?
     public var pendingDrop: PendingDrop?
     /// The window currently being dragged (set on `windowMoved`). On drag-end,
@@ -201,6 +207,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.dragPreview) var dragPreview
   @Dependency(\.sls) var sls
   @Dependency(\.floatingOverlay) var floatingOverlay
+  @Dependency(\.screenRecording) var screenRecording
   @Dependency(\.debugLog) var debugLog
 
   public init() {}
@@ -1472,7 +1479,28 @@ public struct WorkspaceActivationFeature {
     let hudDurationMs = state.config.settings.hud.durationMs
     let slsClient = sls
 
-    return .run { [
+    // Floating windows need Screen Recording for their mirrors. Don't fail
+    // silently ("floating just doesn't stay on top"): surface the system
+    // prompt and a HUD pointing at the Settings row, once per session.
+    var screenRecordingWarning: Effect<Action> = .none
+    if !floatingBundleIds.isEmpty,
+       !screenRecording.isGranted(),
+       !state.didWarnMissingScreenRecording
+    {
+      state.didWarnMissingScreenRecording = true
+      screenRecordingWarning = .merge(
+        .run { [screenRecording] _ in await screenRecording.requestAccess() },
+        hudEffect(
+          state,
+          \.floating,
+          "Screen Recording Needed",
+          "exclamationmark.triangle.fill",
+          subtitle: "Floating windows can't stay above the tiles without it — grant in Settings → General → Permissions, then relaunch"
+        )
+      )
+    }
+
+    return .merge(screenRecordingWarning, .run { [
       mgr = workspaceManager,
       tiler = windowTiler,
       store = layoutStore,
@@ -1570,7 +1598,7 @@ public struct WorkspaceActivationFeature {
         }
       }
       await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
-    }
+    })
   }
 
   // MARK: - Manual resize / snap-back

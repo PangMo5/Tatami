@@ -1,9 +1,12 @@
 import AppKit
 import SwiftUI
+import TatamiKit
 
 /// Standalone About pane: app identity, credits, and open-source
 /// acknowledgements. Shown as its own tab alongside Settings.
 struct AboutView: View {
+  @State private var showChangelog = false
+
   var body: some View {
     Form {
       Section {
@@ -29,6 +32,8 @@ struct AboutView: View {
           Link("PangMo5", destination: URL(string: "https://github.com/PangMo5")!)
         }
         Link("GitHub", destination: URL(string: "https://github.com/PangMo5/Tatami")!)
+        Button("View Changelog…") { showChangelog = true }
+          .buttonStyle(.link)
       }
 
       Section("Inspired by") {
@@ -44,6 +49,9 @@ struct AboutView: View {
     }
     .formStyle(.grouped)
     .frame(minWidth: 460, minHeight: 520)
+    .sheet(isPresented: $showChangelog) {
+      ChangelogView()
+    }
   }
 
   private func creditLink(_ title: String, _ urlString: String) -> some View {
