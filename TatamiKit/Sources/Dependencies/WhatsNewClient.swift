@@ -197,7 +197,7 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(title)
           .font(.headline)
-        Text(try! AttributedString(markdown: detail))
+        Text((try? AttributedString(markdown: detail)) ?? AttributedString(detail))
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
