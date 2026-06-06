@@ -3,23 +3,30 @@ import Dependencies
 import DependenciesMacros
 import SwiftUI
 
-/// Shows a brief, centered overlay with the activated workspace's name
-/// and icon — visual feedback for hotkey/menu switches. Auto-dismisses;
-/// re-showing resets the timer.
+/// Shows a brief, centered overlay with a title and icon — visual feedback
+/// for hotkey/menu actions. An optional subtitle carries a follow-up hint
+/// (e.g. the shortcut that removes a just-unfloated app from Shared Apps);
+/// HUDs with a subtitle linger a little longer so the hint is readable.
+/// Auto-dismisses; re-showing resets the timer.
 @DependencyClient
 public struct WorkspaceHUDClient: Sendable {
-  public var show: @Sendable (_ name: String, _ symbolIconName: String?) async -> Void
+  public var show: @Sendable (
+    _ name: String, _ symbolIconName: String?, _ subtitle: String?, _ durationMs: Int
+  ) async -> Void
 }
 
 extension WorkspaceHUDClient: DependencyKey {
   public static let liveValue: WorkspaceHUDClient = {
-    let controller = WorkspaceHUDController()
-    return WorkspaceHUDClient { name, icon in
-      await controller.show(name: name, symbolIconName: icon)
+    @Dependency(\.debugLog) var debugLog
+    let controller = WorkspaceHUDController(debugLog: debugLog)
+    return WorkspaceHUDClient { name, icon, subtitle, durationMs in
+      await controller.show(
+        name: name, symbolIconName: icon, subtitle: subtitle, durationMs: durationMs
+      )
     }
   }()
 
-  public static let testValue = WorkspaceHUDClient { _, _ in }
+  public static let testValue = WorkspaceHUDClient { _, _, _, _ in }
   public static let previewValue = testValue
 }
 
@@ -34,32 +41,59 @@ extension DependencyValues {
 private final class WorkspaceHUDController {
   private var panel: NSPanel?
   private var hideTask: Task<Void, Never>?
+  private let debugLog: DebugLogClient
 
-  func show(name: String, symbolIconName: String?) {
-    let panel = panel ?? makePanel()
-    self.panel = panel
+  init(debugLog: DebugLogClient) {
+    self.debugLog = debugLog
+  }
 
-    panel.contentView = NSHostingView(
-      rootView: WorkspaceHUDView(name: name, symbolIconName: symbolIconName)
+  func show(name: String, symbolIconName: String?, subtitle: String?, durationMs: Int) {
+    debugLog.log(
+      "HUDDiag", "show title=\(name) hint=\(subtitle != nil) durationMs=\(durationMs)"
     )
-    layout(panel)
+    // Every HUD gets a *fresh* panel: once a panel has been ordered out, a
+    // later window-alpha animation on it completes instantly (no fade) —
+    // observed as some HUDs vanishing without animation. Retiring the old
+    // panel and never reusing it keeps each fade on first-show state. This
+    // also removes the show/fade races a shared panel needed guards for.
+    hideTask?.cancel()
+    panel?.orderOut(nil)
+
+    let panel = makePanel()
+    self.panel = panel
+    panel.contentView = NSHostingView(
+      rootView: WorkspaceHUDView(name: name, symbolIconName: symbolIconName, subtitle: subtitle)
+    )
+    layout(panel, hasSubtitle: subtitle != nil)
     panel.alphaValue = 1
     panel.orderFrontRegardless()
 
-    hideTask?.cancel()
     hideTask = Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(900))
+      // A hint line takes longer to read than a glanceable title.
+      let duration = max(100, subtitle == nil ? durationMs : durationMs * 2)
+      try? await Task.sleep(for: .milliseconds(duration))
       guard !Task.isCancelled else { return }
-      self?.fadeOut()
+      self?.fadeOut(panel)
     }
   }
 
-  private func fadeOut() {
-    guard let panel else { return }
+  private func fadeOut(_ panel: NSPanel) {
+    // Fade the content *view*, not the window: NSWindow's alpha animator
+    // proved unreliable for this panel configuration — after the first
+    // fade of the process, later animations completed instantly (no fade),
+    // fresh panel or not. The view animator is plain Core Animation and
+    // behaves every time.
+    guard let view = panel.contentView else {
+      panel.orderOut(nil)
+      return
+    }
+    debugLog.log("HUDDiag", "fadeOut start alpha=\(view.alphaValue)")
     NSAnimationContext.runAnimationGroup { context in
       context.duration = 0.25
-      panel.animator().alphaValue = 0
-    } completionHandler: { [weak panel] in
+      context.allowsImplicitAnimation = true
+      view.animator().alphaValue = 0
+    } completionHandler: { [weak self, weak panel] in
+      self?.debugLog.log("HUDDiag", "fadeOut done")
       panel?.orderOut(nil)
     }
   }
@@ -80,8 +114,8 @@ private final class WorkspaceHUDController {
     return panel
   }
 
-  private func layout(_ panel: NSPanel) {
-    let size = NSSize(width: 280, height: 150)
+  private func layout(_ panel: NSPanel, hasSubtitle: Bool) {
+    let size = NSSize(width: hasSubtitle ? 340 : 280, height: hasSubtitle ? 174 : 150)
     panel.setContentSize(size)
     guard let screen = NSScreen.main else { return }
     let visible = screen.visibleFrame
@@ -97,6 +131,7 @@ private final class WorkspaceHUDController {
 private struct WorkspaceHUDView: View {
   let name: String
   let symbolIconName: String?
+  let subtitle: String?
 
   var body: some View {
     let content = VStack(spacing: 12) {
@@ -106,8 +141,15 @@ private struct WorkspaceHUDView: View {
       Text(name)
         .font(.title2.weight(.semibold))
         .lineLimit(1)
+      if let subtitle {
+        Text(subtitle)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+          .multilineTextAlignment(.center)
+      }
     }
-    .frame(width: 240, height: 110)
+    .frame(width: subtitle == nil ? 240 : 300, height: subtitle == nil ? 110 : 134)
     .padding(8)
 
     if #available(macOS 26.0, *) {

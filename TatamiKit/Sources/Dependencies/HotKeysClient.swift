@@ -38,11 +38,17 @@ public enum HotKeyAction: Sendable, Hashable {
 
   // Misc toggles
   case toggleFloating, toggleSpaceActivated
+  /// Float toggle against Shared Apps instead of the active workspace:
+  /// not shared yet → added as shared floating; already shared → flip
+  /// `floating` only (membership stays).
+  case toggleSharedFloating
   /// Toggle the focused window's app's membership in the active
   /// workspace's registered set — equivalent to manually adding /
   /// removing the app on the workspace detail screen, but without
   /// taking the user out of whatever they're doing.
   case toggleFocusedAppInActiveWorkspace
+  /// Toggle the focused window's app in Shared Apps (added tiled).
+  case toggleAppInSharedApps
 }
 
 extension HotKeyAction {
@@ -76,8 +82,10 @@ extension HotKeyAction {
     case .toggleFullscreen: "toggle-fullscreen"
     case .balance: "balance"
     case .toggleFloating: "toggle-floating"
+    case .toggleSharedFloating: "toggle-shared-floating"
     case .toggleSpaceActivated: "toggle-space"
     case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
+    case .toggleAppInSharedApps: "toggle-shared-membership"
     }
   }
 

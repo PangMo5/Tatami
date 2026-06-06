@@ -200,18 +200,66 @@ public enum MarkerCorner: String, Codable, Hashable, Sendable, CaseIterable, Ide
 
 extension AppSettings {
   public struct HUD: Hashable, Sendable, Codable {
-    /// Show the on-screen overlay when switching workspaces.
+    /// Master switch for every on-screen overlay.
     public var enabled: Bool
+    /// Workspace name overlay when switching workspaces.
+    public var workspaceSwitch: Bool
+    /// Float state changes — per-workspace and shared.
+    public var floating: Bool
+    /// App added to / removed from a workspace or Shared Apps.
+    public var appMembership: Bool
+    /// Tiling paused / resumed.
+    public var tilingPaused: Bool
+    /// Fullscreen zoom entered / exited.
+    public var fullscreen: Bool
+    /// Layout commands without an obvious visual cue of their own
+    /// (balance).
+    public var layout: Bool
+    /// How long the overlay stays up, in milliseconds. HUDs that carry a
+    /// follow-up hint line linger twice as long.
+    public var durationMs: Int
 
-    public init(enabled: Bool = true) {
+    public init(
+      enabled: Bool = true,
+      workspaceSwitch: Bool = true,
+      floating: Bool = true,
+      appMembership: Bool = true,
+      tilingPaused: Bool = true,
+      fullscreen: Bool = true,
+      layout: Bool = true,
+      durationMs: Int = 900
+    ) {
       self.enabled = enabled
+      self.workspaceSwitch = workspaceSwitch
+      self.floating = floating
+      self.appMembership = appMembership
+      self.tilingPaused = tilingPaused
+      self.fullscreen = fullscreen
+      self.layout = layout
+      self.durationMs = durationMs
     }
 
-    private enum CodingKeys: String, CodingKey { case enabled }
+    private enum CodingKeys: String, CodingKey {
+      case enabled, workspaceSwitch, floating, appMembership, tilingPaused
+      case fullscreen, layout, durationMs
+    }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       self.enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
+      self.workspaceSwitch = (try? c.decode(Bool.self, forKey: .workspaceSwitch)) ?? true
+      self.floating = (try? c.decode(Bool.self, forKey: .floating)) ?? true
+      self.appMembership = (try? c.decode(Bool.self, forKey: .appMembership)) ?? true
+      self.tilingPaused = (try? c.decode(Bool.self, forKey: .tilingPaused)) ?? true
+      self.fullscreen = (try? c.decode(Bool.self, forKey: .fullscreen)) ?? true
+      self.layout = (try? c.decode(Bool.self, forKey: .layout)) ?? true
+      self.durationMs = (try? c.decode(Int.self, forKey: .durationMs)) ?? 900
+    }
+
+    /// Effective visibility for one HUD category — the master switch
+    /// gates everything.
+    public func shows(_ category: KeyPath<Self, Bool>) -> Bool {
+      enabled && self[keyPath: category]
     }
   }
 }
@@ -439,8 +487,16 @@ extension AppSettings {
     public var enabled: Bool
     /// Number of fingers required for the swipe (3 or 4).
     public var fingerCount: Int
-    /// Accumulated normalized swipe distance required to trigger a switch.
+    /// Accumulated normalized swipe distance required to trigger a switch
+    /// (lower = more sensitive). Kept to two decimal places so the TOML
+    /// stays clean — `0.3`, not float noise.
     public var threshold: Double
+
+    /// Two-decimal normalization shared by the initializer, decoder, and
+    /// the Settings slider.
+    public static func roundedThreshold(_ value: Double) -> Double {
+      (value.clamped(to: 0.1 ... 0.9) * 100).rounded() / 100
+    }
 
     public init(
       enabled: Bool = false,
@@ -449,19 +505,41 @@ extension AppSettings {
     ) {
       self.enabled = enabled
       self.fingerCount = fingerCount
-      self.threshold = threshold
+      self.threshold = Self.roundedThreshold(threshold)
     }
 
     private enum CodingKeys: String, CodingKey {
-      case enabled, fingerCount, threshold
+      case enabled, fingerCount, threshold, sensitivity
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       self.enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? false
       self.fingerCount = (try? c.decode(Int.self, forKey: .fingerCount)) ?? 3
-      self.threshold = (try? c.decode(Double.self, forKey: .threshold)) ?? 0.3
+      if let value = try? c.decode(Double.self, forKey: .threshold) {
+        self.threshold = Self.roundedThreshold(value)
+      } else if let sensitivity = try? c.decode(Double.self, forKey: .sensitivity) {
+        // A short-lived dev build stored `sensitivity` (0–1, or an integer
+        // percent) instead — map it back so those configs keep working.
+        let normalized = sensitivity > 1 ? sensitivity / 100 : sensitivity
+        self.threshold = Self.roundedThreshold(0.9 - 0.8 * normalized)
+      } else {
+        self.threshold = 0.3
+      }
     }
+
+    public func encode(to encoder: Encoder) throws {
+      var c = encoder.container(keyedBy: CodingKeys.self)
+      try c.encode(enabled, forKey: .enabled)
+      try c.encode(fingerCount, forKey: .fingerCount)
+      try c.encode(Self.roundedThreshold(threshold), forKey: .threshold)
+    }
+  }
+}
+
+extension Comparable {
+  func clamped(to range: ClosedRange<Self>) -> Self {
+    Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
   }
 }
 
@@ -505,10 +583,16 @@ extension AppSettings {
 
     // Misc toggles
     public var toggleFloating: HotKey?
+    /// Same structure as `toggleFloating`, but on Shared Apps: not shared
+    /// yet → added as shared floating; already shared → flip `floating`
+    /// only (membership stays).
+    public var toggleSharedFloating: HotKey?
     public var toggleSpaceActivated: HotKey?
     /// Toggle the focused window's app's membership in the active
     /// workspace's registered set.
     public var toggleFocusedAppInActiveWorkspace: HotKey?
+    /// Toggle the focused window's app in Shared Apps (added tiled).
+    public var toggleAppInSharedApps: HotKey?
 
     public init(
       focusLeft: HotKey? = nil,
@@ -534,8 +618,10 @@ extension AppSettings {
       toggleFullscreen: HotKey? = nil,
       balance: HotKey? = nil,
       toggleFloating: HotKey? = nil,
+      toggleSharedFloating: HotKey? = nil,
       toggleSpaceActivated: HotKey? = nil,
-      toggleFocusedAppInActiveWorkspace: HotKey? = nil
+      toggleFocusedAppInActiveWorkspace: HotKey? = nil,
+      toggleAppInSharedApps: HotKey? = nil
     ) {
       self.focusLeft = focusLeft
       self.focusRight = focusRight
@@ -560,8 +646,10 @@ extension AppSettings {
       self.toggleFullscreen = toggleFullscreen
       self.balance = balance
       self.toggleFloating = toggleFloating
+      self.toggleSharedFloating = toggleSharedFloating
       self.toggleSpaceActivated = toggleSpaceActivated
       self.toggleFocusedAppInActiveWorkspace = toggleFocusedAppInActiveWorkspace
+      self.toggleAppInSharedApps = toggleAppInSharedApps
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -574,8 +662,8 @@ extension AppSettings {
       case swapLeft, swapRight, swapUp, swapDown
       case toggleOrientation, toggleFullscreen
       case balance
-      case toggleFloating, toggleSpaceActivated
-      case toggleFocusedAppInActiveWorkspace
+      case toggleFloating, toggleSharedFloating, toggleSpaceActivated
+      case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
     }
 
     public init(from decoder: Decoder) throws {
@@ -603,9 +691,11 @@ extension AppSettings {
       self.toggleFullscreen = try? c.decode(HotKey.self, forKey: .toggleFullscreen)
       self.balance = try? c.decode(HotKey.self, forKey: .balance)
       self.toggleFloating = try? c.decode(HotKey.self, forKey: .toggleFloating)
+      self.toggleSharedFloating = try? c.decode(HotKey.self, forKey: .toggleSharedFloating)
       self.toggleSpaceActivated = try? c.decode(HotKey.self, forKey: .toggleSpaceActivated)
       self.toggleFocusedAppInActiveWorkspace =
         try? c.decode(HotKey.self, forKey: .toggleFocusedAppInActiveWorkspace)
+      self.toggleAppInSharedApps = try? c.decode(HotKey.self, forKey: .toggleAppInSharedApps)
     }
   }
 }

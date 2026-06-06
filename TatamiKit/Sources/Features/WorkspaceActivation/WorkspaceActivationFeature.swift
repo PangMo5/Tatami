@@ -117,6 +117,14 @@ public struct WorkspaceActivationFeature {
     case assignedAppResolved(bundleId: String, name: String, workspaceId: Workspace.ID)
     case toggleFloatingOnFocusedApp
     case focusedFloatToggleResolved(bundleId: String, name: String)
+    /// Same float toggle, but against Shared Apps: not shared → added as
+    /// shared floating; already shared → flip `floating` only.
+    case toggleSharedFloatingOnFocusedApp
+    case sharedFloatToggleResolved(bundleId: String, name: String)
+    /// Toggle the focused window's app's membership in Shared Apps
+    /// (added tiled; removing drops the entry entirely).
+    case toggleFocusedAppInSharedApps
+    case sharedMembershipResolved(bundleId: String, name: String)
     case togglePaused
     case bspFocus(BSPDirection)
     case bspFocusResolved(windowKey: WindowKey, direction: BSPDirection)
@@ -523,11 +531,8 @@ public struct WorkspaceActivationFeature {
           ? "Added \(displayName) → \(workspaceName)"
           : "Removed \(displayName) ← \(workspaceName)"
         let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
-        let showHUD = state.config.settings.hud.enabled
         return .merge(
-          showHUD
-            ? .run { [hud = workspaceHUD] _ in await hud.show(hudTitle, hudIcon) }
-            : .none,
+          hudEffect(state, \.appMembership, hudTitle, hudIcon),
           .send(.activate(workspaceId: workspaceId, setFocus: false))
         )
 
@@ -612,21 +617,118 @@ public struct WorkspaceActivationFeature {
         // Different glyphs for the two states so the HUD reads at a
         // glance — open frame for floating, filled stack for tiled.
         let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
-        let showHUD = state.config.settings.hud.enabled
+        // Un-floating keeps the workspace assignment — hint at the
+        // membership shortcut for users who meant "take it out entirely".
+        // (`Shortcut.description` is main-actor; reducers run on main.)
+        let hudHint: String? = nowFloating
+          ? nil
+          : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
+            MainActor.assumeIsolated {
+              "Still in this workspace — \(key.shortcut.description) removes it"
+            }
+          }
         return .merge(
           .send(.activate(workspaceId: workspaceId, setFocus: false)),
-          showHUD
-            ? .run { [hud = workspaceHUD] _ in await hud.show(hudTitle, hudIcon) }
-            : .none
+          hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint)
+        )
+
+      case .toggleSharedFloatingOnFocusedApp:
+        return resolveFrontmostApp { bundleId, name in
+          .sharedFloatToggleResolved(bundleId: bundleId, name: name)
+        }
+
+      case .sharedFloatToggleResolved(let bundleId, let name):
+        if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+          return .none
+        }
+        // Float is an *attribute* here, same as the per-workspace toggle:
+        // not shared yet → join Shared Apps as floating; already shared →
+        // flip only the float state (membership stays — removing from
+        // Shared Apps is the membership hotkey's / GUI's axis).
+        var nowFloating = false
+        state.$config.withLock { config in
+          if let idx = config.sharedApps.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
+            config.sharedApps[idx].floating.toggle()
+            nowFloating = config.sharedApps[idx].floating
+          } else {
+            config.sharedApps.append(
+              SharedApp(
+                bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, floating: true
+              )
+            )
+            nowFloating = true
+          }
+        }
+        let sharedFloatName = name.isEmpty ? bundleId : name
+        let sharedFloatTitle = nowFloating
+          ? "Shared Floating: \(sharedFloatName)"
+          : "Shared Tiled: \(sharedFloatName)"
+        let sharedFloatIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
+        // Un-floating keeps the app shared (tiled everywhere) — hint at the
+        // membership shortcut for users who meant "take it out of Shared".
+        let sharedFloatHint: String? = nowFloating
+          ? nil
+          : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
+            MainActor.assumeIsolated {
+              "Still in Shared Apps — \(key.shortcut.description) removes it"
+            }
+          }
+        let sharedFloatHUD = hudEffect(
+          state, \.floating, sharedFloatTitle, sharedFloatIcon, subtitle: sharedFloatHint
+        )
+        guard let workspaceId = state.primaryActiveWorkspaceID else { return sharedFloatHUD }
+        state.tilingTrees[workspaceId] = nil
+        return .merge(
+          .send(.activate(workspaceId: workspaceId, setFocus: false)),
+          sharedFloatHUD
+        )
+
+      case .toggleFocusedAppInSharedApps:
+        return resolveFrontmostApp { bundleId, name in
+          .sharedMembershipResolved(bundleId: bundleId, name: name)
+        }
+
+      case .sharedMembershipResolved(let bundleId, let name):
+        if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+          return .none
+        }
+        var didAdd = false
+        state.$config.withLock { config in
+          if config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }) {
+            config.sharedApps.removeAll { $0.bundleIdentifier == bundleId }
+          } else {
+            config.sharedApps.append(
+              SharedApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
+            )
+            didAdd = true
+          }
+        }
+        let memberName = name.isEmpty ? bundleId : name
+        let memberTitle = didAdd
+          ? "Added \(memberName) → Shared Apps"
+          : "Removed \(memberName) ← Shared Apps"
+        let memberIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
+        let memberHUD = hudEffect(state, \.appMembership, memberTitle, memberIcon)
+        guard let workspaceId = state.primaryActiveWorkspaceID else { return memberHUD }
+        state.tilingTrees[workspaceId] = nil
+        return .merge(
+          .send(.activate(workspaceId: workspaceId, setFocus: false)),
+          memberHUD
         )
 
       case .togglePaused:
         let wasPaused = state.isTilingPaused
         state.isTilingPaused.toggle()
+        let hud = hudEffect(
+          state,
+          \.tilingPaused,
+          state.isTilingPaused ? "Tiling Paused" : "Tiling Resumed",
+          state.isTilingPaused ? "pause.circle.fill" : "play.circle.fill"
+        )
         if wasPaused {
-          return reflowActiveWorkspace(state: &state)
+          return .merge(reflowActiveWorkspace(state: &state), hud)
         }
-        return .none
+        return hud
 
       case .bspFocus(let direction):
         return resolveFocusedWindowKey { key in
@@ -707,7 +809,10 @@ public struct WorkspaceActivationFeature {
         // `autoBalance` setting governs only the automatic balancing applied
         // on activation (see `performActivate`); gating the hotkey on it made
         // balance a no-op whenever auto-balance was off — which is the default.
-        return applyTreeTransform(state: &state) { $0.balanced(axis: .both) }
+        return .merge(
+          applyTreeTransform(state: &state) { $0.balanced(axis: .both) },
+          hudEffect(state, \.layout, "Layout Balanced", "equal.circle")
+        )
 
       case .bspRotate(let degrees):
         return applyTreeTransform(state: &state) { $0.rotated(by: degrees) }
@@ -1250,6 +1355,21 @@ public struct WorkspaceActivationFeature {
     return targets
   }
 
+  /// Show a HUD message when its category (and the master switch) is
+  /// enabled in settings — every non-workspace-switch HUD funnels through
+  /// here so the per-category toggles stay authoritative.
+  private func hudEffect(
+    _ state: State,
+    _ category: KeyPath<AppSettings.HUD, Bool>,
+    _ title: String,
+    _ icon: String?,
+    subtitle: String? = nil
+  ) -> Effect<Action> {
+    guard state.config.settings.hud.shows(category) else { return .none }
+    let durationMs = state.config.settings.hud.durationMs
+    return .run { [hud = workspaceHUD] _ in await hud.show(title, icon, subtitle, durationMs) }
+  }
+
   /// Resolve the active workspace's floating apps (per-workspace + shared) to
   /// live windows and push them to the mirror overlay. Empty set tears every
   /// mirror down. Used on activation and whenever a floating app's windows
@@ -1330,7 +1450,7 @@ public struct WorkspaceActivationFeature {
       mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus
     )
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
-    let showHUD = setFocus && state.config.settings.hud.enabled
+    let showHUD = setFocus && state.config.settings.hud.shows(\.workspaceSwitch)
 
     let settings = state.config.settings
     // Tile target: this workspace's tiled apps + shared tiled apps. Floating
@@ -1349,6 +1469,7 @@ public struct WorkspaceActivationFeature {
 
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
+    let hudDurationMs = state.config.settings.hud.durationMs
     let slsClient = sls
 
     return .run { [
@@ -1360,7 +1481,7 @@ public struct WorkspaceActivationFeature {
       overlay = floatingOverlay
     ] send in
       if showHUD {
-        await hud.show(hudName, hudIcon)
+        await hud.show(hudName, hudIcon, nil, hudDurationMs)
       }
       // Tear down the outgoing workspace's mirrors in the same beat as the
       // hide pass — leaving them to the post-tile `setFloating` made the
@@ -1823,6 +1944,8 @@ public struct WorkspaceActivationFeature {
         dy: CGFloat(settings.layout.gapOuter)
       )
     }
+    // Ops with no obvious visual cue of their own attach a HUD here.
+    var hud: Effect<Action> = .none
 
     switch op {
     case .swap(let direction):
@@ -1864,12 +1987,21 @@ public struct WorkspaceActivationFeature {
       // state; the tree itself is untouched. computeFrames trims
       // these windows out and overlays them on the work area.
       var set = state.fullscreenZoomed[workspaceId] ?? []
-      if set.contains(windowKey) {
-        set.remove(windowKey)
-      } else {
+      let zoomingIn = !set.contains(windowKey)
+      if zoomingIn {
         set.insert(windowKey)
+      } else {
+        set.remove(windowKey)
       }
       state.fullscreenZoomed[workspaceId] = set.isEmpty ? nil : set
+      hud = hudEffect(
+        state,
+        \.fullscreen,
+        zoomingIn ? "Fullscreen" : "Exit Fullscreen",
+        zoomingIn
+          ? "arrow.up.left.and.arrow.down.right"
+          : "arrow.down.right.and.arrow.up.left"
+      )
 
     case .setInsertDirection(let direction):
       tree = tree.settingInsertDirection(at: windowKey, direction: direction)
@@ -1898,7 +2030,8 @@ public struct WorkspaceActivationFeature {
         )
       },
       persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
-      refreshMarkers(state: state)
+      refreshMarkers(state: state),
+      hud
     )
   }
 

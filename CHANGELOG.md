@@ -4,6 +4,19 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## Unreleased
+
+### New
+- **Floating windows that stay above the tiles — without disabling SIP.** Mark any app as floating per workspace (the Float toggle next to Auto-open, or the `toggleFloating` hotkey): its windows stay untiled and are kept on top by mirroring them onto Tatami-owned ScreenCaptureKit panels. Reach for a floating window and the real one is handed back to you; while a floating app has focus the mirrors (and the screen-recording indicator) get out of the way. Multiple floating windows stack by focus recency. Requires the Screen Recording permission.
+- **Shared apps** — `[[floatingApps]]` is now `[[sharedApps]]`: shared apps are part of *every* workspace — tiled into each layout by default, or floating everywhere with `floating = true`. Legacy `[[floatingApps]]` configs migrate automatically (each entry becomes a floating shared app).
+- **Shared Apps editor** in the Workspaces sidebar — add/remove shared apps and flip their Float toggle, presented like a special workspace.
+- **Settings reorganized** into a System Settings-style sidebar (General, Tiling, Focus & Mouse, Workspaces, Shortcuts, Appearance), with a new Screen Recording row under Permissions.
+- **Shared hotkeys** — `toggleSharedFloating` floats the focused app everywhere (joins Shared Apps as floating if needed; toggling off flips it to shared tiled), and `toggleAppInSharedApps` adds/removes the focused app in Shared Apps.
+- **Per-action HUD** — floating changes, app membership, tiling pause, fullscreen zoom, and balance now show a brief overlay, each individually toggleable in **Settings → Appearance → Overlay** (plus the master switch and a configurable duration). Un-floating an app that stays in its workspace / Shared Apps shows a follow-up hint with the shortcut that removes it entirely.
+- Auto-open apps **reopen on workspace re-entry** when their window was closed, not just on first activation.
+- Fixed-size windows (e.g. the iOS **Simulator**) can float — resizability is only required for tiling.
+- Floating windows' marker dots are always visible (not just on the focused window), and dots follow window drags with a smooth glide.
+
 ## 1.2.1 — 2026-06-02
 
 ### Fixes

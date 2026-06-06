@@ -351,16 +351,24 @@ struct SettingsView: View {
         Slider(
           value: Binding(
             get: { sensitivity },
-            set: { v in $config.withLock { $0.settings.gestures.threshold = 0.9 - v } }
+            set: { v in
+              $config.withLock {
+                $0.settings.gestures.threshold = AppSettings.Gestures.roundedThreshold(0.9 - v)
+              }
+            }
           ),
-          in: 0.1 ... 0.8
+          in: 0.1 ... 0.8,
+          step: 0.01
         ) {
+          // Hidden — the HStack above is the visible label; leaving this in
+          // place made the grouped Form render "Sensitivity" twice.
           Text("Sensitivity")
         } minimumValueLabel: {
           Text("Low")
         } maximumValueLabel: {
           Text("High")
         }
+        .labelsHidden()
         Text("How far you must swipe to switch — higher sensitivity needs a shorter swipe.")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -442,7 +450,11 @@ struct SettingsView: View {
     Section("Toggles") {
       shortcut(
         "Toggle floating", .toggleFloating, \.toggleFloating,
-        description: "Float the focused window so tiling leaves it alone; toggle again to re-tile it."
+        description: "Float the focused app in the active workspace (added here as floating if it wasn't assigned); toggle again to re-tile it."
+      )
+      shortcut(
+        "Toggle shared floating", .toggleSharedFloating, \.toggleSharedFloating,
+        description: "Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet. Toggling off flips it to shared tiled; leaving Shared Apps is the membership toggle below."
       )
       shortcut(
         "Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated,
@@ -453,6 +465,12 @@ struct SettingsView: View {
         .toggleFocusedAppInActiveWorkspace,
         \.toggleFocusedAppInActiveWorkspace,
         description: "Add the focused app to the active workspace, or remove it if it's already assigned."
+      )
+      shortcut(
+        "Toggle app in Shared Apps",
+        .toggleAppInSharedApps,
+        \.toggleAppInSharedApps,
+        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
       )
     }
   }
@@ -470,9 +488,45 @@ struct SettingsView: View {
 
     Section("Overlay") {
       Toggle(isOn: setting(\.hud.enabled)) {
-        Text("Show workspace HUD")
-        Text("Display a brief overlay with the workspace name when switching.")
+        Text("Show HUD")
+        Text("Brief on-screen overlay confirming actions. The toggles below pick which.")
       }
+      Group {
+        Toggle(isOn: setting(\.hud.workspaceSwitch)) {
+          Text("Workspace switch")
+          Text("The workspace's name when you switch to it.")
+        }
+        Toggle(isOn: setting(\.hud.floating)) {
+          Text("Floating changes")
+          Text("Floated / tiled — per-workspace and shared.")
+        }
+        Toggle(isOn: setting(\.hud.appMembership)) {
+          Text("App membership")
+          Text("App added to or removed from a workspace or Shared Apps.")
+        }
+        Toggle(isOn: setting(\.hud.tilingPaused)) {
+          Text("Tiling pause")
+          Text("Tiling paused / resumed.")
+        }
+        Toggle(isOn: setting(\.hud.fullscreen)) {
+          Text("Fullscreen zoom")
+          Text("A window zoomed to the workspace, or back.")
+        }
+        Toggle(isOn: setting(\.hud.layout)) {
+          Text("Layout commands")
+          Text("Commands without a visual cue of their own (balance).")
+        }
+        DebouncedStepper(
+          external: config.settings.hud.durationMs,
+          range: 300 ... 3000,
+          step: 100,
+          detail: "How long the overlay stays up. HUDs with a follow-up hint stay twice as long.",
+          label: { "Duration: \($0) ms" },
+          commit: { v in $config.withLock { $0.settings.hud.durationMs = v } }
+        )
+      }
+      .disabled(!config.settings.hud.enabled)
+      .padding(.leading, 12)
     }
 
     Section("Window Markers") {
@@ -489,7 +543,7 @@ struct SettingsView: View {
 
       Toggle(isOn: setting(\.marker.floatingEnabled)) {
         Text("Mark floating windows")
-        Text("Show a small color dot on windows of apps in your floating list.")
+        Text("Show a small color dot on floating windows (per-workspace or shared), so a mirror reads as floating at a glance.")
       }
       ColorPicker(
         "Floating color",

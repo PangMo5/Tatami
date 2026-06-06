@@ -54,8 +54,10 @@ public struct HotKeysFeature {
       add(.toggleFullscreen, shortcuts.toggleFullscreen)
       add(.balance, shortcuts.balance)
       add(.toggleFloating, shortcuts.toggleFloating)
+      add(.toggleSharedFloating, shortcuts.toggleSharedFloating)
       add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
       add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
+      add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
       return out
     }
   }

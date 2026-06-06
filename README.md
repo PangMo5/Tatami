@@ -39,10 +39,11 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Group apps into virtual workspaces with per-workspace app assignments
 - Switch by hotkey, trackpad swipe, or "recent workspace"
 - Optional loop-around, skip-empty, and follow-app-focus behaviors
-- Auto-open assigned apps when a workspace activates
+- Auto-open assigned apps when a workspace activates — and reopen them on re-entry if their window was closed
 - Per-display workspaces — pin one to a display or follow apps dynamically; each display keeps its own active workspace, and you can cycle per-display or across every display
 - Jump focus between displays, or move the focused app to another workspace
-- Floating apps that never tile
+- Shared apps that join every workspace — tiled into each layout, or floating
+- Floating windows (per-workspace or shared) stay above the tiles **without disabling SIP** — Tatami mirrors them onto its own always-on-top panels and hands you the real window the moment you reach for it
 
 ### Focus & cursor
 
@@ -53,7 +54,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 ### Interface & config
 
 - Menu bar item showing the active workspace (icon + name)
-- On-screen HUD when switching workspaces
+- On-screen HUD confirming switches, float toggles, membership changes, and more — each individually toggleable, with follow-up hints (e.g. the shortcut that fully removes a just-unfloated app)
 - Per-workspace SF Symbol icons
 - Native SwiftUI settings
 - skhd-style shortcut syntax (e.g. `ctrl + alt - h`)
@@ -66,6 +67,9 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - macOS 14.0 or later
 - Accessibility permission
   (System Settings → Privacy & Security → Accessibility)
+- Screen Recording permission, only if you use floating windows — their
+  always-on-top mirrors are ScreenCaptureKit captures
+  (System Settings → Privacy & Security → Screen Recording)
 
 ## Installation
 
@@ -89,7 +93,7 @@ open Tatami.xcworkspace
 ## Command line
 
 Tatami ships a `tatami` CLI inside the app bundle. Install it from
-**Settings → Command Line → Install** — this symlinks `tatami` into
+**Settings → General → Command Line → Install** — this symlinks `tatami` into
 `/usr/local/bin` (you'll be asked for your password once). Then:
 
 ```sh
@@ -107,7 +111,7 @@ running. (Homebrew installs are detected automatically.)
 Settings live in `~/.config/tatami/config.toml`, grouped into tables —
 `[settings.layout]`, `[settings.focus]`, `[settings.gestures]`,
 `[settings.shortcuts]`, and so on. Workspaces, their app assignments, and
-floating apps are stored in the same file. Edits made in the app or by hand are
+shared apps are stored in the same file. Edits made in the app or by hand are
 picked up live.
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference —

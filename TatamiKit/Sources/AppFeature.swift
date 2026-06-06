@@ -226,10 +226,14 @@ public struct AppFeature {
 
     case .toggleFloating:
       return .send(.activation(.toggleFloatingOnFocusedApp))
+    case .toggleSharedFloating:
+      return .send(.activation(.toggleSharedFloatingOnFocusedApp))
     case .toggleSpaceActivated:
       return .send(.activation(.togglePaused))
     case .toggleFocusedAppInActiveWorkspace:
       return .send(.activation(.toggleFocusedAppInActiveWorkspace))
+    case .toggleAppInSharedApps:
+      return .send(.activation(.toggleFocusedAppInSharedApps))
 
     case .resizeGrow:
       return .send(.activation(.bspResize(direction: .east, delta: 0.05)))
@@ -267,8 +271,8 @@ public struct AppFeature {
   }
 
   /// Cycle targets for opt+tab: the active workspace's apps plus every
-  /// floating app, so the loop walks all focusable windows including
-  /// floating ones (KeyCastr, Zoom, etc.).
+  /// shared app, so the loop walks all focusable windows including
+  /// shared/floating ones (KeyCastr, Zoom, etc.).
   private func cycleBundleIds(_ state: State) -> [String] {
     let workspace = currentWorkspaceBundleIds(state)
     let shared = state.workspaceList.config.sharedApps.map(\.bundleIdentifier)

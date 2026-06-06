@@ -14,7 +14,7 @@ live, so you can keep it in your dotfiles and edit it in your editor.
 The file has three top-level parts:
 
 - `[settings.*]` — global preferences (below)
-- `[[floatingApps]]` — apps that never tile
+- `[[sharedApps]]` — apps that are part of every workspace (tiled or floating)
 - `[[profiles]]` — workspaces and their app assignments
 
 ## Shortcut syntax
@@ -48,9 +48,19 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 
 ## `[settings.hud]`
 
+A brief on-screen overlay confirming actions. `enabled` is the master switch;
+the rest pick which actions show one.
+
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | Show the on-screen overlay when switching workspaces. |
+| `enabled` | bool | `true` | Master switch for every overlay. |
+| `workspaceSwitch` | bool | `true` | Workspace name when switching. |
+| `floating` | bool | `true` | Float state changes — per-workspace and shared. |
+| `appMembership` | bool | `true` | App added to / removed from a workspace or Shared Apps. |
+| `tilingPaused` | bool | `true` | Tiling paused / resumed. |
+| `fullscreen` | bool | `true` | Fullscreen zoom entered / exited. |
+| `layout` | bool | `true` | Layout commands without a visual cue of their own (balance). |
+| `durationMs` | int | `900` | How long the overlay stays up, in milliseconds. HUDs carrying a follow-up hint stay twice as long. |
 
 ## `[settings.layout]`
 
@@ -94,7 +104,21 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | --- | --- | --- | --- |
 | `enabled` | bool | `false` | Switch workspaces with a horizontal trackpad swipe. |
 | `fingerCount` | int | `3` | Number of fingers for the swipe (`3` or `4`). |
-| `threshold` | double | `0.3` | Swipe distance required to trigger a switch (lower = more sensitive). |
+| `threshold` | double | `0.3` | Swipe distance required to trigger a switch (lower = more sensitive). Kept to two decimal places. |
+
+## `[settings.marker]`
+
+Small corner dots that identify zoomed and floating windows.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `fullscreenEnabled` | bool | `true` | Dot on the workspace's fullscreen-zoomed window (shown while it's focused). |
+| `fullscreenColorHex` | string | `"#007AFF"` | Fullscreen dot color (`#RRGGBB`). |
+| `floatingEnabled` | bool | `true` | Dot on floating windows — always visible, so a mirror reads as floating at a glance. |
+| `floatingColorHex` | string | `"#FF9500"` | Floating dot color (`#RRGGBB`). |
+| `size` | double | `14` | Dot diameter in points. |
+| `corner` | string | `"bottomTrailing"` | Window corner the dot anchors to: `topLeading`, `topTrailing`, `bottomLeading`, `bottomTrailing`. |
+| `hideOnHover` | bool | `true` | Fade the dot while the cursor is over it. |
 
 ## `[settings.shortcuts]`
 
@@ -114,19 +138,38 @@ action unbound.
 | `switchToRecentWorkspace` | Jump to the previously active workspace |
 | `moveToNextWorkspace` / `moveToPreviousWorkspace` | Move the focused app to the next/previous workspace and follow it there |
 | `focusNextDisplay` / `focusPreviousDisplay` | Focus the active workspace on the next/previous display (loops around) |
-| `toggleFloating` | Toggle floating for the focused app |
+| `toggleFloating` | Float the focused app in the active workspace (added here as floating if it wasn't assigned) — toggle again to re-tile |
+| `toggleSharedFloating` | Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet; toggling off flips it to shared *tiled* (membership stays; removing is `toggleAppInSharedApps`) |
 | `toggleFocusedAppInActiveWorkspace` | Add the focused window's app to the active workspace (or remove it if already a member) |
+| `toggleAppInSharedApps` | Add the focused app to Shared Apps (tiled into every workspace), or remove it if already shared |
 | `toggleSpaceActivated` | Pause/resume tiling |
 
-## `[[floatingApps]]`
+## `[[sharedApps]]`
 
-Apps listed here are never tiled. They stay visible across workspaces.
+Apps listed here are part of **every** workspace. By default they tile into
+each workspace's layout; with `floating = true` they stay untiled and are kept
+**above the tiles everywhere** instead.
 
 ```toml
-[[floatingApps]]
-bundleIdentifier = "io.github.keycastr"
-name = "KeyCastr"
+[[sharedApps]]
+bundleIdentifier = "com.apple.iphonesimulator"
+name = "Simulator"
+floating = true          # untiled, always on top, drifts across workspaces
+
+[[sharedApps]]
+bundleIdentifier = "com.apple.Music"
+name = "Music"           # tiled into every workspace's layout
 ```
+
+Floating windows are kept on top without disabling SIP: Tatami mirrors them
+onto its own always-on-top panels via ScreenCaptureKit, which needs the
+**Screen Recording** permission (Settings → General → Permissions). The mirror
+hides — and the capture stops — whenever the floating app itself has focus.
+
+Editable in the app under **Workspaces → Shared Apps**.
+
+Legacy configs with `[[floatingApps]]` migrate automatically on first load:
+each entry becomes a shared app with `floating = true`.
 
 ## `[[profiles]]` and workspaces
 
@@ -152,6 +195,7 @@ appToFocusBundleId = "app.zen-browser.zen"        # optional: focus this app on 
 bundleIdentifier = "app.zen-browser.zen"
 name = "Zen Browser"
 autoOpen = false                       # launch on activation if not running
+floating = false                       # keep untiled + above the tiles here
 ```
 
 Workspace fields:
@@ -173,4 +217,5 @@ App assignment fields:
 | --- | --- | --- |
 | `bundleIdentifier` | string | The app's bundle ID. |
 | `name` | string | Display name. |
-| `autoOpen` | bool | Launch the app when the workspace activates, if not already running. |
+| `autoOpen` | bool | Launch the app when the workspace activates — and reopen it on re-entry if its window was closed. |
+| `floating` | bool | Keep the app untiled and above the tiles in this workspace (see `[[sharedApps]]` for the always-on-top mechanics). |
