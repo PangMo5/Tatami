@@ -748,7 +748,14 @@ public struct WorkspaceActivationFeature {
         let registeredIds = state.config.activeProfile?
           .workspaces.first(where: { $0.id == id })?
           .apps.map(\.bundleIdentifier) ?? []
-        let observeIds = Array(Set(treeIds ?? registeredIds))
+        // Floating apps never enter the tree, and shared ones aren't in the
+        // workspace's registered set either — without observing them their
+        // windowCreated/Destroyed events never fire, so a newly opened
+        // floating window got no mirror until its app was focused once.
+        let floatingIds = state.config.sharedApps.map(\.bundleIdentifier)
+          + (state.config.activeProfile?.workspaces.first(where: { $0.id == id })?
+            .apps.filter(\.floating).map(\.bundleIdentifier) ?? [])
+        let observeIds = Array(Set((treeIds ?? registeredIds) + floatingIds))
         debugLog.log(
           "Activate",
           "completed workspaceId=\(id) "
@@ -995,7 +1002,13 @@ public struct WorkspaceActivationFeature {
         + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
     )
 
-    let observeIds = Array(Set((balanced?.windows.map(\.bundleId) ?? []) + Array(registeredSet)))
+    // Shared apps included so floating ones get window events too (they're
+    // in neither the tree nor the workspace's registered set).
+    let observeIds = Array(Set(
+      (balanced?.windows.map(\.bundleId) ?? [])
+        + Array(registeredSet)
+        + state.config.sharedApps.map(\.bundleIdentifier)
+    ))
     let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
       await observer.observe(observeIds)
     }

@@ -12,6 +12,8 @@ public struct SettingsFeature {
     public var cli = CLIStatus()
     /// Default `true` to avoid a "not granted" flash before the first read.
     public var hasAXPermission = true
+    /// Same flash-avoidance default as `hasAXPermission`.
+    public var hasScreenRecordingPermission = true
 
     public init() {}
   }
@@ -22,16 +24,19 @@ public struct SettingsFeature {
     case refreshCLIStatus
     case installCLITapped
     case uninstallCLITapped
-    /// A trust-DB change (or app re-activation) — re-read AX status.
+    /// A trust-DB change (or app re-activation) — re-read permission status.
     case accessibilityChanged
     case grantAccessibilityTapped
     case openAccessibilitySettingsTapped
+    case grantScreenRecordingTapped
+    case openScreenRecordingSettingsTapped
     case relaunchTapped
     case checkForUpdatesTapped
   }
 
   @Dependency(\.cliInstaller) var cliInstaller
   @Dependency(\.accessibility) var accessibility
+  @Dependency(\.screenRecording) var screenRecording
   @Dependency(\.updater) var updater
 
   public init() {}
@@ -42,8 +47,11 @@ public struct SettingsFeature {
       case .task:
         state.cli = cliInstaller.status()
         state.hasAXPermission = accessibility.isTrusted()
+        state.hasScreenRecordingPermission = screenRecording.isGranted()
         return .run { [accessibility] send in
-          // Trust-DB change / app re-activation → re-read AX status.
+          // Trust-DB change / app re-activation → re-read permission
+          // status (the re-activation tick also covers coming back from
+          // the Screen Recording pane of System Settings).
           for await _ in accessibility.changes() {
             await send(.accessibilityChanged)
           }
@@ -67,6 +75,7 @@ public struct SettingsFeature {
 
       case .accessibilityChanged:
         state.hasAXPermission = accessibility.isTrusted()
+        state.hasScreenRecordingPermission = screenRecording.isGranted()
         return .none
 
       case .grantAccessibilityTapped:
@@ -77,6 +86,15 @@ public struct SettingsFeature {
 
       case .openAccessibilitySettingsTapped:
         return .run { [accessibility] _ in await accessibility.openSettings() }
+
+      case .grantScreenRecordingTapped:
+        return .run { [screenRecording] _ in
+          await screenRecording.requestAccess()
+          await screenRecording.openSettings()
+        }
+
+      case .openScreenRecordingSettingsTapped:
+        return .run { [screenRecording] _ in await screenRecording.openSettings() }
 
       case .relaunchTapped:
         return .run { [accessibility] _ in await accessibility.relaunch() }

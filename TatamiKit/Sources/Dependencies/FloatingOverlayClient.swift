@@ -335,7 +335,15 @@ private final class FloatingOverlayController {
     debugLog.log("FocusDiag", "didActivate pid=\(pid)")
     noteFocus(pid)
     let targetIsFloating = panels.keys.contains { $0.pid == pid }
-    for key in panels.keys where key.pid != pid {
+    for key in Array(panels.keys) where key.pid != pid {
+      // A dead window's mirror is torn down, never shown: quitting a
+      // floating app fires this activation (macOS focuses the next app)
+      // *before* the reducer's terminate-sync removes the panel, which
+      // used to resurrect the mirror as a frozen ghost.
+      guard windowExists(key) else {
+        removeWindow(key)
+        continue
+      }
       if targetIsFloating, isVisuallyOnTop(key) {
         suppressMirror(key)
       } else {
@@ -345,7 +353,7 @@ private final class FloatingOverlayController {
         showPanel(key)
       }
     }
-    for key in panels.keys where key.pid == pid {
+    for key in Array(panels.keys) where key.pid == pid {
       suppressMirror(key)
     }
     applyStackOrder(liftDemoted: !targetIsFloating)
@@ -361,7 +369,12 @@ private final class FloatingOverlayController {
     noteFocus(pid)
     let targetIsFloating = panels.keys.contains { $0.pid == pid }
     var needsCommit = false
-    for key in panels.keys where key.pid != pid {
+    for key in Array(panels.keys) where key.pid != pid {
+      // Same dead-window rule as didActivate.
+      guard windowExists(key) else {
+        removeWindow(key)
+        continue
+      }
       // Same occlusion rule as didActivate: when focus moves to a float,
       // an unoccluded sibling float keeps showing its real window — no
       // mirror needed.
@@ -551,7 +564,16 @@ private final class FloatingOverlayController {
   /// focus-driven paths (hook / notification / click tap) pass `false` —
   /// there a stale frame beats a missing mirror.
   private func restoreMirror(_ key: WindowKey, waitForFrame: Bool = false) {
-    guard suppressed.remove(key) != nil else { return }
+    guard suppressed.contains(key) else { return }
+    // Funnel for every restore path (focus handlers, click tap, cursor
+    // exit): a dead window's mirror never comes back — tear it down. The
+    // cursor-exit path in particular can race the terminate cleanup and
+    // used to resurrect a quit app's mirror on the first mouse move.
+    guard windowExists(key) else {
+      removeWindow(key)
+      return
+    }
+    suppressed.remove(key)
     cursorInside.removeValue(forKey: key)
     syncSuppressedFrames()
     hideTasks.removeValue(forKey: key)?.cancel()
@@ -662,11 +684,23 @@ private final class FloatingOverlayController {
   private func handleOutsideClick() {
     guard !suppressed.isEmpty else { return }
     focusedFloatPid = nil
-    for key in panels.keys {
+    for key in Array(panels.keys) {
+      guard windowExists(key) else {
+        removeWindow(key)
+        continue
+      }
       restoreMirror(key)
       showPanel(key)
     }
     applyStackOrder()
+  }
+
+  /// The mirrored window is still on screen (cheap single-window
+  /// CGWindowList lookup).
+  private func windowExists(_ key: WindowKey) -> Bool {
+    let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, key.windowID)
+      as? [[String: Any]]
+    return !(list ?? []).isEmpty
   }
 
   /// Publish the suppressed windows' frames (CG coordinates) for the

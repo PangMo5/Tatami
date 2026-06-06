@@ -1,0 +1,50 @@
+import AppKit
+import CoreGraphics
+import Dependencies
+import DependenciesMacros
+import Foundation
+
+/// Screen Recording (TCC) permission: status, prompting, and the System
+/// Settings deep link. Tatami needs it only for floating windows — their
+/// always-on-top mirrors are ScreenCaptureKit captures.
+///
+/// Like Accessibility, a *new* grant doesn't reach the running process:
+/// `SCStream` keeps failing until relaunch (revokes apply live). The
+/// Settings UI pairs the grant button with the existing relaunch row.
+@DependencyClient
+public struct ScreenRecordingClient: Sendable {
+  /// Current grant state (non-prompting).
+  public var isGranted: @Sendable () -> Bool = { false }
+  /// Show the system prompt (no-op if macOS already considers it decided —
+  /// then the System Settings page is the only way, hence `openSettings`).
+  public var requestAccess: @Sendable () async -> Void
+  /// Open System Settings → Privacy & Security → Screen Recording.
+  public var openSettings: @Sendable () async -> Void
+}
+
+extension ScreenRecordingClient: DependencyKey {
+  public static let liveValue = ScreenRecordingClient(
+    isGranted: { CGPreflightScreenCaptureAccess() },
+    requestAccess: {
+      await MainActor.run { _ = CGRequestScreenCaptureAccess() }
+    },
+    openSettings: {
+      await MainActor.run {
+        guard let url = URL(
+          string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+        ) else { return }
+        NSWorkspace.shared.open(url)
+      }
+    }
+  )
+
+  public static let testValue = ScreenRecordingClient()
+  public static let previewValue = testValue
+}
+
+extension DependencyValues {
+  public var screenRecording: ScreenRecordingClient {
+    get { self[ScreenRecordingClient.self] }
+    set { self[ScreenRecordingClient.self] = newValue }
+  }
+}

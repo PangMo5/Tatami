@@ -109,7 +109,25 @@ struct SettingsView: View {
           Button("Grant…") { store.send(.grantAccessibilityTapped) }
         }
       }
-      if !store.hasAXPermission {
+      HStack {
+        Image(systemName: store.hasScreenRecordingPermission ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+          .foregroundStyle(store.hasScreenRecordingPermission ? .green : .orange)
+        VStack(alignment: .leading) {
+          Text("Screen Recording")
+          Text(store.hasScreenRecordingPermission
+            ? "Granted — floating windows can be mirrored above the tiles."
+            : "Needed only for floating windows: their always-on-top mirrors are screen captures.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        if store.hasScreenRecordingPermission {
+          Button("Open System Settings") { store.send(.openScreenRecordingSettingsTapped) }
+        } else {
+          Button("Grant…") { store.send(.grantScreenRecordingTapped) }
+        }
+      }
+      if !store.hasAXPermission || !store.hasScreenRecordingPermission {
         HStack {
           Text("macOS only applies a new grant after a relaunch.")
             .font(.caption)
