@@ -235,9 +235,6 @@ extension AppSettings {
     /// `.second` (default) puts new windows on the right / bottom of
     /// the new split.
     public var windowPlacement: WindowPlacement
-    /// Which Space a newly-opened window belongs to. Tatami currently
-    /// only supports the `.default` mode (the window's own Space).
-    public var windowOriginMode: WindowOriginMode
     /// Global default for how workspaces remember their BSP layout.
     /// A workspace's own `tilingMemory` overrides this when set.
     public var defaultTilingMemory: TilingMemory
@@ -248,7 +245,6 @@ extension AppSettings {
       autoBalance: AutoBalanceMode = .none,
       splitType: SplitTypePreference = .auto,
       windowPlacement: WindowPlacement = .second,
-      windowOriginMode: WindowOriginMode = .default,
       defaultTilingMemory: TilingMemory = .session
     ) {
       self.gapInner = gapInner
@@ -256,13 +252,17 @@ extension AppSettings {
       self.autoBalance = autoBalance
       self.splitType = splitType
       self.windowPlacement = windowPlacement
-      self.windowOriginMode = windowOriginMode
       self.defaultTilingMemory = defaultTilingMemory
     }
 
+    // `windowOriginMode` (a yabai `window_origin_display` port) used to
+    // live here but was never read: Tatami's workspace-owns-display model
+    // subsumes it — a new window is tiled onto its workspace's display
+    // (pinned or dynamic) regardless of where it spawned. Old configs
+    // that still carry the key are ignored harmlessly.
     private enum CodingKeys: String, CodingKey {
       case gapInner, gapOuter, autoBalance, splitType, windowPlacement
-      case windowOriginMode, defaultTilingMemory
+      case defaultTilingMemory
     }
 
     public init(from decoder: Decoder) throws {
@@ -282,8 +282,6 @@ extension AppSettings {
       self.splitType = (try? c.decode(SplitTypePreference.self, forKey: .splitType)) ?? .auto
       self.windowPlacement = (try? c.decode(WindowPlacement.self, forKey: .windowPlacement))
         ?? .second
-      self.windowOriginMode = (try? c.decode(WindowOriginMode.self, forKey: .windowOriginMode))
-        ?? .default
       self.defaultTilingMemory =
         (try? c.decode(TilingMemory.self, forKey: .defaultTilingMemory)) ?? .session
     }
@@ -332,16 +330,6 @@ public enum WindowPlacement: String, Codable, Hashable, Sendable, CaseIterable, 
     case .second: "Bottom / right"
     }
   }
-}
-
-/// Where a newly-opened window lands. Tatami currently only honors
-/// `.default` (use the window's own Space). The enum is wired so
-/// future expansion doesn't have to migrate persisted configs.
-public enum WindowOriginMode: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
-  case `default`
-  case focused
-  case cursor
-  public var id: String { rawValue }
 }
 
 // MARK: - Focus + mouse
