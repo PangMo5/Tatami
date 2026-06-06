@@ -8,11 +8,14 @@ struct WorkspaceListView: View {
 
   var body: some View {
     NavigationSplitView {
-      List(selection: $store.selectedWorkspaceID.sending(\.workspaceSelected)) {
+      List(selection: $store.selection.sending(\.sidebarSelected)) {
         Section("Workspaces") {
-          ForEach(store.workspaces) { workspace in
+          // `id: \.sidebarItem` (not Workspace's own ID): macOS only wires
+          // the selection gesture when the ForEach id type matches the
+          // List's selection type.
+          ForEach(store.workspaces, id: \.sidebarItem) { workspace in
             row(for: workspace)
-              .tag(workspace.id as Workspace.ID?)
+              .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
               .contextMenu {
                 Button("Activate") {
                   activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
@@ -27,6 +30,16 @@ struct WorkspaceListView: View {
             for offset in offsets {
               store.send(.workspaceDeleteRequested(store.workspaces[offset].id))
             }
+          }
+        }
+        // The Shared pseudo-workspace: its apps live in every workspace.
+        // Wrapped in a ForEach because macOS `List(selection:)` only makes
+        // ForEach-generated rows selectable — a static row never gets the
+        // selection gesture.
+        Section("Everywhere") {
+          ForEach([WorkspaceListFeature.SidebarItem.shared], id: \.self) { item in
+            Label("Shared Apps", systemImage: "square.on.square")
+              .tag(item as WorkspaceListFeature.SidebarItem?)
           }
         }
       }
@@ -46,6 +59,8 @@ struct WorkspaceListView: View {
     } detail: {
       if let detailStore = store.scope(state: \.detail, action: \.detail) {
         WorkspaceDetailView(store: detailStore, activationStore: activationStore)
+      } else if let sharedStore = store.scope(state: \.shared, action: \.shared) {
+        SharedAppsView(store: sharedStore)
       } else {
         ContentUnavailableView(
           "No Workspace Selected",
@@ -87,6 +102,12 @@ struct WorkspaceListView: View {
     let palette: [Color] = [.green, .blue, .orange, .purple, .pink, .teal]
     return palette[index % palette.count]
   }
+}
+
+private extension Workspace {
+  /// Sidebar row identity — must be the List's selection type for macOS to
+  /// make the row selectable (see the ForEach above).
+  var sidebarItem: WorkspaceListFeature.SidebarItem { .workspace(id) }
 }
 
 private struct AddWorkspaceForm: View {

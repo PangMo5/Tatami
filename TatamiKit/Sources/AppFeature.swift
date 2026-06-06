@@ -169,6 +169,14 @@ public struct AppFeature {
         else { return .none }
         return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
 
+      case .workspaceList(.shared(.appPickerAppSelected)),
+           .workspaceList(.shared(.appRemoveRequested)),
+           .workspaceList(.shared(.floatingToggled)):
+        // Shared apps are part of every workspace — re-tile the active one
+        // so the change (tiled ↔ floating ↔ removed) lands immediately.
+        guard let wsId = state.activation.primaryActiveWorkspaceID else { return .none }
+        return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
+
       default:
         return .none
       }

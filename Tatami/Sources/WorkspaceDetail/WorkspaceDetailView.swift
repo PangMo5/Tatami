@@ -393,7 +393,8 @@ private struct AppRow: View {
   }
 }
 
-private struct AppIcon: View {
+// Shared with SharedAppsView (same target), hence not file-private.
+struct AppIcon: View {
   let bundleIdentifier: String
   let iconPath: String?
 
@@ -414,7 +415,8 @@ private struct AppIcon: View {
   }
 }
 
-private struct AppPickerSheet: View {
+// Shared with SharedAppsView (same target), hence not file-private.
+struct AppPickerSheet: View {
   let apps: [MacApp]
   let onSelect: (MacApp) -> Void
   let onCancel: () -> Void

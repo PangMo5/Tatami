@@ -2,17 +2,27 @@ import ComposableArchitecture
 import Foundation
 import Sharing
 
-/// Sidebar listing of the active profile's workspaces. Drives add/delete
-/// and routes selection into a `WorkspaceDetailFeature` child.
+/// Sidebar listing of the active profile's workspaces, plus the "Shared"
+/// entry — presented like a special workspace whose apps live in every
+/// workspace. Drives add/delete and routes selection into a
+/// `WorkspaceDetailFeature` or `SharedAppsFeature` child.
 @Reducer
 public struct WorkspaceListFeature {
+  /// What the sidebar can select: a regular workspace, or the Shared
+  /// pseudo-workspace.
+  public enum SidebarItem: Equatable, Hashable, Sendable {
+    case workspace(Workspace.ID)
+    case shared
+  }
+
   @ObservableState
   public struct State: Equatable {
     @Shared(.tatamiConfig) public var config = AppConfig()
-    public var selectedWorkspaceID: Workspace.ID?
+    public var selection: SidebarItem?
     public var isAddSheetPresented = false
     public var draftName = ""
     public var detail: WorkspaceDetailFeature.State?
+    public var shared: SharedAppsFeature.State?
 
     public init() {}
 
@@ -26,8 +36,9 @@ public struct WorkspaceListFeature {
     case addWorkspaceFormSubmitted
     case addWorkspaceFormCancelled
     case workspaceDeleteRequested(Workspace.ID)
-    case workspaceSelected(Workspace.ID?)
+    case sidebarSelected(SidebarItem?)
     case detail(WorkspaceDetailFeature.Action)
+    case shared(SharedAppsFeature.Action)
     case binding(BindingAction<State>)
   }
 
@@ -56,7 +67,7 @@ public struct WorkspaceListFeature {
         state.$config.withLock { config in
           config.mutateActiveProfile { $0.workspaces.append(workspace) }
         }
-        return .send(.workspaceSelected(workspace.id))
+        return .send(.sidebarSelected(.workspace(workspace.id)))
 
       case .addWorkspaceFormCancelled:
         state.isAddSheetPresented = false
@@ -64,8 +75,8 @@ public struct WorkspaceListFeature {
         return .none
 
       case .workspaceDeleteRequested(let id):
-        if state.selectedWorkspaceID == id {
-          state.selectedWorkspaceID = nil
+        if state.selection == .workspace(id) {
+          state.selection = nil
           state.detail = nil
         }
         state.$config.withLock { config in
@@ -75,17 +86,30 @@ public struct WorkspaceListFeature {
         }
         return .none
 
-      case .workspaceSelected(let id):
-        state.selectedWorkspaceID = id
-        state.detail = id.map(WorkspaceDetailFeature.State.init(workspaceId:))
+      case .sidebarSelected(let item):
+        state.selection = item
+        switch item {
+        case .workspace(let id):
+          state.detail = WorkspaceDetailFeature.State(workspaceId: id)
+          state.shared = nil
+        case .shared:
+          state.detail = nil
+          state.shared = SharedAppsFeature.State()
+        case nil:
+          state.detail = nil
+          state.shared = nil
+        }
         return .none
 
-      case .detail, .binding:
+      case .detail, .shared, .binding:
         return .none
       }
     }
     .ifLet(\.detail, action: \.detail) {
       WorkspaceDetailFeature()
+    }
+    .ifLet(\.shared, action: \.shared) {
+      SharedAppsFeature()
     }
   }
 }
