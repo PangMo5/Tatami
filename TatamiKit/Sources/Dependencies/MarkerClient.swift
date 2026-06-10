@@ -34,8 +34,8 @@ public struct MarkerClient: Sendable {
   /// it can render a dot only on that window. Pushed from the AX
   /// observer's `windowFocused` events + the workspace app-activation
   /// flow — cheaper and more responsive than polling AX every 50 ms.
-  /// Pass `windowID = 0` to clear (no focused window).
-  public var setFocused: @Sendable (_ pid: pid_t, _ windowID: CGWindowID) -> Void
+  /// Pass `nil` to clear (no focused window).
+  public var setFocused: @Sendable (_ key: WindowKey?) -> Void
 }
 
 extension MarkerClient: DependencyKey {
@@ -47,11 +47,19 @@ extension MarkerClient: DependencyKey {
           controller.setTargets(targets, size: size, corner: corner, hideOnHover: hideOnHover)
         }
       },
-      setFocused: { pid, wid in
-        Task { @MainActor in controller.setFocused(pid: pid, windowID: wid) }
+      setFocused: { key in
+        Task { @MainActor in controller.setFocused(key) }
       }
     )
   }
+
+  /// Without this, a `TestStore` that forgets to override `\.marker`
+  /// constructs the real `MarkerController` (NSPanels) on the test host.
+  public static let testValue = MarkerClient(
+    setTargets: { _, _, _, _ in },
+    setFocused: { _ in }
+  )
+  public static let previewValue = testValue
 }
 
 extension DependencyValues {
@@ -141,10 +149,10 @@ private final class MarkerController {
     syncFrames()
   }
 
-  /// Record the currently-frontmost window. wid 0 means "no focused
+  /// Record the currently-frontmost window. `nil` means "no focused
   /// window", which keeps every marker hidden.
-  func setFocused(pid: pid_t, windowID: CGWindowID) {
-    let next: (pid: pid_t, windowID: CGWindowID)? = windowID == 0 ? nil : (pid, windowID)
+  func setFocused(_ key: WindowKey?) {
+    let next: (pid: pid_t, windowID: CGWindowID)? = key.map { ($0.pid, $0.windowID) }
     if let new = next, let old = focused, new == old { return }
     if next == nil && focused == nil { return }
     focused = next
@@ -177,7 +185,7 @@ private final class MarkerController {
       if panel.alphaValue > 0.01 { panel.alphaValue = 0 }
       return
     }
-    let cocoa = flipToCocoa(dotRect(in: windowFrame, size: CGFloat(style.size), corner: corner))
+    let cocoa = AXWindowGeometry.flipToCocoa(dotRect(in: windowFrame, size: CGFloat(style.size), corner: corner))
     if lastFrame[key] != cocoa {
       if lastFrame[key] == nil {
         // First placement: land directly, no glide in from nowhere.
@@ -345,28 +353,11 @@ private final class MarkerController {
   /// keeps its subscription and re-resolves on the next event.
   private func frame(for key: WindowKey) -> CGRect? {
     guard let element = axWindowCache[key] else { return nil }
-    return axFrame(of: element)
+    return AXWindowGeometry.frame(of: element)
   }
 
   /// Read `kAXPosition` + `kAXSize` in a single multi-attribute IPC round
   /// trip instead of two separate `AXUIElementCopyAttributeValue` calls.
-  private func axFrame(of window: AXUIElement) -> CGRect? {
-    let attrs = [kAXPositionAttribute, kAXSizeAttribute] as CFArray
-    var valuesRef: CFArray?
-    guard AXUIElementCopyMultipleAttributeValues(
-      window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-    ) == .success,
-      let values = valuesRef as? [CFTypeRef], values.count == 2,
-      CFGetTypeID(values[0]) == AXValueGetTypeID(),
-      CFGetTypeID(values[1]) == AXValueGetTypeID()
-    else { return nil }
-    var pos = CGPoint.zero
-    var size = CGSize.zero
-    AXValueGetValue(values[0] as! AXValue, .cgPoint, &pos)
-    AXValueGetValue(values[1] as! AXValue, .cgSize, &size)
-    guard size.width > 1, size.height > 1 else { return nil }
-    return CGRect(origin: pos, size: size)
-  }
 
   // MARK: - Geometry helpers
 
@@ -427,16 +418,6 @@ private final class MarkerController {
 
   /// AX/CG frames use top-left origin against the primary screen.
   /// `NSWindow.setFrame` wants bottom-left Cocoa coordinates.
-  private func flipToCocoa(_ frame: CGRect) -> NSRect {
-    guard let primary = NSScreen.screens.first else { return frame }
-    let totalHeight = primary.frame.height
-    return NSRect(
-      x: frame.origin.x,
-      y: totalHeight - frame.origin.y - frame.height,
-      width: frame.width,
-      height: frame.height
-    )
-  }
 }
 
 /// `AXObserver` C callback for marker geometry. The run-loop source is added

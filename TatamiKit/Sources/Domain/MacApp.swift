@@ -25,4 +25,12 @@ extension MacApp {
   public var isFinder: Bool {
     bundleIdentifier == Self.finderBundleId
   }
+
+  /// Whether `bundleId` is Tatami itself (any build flavor). Used to keep
+  /// Tatami out of its own workspace membership / sync paths — checking
+  /// the two literals at every call site meant a new flavor (e.g. a beta
+  /// suffix) would need every site touched.
+  public static func isTatami(_ bundleId: String) -> Bool {
+    bundleId == "dev.PangMo5.Tatami" || bundleId.hasPrefix("dev.PangMo5.Tatami.")
+  }
 }

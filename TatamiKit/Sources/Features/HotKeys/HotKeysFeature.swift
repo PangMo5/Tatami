@@ -70,6 +70,11 @@ public struct HotKeysFeature {
 
   @Dependency(\.hotKeys) var hotKeys
 
+  /// `HotKeysCenter.events` is a single-consumer stream; `cancelInFlight`
+  /// makes a repeated `.onAppear` replace the subscription instead of
+  /// adding a second consumer (which traps in AsyncStream).
+  private enum CancelID { case events }
+
   public init() {}
 
   public var body: some ReducerOf<Self> {
@@ -86,6 +91,7 @@ public struct HotKeysFeature {
               await send(.actionTriggered(event))
             }
           }
+          .cancellable(id: CancelID.events, cancelInFlight: true)
         )
 
       case .refreshBindings:

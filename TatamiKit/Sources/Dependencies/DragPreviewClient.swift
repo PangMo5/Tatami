@@ -58,7 +58,7 @@ private final class DragPreviewController {
         hosting.rootView = DragPreviewView(isSwap: zone == .swap)
       }
     }
-    let cocoa = flipToCocoa(Self.highlightRect(in: targetRect, zone: zone))
+    let cocoa = AXWindowGeometry.flipToCocoa(Self.highlightRect(in: targetRect, zone: zone))
     panel.setFrame(cocoa, display: true, animate: false)
     if !panel.isVisible { panel.orderFrontRegardless() }
   }
@@ -105,16 +105,6 @@ private final class DragPreviewController {
 
   /// AX/CG frames use top-left origin against the primary screen;
   /// `NSWindow.setFrame` wants bottom-left Cocoa coordinates.
-  private func flipToCocoa(_ frame: CGRect) -> NSRect {
-    guard let primary = NSScreen.screens.first else { return frame }
-    let totalHeight = primary.frame.height
-    return NSRect(
-      x: frame.origin.x,
-      y: totalHeight - frame.origin.y - frame.height,
-      width: frame.width,
-      height: frame.height
-    )
-  }
 }
 
 private struct DragPreviewView: View {

@@ -17,6 +17,11 @@ public struct AppFeature {
     /// Standing internal failures (config parse errors, invalid shortcuts,
     /// I/O failures) surfaced via the menu bar until resolved or dismissed.
     public var errorReports: IdentifiedArrayOf<ErrorReport> = []
+    /// `.task` is driven by the main window's `.task` modifier, which
+    /// re-fires every time the window is closed and reopened. Startup
+    /// must run once per process: the subscriptions below consume
+    /// process-singleton `AsyncStream`s that support a single consumer.
+    var didStartUp = false
     public init() {}
   }
 
@@ -48,6 +53,10 @@ public struct AppFeature {
   @Dependency(\.errorReporter) var errorReporter
   @Dependency(\.workspaceHUD) var workspaceHUD
 
+  /// Identifies the app-lifetime subscription bundle so a duplicate
+  /// `.task` (defensive; see `didStartUp`) replaces rather than doubles it.
+  private enum CancelID { case startupSubscriptions }
+
   public init() {}
 
   public var body: some ReducerOf<Self> {
@@ -66,6 +75,8 @@ public struct AppFeature {
     Reduce { state, action in
       switch action {
       case .task:
+        guard !state.didStartUp else { return .none }
+        state.didStartUp = true
         let settings = state.config.settings
         let sharedConfig = state.$config
         // Existing setup = at least one configured workspace or shared app;
@@ -85,7 +96,10 @@ public struct AppFeature {
           .send(.activation(.activateInitial)),
           .send(.settingsChanged(settings)),
           .run { _ in
-            await MainActor.run { _ = ensureAccessibilityTrust() }
+            await MainActor.run {
+              _ = ensureAccessibilityTrust()
+              boundGlobalAXMessagingTimeout()
+            }
           },
           // Always consume swipe events; the tap itself is toggled on/off
           // in `.settingsChanged`.
@@ -144,6 +158,7 @@ public struct AppFeature {
             }
           }
         )
+        .cancellable(id: CancelID.startupSubscriptions, cancelInFlight: true)
 
       case .checkForUpdatesTapped:
         updater.checkForUpdates()
@@ -211,6 +226,10 @@ public struct AppFeature {
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
         return route(hotKeyAction, state: state)
+
+      case .cli(.delegate(.activateRequested(let workspaceId))):
+        // The CLI drives the same activation pipeline as hotkeys.
+        return .send(.activation(.activate(workspaceId: workspaceId, setFocus: true)))
 
       case .workspaceList(.addWorkspaceFormSubmitted),
            .workspaceList(.workspaceDeleteRequested),
@@ -310,9 +329,9 @@ public struct AppFeature {
     case .toggleFullscreen:
       // Multi-window fullscreen: several windows can be fullscreen-
       // zoomed at once, the tree shapes around their absence, focus
-      // determines which sits on top. The single-tile parent-zoom is
-      // exposed separately via `bspToggleZoomParent` for users who
-      // bind it.
+      // determines which sits on top. (The tree also supports a
+      // single-tile parent-zoom — `BSPNode.togglingParentZoom` — with
+      // no binding surface yet.)
       return .send(.activation(.bspToggleZoomFullscreen))
     case .balance:
       return .send(.activation(.bspBalance))

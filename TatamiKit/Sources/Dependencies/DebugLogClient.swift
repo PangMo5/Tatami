@@ -2,6 +2,7 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import OSLog
+import os
 
 /// Append-only diagnostic log file. Off by default; the Settings tab's
 /// "Debug logging" toggle flips it on, after which every instrumented
@@ -20,6 +21,10 @@ public struct DebugLogClient: Sendable {
   /// Append a line. No-op when the writer is disabled. `category` is
   /// a short tag for the source ("AX", "Tiler", "Activation").
   public var log: @Sendable (_ category: String, _ message: String) -> Void
+  /// Cheap gate for hot paths: building a log message can itself cost
+  /// (string interpolation per mouse-move, per-window reject arrays in
+  /// discovery) — check this before assembling anything expensive.
+  public var isEnabled: @Sendable () -> Bool = { false }
   /// Where the file lives on disk. Exposed so the Settings UI can
   /// surface its path / a "Reveal in Finder" button.
   public var fileURL: @Sendable () -> URL = {
@@ -33,6 +38,7 @@ extension DebugLogClient: DependencyKey {
     return DebugLogClient(
       setEnabled: { writer.setEnabled($0) },
       log: { writer.log(category: $0, message: $1) },
+      isEnabled: { writer.isEnabled },
       fileURL: { writer.fileURL }
     )
   }()
@@ -40,6 +46,7 @@ extension DebugLogClient: DependencyKey {
   public static let testValue = DebugLogClient(
     setEnabled: { _ in },
     log: { _, _ in },
+    isEnabled: { false },
     fileURL: { URL(fileURLWithPath: "/dev/null") }
   )
 
@@ -61,6 +68,11 @@ private final class DebugLogWriter: @unchecked Sendable {
   private let queue = DispatchQueue(label: "dev.PangMo5.Tatami.debug-log")
   private var handle: FileHandle?
   private var enabledFlag = false
+  /// Lock-protected mirror of `enabledFlag`, readable without the queue
+  /// hop so hot paths can skip message assembly while logging is off.
+  private let fastEnabled = OSAllocatedUnfairLock<Bool>(initialState: false)
+
+  var isEnabled: Bool { fastEnabled.withLock { $0 } }
   /// ISO-8601 formatter is moderately expensive to construct; build
   /// once and reuse on the queue.
   private let formatter: ISO8601DateFormatter = {
@@ -73,6 +85,7 @@ private final class DebugLogWriter: @unchecked Sendable {
     .appendingPathComponent("tatami.log", isDirectory: false)
 
   func setEnabled(_ enabled: Bool) {
+    fastEnabled.withLock { $0 = enabled }
     queue.async { [weak self] in
       guard let self else { return }
       if enabled == self.enabledFlag { return }
@@ -114,6 +127,7 @@ private final class DebugLogWriter: @unchecked Sendable {
       osLogger.error("debug log open failed: \(error.localizedDescription, privacy: .public)")
       handle = nil
       enabledFlag = false
+      fastEnabled.withLock { $0 = false }
     }
   }
 

@@ -165,7 +165,7 @@ extension WorkspaceManagerClient: DependencyKey {
           var hiddenCount = 0
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
-            if bundleId == "dev.PangMo5.Tatami" || bundleId == "dev.PangMo5.Tatami.dev" {
+            if MacApp.isTatami(bundleId) {
               continue
             }
             if keepVisible.contains(bundleId) { continue }

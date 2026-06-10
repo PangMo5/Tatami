@@ -435,14 +435,14 @@ private func axObserverCallback(
       // expected area before applying the new ratio.
       if isLeftMouseDown(),
          let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-         let frame = axFrame(of: element)
+         let frame = AXWindowGeometry.frame(of: element)
       {
         app.continuation.yield(.windowResized(key: key, frame: frame))
       }
     case kAXWindowMovedNotification as String:
       if isLeftMouseDown(),
          let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-         let frame = axFrame(of: element)
+         let frame = AXWindowGeometry.frame(of: element)
       {
         app.continuation.yield(.windowMoved(key: key, frame: frame))
       }
@@ -502,27 +502,5 @@ private struct UnsafeAXElement: @unchecked Sendable {
   let value: AXUIElement
 }
 
-@MainActor
-private func axFrame(of window: AXUIElement) -> CGRect? {
-  var posRaw: CFTypeRef?
-  var sizeRaw: CFTypeRef?
-  guard
-    AXUIElementCopyAttributeValue(
-      window, kAXPositionAttribute as CFString, &posRaw
-    ) == .success,
-    AXUIElementCopyAttributeValue(
-      window, kAXSizeAttribute as CFString, &sizeRaw
-    ) == .success,
-    let posValue = posRaw,
-    let sizeValue = sizeRaw,
-    CFGetTypeID(posValue) == AXValueGetTypeID(),
-    CFGetTypeID(sizeValue) == AXValueGetTypeID()
-  else { return nil }
-  var position = CGPoint.zero
-  var size = CGSize.zero
-  AXValueGetValue(posValue as! AXValue, .cgPoint, &position)
-  AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
-  return CGRect(origin: position, size: size)
-}
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowObserver")

@@ -13,6 +13,9 @@ import OSLog
 @DependencyClient
 public struct FocusManagerClient: Sendable {
   public var cycleApp: @Sendable (_ direction: CycleDirection, _ bundleIds: [String]) async -> Void
+  /// Raise + focus a specific window (mirror-restore handshake included —
+  /// see the free function `focusWindow(pid:windowID:)`).
+  public var focusWindow: @Sendable (_ key: WindowKey) async -> Void
 }
 
 public enum CycleDirection: Sendable, Hashable {
@@ -20,16 +23,26 @@ public enum CycleDirection: Sendable, Hashable {
 }
 
 extension FocusManagerClient: DependencyKey {
-  public static let liveValue = FocusManagerClient(
-    cycleApp: { direction, bundleIds in
-      await MainActor.run {
-        FocusEngine.cycleApp(direction, bundleIds: bundleIds)
+  public static let liveValue: FocusManagerClient = {
+    // The free function in WindowKey.swift (mirror-restore handshake) —
+    // aliased outside the initializer call, where the `focusWindow:`
+    // endpoint would otherwise shadow it.
+    let raiseAndFocus: @MainActor (pid_t, CGWindowID) -> Void = focusWindow(pid:windowID:)
+    return FocusManagerClient(
+      cycleApp: { direction, bundleIds in
+        await MainActor.run {
+          FocusEngine.cycleApp(direction, bundleIds: bundleIds)
+        }
+      },
+      focusWindow: { key in
+        await MainActor.run { raiseAndFocus(key.pid, key.windowID) }
       }
-    }
-  )
+    )
+  }()
 
   public static let testValue = FocusManagerClient(
-    cycleApp: { _, _ in }
+    cycleApp: { _, _ in },
+    focusWindow: { _ in }
   )
 
   public static let previewValue = testValue

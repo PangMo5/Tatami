@@ -32,8 +32,21 @@ enum SocketClient {
 
     var data = try YYJSONEncoder().encode(request)
     data.append(0x0A)
-    _ = data.withUnsafeBytes { ptr in
-      Darwin.write(fd, ptr.baseAddress, ptr.count)
+    // Loop over short writes (signal interruption) — a truncated JSON
+    // line would fail to decode on the server side.
+    data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+      guard let base = ptr.baseAddress else { return }
+      var offset = 0
+      while offset < ptr.count {
+        let written = Darwin.write(fd, base.advanced(by: offset), ptr.count - offset)
+        if written > 0 {
+          offset += written
+        } else if written < 0, errno == EINTR {
+          continue
+        } else {
+          return
+        }
+      }
     }
 
     var responseBytes: [UInt8] = []

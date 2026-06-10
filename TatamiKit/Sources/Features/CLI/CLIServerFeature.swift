@@ -1,13 +1,13 @@
-import AppKit
 import ComposableArchitecture
-import CoreGraphics
 import Foundation
 import Sharing
 import TatamiCLIProtocol
 
 /// Hosts the CLI socket server and translates incoming requests into
 /// reducer actions / dependency calls. The reducer holds nothing other
-/// than @Shared(.tatamiConfig); all routing happens inside an effect.
+/// than @Shared(.tatamiConfig); read-only queries are answered inside an
+/// effect, while `activate` is routed up to the parent as a delegate
+/// action so it drives the same activation pipeline as hotkeys.
 @Reducer
 public struct CLIServerFeature {
   @ObservableState
@@ -22,6 +22,16 @@ public struct CLIServerFeature {
     case start
     case startCompleted(Result<Void, Error>)
     case incomingRequest(CLIMessage.Request, reply: @Sendable (CLIMessage.Response) -> Void)
+    case delegate(Delegate)
+
+    /// Requests the parent must route into other features. The CLI's
+    /// `activate` used to call `WorkspaceManagerClient` + a fresh
+    /// `BSPNode.build` directly, bypassing the activation reducer — which
+    /// left session trees, persisted layouts, mirrors, and
+    /// `activeWorkspacesByDisplay` anchored to the outgoing workspace.
+    public enum Delegate: Equatable {
+      case activateRequested(Workspace.ID)
+    }
 
     public static func == (lhs: Action, rhs: Action) -> Bool {
       switch (lhs, rhs) {
@@ -29,14 +39,13 @@ public struct CLIServerFeature {
       case (.startCompleted, .startCompleted): true
       case (.incomingRequest(let lhsReq, _), .incomingRequest(let rhsReq, _)):
         lhsReq == rhsReq
+      case (.delegate(let lhs), .delegate(let rhs)): lhs == rhs
       default: false
       }
     }
   }
 
   @Dependency(\.socketServer) var socketServer
-  @Dependency(\.workspaceManager) var workspaceManager
-  @Dependency(\.windowTiler) var windowTiler
   @Dependency(\.errorReporter) var errorReporter
 
   public init() {}
@@ -77,28 +86,42 @@ public struct CLIServerFeature {
         return .none
 
       case .incomingRequest(let request, let reply):
-        let config = state.config
-        let manager = workspaceManager
-        let tiler = windowTiler
-        return .run { _ in
-          let response = await Self.handle(
-            request: request,
-            config: config,
-            manager: manager,
-            tiler: tiler
+        if request.command == .activate {
+          guard let key = request.arguments.first else {
+            return .run { _ in
+              reply(.failure("Missing workspace name. Usage: tatami activate <workspace>"))
+            }
+          }
+          guard let workspace = state.config.activeProfile?.workspaces
+            .first(where: { workspaceMatches($0, key) })
+          else {
+            return .run { _ in reply(.failure("Workspace not found: \(key)")) }
+          }
+          // Acknowledge immediately (the CLI's 5 s reply window must not
+          // wait on the activation's tile pass) and hand the switch to
+          // the activation reducer via the parent.
+          return .merge(
+            .run { _ in reply(.ok("Activating: \(workspace.name)")) },
+            .send(.delegate(.activateRequested(workspace.id)))
           )
-          reply(response)
         }
+        let config = state.config
+        return .run { _ in
+          reply(Self.handle(request: request, config: config))
+        }
+
+      case .delegate:
+        return .none
       }
     }
   }
 
+  /// Read-only CLI queries. `activate` never reaches here — it is routed
+  /// through the reducer (see `Delegate.activateRequested`).
   static func handle(
     request: CLIMessage.Request,
-    config: AppConfig,
-    manager: WorkspaceManagerClient,
-    tiler: WindowTilerClient
-  ) async -> CLIMessage.Response {
+    config: AppConfig
+  ) -> CLIMessage.Response {
     switch request.command {
     case .version:
       return .ok("tatami \(TatamiKit.version)")
@@ -120,45 +143,7 @@ public struct CLIServerFeature {
       return .ok(names)
 
     case .activate:
-      guard let key = request.arguments.first else {
-        return .failure("Missing workspace name. Usage: tatami activate <workspace>")
-      }
-      guard let workspace = config.activeProfile?.workspaces
-        .first(where: { workspaceMatches($0, key) })
-      else {
-        return .failure("Workspace not found: \(key)")
-      }
-      await manager.activate(
-        ActivationRequest(
-          workspace: workspace,
-          sharedApps: config.sharedApps,
-          targetDisplay: workspace.displayHint,
-          setFocus: true,
-          mouseHidesOnFocus: config.settings.focus.mouseHidesOnFocus
-        )
-      )
-      let bundleIds = workspace.apps.map(\.bundleIdentifier)
-      let settings = config.settings
-      let targetDisplay = workspace.displayHint
-      @Dependency(\.sls) var sls
-      let frames = await MainActor.run { () -> [WindowKey: CGRect] in
-        let keys = discoverWindowKeys(forBundleIds: bundleIds, sls: sls)
-        let tree = BSPNode<WindowKey>.build(
-          keys,
-          in: CGRect(x: 0, y: 0, width: 1, height: 1)
-        )
-        return WorkspaceActivationFeature.computeFrames(
-          tree: tree,
-          settings: settings,
-          targetDisplay: targetDisplay
-        )
-      }
-      if !frames.isEmpty {
-        await tiler.apply(
-          FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
-        )
-      }
-      return .ok("Activated: \(workspace.name)")
+      return .failure("Internal routing error")
     }
   }
 }

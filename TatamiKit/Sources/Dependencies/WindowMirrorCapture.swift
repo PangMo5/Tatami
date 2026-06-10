@@ -16,14 +16,13 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Floating
 /// live mirror of the window into our own `.floating`-level panel. The
 /// real window stays where it is; the panel sits above the tiles.
 ///
-/// `@unchecked Sendable` rationale: `videoLayer` is created on the main
-/// actor (the controller owns it there) and only ever enqueued-to via a
-/// main-thread hop in the capture callback. `stream` / `config` /
-/// `filter` are mutated only from the controller's main-actor methods,
-/// which the main actor serializes. The capture callback runs on
-/// `captureQueue` and does nothing but forward frames to the layer on
-/// main. No stored property is therefore touched concurrently — mirrors
-/// the `SLSCenter` pattern elsewhere in this module.
+/// `@unchecked Sendable` rationale: every method that touches the capture
+/// state (`stream` / `config` / `filter` / `generation` / `isStarting` /
+/// `pendingFirstFrame`) is `@MainActor`, so the main actor serializes all
+/// mutation — including across the `startCapture()` suspensions, which the
+/// generation check below makes explicit. The capture callback runs on
+/// `captureQueue` and touches only `videoLayer` (whose `enqueue` is
+/// thread-safe) and the lock-guarded `lastBuffer` box.
 final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   /// The layer the controller installs into the mirror panel's view.
   let videoLayer = AVSampleBufferDisplayLayer()
@@ -33,9 +32,20 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   private var filter: SCContentFilter?
   private let captureQueue = DispatchQueue(label: "dev.PangMo5.Tatami.mirror-capture")
 
+  /// Bumped by every `stop()`. `start`/`resume` snapshot it before
+  /// suspending in `startCapture()` and re-check after resuming: if a stop
+  /// landed mid-flight (workspace switch calling `removeWindow`, a
+  /// suppression), the freshly started stream is stopped instead of
+  /// published — publishing it would orphan a running stream that nothing
+  /// tracks, recording (orange indicator lit) until process exit.
+  @MainActor private var generation = 0
+  /// Collapses overlapping `start`/`resume` calls (rapid suppress↔restore)
+  /// so two streams are never started for one mirror.
+  @MainActor private var isStarting = false
+
   /// Whether a stream is currently live. Read from the controller (main
   /// actor) to decide when a stopped mirror needs a prefetch resume.
-  var isRunning: Bool { stream != nil }
+  @MainActor var isRunning: Bool { stream != nil }
 
   override init() {
     super.init()
@@ -44,16 +54,26 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     videoLayer.videoGravity = .resize
   }
 
-  /// Begin capturing `window`. No-op if already streaming.
+  /// Begin capturing `window`. No-op if already streaming or starting.
+  @MainActor
   func start(window: SCWindow, maxFPS: Int) async {
-    guard stream == nil else { return }
+    guard stream == nil, !isStarting else { return }
+    isStarting = true
+    defer { isStarting = false }
     let filter = SCContentFilter(desktopIndependentWindow: window)
     self.filter = filter
     configure(for: filter, maxFPS: maxFPS)
     let stream = SCStream(filter: filter, configuration: config, delegate: self)
+    let startedGeneration = generation
     do {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
+      guard generation == startedGeneration else {
+        // A stop won the race while `startCapture` was in flight — the
+        // mirror is no longer wanted; don't publish the stream.
+        stream.stopCapture { _ in }
+        return
+      }
       self.stream = stream
     } catch {
       logger.error("mirror start failed: \(error.localizedDescription, privacy: .public)")
@@ -61,13 +81,16 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     }
   }
 
-  /// Stop capturing and release the stream. Safe to call repeatedly.
+  /// Stop capturing and release the stream. Safe to call repeatedly, and
+  /// wins against an in-flight `start`/`resume` (see `generation`).
   ///
   /// Called whenever the mirror is hidden (its app is active): a running
   /// `SCStream` keeps the macOS screen-recording indicator lit, and the
   /// user shouldn't see it while no mirror is actually being painted. The
   /// layer keeps its last frame for the instant the mirror comes back.
+  @MainActor
   func stop() {
+    generation += 1
     guard let stream else { return }
     self.stream = nil
     stream.stopCapture { _ in }
@@ -77,37 +100,63 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   /// is becoming visible again). `onFirstFrame` fires on the main thread
   /// when the first fresh frame lands in the layer — the controller defers
   /// un-hiding until then so the mirror never pops in with a stale image.
+  @MainActor
   func resume(maxFPS: Int, onFirstFrame: (@MainActor () -> Void)? = nil) async {
-    guard stream == nil, let filter else {
-      if let onFirstFrame { await MainActor.run { onFirstFrame() } }
+    if isStarting {
+      // A start/resume is already in flight; its frames will arrive.
+      if let onFirstFrame {
+        pendingFirstFrame = onFirstFrame
+        firstFramePending.set(true)
+      }
       return
     }
+    guard stream == nil, let filter else {
+      if let onFirstFrame { onFirstFrame() }
+      return
+    }
+    isStarting = true
+    defer { isStarting = false }
     if let onFirstFrame {
-      await MainActor.run { self.pendingFirstFrame = onFirstFrame }
+      pendingFirstFrame = onFirstFrame
+      firstFramePending.set(true)
     }
     config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, maxFPS)))
     let stream = SCStream(filter: filter, configuration: config, delegate: self)
+    let startedGeneration = generation
     do {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
+      guard generation == startedGeneration else {
+        stream.stopCapture { _ in }
+        flushPendingFirstFrame()
+        return
+      }
       self.stream = stream
     } catch {
       logger.error("mirror resume failed: \(error.localizedDescription, privacy: .public)")
       self.stream = nil
-      let pending = await MainActor.run { () -> (@MainActor () -> Void)? in
-        defer { self.pendingFirstFrame = nil }
-        return self.pendingFirstFrame
-      }
-      if let pending { await MainActor.run { pending() } }
+      flushPendingFirstFrame()
     }
   }
 
-  /// One-shot "first frame after resume" callback. Touched only on the
-  /// main thread (set in `resume`, consumed in the enqueue hop).
-  private var pendingFirstFrame: (@MainActor () -> Void)?
+  /// Run-and-clear the first-frame callback when no frame will arrive
+  /// (failed or aborted resume) so the caller's un-hide isn't stranded.
+  @MainActor
+  private func flushPendingFirstFrame() {
+    firstFramePending.set(false)
+    let pending = pendingFirstFrame
+    pendingFirstFrame = nil
+    pending?()
+  }
 
-  /// Most recent frame, kept for `stillImage()`. Main-thread only.
-  private var lastBuffer: CMSampleBuffer?
+  /// One-shot "first frame after resume" callback. Stored/consumed on the
+  /// main actor; `firstFramePending` is its capture-queue-visible flag.
+  @MainActor private var pendingFirstFrame: (@MainActor () -> Void)?
+  private let firstFramePending = AtomicFlag()
+
+  /// Most recent frame, kept for `stillImage()`. Written from the capture
+  /// queue, read from the main thread — hence the lock box.
+  private let lastBuffer = BufferBox()
   private static let ciContext = CIContext()
 
   /// CGImage of the most recent frame (call on the main thread). Backs the
@@ -116,17 +165,18 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   /// still the layer is empty — the panel sits on top but is transparent,
   /// so whatever raised behind it shows through (the FFM "window A pops
   /// over the floating area" flash).
+  @MainActor
   func stillImage() -> CGImage? {
-    guard let buffer = lastBuffer,
+    guard let buffer = lastBuffer.load(),
           let pixelBuffer = CMSampleBufferGetImageBuffer(buffer)
     else { return nil }
     let image = CIImage(cvPixelBuffer: pixelBuffer)
     return Self.ciContext.createCGImage(image, from: image.extent)
   }
 
-
   /// Resize the capture surface after the mirrored window changed size, so
   /// the rendered frames stay pixel-sharp.
+  @MainActor
   func updateSize(width: CGFloat, height: CGFloat, scale: CGFloat, maxFPS: Int) {
     config.width = max(2, Int(width * scale))
     config.height = max(2, Int(height * scale))
@@ -136,6 +186,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     }
   }
 
+  @MainActor
   private func configure(for filter: SCContentFilter, maxFPS: Int) {
     config.pixelFormat = kCVPixelFormatType_32BGRA
     config.colorSpaceName = CGColorSpace.sRGB
@@ -150,6 +201,43 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   }
 }
 
+/// Lock-guarded one-shot flag, settable from the main actor and consumed
+/// from the capture queue.
+private final class AtomicFlag: @unchecked Sendable {
+  private let lock = NSLock()
+  private var value = false
+  func set(_ newValue: Bool) {
+    lock.lock()
+    value = newValue
+    lock.unlock()
+  }
+  /// Returns the current value and clears it.
+  func take() -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    let current = value
+    value = false
+    return current
+  }
+}
+
+/// Lock-guarded slot for the most recent sample buffer (capture queue
+/// writes, main thread reads).
+private final class BufferBox: @unchecked Sendable {
+  private let lock = NSLock()
+  private var buffer: CMSampleBuffer?
+  func store(_ newBuffer: CMSampleBuffer) {
+    lock.lock()
+    buffer = newBuffer
+    lock.unlock()
+  }
+  func load() -> CMSampleBuffer? {
+    lock.lock()
+    defer { lock.unlock() }
+    return buffer
+  }
+}
+
 extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
   func stream(
     _ stream: SCStream,
@@ -157,18 +245,20 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
     of type: SCStreamOutputType
   ) {
     guard type == .screen, sampleBuffer.isValid else { return }
-    // `CMSampleBuffer` is not `Sendable`. It is only read (enqueued) on the
-    // main thread below and never mutated, and `captureQueue` does not touch
-    // it again after this returns — so the hand-off is safe.
-    nonisolated(unsafe) let buffer = sampleBuffer
+    // Enqueue straight from the capture queue —
+    // `AVSampleBufferDisplayLayer.enqueue` is thread-safe, and hopping
+    // every frame through the main queue cost N mirrors × up-to-120 Hz of
+    // main-queue blocks that piled up behind long AX passes.
+    if videoLayer.status == .failed { videoLayer.flush() }
+    videoLayer.enqueue(sampleBuffer)
+    lastBuffer.store(sampleBuffer)
+    guard firstFramePending.take() else { return }
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
-      if self.videoLayer.status == .failed { self.videoLayer.flush() }
-      self.videoLayer.enqueue(buffer)
-      self.lastBuffer = buffer
-      if let pending = self.pendingFirstFrame {
+      MainActor.assumeIsolated {
+        let pending = self.pendingFirstFrame
         self.pendingFirstFrame = nil
-        MainActor.assumeIsolated { pending() }
+        pending?()
       }
     }
   }

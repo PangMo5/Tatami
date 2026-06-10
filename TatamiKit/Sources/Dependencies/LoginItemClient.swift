@@ -39,6 +39,13 @@ extension LoginItemClient: DependencyKey {
     },
     isEnabled: { SMAppService.mainApp.status == .enabled }
   )
+
+  /// Tests must not touch the real `SMAppService` registration.
+  public static let testValue = LoginItemClient(
+    setEnabled: { _ in },
+    isEnabled: { false }
+  )
+  public static let previewValue = testValue
 }
 
 extension DependencyValues {

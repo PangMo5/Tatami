@@ -106,6 +106,12 @@ private final class FloatingOverlayController {
 
   private var panels: [WindowKey: NSPanel] = [:]
   private var captures: [WindowKey: WindowMirrorCapture] = [:]
+  /// The set the reducer currently wants mirrored, updated synchronously
+  /// by `setFloating` / `retainOnly` so `addMirrors` can re-validate each
+  /// key after its `SCShareableContent` await gap. Without this, a key
+  /// un-floated mid-await had no panel yet (removal no-oped) and came back
+  /// as a ghost mirror with a live stream.
+  private var desired: Set<WindowKey> = []
   /// Resolved `AXUIElement` per mirrored window — used to read the live
   /// frame and to raise the real window on interaction. AX calls are
   /// synchronous cross-process IPC and must stay on the main thread, so we
@@ -167,6 +173,7 @@ private final class FloatingOverlayController {
   // MARK: - Lifecycle
 
   func setFloating(_ windows: Set<WindowKey>) {
+    desired = windows
     for key in panels.keys where !windows.contains(key) {
       removeWindow(key)
     }
@@ -179,6 +186,7 @@ private final class FloatingOverlayController {
 
   /// Drop every mirror whose app isn't floating in the incoming workspace.
   func retainOnly(_ bundleIds: Set<String>) {
+    desired = desired.filter { bundleIds.contains($0.bundleId) }
     for key in panels.keys where !bundleIds.contains(key.bundleId) {
       removeWindow(key)
     }
@@ -205,7 +213,10 @@ private final class FloatingOverlayController {
     for window in content.windows { byID[window.windowID] = window }
 
     for key in keys {
-      guard panels[key] == nil else { continue }  // re-check across the await gap
+      // Re-check across the await gap: "already added" via `panels`, and
+      // "no longer wanted" via `desired` (a `setFloating`/`retainOnly`
+      // that ran mid-await couldn't remove a panel that didn't exist yet).
+      guard desired.contains(key), panels[key] == nil else { continue }
       guard let scWindow = byID[key.windowID] else {
         logger.info("no SCWindow for \(key.bundleId, privacy: .public)#\(key.windowID)")
         continue
@@ -589,7 +600,7 @@ private final class FloatingOverlayController {
     guard let above = CGWindowListCopyWindowInfo(
       .optionOnScreenAboveWindow, key.windowID
     ) as? [[String: Any]] else { return true }
-    guard let frame = lastFrame[key].map(flipToCG) else { return true }
+    guard let frame = lastFrame[key].map(AXWindowGeometry.flipToCG) else { return true }
     let floatingPids = Set(panels.keys.map(\.pid))
     for entry in above {
       guard (entry[kCGWindowLayer as String] as? Int) == 0,
@@ -746,13 +757,13 @@ private final class FloatingOverlayController {
     ensureAXCacheCoversPanels()
     guard let element = axWindowCache[key] else { return }
     if let cocoa = lastFrame[key] {
-      let target = flipToCG(cocoa)
-      let current = axFrame(of: element)
+      let target = AXWindowGeometry.flipToCG(cocoa)
+      let current = AXWindowGeometry.frame(of: element)
       let drifted = current.map {
         abs($0.minX - target.minX) > 1 || abs($0.minY - target.minY) > 1
           || abs($0.width - target.width) > 1 || abs($0.height - target.height) > 1
       } ?? true
-      if drifted { setAXFrame(element, frame: target) }
+      if drifted { AXWindowGeometry.setFrame(element, to: target) }
     }
     AXUIElementPerformAction(element, kAXRaiseAction as CFString)
   }
@@ -787,7 +798,7 @@ private final class FloatingOverlayController {
   private func syncSuppressedFrames() {
     var frames: [CGWindowID: CGRect] = [:]
     for key in suppressed {
-      if let cocoa = lastFrame[key] { frames[key.windowID] = flipToCG(cocoa) }
+      if let cocoa = lastFrame[key] { frames[key.windowID] = AXWindowGeometry.flipToCG(cocoa) }
     }
     MirrorWindowRegistry.shared.setSuppressedFrames(frames)
   }
@@ -806,8 +817,8 @@ private final class FloatingOverlayController {
   /// Position + (re)size one mirror from the live AX frame of its window.
   private func refresh(_ key: WindowKey) {
     guard let panel = panels[key], let element = axWindowCache[key] else { return }
-    guard let cg = axFrame(of: element) else { return }
-    let cocoa = flipToCocoa(cg)
+    guard let cg = AXWindowGeometry.frame(of: element) else { return }
+    let cocoa = AXWindowGeometry.flipToCocoa(cg)
     if lastFrame[key] != cocoa {
       let previous = lastFrame[key]
       let sizeChanged = previous == nil
@@ -893,60 +904,6 @@ private final class FloatingOverlayController {
     }
   }
 
-  // MARK: - AX frame helpers
-
-  private func axFrame(of window: AXUIElement) -> CGRect? {
-    let attrs = [kAXPositionAttribute, kAXSizeAttribute] as CFArray
-    var valuesRef: CFArray?
-    guard AXUIElementCopyMultipleAttributeValues(
-      window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-    ) == .success,
-      let values = valuesRef as? [CFTypeRef], values.count == 2,
-      CFGetTypeID(values[0]) == AXValueGetTypeID(),
-      CFGetTypeID(values[1]) == AXValueGetTypeID()
-    else { return nil }
-    var pos = CGPoint.zero
-    var size = CGSize.zero
-    AXValueGetValue(values[0] as! AXValue, .cgPoint, &pos)
-    AXValueGetValue(values[1] as! AXValue, .cgSize, &size)
-    guard size.width > 1, size.height > 1 else { return nil }
-    return CGRect(origin: pos, size: size)
-  }
-
-  private func setAXFrame(_ window: AXUIElement, frame: CGRect) {
-    var position = CGPoint(x: frame.minX, y: frame.minY)
-    var size = CGSize(width: frame.width, height: frame.height)
-    if let value = AXValueCreate(.cgPoint, &position) {
-      AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
-    }
-    if let value = AXValueCreate(.cgSize, &size) {
-      AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
-    }
-  }
-
-  /// AX/CG frames are top-left origin against the primary screen;
-  /// `NSWindow.setFrame` wants bottom-left Cocoa coordinates.
-  private func flipToCocoa(_ frame: CGRect) -> NSRect {
-    guard let primary = NSScreen.screens.first else { return frame }
-    let totalHeight = primary.frame.height
-    return NSRect(
-      x: frame.origin.x,
-      y: totalHeight - frame.origin.y - frame.height,
-      width: frame.width,
-      height: frame.height
-    )
-  }
-
-  private func flipToCG(_ frame: NSRect) -> CGRect {
-    guard let primary = NSScreen.screens.first else { return frame }
-    let totalHeight = primary.frame.height
-    return CGRect(
-      x: frame.origin.x,
-      y: totalHeight - frame.origin.y - frame.height,
-      width: frame.width,
-      height: frame.height
-    )
-  }
 }
 
 /// Listen-only mouse-down tap. A click outside every suppressed floating

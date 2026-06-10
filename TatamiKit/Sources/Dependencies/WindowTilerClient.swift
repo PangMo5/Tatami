@@ -192,6 +192,20 @@ public enum ScreenGeometry {
   }
 }
 
+/// Bound every AX message this process sends (call once at startup).
+///
+/// The per-app-element `AXUIElementSetMessagingTimeout(axApp, …)` calls
+/// only cover messages to that app element itself — the *window* elements
+/// pulled out of `kAXWindowsAttribute` keep the system default (~6 s), so
+/// one beachballing app (Electron mid-GC, a paused-in-debugger app) could
+/// wedge the main thread for 6 s × per-window calls per tile pass. Setting
+/// the timeout on the system-wide element makes it the process-global
+/// default for all elements; per-element values still override it.
+@MainActor
+public func boundGlobalAXMessagingTimeout() {
+  AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+}
+
 @MainActor
 @discardableResult
 public func ensureAccessibilityTrust() -> Bool {
@@ -230,6 +244,9 @@ public func discoverWindowKeys(
 ) -> [WindowKey] {
   guard !bundleIds.isEmpty else { return [] }
   @Dependency(\.debugLog) var debugLog
+  // Per-window reject/keep bookkeeping exists only for the log line —
+  // don't pay for the strings and arrays while logging is off.
+  let logging = debugLog.isEnabled()
 
   // Resolve *every* running pid per bundle id. Some apps (e.g. Neovide)
   // run one process per window under a shared bundle id, so keying by
@@ -270,6 +287,9 @@ public func discoverWindowKeys(
       }
       let before = result.count
       var rejected: [String] = []
+      func reject(_ widProbe: CGWindowID, _ reason: @autoclosure () -> String) {
+        if logging { rejected.append("\(widProbe):\(reason())") }
+      }
       for window in windows {
         var widProbe: CGWindowID = 0
         _ = _AXUIElementGetWindow(window, &widProbe)
@@ -283,13 +303,13 @@ public func discoverWindowKeys(
           subrole = values[1] as? String
         }
         if minimized {
-          rejected.append("\(widProbe):minimized")
+          reject(widProbe, "minimized")
           continue
         }
         // Standard windows only. Dialogs / IME indicators / tooltips
         // fall outside this set, so they never enter the tree.
         if let subrole, subrole != kAXStandardWindowSubrole as String {
-          rejected.append("\(widProbe):subrole=\(subrole)")
+          reject(widProbe, "subrole=\(subrole)")
           continue
         }
         // Position must be settable, else we'd write to a window the host
@@ -299,26 +319,28 @@ public func discoverWindowKeys(
         AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
         AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
         if !movable.boolValue || (requireResizable && !resizable.boolValue) {
-          rejected.append("\(widProbe):notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
+          reject(widProbe, "notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
           continue
         }
         if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
           // Sticky windows (pinned to all Spaces) must not be tiled —
           // they'd duplicate into every workspace's tree.
           if sls.spacesForWindow(key.windowID).count > 1 {
-            rejected.append("\(widProbe):sticky")
+            reject(widProbe, "sticky")
             continue
           }
           result.append(key)
         } else {
-          rejected.append("\(widProbe):noWid")
+          reject(widProbe, "noWid")
         }
       }
-      let kept = result[before...].map { $0.windowID }
-      debugLog.log(
-        "Tiler",
-        "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)"
-      )
+      if logging {
+        let kept = result[before...].map { $0.windowID }
+        debugLog.log(
+          "Tiler",
+          "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)"
+        )
+      }
     }
   }
   return result

@@ -38,6 +38,13 @@ public final class MirrorWindowRegistry: Sendable {
     entries.withLock { $0[windowID] }
   }
 
+  /// Snapshot of every registered mirror → target mapping. The FFM
+  /// hit-test walks the full on-screen window list per fire; one lock
+  /// acquisition for the snapshot beats one per window entry.
+  public func allTargets() -> [CGWindowID: Target] {
+    entries.withLock { $0 }
+  }
+
   /// The floating overlay registers here to learn that Tatami itself is
   /// about to move focus to `pid`'s window (focus-follows-mouse, BSP focus,
   /// hotkeys). Restoring mirrors *before* the focus moves lands them in the

@@ -134,6 +134,8 @@ private final class MouseStateController: @unchecked Sendable {
     let mask = (1 << CGEventType.leftMouseDown.rawValue)
              | (1 << CGEventType.leftMouseUp.rawValue)
              | (1 << CGEventType.leftMouseDragged.rawValue)
+             | (1 << CGEventType.tapDisabledByTimeout.rawValue)
+             | (1 << CGEventType.tapDisabledByUserInput.rawValue)
     let context = Unmanaged.passUnretained(self).toOpaque()
     guard let port = CGEvent.tapCreate(
       tap: .cghidEventTap,
@@ -187,6 +189,11 @@ private final class MouseStateController: @unchecked Sendable {
       guard activeWindowID != 0 else { return }
       emit.yield(.ended(point: location))
       activeWindowID = 0
+    case .tapDisabledByTimeout, .tapDisabledByUserInput:
+      // macOS turns a starved tap off; without re-enabling here the
+      // modifier-drag tracking dies silently for the rest of the process
+      // (same recovery as the FFM and mirror-click taps).
+      if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
     default:
       break
     }

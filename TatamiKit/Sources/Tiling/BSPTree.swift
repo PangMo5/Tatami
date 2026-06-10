@@ -29,30 +29,40 @@ public indirect enum BSPNode<WindowID: Hashable & Sendable>: Hashable, Sendable 
   case leaf(BSPLeaf<WindowID>)
   case branch(BSPBranch<WindowID>)
 
-  /// Axis along which a branch divides its rectangle.
-  public enum SplitAxis: String, Sendable, Hashable, Codable {
-    /// Cut horizontally — children stack top/bottom.
-    case horizontal
-    /// Cut vertically — children sit side-by-side.
-    case vertical
-  }
+  // The metadata enums live at the top level (below) — nesting them in
+  // the generic made `BSPNode<String>.SplitAxis` and
+  // `BSPNode<WindowKey>.SplitAxis` distinct types, forcing rawValue
+  // bridges (with fake `?? .vertical` fallbacks) through `hydrate` and
+  // `mapWindows`. The aliases keep the familiar qualified spelling.
+  public typealias SplitAxis = BSPSplitAxis
+  public typealias Side = BSPSide
+  public typealias Child = BSPChild
+  public typealias InsertDirection = BSPInsertDirection
+}
 
-  /// Which side of a branch a child sits on. Path component used by
-  /// the recursive update helpers.
-  public enum Side: Sendable, Hashable { case left, right }
+/// Axis along which a branch divides its rectangle.
+public enum BSPSplitAxis: String, Sendable, Hashable, Codable {
+  /// Cut horizontally — children stack top/bottom.
+  case horizontal
+  /// Cut vertically — children sit side-by-side.
+  case vertical
+}
 
-  /// `first` = the existing window stays in the left/top slot and the
-  /// new window goes right/bottom. `second` reverses it.
-  public enum Child: String, Sendable, Hashable, Codable {
-    case first, second
-  }
+/// Which side of a branch a child sits on. Path component used by
+/// the recursive update helpers.
+public enum BSPSide: Sendable, Hashable { case left, right }
 
-  /// Pre-set intent on a leaf: "the next window I insert should split
-  /// this leaf in this direction (or stack on top of it)". `.stack`
-  /// means: don't split, push the new window onto this leaf's stack.
-  public enum InsertDirection: String, Sendable, Hashable, Codable {
-    case north, east, south, west, stack
-  }
+/// `first` = the existing window stays in the left/top slot and the
+/// new window goes right/bottom. `second` reverses it.
+public enum BSPChild: String, Sendable, Hashable, Codable {
+  case first, second
+}
+
+/// Pre-set intent on a leaf: "the next window I insert should split
+/// this leaf in this direction (or stack on top of it)". `.stack`
+/// means: don't split, push the new window onto this leaf's stack.
+public enum BSPInsertDirection: String, Sendable, Hashable, Codable {
+  case north, east, south, west, stack
 }
 
 /// One BSP leaf — the value payload at the tree's terminals.
@@ -188,36 +198,27 @@ extension BSPNode where WindowID == WindowKey {
         for key in hydratedList where !hydratedOrder.contains(key) {
           hydratedOrder.append(key)
         }
-        // SplitAxis / InsertDirection / Child are nested in BSPNode, so
-        // String-tree and WindowKey-tree variants are distinct types.
-        // Bridge via the shared raw value.
         let leaf = BSPLeaf<WindowKey>(
           windowList: hydratedList,
           windowOrder: hydratedOrder,
-          insertDirection: stringLeaf.insertDirection
-            .flatMap { BSPNode<WindowKey>.InsertDirection(rawValue: $0.rawValue) },
-          preferredChild: stringLeaf.preferredChild
-            .flatMap { BSPNode<WindowKey>.Child(rawValue: $0.rawValue) },
-          preferredSplit: stringLeaf.preferredSplit
-            .flatMap { BSPNode<WindowKey>.SplitAxis(rawValue: $0.rawValue) },
+          insertDirection: stringLeaf.insertDirection,
+          preferredChild: stringLeaf.preferredChild,
+          preferredSplit: stringLeaf.preferredSplit,
           parentZoom: stringLeaf.parentZoom
         )
         return .leaf(leaf)
       case .branch(let stringBranch):
         let l = build(stringBranch.left)
         let r = build(stringBranch.right)
-        let axis = BSPNode<WindowKey>.SplitAxis(rawValue: stringBranch.split.rawValue)
-          ?? .vertical
         switch (l, r) {
         case (nil, nil): return nil
         case (let l?, nil): return l
         case (nil, let r?): return r
         case (let l?, let r?):
           return .branch(BSPBranch(
-            split: axis,
+            split: stringBranch.split,
             ratio: stringBranch.ratio,
-            preferredChild: stringBranch.preferredChild
-              .flatMap { BSPNode<WindowKey>.Child(rawValue: $0.rawValue) },
+            preferredChild: stringBranch.preferredChild,
             left: l,
             right: r
           ))
@@ -238,25 +239,19 @@ extension BSPNode {
   ) -> BSPNode<T> {
     switch self {
     case .leaf(let leaf):
-      let mappedList = leaf.windowList.map(f)
-      let mappedOrder = leaf.windowOrder.map(f)
       return .leaf(BSPLeaf<T>(
-        windowList: mappedList,
-        windowOrder: mappedOrder,
-        insertDirection: leaf.insertDirection
-          .flatMap { BSPNode<T>.InsertDirection(rawValue: $0.rawValue) },
-        preferredChild: leaf.preferredChild
-          .flatMap { BSPNode<T>.Child(rawValue: $0.rawValue) },
-        preferredSplit: leaf.preferredSplit
-          .flatMap { BSPNode<T>.SplitAxis(rawValue: $0.rawValue) },
+        windowList: leaf.windowList.map(f),
+        windowOrder: leaf.windowOrder.map(f),
+        insertDirection: leaf.insertDirection,
+        preferredChild: leaf.preferredChild,
+        preferredSplit: leaf.preferredSplit,
         parentZoom: leaf.parentZoom
       ))
     case .branch(let branch):
       return .branch(BSPBranch<T>(
-        split: BSPNode<T>.SplitAxis(rawValue: branch.split.rawValue) ?? .vertical,
+        split: branch.split,
         ratio: branch.ratio,
-        preferredChild: branch.preferredChild
-          .flatMap { BSPNode<T>.Child(rawValue: $0.rawValue) },
+        preferredChild: branch.preferredChild,
         left: branch.left.mapWindows(f),
         right: branch.right.mapWindows(f)
       ))
@@ -420,17 +415,6 @@ extension BSPNode {
     }
   }
 
-  /// Push `window` onto the stack of the leaf currently holding
-  /// `anchor`. No-op if `anchor` isn't in the tree.
-  public func stacking(_ window: WindowID, onto anchor: WindowID) -> BSPNode {
-    guard let path = pathTo(window: anchor) else { return self }
-    return replacing(path: path) { node in
-      guard case .leaf(var leaf) = node else { return node }
-      leaf.windowList.append(window)
-      leaf.windowOrder.insert(window, at: 0)
-      return .leaf(leaf)
-    }
-  }
 }
 
 // MARK: - Removal
@@ -652,7 +636,9 @@ extension BSPNode {
 extension BSPNode {
   /// Equalize every split per axis so child sizes match the number of
   /// leaves they contain. `.none` is a no-op. `.both` does both axes.
-  public func balanced(axis: AutoBalanceAxis = .both) -> BSPNode {
+  /// Takes the user preference (`AutoBalanceMode`) directly — a separate
+  /// axis enum here was a case-for-case copy plus a hand-written mapper.
+  public func balanced(axis: AutoBalanceMode = .both) -> BSPNode {
     switch self {
     case .leaf:
       return self
@@ -737,16 +723,6 @@ extension BSPNode {
       }
     }
   }
-}
-
-/// Axis selector for `balanced(axis:)`. Per-axis flag exposed as a
-/// plain enum: `.both` equalizes everything, `.horizontal`/`.vertical`
-/// touch only matching joins, `.none` is a no-op.
-public enum AutoBalanceAxis: Sendable, Hashable {
-  case none
-  case horizontal
-  case vertical
-  case both
 }
 
 // MARK: - Frames
@@ -964,7 +940,11 @@ extension BSPNode {
     }
   }
 
-  fileprivate func replacing(
+  /// Rebuild the tree with the subtree at `path` replaced by
+  /// `transform`'s result. Internal (not public) so the framework
+  /// surface stays terse — the activation reducer uses it to patch leaf
+  /// metadata for drag-warp.
+  func replacing(
     path: [Side],
     with transform: (BSPNode) -> BSPNode
   ) -> BSPNode {

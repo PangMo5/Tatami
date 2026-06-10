@@ -20,6 +20,10 @@ public struct MouseClient: Sendable {
   /// the cursor doesn't get in the way of the focused tile right after
   /// a workspace switch.
   public var hideUntilMouseMoves: @Sendable () -> Void
+  /// Cursor position in AX coordinates (top-left origin, anchored to the
+  /// primary screen — the space `ScreenGeometry.workArea` and the BSP
+  /// frames use). Call on the main actor.
+  public var axLocation: @Sendable () -> CGPoint = { .zero }
 }
 
 extension MouseClient: DependencyKey {
@@ -38,6 +42,13 @@ extension MouseClient: DependencyKey {
       },
       hideUntilMouseMoves: {
         Task { @MainActor in controller.hideUntilMouseMoves() }
+      },
+      axLocation: {
+        MainActor.assumeIsolated {
+          let cocoa = NSEvent.mouseLocation
+          let primaryHeight = NSScreen.screens.first?.frame.height ?? cocoa.y
+          return CGPoint(x: cocoa.x, y: primaryHeight - cocoa.y)
+        }
       }
     )
   }
@@ -46,7 +57,8 @@ extension MouseClient: DependencyKey {
     warp: { _ in },
     hide: {},
     show: {},
-    hideUntilMouseMoves: {}
+    hideUntilMouseMoves: {},
+    axLocation: { .zero }
   )
 
   public static let previewValue = testValue

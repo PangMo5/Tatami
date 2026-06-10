@@ -33,6 +33,13 @@ extension UpdaterClient: DependencyKey {
       }
     )
   }
+
+  /// Tests must not start Sparkle's background update schedule.
+  public static let testValue = UpdaterClient(
+    checkForUpdates: {},
+    configure: { _, _ in }
+  )
+  public static let previewValue = testValue
 }
 
 extension DependencyValues {

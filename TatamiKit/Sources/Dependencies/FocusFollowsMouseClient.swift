@@ -157,10 +157,12 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // the same app (e.g. two Ghostty windows) must still move focus.
     if info.windowID == lastFocusedWindowID { return }
     lastFocusedWindowID = info.windowID
-    debugLog.log(
-      "FocusDiag",
-      "ffm fire pid=\(info.pid) wid=\(info.windowID) at=(\(Int(location.x)),\(Int(location.y)))"
-    )
+    if debugLog.isEnabled() {
+      debugLog.log(
+        "FocusDiag",
+        "ffm fire pid=\(info.pid) wid=\(info.windowID) at=(\(Int(location.x)),\(Int(location.y)))"
+      )
+    }
 
     // Raise the specific window under the cursor so focus lands on the
     // right one even within the same app (shared helper in WindowKey).
@@ -185,34 +187,49 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       [.optionOnScreenOnly, .excludeDesktopElements],
       kCGNullWindowID
     ) as? [[String: Any]] ?? []
-    // Layer-0 windows in front-to-back z-order (the list's natural order).
-    let windows: [(pid: pid_t, windowID: CGWindowID, bounds: CGRect)] = raw.compactMap { entry in
+    // One lock acquisition for the mirror snapshot instead of one per entry.
+    let mirrorTargets = MirrorWindowRegistry.shared.allTargets()
+    // Single pass in front-to-back z-order (the list's natural order),
+    // stopping at the first hit — materializing the full window array per
+    // fire (up to 20 Hz during mouse motion) was pure allocation churn.
+    // Only the bounds of the layer-0 windows *in front of* the hit are
+    // kept, for the full-screen gap guard below.
+    var frontBounds: [CGRect] = []
+    var candidate: (pid: pid_t, windowID: CGWindowID, bounds: CGRect)?
+    for entry in raw {
       guard let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
             let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID,
             let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
             let x = boundsDict["X"], let y = boundsDict["Y"],
             let w = boundsDict["Width"], let h = boundsDict["Height"]
-      else { return nil }
+      else { continue }
       let bounds = CGRect(x: x, y: y, width: w, height: h)
       // A visible floating-mirror panel stands in for the window it
       // mirrors: hovering the mirror must focus the real floating window,
       // not the tile that happens to sit underneath the panel — otherwise
       // FFM and the overlay fight over focus during the hand-off.
       let alpha = (entry[kCGWindowAlpha as String] as? Double) ?? 1
-      if alpha > 0,
-         let target = MirrorWindowRegistry.shared.target(forMirror: windowNumber)
-      {
-        debugLog.log(
-          "FocusDiag",
-          "ffm mirror-redirect panel=\(windowNumber) alpha=\(alpha) -> pid=\(target.pid) wid=\(target.windowID)"
-        )
-        return (target.pid, target.windowID, bounds)
+      if alpha > 0, let target = mirrorTargets[windowNumber] {
+        if bounds.contains(point) {
+          if debugLog.isEnabled() {
+            debugLog.log(
+              "FocusDiag",
+              "ffm mirror-redirect panel=\(windowNumber) alpha=\(alpha) -> pid=\(target.pid) wid=\(target.windowID)"
+            )
+          }
+          candidate = (target.pid, target.windowID, bounds)
+          break
+        }
+        continue
       }
-      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { return nil }
-      return (pidNumber, windowNumber, bounds)
+      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
+      if bounds.contains(point) {
+        candidate = (pidNumber, windowNumber, bounds)
+        break
+      }
+      frontBounds.append(bounds)
     }
-    guard let idx = windows.firstIndex(where: { $0.bounds.contains(point) }) else { return nil }
-    let candidate = windows[idx]
+    guard let candidate else { return nil }
 
     // The cursor's frontmost window fills its display (full-screen /
     // maximized).
@@ -226,10 +243,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       // cursor far from every front tile is over the background's own open
       // area and focuses normally.
       let gapMargin: CGFloat = 24
-      let inTileGap = windows[..<idx].contains { window in
-        display.intersects(window.bounds)
-          && !covers(window.bounds, display)
-          && window.bounds.insetBy(dx: -gapMargin, dy: -gapMargin).contains(point)
+      let inTileGap = frontBounds.contains { bounds in
+        display.intersects(bounds)
+          && !covers(bounds, display)
+          && bounds.insetBy(dx: -gapMargin, dy: -gapMargin).contains(point)
       }
       if inTileGap { return nil }
     }

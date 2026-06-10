@@ -1,5 +1,21 @@
 import Foundation
 
+/// Field-tolerant decoding shared by every settings group: a missing or
+/// mistyped key falls back to its default so a hand-edited config still
+/// loads. One funnel instead of `(try? c.decode(...)) ?? default` per
+/// field — and the single place to later surface "key exists but didn't
+/// parse" instead of silently absorbing typos.
+extension KeyedDecodingContainer {
+  func decode<T: Decodable>(_ key: Key, default defaultValue: T) -> T {
+    (try? decode(T.self, forKey: key)) ?? defaultValue
+  }
+
+  /// Optional variant for fields where absence is meaningful (hotkeys).
+  func decodeIfValid<T: Decodable>(_ key: Key) -> T? {
+    try? decode(T.self, forKey: key)
+  }
+}
+
 /// Application-wide settings persisted in `config.toml`.
 ///
 /// Grouped into nested tables (`[settings.layout]`, `[settings.focus]`,
@@ -45,15 +61,15 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
-    self.general = (try? c.decode(General.self, forKey: .general)) ?? General()
-    self.menuBar = (try? c.decode(MenuBar.self, forKey: .menuBar)) ?? MenuBar()
-    self.hud = (try? c.decode(HUD.self, forKey: .hud)) ?? HUD()
-    self.marker = (try? c.decode(Marker.self, forKey: .marker)) ?? Marker()
-    self.layout = (try? c.decode(Layout.self, forKey: .layout)) ?? Layout()
-    self.focus = (try? c.decode(Focus.self, forKey: .focus)) ?? Focus()
-    self.switching = (try? c.decode(Switching.self, forKey: .switching)) ?? Switching()
-    self.gestures = (try? c.decode(Gestures.self, forKey: .gestures)) ?? Gestures()
-    self.shortcuts = (try? c.decode(Shortcuts.self, forKey: .shortcuts)) ?? Shortcuts()
+    self.general = c.decode(.general, default: General())
+    self.menuBar = c.decode(.menuBar, default: MenuBar())
+    self.hud = c.decode(.hud, default: HUD())
+    self.marker = c.decode(.marker, default: Marker())
+    self.layout = c.decode(.layout, default: Layout())
+    self.focus = c.decode(.focus, default: Focus())
+    self.switching = c.decode(.switching, default: Switching())
+    self.gestures = c.decode(.gestures, default: Gestures())
+    self.shortcuts = c.decode(.shortcuts, default: Shortcuts())
   }
 }
 
@@ -90,12 +106,10 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.launchAtLogin = (try? c.decode(Bool.self, forKey: .launchAtLogin)) ?? false
-      self.checkForUpdatesAutomatically =
-        (try? c.decode(Bool.self, forKey: .checkForUpdatesAutomatically)) ?? true
-      self.checkInterval =
-        (try? c.decode(UpdateCheckInterval.self, forKey: .checkInterval)) ?? .daily
-      self.debugLogging = (try? c.decode(Bool.self, forKey: .debugLogging)) ?? false
+      self.launchAtLogin = c.decode(.launchAtLogin, default: false)
+      self.checkForUpdatesAutomatically = c.decode(.checkForUpdatesAutomatically, default: true)
+      self.checkInterval = c.decode(.checkInterval, default: .daily)
+      self.debugLogging = c.decode(.debugLogging, default: false)
     }
   }
 }
@@ -115,7 +129,7 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.showWorkspaceName = (try? c.decode(Bool.self, forKey: .showWorkspaceName)) ?? true
+      self.showWorkspaceName = c.decode(.showWorkspaceName, default: true)
     }
   }
 }
@@ -166,13 +180,13 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.floatingEnabled = (try? c.decode(Bool.self, forKey: .floatingEnabled)) ?? true
-      self.floatingColorHex = (try? c.decode(String.self, forKey: .floatingColorHex)) ?? "#FF9500"
-      self.fullscreenEnabled = (try? c.decode(Bool.self, forKey: .fullscreenEnabled)) ?? true
-      self.fullscreenColorHex = (try? c.decode(String.self, forKey: .fullscreenColorHex)) ?? "#007AFF"
-      self.size = (try? c.decode(Double.self, forKey: .size)) ?? 14
-      self.corner = (try? c.decode(MarkerCorner.self, forKey: .corner)) ?? .bottomTrailing
-      self.hideOnHover = (try? c.decode(Bool.self, forKey: .hideOnHover)) ?? true
+      self.floatingEnabled = c.decode(.floatingEnabled, default: true)
+      self.floatingColorHex = c.decode(.floatingColorHex, default: "#FF9500")
+      self.fullscreenEnabled = c.decode(.fullscreenEnabled, default: true)
+      self.fullscreenColorHex = c.decode(.fullscreenColorHex, default: "#007AFF")
+      self.size = c.decode(.size, default: 14)
+      self.corner = c.decode(.corner, default: .bottomTrailing)
+      self.hideOnHover = c.decode(.hideOnHover, default: true)
     }
   }
 }
@@ -246,14 +260,14 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
-      self.workspaceSwitch = (try? c.decode(Bool.self, forKey: .workspaceSwitch)) ?? true
-      self.floating = (try? c.decode(Bool.self, forKey: .floating)) ?? true
-      self.appMembership = (try? c.decode(Bool.self, forKey: .appMembership)) ?? true
-      self.tilingPaused = (try? c.decode(Bool.self, forKey: .tilingPaused)) ?? true
-      self.fullscreen = (try? c.decode(Bool.self, forKey: .fullscreen)) ?? true
-      self.layout = (try? c.decode(Bool.self, forKey: .layout)) ?? true
-      self.durationMs = (try? c.decode(Int.self, forKey: .durationMs)) ?? 900
+      self.enabled = c.decode(.enabled, default: true)
+      self.workspaceSwitch = c.decode(.workspaceSwitch, default: true)
+      self.floating = c.decode(.floating, default: true)
+      self.appMembership = c.decode(.appMembership, default: true)
+      self.tilingPaused = c.decode(.tilingPaused, default: true)
+      self.fullscreen = c.decode(.fullscreen, default: true)
+      self.layout = c.decode(.layout, default: true)
+      self.durationMs = c.decode(.durationMs, default: 900)
     }
 
     /// Effective visibility for one HUD category — the master switch
@@ -315,8 +329,8 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.gapInner = (try? c.decode(Int.self, forKey: .gapInner)) ?? 8
-      self.gapOuter = (try? c.decode(Int.self, forKey: .gapOuter)) ?? 8
+      self.gapInner = c.decode(.gapInner, default: 8)
+      self.gapOuter = c.decode(.gapOuter, default: 8)
       // Bool autoBalance values from older configs decode as `.both`
       // (the Bool-true meaning) or `.none` (Bool-false). Hand-edited
       // configs with the new enum string take priority.
@@ -327,11 +341,9 @@ extension AppSettings {
       } else {
         self.autoBalance = .none
       }
-      self.splitType = (try? c.decode(SplitTypePreference.self, forKey: .splitType)) ?? .auto
-      self.windowPlacement = (try? c.decode(WindowPlacement.self, forKey: .windowPlacement))
-        ?? .second
-      self.defaultTilingMemory =
-        (try? c.decode(TilingMemory.self, forKey: .defaultTilingMemory)) ?? .session
+      self.splitType = c.decode(.splitType, default: .auto)
+      self.windowPlacement = c.decode(.windowPlacement, default: .second)
+      self.defaultTilingMemory = c.decode(.defaultTilingMemory, default: .session)
     }
   }
 }
@@ -378,6 +390,11 @@ public enum WindowPlacement: String, Codable, Hashable, Sendable, CaseIterable, 
     case .second: "Bottom / right"
     }
   }
+
+  /// The `BSPNode` child slot this preference maps to.
+  public var bspChild: BSPChild {
+    self == .first ? .first : .second
+  }
 }
 
 // MARK: - Focus + mouse
@@ -422,16 +439,14 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.mouseFollowsFocus = (try? c.decode(Bool.self, forKey: .mouseFollowsFocus)) ?? false
-      self.mouseHidesOnFocus = (try? c.decode(Bool.self, forKey: .mouseHidesOnFocus)) ?? false
-      self.focusFollowsMouse = (try? c.decode(Bool.self, forKey: .focusFollowsMouse)) ?? false
-      self.focusFollowsMouseDisableHotkey = (try? c.decode(
-        FocusFollowsMouseModifier.self, forKey: .focusFollowsMouseDisableHotkey
-      )) ?? .option
-      self.focusFollowsMouseIgnoreFullscreen = (try? c.decode(
-        Bool.self, forKey: .focusFollowsMouseIgnoreFullscreen
-      )) ?? true
-      self.refocusOnClose = (try? c.decode(Bool.self, forKey: .refocusOnClose)) ?? true
+      self.mouseFollowsFocus = c.decode(.mouseFollowsFocus, default: false)
+      self.mouseHidesOnFocus = c.decode(.mouseHidesOnFocus, default: false)
+      self.focusFollowsMouse = c.decode(.focusFollowsMouse, default: false)
+      self.focusFollowsMouseDisableHotkey =
+        c.decode(.focusFollowsMouseDisableHotkey, default: .option)
+      self.focusFollowsMouseIgnoreFullscreen =
+        c.decode(.focusFollowsMouseIgnoreFullscreen, default: true)
+      self.refocusOnClose = c.decode(.refocusOnClose, default: true)
     }
   }
 }
@@ -477,13 +492,11 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.loop = (try? c.decode(Bool.self, forKey: .loop)) ?? true
-      self.skipEmpty = (try? c.decode(Bool.self, forKey: .skipEmpty)) ?? false
-      self.followAppFocus = (try? c.decode(Bool.self, forKey: .followAppFocus)) ?? false
-      self.cycleAcrossDisplays =
-        (try? c.decode(Bool.self, forKey: .cycleAcrossDisplays)) ?? false
-      self.switchToRecentWhenEmpty =
-        (try? c.decode(Bool.self, forKey: .switchToRecentWhenEmpty)) ?? false
+      self.loop = c.decode(.loop, default: true)
+      self.skipEmpty = c.decode(.skipEmpty, default: false)
+      self.followAppFocus = c.decode(.followAppFocus, default: false)
+      self.cycleAcrossDisplays = c.decode(.cycleAcrossDisplays, default: false)
+      self.switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
     }
   }
 }
@@ -523,8 +536,8 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? false
-      self.fingerCount = (try? c.decode(Int.self, forKey: .fingerCount)) ?? 3
+      self.enabled = c.decode(.enabled, default: false)
+      self.fingerCount = c.decode(.fingerCount, default: 3)
       if let value = try? c.decode(Double.self, forKey: .threshold) {
         self.threshold = Self.roundedThreshold(value)
       } else if let sensitivity = try? c.decode(Double.self, forKey: .sensitivity) {
@@ -677,34 +690,33 @@ extension AppSettings {
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
-      self.focusLeft = try? c.decode(HotKey.self, forKey: .focusLeft)
-      self.focusRight = try? c.decode(HotKey.self, forKey: .focusRight)
-      self.focusUp = try? c.decode(HotKey.self, forKey: .focusUp)
-      self.focusDown = try? c.decode(HotKey.self, forKey: .focusDown)
-      self.switchToNextWorkspace = try? c.decode(HotKey.self, forKey: .switchToNextWorkspace)
-      self.switchToPreviousWorkspace = try? c.decode(HotKey.self, forKey: .switchToPreviousWorkspace)
-      self.switchToRecentWorkspace = try? c.decode(HotKey.self, forKey: .switchToRecentWorkspace)
-      self.moveToNextWorkspace = try? c.decode(HotKey.self, forKey: .moveToNextWorkspace)
-      self.moveToPreviousWorkspace = try? c.decode(HotKey.self, forKey: .moveToPreviousWorkspace)
-      self.focusNextDisplay = try? c.decode(HotKey.self, forKey: .focusNextDisplay)
-      self.focusPreviousDisplay = try? c.decode(HotKey.self, forKey: .focusPreviousDisplay)
-      self.cycleNextWindow = try? c.decode(HotKey.self, forKey: .cycleNextWindow)
-      self.cyclePreviousWindow = try? c.decode(HotKey.self, forKey: .cyclePreviousWindow)
-      self.resizeGrow = try? c.decode(HotKey.self, forKey: .resizeGrow)
-      self.resizeShrink = try? c.decode(HotKey.self, forKey: .resizeShrink)
-      self.swapLeft = try? c.decode(HotKey.self, forKey: .swapLeft)
-      self.swapRight = try? c.decode(HotKey.self, forKey: .swapRight)
-      self.swapUp = try? c.decode(HotKey.self, forKey: .swapUp)
-      self.swapDown = try? c.decode(HotKey.self, forKey: .swapDown)
-      self.toggleOrientation = try? c.decode(HotKey.self, forKey: .toggleOrientation)
-      self.toggleFullscreen = try? c.decode(HotKey.self, forKey: .toggleFullscreen)
-      self.balance = try? c.decode(HotKey.self, forKey: .balance)
-      self.toggleFloating = try? c.decode(HotKey.self, forKey: .toggleFloating)
-      self.toggleSharedFloating = try? c.decode(HotKey.self, forKey: .toggleSharedFloating)
-      self.toggleSpaceActivated = try? c.decode(HotKey.self, forKey: .toggleSpaceActivated)
-      self.toggleFocusedAppInActiveWorkspace =
-        try? c.decode(HotKey.self, forKey: .toggleFocusedAppInActiveWorkspace)
-      self.toggleAppInSharedApps = try? c.decode(HotKey.self, forKey: .toggleAppInSharedApps)
+      self.focusLeft = c.decodeIfValid(.focusLeft)
+      self.focusRight = c.decodeIfValid(.focusRight)
+      self.focusUp = c.decodeIfValid(.focusUp)
+      self.focusDown = c.decodeIfValid(.focusDown)
+      self.switchToNextWorkspace = c.decodeIfValid(.switchToNextWorkspace)
+      self.switchToPreviousWorkspace = c.decodeIfValid(.switchToPreviousWorkspace)
+      self.switchToRecentWorkspace = c.decodeIfValid(.switchToRecentWorkspace)
+      self.moveToNextWorkspace = c.decodeIfValid(.moveToNextWorkspace)
+      self.moveToPreviousWorkspace = c.decodeIfValid(.moveToPreviousWorkspace)
+      self.focusNextDisplay = c.decodeIfValid(.focusNextDisplay)
+      self.focusPreviousDisplay = c.decodeIfValid(.focusPreviousDisplay)
+      self.cycleNextWindow = c.decodeIfValid(.cycleNextWindow)
+      self.cyclePreviousWindow = c.decodeIfValid(.cyclePreviousWindow)
+      self.resizeGrow = c.decodeIfValid(.resizeGrow)
+      self.resizeShrink = c.decodeIfValid(.resizeShrink)
+      self.swapLeft = c.decodeIfValid(.swapLeft)
+      self.swapRight = c.decodeIfValid(.swapRight)
+      self.swapUp = c.decodeIfValid(.swapUp)
+      self.swapDown = c.decodeIfValid(.swapDown)
+      self.toggleOrientation = c.decodeIfValid(.toggleOrientation)
+      self.toggleFullscreen = c.decodeIfValid(.toggleFullscreen)
+      self.balance = c.decodeIfValid(.balance)
+      self.toggleFloating = c.decodeIfValid(.toggleFloating)
+      self.toggleSharedFloating = c.decodeIfValid(.toggleSharedFloating)
+      self.toggleSpaceActivated = c.decodeIfValid(.toggleSpaceActivated)
+      self.toggleFocusedAppInActiveWorkspace = c.decodeIfValid(.toggleFocusedAppInActiveWorkspace)
+      self.toggleAppInSharedApps = c.decodeIfValid(.toggleAppInSharedApps)
     }
   }
 }

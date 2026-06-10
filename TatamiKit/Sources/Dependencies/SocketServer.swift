@@ -146,10 +146,17 @@ private actor SocketServer {
 
   func stop() {
     guard isRunning else { return }
+    // `shutdown` reliably wakes the thread blocked in `accept` (a bare
+    // `close` is not guaranteed to on macOS, and the fd number could be
+    // reused by an unrelated descriptor while the loop still holds it).
+    Darwin.shutdown(listenFD, SHUT_RDWR)
     Darwin.close(listenFD)
     listenFD = -1
     isRunning = false
-    continuation.finish()
+    // The stream deliberately stays open: it is handed out once
+    // (`requests`) and consumed for the process lifetime, so finishing it
+    // here would make every request after a stop→start silently die in a
+    // finished continuation.
     logger.info("SocketServer stopped")
   }
 
@@ -219,8 +226,21 @@ private actor SocketServer {
   private static func writeResponse(fd: Int32, response: CLIMessage.Response) {
     guard var data = try? YYJSONEncoder().encode(response) else { return }
     data.append(0x0A)
-    _ = data.withUnsafeBytes { ptr in
-      Darwin.write(fd, ptr.baseAddress, ptr.count)
+    // Loop over short writes (signal interruption) — a truncated JSON
+    // line would fail to decode on the CLI side.
+    data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+      guard let base = ptr.baseAddress else { return }
+      var offset = 0
+      while offset < ptr.count {
+        let written = Darwin.write(fd, base.advanced(by: offset), ptr.count - offset)
+        if written > 0 {
+          offset += written
+        } else if written < 0, errno == EINTR {
+          continue
+        } else {
+          return
+        }
+      }
     }
   }
 }

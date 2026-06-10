@@ -10,6 +10,16 @@ import Foundation
 public struct DisplayClient: Sendable {
   public var all: @Sendable () -> [DisplayName] = { [] }
   public var current: @Sendable () -> DisplayName?
+  /// AX work area (top-left origin, anchored to the primary screen) of
+  /// the named display — the main screen when `nil`.
+  public var workArea: @Sendable (_ name: DisplayName?) -> CGRect = { _ in .zero }
+  /// The *connected* screen matching `name` (UUID first, then name), if any.
+  public var connected: @Sendable (_ name: DisplayName) -> DisplayName?
+  /// The primary display.
+  public var primary: @Sendable () -> DisplayName?
+  /// `name` resolved to a connected screen, falling back to the primary —
+  /// where a workspace pinned to `name` actually tiles.
+  public var resolveOrPrimary: @Sendable (_ name: DisplayName) -> DisplayName?
   /// Emits the fresh display list whenever the screen configuration changes
   /// (monitor plugged/unplugged, arrangement/resolution change), so UI lists
   /// don't go stale.
@@ -43,6 +53,18 @@ extension DisplayClient: DependencyKey {
         return screen?.displayName
       }
     },
+    workArea: { name in
+      MainActor.assumeIsolated { ScreenGeometry.workArea(for: name) }
+    },
+    connected: { name in
+      MainActor.assumeIsolated { DisplayResolver.connectedScreen(for: name)?.displayName }
+    },
+    primary: {
+      MainActor.assumeIsolated { DisplayResolver.primaryScreen()?.displayName }
+    },
+    resolveOrPrimary: { name in
+      MainActor.assumeIsolated { DisplayResolver.screenOrPrimary(for: name)?.displayName }
+    },
     changes: {
       AsyncStream { continuation in
         let observer = ScreenObserver()
@@ -59,12 +81,20 @@ extension DisplayClient: DependencyKey {
   public static let testValue = DisplayClient(
     all: { [DisplayName("Test Display")] },
     current: { DisplayName("Test Display") },
+    workArea: { _ in CGRect(x: 0, y: 0, width: 1920, height: 1080) },
+    connected: { $0 },
+    primary: { DisplayName("Test Display") },
+    resolveOrPrimary: { $0 },
     changes: { .finished }
   )
 
   public static let previewValue = DisplayClient(
     all: { [DisplayName("Built-in Retina Display"), DisplayName("External Monitor")] },
     current: { DisplayName("Built-in Retina Display") },
+    workArea: { _ in CGRect(x: 0, y: 0, width: 1920, height: 1080) },
+    connected: { $0 },
+    primary: { DisplayName("Built-in Retina Display") },
+    resolveOrPrimary: { $0 },
     changes: { .finished }
   )
 }
