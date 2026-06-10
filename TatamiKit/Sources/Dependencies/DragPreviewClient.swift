@@ -15,15 +15,15 @@ public enum DropZone: Sendable, Hashable {
 /// `windowMoved`); hidden on drag-end. Purely visual — it never intercepts
 /// mouse events, so it can't interfere with the drag.
 @DependencyClient
-public struct DragPreviewClient: Sendable {
+struct DragPreviewClient: Sendable {
   /// Highlight `zone` of `targetRect` (AX top-left, primary-anchored coords).
-  public var show: @Sendable (_ targetRect: CGRect, _ zone: DropZone) -> Void
+  var show: @Sendable (_ targetRect: CGRect, _ zone: DropZone) -> Void
   /// Remove the overlay.
-  public var hide: @Sendable () -> Void
+  var hide: @Sendable () -> Void
 }
 
 extension DragPreviewClient: DependencyKey {
-  public static let liveValue: DragPreviewClient = MainActor.assumeIsolated {
+  static let liveValue: DragPreviewClient = MainActor.assumeIsolated {
     let controller = DragPreviewController()
     return DragPreviewClient(
       show: { rect, zone in
@@ -33,12 +33,12 @@ extension DragPreviewClient: DependencyKey {
     )
   }
 
-  public static let testValue = DragPreviewClient(show: { _, _ in }, hide: {})
-  public static let previewValue = testValue
+  static let testValue = DragPreviewClient(show: { _, _ in }, hide: {})
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var dragPreview: DragPreviewClient {
+  var dragPreview: DragPreviewClient {
     get { self[DragPreviewClient.self] }
     set { self[DragPreviewClient.self] = newValue }
   }

@@ -13,9 +13,9 @@ public struct CLIStatus: Equatable, Sendable {
   public var isBundled: Bool
   public var symlinkPath: String
   public var homebrewPath: String
-  public var bundledPath: String
+  var bundledPath: String
 
-  public init(
+  init(
     isInstalled: Bool = false,
     viaHomebrew: Bool = false,
     isBundled: Bool = false,
@@ -36,16 +36,16 @@ public struct CLIStatus: Equatable, Sendable {
 /// (copied into `Contents/Resources` by a build phase); installing creates a
 /// `PATH` symlink so it can be scripted from the terminal.
 @DependencyClient
-public struct CLIInstallerClient: Sendable {
-  public var status: @Sendable () -> CLIStatus = { CLIStatus() }
+struct CLIInstallerClient: Sendable {
+  var status: @Sendable () -> CLIStatus = { CLIStatus() }
   /// Symlink the bundled CLI onto `PATH` (prompts for admin rights).
-  public var install: @Sendable () async -> Void
+  var install: @Sendable () async -> Void
   /// Remove the `PATH` symlink (prompts for admin rights).
-  public var uninstall: @Sendable () async -> Void
+  var uninstall: @Sendable () async -> Void
 }
 
 extension CLIInstallerClient: DependencyKey {
-  public static let liveValue: CLIInstallerClient = {
+  static let liveValue: CLIInstallerClient = {
     // Captured as plain `let` strings (Sendable) so the closures below stay
     // `@Sendable`; the filesystem checks are cheap, so inline them per call.
     let bundledPath = Bundle.main.bundlePath + "/Contents/Resources/tatami"
@@ -78,16 +78,16 @@ extension CLIInstallerClient: DependencyKey {
     )
   }()
 
-  public static let testValue = CLIInstallerClient(
+  static let testValue = CLIInstallerClient(
     status: { CLIStatus() },
     install: {},
     uninstall: {}
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var cliInstaller: CLIInstallerClient {
+  var cliInstaller: CLIInstallerClient {
     get { self[CLIInstallerClient.self] }
     set { self[CLIInstallerClient.self] = newValue }
   }

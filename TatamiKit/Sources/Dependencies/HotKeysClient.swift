@@ -55,7 +55,7 @@ extension HotKeyAction {
   /// Stable key segment used to build the `KeyboardShortcuts.Name`.
   /// Shared by the registrar and the Settings recorders so both target
   /// the exact same shortcut slot.
-  public var nameKey: String {
+  var nameKey: String {
     switch self {
     case .activateWorkspace(let id): "activate-\(id.uuidString)"
     case .assignFocusedAppToWorkspace(let id): "assign-app-\(id.uuidString)"
@@ -95,10 +95,10 @@ extension HotKeyAction {
 }
 
 public struct HotKeyBinding: Sendable, Hashable {
-  public var action: HotKeyAction
-  public var hotKey: HotKey
+  var action: HotKeyAction
+  var hotKey: HotKey
 
-  public init(action: HotKeyAction, hotKey: HotKey) {
+  init(action: HotKeyAction, hotKey: HotKey) {
     self.action = action
     self.hotKey = hotKey
   }
@@ -106,13 +106,13 @@ public struct HotKeyBinding: Sendable, Hashable {
 
 /// Side-effect surface for registering global keyboard shortcuts.
 @DependencyClient
-public struct HotKeysClient: Sendable {
-  public var register: @Sendable ([HotKeyBinding]) async -> Void
-  public var events: @Sendable () -> AsyncStream<HotKeyAction> = { AsyncStream { _ in } }
+struct HotKeysClient: Sendable {
+  var register: @Sendable ([HotKeyBinding]) async -> Void
+  var events: @Sendable () -> AsyncStream<HotKeyAction> = { AsyncStream { _ in } }
 }
 
 extension HotKeysClient: DependencyKey {
-  public static let liveValue: HotKeysClient = {
+  static let liveValue: HotKeysClient = {
     let center = HotKeysCenter()
     return HotKeysClient(
       register: { bindings in
@@ -124,16 +124,16 @@ extension HotKeysClient: DependencyKey {
     )
   }()
 
-  public static let testValue = HotKeysClient(
+  static let testValue = HotKeysClient(
     register: { _ in },
     events: { AsyncStream { _ in } }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var hotKeys: HotKeysClient {
+  var hotKeys: HotKeysClient {
     get { self[HotKeysClient.self] }
     set { self[HotKeysClient.self] = newValue }
   }

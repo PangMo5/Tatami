@@ -12,15 +12,15 @@ import OSLog
 /// toggle so frames snap into place without animation. No custom
 /// animation pipeline — frames are written directly.
 @DependencyClient
-public struct WindowTilerClient: Sendable {
-  public var apply: @Sendable (FrameApplication) async -> Void
+struct WindowTilerClient: Sendable {
+  var apply: @Sendable (FrameApplication) async -> Void
 }
 
-public struct FrameApplication: Sendable, Hashable {
-  public var windowFrames: [WindowKey: CGRect]
-  public var targetDisplay: DisplayName?
+struct FrameApplication: Sendable, Hashable {
+  var windowFrames: [WindowKey: CGRect]
+  var targetDisplay: DisplayName?
 
-  public init(
+  init(
     windowFrames: [WindowKey: CGRect],
     targetDisplay: DisplayName?
   ) {
@@ -30,7 +30,7 @@ public struct FrameApplication: Sendable, Hashable {
 }
 
 extension WindowTilerClient: DependencyKey {
-  public static let liveValue = WindowTilerClient { request in
+  static let liveValue = WindowTilerClient { request in
     guard !request.windowFrames.isEmpty else {
       logger.debug("apply: no frames to apply")
       return
@@ -59,8 +59,8 @@ extension WindowTilerClient: DependencyKey {
     }
   }
 
-  public static let testValue = WindowTilerClient(apply: { _ in })
-  public static let previewValue = testValue
+  static let testValue = WindowTilerClient(apply: { _ in })
+  static let previewValue = testValue
 
   @MainActor
   private static func applyForApp(
@@ -169,7 +169,7 @@ extension WindowTilerClient: DependencyKey {
 }
 
 extension DependencyValues {
-  public var windowTiler: WindowTilerClient {
+  var windowTiler: WindowTilerClient {
     get { self[WindowTilerClient.self] }
     set { self[WindowTilerClient.self] = newValue }
   }
@@ -178,9 +178,9 @@ extension DependencyValues {
 /// Resolve the AX work area of the named screen (or the main screen
 /// if `name` is nil). Top-origin, anchored to the primary screen —
 /// same convention as `kAXPositionAttribute`.
-public enum ScreenGeometry {
+enum ScreenGeometry {
   @MainActor
-  public static func workArea(for name: DisplayName?) -> CGRect {
+  static func workArea(for name: DisplayName?) -> CGRect {
     // Resolve UUID → name → primary; the primary display also anchors the
     // AX (top-left) coordinate flip.
     guard let screen = DisplayResolver.screenOrPrimary(for: name),
@@ -202,13 +202,13 @@ public enum ScreenGeometry {
 /// the timeout on the system-wide element makes it the process-global
 /// default for all elements; per-element values still override it.
 @MainActor
-public func boundGlobalAXMessagingTimeout() {
+func boundGlobalAXMessagingTimeout() {
   AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
 }
 
 @MainActor
 @discardableResult
-public func ensureAccessibilityTrust() -> Bool {
+func ensureAccessibilityTrust() -> Bool {
   if AXIsProcessTrusted() { return true }
   let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
   return AXIsProcessTrustedWithOptions(options)
@@ -217,7 +217,7 @@ public func ensureAccessibilityTrust() -> Bool {
 /// Non-prompting check of the current Accessibility trust state. Use for
 /// status display; use `ensureAccessibilityTrust()` to also prompt.
 @MainActor
-public func isAccessibilityTrusted() -> Bool {
+func isAccessibilityTrusted() -> Bool {
   AXIsProcessTrusted()
 }
 
@@ -237,7 +237,7 @@ public func isAccessibilityTrusted() -> Bool {
 /// only needs the window to be movable, and fixed-size windows (the iOS
 /// Simulator's device windows report `AXSize` as not settable) float fine.
 @MainActor
-public func discoverWindowKeys(
+func discoverWindowKeys(
   forBundleIds bundleIds: [String],
   sls: SLSClient,
   requireResizable: Bool = true

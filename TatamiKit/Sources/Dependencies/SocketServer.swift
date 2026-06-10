@@ -15,19 +15,19 @@ import YYJSON
 /// Network.framework: Unix domain sockets via NWListener are awkward and
 /// this is a low-traffic, blocking-accept loop on a background queue.
 @DependencyClient
-public struct SocketServerClient: Sendable {
+struct SocketServerClient: Sendable {
   /// Start the listener at `path`. Idempotent — calling twice does nothing.
-  public var start: @Sendable (_ path: String) async throws -> Void
-  public var stop: @Sendable () async -> Void
-  public var requests: @Sendable () -> AsyncStream<Incoming> = { AsyncStream { _ in } }
+  var start: @Sendable (_ path: String) async throws -> Void
+  var stop: @Sendable () async -> Void
+  var requests: @Sendable () -> AsyncStream<Incoming> = { AsyncStream { _ in } }
 
   /// A pending CLI request along with a one-shot reply continuation.
-  public struct Incoming: Sendable {
-    public let request: CLIMessage.Request
+  struct Incoming: Sendable {
+    let request: CLIMessage.Request
     /// Send a response. May only be invoked once.
-    public let reply: @Sendable (CLIMessage.Response) -> Void
+    let reply: @Sendable (CLIMessage.Response) -> Void
 
-    public init(
+    init(
       request: CLIMessage.Request,
       reply: @escaping @Sendable (CLIMessage.Response) -> Void
     ) {
@@ -38,7 +38,7 @@ public struct SocketServerClient: Sendable {
 }
 
 extension SocketServerClient: DependencyKey {
-  public static let liveValue: SocketServerClient = {
+  static let liveValue: SocketServerClient = {
     let server = SocketServer()
     return SocketServerClient(
       start: { path in try await server.start(path: path) },
@@ -47,17 +47,17 @@ extension SocketServerClient: DependencyKey {
     )
   }()
 
-  public static let testValue = SocketServerClient(
+  static let testValue = SocketServerClient(
     start: { _ in },
     stop: {},
     requests: { AsyncStream { _ in } }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var socketServer: SocketServerClient {
+  var socketServer: SocketServerClient {
     get { self[SocketServerClient.self] }
     set { self[SocketServerClient.self] = newValue }
   }
@@ -262,7 +262,7 @@ private final class ResponseBox: @unchecked Sendable {
   }
 }
 
-public enum SocketError: Error, Sendable {
+enum SocketError: Error, Sendable {
   case create(Int32)
   case bind(Int32)
   case listen(Int32)

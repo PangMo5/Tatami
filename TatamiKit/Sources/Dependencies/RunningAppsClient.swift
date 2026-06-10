@@ -7,12 +7,12 @@ import Foundation
 /// `NSWorkspace.shared.runningApplications` behind a `@Dependency` lets
 /// reducers stay testable.
 @DependencyClient
-public struct RunningAppsClient: Sendable {
-  public var current: @Sendable () -> [MacApp] = { [] }
+struct RunningAppsClient: Sendable {
+  var current: @Sendable () -> [MacApp] = { [] }
 }
 
 extension RunningAppsClient: DependencyKey {
-  public static let liveValue = RunningAppsClient(
+  static let liveValue = RunningAppsClient(
     current: {
       NSWorkspace.shared.runningApplications
         .filter { $0.activationPolicy == .regular }
@@ -30,8 +30,8 @@ extension RunningAppsClient: DependencyKey {
     }
   )
 
-  public static let testValue = RunningAppsClient(current: { [] })
-  public static let previewValue = RunningAppsClient(
+  static let testValue = RunningAppsClient(current: { [] })
+  static let previewValue = RunningAppsClient(
     current: {
       [
         MacApp(bundleIdentifier: "com.apple.Safari", name: "Safari"),
@@ -43,7 +43,7 @@ extension RunningAppsClient: DependencyKey {
 }
 
 extension DependencyValues {
-  public var runningApps: RunningAppsClient {
+  var runningApps: RunningAppsClient {
     get { self[RunningAppsClient.self] }
     set { self[RunningAppsClient.self] = newValue }
   }

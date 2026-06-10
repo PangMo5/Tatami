@@ -10,10 +10,10 @@ import OSLog
 /// once the combined horizontal movement crosses a threshold while every
 /// finger agrees on direction.
 @DependencyClient
-public struct GestureClient: Sendable {
-  public var start: @Sendable (_ fingerCount: Int, _ threshold: Double) async -> Void
-  public var stop: @Sendable () async -> Void
-  public var events: @Sendable () -> AsyncStream<SwipeDirection> = { AsyncStream { _ in } }
+struct GestureClient: Sendable {
+  var start: @Sendable (_ fingerCount: Int, _ threshold: Double) async -> Void
+  var stop: @Sendable () async -> Void
+  var events: @Sendable () -> AsyncStream<SwipeDirection> = { AsyncStream { _ in } }
 }
 
 public enum SwipeDirection: Sendable, Hashable {
@@ -21,7 +21,7 @@ public enum SwipeDirection: Sendable, Hashable {
 }
 
 extension GestureClient: DependencyKey {
-  public static let liveValue: GestureClient = {
+  static let liveValue: GestureClient = {
     let recognizer = HorizontalSwipeRecognizer()
     return GestureClient(
       start: { fingers, threshold in
@@ -32,16 +32,16 @@ extension GestureClient: DependencyKey {
     )
   }()
 
-  public static let testValue = GestureClient(
+  static let testValue = GestureClient(
     start: { _, _ in },
     stop: {},
     events: { AsyncStream { _ in } }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var gestures: GestureClient {
+  var gestures: GestureClient {
     get { self[GestureClient.self] }
     set { self[GestureClient.self] = newValue }
   }

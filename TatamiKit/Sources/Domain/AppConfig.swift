@@ -36,16 +36,23 @@ public struct AppConfig: Hashable, Sendable, Codable {
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
-    // Robust defaults so a partial / hand-edited config can't fail to decode.
-    self.profiles = (try? c.decode([Profile].self, forKey: .profiles))
-      ?? [Profile.makeDefault()]
-    self.settings = (try? c.decode(AppSettings.self, forKey: .settings)) ?? AppSettings()
-    if let shared = try? c.decode([SharedApp].self, forKey: .sharedApps) {
-      self.sharedApps = shared
-    } else if let legacy = try? c.decode([FloatingApp].self, forKey: .floatingApps) {
+    // A *missing* key is the normal partial-config case and gets the
+    // default. A key that is PRESENT but corrupt must fail the decode:
+    // defaulting here would silently reset (and the next GUI write would
+    // persist the reset, wiping the user's workspaces) — the fileStorage
+    // containment keeps the previous in-memory config and reports instead.
+    self.profiles = c.contains(.profiles)
+      ? try c.decode([Profile].self, forKey: .profiles)
+      : [Profile.makeDefault()]
+    self.settings = c.contains(.settings)
+      ? try c.decode(AppSettings.self, forKey: .settings)
+      : AppSettings()
+    if c.contains(.sharedApps) {
+      self.sharedApps = try c.decode([SharedApp].self, forKey: .sharedApps)
+    } else if c.contains(.floatingApps) {
       // One-time migration: old floating apps were "untiled + everywhere",
       // which is exactly a shared floating app.
-      self.sharedApps = legacy.map {
+      self.sharedApps = try c.decode([FloatingApp].self, forKey: .floatingApps).map {
         SharedApp(bundleIdentifier: $0.bundleIdentifier, name: $0.name,
                   iconPath: $0.iconPath, floating: true)
       }
@@ -80,10 +87,9 @@ extension AppConfig {
     _ body: (inout Workspace) -> Void
   ) {
     mutateActiveProfile { profile in
-      guard let idx = profile.workspaces.firstIndex(where: { $0.id == id }) else {
-        return
-      }
-      body(&profile.workspaces[idx])
+      guard var workspace = profile.workspaces[id: id] else { return }
+      body(&workspace)
+      profile.workspaces[id: id] = workspace
     }
   }
 }

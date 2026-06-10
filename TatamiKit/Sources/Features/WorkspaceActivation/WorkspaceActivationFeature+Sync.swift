@@ -10,7 +10,7 @@ extension WorkspaceActivationFeature {
     guard !state.isTilingPaused,
           let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId })
+            .workspaces[id: workspaceId]
     else { return .none }
 
     let settings = state.config.settings
@@ -97,7 +97,7 @@ extension WorkspaceActivationFeature {
     }
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId })
+            .workspaces[id: workspaceId]
     else {
       debugLog.log("Sync", "skip \(bundleId): no active workspace")
       return .none
@@ -292,7 +292,7 @@ extension WorkspaceActivationFeature {
           !state.isActivating,
           state.primaryActiveWorkspaceID == workspaceId,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
     else { return .none }
     // Recent on the workspace's display (falls back to any recent).
@@ -408,7 +408,7 @@ extension WorkspaceActivationFeature {
     guard !state.isTilingPaused, !state.isActivating,
           let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
 
@@ -465,7 +465,7 @@ extension WorkspaceActivationFeature {
   func retileActive(state: State) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
     let settings = state.config.settings

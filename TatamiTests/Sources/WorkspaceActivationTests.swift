@@ -18,7 +18,7 @@ struct WorkspaceActivationFeatureTests {
   ) -> WorkspaceActivationFeature.State {
     var state = WorkspaceActivationFeature.State()
     state.$config.withLock {
-      $0.profiles = [Profile(name: "Default", workspaces: workspaces)]
+      $0.profiles = [Profile(name: "Default", workspaces: IdentifiedArray(uniqueElements: workspaces))]
     }
     mutate(&state)
     return state
@@ -197,7 +197,7 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.focusedAppMembershipResolved(bundleId: "app.one", name: "One"))
+    await store.send(.membershipEditResolved(bundleId: "app.one", name: "One", edit: .toggleInActiveWorkspace))
 
     let workspaces = store.state.config.activeProfile?.workspaces ?? []
     // Single-membership: adding to ws2 removed it from ws1.
@@ -224,7 +224,9 @@ struct WorkspaceActivationFeatureTests {
     }
 
     await store.send(
-      .focusedAppMembershipResolved(bundleId: "dev.PangMo5.Tatami.dev", name: "Tatami")
+      .membershipEditResolved(
+        bundleId: "dev.PangMo5.Tatami.dev", name: "Tatami", edit: .toggleInActiveWorkspace
+      )
     )
     #expect(store.state.config.activeProfile?.workspaces.first?.apps.isEmpty == true)
   }

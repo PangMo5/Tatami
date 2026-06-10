@@ -26,7 +26,7 @@ public struct WorkspaceListFeature {
 
     public init() {}
 
-    public var workspaces: [Workspace] {
+    public var workspaces: IdentifiedArrayOf<Workspace> {
       config.activeProfile?.workspaces ?? []
     }
   }
@@ -81,7 +81,7 @@ public struct WorkspaceListFeature {
         }
         state.$config.withLock { config in
           config.mutateActiveProfile { profile in
-            profile.workspaces.removeAll { $0.id == id }
+            profile.workspaces.remove(id: id)
           }
         }
         return .none

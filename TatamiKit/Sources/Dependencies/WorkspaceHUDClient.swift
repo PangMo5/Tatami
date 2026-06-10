@@ -9,14 +9,14 @@ import SwiftUI
 /// HUDs with a subtitle linger a little longer so the hint is readable.
 /// Auto-dismisses; re-showing resets the timer.
 @DependencyClient
-public struct WorkspaceHUDClient: Sendable {
-  public var show: @Sendable (
+struct WorkspaceHUDClient: Sendable {
+  var show: @Sendable (
     _ name: String, _ symbolIconName: String?, _ subtitle: String?, _ durationMs: Int
   ) async -> Void
 }
 
 extension WorkspaceHUDClient: DependencyKey {
-  public static let liveValue: WorkspaceHUDClient = {
+  static let liveValue: WorkspaceHUDClient = {
     @Dependency(\.debugLog) var debugLog
     let controller = WorkspaceHUDController(debugLog: debugLog)
     return WorkspaceHUDClient { name, icon, subtitle, durationMs in
@@ -26,12 +26,12 @@ extension WorkspaceHUDClient: DependencyKey {
     }
   }()
 
-  public static let testValue = WorkspaceHUDClient { _, _, _, _ in }
-  public static let previewValue = testValue
+  static let testValue = WorkspaceHUDClient { _, _, _, _ in }
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var workspaceHUD: WorkspaceHUDClient {
+  var workspaceHUD: WorkspaceHUDClient {
     get { self[WorkspaceHUDClient.self] }
     set { self[WorkspaceHUDClient.self] = newValue }
   }

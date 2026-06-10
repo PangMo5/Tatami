@@ -11,11 +11,11 @@ import OSLog
 /// destroyed in any of those apps, so the reducer can re-tile the
 /// workspace in real time — preserving the always-laid-out invariant.
 @DependencyClient
-public struct WindowObserverClient: Sendable {
+struct WindowObserverClient: Sendable {
   /// Replace the set of observed bundle identifiers. Pass empty to
   /// stop observing entirely.
-  public var observe: @Sendable ([String]) async -> Void
-  public var events: @Sendable () -> AsyncStream<WindowChangeEvent> = { AsyncStream { _ in } }
+  var observe: @Sendable ([String]) async -> Void
+  var events: @Sendable () -> AsyncStream<WindowChangeEvent> = { AsyncStream { _ in } }
 }
 
 public enum WindowChangeEvent: Sendable, Hashable {
@@ -42,7 +42,7 @@ public enum WindowChangeEvent: Sendable, Hashable {
 }
 
 extension WindowObserverClient: DependencyKey {
-  public static let liveValue: WindowObserverClient = {
+  static let liveValue: WindowObserverClient = {
     let center = WindowObserverCenter()
     return WindowObserverClient(
       observe: { bundleIds in
@@ -52,16 +52,16 @@ extension WindowObserverClient: DependencyKey {
     )
   }()
 
-  public static let testValue = WindowObserverClient(
+  static let testValue = WindowObserverClient(
     observe: { _ in },
     events: { AsyncStream { _ in } }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var windowObserver: WindowObserverClient {
+  var windowObserver: WindowObserverClient {
     get { self[WindowObserverClient.self] }
     set { self[WindowObserverClient.self] = newValue }
   }

@@ -9,7 +9,7 @@ extension WorkspaceActivationFeature {
   /// set whose live windows get mirror panels and marker dots.
   private static func floatingBundleIds(state: State) -> [String] {
     let perWorkspace = state.primaryActiveWorkspaceID
-      .flatMap { id in state.config.activeProfile?.workspaces.first { $0.id == id } }
+      .flatMap { id in state.config.activeProfile?.workspaces[id: id] }
       .map { $0.apps.filter(\.floating).map(\.bundleIdentifier) } ?? []
     let shared = state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
     return Array(Set(perWorkspace + shared))

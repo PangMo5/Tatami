@@ -14,21 +14,21 @@ import OSLog
 /// fence-based resize, and to mark "this AX move/resize was the user
 /// dragging" without needing a separate suppression cache.
 @DependencyClient
-public struct MouseStateClient: Sendable {
-  public var configure: @Sendable (MouseStateConfig) async -> Void
-  public var events: @Sendable () -> AsyncStream<MouseDragEvent> = { AsyncStream { _ in } }
+struct MouseStateClient: Sendable {
+  var configure: @Sendable (MouseStateConfig) async -> Void
+  var events: @Sendable () -> AsyncStream<MouseDragEvent> = { AsyncStream { _ in } }
   /// Was the primary mouse button down when this client last sampled
   /// `NSEvent.pressedMouseButtons`? Cheap query used by the AX observer
   /// to gate echo events — true while the user is dragging some window.
-  public var isPrimaryButtonDown: @Sendable () -> Bool = { false }
+  var isPrimaryButtonDown: @Sendable () -> Bool = { false }
 }
 
-public struct MouseStateConfig: Sendable, Equatable {
-  public var modifier: NSEvent.ModifierFlags
-  public var action: MouseAction
-  public var dropAction: MouseDropAction
+struct MouseStateConfig: Sendable, Equatable {
+  var modifier: NSEvent.ModifierFlags
+  var action: MouseAction
+  var dropAction: MouseDropAction
 
-  public init(
+  init(
     modifier: NSEvent.ModifierFlags = .option,
     action: MouseAction = .move,
     dropAction: MouseDropAction = .swap
@@ -40,18 +40,18 @@ public struct MouseStateConfig: Sendable, Equatable {
 }
 
 /// What the modifier-gated drag does.
-public enum MouseAction: String, Sendable, Hashable, Codable {
+enum MouseAction: String, Sendable, Hashable, Codable {
   case move, resize
 }
 
 /// What dropping the window onto the center quadrant of another tile
 /// does. Triangles (top/right/bottom/left) always warp; the center is
 /// configurable.
-public enum MouseDropAction: String, Sendable, Hashable, Codable {
+enum MouseDropAction: String, Sendable, Hashable, Codable {
   case swap, stack
 }
 
-public enum MouseDragEvent: Sendable, Hashable {
+enum MouseDragEvent: Sendable, Hashable {
   /// User started a modifier-gated drag on `windowID`. `direction`
   /// encodes which corner of the window the cursor sits in (for
   /// resize). `frame` is the window frame at drag start.
@@ -61,17 +61,17 @@ public enum MouseDragEvent: Sendable, Hashable {
 }
 
 /// Bitmask of edges being dragged for a resize.
-public struct ResizeEdge: OptionSet, Sendable, Hashable, Codable {
-  public let rawValue: UInt8
-  public init(rawValue: UInt8) { self.rawValue = rawValue }
-  public static let left   = ResizeEdge(rawValue: 1 << 0)
-  public static let right  = ResizeEdge(rawValue: 1 << 1)
-  public static let top    = ResizeEdge(rawValue: 1 << 2)
-  public static let bottom = ResizeEdge(rawValue: 1 << 3)
+struct ResizeEdge: OptionSet, Sendable, Hashable, Codable {
+  let rawValue: UInt8
+  init(rawValue: UInt8) { self.rawValue = rawValue }
+  static let left   = ResizeEdge(rawValue: 1 << 0)
+  static let right  = ResizeEdge(rawValue: 1 << 1)
+  static let top    = ResizeEdge(rawValue: 1 << 2)
+  static let bottom = ResizeEdge(rawValue: 1 << 3)
 }
 
 extension MouseStateClient: DependencyKey {
-  public static let liveValue: MouseStateClient = {
+  static let liveValue: MouseStateClient = {
     let controller = MouseStateController()
     return MouseStateClient(
       configure: { config in await controller.configure(config) },
@@ -80,17 +80,17 @@ extension MouseStateClient: DependencyKey {
     )
   }()
 
-  public static let testValue = MouseStateClient(
+  static let testValue = MouseStateClient(
     configure: { _ in },
     events: { AsyncStream { _ in } },
     isPrimaryButtonDown: { false }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var mouseState: MouseStateClient {
+  var mouseState: MouseStateClient {
     get { self[MouseStateClient.self] }
     set { self[MouseStateClient.self] = newValue }
   }

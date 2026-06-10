@@ -8,15 +8,15 @@ import os
 /// same domain replaces the older one.
 public struct ErrorReport: Equatable, Sendable, Identifiable {
   /// Stable grouping key ("Config", "Shortcuts", "Layouts", "CLI", …).
-  public var domain: String
+  var domain: String
   /// Short, user-facing description shown in the HUD and the menu bar.
   public var message: String
   /// Optional first-line error detail (HUD subtitle / log).
-  public var detail: String?
+  var detail: String?
 
   public var id: String { domain }
 
-  public init(domain: String, message: String, detail: String? = nil) {
+  init(domain: String, message: String, detail: String? = nil) {
     self.domain = domain
     self.message = message
     self.detail = detail
@@ -33,29 +33,29 @@ public enum ErrorReportEvent: Equatable, Sendable {
 /// Reporters call `report`/`resolve`; the app reducer subscribes to `events`
 /// and shows a warning HUD plus a persistent menu bar indicator.
 @DependencyClient
-public struct ErrorReportClient: Sendable {
+struct ErrorReportClient: Sendable {
   /// Record a failure. Replaces the domain's current report; an identical
   /// consecutive report is dropped so retry loops don't spam the HUD.
-  public var report: @Sendable (_ domain: String, _ message: String, _ detail: String?) -> Void
+  var report: @Sendable (_ domain: String, _ message: String, _ detail: String?) -> Void
   /// Mark a domain healthy again (e.g. the next config reload parsed).
   /// Emits `.resolved` only if a report was actually standing.
-  public var resolve: @Sendable (_ domain: String) -> Void
+  var resolve: @Sendable (_ domain: String) -> Void
   /// Re-evaluation pass for domains whose reporters fire *during* a larger
   /// operation (config decode reports invalid shortcuts mid-parse). `begin`
   /// marks the domains' standing reports provisional; a re-report of the
   /// same content quietly confirms them (no duplicate event); `commit`
   /// resolves whatever stayed provisional (the failure is gone); `abort`
   /// reinstates provisionals untouched (the operation failed — state unknown).
-  public var beginPass: @Sendable (_ domains: [String]) -> Void
-  public var commitPass: @Sendable (_ domains: [String]) -> Void
-  public var abortPass: @Sendable (_ domains: [String]) -> Void
+  var beginPass: @Sendable (_ domains: [String]) -> Void
+  var commitPass: @Sendable (_ domains: [String]) -> Void
+  var abortPass: @Sendable (_ domains: [String]) -> Void
   /// Current + future events. Replays unresolved reports on subscribe, so
   /// failures that happen before the app reducer starts (config decode runs
   /// at the first `@Shared` access) are not lost.
-  public var events: @Sendable () -> AsyncStream<ErrorReportEvent> = { .finished }
+  var events: @Sendable () -> AsyncStream<ErrorReportEvent> = { .finished }
 
   /// First line of an error's description, bounded for HUD/menu display.
-  public static func describe(_ error: any Error) -> String {
+  static func describe(_ error: any Error) -> String {
     let line = String(describing: error)
       .split(separator: "\n", maxSplits: 1)[0]
     return String(line.prefix(200))
@@ -63,7 +63,7 @@ public struct ErrorReportClient: Sendable {
 }
 
 extension ErrorReportClient: DependencyKey {
-  public static let liveValue: ErrorReportClient = {
+  static let liveValue: ErrorReportClient = {
     let hub = Hub()
     return ErrorReportClient(
       report: { domain, message, detail in
@@ -83,7 +83,7 @@ extension ErrorReportClient: DependencyKey {
     )
   }()
 
-  public static let testValue = ErrorReportClient(
+  static let testValue = ErrorReportClient(
     report: { _, _, _ in },
     resolve: { _ in },
     beginPass: { _ in },
@@ -91,11 +91,11 @@ extension ErrorReportClient: DependencyKey {
     abortPass: { _ in },
     events: { .finished }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var errorReporter: ErrorReportClient {
+  var errorReporter: ErrorReportClient {
     get { self[ErrorReportClient.self] }
     set { self[ErrorReportClient.self] = newValue }
   }

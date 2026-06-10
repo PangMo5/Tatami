@@ -7,27 +7,27 @@ import Foundation
 /// Cursor side-effects. Wraps `CGWarpMouseCursorPosition` and the
 /// hide/show cursor pair so reducers stay testable.
 @DependencyClient
-public struct MouseClient: Sendable {
+struct MouseClient: Sendable {
   /// Move the cursor to a screen coordinate.
-  public var warp: @Sendable (CGPoint) -> Void
+  var warp: @Sendable (CGPoint) -> Void
   /// Hide the cursor immediately (reference-counted at the OS level —
   /// each call must be paired with `show`).
-  public var hide: @Sendable () -> Void
+  var hide: @Sendable () -> Void
   /// Force the cursor visible immediately.
-  public var show: @Sendable () -> Void
+  var show: @Sendable () -> Void
   /// Hide the cursor and bring it back the next time the user moves
   /// the mouse. Used by activation when `mouseHidesOnFocus` is on so
   /// the cursor doesn't get in the way of the focused tile right after
   /// a workspace switch.
-  public var hideUntilMouseMoves: @Sendable () -> Void
+  var hideUntilMouseMoves: @Sendable () -> Void
   /// Cursor position in AX coordinates (top-left origin, anchored to the
   /// primary screen — the space `ScreenGeometry.workArea` and the BSP
   /// frames use). Call on the main actor.
-  public var axLocation: @Sendable () -> CGPoint = { .zero }
+  var axLocation: @Sendable () -> CGPoint = { .zero }
 }
 
 extension MouseClient: DependencyKey {
-  public static let liveValue: MouseClient = MainActor.assumeIsolated {
+  static let liveValue: MouseClient = MainActor.assumeIsolated {
     let controller = CursorHidingController()
     return MouseClient(
       warp: { point in
@@ -53,7 +53,7 @@ extension MouseClient: DependencyKey {
     )
   }
 
-  public static let testValue = MouseClient(
+  static let testValue = MouseClient(
     warp: { _ in },
     hide: {},
     show: {},
@@ -61,11 +61,11 @@ extension MouseClient: DependencyKey {
     axLocation: { .zero }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var mouse: MouseClient {
+  var mouse: MouseClient {
     get { self[MouseClient.self] }
     set { self[MouseClient.self] = newValue }
   }

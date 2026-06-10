@@ -17,18 +17,19 @@ extension SharedReaderKey where Self == FileStorageKey<AppConfig>.Default {
         decode: { data in
           let toml = String(decoding: data, as: UTF8.self)
           @Dependency(\.errorReporter) var reporter
-          // "Shortcuts" reports fire from inside HotKey's decode; the pass
-          // confirms a still-broken shortcut quietly and resolves a fixed one.
-          reporter.beginPass(["Shortcuts"])
+          // "Shortcuts" reports fire from inside HotKey's decode and
+          // "Settings" from the field-tolerant decode helper; the pass
+          // confirms a still-broken value quietly and resolves a fixed one.
+          reporter.beginPass(["Shortcuts", "Settings"])
           do {
             let decoder = TOMLDecoder()
             let config = try decoder.decode(AppConfig.self, from: toml)
-            reporter.commitPass(["Shortcuts"])
+            reporter.commitPass(["Shortcuts", "Settings"])
             reporter.resolve("Config")
             return config
           } catch {
-            // Decode failed wholesale — shortcut state is unknown, keep it.
-            reporter.abortPass(["Shortcuts"])
+            // Decode failed wholesale — shortcut/typo state is unknown, keep it.
+            reporter.abortPass(["Shortcuts", "Settings"])
             reporter.report(
               "Config",
               "config.toml could not be parsed — keeping previous settings",

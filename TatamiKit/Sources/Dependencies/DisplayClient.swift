@@ -7,23 +7,23 @@ import Foundation
 /// displays by their localized name so reconnecting the same monitor
 /// keeps workspace assignments stable across `CGDirectDisplayID` resets.
 @DependencyClient
-public struct DisplayClient: Sendable {
-  public var all: @Sendable () -> [DisplayName] = { [] }
-  public var current: @Sendable () -> DisplayName?
+struct DisplayClient: Sendable {
+  var all: @Sendable () -> [DisplayName] = { [] }
+  var current: @Sendable () -> DisplayName?
   /// AX work area (top-left origin, anchored to the primary screen) of
   /// the named display — the main screen when `nil`.
-  public var workArea: @Sendable (_ name: DisplayName?) -> CGRect = { _ in .zero }
+  var workArea: @Sendable (_ name: DisplayName?) -> CGRect = { _ in .zero }
   /// The *connected* screen matching `name` (UUID first, then name), if any.
-  public var connected: @Sendable (_ name: DisplayName) -> DisplayName?
+  var connected: @Sendable (_ name: DisplayName) -> DisplayName?
   /// The primary display.
-  public var primary: @Sendable () -> DisplayName?
+  var primary: @Sendable () -> DisplayName?
   /// `name` resolved to a connected screen, falling back to the primary —
   /// where a workspace pinned to `name` actually tiles.
-  public var resolveOrPrimary: @Sendable (_ name: DisplayName) -> DisplayName?
+  var resolveOrPrimary: @Sendable (_ name: DisplayName) -> DisplayName?
   /// Emits the fresh display list whenever the screen configuration changes
   /// (monitor plugged/unplugged, arrangement/resolution change), so UI lists
   /// don't go stale.
-  public var changes: @Sendable () -> AsyncStream<[DisplayName]> = { .finished }
+  var changes: @Sendable () -> AsyncStream<[DisplayName]> = { .finished }
 }
 
 /// Holds the screen-change observer so it can be removed from the stream's
@@ -40,7 +40,7 @@ private func currentDisplayNames() -> [DisplayName] {
 }
 
 extension DisplayClient: DependencyKey {
-  public static let liveValue = DisplayClient(
+  static let liveValue = DisplayClient(
     all: { MainActor.assumeIsolated { currentDisplayNames() } },
     current: {
       MainActor.assumeIsolated {
@@ -78,7 +78,7 @@ extension DisplayClient: DependencyKey {
     }
   )
 
-  public static let testValue = DisplayClient(
+  static let testValue = DisplayClient(
     all: { [DisplayName("Test Display")] },
     current: { DisplayName("Test Display") },
     workArea: { _ in CGRect(x: 0, y: 0, width: 1920, height: 1080) },
@@ -88,7 +88,7 @@ extension DisplayClient: DependencyKey {
     changes: { .finished }
   )
 
-  public static let previewValue = DisplayClient(
+  static let previewValue = DisplayClient(
     all: { [DisplayName("Built-in Retina Display"), DisplayName("External Monitor")] },
     current: { DisplayName("Built-in Retina Display") },
     workArea: { _ in CGRect(x: 0, y: 0, width: 1920, height: 1080) },
@@ -100,7 +100,7 @@ extension DisplayClient: DependencyKey {
 }
 
 extension DependencyValues {
-  public var displays: DisplayClient {
+  var displays: DisplayClient {
     get { self[DisplayClient.self] }
     set { self[DisplayClient.self] = newValue }
   }

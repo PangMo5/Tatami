@@ -21,7 +21,7 @@ public struct WorkspaceDetailFeature {
     }
 
     public var workspace: Workspace? {
-      config.activeProfile?.workspaces.first { $0.id == workspaceId }
+      config.activeProfile?.workspaces[id: workspaceId]
     }
 
     public var apps: [AppAssignment] {

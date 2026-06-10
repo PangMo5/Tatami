@@ -11,19 +11,19 @@ import OSLog
 /// reducer's `bspFocus(_:)` action, which walks the tree itself, so
 /// it doesn't live here anymore.
 @DependencyClient
-public struct FocusManagerClient: Sendable {
-  public var cycleApp: @Sendable (_ direction: CycleDirection, _ bundleIds: [String]) async -> Void
+struct FocusManagerClient: Sendable {
+  var cycleApp: @Sendable (_ direction: CycleDirection, _ bundleIds: [String]) async -> Void
   /// Raise + focus a specific window (mirror-restore handshake included —
   /// see the free function `focusWindow(pid:windowID:)`).
-  public var focusWindow: @Sendable (_ key: WindowKey) async -> Void
+  var focusWindow: @Sendable (_ key: WindowKey) async -> Void
 }
 
-public enum CycleDirection: Sendable, Hashable {
+enum CycleDirection: Sendable, Hashable {
   case next, previous
 }
 
 extension FocusManagerClient: DependencyKey {
-  public static let liveValue: FocusManagerClient = {
+  static let liveValue: FocusManagerClient = {
     // The free function in WindowKey.swift (mirror-restore handshake) —
     // aliased outside the initializer call, where the `focusWindow:`
     // endpoint would otherwise shadow it.
@@ -40,16 +40,16 @@ extension FocusManagerClient: DependencyKey {
     )
   }()
 
-  public static let testValue = FocusManagerClient(
+  static let testValue = FocusManagerClient(
     cycleApp: { _, _ in },
     focusWindow: { _ in }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var focusManager: FocusManagerClient {
+  var focusManager: FocusManagerClient {
     get { self[FocusManagerClient.self] }
     set { self[FocusManagerClient.self] = newValue }
   }

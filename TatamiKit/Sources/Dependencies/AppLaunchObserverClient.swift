@@ -8,11 +8,11 @@ import OSLog
 /// activation reducer so apps that the user opens manually (e.g.
 /// KakaoTalk) get folded into the active workspace's BSP layout.
 @DependencyClient
-public struct AppLaunchObserverClient: Sendable {
-  public var events: @Sendable () -> AsyncStream<AppLaunchEvent> = { AsyncStream { _ in } }
+struct AppLaunchObserverClient: Sendable {
+  var events: @Sendable () -> AsyncStream<AppLaunchEvent> = { AsyncStream { _ in } }
 }
 
-public enum AppLaunchEvent: Sendable, Hashable {
+enum AppLaunchEvent: Sendable, Hashable {
   case launched(bundleId: String, name: String)
   case activated(bundleId: String)
   case terminated(bundleId: String)
@@ -25,20 +25,20 @@ public enum AppLaunchEvent: Sendable, Hashable {
 }
 
 extension AppLaunchObserverClient: DependencyKey {
-  public static let liveValue: AppLaunchObserverClient = {
+  static let liveValue: AppLaunchObserverClient = {
     let center = AppLaunchObserverCenter()
     return AppLaunchObserverClient(events: { center.events })
   }()
 
-  public static let testValue = AppLaunchObserverClient(events: {
+  static let testValue = AppLaunchObserverClient(events: {
     AsyncStream { _ in }
   })
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var appLaunch: AppLaunchObserverClient {
+  var appLaunch: AppLaunchObserverClient {
     get { self[AppLaunchObserverClient.self] }
     set { self[AppLaunchObserverClient.self] = newValue }
   }

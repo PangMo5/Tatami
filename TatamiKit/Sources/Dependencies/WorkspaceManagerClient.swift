@@ -18,8 +18,8 @@ import OSLog
 /// show/hide step completes, on the assumption that windows already
 /// belong to the right Spaces.
 @DependencyClient
-public struct WorkspaceManagerClient: Sendable {
-  public var activate: @Sendable (ActivationRequest) async -> Void
+struct WorkspaceManagerClient: Sendable {
+  var activate: @Sendable (ActivationRequest) async -> Void
 }
 
 /// Reads as `@Dependency(\.mouse).hideUntilMouseMoves`. Surfaced via a
@@ -30,18 +30,18 @@ private struct CursorHideSink: Sendable {
   let invoke: @Sendable () -> Void
 }
 
-public struct ActivationRequest: Sendable, Hashable {
-  public var workspace: Workspace
-  public var sharedApps: [SharedApp]
+struct ActivationRequest: Sendable, Hashable {
+  var workspace: Workspace
+  var sharedApps: [SharedApp]
   /// Display this activation targets. `nil` → all displays.
-  public var targetDisplay: DisplayName?
-  public var setFocus: Bool
+  var targetDisplay: DisplayName?
+  var setFocus: Bool
   /// Mouse-follows-focus warps the cursor *after* the BSP tile pass (so
   /// it lands on the window's final tiled position), so it's handled by
   /// the activation reducer — not here.
-  public var mouseHidesOnFocus: Bool
+  var mouseHidesOnFocus: Bool
 
-  public init(
+  init(
     workspace: Workspace,
     sharedApps: [SharedApp],
     targetDisplay: DisplayName?,
@@ -57,10 +57,10 @@ public struct ActivationRequest: Sendable, Hashable {
 }
 
 extension WorkspaceManagerClient: DependencyKey {
-  public static let liveValue: WorkspaceManagerClient = .live()
+  static let liveValue: WorkspaceManagerClient = .live()
 
-  public static let testValue = WorkspaceManagerClient(activate: { _ in })
-  public static let previewValue = WorkspaceManagerClient(activate: { request in
+  static let testValue = WorkspaceManagerClient(activate: { _ in })
+  static let previewValue = WorkspaceManagerClient(activate: { request in
     logger.debug("[preview] activate \(request.workspace.name)")
   })
 
@@ -232,7 +232,7 @@ extension WorkspaceManagerClient: DependencyKey {
 }
 
 extension DependencyValues {
-  public var workspaceManager: WorkspaceManagerClient {
+  var workspaceManager: WorkspaceManagerClient {
     get { self[WorkspaceManagerClient.self] }
     set { self[WorkspaceManagerClient.self] = newValue }
   }

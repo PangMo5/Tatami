@@ -11,10 +11,10 @@ import YYJSON
 /// scoped and meaningless after a restart, so we serialize the shape
 /// and re-hydrate it against live windows on the next activation.
 @DependencyClient
-public struct LayoutStoreClient: Sendable {
-  public var save: @Sendable (UUID, LayoutSnapshot) -> Void
-  public var load: @Sendable (UUID) async -> LayoutSnapshot?
-  public var clear: @Sendable (UUID) -> Void
+struct LayoutStoreClient: Sendable {
+  var save: @Sendable (UUID, LayoutSnapshot) -> Void
+  var load: @Sendable (UUID) async -> LayoutSnapshot?
+  var clear: @Sendable (UUID) -> Void
 }
 
 /// On-disk shape of one workspace's tiling memory. Stored alongside the
@@ -22,23 +22,23 @@ public struct LayoutStoreClient: Sendable {
 /// (bundle-identified) windows were fullscreen-zoomed at the time of
 /// the last save. Parent-zoom (per-leaf, single-tile) is carried by
 /// the leaf itself inside `tree`.
-public struct LayoutSnapshot: Codable, Hashable, Sendable {
-  public var tree: BSPNode<String>
+struct LayoutSnapshot: Codable, Hashable, Sendable {
+  var tree: BSPNode<String>
   /// Bundle identifiers of the *fullscreen*-zoomed windows at save
   /// time. Tatami-specific multi-window fullscreen: each one renders
   /// at the workspace work area and is excluded from the rest of the
   /// tree's layout. On hydration, each entry re-attaches to the first
   /// live window matching that bundle id.
-  public var fullscreenZoomedBundleIds: [String]
+  var fullscreenZoomedBundleIds: [String]
 
-  public init(tree: BSPNode<String>, fullscreenZoomedBundleIds: [String] = []) {
+  init(tree: BSPNode<String>, fullscreenZoomedBundleIds: [String] = []) {
     self.tree = tree
     self.fullscreenZoomedBundleIds = fullscreenZoomedBundleIds
   }
 }
 
 extension LayoutStoreClient: DependencyKey {
-  public static let liveValue: LayoutStoreClient = {
+  static let liveValue: LayoutStoreClient = {
     let store = LayoutStore()
     // Mutations flow through one FIFO stream consumed by the actor.
     // Spawning a `Task` per call gave the writes no ordering guarantee —
@@ -53,16 +53,16 @@ extension LayoutStoreClient: DependencyKey {
     )
   }()
 
-  public static let testValue = LayoutStoreClient(
+  static let testValue = LayoutStoreClient(
     save: { _, _ in },
     load: { _ in nil },
     clear: { _ in }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var layoutStore: LayoutStoreClient {
+  var layoutStore: LayoutStoreClient {
     get { self[LayoutStoreClient.self] }
     set { self[LayoutStoreClient.self] = newValue }
   }

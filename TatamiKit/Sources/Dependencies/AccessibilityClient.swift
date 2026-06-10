@@ -12,19 +12,19 @@ import Foundation
 /// require. There is no reliable in-process "grant detected" signal, hence no
 /// polling.
 @DependencyClient
-public struct AccessibilityClient: Sendable {
+struct AccessibilityClient: Sendable {
   /// Current trust state (non-prompting). Reflects revokes immediately.
-  public var isTrusted: @Sendable () -> Bool = { false }
+  var isTrusted: @Sendable () -> Bool = { false }
   /// Prompt for Accessibility access (shows the system dialog if untrusted).
-  public var requestAccess: @Sendable () async -> Void
+  var requestAccess: @Sendable () async -> Void
   /// Open System Settings → Privacy & Security → Accessibility.
-  public var openSettings: @Sendable () async -> Void
+  var openSettings: @Sendable () async -> Void
   /// Relaunch the app so a freshly-granted permission takes effect.
-  public var relaunch: @Sendable () async -> Void
+  var relaunch: @Sendable () async -> Void
   /// Ticks whenever the trust DB changes or the app re-activates — a cue to
   /// re-read `isTrusted()`. (The broadcast is global, so callers just re-read;
   /// it carries no per-app payload.)
-  public var changes: @Sendable () -> AsyncStream<Void> = { .finished }
+  var changes: @Sendable () -> AsyncStream<Void> = { .finished }
 }
 
 /// Holds notification observers so they can be torn down from the stream's
@@ -42,7 +42,7 @@ private final class ObserverTokens: @unchecked Sendable {
 }
 
 extension AccessibilityClient: DependencyKey {
-  public static let liveValue = AccessibilityClient(
+  static let liveValue = AccessibilityClient(
     isTrusted: { AXIsProcessTrusted() },
     requestAccess: {
       await MainActor.run { _ = ensureAccessibilityTrust() }
@@ -83,18 +83,18 @@ extension AccessibilityClient: DependencyKey {
     }
   )
 
-  public static let testValue = AccessibilityClient(
+  static let testValue = AccessibilityClient(
     isTrusted: { true },
     requestAccess: {},
     openSettings: {},
     relaunch: {},
     changes: { .finished }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var accessibility: AccessibilityClient {
+  var accessibility: AccessibilityClient {
     get { self[AccessibilityClient.self] }
     set { self[AccessibilityClient.self] = newValue }
   }

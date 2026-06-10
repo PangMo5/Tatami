@@ -12,7 +12,7 @@ extension WorkspaceActivationFeature {
     state: inout State
   ) -> Effect<Action> {
     guard let profile = state.config.activeProfile,
-          let workspace = profile.workspaces.first(where: { $0.id == workspaceId })
+          let workspace = profile.workspaces[id: workspaceId]
     else { return .none }
     guard !state.isActivating else {
       debugLog.log("Activate", "skip workspaceId=\(workspaceId): already activating")
@@ -235,7 +235,7 @@ extension WorkspaceActivationFeature {
     // on the cursor's display: pinned workspaces by their display, dynamic
     // (unpinned) ones by the display they were last activated on (never-active
     // ones are included so they stay reachable).
-    let workspaces: [Workspace]
+    let workspaces: IdentifiedArrayOf<Workspace>
     if !settings.switching.cycleAcrossDisplays, let focused = state.focusedDisplay {
       workspaces = all.filter { ws in
         if let hint = ws.displayHint {

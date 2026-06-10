@@ -1,4 +1,5 @@
 import Foundation
+import IdentifiedCollections
 
 /// A named collection of `Workspace`s. The user can switch profiles to
 /// completely swap which workspaces, hotkeys, and assignments are active.
@@ -7,13 +8,13 @@ public struct Profile: Identifiable, Hashable, Sendable, Codable {
   public var name: String
   /// Optional global shortcut that activates this profile.
   public var shortcut: HotKey?
-  public var workspaces: [Workspace]
+  public var workspaces: IdentifiedArrayOf<Workspace>
 
   public init(
     id: UUID = UUID(),
     name: String,
     shortcut: HotKey? = nil,
-    workspaces: [Workspace] = []
+    workspaces: IdentifiedArrayOf<Workspace> = []
   ) {
     self.id = id
     self.name = name

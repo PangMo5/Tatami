@@ -12,7 +12,7 @@ extension WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
 
@@ -98,7 +98,7 @@ extension WorkspaceActivationFeature {
   ) -> (target: WindowKey, targetRect: CGRect, zone: DropZone)? {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId],
           tree.pathTo(window: dragged) != nil
     else { return nil }
@@ -134,7 +134,7 @@ extension WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId],
           tree.pathTo(window: drop.dragged) != nil,
           tree.pathTo(window: drop.target) != nil

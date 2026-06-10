@@ -264,7 +264,7 @@ public struct AppFeature {
     case .activateWorkspace(let id):
       return .send(.activation(.activate(workspaceId: id, setFocus: true)))
     case .assignFocusedAppToWorkspace(let id):
-      return .send(.activation(.assignFocusedAppTo(workspaceId: id)))
+      return .send(.activation(.membershipEdit(.assign(to: id))))
     case .switchToNextWorkspace:
       return .send(.activation(.activateNext))
     case .switchToPreviousWorkspace:
@@ -301,15 +301,15 @@ public struct AppFeature {
       }
 
     case .toggleFloating:
-      return .send(.activation(.toggleFloatingOnFocusedApp))
+      return .send(.activation(.membershipEdit(.toggleFloating)))
     case .toggleSharedFloating:
-      return .send(.activation(.toggleSharedFloatingOnFocusedApp))
+      return .send(.activation(.membershipEdit(.toggleSharedFloating)))
     case .toggleSpaceActivated:
       return .send(.activation(.togglePaused))
     case .toggleFocusedAppInActiveWorkspace:
-      return .send(.activation(.toggleFocusedAppInActiveWorkspace))
+      return .send(.activation(.membershipEdit(.toggleInActiveWorkspace)))
     case .toggleAppInSharedApps:
-      return .send(.activation(.toggleFocusedAppInSharedApps))
+      return .send(.activation(.membershipEdit(.toggleShared)))
 
     case .resizeGrow:
       return .send(.activation(.bspResize(direction: .east, delta: 0.05)))
@@ -341,7 +341,7 @@ public struct AppFeature {
   private func currentWorkspaceBundleIds(_ state: State) -> [String] {
     guard let id = state.activation.primaryActiveWorkspaceID,
           let ws = state.workspaceList.config.activeProfile?
-            .workspaces.first(where: { $0.id == id })
+            .workspaces[id: id]
     else { return [] }
     return ws.apps.map(\.bundleIdentifier)
   }

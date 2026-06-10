@@ -5,11 +5,11 @@ import DependenciesMacros
 import Foundation
 
 /// The frontmost regular app, as the activation reducer cares about it.
-public struct FrontmostApp: Equatable, Sendable {
-  public var bundleId: String
-  public var name: String
+struct FrontmostApp: Equatable, Sendable {
+  var bundleId: String
+  var name: String
 
-  public init(bundleId: String, name: String) {
+  init(bundleId: String, name: String) {
     self.bundleId = bundleId
     self.name = name
   }
@@ -25,24 +25,24 @@ public struct FrontmostApp: Equatable, Sendable {
 /// or inside `MainActor.run` in effects): the live implementations are
 /// `MainActor.assumeIsolated` over AX/AppKit, same as `DisplayClient`.
 @DependencyClient
-public struct WindowSnapshotClient: Sendable {
+struct WindowSnapshotClient: Sendable {
   /// All visible, regular, tile-able windows of the given bundle ids
   /// (see `discoverWindowKeys` for the filtering rules).
-  public var discoverKeys:
+  var discoverKeys:
     @Sendable (_ bundleIds: [String], _ requireResizable: Bool) -> [WindowKey] = { _, _ in [] }
   /// The `WindowKey` of the focused window of the frontmost app.
-  public var focusedWindowKey: @Sendable () -> WindowKey?
+  var focusedWindowKey: @Sendable () -> WindowKey?
   /// The frontmost app (bundle id + localized name), if any.
-  public var frontmostApp: @Sendable () -> FrontmostApp?
+  var frontmostApp: @Sendable () -> FrontmostApp?
   /// Window numbers of every window currently on screen.
-  public var onScreenWindowIDs: @Sendable () -> Set<CGWindowID> = { [] }
+  var onScreenWindowIDs: @Sendable () -> Set<CGWindowID> = { [] }
   /// Bundle ids of every running app (any activation policy — the
   /// skip-empty cycle counts background-only members too).
-  public var runningBundleIds: @Sendable () -> Set<String> = { [] }
+  var runningBundleIds: @Sendable () -> Set<String> = { [] }
 }
 
 extension WindowSnapshotClient: DependencyKey {
-  public static let liveValue: WindowSnapshotClient = {
+  static let liveValue: WindowSnapshotClient = {
     return WindowSnapshotClient(
     discoverKeys: { bundleIds, requireResizable in
       MainActor.assumeIsolated {
@@ -81,18 +81,18 @@ extension WindowSnapshotClient: DependencyKey {
     )
   }()
 
-  public static let testValue = WindowSnapshotClient(
+  static let testValue = WindowSnapshotClient(
     discoverKeys: { _, _ in [] },
     focusedWindowKey: { nil },
     frontmostApp: { nil },
     onScreenWindowIDs: { [] },
     runningBundleIds: { [] }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var windowSnapshot: WindowSnapshotClient {
+  var windowSnapshot: WindowSnapshotClient {
     get { self[WindowSnapshotClient.self] }
     set { self[WindowSnapshotClient.self] = newValue }
   }

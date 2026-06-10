@@ -8,14 +8,14 @@ import os
 /// cursor sits on a mirror, FFM must focus the mirrored window — not the
 /// tile that happens to lie underneath the panel — or the two fight over
 /// focus and the hand-off flickers.
-public final class MirrorWindowRegistry: Sendable {
-  public static let shared = MirrorWindowRegistry()
+final class MirrorWindowRegistry: Sendable {
+  static let shared = MirrorWindowRegistry()
 
-  public struct Target: Sendable {
-    public var pid: pid_t
-    public var windowID: CGWindowID
+  struct Target: Sendable {
+    var pid: pid_t
+    var windowID: CGWindowID
 
-    public init(pid: pid_t, windowID: CGWindowID) {
+    init(pid: pid_t, windowID: CGWindowID) {
       self.pid = pid
       self.windowID = windowID
     }
@@ -28,20 +28,20 @@ public final class MirrorWindowRegistry: Sendable {
     OSAllocatedUnfairLock<[CGWindowID: CGRect]>(initialState: [:])
 
   /// Register (or, with `nil`, unregister) a mirror panel's window number.
-  public func set(mirror windowID: CGWindowID, target: Target?) {
+  func set(mirror windowID: CGWindowID, target: Target?) {
     guard windowID != 0 else { return }
     entries.withLock { $0[windowID] = target }
   }
 
   /// The real window mirrored by panel `windowID`, if any.
-  public func target(forMirror windowID: CGWindowID) -> Target? {
+  func target(forMirror windowID: CGWindowID) -> Target? {
     entries.withLock { $0[windowID] }
   }
 
   /// Snapshot of every registered mirror → target mapping. The FFM
   /// hit-test walks the full on-screen window list per fire; one lock
   /// acquisition for the snapshot beats one per window entry.
-  public func allTargets() -> [CGWindowID: Target] {
+  func allTargets() -> [CGWindowID: Target] {
     entries.withLock { $0 }
   }
 
@@ -56,12 +56,12 @@ public final class MirrorWindowRegistry: Sendable {
   /// (`focusWindow`), so the handler may assume main-actor isolation. The
   /// handler returns whether any mirror was actually restored — the caller
   /// then gives the window server a beat to commit before activating.
-  public func setWillFocusHandler(_ handler: (@Sendable (pid_t) -> Bool)?) {
+  func setWillFocusHandler(_ handler: (@Sendable (pid_t) -> Bool)?) {
     willFocusHandler.withLock { $0 = handler }
   }
 
   /// Returns true when mirrors were restored and need a frame to commit.
-  public func notifyWillFocus(pid: pid_t) -> Bool {
+  func notifyWillFocus(pid: pid_t) -> Bool {
     willFocusHandler.withLock { $0 }?(pid) ?? false
   }
 
@@ -69,11 +69,11 @@ public final class MirrorWindowRegistry: Sendable {
   /// mirror is currently suppressed because their app holds focus. The
   /// mouse-down tap reads these to recognize a click that is about to move
   /// focus *away* from the floating app.
-  public func setSuppressedFrames(_ frames: [CGWindowID: CGRect]) {
+  func setSuppressedFrames(_ frames: [CGWindowID: CGRect]) {
     suppressedFrames.withLock { $0 = frames }
   }
 
-  public func suppressedWindowFrames() -> [CGRect] {
+  func suppressedWindowFrames() -> [CGRect] {
     suppressedFrames.withLock { Array($0.values) }
   }
 }

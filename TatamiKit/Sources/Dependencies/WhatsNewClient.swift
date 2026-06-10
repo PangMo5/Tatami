@@ -13,15 +13,15 @@ import SwiftUI
 /// config). Fresh installs record the version silently: nothing was
 /// migrated, so there is nothing to explain.
 @DependencyClient
-public struct WhatsNewClient: Sendable {
+struct WhatsNewClient: Sendable {
   /// Show the post-update notes when the app version changed since the
   /// last launch. `hasExistingConfig` distinguishes an update (show) from
   /// a fresh install (record only).
-  public var showIfNeeded: @Sendable (_ hasExistingConfig: Bool) async -> Void
+  var showIfNeeded: @Sendable (_ hasExistingConfig: Bool) async -> Void
 }
 
 extension WhatsNewClient: DependencyKey {
-  public static let liveValue: WhatsNewClient = {
+  static let liveValue: WhatsNewClient = {
     @Dependency(\.screenRecording) var screenRecording
     let controller = WhatsNewController(screenRecording: screenRecording)
     return WhatsNewClient { hasExistingConfig in
@@ -29,12 +29,12 @@ extension WhatsNewClient: DependencyKey {
     }
   }()
 
-  public static let testValue = WhatsNewClient(showIfNeeded: { _ in })
-  public static let previewValue = testValue
+  static let testValue = WhatsNewClient(showIfNeeded: { _ in })
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var whatsNew: WhatsNewClient {
+  var whatsNew: WhatsNewClient {
     get { self[WhatsNewClient.self] }
     set { self[WhatsNewClient.self] = newValue }
   }

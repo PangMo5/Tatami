@@ -119,28 +119,12 @@ public struct WorkspaceActivationFeature {
     /// Relocate the focused app to the next (`+1`) / previous (`-1`)
     /// workspace and switch to it — honors loop / skip-empty like cycling.
     case moveFocusedAppToAdjacent(direction: Int)
-    case moveFocusedAppTo(workspaceId: Workspace.ID)
-    case focusedAppResolved(bundleId: String, name: String, workspaceId: Workspace.ID)
-    /// Hotkey entry point: add/remove the focused window's app to the
-    /// active workspace (single-membership — adding takes it away from
-    /// any other workspace it was registered in).
-    case toggleFocusedAppInActiveWorkspace
-    case focusedAppMembershipResolved(bundleId: String, name: String)
-    /// Hotkey entry point: assign the focused window's app to a *specific*
-    /// workspace (single-membership) without switching to it — unlike
-    /// `moveFocusedAppTo`, which also activates the target.
-    case assignFocusedAppTo(workspaceId: Workspace.ID)
-    case assignedAppResolved(bundleId: String, name: String, workspaceId: Workspace.ID)
-    case toggleFloatingOnFocusedApp
-    case focusedFloatToggleResolved(bundleId: String, name: String)
-    /// Same float toggle, but against Shared Apps: not shared → added as
-    /// shared floating; already shared → flip `floating` only.
-    case toggleSharedFloatingOnFocusedApp
-    case sharedFloatToggleResolved(bundleId: String, name: String)
-    /// Toggle the focused window's app's membership in Shared Apps
-    /// (added tiled; removing drops the entry entirely).
-    case toggleFocusedAppInSharedApps
-    case sharedMembershipResolved(bundleId: String, name: String)
+    /// Hotkey entry point for every membership mutation of the focused
+    /// window's app. The edits differ in which config collection they
+    /// mutate and which HUD they show — that's data, not control flow, so
+    /// one action pair carries all six instead of six near-identical pairs.
+    case membershipEdit(MembershipEdit)
+    case membershipEditResolved(bundleId: String, name: String, edit: MembershipEdit)
     case togglePaused
     case bspFocus(BSPDirection)
     case bspFocusResolved(windowKey: WindowKey, direction: BSPDirection)
@@ -178,6 +162,27 @@ public struct WorkspaceActivationFeature {
     /// (an app stuck past every AX timeout) can't refuse all future
     /// activations and syncs for the rest of the session.
     case activationTimedOut
+  }
+
+  /// What to do with the focused window's app once it's resolved.
+  /// Mutations live on `AppConfig` (see `AppConfig+Membership.swift`);
+  /// the reducer only adds HUD + re-activation on top.
+  public enum MembershipEdit: Sendable, Hashable {
+    /// Add/remove in the active workspace (single-membership — adding
+    /// takes the app away from any other workspace).
+    case toggleInActiveWorkspace
+    /// Flip floating in the active workspace (adds as floating member
+    /// when not assigned there yet).
+    case toggleFloating
+    /// Flip shared floating (joins Shared Apps as floating when absent).
+    case toggleSharedFloating
+    /// Add/remove in Shared Apps (added tiled).
+    case toggleShared
+    /// Relocate to a single workspace and switch to it.
+    case move(to: Workspace.ID)
+    /// Duplicate-assign to a workspace (keeps other memberships) and
+    /// switch to it.
+    case assign(to: Workspace.ID)
   }
 
   /// Tag used to dispatch a BSP mutation once we've resolved the
@@ -370,7 +375,7 @@ public struct WorkspaceActivationFeature {
         }
         if let workspaceId = state.primaryActiveWorkspaceID,
            let workspace = state.config.activeProfile?
-             .workspaces.first(where: { $0.id == workspaceId })
+             .workspaces[id: workspaceId]
         {
           for app in workspace.apps { bundleIds.insert(app.bundleIdentifier) }
         }
@@ -460,252 +465,131 @@ public struct WorkspaceActivationFeature {
 
       case .moveFocusedAppToAdjacent(let direction):
         guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
-        return .send(.moveFocusedAppTo(workspaceId: id))
+        return .send(.membershipEdit(.move(to: id)))
 
-      case .moveFocusedAppTo(let workspaceId):
-        return resolveFrontmostApp { bundleId, name in
-          .focusedAppResolved(bundleId: bundleId, name: name, workspaceId: workspaceId)
-        }
-
-      case .focusedAppResolved(let bundleId, let name, let workspaceId):
-        state.$config.withLock { config in
-          config.mutateActiveProfile { profile in
-            // Carry the app's existing assignment (display name, icon,
-            // auto-open) across the move; fall back to the live name for an
-            // app that wasn't assigned to any workspace yet.
-            let existing = profile.workspaces
-              .flatMap(\.apps)
-              .first { $0.bundleIdentifier == bundleId }
-            for i in profile.workspaces.indices {
-              profile.workspaces[i].apps.removeAll { $0.bundleIdentifier == bundleId }
-            }
-            if let idx = profile.workspaces.firstIndex(where: { $0.id == workspaceId }) {
-              profile.workspaces[idx].apps.append(
-                existing
-                  ?? AppAssignment(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
-              )
-            }
-          }
-        }
-        state.tilingTrees[workspaceId] = nil
-        return .send(.activate(workspaceId: workspaceId, setFocus: true))
-
-      case .toggleFocusedAppInActiveWorkspace:
-        guard state.primaryActiveWorkspaceID != nil else { return .none }
-        return resolveFrontmostApp { bundleId, name in
-          .focusedAppMembershipResolved(bundleId: bundleId, name: name)
-        }
-
-      case .focusedAppMembershipResolved(let bundleId, let name):
-        guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
-        // Skip Tatami itself so the user can't accidentally assign it.
-        if MacApp.isTatami(bundleId) {
+      case .membershipEdit(let edit):
+        if case .toggleInActiveWorkspace = edit, state.primaryActiveWorkspaceID == nil {
           return .none
         }
-        var didAdd = false
-        state.$config.withLock { config in
-          config.mutateActiveProfile { profile in
-            guard let idx = profile.workspaces.firstIndex(where: { $0.id == workspaceId })
-            else { return }
-            let alreadyMember = profile.workspaces[idx].apps
-              .contains { $0.bundleIdentifier == bundleId }
-            if alreadyMember {
-              profile.workspaces[idx].apps.removeAll { $0.bundleIdentifier == bundleId }
-            } else {
-              // Single-membership: take it away from any other workspace
-              // first so an app never lives in two registered sets.
-              for i in profile.workspaces.indices {
-                profile.workspaces[i].apps.removeAll { $0.bundleIdentifier == bundleId }
-              }
-              profile.workspaces[idx].apps.append(
-                AppAssignment(
-                  bundleIdentifier: bundleId,
-                  name: name.isEmpty ? bundleId : name
-                )
-              )
-              didAdd = true
-            }
-          }
+        return resolveFrontmostApp { bundleId, name in
+          .membershipEditResolved(bundleId: bundleId, name: name, edit: edit)
         }
-        // Re-activate so the hide/show pass + tree rebuild reflect the
-        // new membership. setFocus stays false — the user just used a
-        // hotkey, no need to steal focus from whatever they had.
-        if didAdd {
+
+      case .membershipEditResolved(let bundleId, let name, let edit):
+        // Tatami must never enter its own membership sets.
+        if MacApp.isTatami(bundleId) { return .none }
+        let displayName = name.isEmpty ? bundleId : name
+        switch edit {
+        case .toggleInActiveWorkspace:
+          guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
+          var didAdd = false
+          state.$config.withLock {
+            didAdd = $0.toggleMembership(bundleId: bundleId, name: name, in: workspaceId)
+          }
+          // Re-activate so the hide/show pass + tree rebuild reflect the
+          // new membership. setFocus stays false — the user just used a
+          // hotkey, no need to steal focus from whatever they had.
+          if didAdd {
+            state.tilingTrees[workspaceId] = nil
+          }
+          let workspaceName = state.config.activeProfile?
+            .workspaces[id: workspaceId]?.name ?? ""
+          let hudTitle = didAdd
+            ? "Added \(displayName) → \(workspaceName)"
+            : "Removed \(displayName) ← \(workspaceName)"
+          let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
+          return .merge(
+            hudEffect(state, \.appMembership, hudTitle, hudIcon),
+            .send(.activate(workspaceId: workspaceId, setFocus: false))
+          )
+
+        case .toggleFloating:
+          guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
+          var nowFloating = false
+          state.$config.withLock {
+            nowFloating = $0.toggleFloating(bundleId: bundleId, name: name, in: workspaceId)
+          }
+          // Rebuild the tree so the window drops out of / back into the layout.
           state.tilingTrees[workspaceId] = nil
-        }
-        let workspaceName = state.config.activeProfile?
-          .workspaces.first(where: { $0.id == workspaceId })?.name ?? ""
-        let displayName = name.isEmpty ? bundleId : name
-        let hudTitle = didAdd
-          ? "Added \(displayName) → \(workspaceName)"
-          : "Removed \(displayName) ← \(workspaceName)"
-        let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
-        return .merge(
-          hudEffect(state, \.appMembership, hudTitle, hudIcon),
-          .send(.activate(workspaceId: workspaceId, setFocus: false))
-        )
-
-      case .assignFocusedAppTo(let workspaceId):
-        return resolveFrontmostApp { bundleId, name in
-          .assignedAppResolved(bundleId: bundleId, name: name, workspaceId: workspaceId)
-        }
-
-      case .assignedAppResolved(let bundleId, let name, let workspaceId):
-        // Skip Tatami itself so the user can't accidentally assign it.
-        if MacApp.isTatami(bundleId) {
-          return .none
-        }
-        state.$config.withLock { config in
-          config.mutateActiveProfile { profile in
-            guard let idx = profile.workspaces.firstIndex(where: { $0.id == workspaceId })
-            else { return }
-            // Duplicate assignment: add to the target *without* removing it
-            // from any workspace it already belongs to. (Unlike `move`, which
-            // relocates the app to a single workspace.)
-            guard !profile.workspaces[idx].apps
-              .contains(where: { $0.bundleIdentifier == bundleId })
-            else { return }
-            profile.workspaces[idx].apps.append(
-              AppAssignment(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
-            )
-          }
-        }
-        state.tilingTrees[workspaceId] = nil
-        // Switch to the target so the just-assigned app is visible there.
-        return .send(.activate(workspaceId: workspaceId, setFocus: true))
-
-      case .toggleFloatingOnFocusedApp:
-        return resolveFrontmostApp { bundleId, name in
-          .focusedFloatToggleResolved(bundleId: bundleId, name: name)
-        }
-
-      case .focusedFloatToggleResolved(let bundleId, let name):
-        guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
-        var nowFloating = false
-        state.$config.withLock { config in
-          config.mutateWorkspace(workspaceId) { workspace in
-            if let idx = workspace.apps.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
-              workspace.apps[idx].floating.toggle()
-              nowFloating = workspace.apps[idx].floating
-            } else {
-              // Floating a window that isn't assigned here yet adds it to this
-              // workspace as a floating member.
-              workspace.apps.append(
-                AppAssignment(
-                  bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, floating: true
-                )
-              )
-              nowFloating = true
+          let hudTitle = nowFloating
+            ? "Floating: \(displayName)"
+            : "Tiled: \(displayName)"
+          // Different glyphs for the two states so the HUD reads at a
+          // glance — open frame for floating, filled stack for tiled.
+          let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
+          // Un-floating keeps the workspace assignment — hint at the
+          // membership shortcut for users who meant "take it out entirely".
+          // (`Shortcut.description` is main-actor; reducers run on main.)
+          let hudHint: String? = nowFloating
+            ? nil
+            : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
+              MainActor.assumeIsolated {
+                "Still in this workspace — \(key.shortcut.description) removes it"
+              }
             }
+          return .merge(
+            .send(.activate(workspaceId: workspaceId, setFocus: false)),
+            hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint)
+          )
+
+        case .toggleSharedFloating:
+          var nowFloating = false
+          state.$config.withLock {
+            nowFloating = $0.toggleSharedFloating(bundleId: bundleId, name: name)
           }
-        }
-        // Rebuild the tree so the window drops out of / back into the layout.
-        state.tilingTrees[workspaceId] = nil
-        let displayName = name.isEmpty ? bundleId : name
-        let hudTitle = nowFloating
-          ? "Floating: \(displayName)"
-          : "Tiled: \(displayName)"
-        // Different glyphs for the two states so the HUD reads at a
-        // glance — open frame for floating, filled stack for tiled.
-        let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
-        // Un-floating keeps the workspace assignment — hint at the
-        // membership shortcut for users who meant "take it out entirely".
-        // (`Shortcut.description` is main-actor; reducers run on main.)
-        let hudHint: String? = nowFloating
-          ? nil
-          : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
-            MainActor.assumeIsolated {
-              "Still in this workspace — \(key.shortcut.description) removes it"
+          let hudTitle = nowFloating
+            ? "Shared Floating: \(displayName)"
+            : "Shared Tiled: \(displayName)"
+          let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
+          // Un-floating keeps the app shared (tiled everywhere) — hint at
+          // the membership shortcut for users who meant "take it out of Shared".
+          let hudHint: String? = nowFloating
+            ? nil
+            : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
+              MainActor.assumeIsolated {
+                "Still in Shared Apps — \(key.shortcut.description) removes it"
+              }
             }
-          }
-        return .merge(
-          .send(.activate(workspaceId: workspaceId, setFocus: false)),
-          hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint)
-        )
+          let hud = hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint)
+          guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
+          state.tilingTrees[workspaceId] = nil
+          return .merge(
+            .send(.activate(workspaceId: workspaceId, setFocus: false)),
+            hud
+          )
 
-      case .toggleSharedFloatingOnFocusedApp:
-        return resolveFrontmostApp { bundleId, name in
-          .sharedFloatToggleResolved(bundleId: bundleId, name: name)
-        }
-
-      case .sharedFloatToggleResolved(let bundleId, let name):
-        if MacApp.isTatami(bundleId) {
-          return .none
-        }
-        // Float is an *attribute* here, same as the per-workspace toggle:
-        // not shared yet → join Shared Apps as floating; already shared →
-        // flip only the float state (membership stays — removing from
-        // Shared Apps is the membership hotkey's / GUI's axis).
-        var nowFloating = false
-        state.$config.withLock { config in
-          if let idx = config.sharedApps.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
-            config.sharedApps[idx].floating.toggle()
-            nowFloating = config.sharedApps[idx].floating
-          } else {
-            config.sharedApps.append(
-              SharedApp(
-                bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, floating: true
-              )
-            )
-            nowFloating = true
+        case .toggleShared:
+          var didAdd = false
+          state.$config.withLock {
+            didAdd = $0.toggleSharedMembership(bundleId: bundleId, name: name)
           }
-        }
-        let sharedFloatName = name.isEmpty ? bundleId : name
-        let sharedFloatTitle = nowFloating
-          ? "Shared Floating: \(sharedFloatName)"
-          : "Shared Tiled: \(sharedFloatName)"
-        let sharedFloatIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
-        // Un-floating keeps the app shared (tiled everywhere) — hint at the
-        // membership shortcut for users who meant "take it out of Shared".
-        let sharedFloatHint: String? = nowFloating
-          ? nil
-          : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
-            MainActor.assumeIsolated {
-              "Still in Shared Apps — \(key.shortcut.description) removes it"
-            }
-          }
-        let sharedFloatHUD = hudEffect(
-          state, \.floating, sharedFloatTitle, sharedFloatIcon, subtitle: sharedFloatHint
-        )
-        guard let workspaceId = state.primaryActiveWorkspaceID else { return sharedFloatHUD }
-        state.tilingTrees[workspaceId] = nil
-        return .merge(
-          .send(.activate(workspaceId: workspaceId, setFocus: false)),
-          sharedFloatHUD
-        )
+          let hudTitle = didAdd
+            ? "Added \(displayName) → Shared Apps"
+            : "Removed \(displayName) ← Shared Apps"
+          let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
+          let hud = hudEffect(state, \.appMembership, hudTitle, hudIcon)
+          guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
+          state.tilingTrees[workspaceId] = nil
+          return .merge(
+            .send(.activate(workspaceId: workspaceId, setFocus: false)),
+            hud
+          )
 
-      case .toggleFocusedAppInSharedApps:
-        return resolveFrontmostApp { bundleId, name in
-          .sharedMembershipResolved(bundleId: bundleId, name: name)
-        }
-
-      case .sharedMembershipResolved(let bundleId, let name):
-        if MacApp.isTatami(bundleId) {
-          return .none
-        }
-        var didAdd = false
-        state.$config.withLock { config in
-          if config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }) {
-            config.sharedApps.removeAll { $0.bundleIdentifier == bundleId }
-          } else {
-            config.sharedApps.append(
-              SharedApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
-            )
-            didAdd = true
+        case .move(let workspaceId):
+          state.$config.withLock {
+            $0.moveApp(bundleId: bundleId, name: name, to: workspaceId)
           }
+          state.tilingTrees[workspaceId] = nil
+          return .send(.activate(workspaceId: workspaceId, setFocus: true))
+
+        case .assign(let workspaceId):
+          state.$config.withLock {
+            $0.assignApp(bundleId: bundleId, name: name, to: workspaceId)
+          }
+          state.tilingTrees[workspaceId] = nil
+          // Switch to the target so the just-assigned app is visible there.
+          return .send(.activate(workspaceId: workspaceId, setFocus: true))
         }
-        let memberName = name.isEmpty ? bundleId : name
-        let memberTitle = didAdd
-          ? "Added \(memberName) → Shared Apps"
-          : "Removed \(memberName) ← Shared Apps"
-        let memberIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
-        let memberHUD = hudEffect(state, \.appMembership, memberTitle, memberIcon)
-        guard let workspaceId = state.primaryActiveWorkspaceID else { return memberHUD }
-        state.tilingTrees[workspaceId] = nil
-        return .merge(
-          .send(.activate(workspaceId: workspaceId, setFocus: false)),
-          memberHUD
-        )
 
       case .togglePaused:
         let wasPaused = state.isTilingPaused
@@ -729,7 +613,7 @@ public struct WorkspaceActivationFeature {
       case .bspFocusResolved(let key, let direction):
         guard let workspaceId = state.primaryActiveWorkspaceID,
               let workspace = state.config.activeProfile?
-                .workspaces.first(where: { $0.id == workspaceId }),
+                .workspaces[id: workspaceId],
               let tree = state.tilingTrees[workspaceId]
         else { return .none }
         let settings = state.config.settings
@@ -821,14 +705,14 @@ public struct WorkspaceActivationFeature {
         }
         let treeIds = state.tilingTrees[id]?.windows.map(\.bundleId)
         let registeredIds = state.config.activeProfile?
-          .workspaces.first(where: { $0.id == id })?
+          .workspaces[id: id]?
           .apps.map(\.bundleIdentifier) ?? []
         // Floating apps never enter the tree, and shared ones aren't in the
         // workspace's registered set either — without observing them their
         // windowCreated/Destroyed events never fire, so a newly opened
         // floating window got no mirror until its app was focused once.
         let floatingIds = state.config.sharedApps.map(\.bundleIdentifier)
-          + (state.config.activeProfile?.workspaces.first(where: { $0.id == id })?
+          + (state.config.activeProfile?.workspaces[id: id]?
             .apps.filter(\.floating).map(\.bundleIdentifier) ?? [])
         let observeIds = Array(Set((treeIds ?? registeredIds) + floatingIds))
         debugLog.log(
@@ -945,7 +829,7 @@ public struct WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           var tree = state.tilingTrees[workspaceId]
     else { return .none }
 
@@ -1028,7 +912,7 @@ public struct WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
-            .workspaces.first(where: { $0.id == workspaceId }),
+            .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
     let newTree = transform(tree)
@@ -1057,10 +941,7 @@ public struct WorkspaceActivationFeature {
     switch action {
     case .activateInitial, .activate, .activateNext, .activatePrevious,
          .activateRecent, .focusAdjacentDisplay, .moveFocusedAppToAdjacent,
-         .moveFocusedAppTo, .toggleFocusedAppInActiveWorkspace,
-         .assignFocusedAppTo, .toggleFloatingOnFocusedApp,
-         .toggleSharedFloatingOnFocusedApp, .toggleFocusedAppInSharedApps,
-         .togglePaused, .bspFocus, .bspSwap, .bspResize,
+         .membershipEdit, .togglePaused, .bspFocus, .bspSwap, .bspResize,
          .bspToggleOrientation, .bspToggleZoomFullscreen, .bspBalance,
          .appActivated:
       return true

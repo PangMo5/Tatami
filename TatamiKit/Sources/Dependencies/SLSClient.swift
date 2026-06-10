@@ -25,29 +25,29 @@ import OSLog
 /// All entry points are exposed via `@DependencyClient` so the reducer
 /// can swap them in tests.
 @DependencyClient
-public struct SLSClient: Sendable {
+struct SLSClient: Sendable {
   /// The current process's connection id (`SLSMainConnectionID`).
   /// Returns 0 when the framework couldn't be opened — every other call
   /// then becomes a noop.
-  public var mainConnectionID: @Sendable () -> Int32 = { 0 }
+  var mainConnectionID: @Sendable () -> Int32 = { 0 }
 
   /// Spaces that contain `windowID`. A sticky window appears in more
   /// than one Space; we use that to keep them out of the BSP tree.
-  public var spacesForWindow: @Sendable (CGWindowID) -> [UInt64] = { _ in [] }
+  var spacesForWindow: @Sendable (CGWindowID) -> [UInt64] = { _ in [] }
 
   /// Standard-window CGWindowIDs the OS reports as ordered-in on `space`.
   /// Used as the source of truth instead of bruteforcing AX remote
   /// tokens.
-  public var windowList: @Sendable (_ space: UInt64) -> [CGWindowID] = { _ in [] }
+  var windowList: @Sendable (_ space: UInt64) -> [CGWindowID] = { _ in [] }
 
   /// Focus `windowID` belonging to `psn`. Reliable in apps where plain
   /// `NSRunningApplication.activate` leaves the window behind Finder.
-  public var focusWindow: @Sendable (ProcessSerialNumber, CGWindowID, AXUIElement) -> Void
+  var focusWindow: @Sendable (ProcessSerialNumber, CGWindowID, AXUIElement) -> Void
     = { _, _, _ in }
 }
 
 extension SLSClient: DependencyKey {
-  public static let liveValue: SLSClient = {
+  static let liveValue: SLSClient = {
     let center = SLSCenter()
     return SLSClient(
       mainConnectionID: { center.connectionID },
@@ -60,12 +60,12 @@ extension SLSClient: DependencyKey {
     )
   }()
 
-  public static let testValue = SLSClient()
-  public static let previewValue = testValue
+  static let testValue = SLSClient()
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var sls: SLSClient {
+  var sls: SLSClient {
     get { self[SLSClient.self] }
     set { self[SLSClient.self] = newValue }
   }

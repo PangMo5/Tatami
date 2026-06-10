@@ -14,26 +14,26 @@ import os
 /// (`~/.config/tatami/tatami.log` by default). Truncated on enable
 /// — we want a fresh trace per debugging session.
 @DependencyClient
-public struct DebugLogClient: Sendable {
+struct DebugLogClient: Sendable {
   /// Flip the writer on/off. When enabling, opens (and truncates) the
   /// log file so the next trace starts clean.
-  public var setEnabled: @Sendable (Bool) -> Void
+  var setEnabled: @Sendable (Bool) -> Void
   /// Append a line. No-op when the writer is disabled. `category` is
   /// a short tag for the source ("AX", "Tiler", "Activation").
-  public var log: @Sendable (_ category: String, _ message: String) -> Void
+  var log: @Sendable (_ category: String, _ message: String) -> Void
   /// Cheap gate for hot paths: building a log message can itself cost
   /// (string interpolation per mouse-move, per-window reject arrays in
   /// discovery) — check this before assembling anything expensive.
-  public var isEnabled: @Sendable () -> Bool = { false }
+  var isEnabled: @Sendable () -> Bool = { false }
   /// Where the file lives on disk. Exposed so the Settings UI can
   /// surface its path / a "Reveal in Finder" button.
-  public var fileURL: @Sendable () -> URL = {
+  var fileURL: @Sendable () -> URL = {
     ConfigLocation.directory.appendingPathComponent("tatami.log", isDirectory: false)
   }
 }
 
 extension DebugLogClient: DependencyKey {
-  public static let liveValue: DebugLogClient = {
+  static let liveValue: DebugLogClient = {
     let writer = DebugLogWriter()
     return DebugLogClient(
       setEnabled: { writer.setEnabled($0) },
@@ -43,18 +43,18 @@ extension DebugLogClient: DependencyKey {
     )
   }()
 
-  public static let testValue = DebugLogClient(
+  static let testValue = DebugLogClient(
     setEnabled: { _ in },
     log: { _, _ in },
     isEnabled: { false },
     fileURL: { URL(fileURLWithPath: "/dev/null") }
   )
 
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var debugLog: DebugLogClient {
+  var debugLog: DebugLogClient {
     get { self[DebugLogClient.self] }
     set { self[DebugLogClient.self] = newValue }
   }

@@ -11,20 +11,20 @@ import SwiftUI
 /// shows regardless of focus. Floating windows keep their dot up always —
 /// the mark is what tells a mirrored window apart from a tiled one — while
 /// fullscreen-zoom dots only show on the focused window.
-public struct MarkerTarget: Sendable, Equatable {
-  public var colorHex: String
-  public var alwaysVisible: Bool
+struct MarkerTarget: Sendable, Equatable {
+  var colorHex: String
+  var alwaysVisible: Bool
 
-  public init(colorHex: String, alwaysVisible: Bool = false) {
+  init(colorHex: String, alwaysVisible: Bool = false) {
     self.colorHex = colorHex
     self.alwaysVisible = alwaysVisible
   }
 }
 
 @DependencyClient
-public struct MarkerClient: Sendable {
+struct MarkerClient: Sendable {
   /// Replace the set of marked windows. Pass `[:]` to clear all.
-  public var setTargets: @Sendable (
+  var setTargets: @Sendable (
     _ targets: [WindowKey: MarkerTarget],
     _ size: Double,
     _ corner: MarkerCorner,
@@ -35,11 +35,11 @@ public struct MarkerClient: Sendable {
   /// observer's `windowFocused` events + the workspace app-activation
   /// flow — cheaper and more responsive than polling AX every 50 ms.
   /// Pass `nil` to clear (no focused window).
-  public var setFocused: @Sendable (_ key: WindowKey?) -> Void
+  var setFocused: @Sendable (_ key: WindowKey?) -> Void
 }
 
 extension MarkerClient: DependencyKey {
-  public static let liveValue: MarkerClient = MainActor.assumeIsolated {
+  static let liveValue: MarkerClient = MainActor.assumeIsolated {
     let controller = MarkerController()
     return MarkerClient(
       setTargets: { targets, size, corner, hideOnHover in
@@ -55,15 +55,15 @@ extension MarkerClient: DependencyKey {
 
   /// Without this, a `TestStore` that forgets to override `\.marker`
   /// constructs the real `MarkerController` (NSPanels) on the test host.
-  public static let testValue = MarkerClient(
+  static let testValue = MarkerClient(
     setTargets: { _, _, _, _ in },
     setFocused: { _ in }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var marker: MarkerClient {
+  var marker: MarkerClient {
     get { self[MarkerClient.self] }
     set { self[MarkerClient.self] = newValue }
   }

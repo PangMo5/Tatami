@@ -6,15 +6,15 @@ import Sparkle
 /// without touching Sparkle directly. Reading the live dependency starts
 /// Sparkle's background check schedule.
 @DependencyClient
-public struct UpdaterClient: Sendable {
+struct UpdaterClient: Sendable {
   /// Triggers a user-initiated update check.
-  public var checkForUpdates: @Sendable () -> Void
+  var checkForUpdates: @Sendable () -> Void
   /// Applies the scheduled-check preferences to the underlying updater.
-  public var configure: @Sendable (_ automaticallyChecks: Bool, _ interval: TimeInterval) -> Void
+  var configure: @Sendable (_ automaticallyChecks: Bool, _ interval: TimeInterval) -> Void
 }
 
 extension UpdaterClient: DependencyKey {
-  public static let liveValue: UpdaterClient = MainActor.assumeIsolated {
+  static let liveValue: UpdaterClient = MainActor.assumeIsolated {
     let controller = SPUStandardUpdaterController(
       startingUpdater: true,
       updaterDelegate: nil,
@@ -35,15 +35,15 @@ extension UpdaterClient: DependencyKey {
   }
 
   /// Tests must not start Sparkle's background update schedule.
-  public static let testValue = UpdaterClient(
+  static let testValue = UpdaterClient(
     checkForUpdates: {},
     configure: { _, _ in }
   )
-  public static let previewValue = testValue
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var updater: UpdaterClient {
+  var updater: UpdaterClient {
     get { self[UpdaterClient.self] }
     set { self[UpdaterClient.self] = newValue }
   }

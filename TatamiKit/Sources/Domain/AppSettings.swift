@@ -1,16 +1,33 @@
+import Dependencies
 import Foundation
 
-/// Field-tolerant decoding shared by every settings group: a missing or
-/// mistyped key falls back to its default so a hand-edited config still
-/// loads. One funnel instead of `(try? c.decode(...)) ?? default` per
-/// field — and the single place to later surface "key exists but didn't
-/// parse" instead of silently absorbing typos.
+/// Field-tolerant decoding shared by every settings group: a *missing*
+/// key falls back to its default so a hand-edited config still loads,
+/// while a key that is present but doesn't parse (a typo'd value) is
+/// surfaced through the error reporter instead of silently resetting —
+/// the same treatment `HotKey` gives invalid shortcuts. The "Settings"
+/// domain rides the config decode's report pass (see `TatamiConfigKey`),
+/// so fixing the typo resolves the standing report on the next decode.
 extension KeyedDecodingContainer {
   func decode<T: Decodable>(_ key: Key, default defaultValue: T) -> T {
-    (try? decode(T.self, forKey: key)) ?? defaultValue
+    do {
+      return try decode(T.self, forKey: key)
+    } catch {
+      if contains(key) {
+        let path = (codingPath + [key]).map(\.stringValue).joined(separator: ".")
+        @Dependency(\.errorReporter) var reporter
+        reporter.report(
+          "Settings",
+          "config.toml: '\(path)' has an invalid value — using the default",
+          ErrorReportClient.describe(error)
+        )
+      }
+      return defaultValue
+    }
   }
 
-  /// Optional variant for fields where absence is meaningful (hotkeys).
+  /// Optional variant for fields where absence is meaningful (hotkeys —
+  /// which report their own parse failures, so none is added here).
   func decodeIfValid<T: Decodable>(_ key: Key) -> T? {
     try? decode(T.self, forKey: key)
   }

@@ -9,18 +9,18 @@ import OSLog
 /// frontmost. A configurable modifier temporarily suspends the
 /// behavior.
 @DependencyClient
-public struct FocusFollowsMouseClient: Sendable {
+struct FocusFollowsMouseClient: Sendable {
   /// Apply new settings. Pass `enabled = false` to tear the monitor down.
-  public var configure: @Sendable (FocusFollowsMouseConfig) async -> Void
+  var configure: @Sendable (FocusFollowsMouseConfig) async -> Void
 }
 
-public struct FocusFollowsMouseConfig: Sendable, Hashable {
-  public var enabled: Bool
-  public var disableModifier: FocusFollowsMouseModifier
+struct FocusFollowsMouseConfig: Sendable, Hashable {
+  var enabled: Bool
+  var disableModifier: FocusFollowsMouseModifier
   /// Skip windows that fill the whole display (full-screen / maximized).
-  public var ignoreFullscreen: Bool
+  var ignoreFullscreen: Bool
 
-  public init(
+  init(
     enabled: Bool,
     disableModifier: FocusFollowsMouseModifier,
     ignoreFullscreen: Bool = true
@@ -32,7 +32,7 @@ public struct FocusFollowsMouseConfig: Sendable, Hashable {
 }
 
 extension FocusFollowsMouseClient: DependencyKey {
-  public static let liveValue: FocusFollowsMouseClient = {
+  static let liveValue: FocusFollowsMouseClient = {
     @Dependency(\.debugLog) var debugLog
     let controller = LiveFocusFollowsMouseController(debugLog: debugLog)
     return FocusFollowsMouseClient { config in
@@ -40,12 +40,12 @@ extension FocusFollowsMouseClient: DependencyKey {
     }
   }()
 
-  public static let testValue = FocusFollowsMouseClient(configure: { _ in })
-  public static let previewValue = testValue
+  static let testValue = FocusFollowsMouseClient(configure: { _ in })
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var focusFollowsMouse: FocusFollowsMouseClient {
+  var focusFollowsMouse: FocusFollowsMouseClient {
     get { self[FocusFollowsMouseClient.self] }
     set { self[FocusFollowsMouseClient.self] = newValue }
   }

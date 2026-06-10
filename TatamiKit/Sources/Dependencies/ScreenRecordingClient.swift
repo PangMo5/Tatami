@@ -12,18 +12,18 @@ import Foundation
 /// `SCStream` keeps failing until relaunch (revokes apply live). The
 /// Settings UI pairs the grant button with the existing relaunch row.
 @DependencyClient
-public struct ScreenRecordingClient: Sendable {
+struct ScreenRecordingClient: Sendable {
   /// Current grant state (non-prompting).
-  public var isGranted: @Sendable () -> Bool = { false }
+  var isGranted: @Sendable () -> Bool = { false }
   /// Show the system prompt (no-op if macOS already considers it decided —
   /// then the System Settings page is the only way, hence `openSettings`).
-  public var requestAccess: @Sendable () async -> Void
+  var requestAccess: @Sendable () async -> Void
   /// Open System Settings → Privacy & Security → Screen Recording.
-  public var openSettings: @Sendable () async -> Void
+  var openSettings: @Sendable () async -> Void
 }
 
 extension ScreenRecordingClient: DependencyKey {
-  public static let liveValue = ScreenRecordingClient(
+  static let liveValue = ScreenRecordingClient(
     isGranted: { CGPreflightScreenCaptureAccess() },
     requestAccess: {
       await MainActor.run { _ = CGRequestScreenCaptureAccess() }
@@ -38,12 +38,12 @@ extension ScreenRecordingClient: DependencyKey {
     }
   )
 
-  public static let testValue = ScreenRecordingClient()
-  public static let previewValue = testValue
+  static let testValue = ScreenRecordingClient()
+  static let previewValue = testValue
 }
 
 extension DependencyValues {
-  public var screenRecording: ScreenRecordingClient {
+  var screenRecording: ScreenRecordingClient {
     get { self[ScreenRecordingClient.self] }
     set { self[ScreenRecordingClient.self] = newValue }
   }

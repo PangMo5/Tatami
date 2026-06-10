@@ -10,7 +10,7 @@ struct MenuBarLabel: View {
   var body: some View {
     let config = store.workspaceList.config
     let activeId = store.activation.primaryActiveWorkspaceID
-    let workspace = config.activeProfile?.workspaces.first { $0.id == activeId }
+    let workspace = activeId.flatMap { config.activeProfile?.workspaces[id: $0] }
     // macOS renders a Label as icon-only in the menu bar, so compose the
     // icon and name explicitly to make the title show.
     HStack(spacing: 4) {
