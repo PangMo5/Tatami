@@ -54,6 +54,11 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Gestures
 /// The tap source lives on the main run loop, so all mutable state is
 /// touched only from the main actor. The C callback receives `self` via
 /// the tap's `userInfo` pointer (no global shared instance).
+///
+/// Deliberately NOT moved to `EventTapThread`: decoding the touches
+/// requires `NSEvent(cgEvent:)` + `allTouches()`, and AppKit gives no
+/// off-main-thread guarantee for either — the main-thread cost is only
+/// paid while the (off-by-default) gesture setting is on.
 private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   let directions: AsyncStream<SwipeDirection>
   private let emit: AsyncStream<SwipeDirection>.Continuation

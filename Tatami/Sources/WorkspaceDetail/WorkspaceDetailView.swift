@@ -224,15 +224,6 @@ private func memoryDescription(_ memory: TilingMemory) -> String {
   }
 }
 
-extension TilingMemory {
-  var displayName: String {
-    switch self {
-    case .session: "Session"
-    case .persistent: "Persistent"
-    }
-  }
-}
-
 /// Searchable SF Symbol picker backed by SFSafeSymbols' full catalog.
 private struct SymbolPicker: View {
   let selected: String?

@@ -367,25 +367,28 @@ private final class ObservedApp {
       "refreshSubs pid=\(pid) bundle=\(bundleId) windows=\(windows.count)"
     )
     let info = Unmanaged.passUnretained(self).toOpaque()
+    let windowNotifications: [(CFString, String)] = [
+      (kAXUIElementDestroyedNotification as CFString, "kAXUIElementDestroyed"),
+      (kAXWindowResizedNotification as CFString, "kAXWindowResized"),
+      (kAXWindowMovedNotification as CFString, "kAXWindowMoved"),
+    ]
     for window in windows {
-      AXObserverAddNotification(
-        observer,
-        window,
-        kAXUIElementDestroyedNotification as CFString,
-        info
-      )
-      AXObserverAddNotification(
-        observer,
-        window,
-        kAXWindowResizedNotification as CFString,
-        info
-      )
-      AXObserverAddNotification(
-        observer,
-        window,
-        kAXWindowMovedNotification as CFString,
-        info
-      )
+      for (name, label) in windowNotifications {
+        let r = AXObserverAddNotification(observer, window, name, info)
+        // Same policy as the app-level registrations: a freshly-launched
+        // Electron app can answer CannotComplete (-25204) here too, and
+        // macOS never re-attempts on its own — without the flag the
+        // window's destroy/resize/move events were permanently missing.
+        if r != .success, r.rawValue != Int32(-25208) /* AlreadyRegistered */ {
+          if r.rawValue == -25204 /* CannotComplete */ {
+            needsAXRetry = true
+          }
+          debugLog.log(
+            "Observer",
+            "addNotification \(label) FAILED pid=\(pid) bundle=\(bundleId) err=\(r.rawValue)"
+          )
+        }
+      }
     }
   }
 }
@@ -412,6 +415,12 @@ private func axObserverCallback(
     switch name {
     case kAXWindowCreatedNotification as String:
       app.refreshWindowSubscriptions()
+      // A brand-new window can answer CannotComplete just like a
+      // brand-new app — re-run the retry loop so its destroy/resize
+      // subscriptions aren't permanently missing.
+      if app.needsAXRetry {
+        app.scheduleAXRetry(attemptsRemaining: 10)
+      }
       var wid: CGWindowID = 0
       _ = _AXUIElementGetWindow(element, &wid)
       debugLog.log(
@@ -434,14 +443,14 @@ private func axObserverCallback(
       // additional 1.5 px geometric tolerance check against the tile's
       // expected area before applying the new ratio.
       if isLeftMouseDown(),
-         let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+         let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
          let frame = AXWindowGeometry.frame(of: element)
       {
         app.continuation.yield(.windowResized(key: key, frame: frame))
       }
     case kAXWindowMovedNotification as String:
       if isLeftMouseDown(),
-         let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+         let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
          let frame = AXWindowGeometry.frame(of: element)
       {
         app.continuation.yield(.windowMoved(key: key, frame: frame))
@@ -450,14 +459,14 @@ private func axObserverCallback(
          kAXMainWindowChangedNotification as String:
       // `element` is the newly focused/main window. No mouse gate —
       // these are state-only (no AX writes), so they can't feed back
-      // into a tiling loop. Emit even when `WindowKey.from` fails
+      // into a tiling loop. Emit even when the `WindowKey` bridge fails
       // (some apps' windows are AX-hidden until reconciled with
       // CGWindowList) so the reducer can still trigger a per-app
       // reconcile — the front-switch reconcile pattern.
       // Skip while a menu is open: AX briefly bounces focus to the
       // menu element and back, which would just churn the BSP.
       if app.isMenuOpen { break }
-      let key = WindowKey.from(axWindow: element, pid: app.pid, bundleId: app.bundleId)
+      let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId)
       debugLog.log(
         "AX",
         "windowFocused pid=\(app.pid) bundle=\(app.bundleId) key=\(key?.windowID.description ?? "nil")"

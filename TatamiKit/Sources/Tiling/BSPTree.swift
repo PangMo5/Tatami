@@ -146,6 +146,26 @@ extension BSPLeaf: Codable where WindowID: Codable {}
 extension BSPBranch: Codable where WindowID: Codable {}
 extension BSPNode: Codable where WindowID: Codable {}
 
+extension BSPBranch {
+  /// Copy with selected fields replaced. Every tree transform rebuilds a
+  /// branch around one or two changed fields — spelling out all five at
+  /// each site buried the actual change in boilerplate.
+  func with(
+    split: BSPSplitAxis? = nil,
+    ratio: CGFloat? = nil,
+    left: BSPNode<WindowID>? = nil,
+    right: BSPNode<WindowID>? = nil
+  ) -> BSPBranch {
+    BSPBranch(
+      split: split ?? self.split,
+      ratio: ratio ?? self.ratio,
+      preferredChild: preferredChild,
+      left: left ?? self.left,
+      right: right ?? self.right
+    )
+  }
+}
+
 // MARK: - Convenience constructors
 
 extension BSPNode {
@@ -438,13 +458,7 @@ extension BSPNode {
       case (nil, let r?): return r
       case (let l?, nil): return l
       case (let l?, let r?):
-        return .branch(BSPBranch(
-          split: b.split,
-          ratio: b.ratio,
-          preferredChild: b.preferredChild,
-          left: l,
-          right: r
-        ))
+        return .branch(b.with(left: l, right: r))
       case (nil, nil):
         return nil
       }
@@ -515,13 +529,7 @@ extension BSPNode {
       let newLeft = desiredSide == .left ? windowChild : siblingChild
       let newRight = desiredSide == .left ? siblingChild : windowChild
       let newRatio = (desiredSide == side) ? b.ratio : 1 - b.ratio
-      return .branch(BSPBranch(
-        split: desiredAxis,
-        ratio: newRatio,
-        preferredChild: b.preferredChild,
-        left: newLeft,
-        right: newRight
-      ))
+      return .branch(b.with(split: desiredAxis, ratio: newRatio, left: newLeft, right: newRight))
     }
   }
 
@@ -533,13 +541,7 @@ extension BSPNode {
     return replacing(path: parentPath) { node in
       guard case .branch(let b) = node else { return node }
       let flipped: SplitAxis = b.split == .horizontal ? .vertical : .horizontal
-      return .branch(BSPBranch(
-        split: flipped,
-        ratio: b.ratio,
-        preferredChild: b.preferredChild,
-        left: b.left,
-        right: b.right
-      ))
+      return .branch(b.with(split: flipped))
     }
   }
 }
@@ -564,13 +566,7 @@ extension BSPNode {
     return replacing(path: ancestorPath) { node in
       guard case .branch(let b) = node else { return node }
       let newRatio = max(0.1, min(0.9, b.ratio + signedDelta))
-      return .branch(BSPBranch(
-        split: b.split,
-        ratio: newRatio,
-        preferredChild: b.preferredChild,
-        left: b.left,
-        right: b.right
-      ))
+      return .branch(b.with(ratio: newRatio))
     }
   }
 
@@ -579,13 +575,7 @@ extension BSPNode {
   public func updatingRatio(at path: [Side], ratio: CGFloat) -> BSPNode {
     replacing(path: path) { node in
       guard case .branch(let b) = node else { return node }
-      return .branch(BSPBranch(
-        split: b.split,
-        ratio: max(0.1, min(0.9, ratio)),
-        preferredChild: b.preferredChild,
-        left: b.left,
-        right: b.right
-      ))
+      return .branch(b.with(ratio: max(0.1, min(0.9, ratio))))
     }
   }
 
@@ -659,13 +649,7 @@ extension BSPNode {
       let ratio = (!shouldBalance || total == 0)
         ? b.ratio
         : CGFloat(lc) / CGFloat(total)
-      return .branch(BSPBranch(
-        split: b.split,
-        ratio: max(0.1, min(0.9, ratio)),
-        preferredChild: b.preferredChild,
-        left: bl,
-        right: br
-      ))
+      return .branch(b.with(ratio: max(0.1, min(0.9, ratio)), left: bl, right: br))
     }
   }
 
@@ -686,12 +670,9 @@ extension BSPNode {
       let newSplit: SplitAxis = d == 180
         ? b.split
         : (b.split == .horizontal ? .vertical : .horizontal)
-      return .branch(BSPBranch(
-        split: newSplit,
-        ratio: newRatio,
-        preferredChild: b.preferredChild,
-        left: newLeft.rotated(by: d),
-        right: newRight.rotated(by: d)
+      return .branch(b.with(
+        split: newSplit, ratio: newRatio,
+        left: newLeft.rotated(by: d), right: newRight.rotated(by: d)
       ))
     }
   }
@@ -705,18 +686,13 @@ extension BSPNode {
       return self
     case .branch(let b):
       if b.split == axis {
-        return .branch(BSPBranch(
-          split: b.split,
+        return .branch(b.with(
           ratio: 1 - b.ratio,
-          preferredChild: b.preferredChild,
           left: b.right.mirrored(axis: axis),
           right: b.left.mirrored(axis: axis)
         ))
       } else {
-        return .branch(BSPBranch(
-          split: b.split,
-          ratio: b.ratio,
-          preferredChild: b.preferredChild,
+        return .branch(b.with(
           left: b.left.mirrored(axis: axis),
           right: b.right.mirrored(axis: axis)
         ))
@@ -958,21 +934,9 @@ extension BSPNode {
       let rest = Array(path.dropFirst())
       switch next {
       case .left:
-        return .branch(BSPBranch(
-          split: b.split,
-          ratio: b.ratio,
-          preferredChild: b.preferredChild,
-          left: b.left.replacing(path: rest, with: transform),
-          right: b.right
-        ))
+        return .branch(b.with(left: b.left.replacing(path: rest, with: transform)))
       case .right:
-        return .branch(BSPBranch(
-          split: b.split,
-          ratio: b.ratio,
-          preferredChild: b.preferredChild,
-          left: b.left,
-          right: b.right.replacing(path: rest, with: transform)
-        ))
+        return .branch(b.with(right: b.right.replacing(path: rest, with: transform)))
       }
     }
   }

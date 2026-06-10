@@ -348,7 +348,7 @@ func liveFocusedWindowKey() -> WindowKey? {
     let value = raw,
     CFGetTypeID(value) == AXUIElementGetTypeID()
   else { return nil }
-  return WindowKey.from(
+  return WindowKey(
     axWindow: value as! AXUIElement,
     pid: app.processIdentifier,
     bundleId: bundleId

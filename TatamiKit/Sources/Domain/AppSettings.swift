@@ -537,6 +537,19 @@ extension AppSettings {
       (value.clamped(to: 0.1 ... 0.9) * 100).rounded() / 100
     }
 
+    /// User-facing sensitivity (0…1): the inverse of the swipe-distance
+    /// threshold — higher sensitivity needs a shorter swipe. The single
+    /// home for the threshold ↔ sensitivity mapping; the Settings slider
+    /// and the legacy `sensitivity` config key both go through it.
+    public var sensitivity: Double {
+      get { ((0.9 - threshold) / 0.8).clamped(to: 0 ... 1) }
+      set { threshold = Self.threshold(fromSensitivity: newValue) }
+    }
+
+    public static func threshold(fromSensitivity sensitivity: Double) -> Double {
+      roundedThreshold(0.9 - 0.8 * sensitivity.clamped(to: 0 ... 1))
+    }
+
     public init(
       enabled: Bool = false,
       fingerCount: Int = 3,
@@ -561,7 +574,7 @@ extension AppSettings {
         // A short-lived dev build stored `sensitivity` (0–1, or an integer
         // percent) instead — map it back so those configs keep working.
         let normalized = sensitivity > 1 ? sensitivity / 100 : sensitivity
-        self.threshold = Self.roundedThreshold(0.9 - 0.8 * normalized)
+        self.threshold = Self.threshold(fromSensitivity: normalized)
       } else {
         self.threshold = 0.3
       }
@@ -770,4 +783,14 @@ public enum FocusFollowsMouseModifier: String, Codable, Hashable, Sendable, Case
   case command = "Cmd"
   case control = "Ctrl"
   case shift = "Shift"
+
+  public var displayName: String {
+    switch self {
+    case .none: "None"
+    case .option: "Option (⌥)"
+    case .command: "Command (⌘)"
+    case .control: "Control (⌃)"
+    case .shift: "Shift (⇧)"
+    }
+  }
 }

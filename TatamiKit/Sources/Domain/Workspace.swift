@@ -10,6 +10,16 @@ public enum TilingMemory: String, Hashable, Sendable, Codable, CaseIterable {
   /// snapshotted to disk keyed by bundle id, and restored when the same
   /// apps are present again.
   case persistent
+
+  /// UI label — lives on the domain type like every other settings
+  /// enum's `displayName` (one convention instead of app-target
+  /// extensions for some enums and domain members for others).
+  public var displayName: String {
+    switch self {
+    case .session: "Session"
+    case .persistent: "Persistent"
+    }
+  }
 }
 
 /// One unit of "what's visible right now": a named set of app assignments,

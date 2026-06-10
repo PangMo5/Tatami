@@ -322,7 +322,7 @@ func discoverWindowKeys(
           reject(widProbe, "notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
           continue
         }
-        if let key = WindowKey.from(axWindow: window, pid: pid, bundleId: bundleId) {
+        if let key = WindowKey(axWindow: window, pid: pid, bundleId: bundleId) {
           // Sticky windows (pinned to all Spaces) must not be tiled —
           // they'd duplicate into every workspace's tree.
           if sls.spacesForWindow(key.windowID).count > 1 {

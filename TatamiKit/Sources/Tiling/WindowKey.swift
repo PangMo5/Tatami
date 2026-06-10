@@ -53,20 +53,16 @@ func isStandardTileable(window: AXUIElement) -> Bool {
 }
 
 extension WindowKey {
-  /// Resolve a window's `WindowKey` from its `AXUIElement`. Returns
-  /// nil if the bridge fails (usually means the window has already
-  /// been destroyed).
+  /// Resolve a window's `WindowKey` from its `AXUIElement`. Fails if
+  /// the bridge does (usually means the window has already been
+  /// destroyed).
   @MainActor
-  public static func from(
-    axWindow: AXUIElement,
-    pid: pid_t,
-    bundleId: String
-  ) -> WindowKey? {
+  public init?(axWindow: AXUIElement, pid: pid_t, bundleId: String) {
     var wid: CGWindowID = 0
     guard _AXUIElementGetWindow(axWindow, &wid) == .success, wid != 0 else {
       return nil
     }
-    return WindowKey(pid: pid, windowID: wid, bundleId: bundleId)
+    self.init(pid: pid, windowID: wid, bundleId: bundleId)
   }
 }
 

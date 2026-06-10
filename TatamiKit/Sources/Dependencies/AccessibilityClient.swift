@@ -3,6 +3,7 @@ import ApplicationServices
 import Dependencies
 import DependenciesMacros
 import Foundation
+import OSLog
 
 /// Accessibility (AX) permission: status, prompting, and applying a new grant.
 ///
@@ -61,7 +62,14 @@ extension AccessibilityClient: DependencyKey {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         task.arguments = ["-n", Bundle.main.bundleURL.path]
-        try? task.run()
+        do {
+          try task.run()
+        } catch {
+          // Don't terminate if the relauncher never started — that would
+          // turn "relaunch" into a plain quit with no explanation.
+          logger.error("relaunch failed to spawn open: \(error.localizedDescription, privacy: .public)")
+          return
+        }
         NSApp.terminate(nil)
       }
     },
@@ -99,3 +107,5 @@ extension DependencyValues {
     set { self[AccessibilityClient.self] = newValue }
   }
 }
+
+private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Accessibility")
