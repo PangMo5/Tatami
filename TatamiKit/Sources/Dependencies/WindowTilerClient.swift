@@ -48,14 +48,20 @@ extension WindowTilerClient: DependencyKey {
       )
       return
     }
-    await MainActor.run {
-      logger.info("apply: \(request.windowFrames.count) frames")
-      // Group frames by pid so we can toggle EnhancedUserInterface
-      // once per app instead of once per window.
-      let grouped = Dictionary(grouping: request.windowFrames, by: { $0.key.pid })
-      for (pid, entries) in grouped {
-        applyForApp(pid: pid, entries: entries)
-      }
+    logger.info("apply: \(request.windowFrames.count) frames")
+    // Group frames by pid so we can toggle EnhancedUserInterface
+    // once per app instead of once per window.
+    let grouped = Dictionary(grouping: request.windowFrames, by: { $0.key.pid })
+    // Hop to the main actor once per app, not once for the whole pass.
+    // Every AX write blocks on the target app's run loop (up to the 1 s
+    // cap), so a single block would hold the main thread for the *sum*
+    // of every busy app's stalls — HUD and mirrors freeze with it.
+    // The cancellation check is what makes a superseding pass's
+    // `cancelInFlight` effective mid-apply: without it a cancelled apply
+    // would keep writing stale frames between the newer pass's hops.
+    for (pid, entries) in grouped {
+      guard !Task.isCancelled else { return }
+      await MainActor.run { applyForApp(pid: pid, entries: entries) }
     }
   }
 
@@ -221,6 +227,19 @@ func isAccessibilityTrusted() -> Bool {
   AXIsProcessTrusted()
 }
 
+/// Result of an AX window-discovery pass.
+struct WindowDiscovery: Sendable {
+  var keys: [WindowKey] = []
+  /// Bundles where an AX read failed outright (messaging timeout — a
+  /// busy, hung, or dying app): "couldn't ask", as opposed to "asked and
+  /// there were no windows". Their keys are *omitted* from `keys`;
+  /// consumers must preserve last-known state for them instead of
+  /// treating the app as windowless — otherwise one slow app under
+  /// system load reads as "all windows closed" and gets dropped from
+  /// trees, mirrors, and markers.
+  var unreachable: Set<String> = []
+}
+
 /// All visible, regular, tile-able windows that belong to the given
 /// bundle identifiers, paired with their `WindowKey`s. Used by the
 /// activation reducer to compute the BSP target set.
@@ -241,8 +260,8 @@ func discoverWindowKeys(
   forBundleIds bundleIds: [String],
   sls: SLSClient,
   requireResizable: Bool = true
-) -> [WindowKey] {
-  guard !bundleIds.isEmpty else { return [] }
+) -> WindowDiscovery {
+  guard !bundleIds.isEmpty else { return WindowDiscovery() }
   @Dependency(\.debugLog) var debugLog
   // Per-window reject/keep bookkeeping exists only for the log line —
   // don't pay for the strings and arrays while logging is off.
@@ -261,6 +280,7 @@ func discoverWindowKeys(
   }
 
   var result: [WindowKey] = []
+  var unreachable: Set<String> = []
   let attrs = [
     kAXMinimizedAttribute,
     kAXSubroleAttribute,
@@ -277,12 +297,22 @@ func discoverWindowKeys(
       // hung app can't stall discovery (and the main thread) indefinitely.
       AXUIElementSetMessagingTimeout(axApp, 1.0)
       var raw: CFTypeRef?
-      guard AXUIElementCopyAttributeValue(
+      let windowsError = AXUIElementCopyAttributeValue(
         axApp,
         kAXWindowsAttribute as CFString,
         &raw
-      ) == .success, let windows = raw as? [AXUIElement] else {
-        debugLog.log("Tiler", "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute empty/failed")
+      )
+      guard windowsError == .success, let windows = raw as? [AXUIElement] else {
+        // `.noValue` / `.attributeUnsupported` are real answers ("no
+        // windows"); anything else means the app never replied — a
+        // timeout must not read as "all windows closed".
+        if windowsError != .noValue, windowsError != .attributeUnsupported {
+          unreachable.insert(bundleId)
+        }
+        debugLog.log(
+          "Tiler",
+          "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute err=\(windowsError.rawValue)"
+        )
         continue
       }
       let before = result.count
@@ -296,9 +326,18 @@ func discoverWindowKeys(
         var valuesRef: CFArray?
         var minimized = false
         var subrole: String?
-        if AXUIElementCopyMultipleAttributeValues(
+        let attrsError = AXUIElementCopyMultipleAttributeValues(
           window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-        ) == .success, let values = valuesRef as? [Any], values.count == 2 {
+        )
+        // An app that stops replying mid-enumeration would make every
+        // remaining window wait out the full timeout too — mark it
+        // unreachable and stop asking.
+        if attrsError == .cannotComplete {
+          unreachable.insert(bundleId)
+          reject(widProbe, "timeout")
+          break
+        }
+        if attrsError == .success, let values = valuesRef as? [Any], values.count == 2 {
           minimized = (values[0] as? Bool) ?? false
           subrole = values[1] as? String
         }
@@ -316,8 +355,17 @@ func discoverWindowKeys(
         // app rejects; size additionally for tiling (see `requireResizable`).
         var movable: DarwinBoolean = false
         var resizable: DarwinBoolean = false
-        AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
-        AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
+        let movError = AXUIElementIsAttributeSettable(
+          window, kAXPositionAttribute as CFString, &movable
+        )
+        let resError = AXUIElementIsAttributeSettable(
+          window, kAXSizeAttribute as CFString, &resizable
+        )
+        if movError == .cannotComplete || resError == .cannotComplete {
+          unreachable.insert(bundleId)
+          reject(widProbe, "timeout")
+          break
+        }
         if !movable.boolValue || (requireResizable && !resizable.boolValue) {
           reject(widProbe, "notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
           continue
@@ -343,7 +391,13 @@ func discoverWindowKeys(
       }
     }
   }
-  return result
+  // An unreachable bundle contributes no keys at all — a partial list
+  // (the windows validated before the timeout hit) would read as "the
+  // other windows closed". Consumers substitute last-known state.
+  if !unreachable.isEmpty {
+    result.removeAll { unreachable.contains($0.bundleId) }
+  }
+  return WindowDiscovery(keys: result, unreachable: unreachable)
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowTiler")

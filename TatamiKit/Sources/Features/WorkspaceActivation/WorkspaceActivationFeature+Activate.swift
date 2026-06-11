@@ -14,11 +14,18 @@ extension WorkspaceActivationFeature {
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces[id: workspaceId]
     else { return .none }
-    guard !state.isActivating else {
-      debugLog.log("Activate", "skip workspaceId=\(workspaceId): already activating")
-      return .none
+    // Latest-wins: a switch arriving mid-activation supersedes the
+    // in-flight one (the effect below is `cancellable(cancelInFlight:)`)
+    // instead of being dropped — dropping read as "the hotkey got
+    // swallowed" whenever an activation was slow (an app still
+    // launching, AX waits under load). The superseded effect stops at
+    // its next cancellation check; this activation's own show/hide and
+    // tile pass overwrite whatever partial state it left.
+    if state.isActivating {
+      debugLog.log("Activate", "supersede in-flight activation → workspaceId=\(workspaceId)")
     }
     state.isActivating = true
+    state.activatingWorkspaceID = workspaceId
     let isPaused = state.isTilingPaused
     debugLog.log(
       "Activate",
@@ -102,7 +109,11 @@ extension WorkspaceActivationFeature {
     }
     .cancellable(id: CancelID.activationWatchdog, cancelInFlight: true)
 
-    return .merge(screenRecordingWarning, watchdog, .run { [
+    // `.userInteractive`: the whole effect is the visible response to a
+    // hotkey press. Under system load the default priority leaves our
+    // main-actor hops queued behind everything else — exactly when the
+    // switch already crawls on slow AX replies.
+    return .merge(screenRecordingWarning, watchdog, .run(priority: .userInteractive) { [
       mgr = workspaceManager,
       tiler = windowTiler,
       store = layoutStore,
@@ -111,8 +122,20 @@ extension WorkspaceActivationFeature {
       overlay = floatingOverlay,
       marker = marker,
       snapshot = windowSnapshot,
-      displays = displays
+      displays = displays,
+      debugLog = debugLog
     ] send in
+      // Wall-clock per phase — AX round trips block on *other* apps' run
+      // loops, so when a switch crawls under load this names the phase
+      // (and thus the app set) that ate the time.
+      let timer = ContinuousClock()
+      var phaseStart = timer.now
+      var phases: [(String, Duration)] = []
+      func mark(_ name: String) {
+        let now = timer.now
+        phases.append((name, now - phaseStart))
+        phaseStart = now
+      }
       if showHUD {
         await hud.show(hudName, hudIcon, nil, hudDurationMs)
       }
@@ -121,15 +144,34 @@ extension WorkspaceActivationFeature {
       // floating windows visibly outlive the windows they mirror.
       overlay.retainOnly(Set(floatingBundleIds))
       await mgr.activate(request)
+      mark("showHide")
+      // Superseded by a newer switch: stop before the tile pass. `send`
+      // on a cancelled effect is already a no-op, but the AX work below
+      // is not — without these checks a superseded activation would keep
+      // writing the *old* workspace's frames interleaved with the new
+      // activation's main-actor hops.
+      guard !Task.isCancelled else { return }
       if !isPaused {
         let persistedSnapshot: LayoutSnapshot? =
           memory == .persistent && sessionTree == nil
             ? await store.load(workspaceId)
             : nil
+        // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
+        // AX round trips — AX scans block on each target app's run loop
+        // (measured 50 ms–1.2 s per switch), which is what made switching
+        // crawl under system load. Misses scan one bundle per main-actor
+        // hop so a busy app can't hold the main thread through its
+        // neighbors' turns. `activationCompleted` schedules the
+        // revalidation sweep that repairs any staleness.
+        var discovered: [WindowKey] = []
+        for bundleId in bundleIds {
+          guard !Task.isCancelled else { return }
+          discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
+        }
+        let keys = discovered
+        mark("discover")
         let (tree, frames, restoredZoom) = await MainActor.run {
           () -> (BSPNode<WindowKey>?, [WindowKey: CGRect], Set<WindowKey>) in
-          let keys = snapshot.discoverKeys(bundleIds, true)
-          let focused = snapshot.focusedWindowKey()
           let workArea = displays.workArea(targetDisplay).insetBy(
             dx: CGFloat(settings.layout.gapOuter),
             dy: CGFloat(settings.layout.gapOuter)
@@ -143,7 +185,7 @@ extension WorkspaceActivationFeature {
           let merged = Self.mergeTree(
             existing: base,
             target: keys,
-            focused: focused,
+            focused: { snapshot.focusedWindowKey() },
             insertionPoint: insertionPoint,
             workArea: workArea,
             settings: settings
@@ -165,6 +207,7 @@ extension WorkspaceActivationFeature {
           )
           return (tree, frames, resolvedZoom)
         }
+        mark("layout")
         await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
         if !restoredZoom.isEmpty, zoomed.isEmpty {
           await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
@@ -178,19 +221,29 @@ extension WorkspaceActivationFeature {
             )
           )
         }
+        guard !Task.isCancelled else { return }
         if !frames.isEmpty {
           await tiler.apply(
             FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
           )
         }
+        mark("apply")
         // Mirror floating windows onto always-on-top panels (the Topit /
         // Floaty technique): a foreign window's level can't be raised without
         // SIP, so instead of trying we paint a live mirror above the tiles.
         // Passing the resolved set (possibly empty) also tears down mirrors
         // for apps that were just un-floated or belong to another workspace.
-        let floatingKeys = await MainActor.run {
-          Set(snapshot.discoverKeys(floatingBundleIds, false))
+        // Same cache-first, per-bundle main-actor hops as the tile
+        // discovery above.
+        var floatingDiscovered: Set<WindowKey> = []
+        for bundleId in floatingBundleIds {
+          guard !Task.isCancelled else { return }
+          floatingDiscovered.formUnion(
+            await MainActor.run { snapshot.cachedKeys([bundleId], false) }
+          )
         }
+        let floatingKeys = floatingDiscovered
+        mark("float")
         overlay.setFloating(floatingKeys)
         // Markers ride the same discovery — `activationCompleted` used to
         // re-run a full AX scan for the floating keys this pass just
@@ -212,8 +265,13 @@ extension WorkspaceActivationFeature {
           if let center { mouse.warp(center) }
         }
       }
+      debugLog.log(
+        "Activate",
+        "phases " + phases.map { "\($0.0)=\(ms($0.1))ms" }.joined(separator: " ")
+      )
       await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
-    })
+    }
+    .cancellable(id: CancelID.activation, cancelInFlight: true))
   }
 
   // MARK: - Cycle
@@ -252,8 +310,11 @@ extension WorkspaceActivationFeature {
       workspaces = all
     }
     guard !workspaces.isEmpty else { return nil }
-    // Anchor at the active workspace on the focused display.
-    let currentID = state.primaryActiveWorkspaceID
+    // Anchor at the in-flight activation's target when there is one, else
+    // the active workspace on the focused display. `primaryActive` only
+    // updates on completion, so without the in-flight anchor every press
+    // during a slow switch re-resolved to the same target.
+    let currentID = state.activatingWorkspaceID ?? state.primaryActiveWorkspaceID
     let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
 
@@ -328,6 +389,12 @@ extension WorkspaceActivationFeature {
     }
     return tree.frames(in: workArea, gap: gap)
   }
+}
+
+/// Whole milliseconds of a `Duration`, for the activation phase log.
+private func ms(_ duration: Duration) -> Int64 {
+  duration.components.seconds * 1000
+    + duration.components.attoseconds / 1_000_000_000_000_000
 }
 
 /// Live AX read of the frontmost app's focused window. Reducers go

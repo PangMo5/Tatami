@@ -29,6 +29,12 @@ public struct WorkspaceActivationFeature {
     /// right monitor instead of an arbitrary one.
     public var focusedDisplay: DisplayName?
     public var isActivating = false
+    /// The workspace the in-flight activation is switching to. Cycling
+    /// anchors here (falling back to the *completed* active workspace) so
+    /// rapid next/previous presses advance from the switch in progress —
+    /// anchoring at the completed one re-targeted the same slow workspace
+    /// on every press, which read as the cycle being stuck on it.
+    public var activatingWorkspaceID: Workspace.ID?
     /// Runtime-only "pause tiling" flag. Workspace switching keeps
     /// running while tiling is paused; flipped by `togglePaused`.
     public var isTilingPaused = false
@@ -210,6 +216,11 @@ public struct WorkspaceActivationFeature {
     /// Releases the `isActivating` gate if an activation never completes
     /// (see `activationTimedOut`); cancelled by `activationCompleted`.
     case activationWatchdog
+    /// Latest-wins workspace switching: a new activation cancels the
+    /// in-flight one instead of being dropped, so a hotkey pressed while
+    /// a slow activation runs (an app being slow to launch, AX waits
+    /// under load) is never swallowed.
+    case activation
   }
 
   @Dependency(\.workspaceManager) var workspaceManager
@@ -411,7 +422,18 @@ public struct WorkspaceActivationFeature {
             debouncedPrune()
           )
         }
-        return .merge(markerEffect, debouncedSync(bundleId, delayMs: 10), debouncedPrune())
+        // One focused-window resolution serves marker focus, insertion-
+        // point tracking, and the sync — the `windowFocused` handler does
+        // all three. Resolving here *and* eagerly inside the sync cost two
+        // AX round trips to the just-activated app (the slowest possible
+        // target — Electron apps answer AX late right after activation).
+        return .merge(
+          .run { [snapshot = windowSnapshot] send in
+            let key = await MainActor.run { snapshot.focusedWindowKey() }
+            await send(.windowChanged(.windowFocused(bundleId: bundleId, key: key)))
+          },
+          debouncedPrune()
+        )
 
       case .pruneOffscreenWindows:
         return pruneOffscreenWindows(state: &state)
@@ -696,6 +718,7 @@ public struct WorkspaceActivationFeature {
 
       case .activationCompleted(let id, let display):
         state.isActivating = false
+        state.activatingWorkspaceID = nil
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
           state.previousWorkspacesByDisplay[display] = previous
         }
@@ -727,12 +750,25 @@ public struct WorkspaceActivationFeature {
           // The unpaused path already pushed markers from the activation
           // effect's own floating discovery; only the paused path (which
           // skips that block) still needs a refresh here.
-          state.isTilingPaused ? refreshMarkers(state: state) : .none
+          state.isTilingPaused ? refreshMarkers(state: state) : .none,
+          // Stale-while-revalidate: activation served its window keys from
+          // `WindowKeyCache`, and window events that arrived *during* the
+          // activation were dropped by the `isActivating` gate. Rescan every
+          // bundle this workspace relies on now that the gate is open — the
+          // per-app sync is a no-op when nothing drifted, and repairs the
+          // tree (and the cache) when something did. The delay keeps the
+          // rescan (a main-thread AX pass) out of rapid cycling: a switch
+          // arriving sooner re-enters the gate and the sync drops; only a
+          // workspace the user actually settles on pays for revalidation.
+          state.isTilingPaused
+            ? .none
+            : .merge(observeIds.map { debouncedSync($0, delayMs: 150) })
         )
 
       case .activationTimedOut:
         guard state.isActivating else { return .none }
         state.isActivating = false
+        state.activatingWorkspaceID = nil
         debugLog.log(
           "Activate",
           "watchdog: activation did not complete in 10 s — releasing the gate"

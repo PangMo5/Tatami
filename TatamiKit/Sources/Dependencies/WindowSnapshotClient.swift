@@ -27,8 +27,18 @@ struct FrontmostApp: Equatable, Sendable {
 @DependencyClient
 struct WindowSnapshotClient: Sendable {
   /// All visible, regular, tile-able windows of the given bundle ids
-  /// (see `discoverWindowKeys` for the filtering rules).
+  /// (see `discoverWindowKeys` for the filtering rules). A fresh AX scan
+  /// that also refreshes `WindowKeyCache`, so every event-driven sync
+  /// doubles as cache maintenance. Bundles whose app didn't answer (AX
+  /// timeout) report their last-known keys instead of nothing.
   var discoverKeys:
+    @Sendable (_ bundleIds: [String], _ requireResizable: Bool) -> [WindowKey] = { _, _ in [] }
+  /// Cache-first variant of `discoverKeys` for latency-critical paths
+  /// (workspace activation). A warm entry costs zero AX round trips; a
+  /// miss falls back to a fresh per-bundle scan. Callers own the
+  /// staleness contract: serve from cache, then revalidate via the
+  /// sync path afterwards (stale-while-revalidate).
+  var cachedKeys:
     @Sendable (_ bundleIds: [String], _ requireResizable: Bool) -> [WindowKey] = { _, _ in [] }
   /// The `WindowKey` of the focused window of the frontmost app.
   var focusedWindowKey: @Sendable () -> WindowKey?
@@ -47,9 +57,45 @@ extension WindowSnapshotClient: DependencyKey {
     discoverKeys: { bundleIds, requireResizable in
       MainActor.assumeIsolated {
         @Dependency(\.sls) var sls
-        return discoverWindowKeys(
+        let discovery = discoverWindowKeys(
           forBundleIds: bundleIds, sls: sls, requireResizable: requireResizable
         )
+        WindowKeyCache.shared.store(
+          discovery, bundleIds: bundleIds, requireResizable: requireResizable
+        )
+        guard !discovery.unreachable.isEmpty else { return discovery.keys }
+        // An unreachable app (AX timeout — busy or hung, not "no windows")
+        // answers with its last-known keys, so a slow app under system
+        // load doesn't read as "all windows closed" and get dropped from
+        // trees, mirrors, and markers. The next reachable scan replaces it.
+        var keys = discovery.keys
+        for bundleId in discovery.unreachable {
+          keys += WindowKeyCache.shared
+            .cached(bundleId, requireResizable: requireResizable) ?? []
+        }
+        return keys
+      }
+    },
+    cachedKeys: { bundleIds, requireResizable in
+      MainActor.assumeIsolated {
+        @Dependency(\.sls) var sls
+        var out: [WindowKey] = []
+        for bundleId in bundleIds {
+          if let hit = WindowKeyCache.shared
+            .cached(bundleId, requireResizable: requireResizable)
+          {
+            out += hit
+          } else {
+            let fresh = discoverWindowKeys(
+              forBundleIds: [bundleId], sls: sls, requireResizable: requireResizable
+            )
+            WindowKeyCache.shared.store(
+              fresh, bundleIds: [bundleId], requireResizable: requireResizable
+            )
+            out += fresh.keys
+          }
+        }
+        return out
       }
     },
     focusedWindowKey: {
@@ -83,12 +129,57 @@ extension WindowSnapshotClient: DependencyKey {
 
   static let testValue = WindowSnapshotClient(
     discoverKeys: { _, _ in [] },
+    cachedKeys: { _, _ in [] },
     focusedWindowKey: { nil },
     frontmostApp: { nil },
     onScreenWindowIDs: { [] },
     runningBundleIds: { [] }
   )
   static let previewValue = testValue
+}
+
+/// Last-known `discoverWindowKeys` result per (bundle id, resizability).
+///
+/// Every AX discovery call is a synchronous IPC round trip serviced by
+/// the *target app's* run loop — there is no async AX API — so under
+/// system load a single rescan of all registered apps costs hundreds of
+/// milliseconds on the main thread (measured: 50–120 ms idle, 1.2 s+
+/// spikes). The cache removes that scan from the activation hot path.
+///
+/// Freshness is maintained by the paths that already learn about window
+/// changes: every event-driven `discoverKeys` call (window created /
+/// destroyed / miniaturized, app launch / terminate, space change, wake)
+/// stores its fresh result here, and activation schedules a post-switch
+/// revalidation sweep. An app whose bundle was never scanned is a miss,
+/// never a stale hit.
+@MainActor
+final class WindowKeyCache {
+  static let shared = WindowKeyCache()
+
+  private struct Key: Hashable {
+    var bundleId: String
+    var requireResizable: Bool
+  }
+
+  private var entries: [Key: [WindowKey]] = [:]
+
+  func cached(_ bundleId: String, requireResizable: Bool) -> [WindowKey]? {
+    entries[Key(bundleId: bundleId, requireResizable: requireResizable)]
+  }
+
+  /// Store a fresh scan's result for every *requested* bundle id — a
+  /// bundle that returned no windows (not running, all minimized) caches
+  /// an empty list, so the next read doesn't rescan it. Unreachable
+  /// bundles (AX timeout) keep their previous entry: a timeout is not an
+  /// answer, and overwriting with nothing would poison every consumer
+  /// until the app recovers.
+  func store(_ discovery: WindowDiscovery, bundleIds: [String], requireResizable: Bool) {
+    let grouped = Dictionary(grouping: discovery.keys, by: \.bundleId)
+    for bundleId in bundleIds where !discovery.unreachable.contains(bundleId) {
+      entries[Key(bundleId: bundleId, requireResizable: requireResizable)] =
+        grouped[bundleId] ?? []
+    }
+  }
 }
 
 extension DependencyValues {

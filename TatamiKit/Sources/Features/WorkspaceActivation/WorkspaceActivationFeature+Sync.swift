@@ -25,13 +25,12 @@ extension WorkspaceActivationFeature {
     let discoverBundles = Array(Set(registered + existingBundles))
 
     let targets = windowSnapshot.discoverKeys(discoverBundles, true)
-    let focused = windowSnapshot.focusedWindowKey()
     let workArea = tilingWorkArea(for: display, settings: settings)
 
     let merged = Self.mergeTree(
       existing: existing,
       target: targets,
-      focused: focused,
+      focused: { windowSnapshot.focusedWindowKey() },
       insertionPoint: state.insertionPoint[workspaceId],
       workArea: workArea,
       settings: settings
@@ -155,8 +154,19 @@ extension WorkspaceActivationFeature {
       || isUnregisteredAnywhere
 
     let current = windowSnapshot.discoverKeys([bundleId], true)
-    let focused = windowSnapshot.focusedWindowKey()
     let workArea = tilingWorkArea(for: display, settings: settings)
+    let currentSet = Set(current)
+    let treeWindows = existing?.windows ?? []
+    let willRemove = treeWindows.contains { $0.bundleId == bundleId && !currentSet.contains($0) }
+    let willInsert = eligibleToAdd && current.contains { !treeWindows.contains($0) }
+    // The focused-window read is a live AX round trip to the frontmost
+    // app — the slowest call in a no-op sync (an Electron app answers AX
+    // late right after being raised). Only a sync that changes the tree
+    // needs it (insertion anchor + refocus); pure focus bookkeeping is
+    // event-driven (`windowFocused` / `appActivated`).
+    let focused: WindowKey? = (willRemove || willInsert)
+      ? windowSnapshot.focusedWindowKey()
+      : nil
     if let focused, existing?.windows.contains(focused) == true {
       state.insertionPoint[workspaceId] = focused
     }
@@ -172,7 +182,6 @@ extension WorkspaceActivationFeature {
     )
 
     var tree = existing
-    let currentSet = Set(current)
     for key in (tree?.windows ?? []) where key.bundleId == bundleId && !currentSet.contains(key) {
       tree = tree?.removing(key)
     }
@@ -329,10 +338,16 @@ extension WorkspaceActivationFeature {
   /// inserts new windows at the insertion point. Fresh trees (no
   /// existing) build via `BSPNode.build` (which uses the shallowest-
   /// leaf rule for each new window).
+  ///
+  /// `focused` is a closure because resolving it costs a live AX round
+  /// trip to the frontmost app — which can block for hundreds of ms on a
+  /// busy Electron app right after it was raised. It's only consulted
+  /// when there are new windows to anchor, so the common steady-state
+  /// merge never pays for it.
   static func mergeTree(
     existing: BSPNode<WindowKey>?,
     target: [WindowKey],
-    focused: WindowKey?,
+    focused: () -> WindowKey?,
     insertionPoint: WindowKey?,
     workArea: CGRect,
     settings: AppSettings
@@ -379,13 +394,14 @@ extension WorkspaceActivationFeature {
       return t
     }
 
+    let focusedKey = focused()
     for id in newOnes {
       let anchor: WindowKey? = {
         if let insertionPoint, tree?.windows.contains(insertionPoint) == true {
           return insertionPoint
         }
-        if let focused, tree?.windows.contains(focused) == true {
-          return focused
+        if let focusedKey, tree?.windows.contains(focusedKey) == true {
+          return focusedKey
         }
         return nil
       }()
@@ -413,10 +429,12 @@ extension WorkspaceActivationFeature {
     else { return .none }
 
     let onScreen = windowSnapshot.onScreenWindowIDs()
-    let focused = windowSnapshot.focusedWindowKey()
-
     let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
     guard !gone.isEmpty else { return .none }
+    // Read focus only when something was actually pruned (refocus needs
+    // it) — pruning is scheduled after every app activation, and the read
+    // is an AX round trip to the frontmost app.
+    let focused = windowSnapshot.focusedWindowKey()
 
     var pruned: BSPNode<WindowKey>? = tree
     for key in gone { pruned = pruned?.removing(key) }

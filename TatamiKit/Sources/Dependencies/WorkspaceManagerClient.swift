@@ -98,12 +98,15 @@ extension WorkspaceManagerClient: DependencyKey {
           //    brings the window back. They join the layout via the
           //    window-created observer. Apps that already have a window on
           //    screen are left alone.
-          let onScreenOwnerPids: Set<pid_t> = {
-            let raw = CGWindowListCopyWindowInfo(
-              [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
-            ) as? [[String: Any]] ?? []
-            return Set(raw.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t })
-          }()
+          // One WindowServer snapshot serves both the auto-open check here
+          // and the multi-display hide scoping below — under system load a
+          // second round trip is not free.
+          let onScreenWindows = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+          ) as? [[String: Any]] ?? []
+          let onScreenOwnerPids = Set(
+            onScreenWindows.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t }
+          )
           let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
           for app in request.workspace.apps where app.autoOpen {
             let instances = runningByBundle[app.bundleIdentifier] ?? []
@@ -159,7 +162,7 @@ extension WorkspaceManagerClient: DependencyKey {
             guard NSScreen.screens.count > 1,
                   let target = request.targetDisplay
             else { return nil }
-            return Self.pids(onDisplay: target)
+            return Self.pids(onDisplay: target, in: onScreenWindows)
           }()
 
           var hiddenCount = 0
@@ -197,11 +200,13 @@ extension WorkspaceManagerClient: DependencyKey {
     )
   }
 
-  /// pids whose on-screen, layer-0 windows are centered on the named display.
-  /// One `CGWindowListCopyWindowInfo` snapshot (cheaper than per-app AX), used
-  /// to scope an activation's hide pass to a single display.
+  /// pids whose on-screen, layer-0 windows are centered on the named display,
+  /// filtered from an already-taken `CGWindowListCopyWindowInfo` snapshot.
+  /// Used to scope an activation's hide pass to a single display.
   @MainActor
-  private static func pids(onDisplay ref: DisplayName) -> Set<pid_t> {
+  private static func pids(
+    onDisplay ref: DisplayName, in windows: [[String: Any]]
+  ) -> Set<pid_t> {
     guard let primary = DisplayResolver.primaryScreen(),
           let screen = DisplayResolver.connectedScreen(for: ref)
     else { return [] }
@@ -215,9 +220,6 @@ extension WorkspaceManagerClient: DependencyKey {
       width: f.width,
       height: f.height
     )
-    let windows = CGWindowListCopyWindowInfo(
-      [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
-    ) as? [[String: Any]] ?? []
     var pids: Set<pid_t> = []
     for entry in windows {
       guard (entry[kCGWindowLayer as String] as? Int) == 0,
@@ -241,27 +243,27 @@ extension DependencyValues {
 extension NSRunningApplication {
   var isFinder: Bool { bundleIdentifier == MacApp.finderBundleId }
 
-  fileprivate var mainAXWindow: AXUIElement? {
+  /// Bring the app's main window to the front via Accessibility — the
+  /// reliable way to surface an app that was just unhidden (plain
+  /// `activate` often leaves the window behind Finder). Falls back to
+  /// `unhide()` when there's no main window yet.
+  ///
+  /// Both AX round trips block on the target app's run loop, bounded by
+  /// the process-global messaging timeout (`boundGlobalAXMessagingTimeout`,
+  /// 1 s) — sized for a genuinely hung app, not as a latency lever: a
+  /// merely busy app should still get its raise.
+  fileprivate func raiseMainWindow() {
     let app = AXUIElementCreateApplication(processIdentifier)
     var raw: CFTypeRef?
     guard AXUIElementCopyAttributeValue(
       app, kAXMainWindowAttribute as CFString, &raw
     ) == .success,
       let raw, CFGetTypeID(raw) == AXUIElementGetTypeID()
-    else { return nil }
-    return (raw as! AXUIElement)
-  }
-
-  /// Bring the app's main window to the front via Accessibility — the
-  /// reliable way to surface an app that was just unhidden (plain
-  /// `activate` often leaves the window behind Finder). Falls back to
-  /// `unhide()` when there's no main window yet.
-  fileprivate func raiseMainWindow() {
-    guard let mainAXWindow else {
+    else {
       unhide()
       return
     }
-    AXUIElementPerformAction(mainAXWindow, kAXRaiseAction as CFString)
+    AXUIElementPerformAction(raw as! AXUIElement, kAXRaiseAction as CFString)
   }
 }
 

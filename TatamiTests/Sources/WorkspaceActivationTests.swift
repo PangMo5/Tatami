@@ -34,13 +34,18 @@ struct WorkspaceActivationFeatureTests {
     let state = Self.makeState(workspaces: [ws1, ws2, ws3]) {
       $0.focusedDisplay = Self.display
       $0.activeWorkspacesByDisplay[Self.display] = ws3.id
-      // Gate the dispatched `.activate` at `performActivate`'s guard so
-      // the test pins the cycle decision, not the activation pipeline.
-      $0.isActivating = true
     }
+    // The test pins the cycle decision; the activation pipeline the
+    // dispatched `.activate` kicks off (latest-wins, never dropped) is
+    // out of scope — stub its dependencies and skip its follow-ups.
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
     }
+    store.exhaustivity = .off
 
     await store.send(.activateNext)
     await store.receive {
@@ -81,13 +86,16 @@ struct WorkspaceActivationFeatureTests {
       $0.$config.withLock { $0.settings.switching.skipEmpty = true }
       $0.focusedDisplay = Self.display
       $0.activeWorkspacesByDisplay[Self.display] = ws1.id
-      $0.isActivating = true
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.windowSnapshot.runningBundleIds = { ["app.three"] }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
     }
+    store.exhaustivity = .off
 
     // ws2 has no running app → the cycle lands on ws3.
     await store.send(.activateNext)
@@ -190,10 +198,13 @@ struct WorkspaceActivationFeatureTests {
     let state = Self.makeState(workspaces: [ws1, ws2]) {
       $0.focusedDisplay = Self.display
       $0.activeWorkspacesByDisplay[Self.display] = ws2.id
-      $0.isActivating = true
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
     }
     store.exhaustivity = .off
 
