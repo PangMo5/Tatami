@@ -4,6 +4,40 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## 1.3.2 — 2026-06-11
+
+A maintenance release — faster, steadier workspace switching and a batch of
+stability fixes, on top of a large internal hardening pass. Updating from
+1.2.x? The 1.3.0–1.3.1 notes included below apply to you too.
+
+### Improvements
+- **Snappier workspace switching.** Activations now read window identities from a cache instead of querying every window over Accessibility on the hot path, and a switch that arrives mid-activation supersedes the one still in flight — so rapid next/previous presses advance past a slow-to-settle workspace instead of stalling on it.
+- **A busy app no longer disappears.** When an app is too loaded to answer an Accessibility query in time, Tatami keeps its last-known windows instead of reading the timeout as "no windows" — so a momentarily-busy app no longer drops out of its tile, floating mirror, or marker dot. A single hung app can also no longer freeze the main thread for several seconds during a tiling pass.
+
+### Fixes
+- **Floating mirrors could keep recording after they should have stopped** — several races left ScreenCaptureKit streams (and the screen-recording indicator) running longer than intended; capture now starts and stops in a strict order.
+- **Freshly-launched Electron windows** sometimes missed their resize/close events when the first attempt to observe them failed; those subscriptions now retry like the rest, so a phantom tile no longer lingers.
+- **A corrupt `config.toml` no longer wipes your setup** — a broken top-level section (profiles, shared apps, settings) now keeps your previous config instead of resetting it (which the next write would have made permanent, taking your workspaces with it), and an unparsable settings field is surfaced instead of silently ignored.
+- **"Relaunch" no longer turns into a plain quit** when the relauncher fails to start — Tatami stays running and logs the failure.
+
+---
+
+*Updating from 1.2.x? Everything in 1.3.0–1.3.1 applies to you too:*
+
+### ⚠️ Breaking Changes (since 1.3.0)
+- **`[[floatingApps]]` is now `[[sharedApps]]`** — configs migrate automatically on first launch: each floating entry becomes a shared app with `floating = true`. Shared apps are part of *every* workspace — tiled into each layout by default, or floating everywhere. Manage them in **Workspaces → Shared Apps**; dotfiles that template the config should switch to the new key.
+- **Floating windows now need the Screen Recording permission** — they stay above the tiles via ScreenCaptureKit mirrors, and without the grant they won't stay on top. Grant it in **Settings → General → Permissions**, then relaunch.
+
+### New since 1.3.0
+- **Floating windows that stay above the tiles — without disabling SIP.** Mark any app as floating per workspace (the Float toggle next to Auto-open, or the `toggleFloating` hotkey): its windows stay untiled and are kept on top by mirroring them onto Tatami-owned ScreenCaptureKit panels. Reach for a floating window and the real one is handed back to you; while a floating app has focus the mirrors get out of the way. Multiple floating windows stack by focus recency.
+- **Shared Apps editor** in the Workspaces sidebar — add/remove shared apps and flip their Float toggle, presented like a special workspace.
+- **Settings reorganized** into a System Settings-style sidebar (General, Tiling, Focus & Mouse, Workspaces, Shortcuts, Appearance), with a Screen Recording row under Permissions.
+- **Shared hotkeys** — `toggleSharedFloating` floats the focused app everywhere, and `toggleAppInSharedApps` adds/removes the focused app in Shared Apps.
+- **Per-action HUD** — floating changes, app membership, tiling pause, fullscreen zoom, and balance now show a brief overlay, each individually toggleable in **Settings → Appearance → Overlay**.
+- **What's New on first launch after an update**, with the full changelog viewable from **About → View Changelog**.
+- **Back to recent when empty** (`settings.switching.switchToRecentWhenEmpty`, off by default) — when the active workspace's last window closes, switch to the recent workspace instead of staring at an empty desktop.
+- **Internal failures now surface in the UI** — a broken `config.toml`, an unreadable `layouts.json`, a CLI server that won't start, unavailable floating mirrors, or a failed Launch-at-Login registration show a warning HUD and a ⚠️ in the menu bar (with a Problems section) until fixed.
+
 ## 1.3.1 — 2026-06-07
 
 A quick follow-up to 1.3.0 — updating from 1.2.x? The 1.3.0 notes included
