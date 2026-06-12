@@ -12,6 +12,8 @@ import TatamiKit
 /// grouped form per pane on the right.
 struct SettingsView: View {
   @Shared(.tatamiConfig) var config = AppConfig()
+  // Not `private`: the pane bodies live in SettingsView+Panes.swift, a
+  // cross-file extension of this view.
   @State var store = Store(initialState: SettingsFeature.State()) {
     SettingsFeature()
   }

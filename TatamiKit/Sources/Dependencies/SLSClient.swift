@@ -42,8 +42,9 @@ struct SLSClient: Sendable {
 
   /// Focus `windowID` belonging to `psn`. Reliable in apps where plain
   /// `NSRunningApplication.activate` leaves the window behind Finder.
+  /// No hand-written default: Void endpoints get the macro's
+  /// unimplemented stub, so unstubbed test calls surface as failures.
   var focusWindow: @Sendable (ProcessSerialNumber, CGWindowID, AXUIElement) -> Void
-    = { _, _, _ in }
 }
 
 extension SLSClient: DependencyKey {

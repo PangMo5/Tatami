@@ -33,8 +33,10 @@ extension DragPreviewClient: DependencyKey {
     )
   }
 
-  static let testValue = DragPreviewClient(show: { _, _ in }, hide: {})
-  static let previewValue = testValue
+  // Macro-synthesized unimplemented endpoints: a test that reaches the
+  // drag preview without stubbing it should fail, not silently no-op.
+  static let testValue = DragPreviewClient()
+  static let previewValue = DragPreviewClient(show: { _, _ in }, hide: {})
 }
 
 extension DependencyValues {

@@ -105,7 +105,97 @@ struct WorkspaceActivationFeatureTests {
     }
   }
 
+  @Test
+  func cycleAnchorsAtTheInFlightActivationTarget() async {
+    let ws1 = Workspace(name: "one")
+    let ws2 = Workspace(name: "two")
+    let ws3 = Workspace(name: "three")
+    // ws1 is the *completed* workspace, but a switch to ws2 is still in
+    // flight. Cycling must advance from ws2 — anchoring at the completed
+    // one made every rapid press re-target the same slow workspace.
+    let state = Self.makeState(workspaces: [ws1, ws2, ws3]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = ws1.id
+      $0.isActivating = true
+      $0.activatingWorkspaceID = ws2.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateNext)
+    await store.receive {
+      guard case .activate(let id, _) = $0 else { return false }
+      return id == ws3.id
+    }
+  }
+
   // MARK: - Activation bookkeeping
+
+  @Test
+  func activateSupersedesTheInFlightActivation() async {
+    let ws1 = Workspace(name: "one")
+    let ws2 = Workspace(name: "two")
+    let state = Self.makeState(workspaces: [ws1, ws2]) {
+      $0.focusedDisplay = Self.display
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    // Latest-wins: the second press is never dropped — it re-enters the
+    // pipeline and re-anchors the in-flight target.
+    await store.send(.activate(workspaceId: ws1.id, setFocus: false))
+    #expect(store.state.isActivating)
+    #expect(store.state.activatingWorkspaceID == ws1.id)
+    await store.send(.activate(workspaceId: ws2.id, setFocus: false))
+    #expect(store.state.activatingWorkspaceID == ws2.id)
+    await store.skipReceivedActions()
+  }
+
+  @Test
+  func activationDiscoversARegisteredAndSharedAppOnce() async {
+    let app = AppAssignment(bundleIdentifier: "app.shared", name: "Shared")
+    let ws = Workspace(name: "one", apps: [app])
+    let state = Self.makeState(workspaces: [ws]) {
+      $0.$config.withLock {
+        $0.sharedApps = [SharedApp(bundleIdentifier: "app.shared", name: "Shared")]
+      }
+      $0.focusedDisplay = Self.display
+    }
+    // An app registered to the workspace AND shared sits in both source
+    // lists; discovering it twice tiled its window twice ([72, 72]).
+    let discovered = LockIsolated<[String]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowSnapshot.cachedKeys = { bundleIds, _ in
+        discovered.withValue { $0 += bundleIds }
+        return []
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: ws.id, setFocus: false))
+    await store.receive {
+      guard case .activationCompleted = $0 else { return false }
+      return true
+    }
+    #expect(discovered.value.filter { $0 == "app.shared" }.count == 1)
+  }
 
   @Test
   func activationCompletedRecordsDisplayAndRecentWorkspace() async {
@@ -152,6 +242,10 @@ struct WorkspaceActivationFeatureTests {
     let resizeFrame = CGRect(x: 0, y: 0, width: 500, height: 400)
     let store = TestStore(initialState: Self.makeState(workspaces: [])) {
       WorkspaceActivationFeature()
+    } withDependencies: {
+      // The drag pipeline drives the preview overlay on every event.
+      $0.dragPreview.show = { _, _ in }
+      $0.dragPreview.hide = {}
     }
     // `drag` is the assertion target; the full-state diff would drag the
     // (irrelevant) shared config into the comparison.
@@ -176,6 +270,9 @@ struct WorkspaceActivationFeatureTests {
     let key = WindowKey(pid: 1, windowID: 100, bundleId: "app.one")
     let store = TestStore(initialState: Self.makeState(workspaces: [])) {
       WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.dragPreview.show = { _, _ in }
+      $0.dragPreview.hide = {}
     }
     store.exhaustivity = .off
 

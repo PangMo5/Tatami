@@ -197,8 +197,7 @@ struct WorkspaceDetailView: View {
           onCancel: { store.send(.appPickerDismissed) }
         )
       }
-      .onAppear { nameDraft = workspace.name }
-      .onChange(of: workspace.id) { _, _ in nameDraft = workspace.name }
+      .onChange(of: workspace.id, initial: true) { _, _ in nameDraft = workspace.name }
       // Keyed on the workspace so re-running per selection re-fetches the
       // display list (a plain `.task` only fires on first appearance, which
       // left later workspaces' pickers showing just their own pinned display).
