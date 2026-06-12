@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import ComposableArchitecture
 import Foundation
+import OrderedCollections
 import Sharing
 
 /// Tracks the active workspace per display, owns per-workspace BSP
@@ -788,7 +789,7 @@ public struct WorkspaceActivationFeature {
         let floatingIds = state.config.sharedApps.map(\.bundleIdentifier)
           + (state.config.activeProfile?.workspaces[id: id]?
             .apps.filter(\.floating).map(\.bundleIdentifier) ?? [])
-        let observeIds = Array(Set((treeIds ?? registeredIds) + floatingIds))
+        let observeIds = Array(OrderedSet((treeIds ?? registeredIds) + floatingIds))
         debugLog.log(
           "Activate",
           "completed workspaceId=\(id) "

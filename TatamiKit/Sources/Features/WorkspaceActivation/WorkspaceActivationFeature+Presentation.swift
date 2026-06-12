@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Foundation
+import OrderedCollections
 
 extension WorkspaceActivationFeature {
   // MARK: - Window marker / floating presentation
@@ -12,7 +13,7 @@ extension WorkspaceActivationFeature {
       .flatMap { id in state.config.activeProfile?.workspaces[id: id] }
       .map { $0.apps.filter(\.floating).map(\.bundleIdentifier) } ?? []
     let shared = state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
-    return Array(Set(perWorkspace + shared))
+    return Array(OrderedSet(perWorkspace + shared))
   }
 
   /// Marker targets: fullscreen-zoom dots (focus-gated) + floating dots

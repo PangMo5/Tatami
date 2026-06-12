@@ -1,3 +1,4 @@
+import DequeModule
 import Foundation
 
 /// Pure value-typed Binary Space Partitioning tree.
@@ -192,7 +193,7 @@ extension BSPNode where WindowID == WindowKey {
     template: BSPNode<String>,
     keys: [WindowKey]
   ) -> BSPNode<WindowKey>? {
-    var queues: [String: [WindowKey]] = [:]
+    var queues: [String: Deque<WindowKey>] = [:]
     for key in keys {
       queues[key.bundleId, default: []].append(key)
     }
@@ -201,9 +202,7 @@ extension BSPNode where WindowID == WindowKey {
       case .leaf(let stringLeaf):
         var hydratedList: [WindowKey] = []
         for bundleId in stringLeaf.windowList {
-          guard var queue = queues[bundleId], !queue.isEmpty else { continue }
-          let key = queue.removeFirst()
-          queues[bundleId] = queue
+          guard let key = queues[bundleId]?.popFirst() else { continue }
           hydratedList.append(key)
         }
         guard !hydratedList.isEmpty else { return nil }

@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import ComposableArchitecture
 import Foundation
+import OrderedCollections
 
 extension WorkspaceActivationFeature {
   // MARK: - Activation
@@ -64,14 +65,16 @@ extension WorkspaceActivationFeature {
     // the tree.
     // An app registered to the workspace AND shared appears in both lists —
     // dedupe, or its windows get discovered twice and tile twice.
-    let bundleIds = (workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
-      + state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier))
-      .uniqued()
+    let bundleIds = Array(OrderedSet(
+      workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
+        + state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier)
+    ))
     // Floating apps (per-workspace + shared) are raised above the tiles after
     // the tile pass.
-    let floatingBundleIds = (workspace.apps.filter(\.floating).map(\.bundleIdentifier)
-      + state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier))
-      .uniqued()
+    let floatingBundleIds = Array(OrderedSet(
+      workspace.apps.filter(\.floating).map(\.bundleIdentifier)
+        + state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
+    ))
     let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
     let sessionTree = state.tilingTrees[workspace.id]
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
@@ -451,13 +454,5 @@ extension SplitTypePreference {
     case .horizontal: return .horizontal
     case .vertical: return .vertical
     }
-  }
-}
-
-extension Array where Element: Hashable {
-  /// Order-preserving dedup; first occurrence wins.
-  fileprivate func uniqued() -> [Element] {
-    var seen = Set<Element>()
-    return filter { seen.insert($0).inserted }
   }
 }

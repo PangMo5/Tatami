@@ -4,6 +4,7 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 import OSLog
+import OrderedCollections
 
 /// Applies a precomputed set of `(WindowKey → frame)` assignments via
 /// Accessibility. BSP tree math lives in the reducer; this dependency
@@ -48,8 +49,10 @@ extension WindowTilerClient: DependencyKey {
       return
     }
     // Group frames by pid so we can toggle EnhancedUserInterface
-    // once per app instead of once per window.
-    let grouped = Dictionary(grouping: request.windowFrames, by: { $0.key.pid })
+    // once per app instead of once per window. Ordered: apps apply in
+    // first-seen order, so passes are reproducible run to run (and the
+    // Tiler log reads the same way every switch).
+    let grouped = OrderedDictionary(grouping: request.windowFrames, by: { $0.key.pid })
     // Hop to the main actor once per app, not once for the whole pass.
     // Every AX write blocks on the target app's run loop (up to the 1 s
     // cap), so a single block would hold the main thread for the *sum*
@@ -279,7 +282,8 @@ func discoverWindowKeys(
   // run one process per window under a shared bundle id, so keying by
   // bundle id alone — taking only the first pid — misses every window
   // owned by a sibling process. Scan them all.
-  var pidsByBundle: [String: [pid_t]] = [:]
+  // Ordered so multi-process apps (Neovide) scan in a stable pid order.
+  var pidsByBundle: OrderedDictionary<String, [pid_t]> = [:]
   for app in NSWorkspace.shared.runningApplications
   where !app.isTerminated && app.activationPolicy == .regular {
     if let bid = app.bundleIdentifier {

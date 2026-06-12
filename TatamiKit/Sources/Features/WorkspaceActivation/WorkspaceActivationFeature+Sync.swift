@@ -1,6 +1,7 @@
 import AppKit
 import ComposableArchitecture
 import Foundation
+import OrderedCollections
 
 extension WorkspaceActivationFeature {
   /// Re-tile the active workspace's current windows WITHOUT touching
@@ -22,7 +23,7 @@ extension WorkspaceActivationFeature {
     // existing tree's bundle ids we'd discover only the registered apps
     // and the transient tiles would drop out silently.
     let existingBundles = existing?.windows.map(\.bundleId) ?? []
-    let discoverBundles = Array(Set(registered + existingBundles))
+    let discoverBundles = Array(OrderedSet(registered + existingBundles))
 
     let targets = windowSnapshot.discoverKeys(discoverBundles, true)
     let workArea = tilingWorkArea(for: display, settings: settings)
@@ -43,7 +44,7 @@ extension WorkspaceActivationFeature {
       state.insertionPoint[workspaceId] = tree.windows.first
     }
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    let observeIds = Array(Set(tree.windows.map(\.bundleId)))
+    let observeIds = Array(OrderedSet(tree.windows.map(\.bundleId)))
 
     return .merge(
       applyLayout(
@@ -234,7 +235,7 @@ extension WorkspaceActivationFeature {
 
     // Shared apps included so floating ones get window events too (they're
     // in neither the tree nor the workspace's registered set).
-    let observeIds = Array(Set(
+    let observeIds = Array(OrderedSet(
       (balanced?.windows.map(\.bundleId) ?? [])
         + Array(registeredSet)
         + state.config.sharedApps.map(\.bundleIdentifier)

@@ -117,6 +117,8 @@ let project = Project(
         .external(name: "TOML"),
         .external(name: "Sparkle"),
         .external(name: "YYJSON"),
+        .external(name: "OrderedCollections"),
+        .external(name: "DequeModule"),
       ]
     ),
     .target(
