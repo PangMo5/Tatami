@@ -146,6 +146,17 @@ extension WorkspaceManagerClient: DependencyKey {
             // before activating to land focus reliably.
             toFocus.raiseMainWindow()
             toFocus.activate(options: [.activateIgnoringOtherApps])
+          } else if request.setFocus {
+            // Empty workspace — none of its apps are running, so nothing
+            // above took focus. Hand it to Finder BEFORE the hide pass:
+            // hiding the frontmost app with no successor makes macOS
+            // reactivate (and *unhide*) the previously active app, so the
+            // outgoing workspace's window resurfaces and followAppFocus
+            // chases it right back ("switch to empty Coding bounced to
+            // AI"). Finder is the app the hide pass below deliberately
+            // leaves visible for exactly this empty-desktop case.
+            running.first { $0.isFinder }?
+              .activate(options: [.activateIgnoringOtherApps])
           }
 
           // 2. Hide everything else. Finder is special-cased: only hide

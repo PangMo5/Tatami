@@ -62,12 +62,16 @@ extension WorkspaceActivationFeature {
     // Tile target: this workspace's tiled apps + shared tiled apps. Floating
     // apps (per-workspace or shared) are shown by the manager but kept out of
     // the tree.
-    let bundleIds = workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
-      + state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier)
+    // An app registered to the workspace AND shared appears in both lists —
+    // dedupe, or its windows get discovered twice and tile twice.
+    let bundleIds = (workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
+      + state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier))
+      .uniqued()
     // Floating apps (per-workspace + shared) are raised above the tiles after
     // the tile pass.
-    let floatingBundleIds = workspace.apps.filter(\.floating).map(\.bundleIdentifier)
-      + state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
+    let floatingBundleIds = (workspace.apps.filter(\.floating).map(\.bundleIdentifier)
+      + state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier))
+      .uniqued()
     let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
     let sessionTree = state.tilingTrees[workspace.id]
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
@@ -432,5 +436,13 @@ extension SplitTypePreference {
     case .horizontal: return .horizontal
     case .vertical: return .vertical
     }
+  }
+}
+
+extension Array where Element: Hashable {
+  /// Order-preserving dedup; first occurrence wins.
+  fileprivate func uniqued() -> [Element] {
+    var seen = Set<Element>()
+    return filter { seen.insert($0).inserted }
   }
 }

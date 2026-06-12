@@ -117,7 +117,13 @@ private final class WorkspaceHUDController {
   private func layout(_ panel: NSPanel, hasSubtitle: Bool) {
     let size = NSSize(width: hasSubtitle ? 340 : 280, height: hasSubtitle ? 174 : 150)
     panel.setContentSize(size)
-    guard let screen = NSScreen.main else { return }
+    // The screen the cursor is on — `NSScreen.main` follows the key
+    // window, which after a workspace switch can be a different display
+    // than the one the user is looking at.
+    let mouse = NSEvent.mouseLocation
+    let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
+      ?? NSScreen.main
+    guard let screen else { return }
     let visible = screen.visibleFrame
     // Centered horizontally, near the bottom of the usable area.
     let origin = NSPoint(
