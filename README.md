@@ -127,6 +127,7 @@ every key, its default, and the shortcut syntax.
 - **Tuist** — project generation
 - **The Composable Architecture (TCA)** — app architecture
 - **swift-sharing** — cross-feature state sharing
+- **swift-collections** — ordered sets/dictionaries and deques on the tiling hot paths
 - **swift-toml** — config persistence
 - **swift-yyjson** — fast JSON for the layout store and CLI protocol
 - **KeyboardShortcuts** — global hotkey recording

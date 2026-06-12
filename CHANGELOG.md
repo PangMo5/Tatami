@@ -4,6 +4,17 @@ All notable changes to Tatami. This file is the source of truth for the release
 notes shown on the website and on GitHub Releases (the release workflow appends
 an Install / Update section when publishing).
 
+## Unreleased
+
+### Improvements
+- **The workspace HUD shows on the display your cursor is on** — it used to follow the key window, which after a switch could be a different monitor than the one you were looking at.
+- **Richer diagnostics** behind the Debug logging toggle: hotkey receipt, gesture recognition (including why a swipe *didn't* fire), floating-mirror lifecycle, show/hide summaries, BSP operations, and drag commits now all land in `tatami.log`.
+
+### Fixes
+- **Tatami no longer asks for Input Monitoring.** Its event taps are now gated by the Accessibility permission alone, so the "would like to receive keystrokes from any application" dialog is gone — and a previously denied Input Monitoring entry no longer breaks focus-follows-mouse and swipe gestures. If Tatami still appears under Privacy & Security → Input Monitoring from an older version, you can remove the entry with "−".
+- **Switching to a workspace whose apps aren't running no longer bounces you back.** With nothing to focus, hiding the outgoing windows let macOS resurrect the previously active app — and follow-app-focus would chase it straight back to its workspace. An empty workspace now lands on an empty desktop and stays there.
+- **An app that is both registered to a workspace and in Shared Apps no longer tiles twice** in that workspace's layout.
+
 ## 1.3.2 — 2026-06-11
 
 A maintenance release — faster, steadier workspace switching and a batch of
