@@ -4,7 +4,6 @@ import CoreGraphics
 import Dependencies
 import DependenciesMacros
 import Foundation
-import OSLog
 
 /// Watches the windows of a fixed set of bundle identifiers via
 /// `AXObserver`. Emits an event whenever a window is created or
@@ -210,7 +209,6 @@ private final class ObservedApp {
         "Observer",
         "AXObserverCreate FAILED pid=\(pid) bundle=\(bundleId) err=\(createResult.rawValue)"
       )
-      logger.debug("AXObserverCreate failed for \(bundleId): \(createResult.rawValue)")
       return nil
     }
     let appElement = AXUIElementCreateApplication(pid)
@@ -512,4 +510,3 @@ private struct UnsafeAXElement: @unchecked Sendable {
 }
 
 
-private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowObserver")

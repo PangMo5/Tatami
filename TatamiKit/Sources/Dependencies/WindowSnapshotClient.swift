@@ -68,10 +68,17 @@ extension WindowSnapshotClient: DependencyKey {
         // answers with its last-known keys, so a slow app under system
         // load doesn't read as "all windows closed" and get dropped from
         // trees, mirrors, and markers. The next reachable scan replaces it.
+        @Dependency(\.debugLog) var debugLog
         var keys = discovery.keys
         for bundleId in discovery.unreachable {
-          keys += WindowKeyCache.shared
+          let stale = WindowKeyCache.shared
             .cached(bundleId, requireResizable: requireResizable) ?? []
+          debugLog.log(
+            "Tiler",
+            "\(bundleId) unreachable (AX timeout) — serving "
+              + "\(stale.count) cached keys"
+          )
+          keys += stale
         }
         return keys
       }

@@ -31,10 +31,7 @@ struct FrameApplication: Sendable, Hashable {
 
 extension WindowTilerClient: DependencyKey {
   static let liveValue = WindowTilerClient { request in
-    guard !request.windowFrames.isEmpty else {
-      logger.debug("apply: no frames to apply")
-      return
-    }
+    guard !request.windowFrames.isEmpty else { return }
     // Non-prompting check: prompting here would re-pop the system dialog on
     // every tile pass while ungranted. The single startup prompt + the
     // Settings → General → Permissions UI own the prompting.
@@ -46,9 +43,10 @@ extension WindowTilerClient: DependencyKey {
         Privacy & Security → Accessibility and enable Tatami.
         """
       )
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log("Tiler", "apply skipped: accessibility not granted")
       return
     }
-    logger.info("apply: \(request.windowFrames.count) frames")
     // Group frames by pid so we can toggle EnhancedUserInterface
     // once per app instead of once per window.
     let grouped = Dictionary(grouping: request.windowFrames, by: { $0.key.pid })
@@ -73,6 +71,8 @@ extension WindowTilerClient: DependencyKey {
     pid: pid_t,
     entries: [(key: WindowKey, value: CGRect)]
   ) {
+    @Dependency(\.debugLog) var debugLog
+    let logging = debugLog.isEnabled()
     let axApp = AXUIElementCreateApplication(pid)
     // Cap how long any single AX write can block the main thread. The
     // default has no practical ceiling, so one unresponsive app could
@@ -87,7 +87,12 @@ extension WindowTilerClient: DependencyKey {
       &raw
     ) == .success,
       let windows = raw as? [AXUIElement]
-    else { return }
+    else {
+      // The whole app's frames silently don't land when this fails (busy
+      // or hung app) — the "tiling didn't update" trace needs the line.
+      debugLog.log("Tiler", "apply pid=\(pid): AX window list unavailable — skipped")
+      return
+    }
 
     var lookup: [CGWindowID: AXUIElement] = [:]
     for window in windows {
@@ -122,13 +127,16 @@ extension WindowTilerClient: DependencyKey {
 
     for (key, frame) in entries {
       guard let window = lookup[key.windowID] else {
-        logger.info("apply \(key.bundleId, privacy: .public)#\(key.windowID) → missing-window")
+        debugLog.log("Tiler", "apply \(key.bundleId)#\(key.windowID) → missing-window")
         continue
       }
       let outcome = applyFrame(frame, to: window)
-      logger.info(
-        "apply \(key.bundleId, privacy: .public)#\(key.windowID) → \(frame.debugDescription, privacy: .public) = \(outcome, privacy: .public)"
-      )
+      if logging {
+        debugLog.log(
+          "Tiler",
+          "apply \(key.bundleId)#\(key.windowID) → \(frame) = \(outcome)"
+        )
+      }
     }
   }
 

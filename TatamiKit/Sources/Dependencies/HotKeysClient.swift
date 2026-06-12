@@ -140,6 +140,8 @@ extension DependencyValues {
 }
 
 private final class HotKeysCenter: @unchecked Sendable {
+  @Dependency(\.debugLog) private var debugLog
+
   let events: AsyncStream<HotKeyAction>
   private let continuation: AsyncStream<HotKeyAction>.Continuation
   private var registered: [(KeyboardShortcuts.Name, HotKeyAction)] = []
@@ -161,11 +163,16 @@ private final class HotKeysCenter: @unchecked Sendable {
       KeyboardShortcuts.setShortcut(binding.hotKey.shortcut, for: name)
       let action = binding.action
       let continuation = continuation
+      let debugLog = debugLog
       KeyboardShortcuts.onKeyDown(for: name) {
+        // First line of every hotkey trace: separates "the key never
+        // reached Tatami" (no line) from "the action misbehaved".
+        debugLog.log("HotKey", action.nameKey)
         continuation.yield(action)
       }
       next.append((name, binding.action))
     }
     registered = next
+    debugLog.log("HotKey", "registered \(next.count) bindings")
   }
 }

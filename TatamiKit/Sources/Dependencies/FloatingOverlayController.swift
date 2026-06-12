@@ -137,7 +137,10 @@ final class FloatingOverlayController {
       // that ran mid-await couldn't remove a panel that didn't exist yet).
       guard desired.contains(key), panels[key] == nil else { continue }
       guard let scWindow = byID[key.windowID] else {
-        logger.info("no SCWindow for \(key.bundleId, privacy: .public)#\(key.windowID)")
+        debugLog.log(
+          "Mirror",
+          "no SCWindow for \(key.bundleId)#\(key.windowID) — mirror skipped"
+        )
         continue
       }
       let capture = WindowMirrorCapture()
@@ -145,6 +148,7 @@ final class FloatingOverlayController {
       captures[key] = capture
       panels[key] = panel
       await capture.start(window: scWindow, maxFPS: maxFPS)
+      debugLog.log("Mirror", "created \(key.bundleId)#\(key.windowID)")
       // The mirrored app may already be frontmost (e.g. the user floated
       // the focused window) — start suppressed so the mirror doesn't cover
       // the live window they're using.
@@ -230,6 +234,9 @@ final class FloatingOverlayController {
 
   /// Drop a window's mirror panel, capture stream, and AX subscription.
   private func removeWindow(_ key: WindowKey) {
+    if panels[key] != nil {
+      debugLog.log("Mirror", "removed \(key.bundleId)#\(key.windowID)")
+    }
     if subscribed.remove(key) != nil,
        let element = axWindowCache[key],
        let observer = axObservers[key.pid]
@@ -465,6 +472,7 @@ final class FloatingOverlayController {
   /// z-order check is the only reliable gate.
   private func suppressMirror(_ key: WindowKey) {
     guard !suppressed.contains(key), let panel = panels[key] else { return }
+    debugLog.log("Mirror", "suppress \(key.bundleId)#\(key.windowID)")
     suppressed.insert(key)
     cursorInside[key] = panel.frame.contains(NSEvent.mouseLocation)
     syncSuppressedFrames()
@@ -483,7 +491,16 @@ final class FloatingOverlayController {
         }
         try? await Task.sleep(for: Timing.verifyStep)
       }
-      guard raised, let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
+      guard let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
+      if !raised {
+        // The mirror stays visible (truthfully) — when a float "won't hide",
+        // this is the path that decided so.
+        self.debugLog.log(
+          "Mirror",
+          "suppress \(key.bundleId)#\(key.windowID): raise never verified — mirror stays"
+        )
+        return
+      }
       // The focused window is verifiably above the tiles — now (and only
       // now) it's safe to slot still-mirrored siblings underneath it.
       if key.pid == self.focusedFloatPid {
@@ -558,10 +575,18 @@ final class FloatingOverlayController {
     // cursor-exit path in particular can race the terminate cleanup and
     // used to resurrect a quit app's mirror on the first mouse move.
     guard windowExists(key) else {
+      debugLog.log(
+        "Mirror",
+        "restore \(key.bundleId)#\(key.windowID): window gone — removing"
+      )
       removeWindow(key)
       onShown?()
       return
     }
+    debugLog.log(
+      "Mirror",
+      "restore \(key.bundleId)#\(key.windowID) waitForFrame=\(waitForFrame)"
+    )
     suppressed.remove(key)
     cursorInside.removeValue(forKey: key)
     syncSuppressedFrames()

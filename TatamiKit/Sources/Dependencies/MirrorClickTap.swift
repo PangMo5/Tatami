@@ -1,15 +1,18 @@
 import AppKit
 import ApplicationServices
+import Dependencies
 import OSLog
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "FloatingOverlay")
 
-/// Listen-only mouse-down tap. A click outside every suppressed floating
+/// Observing mouse-down tap. A click outside every suppressed floating
 /// window is about to move focus away from the floating app; restoring the
 /// mirrors at mouse-down time beats the clicked app's raise, which the
 /// didActivate notification only reports after the fact. Modeled on the
 /// focus-follows-mouse tap (same `EventTapThread`, same re-enable dance).
 final class MirrorClickTap: @unchecked Sendable {
+  @Dependency(\.debugLog) private var debugLog
+
   private var eventTap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
   private let onOutsideClick: @Sendable () -> Void
@@ -48,16 +51,19 @@ final class MirrorClickTap: @unchecked Sendable {
       userInfo: info
     ) else {
       logger.error("mirror click tap: CGEvent.tapCreate failed")
+      debugLog.log("Mirror", "click tap create FAILED (accessibility?)")
       return
     }
     guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
       logger.error("mirror click tap: failed to create run loop source")
+      debugLog.log("Mirror", "click tap: run loop source FAILED")
       return
     }
     EventTapThread.shared.addSource(source)
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
+    debugLog.log("Mirror", "click tap installed")
   }
 
   private func teardown() {
@@ -65,10 +71,14 @@ final class MirrorClickTap: @unchecked Sendable {
     if let source = runLoopSource { EventTapThread.shared.removeSource(source) }
     eventTap = nil
     runLoopSource = nil
+    debugLog.log("Mirror", "click tap removed")
   }
 
   fileprivate func reEnable() {
-    if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
+    if let tap = eventTap {
+      debugLog.log("Mirror", "click tap disabled by system — re-enabling")
+      CGEvent.tapEnable(tap: tap, enable: true)
+    }
   }
 
   /// Runs on the event-tap thread; reads only the lock-protected registry.

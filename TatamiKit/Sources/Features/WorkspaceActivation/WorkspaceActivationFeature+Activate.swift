@@ -281,7 +281,22 @@ extension WorkspaceActivationFeature {
   // MARK: - Cycle
 
   func cycle(by direction: Int, state: inout State) -> Effect<Action> {
-    guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
+    let anchor = state.activatingWorkspaceID ?? state.primaryActiveWorkspaceID
+    let workspaces = state.config.activeProfile?.workspaces
+    let name = { (id: Workspace.ID?) -> String in
+      id.flatMap { workspaces?[id: $0]?.name } ?? "nil"
+    }
+    guard let id = adjacentWorkspaceId(by: direction, state: state) else {
+      debugLog.log(
+        "Activate",
+        "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)): no eligible target"
+      )
+      return .none
+    }
+    debugLog.log(
+      "Activate",
+      "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)) → \(name(id))"
+    )
     return .send(.activate(workspaceId: id, setFocus: true))
   }
 

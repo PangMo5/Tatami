@@ -64,6 +64,8 @@ extension DependencyValues {
 }
 
 private actor SocketServer {
+  @Dependency(\.debugLog) private var debugLog
+
   let stream: AsyncStream<SocketServerClient.Incoming>
   private let continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
   private var listenFD: Int32 = -1
@@ -117,7 +119,7 @@ private actor SocketServer {
 
     listenFD = fd
     isRunning = true
-    logger.info("SocketServer listening at \(path)")
+    debugLog.log("App", "dev CLI socket listening at \(path)")
 
     let listenFD = fd
     let continuation = continuation
@@ -157,7 +159,7 @@ private actor SocketServer {
     // (`requests`) and consumed for the process lifetime, so finishing it
     // here would make every request after a stop→start silently die in a
     // finished continuation.
-    logger.info("SocketServer stopped")
+    debugLog.log("App", "dev CLI socket stopped")
   }
 
   private static func acceptLoop(
@@ -169,7 +171,7 @@ private actor SocketServer {
       let clientFD = Darwin.accept(listenFD, nil, nil)
       if clientFD < 0 {
         if errno == EINTR { continue }
-        logger.info("accept failed: \(errno) — exiting accept loop")
+        logger.error("accept failed: \(errno) — exiting accept loop")
         return
       }
       connections.async {

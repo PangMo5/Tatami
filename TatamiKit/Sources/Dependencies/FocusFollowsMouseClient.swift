@@ -114,17 +114,19 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       userInfo: info
     ) else {
       logger.error("CGEvent.tapCreate failed — check Accessibility permission")
+      debugLog.log("FocusDiag", "ffm tap create FAILED (accessibility?)")
       return
     }
     guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
       logger.error("focus-follows-mouse: failed to create run loop source")
+      debugLog.log("FocusDiag", "ffm tap: run loop source FAILED")
       return
     }
     EventTapThread.shared.addSource(source)
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
-    logger.info("focus-follows-mouse: event tap installed")
+    debugLog.log("FocusDiag", "ffm tap installed")
   }
 
   private func teardown() {
@@ -134,7 +136,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
     eventTap = nil
     runLoopSource = nil
-    logger.info("focus-follows-mouse: event tap removed")
+    debugLog.log("FocusDiag", "ffm tap removed")
   }
 
   /// Macros / heavy work in some apps can starve the tap; macOS responds
@@ -142,6 +144,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// Flip it back on so focus-follows-mouse keeps working.
   fileprivate func reEnableTap() {
     if let tap = eventTap {
+      debugLog.log("FocusDiag", "ffm tap disabled by system — re-enabling")
       CGEvent.tapEnable(tap: tap, enable: true)
     }
   }

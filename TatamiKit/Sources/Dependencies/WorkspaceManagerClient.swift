@@ -79,6 +79,7 @@ extension WorkspaceManagerClient: DependencyKey {
   private static func _live(cursorHide: CursorHideSink) -> WorkspaceManagerClient {
     WorkspaceManagerClient(
       activate: { request in
+        @Dependency(\.debugLog) var debugLog
         let workspaceBundleIds = Set(request.workspace.apps.map(\.bundleIdentifier))
         let sharedBundleIds = Set(request.sharedApps.map(\.bundleIdentifier))
         let keepVisible = workspaceBundleIds.union(sharedBundleIds)
@@ -116,7 +117,17 @@ extension WorkspaceManagerClient: DependencyKey {
             if hasVisibleWindow { continue }
             guard let url = NSWorkspace.shared
               .urlForApplication(withBundleIdentifier: app.bundleIdentifier)
-            else { continue }
+            else {
+              debugLog.log(
+                "Manager",
+                "autoOpen \(app.bundleIdentifier): no app URL — skipped"
+              )
+              continue
+            }
+            debugLog.log(
+              "Manager",
+              "autoOpen \(app.bundleIdentifier) (running=\(!instances.isEmpty))"
+            )
             let config = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
               if let error {
@@ -144,6 +155,11 @@ extension WorkspaceManagerClient: DependencyKey {
             // unhide → raise → activate: just unhiding + activate leaves
             // the window behind Finder, so raise the main window via AX
             // before activating to land focus reliably.
+            debugLog.log(
+              "Manager",
+              "focus \(toFocus.bundleIdentifier ?? "?") "
+                + "(preferred=\(focusBundleId ?? "nil"))"
+            )
             toFocus.raiseMainWindow()
             toFocus.activate(options: [.activateIgnoringOtherApps])
           } else if request.setFocus {
@@ -155,6 +171,10 @@ extension WorkspaceManagerClient: DependencyKey {
             // chases it right back ("switch to empty Coding bounced to
             // AI"). Finder is the app the hide pass below deliberately
             // leaves visible for exactly this empty-desktop case.
+            debugLog.log(
+              "Manager",
+              "focus → Finder (no workspace app running, empty desktop)"
+            )
             running.first { $0.isFinder }?
               .activate(options: [.activateIgnoringOtherApps])
           }
@@ -198,13 +218,12 @@ extension WorkspaceManagerClient: DependencyKey {
             cursorHide.invoke()
           }
 
-          logger.info(
-            """
-            Activated '\(request.workspace.name)' on \
-            \(request.targetDisplay?.name ?? "any"): \
-            show=\(workspaceBundleIds.count) float=\(sharedBundleIds.count) \
-            hide=\(hiddenCount)
-            """
+          debugLog.log(
+            "Manager",
+            "showHide ws=\(request.workspace.name) "
+              + "display=\(request.targetDisplay?.name ?? "all") "
+              + "shown=\(appsToShow.compactMap(\.bundleIdentifier)) hide=\(hiddenCount) "
+              + "displayScoped=\(pidsOnTargetDisplay != nil)"
           )
         }
       }

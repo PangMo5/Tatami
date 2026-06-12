@@ -285,6 +285,12 @@ public struct WorkspaceActivationFeature {
         if let focused = state.focusedDisplay, !connected.contains(focused) {
           state.focusedDisplay = nil
         }
+        debugLog.log(
+          "Display",
+          "reconfigured connected=\(names.map(\.name)) "
+            + "activeByDisplay=\(state.activeWorkspacesByDisplay.map { "\($0.key.name)→\($0.value)" }) "
+            + "focused=\(state.focusedDisplay?.name ?? "nil")"
+        )
         return .none
 
       case .windowChanged(let event):
@@ -325,12 +331,22 @@ public struct WorkspaceActivationFeature {
           case .idle:
             break
           case .resizing(let resize):
+            debugLog.log(
+              "Drag",
+              "end resize \(resize.key.bundleId)#\(resize.key.windowID) frame=\(resize.frame)"
+            )
             effects.append(syncTreeRatio(for: resize.key, frame: resize.frame, state: &state))
           case .dropping(let drop):
+            debugLog.log(
+              "Drag",
+              "end drop \(drop.dragged.bundleId)#\(drop.dragged.windowID) "
+                + "→ \(drop.target.bundleId)#\(drop.target.windowID) zone=\(drop.zone)"
+            )
             effects.append(applyDrop(drop, state: &state))
           case .moving:
             // Dragged but nothing committed (dropped on empty space / back on
             // itself) → snap the window back to its tile.
+            debugLog.log("Drag", "end without drop target — snap back")
             effects.append(retileActive(state: state))
           }
           return .merge(effects)
@@ -416,6 +432,12 @@ public struct WorkspaceActivationFeature {
              $0.apps.contains { $0.bundleIdentifier == bundleId }
            }),
            state.primaryActiveWorkspaceID != owner.id {
+          // The one path that switches workspaces without a hotkey — when a
+          // bounce-back is suspected, this line (or its absence) is the tell.
+          debugLog.log(
+            "Activate",
+            "followAppFocus jump: didActivate \(bundleId) → ws=\(owner.name)"
+          )
           return .merge(
             markerEffect,
             .send(.activate(workspaceId: owner.id, setFocus: false)),
@@ -450,6 +472,10 @@ public struct WorkspaceActivationFeature {
           guard let fb = frontBundle else { return false }
           return ws.apps.contains { $0.bundleIdentifier == fb }
         } ?? profile.workspaces[0]
+        debugLog.log(
+          "Activate",
+          "initial → ws=\(target.name) (frontmost=\(frontBundle ?? "nil"))"
+        )
         return .send(.activate(workspaceId: target.id, setFocus: false))
 
       case .activate(let workspaceId, let setFocus):
@@ -470,7 +496,10 @@ public struct WorkspaceActivationFeature {
         // any recent for single-display / unknown focus).
         let recent = state.focusedDisplay.flatMap { state.previousWorkspacesByDisplay[$0] }
           ?? state.previousWorkspacesByDisplay.values.first
-        guard let recent else { return .none }
+        guard let recent else {
+          debugLog.log("Activate", "recent: no previous workspace recorded")
+          return .none
+        }
         return .send(.activate(workspaceId: recent, setFocus: true))
 
       case .focusAdjacentDisplay(let direction):
@@ -482,7 +511,14 @@ public struct WorkspaceActivationFeature {
         // The workspace currently active on that display, if any.
         guard let wsId = state.activeWorkspacesByDisplay
           .first(where: { $0.key.matches(nextDisplay) })?.value
-        else { return .none }
+        else {
+          debugLog.log(
+            "Display",
+            "focusAdjacent → \(nextDisplay.name): no active workspace recorded"
+          )
+          return .none
+        }
+        debugLog.log("Display", "focusAdjacent → \(nextDisplay.name)")
         return .send(.activate(workspaceId: wsId, setFocus: true))
 
       case .moveFocusedAppToAdjacent(let direction):
@@ -500,6 +536,7 @@ public struct WorkspaceActivationFeature {
       case .membershipEditResolved(let bundleId, let name, let edit):
         // Tatami must never enter its own membership sets.
         if MacApp.isTatami(bundleId) { return .none }
+        debugLog.log("App", "membership \(String(describing: edit)) bundle=\(bundleId)")
         let displayName = name.isEmpty ? bundleId : name
         switch edit {
         case .toggleInActiveWorkspace:
@@ -637,7 +674,10 @@ public struct WorkspaceActivationFeature {
               let workspace = state.config.activeProfile?
                 .workspaces[id: workspaceId],
               let tree = state.tilingTrees[workspaceId]
-        else { return .none }
+        else {
+          debugLog.log("BSP", "focus \(direction): no active workspace/tree")
+          return .none
+        }
         let settings = state.config.settings
         let display = workspace.displayHint ?? displays.current()
         let gap = CGFloat(settings.layout.gapInner)
@@ -649,7 +689,18 @@ public struct WorkspaceActivationFeature {
           in: workArea,
           gap: gap,
           focusOrder: tree.windows
-        ) else { return .none }
+        ) else {
+          debugLog.log(
+            "BSP",
+            "focus \(direction) from \(key.bundleId)#\(key.windowID): no neighbor"
+          )
+          return .none
+        }
+        debugLog.log(
+          "BSP",
+          "focus \(direction) \(key.bundleId)#\(key.windowID) "
+            + "→ \(target.bundleId)#\(target.windowID)"
+        )
         let warpMouse = settings.focus.mouseFollowsFocus
         let zoomed = state.fullscreenZoomed[workspaceId] ?? []
         return .run { [mouse = mouse, focus = focusManager] _ in
@@ -783,9 +834,13 @@ public struct WorkspaceActivationFeature {
   private func resolveFocusedWindowKey(
     _ continuation: @escaping @Sendable (WindowKey) -> Action
   ) -> Effect<Action> {
-    .run { [snapshot = windowSnapshot] send in
+    .run { [snapshot = windowSnapshot, debugLog] send in
       let key = await MainActor.run { snapshot.focusedWindowKey() }
-      guard let key else { return }
+      guard let key else {
+        // Silent-drop tell for "the BSP hotkey did nothing".
+        debugLog.log("BSP", "no focused window — op dropped")
+        return
+      }
       await send(continuation(key))
     }
   }
@@ -793,9 +848,12 @@ public struct WorkspaceActivationFeature {
   private func resolveFrontmostApp(
     _ continuation: @escaping @Sendable (_ bundleId: String, _ name: String) -> Action
   ) -> Effect<Action> {
-    .run { [snapshot = windowSnapshot] send in
+    .run { [snapshot = windowSnapshot, debugLog] send in
       let resolved = await MainActor.run { snapshot.frontmostApp() }
-      guard let resolved else { return }
+      guard let resolved else {
+        debugLog.log("App", "no frontmost app — membership edit dropped")
+        return
+      }
       await send(continuation(resolved.bundleId, resolved.name))
     }
   }
@@ -867,7 +925,18 @@ public struct WorkspaceActivationFeature {
           let workspace = state.config.activeProfile?
             .workspaces[id: workspaceId],
           var tree = state.tilingTrees[workspaceId]
-    else { return .none }
+    else {
+      debugLog.log(
+        "BSP",
+        "\(String(describing: op)) \(windowKey.bundleId)#\(windowKey.windowID): "
+          + "no active workspace/tree"
+      )
+      return .none
+    }
+    debugLog.log(
+      "BSP",
+      "\(String(describing: op)) \(windowKey.bundleId)#\(windowKey.windowID)"
+    )
 
     let settings = state.config.settings
     let display = workspace.displayHint ?? displays.current()

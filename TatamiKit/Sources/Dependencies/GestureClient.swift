@@ -70,6 +70,8 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     var displacement: CGFloat { current - origin }
   }
 
+  @Dependency(\.debugLog) private var debugLog
+
   private var tap: CFMachPort?
   private var requiredFingers = 3
   private var threshold = 0.3
@@ -122,13 +124,17 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     )
     guard let created else {
       logger.warning("gesture tap creation failed (accessibility?)")
+      debugLog.log("Gesture", "tap create FAILED (accessibility?)")
       return
     }
     tap = created
     let source = CFMachPortCreateRunLoopSource(nil, created, 0)
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
     CGEvent.tapEnable(tap: created, enable: true)
-    logger.info("gesture tap started")
+    debugLog.log(
+      "Gesture",
+      "tap started fingers=\(requiredFingers) threshold=\(threshold)"
+    )
   }
 
   @MainActor
@@ -138,13 +144,14 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     CFMachPortInvalidate(tap)
     self.tap = nil
     reset()
-    logger.info("gesture tap stopped")
+    debugLog.log("Gesture", "tap stopped")
   }
 
   /// C-callback entry point. Re-enables the tap if the system disabled it,
   /// otherwise hops to the main actor to fold the gesture event in.
   fileprivate func consume(type: CGEventType, event: CGEvent) {
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
+      debugLog.log("Gesture", "tap disabled by system (\(type.rawValue)) — re-enabling")
       if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
       return
     }
@@ -184,6 +191,7 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     else { return }
 
     didFireForCurrentGesture = true
+    debugLog.log("Gesture", "swipe \(direction) fired (fingers=\(travelByTouch.count))")
     emit.yield(direction)
   }
 
@@ -207,6 +215,18 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
 
   @MainActor
   private func reset() {
+    // "Why didn't my swipe fire" tell: a gesture that tracked touches but
+    // never fired logs what the recognizer saw — wrong finger count or a
+    // total that fell short of the threshold. Gated: per-gesture, but the
+    // summary string is only worth building while a trace is being taken.
+    if !travelByTouch.isEmpty, !didFireForCurrentGesture, debugLog.isEnabled() {
+      let total = travelByTouch.values.map(\.displacement).reduce(0, +)
+      debugLog.log(
+        "Gesture",
+        "gesture ended without fire: fingers=\(travelByTouch.count)/\(requiredFingers) "
+          + "total=\(String(format: "%.3f", total)) threshold=\(threshold)"
+      )
+    }
     travelByTouch.removeAll(keepingCapacity: true)
     didFireForCurrentGesture = false
   }
