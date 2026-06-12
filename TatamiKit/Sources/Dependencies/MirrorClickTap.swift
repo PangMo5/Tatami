@@ -36,10 +36,13 @@ final class MirrorClickTap: @unchecked Sendable {
       (1 << CGEventType.tapDisabledByTimeout.rawValue) |
       (1 << CGEventType.tapDisabledByUserInput.rawValue)
     let info = Unmanaged.passUnretained(self).toOpaque()
+    // `.defaultTap`, not `.listenOnly` — listen-only taps are gated on
+    // Input Monitoring and pop the keystroke warning; active taps ride
+    // the Accessibility grant (see FocusFollowsMouseClient).
     guard let tap = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
       place: .headInsertEventTap,
-      options: .listenOnly,
+      options: .defaultTap,
       eventsOfInterest: CGEventMask(mask),
       callback: mirrorClickTapCallback,
       userInfo: info
@@ -77,8 +80,8 @@ final class MirrorClickTap: @unchecked Sendable {
   }
 }
 
-/// CGEventTap C callback for the mirror click tap — listen-only, returns
-/// the event unmodified.
+/// CGEventTap C callback for the mirror click tap — observes only,
+/// returns the event unmodified.
 private func mirrorClickTapCallback(
   proxy: CGEventTapProxy,
   type: CGEventType,

@@ -137,10 +137,14 @@ private final class MouseStateController: @unchecked Sendable {
              | (1 << CGEventType.tapDisabledByTimeout.rawValue)
              | (1 << CGEventType.tapDisabledByUserInput.rawValue)
     let context = Unmanaged.passUnretained(self).toOpaque()
+    // Session-level `.defaultTap`, not HID/`.listenOnly` — listen-only
+    // taps are gated on Input Monitoring and pop the keystroke warning;
+    // active taps ride the Accessibility grant (see
+    // FocusFollowsMouseClient).
     guard let port = CGEvent.tapCreate(
-      tap: .cghidEventTap,
+      tap: .cgSessionEventTap,
       place: .headInsertEventTap,
-      options: .listenOnly,
+      options: .defaultTap,
       eventsOfInterest: CGEventMask(mask),
       callback: { _, type, event, refcon in
         guard let refcon else { return Unmanaged.passUnretained(event) }

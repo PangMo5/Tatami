@@ -99,10 +99,16 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       (1 << CGEventType.tapDisabledByTimeout.rawValue) |
       (1 << CGEventType.tapDisabledByUserInput.rawValue)
     let info = Unmanaged.passUnretained(self).toOpaque()
+    // `.defaultTap`, not `.listenOnly`: TCC gates active taps on
+    // Accessibility but listen-only taps on Input Monitoring — every
+    // listen-only tapCreate (even mouse-only, even with Accessibility
+    // granted) pops the "receive keystrokes from any application"
+    // warning and lists the app under Privacy → Input Monitoring. The
+    // callback passes events through unmodified.
     guard let tap = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
       place: .headInsertEventTap,
-      options: .listenOnly,
+      options: .defaultTap,
       eventsOfInterest: CGEventMask(mask),
       callback: focusFollowsMouseCallback,
       userInfo: info
@@ -276,8 +282,8 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
 }
 
 /// CGEventTap C callback. Hops onto the controller via the retained-
-/// unmanaged pointer in `userInfo`. Returns the event unmodified —
-/// listen-only.
+/// unmanaged pointer in `userInfo`. Observes only — returns the event
+/// unmodified.
 private func focusFollowsMouseCallback(
   proxy: CGEventTapProxy,
   type: CGEventType,
