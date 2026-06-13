@@ -1,6 +1,5 @@
 import AppKit
 import ComposableArchitecture
-import KeyboardShortcuts
 import SFSafeSymbols
 import SwiftUI
 import TatamiKit
@@ -63,17 +62,25 @@ struct WorkspaceDetailView: View {
         }
 
         Section {
-          KeyboardShortcuts.Recorder(
-            "Activate",
-            name: KeyboardShortcuts.Name("tatami.workspace.\(workspace.id.uuidString)")
-          ) { shortcut in
-            store.send(.activateShortcutChanged(shortcut.map(HotKey.init)))
+          // Centered HStack, not LabeledContent — its baseline-aligned label
+          // floats above the taller recorder capsule.
+          HStack {
+            Text("Activate")
+            Spacer(minLength: 16)
+            ShortcutRecorder(
+              hotKey: workspace.activateShortcut,
+              conflict: { store.state.activateShortcutConflict(for: $0) },
+              onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+            ) { store.send(.activateShortcutChanged($0)) }
           }
-          KeyboardShortcuts.Recorder(
-            "Assign focused app here",
-            name: KeyboardShortcuts.Name("tatami.workspace.assign.\(workspace.id.uuidString)")
-          ) { shortcut in
-            store.send(.assignAppShortcutChanged(shortcut.map(HotKey.init)))
+          HStack {
+            Text("Assign focused app here")
+            Spacer(minLength: 16)
+            ShortcutRecorder(
+              hotKey: workspace.assignAppShortcut,
+              conflict: { store.state.assignShortcutConflict(for: $0) },
+              onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+            ) { store.send(.assignAppShortcutChanged($0)) }
           }
         } header: {
           Text("Shortcuts")

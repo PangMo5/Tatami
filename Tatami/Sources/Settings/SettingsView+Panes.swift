@@ -1,5 +1,4 @@
 import ComposableArchitecture
-import KeyboardShortcuts
 import SwiftUI
 import TatamiKit
 
@@ -512,10 +511,11 @@ extension SettingsView {
     }
   }
 
-  /// A recorder row bound to a global `HotKeyAction`. The recorder edits
-  /// the shared KeyboardShortcuts slot directly (so the live handler
-  /// updates immediately); the callback also mirrors it into the config's
-  /// `shortcuts` group so it persists.
+  /// A recorder row bound to a global `HotKeyAction`. The config's
+  /// `shortcuts` group is the single source of truth: the recorder reads the
+  /// current combo from it and writes edits straight back, and the live
+  /// `HotKeysFeature` re-registers on the change. Conflicts are detected
+  /// against every other binding (`AppConfig.shortcutConflict`).
   @ViewBuilder
   func shortcut(
     _ title: String,
@@ -523,8 +523,19 @@ extension SettingsView {
     _ keyPath: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
     description: String? = nil
   ) -> some View {
-    let recorder = KeyboardShortcuts.Recorder(title, name: action.keyboardShortcutName) { shortcut in
-      $config.withLock { $0.settings.shortcuts[keyPath: keyPath] = shortcut.map(HotKey.init) }
+    // Plain centered HStack rather than LabeledContent: the latter aligns
+    // its label to the text baseline, which floats the title above the
+    // taller (24pt) recorder capsule.
+    let recorder = HStack {
+      Text(title)
+      Spacer(minLength: 16)
+      ShortcutRecorder(
+        hotKey: config.settings.shortcuts[keyPath: keyPath],
+        conflict: { config.shortcutConflict(for: $0, excluding: action) },
+        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+      ) { hotKey in
+        $config.withLock { $0.settings.shortcuts[keyPath: keyPath] = hotKey }
+      }
     }
     // Non-obvious actions get a caption below the recorder, matching the
     // toggle/picker rows; self-explanatory directional ones pass none.

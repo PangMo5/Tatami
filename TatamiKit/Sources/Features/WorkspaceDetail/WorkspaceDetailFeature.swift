@@ -27,6 +27,20 @@ public struct WorkspaceDetailFeature {
     public var apps: [AppAssignment] {
       workspace?.apps ?? []
     }
+
+    /// Title of another action already bound to `candidate`, or nil if free
+    /// — for the activate-shortcut recorder's conflict message. Lives here
+    /// (not the view) so the config read stays in the reducer's state.
+    public func activateShortcutConflict(for candidate: HotKey) -> String? {
+      config.shortcutConflict(for: candidate, excluding: .activateWorkspace(workspaceId))
+    }
+
+    /// Same, for the assign-app-shortcut recorder.
+    public func assignShortcutConflict(for candidate: HotKey) -> String? {
+      config.shortcutConflict(
+        for: candidate, excluding: .assignFocusedAppToWorkspace(workspaceId)
+      )
+    }
   }
 
   public enum Action: BindableAction {
@@ -46,10 +60,13 @@ public struct WorkspaceDetailFeature {
     case displayHintChanged(DisplayName?)
     case tilingMemoryChanged(TilingMemory?)
     case refreshDisplays
+    /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
+    case shortcutRecordingChanged(Bool)
   }
 
   @Dependency(\.runningApps) var runningApps
   @Dependency(\.displays) var displays
+  @Dependency(\.hotKeys) var hotKeys
 
   public init() {}
 
@@ -178,6 +195,9 @@ public struct WorkspaceDetailFeature {
           config.mutateWorkspace(id) { $0.tilingMemory = memory }
         }
         return .none
+
+      case .shortcutRecordingChanged(let recording):
+        return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
       }
     }
   }

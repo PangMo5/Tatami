@@ -113,7 +113,7 @@ let project = Project(
         .target(name: "TatamiCLIProtocol"),
         .external(name: "ComposableArchitecture"),
         .external(name: "Sharing"),
-        .external(name: "KeyboardShortcuts"),
+        .external(name: "Magnet"),
         .external(name: "TOML"),
         .external(name: "Sparkle"),
         .external(name: "YYJSON"),

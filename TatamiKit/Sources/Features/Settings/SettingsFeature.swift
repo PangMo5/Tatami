@@ -32,12 +32,15 @@ public struct SettingsFeature {
     case openScreenRecordingSettingsTapped
     case relaunchTapped
     case checkForUpdatesTapped
+    /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
+    case shortcutRecordingChanged(Bool)
   }
 
   @Dependency(\.cliInstaller) var cliInstaller
   @Dependency(\.accessibility) var accessibility
   @Dependency(\.screenRecording) var screenRecording
   @Dependency(\.updater) var updater
+  @Dependency(\.hotKeys) var hotKeys
 
   public init() {}
 
@@ -102,6 +105,9 @@ public struct SettingsFeature {
       case .checkForUpdatesTapped:
         updater.checkForUpdates()
         return .none
+
+      case .shortcutRecordingChanged(let recording):
+        return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
       }
     }
   }

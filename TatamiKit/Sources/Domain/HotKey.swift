@@ -1,6 +1,6 @@
 import Dependencies
 import Foundation
-import KeyboardShortcuts
+import Magnet
 
 /// A persisted keyboard shortcut.
 ///
@@ -19,18 +19,17 @@ public struct HotKey: Hashable, Sendable {
 }
 
 extension HotKey {
-  public init(_ shortcut: KeyboardShortcuts.Shortcut) {
+  public init(_ keyCombo: KeyCombo) {
     self.init(
-      carbonKeyCode: shortcut.carbonKeyCode,
-      carbonModifiers: shortcut.carbonModifiers
+      carbonKeyCode: keyCombo.QWERTYKeyCode,
+      carbonModifiers: keyCombo.modifiers
     )
   }
 
-  public var shortcut: KeyboardShortcuts.Shortcut {
-    KeyboardShortcuts.Shortcut(
-      carbonKeyCode: carbonKeyCode,
-      carbonModifiers: carbonModifiers
-    )
+  /// A Magnet `KeyCombo` for registering the global hotkey. Nil when the
+  /// stored codes don't form a valid combo (Magnet validates the pair).
+  public var keyCombo: KeyCombo? {
+    KeyCombo(QWERTYKeyCode: carbonKeyCode, carbonModifiers: carbonModifiers)
   }
 }
 
@@ -106,6 +105,38 @@ extension HotKey {
     guard let code = Self.nameToKeyCode[keyPart.trimmingCharacters(in: .whitespaces)]
     else { return nil }
     self.init(carbonKeyCode: code, carbonModifiers: mods)
+  }
+}
+
+// MARK: - Symbol display
+
+extension HotKey {
+  /// macOS-style glyphs built from the stable English/QWERTY key (e.g.
+  /// `⌘S`, `⌃⌥←`), independent of the active keyboard layout — for the
+  /// shortcut recorder field.
+  public var symbols: String {
+    var out = ""
+    if carbonModifiers & Self.control != 0 { out += "⌃" }
+    if carbonModifiers & Self.option != 0 { out += "⌥" }
+    if carbonModifiers & Self.shift != 0 { out += "⇧" }
+    if carbonModifiers & Self.cmd != 0 { out += "⌘" }
+    return out + keySymbol
+  }
+
+  private var keySymbol: String {
+    switch carbonKeyCode {
+    case 36, 76: "↩"
+    case 48: "⇥"
+    case 49: "Space"
+    case 51: "⌫"
+    case 53: "⎋"
+    case 117: "⌦"
+    case 123: "←"
+    case 124: "→"
+    case 125: "↓"
+    case 126: "↑"
+    default: (Self.keyCodeToName[carbonKeyCode] ?? "0x" + String(carbonKeyCode, radix: 16)).uppercased()
+    }
   }
 }
 

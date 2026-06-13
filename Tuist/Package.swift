@@ -22,21 +22,18 @@ import PackageDescription
       "CasePathsCore": .framework,
       "Clocks": .framework,
       "Sparkle": .framework,
-      "KeyboardShortcuts": .framework,
       "TOML": .framework,
       "SFSafeSymbols": .framework,
+      // Magnet (+ its Sauce dependency) uses the Tuist default (static),
+      // so its symbols fold into the linking target — no framework to embed
+      // and no per-package optimization workaround needed (unlike the
+      // KeyboardShortcuts library it replaced, which crashed the Release
+      // optimizer and forced -Onone).
+      //
       // Static (the Tuist default): the `tatami` command-line tool links
       // YYJSON, and a command-line tool can't embed/resolve a dynamic
       // framework at runtime (dyld can't find YYJSON.framework). Static
       // linking also works for the app, which links it via TatamiKit.
-    ],
-    targetSettings: [
-      // KeyboardShortcuts (pinned to `main`) crashes the Swift optimizer in
-      // Release builds — SIL EarlyPerfInliner on the NSMenuItem WeakReference
-      // deinit (NSMenuItem++.swift). Disable optimization for just this
-      // package to dodge the compiler bug; it's tiny, so there's no
-      // meaningful perf cost.
-      "KeyboardShortcuts": ["SWIFT_OPTIMIZATION_LEVEL": "-Onone"],
     ]
   )
 #endif
@@ -48,7 +45,7 @@ let package = Package(
     .package(url: "https://github.com/pointfreeco/swift-sharing", from: "2.5.0"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.7.0"),
-    .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", branch: "main"),
+    .package(url: "https://github.com/Clipy/Magnet", from: "3.5.0"),
     .package(url: "https://github.com/apple/swift-collections", from: "1.5.1"),
     .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
     .package(url: "https://github.com/SFSafeSymbols/SFSafeSymbols", from: "5.3.0"),

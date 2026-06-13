@@ -1,7 +1,7 @@
 import Dependencies
 import DependenciesMacros
 import Foundation
-import KeyboardShortcuts
+import Magnet
 
 /// Every distinct keyboard-driven action Tatami can fire. The enum lives
 /// here (not in features) so `HotKeysClient` can stay generic over the
@@ -52,9 +52,8 @@ public enum HotKeyAction: Sendable, Hashable {
 }
 
 extension HotKeyAction {
-  /// Stable key segment used to build the `KeyboardShortcuts.Name`.
-  /// Shared by the registrar and the Settings recorders so both target
-  /// the exact same shortcut slot.
+  /// Stable identifier for the Magnet hotkey registration — also the
+  /// debug-log tag for a fired action.
   var nameKey: String {
     switch self {
     case .activateWorkspace(let id): "activate-\(id.uuidString)"
@@ -89,9 +88,44 @@ extension HotKeyAction {
     }
   }
 
-  public var keyboardShortcutName: KeyboardShortcuts.Name {
-    KeyboardShortcuts.Name("tatami.\(nameKey)")
+  /// Human-readable title, shown in the recorder's "in use" conflict
+  /// message. Workspace actions resolve the workspace's current name.
+  public func title(in config: AppConfig) -> String {
+    switch self {
+    case .activateWorkspace(let id):
+      "Activate " + (config.activeProfile?.workspaces[id: id]?.name ?? "workspace")
+    case .assignFocusedAppToWorkspace(let id):
+      "Assign app to " + (config.activeProfile?.workspaces[id: id]?.name ?? "workspace")
+    case .switchToNextWorkspace: "Next workspace"
+    case .switchToPreviousWorkspace: "Previous workspace"
+    case .switchToRecentWorkspace: "Recent workspace"
+    case .moveFocusedAppToNextWorkspace: "Move app to next workspace"
+    case .moveFocusedAppToPreviousWorkspace: "Move app to previous workspace"
+    case .focusNextDisplay: "Focus next display"
+    case .focusPreviousDisplay: "Focus previous display"
+    case .focusLeft: "Focus left"
+    case .focusRight: "Focus right"
+    case .focusUp: "Focus up"
+    case .focusDown: "Focus down"
+    case .cycleNextWindow: "Cycle next window"
+    case .cyclePreviousWindow: "Cycle previous window"
+    case .resizeGrow: "Grow"
+    case .resizeShrink: "Shrink"
+    case .swapLeft: "Swap left"
+    case .swapRight: "Swap right"
+    case .swapUp: "Swap up"
+    case .swapDown: "Swap down"
+    case .toggleOrientation: "Toggle orientation"
+    case .toggleFullscreen: "Toggle fullscreen"
+    case .balance: "Balance layout"
+    case .toggleFloating: "Toggle floating"
+    case .toggleSharedFloating: "Toggle shared floating"
+    case .toggleSpaceActivated: "Toggle pause"
+    case .toggleFocusedAppInActiveWorkspace: "Toggle app in workspace"
+    case .toggleAppInSharedApps: "Toggle app in Shared Apps"
+    }
   }
+
 }
 
 public struct HotKeyBinding: Sendable, Hashable {
@@ -109,6 +143,11 @@ public struct HotKeyBinding: Sendable, Hashable {
 struct HotKeysClient: Sendable {
   var register: @Sendable ([HotKeyBinding]) async -> Void
   var events: @Sendable () -> AsyncStream<HotKeyAction> = { AsyncStream { _ in } }
+  /// Suspend (`true`) / restore (`false`) every global hotkey while a
+  /// shortcut recorder is capturing. Carbon hotkeys are swallowed
+  /// system-wide even while we're frontmost, so without this the combo
+  /// being recorded would fire its action instead of landing in the field.
+  var setRecording: @Sendable (Bool) async -> Void
 }
 
 extension HotKeysClient: DependencyKey {
@@ -116,17 +155,19 @@ extension HotKeysClient: DependencyKey {
     let center = HotKeysCenter()
     return HotKeysClient(
       register: { bindings in
-        await MainActor.run {
-          center.register(bindings)
-        }
+        await MainActor.run { center.register(bindings) }
       },
-      events: { center.events }
+      events: { center.events },
+      setRecording: { recording in
+        await MainActor.run { center.setRecording(recording) }
+      }
     )
   }()
 
   static let testValue = HotKeysClient(
     register: { _ in },
-    events: { AsyncStream { _ in } }
+    events: { AsyncStream { _ in } },
+    setRecording: { _ in }
   )
 
   static let previewValue = testValue
@@ -139,12 +180,27 @@ extension DependencyValues {
   }
 }
 
+/// Bridges Magnet's `HotKeyCenter` (a main-actor global) to the action
+/// stream: every `register` clears the previous set and (re)registers the
+/// current bindings, each firing its `HotKeyAction` into `events`. Magnet
+/// is Carbon-based, so the hotkeys work without the Input Monitoring or
+/// Accessibility grant and stay live regardless of which window is key —
+/// which the previous KeyboardShortcuts-based path couldn't guarantee in
+/// this menu-bar (LSUIElement) app.
 private final class HotKeysCenter: @unchecked Sendable {
   @Dependency(\.debugLog) private var debugLog
 
   let events: AsyncStream<HotKeyAction>
   private let continuation: AsyncStream<HotKeyAction>.Continuation
-  private var registered: [(KeyboardShortcuts.Name, HotKeyAction)] = []
+  /// Magnet identifiers currently registered (so the next `register`
+  /// unregisters exactly what it put up, not the whole process's hotkeys).
+  private var registeredIdentifiers: [String] = []
+  /// Latest bindings, kept so recording can suspend the live hotkeys and
+  /// restore exactly these when it ends — and so a config edit that lands
+  /// mid-recording isn't lost (it updates this, applied on resume).
+  private var lastBindings: [HotKeyBinding] = []
+  /// While a recorder is capturing, no global hotkey is registered.
+  private var isRecording = false
 
   init() {
     var c: AsyncStream<HotKeyAction>.Continuation!
@@ -154,25 +210,59 @@ private final class HotKeysCenter: @unchecked Sendable {
 
   @MainActor
   func register(_ bindings: [HotKeyBinding]) {
-    if !registered.isEmpty {
-      KeyboardShortcuts.removeAllHandlers()
+    lastBindings = bindings
+    // A recorder is capturing — stay suspended; `setRecording(false)` will
+    // apply whatever the latest bindings are.
+    guard !isRecording else {
+      debugLog.log("HotKey", "register deferred (recording) — \(bindings.count) bindings")
+      return
     }
-    var next: [(KeyboardShortcuts.Name, HotKeyAction)] = []
+    apply(bindings)
+  }
+
+  @MainActor
+  func setRecording(_ recording: Bool) {
+    guard recording != isRecording else { return }
+    isRecording = recording
+    if recording {
+      for identifier in registeredIdentifiers {
+        HotKeyCenter.shared.unregisterHotKey(with: identifier)
+      }
+      registeredIdentifiers = []
+      debugLog.log("HotKey", "suspended for recording")
+    } else {
+      apply(lastBindings)
+      debugLog.log("HotKey", "resumed after recording")
+    }
+  }
+
+  @MainActor
+  private func apply(_ bindings: [HotKeyBinding]) {
+    for identifier in registeredIdentifiers {
+      HotKeyCenter.shared.unregisterHotKey(with: identifier)
+    }
+    var next: [String] = []
     for binding in bindings {
-      let name = binding.action.keyboardShortcutName
-      KeyboardShortcuts.setShortcut(binding.hotKey.shortcut, for: name)
+      // A stored combo Magnet rejects (no valid KeyCombo) is skipped — the
+      // recorder won't produce one, but a hand-edited config might.
+      guard let keyCombo = binding.hotKey.keyCombo else {
+        debugLog.log("HotKey", "skip \(binding.action.nameKey): invalid key combo")
+        continue
+      }
+      let identifier = binding.action.nameKey
       let action = binding.action
       let continuation = continuation
       let debugLog = debugLog
-      KeyboardShortcuts.onKeyDown(for: name) {
+      let hotKey = Magnet.HotKey(identifier: identifier, keyCombo: keyCombo) { _ in
         // First line of every hotkey trace: separates "the key never
         // reached Tatami" (no line) from "the action misbehaved".
         debugLog.log("HotKey", action.nameKey)
         continuation.yield(action)
       }
-      next.append((name, binding.action))
+      HotKeyCenter.shared.register(with: hotKey)
+      next.append(identifier)
     }
-    registered = next
+    registeredIdentifiers = next
     debugLog.log("HotKey", "registered \(next.count) bindings")
   }
 }

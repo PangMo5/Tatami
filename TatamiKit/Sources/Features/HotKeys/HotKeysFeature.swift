@@ -11,55 +11,9 @@ public struct HotKeysFeature {
     @Shared(.tatamiConfig) public var config = AppConfig()
     public init() {}
 
-    public var bindings: [HotKeyBinding] {
-      var out: [HotKeyBinding] = []
-      let settings = config.settings
-      let workspaces = config.activeProfile?.workspaces ?? []
-
-      for workspace in workspaces {
-        if let key = workspace.activateShortcut {
-          out.append(.init(action: .activateWorkspace(workspace.id), hotKey: key))
-        }
-        if let key = workspace.assignAppShortcut {
-          out.append(
-            .init(action: .assignFocusedAppToWorkspace(workspace.id), hotKey: key)
-          )
-        }
-      }
-
-      func add(_ action: HotKeyAction, _ key: HotKey?) {
-        if let key { out.append(.init(action: action, hotKey: key)) }
-      }
-      let shortcuts = settings.shortcuts
-      add(.switchToNextWorkspace, shortcuts.switchToNextWorkspace)
-      add(.switchToPreviousWorkspace, shortcuts.switchToPreviousWorkspace)
-      add(.switchToRecentWorkspace, shortcuts.switchToRecentWorkspace)
-      add(.moveFocusedAppToNextWorkspace, shortcuts.moveToNextWorkspace)
-      add(.moveFocusedAppToPreviousWorkspace, shortcuts.moveToPreviousWorkspace)
-      add(.focusNextDisplay, shortcuts.focusNextDisplay)
-      add(.focusPreviousDisplay, shortcuts.focusPreviousDisplay)
-      add(.focusLeft, shortcuts.focusLeft)
-      add(.focusRight, shortcuts.focusRight)
-      add(.focusUp, shortcuts.focusUp)
-      add(.focusDown, shortcuts.focusDown)
-      add(.cycleNextWindow, shortcuts.cycleNextWindow)
-      add(.cyclePreviousWindow, shortcuts.cyclePreviousWindow)
-      add(.resizeGrow, shortcuts.resizeGrow)
-      add(.resizeShrink, shortcuts.resizeShrink)
-      add(.swapLeft, shortcuts.swapLeft)
-      add(.swapRight, shortcuts.swapRight)
-      add(.swapUp, shortcuts.swapUp)
-      add(.swapDown, shortcuts.swapDown)
-      add(.toggleOrientation, shortcuts.toggleOrientation)
-      add(.toggleFullscreen, shortcuts.toggleFullscreen)
-      add(.balance, shortcuts.balance)
-      add(.toggleFloating, shortcuts.toggleFloating)
-      add(.toggleSharedFloating, shortcuts.toggleSharedFloating)
-      add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
-      add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
-      add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
-      return out
-    }
+    // Derived from the config — see `AppConfig.hotKeyBindings`, shared with
+    // the recorders' conflict detection so the two never disagree.
+    public var bindings: [HotKeyBinding] { config.hotKeyBindings }
   }
 
   public enum Action {

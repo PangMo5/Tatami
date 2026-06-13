@@ -213,9 +213,8 @@ public struct AppFeature {
             }
           },
           // Re-register hotkey handlers so a shortcut newly recorded in
-          // the Settings tab actually fires. Without this the
-          // KeyboardShortcuts library slot gets the new combo but our
-          // `onKeyDown` handler was never wired for it.
+          // the Settings tab actually fires: the config is the source of
+          // truth, and this re-derives the Magnet bindings from it.
           .send(.hotKeys(.refreshBindings))
         )
 

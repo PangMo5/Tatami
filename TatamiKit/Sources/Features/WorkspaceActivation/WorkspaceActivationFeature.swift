@@ -579,13 +579,10 @@ public struct WorkspaceActivationFeature {
           let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
           // Un-floating keeps the workspace assignment — hint at the
           // membership shortcut for users who meant "take it out entirely".
-          // (`Shortcut.description` is main-actor; reducers run on main.)
           let hudHint: String? = nowFloating
             ? nil
             : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
-              MainActor.assumeIsolated {
-                "Still in this workspace — \(key.shortcut.description) removes it"
-              }
+              "Still in this workspace — \(key.symbols) removes it"
             }
           return .merge(
             .send(.activate(workspaceId: workspaceId, setFocus: false)),
@@ -606,9 +603,7 @@ public struct WorkspaceActivationFeature {
           let hudHint: String? = nowFloating
             ? nil
             : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
-              MainActor.assumeIsolated {
-                "Still in Shared Apps — \(key.shortcut.description) removes it"
-              }
+              "Still in Shared Apps — \(key.symbols) removes it"
             }
           let hud = hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint)
           guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
