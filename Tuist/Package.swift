@@ -4,37 +4,12 @@ import PackageDescription
 #if TUIST
   import struct ProjectDescription.PackageSettings
 
+  // All defaults (static): each dependency links into the target that uses
+  // it, so nothing ships as an embedded dynamic framework — fast launch, and
+  // the `tatami` CLI can resolve its deps. Sparkle stays a dynamic embed
+  // (it's a binary xcframework). Mirrors the sibling SwiftyCrow project.
   let packageSettings = PackageSettings(
-    productTypes: [
-      "ComposableArchitecture": .framework,
-      "Sharing": .framework,
-      "Dependencies": .framework,
-      "DependenciesMacros": .framework,
-      "IssueReporting": .framework,
-      "PerceptionCore": .framework,
-      "Perception": .framework,
-      "ConcurrencyExtras": .framework,
-      "CombineSchedulers": .framework,
-      "CustomDump": .framework,
-      "IdentifiedCollections": .framework,
-      "OrderedCollections": .framework,
-      "CasePaths": .framework,
-      "CasePathsCore": .framework,
-      "Clocks": .framework,
-      "Sparkle": .framework,
-      "TOML": .framework,
-      "SFSafeSymbols": .framework,
-      // Magnet (+ its Sauce dependency) uses the Tuist default (static),
-      // so its symbols fold into the linking target — no framework to embed
-      // and no per-package optimization workaround needed (unlike the
-      // KeyboardShortcuts library it replaced, which crashed the Release
-      // optimizer and forced -Onone).
-      //
-      // Static (the Tuist default): the `tatami` command-line tool links
-      // YYJSON, and a command-line tool can't embed/resolve a dynamic
-      // framework at runtime (dyld can't find YYJSON.framework). Static
-      // linking also works for the app, which links it via TatamiKit.
-    ]
+    productTypes: [:]
   )
 #endif
 

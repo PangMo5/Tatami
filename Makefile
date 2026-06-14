@@ -2,7 +2,6 @@
 
 install:
 	tuist install
-	./Scripts/fix-keyboardshortcuts-strings.sh
 
 generate:
 	tuist generate --no-open
