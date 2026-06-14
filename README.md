@@ -130,7 +130,7 @@ every key, its default, and the shortcut syntax.
 - **swift-collections** — ordered sets/dictionaries and deques on the tiling hot paths
 - **swift-toml** — config persistence
 - **swift-yyjson** — fast JSON for the layout store and CLI protocol
-- **KeyboardShortcuts** — global hotkey recording
+- **Magnet** — Carbon-based global hotkeys
 - **SFSafeSymbols** — type-safe SF Symbol catalog
 - **Sparkle** — app updates
 

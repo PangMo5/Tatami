@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## Unreleased
+
+### Improvements
+- **Shortcut recording reworked.** The recorder shows layout-independent glyphs (⌘S regardless of your keyboard layout), records on a single click, flags conflicts with another binding by name, and suspends global hotkeys while you're recording — so the combo you press lands in the field instead of firing its action. Global hotkeys now run on Magnet (Carbon) under the hood.
+
 ## 1.3.3 — 2026-06-13
 
 A patch release — the Input Monitoring prompt is gone, switching to an
