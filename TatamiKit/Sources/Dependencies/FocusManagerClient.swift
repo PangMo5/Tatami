@@ -12,13 +12,12 @@ import OSLog
 /// it doesn't live here anymore.
 @DependencyClient
 struct FocusManagerClient: Sendable {
-  var cycleApp: @Sendable (_ direction: CycleDirection, _ bundleIds: [String]) async -> Void
   /// Raise + focus a specific window (mirror-restore handshake included —
   /// see the free function `focusWindow(pid:windowID:)`).
   var focusWindow: @Sendable (_ key: WindowKey) async -> Void
 }
 
-enum CycleDirection: Sendable, Hashable {
+public enum CycleDirection: Sendable, Hashable {
   case next, previous
 }
 
@@ -29,11 +28,6 @@ extension FocusManagerClient: DependencyKey {
     // endpoint would otherwise shadow it.
     let raiseAndFocus: @MainActor (pid_t, CGWindowID) -> Void = focusWindow(pid:windowID:)
     return FocusManagerClient(
-      cycleApp: { direction, bundleIds in
-        await MainActor.run {
-          FocusEngine.cycleApp(direction, bundleIds: bundleIds)
-        }
-      },
       focusWindow: { key in
         await MainActor.run { raiseAndFocus(key.pid, key.windowID) }
       }
@@ -41,7 +35,6 @@ extension FocusManagerClient: DependencyKey {
   }()
 
   static let testValue = FocusManagerClient(
-    cycleApp: { _, _ in },
     focusWindow: { _ in }
   )
 
@@ -55,22 +48,3 @@ extension DependencyValues {
   }
 }
 
-private enum FocusEngine {
-  @MainActor
-  static func cycleApp(_ direction: CycleDirection, bundleIds: [String]) {
-    let running = bundleIds.compactMap { bundleId in
-      NSRunningApplication
-        .runningApplications(withBundleIdentifier: bundleId)
-        .first(where: { !$0.isTerminated && $0.activationPolicy == .regular })
-    }
-    guard !running.isEmpty else { return }
-    let frontmost = NSWorkspace.shared.frontmostApplication
-    let currentIndex = running.firstIndex { $0 == frontmost } ?? -1
-    let count = running.count
-    let step = direction == .next ? 1 : -1
-    let nextIndex = (currentIndex + step + count) % count
-    running[nextIndex].activate(options: [.activateIgnoringOtherApps])
-  }
-}
-
-private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "FocusManager")

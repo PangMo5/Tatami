@@ -136,6 +136,11 @@ public struct WorkspaceActivationFeature {
     case togglePaused
     case bspFocus(BSPDirection)
     case bspFocusResolved(windowKey: WindowKey, direction: BSPDirection)
+    /// Cycle focus through every visible window in the active workspace
+    /// (tiled + floating) — same-app windows cycle individually, and
+    /// off-screen / other-space / minimized windows are excluded.
+    case cycleWindow(CycleDirection)
+    case cycleWindowResolved(windowKey: WindowKey, direction: CycleDirection)
     case bspSwap(BSPDirection)
     case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspToggleOrientation
@@ -683,6 +688,57 @@ public struct WorkspaceActivationFeature {
           return .merge(reflowActiveWorkspace(state: &state), hud)
         }
         return hud
+
+      case .cycleWindow(let direction):
+        return resolveFocusedWindowKey { key in
+          .cycleWindowResolved(windowKey: key, direction: direction)
+        }
+
+      case .cycleWindowResolved(let key, let direction):
+        guard let workspaceId = state.primaryActiveWorkspaceID,
+              let workspace = state.config.activeProfile?
+                .workspaces[id: workspaceId],
+              let tree = state.tilingTrees[workspaceId]
+        else { return .none }
+        // The visible windows of the active workspace: tiled (the BSP tree)
+        // plus floating. Both are managed and on-screen, so off-screen /
+        // other-space / minimized windows never enter the cycle. Each window
+        // is its own key, so multiple windows of the same app cycle
+        // individually.
+        var ordered = tree.windows
+        let floatingBundles = Self.floatingBundleIds(state: state)
+        if !floatingBundles.isEmpty {
+          ordered += windowSnapshot.cachedKeys(floatingBundles, false)
+        }
+        guard ordered.count > 1 else { return .none }
+        let n = ordered.count
+        let step = direction == .next ? 1 : -1
+        let idx = ordered.firstIndex(of: key) ?? -1
+        let target = ordered[((idx + step) % n + n) % n]
+        guard target != key else { return .none }
+        debugLog.log(
+          "BSP",
+          "cycle \(direction) \(key.bundleId)#\(key.windowID) "
+            + "→ \(target.bundleId)#\(target.windowID)"
+        )
+        let cycleSettings = state.config.settings
+        let cycleDisplay = workspace.displayHint ?? displays.current()
+        let cycleWarp = cycleSettings.focus.mouseFollowsFocus
+        let cycleZoomed = state.fullscreenZoomed[workspaceId] ?? []
+        return .run { [mouse = mouse, focus = focusManager] _ in
+          await focus.focusWindow(target)
+          if cycleWarp {
+            let frames = await MainActor.run {
+              Self.computeFrames(
+                tree: tree, settings: cycleSettings,
+                targetDisplay: cycleDisplay, fullscreenZoomed: cycleZoomed
+              )
+            }
+            if let rect = frames[target] {
+              mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
+            }
+          }
+        }
 
       case .bspFocus(let direction):
         return resolveFocusedWindowKey { key in

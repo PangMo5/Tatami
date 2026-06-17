@@ -42,7 +42,6 @@ public struct AppFeature {
     case errorReportsDismissed
   }
 
-  @Dependency(\.focusManager) var focusManager
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
   @Dependency(\.floatingOverlay) var floatingOverlay
   @Dependency(\.gestures) var gestures
@@ -289,15 +288,9 @@ public struct AppFeature {
       return .send(.activation(.bspFocus(.south)))
 
     case .cycleNextWindow:
-      let bundleIds = cycleBundleIds(state)
-      return .run { [client = focusManager] _ in
-        await client.cycleApp(.next, bundleIds)
-      }
+      return .send(.activation(.cycleWindow(.next)))
     case .cyclePreviousWindow:
-      let bundleIds = cycleBundleIds(state)
-      return .run { [client = focusManager] _ in
-        await client.cycleApp(.previous, bundleIds)
-      }
+      return .send(.activation(.cycleWindow(.previous)))
 
     case .toggleFloating:
       return .send(.activation(.membershipEdit(.toggleFloating)))
@@ -337,21 +330,4 @@ public struct AppFeature {
     }
   }
 
-  private func currentWorkspaceBundleIds(_ state: State) -> [String] {
-    guard let id = state.activation.primaryActiveWorkspaceID,
-          let ws = state.workspaceList.config.activeProfile?
-            .workspaces[id: id]
-    else { return [] }
-    return ws.apps.map(\.bundleIdentifier)
-  }
-
-  /// Cycle targets for opt+tab: the active workspace's apps plus every
-  /// shared app, so the loop walks all focusable windows including
-  /// shared/floating ones (KeyCastr, Zoom, etc.).
-  private func cycleBundleIds(_ state: State) -> [String] {
-    let workspace = currentWorkspaceBundleIds(state)
-    let shared = state.workspaceList.config.sharedApps.map(\.bundleIdentifier)
-    var seen = Set<String>()
-    return (workspace + shared).filter { seen.insert($0).inserted }
-  }
 }
