@@ -4,6 +4,7 @@ import CoreGraphics
 import Dependencies
 import DependenciesMacros
 import Foundation
+import os
 import OSLog
 
 /// Bridge to the private SkyLight (SLS) framework. Surfaces the
@@ -45,6 +46,15 @@ struct SLSClient: Sendable {
   /// No hand-written default: Void endpoints get the macro's
   /// unimplemented stub, so unstubbed test calls surface as failures.
   var focusWindow: @Sendable (ProcessSerialNumber, CGWindowID, AXUIElement) -> Void
+
+  /// Window-server "destroyed" events (SLS event 804). Fires even for apps
+  /// that close a window by hiding it without any AX notification (e.g.
+  /// KakaoTalk), which `WindowObserverClient` can't see. Yields the
+  /// CGWindowID that went away.
+  var windowDestructionEvents: @Sendable () -> AsyncStream<CGWindowID> = { AsyncStream { _ in } }
+  /// Subscribe `windows` to destruction notifications — required for 804
+  /// to fire per window. Called whenever the managed-window set changes.
+  var watchWindows: @Sendable (_ windows: [CGWindowID]) -> Void
 }
 
 extension SLSClient: DependencyKey {
@@ -57,7 +67,9 @@ extension SLSClient: DependencyKey {
       focusWindow: { psn, wid, ref in
         var mutPSN = psn
         center.focusWindow(psn: &mutPSN, windowID: wid, axRef: ref)
-      }
+      },
+      windowDestructionEvents: { center.windowDestructionEvents() },
+      watchWindows: { center.watchWindows($0) }
     )
   }()
 
@@ -90,6 +102,17 @@ private typealias SLPSPostEventRecordToFn =
   @convention(c) (
     UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>
   ) -> OSStatus
+private typealias SLSConnectionNotifyCallback =
+  @convention(c) (UInt32, UnsafeMutableRawPointer?, Int, UnsafeMutableRawPointer?, Int32) -> Void
+private typealias SLSRegisterConnectionNotifyProcFn =
+  @convention(c) (Int32, SLSConnectionNotifyCallback, UInt32, UnsafeMutableRawPointer?) -> CGError
+private typealias SLSRequestNotificationsForWindowsFn =
+  @convention(c) (Int32, UnsafePointer<UInt32>?, Int32) -> CGError
+
+/// SLS window-server event for "window destroyed" — also fires when an app
+/// hides a window on close without an AX notification (KakaoTalk, Discord).
+/// macOS Sequoia/Tahoe. (yabai uses the same number.)
+private let kSLSWindowDestroyedEvent: UInt32 = 804
 
 /// Single-instance holder for the SkyLight handles. `@unchecked Sendable`
 /// is sound because every stored property is set once in `init` and only
@@ -106,8 +129,20 @@ private final class SLSCenter: @unchecked Sendable {
   private let symWindowsWithOptions: SLSCopyWindowsWithOptionsAndTagsFn?
   private let symSetFrontProcess: _SLPSSetFrontProcessWithOptionsFn?
   private let symPostEventRecord: SLPSPostEventRecordToFn?
+  private let symRegisterNotify: SLSRegisterConnectionNotifyProcFn?
+  private let symRequestNotifications: SLSRequestNotificationsForWindowsFn?
+
+  private let destructionStream: AsyncStream<CGWindowID>
+  /// Yielded from the WindowServer notify callback (main run loop). The
+  /// callback reaches it via the retained-unmanaged `self` pointer.
+  fileprivate let destructionContinuation: AsyncStream<CGWindowID>.Continuation
+  /// The 804 handler is registered once, on first `windowDestructionEvents`.
+  private let didRegister = OSAllocatedUnfairLock(initialState: false)
 
   init() {
+    var continuation: AsyncStream<CGWindowID>.Continuation!
+    self.destructionStream = AsyncStream(bufferingPolicy: .bufferingNewest(64)) { continuation = $0 }
+    self.destructionContinuation = continuation
     let h = dlopen(
       "/System/Library/PrivateFrameworks/SkyLight.framework/Versions/A/SkyLight",
       RTLD_NOW
@@ -121,6 +156,10 @@ private final class SLSCenter: @unchecked Sendable {
       .map { unsafeBitCast($0, to: _SLPSSetFrontProcessWithOptionsFn.self) }
     self.symPostEventRecord = h.flatMap { dlsym($0, "SLPSPostEventRecordTo") }
       .map { unsafeBitCast($0, to: SLPSPostEventRecordToFn.self) }
+    self.symRegisterNotify = h.flatMap { dlsym($0, "SLSRegisterConnectionNotifyProc") }
+      .map { unsafeBitCast($0, to: SLSRegisterConnectionNotifyProcFn.self) }
+    self.symRequestNotifications = h.flatMap { dlsym($0, "SLSRequestNotificationsForWindows") }
+      .map { unsafeBitCast($0, to: SLSRequestNotificationsForWindowsFn.self) }
     if let h, let connSym = dlsym(h, "SLSMainConnectionID") {
       let fn = unsafeBitCast(connSym, to: SLSMainConnectionIDFn.self)
       self.connectionID = fn()
@@ -198,4 +237,61 @@ private final class SLSCenter: @unchecked Sendable {
     // focus as authoritative.
     AXUIElementPerformAction(axRef, kAXRaiseAction as CFString)
   }
+
+  // MARK: - Window destruction notifications
+
+  /// Stream of window ids the WindowServer reports as destroyed/hidden.
+  /// Registers the 804 handler on first call.
+  func windowDestructionEvents() -> AsyncStream<CGWindowID> {
+    registerIfNeeded()
+    return destructionStream
+  }
+
+  private func registerIfNeeded() {
+    let already = didRegister.withLock { registered -> Bool in
+      defer { registered = true }
+      return registered
+    }
+    guard !already, connectionID != 0, let register = symRegisterNotify else { return }
+    let cid = connectionID
+    // Register on the always-running event-tap run loop, not the main one:
+    // the WindowServer delivers the notification on whichever run loop the
+    // proc was registered on, and the SwiftUI main loop sleeps when idle —
+    // so destroy events only drained when another event happened to wake it
+    // (the "only works after I move the mouse" symptom). The event-tap
+    // thread's CFRunLoop is always spinning, so they arrive immediately.
+    EventTapThread.shared.perform { [self] in
+      let context = Unmanaged.passUnretained(self).toOpaque()
+      _ = register(cid, slsWindowNotifyCallback, kSLSWindowDestroyedEvent, context)
+    }
+  }
+
+  /// Subscribe `ids` to per-window notifications so 804 fires for them.
+  func watchWindows(_ ids: [CGWindowID]) {
+    guard connectionID != 0, let request = symRequestNotifications, !ids.isEmpty else { return }
+    let cid = connectionID
+    ids.withUnsafeBufferPointer { buf in
+      _ = request(cid, buf.baseAddress, Int32(buf.count))
+    }
+  }
+}
+
+/// SLS connection notify callback (C ABI). Runs on the main run loop where
+/// the proc was registered. Reads the destroyed window id out of the event
+/// payload and forwards it through the owning center's stream.
+private func slsWindowNotifyCallback(
+  type: UInt32,
+  data: UnsafeMutableRawPointer?,
+  dataLength: Int,
+  context: UnsafeMutableRawPointer?,
+  cid: Int32
+) {
+  guard type == kSLSWindowDestroyedEvent,
+        let data, dataLength >= MemoryLayout<UInt32>.size,
+        let context
+  else { return }
+  let center = Unmanaged<SLSCenter>.fromOpaque(context).takeUnretainedValue()
+  let wid = data.loadUnaligned(as: UInt32.self)
+  guard wid != 0 else { return }
+  center.destructionContinuation.yield(CGWindowID(wid))
 }

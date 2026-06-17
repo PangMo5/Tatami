@@ -110,6 +110,7 @@ public struct WorkspaceActivationFeature {
 
   public enum Action {
     case startObservingWindowEvents
+    case windowServerWindowDestroyed(CGWindowID)
     /// Connected displays changed — drop active/recent state for displays
     /// that are gone so multi-monitor tracking doesn't hold stale entries.
     case displaysReconfigured([DisplayName])
@@ -240,6 +241,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.sls) var sls
 
   public init() {}
 
@@ -268,6 +270,14 @@ public struct WorkspaceActivationFeature {
           .run { [displays] send in
             for await names in displays.changes() {
               await send(.displaysReconfigured(names))
+            }
+          },
+          .run { [sls] send in
+            // WindowServer destroy events catch hide-on-close windows that
+            // emit no AX notification (KakaoTalk), which the AX observer
+            // can't see.
+            for await wid in sls.windowDestructionEvents() {
+              await send(.windowServerWindowDestroyed(wid))
             }
           }
         )
@@ -370,6 +380,12 @@ public struct WorkspaceActivationFeature {
           let focusedKey = key
           return .merge(
             debouncedSync(bundleId, delayMs: 0),
+            // A hide-on-close window (KakaoTalk, Discord) fires no AX
+            // destroy event; only the off-screen prune reclaims its
+            // lingering tile. `appActivated` schedules one, but a same-app
+            // close keeps that app frontmost — the next focus change is
+            // then the only trigger left.
+            debouncedPrune(),
             .run { _ in markerClient.setFocused(focusedKey) }
           )
         }
@@ -457,6 +473,14 @@ public struct WorkspaceActivationFeature {
           },
           debouncedPrune()
         )
+
+      case .windowServerWindowDestroyed(let wid):
+        // A window vanished at the WindowServer level (incl. hide-on-close
+        // with no AX event). This is authoritative, so prune now — the
+        // debounce only exists to let a focus-driven off-screen guess
+        // settle, which doesn't apply here.
+        debugLog.log("SLS", "window destroyed wid=\(wid)")
+        return pruneOffscreenWindows(state: &state)
 
       case .pruneOffscreenWindows:
         return pruneOffscreenWindows(state: &state)

@@ -192,8 +192,14 @@ final class WindowKeyCache {
   /// Republish the managed-window id set for the FFM hit-test. Every
   /// discovery funnels through `store`, keeping the snapshot in step.
   private func publishManagedWindows() {
+    let ids = Set(entries.values.flatMap { $0 }.map(\.windowID))
     @Dependency(\.managedWindows) var managedWindows
-    managedWindows.setManaged(Set(entries.values.flatMap { $0 }.map(\.windowID)))
+    @Dependency(\.sls) var sls
+    managedWindows.setManaged(ids)
+    // Subscribe the same set to WindowServer destruction events so a
+    // hide-on-close window (no AX destroy, e.g. KakaoTalk) still gets
+    // reclaimed.
+    sls.watchWindows(Array(ids))
   }
 }
 
