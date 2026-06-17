@@ -34,7 +34,10 @@ struct FocusFollowsMouseConfig: Sendable, Hashable {
 extension FocusFollowsMouseClient: DependencyKey {
   static let liveValue: FocusFollowsMouseClient = {
     @Dependency(\.debugLog) var debugLog
-    let controller = LiveFocusFollowsMouseController(debugLog: debugLog)
+    @Dependency(\.managedWindows) var managedWindows
+    let controller = LiveFocusFollowsMouseController(
+      debugLog: debugLog, managedWindows: managedWindows
+    )
     return FocusFollowsMouseClient { config in
       await controller.configure(config)
     }
@@ -66,9 +69,11 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   fileprivate let throttleInterval: TimeInterval = 0.05
   fileprivate var lastFocusedWindowID: CGWindowID = 0
   fileprivate let debugLog: DebugLogClient
+  private let managedWindows: ManagedWindowsClient
 
-  init(debugLog: DebugLogClient) {
+  init(debugLog: DebugLogClient, managedWindows: ManagedWindowsClient) {
     self.debugLog = debugLog
+    self.managedWindows = managedWindows
   }
 
   func configure(_ next: FocusFollowsMouseConfig) async {
@@ -233,7 +238,12 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       }
       guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
       if bounds.contains(point) {
-        candidate = (pidNumber, windowNumber, bounds)
+        // Only follow into a window Tatami manages. An unmanaged window on
+        // top (notification banner, our own overlay) means leave focus put
+        // — don't focus it, don't punch through to what's beneath it.
+        if managedWindows.isManaged(windowNumber) {
+          candidate = (pidNumber, windowNumber, bounds)
+        }
         break
       }
       frontBounds.append(bounds)

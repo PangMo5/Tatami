@@ -186,6 +186,14 @@ final class WindowKeyCache {
       entries[Key(bundleId: bundleId, requireResizable: requireResizable)] =
         grouped[bundleId] ?? []
     }
+    publishManagedWindows()
+  }
+
+  /// Republish the managed-window id set for the FFM hit-test. Every
+  /// discovery funnels through `store`, keeping the snapshot in step.
+  private func publishManagedWindows() {
+    @Dependency(\.managedWindows) var managedWindows
+    managedWindows.setManaged(Set(entries.values.flatMap { $0 }.map(\.windowID)))
   }
 }
 
