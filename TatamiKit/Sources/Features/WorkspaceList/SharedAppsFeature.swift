@@ -28,11 +28,13 @@ public struct SharedAppsFeature {
     case addAppButtonTapped
     case appPickerDismissed
     case appPickerAppSelected(MacApp)
+    case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case floatingToggled(bundleIdentifier: String, isOn: Bool)
   }
 
   @Dependency(\.runningApps) var runningApps
+  @Dependency(\.appChooser) var appChooser
 
   public init() {}
 
@@ -61,6 +63,15 @@ public struct SharedAppsFeature {
           config.sharedApps.append(SharedApp(app))
         }
         return .none
+
+      case .chooseAppFileTapped:
+        // Pick an app from disk; route through the same add path as the
+        // running-app picker. Cancelling leaves the sheet untouched.
+        return .run { [appChooser] send in
+          if let app = await appChooser.choose() {
+            await send(.appPickerAppSelected(app))
+          }
+        }
 
       case .appRemoveRequested(let bundleId):
         state.$config.withLock { config in

@@ -61,6 +61,7 @@ struct SharedAppsView: View {
       AppPickerSheet(
         apps: store.availableRunningApps,
         onSelect: { app in store.send(.appPickerAppSelected(app)) },
+        onChooseFile: { store.send(.chooseAppFileTapped) },
         onCancel: { store.send(.appPickerDismissed) }
       )
     }

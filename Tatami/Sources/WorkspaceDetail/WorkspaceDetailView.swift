@@ -201,6 +201,7 @@ struct WorkspaceDetailView: View {
         AppPickerSheet(
           apps: store.availableRunningApps,
           onSelect: { app in store.send(.appPickerAppSelected(app)) },
+          onChooseFile: { store.send(.chooseAppFileTapped) },
           onCancel: { store.send(.appPickerDismissed) }
         )
       }
@@ -416,32 +417,66 @@ struct AppIcon: View {
 struct AppPickerSheet: View {
   let apps: [MacApp]
   let onSelect: (MacApp) -> Void
+  /// Pick an app from disk instead of the running list.
+  let onChooseFile: () -> Void
   let onCancel: () -> Void
+
+  @State private var query = ""
+
+  private var filtered: [MacApp] {
+    let trimmed = query.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return apps }
+    return apps.filter {
+      $0.name.localizedCaseInsensitiveContains(trimmed)
+        || $0.bundleIdentifier.localizedCaseInsensitiveContains(trimmed)
+    }
+  }
 
   var body: some View {
     NavigationStack {
-      List(apps, id: \.bundleIdentifier) { app in
-        Button {
-          onSelect(app)
-        } label: {
-          HStack {
-            AppIcon(bundleIdentifier: app.bundleIdentifier, iconPath: app.iconPath)
-              .frame(width: 22, height: 22)
-            VStack(alignment: .leading, spacing: 2) {
-              Text(app.name)
-              Text(app.bundleIdentifier)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+      Group {
+        if filtered.isEmpty {
+          ContentUnavailableView {
+            Label(apps.isEmpty ? "No Running Apps" : "No Matches", systemImage: "magnifyingglass")
+          } description: {
+            Text(apps.isEmpty
+              ? "Use “Choose from Files…” to add an app that isn't running."
+              : "No running app matches “\(query)”.")
+          }
+        } else {
+          List(filtered, id: \.bundleIdentifier) { app in
+            Button {
+              onSelect(app)
+            } label: {
+              HStack {
+                AppIcon(bundleIdentifier: app.bundleIdentifier, iconPath: app.iconPath)
+                  .frame(width: 22, height: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(app.name)
+                  Text(app.bundleIdentifier)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+              }
             }
-            Spacer()
+            .buttonStyle(.plain)
           }
         }
-        .buttonStyle(.plain)
       }
-      .navigationTitle("Add Running App")
+      .navigationTitle("Add App")
+      .searchable(text: $query, prompt: "Search running apps")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: onCancel)
+        }
+        ToolbarItem(placement: .primaryAction) {
+          Button {
+            onChooseFile()
+          } label: {
+            Label("Choose from Files…", systemImage: "folder")
+          }
+          .help("Pick an app from disk that isn't currently running.")
         }
       }
     }

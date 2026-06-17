@@ -49,6 +49,7 @@ public struct WorkspaceDetailFeature {
     case addAppButtonTapped
     case appPickerDismissed
     case appPickerAppSelected(MacApp)
+    case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
     case floatingToggled(bundleIdentifier: String, isOn: Bool)
@@ -67,6 +68,7 @@ public struct WorkspaceDetailFeature {
   @Dependency(\.runningApps) var runningApps
   @Dependency(\.displays) var displays
   @Dependency(\.hotKeys) var hotKeys
+  @Dependency(\.appChooser) var appChooser
 
   public init() {}
 
@@ -111,6 +113,15 @@ public struct WorkspaceDetailFeature {
           }
         }
         return .none
+
+      case .chooseAppFileTapped:
+        // Pick an app from disk; route through the same add path as the
+        // running-app picker. Cancelling leaves the sheet untouched.
+        return .run { [appChooser] send in
+          if let app = await appChooser.choose() {
+            await send(.appPickerAppSelected(app))
+          }
+        }
 
       case .appRemoveRequested(let bundleId):
         let id = state.workspaceId
