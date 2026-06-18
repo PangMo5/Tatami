@@ -33,7 +33,7 @@ project. `build/` is git-ignored.)
 ## Config (keeps YOUR settings)
 
 `use-demo-config.sh apply` backs up your config, then writes **your real
-settings + floatingApps** with only the **profile** swapped for the three demo
+settings + sharedApps** with only the **profile** swapped for the three demo
 workspaces (`demo-workspaces.toml`). So your gaps, shortcuts, markers, etc. are
 unchanged — just the workspaces differ. Tatami hot-reloads, no relaunch.
 

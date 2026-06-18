@@ -49,6 +49,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Float an app in a single workspace, or add it to Shared Apps to float it everywhere — one toggle in the GUI, one hotkey anywhere
 - Floats stay above the tiles **without disabling SIP** — Tatami mirrors them onto its own always-on-top ScreenCaptureKit panels, and hands you the real window the moment you reach for it
 - Multiple floating windows stack by focus recency; needs the Screen Recording permission
+- Or set an app to **Ignore** (unmanaged) — it stays a workspace member (auto-open, focus, focus-follows-mouse, window cycling) but Tatami leaves its window exactly where it is: no tiling, no mirror, no Screen Recording
 
 ### Focus & cursor
 
