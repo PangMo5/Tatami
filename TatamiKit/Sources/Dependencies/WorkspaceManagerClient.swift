@@ -40,19 +40,25 @@ struct ActivationRequest: Sendable, Hashable {
   /// it lands on the window's final tiled position), so it's handled by
   /// the activation reducer — not here.
   var mouseHidesOnFocus: Bool
+  /// "Most recently used" focus target (no pinned app): the exact window
+  /// to raise, so focus lands on the window the user last used — not just
+  /// the app's main window. Nil → fall back to the app-level target.
+  var windowKeyToFocus: WindowKey?
 
   init(
     workspace: Workspace,
     sharedApps: [SharedApp],
     targetDisplay: DisplayName?,
     setFocus: Bool = true,
-    mouseHidesOnFocus: Bool = false
+    mouseHidesOnFocus: Bool = false,
+    windowKeyToFocus: WindowKey? = nil
   ) {
     self.workspace = workspace
     self.sharedApps = sharedApps
     self.targetDisplay = targetDisplay
     self.setFocus = setFocus
     self.mouseHidesOnFocus = mouseHidesOnFocus
+    self.windowKeyToFocus = windowKeyToFocus
   }
 }
 
@@ -139,7 +145,10 @@ extension WorkspaceManagerClient: DependencyKey {
           }
 
           // Resolve the focus target among the workspace's own apps.
+          // No pinned app ("Most recently used") → the MRU window's app;
+          // last registered app only as a final fallback.
           let focusBundleId = request.workspace.appToFocusBundleId
+            ?? request.windowKeyToFocus?.bundleId
             ?? request.workspace.apps.last?.bundleIdentifier
           let appsToShow = running.filter { keepVisible.contains($0.bundleIdentifier ?? "") }
           let toFocus = appsToShow.first { $0.bundleIdentifier == focusBundleId }
@@ -160,7 +169,14 @@ extension WorkspaceManagerClient: DependencyKey {
               "focus \(toFocus.bundleIdentifier ?? "?") "
                 + "(preferred=\(focusBundleId ?? "nil"))"
             )
-            toFocus.raiseMainWindow()
+            // Raise the exact MRU window when it belongs to the focused
+            // app; otherwise fall back to the app's main window.
+            if let mruKey = request.windowKeyToFocus,
+               mruKey.bundleId == toFocus.bundleIdentifier {
+              toFocus.raiseWindow(windowID: mruKey.windowID)
+            } else {
+              toFocus.raiseMainWindow()
+            }
             toFocus.activate(options: [.activateIgnoringOtherApps])
           } else if request.setFocus {
             // Empty workspace — none of its apps are running, so nothing
@@ -294,6 +310,31 @@ extension NSRunningApplication {
       return
     }
     AXUIElementPerformAction(raw as! AXUIElement, kAXRaiseAction as CFString)
+  }
+
+  /// Raise a specific window of this app by `CGWindowID` (the MRU focus
+  /// target). Falls back to the main window when that window is gone —
+  /// e.g. the MRU window was closed since it was last focused.
+  fileprivate func raiseWindow(windowID: CGWindowID) {
+    let app = AXUIElementCreateApplication(processIdentifier)
+    var raw: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(
+      app, kAXWindowsAttribute as CFString, &raw
+    ) == .success,
+      let windows = raw as? [AXUIElement]
+    else {
+      raiseMainWindow()
+      return
+    }
+    for window in windows {
+      var wid: CGWindowID = 0
+      if _AXUIElementGetWindow(window, &wid) == .success, wid == windowID {
+        AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        return
+      }
+    }
+    raiseMainWindow()
   }
 }
 

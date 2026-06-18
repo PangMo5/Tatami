@@ -46,6 +46,12 @@ public struct WorkspaceActivationFeature {
     /// leaf decides north/east/south/west/stack). Updated by focus
     /// events.
     public var insertionPoint: [Workspace.ID: WindowKey] = [:]
+    /// Per-workspace most-recently-focused window, session-only. Unlike
+    /// `insertionPoint` (which `tilingTreeUpdated` resets to the first
+    /// leaf), this is only ever written by an actual focus event — so on
+    /// re-activation it still names the exact window the user last used,
+    /// which the "Most recently used" focus target restores.
+    public var lastFocusedWindow: [Workspace.ID: WindowKey] = [:]
     /// Per-workspace set of fullscreen-zoomed windows. Tatami-specific
     /// multi-window fullscreen: each member is trimmed from the tree
     /// before layout and rendered at the workspace's work area. Several
@@ -378,6 +384,7 @@ public struct WorkspaceActivationFeature {
              state.tilingTrees[wsId]?.windows.contains(key) == true
           {
             state.insertionPoint[wsId] = key
+            state.lastFocusedWindow[wsId] = key
           }
           // Forward the focus change to the marker controller so it
           // can render the dot only on the now-focused window.

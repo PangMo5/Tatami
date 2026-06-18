@@ -49,12 +49,18 @@ extension WorkspaceActivationFeature {
     } else {
       targetDisplay = displays.current()
     }
+    // "Most recently used" (no pinned focus app): restore the exact
+    // window the user last had focused in this workspace.
+    let mruWindow = workspace.appToFocusBundleId == nil
+      ? state.lastFocusedWindow[workspaceId]
+      : nil
     let request = ActivationRequest(
       workspace: workspace,
       sharedApps: state.config.sharedApps,
       targetDisplay: targetDisplay,
       setFocus: setFocus,
-      mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus
+      mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus,
+      windowKeyToFocus: mruWindow
     )
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
     let showHUD = setFocus && state.config.settings.hud.shows(\.workspaceSwitch)
