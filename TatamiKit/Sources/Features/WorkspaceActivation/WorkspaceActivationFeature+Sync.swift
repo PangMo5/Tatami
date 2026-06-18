@@ -310,6 +310,23 @@ extension WorkspaceActivationFeature {
     let recent = display.flatMap { state.previousWorkspacesByDisplay[$0] }
       ?? state.previousWorkspacesByDisplay.values.first
     guard let recent, recent != workspaceId else { return .none }
+    // The BSP tree can read empty *transiently* while a window's identity
+    // is mid-flight — ghostty's native tabs each carry their own window id,
+    // so switching tabs swaps the live window out from under the tree (the
+    // old id is pruned before the new one syncs back in). Re-check the
+    // workspace's own tiled apps against the live window list: a tab switch
+    // leaves the app on screen, so a momentarily-stale tree must not be
+    // mistaken for an empty workspace and bounce the user to the recent one.
+    let tiledIds = workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
+    let hasTiled = !tiledIds.isEmpty
+      && !windowSnapshot.discoverKeys(tiledIds, true).isEmpty
+    guard !hasTiled else {
+      debugLog.log(
+        "Sync",
+        "ws=\(workspace.name) tree empty but tiled apps still on screen — not switching"
+      )
+      return .none
+    }
     // A still-open per-workspace floating window anchors the workspace.
     let floatingIds = workspace.apps.filter(\.floating).map(\.bundleIdentifier)
     let hasFloating = !floatingIds.isEmpty
