@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.4.1 — 2026-06-18
+
+### Improvements
+- **Choose app- or window-level window cycling.** Next/previous-window now steps app-by-app by default — one representative window per app, so a press lands on the next app. For the previous behavior (every window individually, including multiple windows of the same app), turn on "Cycle through every window" in Settings → Workspace Switching.
+
 ## 1.4.0 — 2026-06-18
 
 ### ⚠️ Breaking Changes
