@@ -721,10 +721,20 @@ public struct WorkspaceActivationFeature {
         if !unmanagedBundles.isEmpty {
           ordered += windowSnapshot.cachedKeys(unmanagedBundles, false)
         }
+        // App-level cycling (the default) keeps one representative window per
+        // app, so a press lands on the next *app*; window-level cycling walks
+        // every window, including same-app ones.
+        let byWindow = state.config.settings.switching.cycleSameAppWindows
+        if !byWindow {
+          var seenApps = Set<String>()
+          ordered = ordered.filter { seenApps.insert($0.bundleId).inserted }
+        }
         guard ordered.count > 1 else { return .none }
         let n = ordered.count
         let step = direction == .next ? 1 : -1
-        let idx = ordered.firstIndex(of: key) ?? -1
+        let idx = byWindow
+          ? (ordered.firstIndex(of: key) ?? -1)
+          : (ordered.firstIndex { $0.bundleId == key.bundleId } ?? -1)
         let target = ordered[((idx + step) % n + n) % n]
         guard target != key else { return .none }
         debugLog.log(

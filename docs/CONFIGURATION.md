@@ -98,6 +98,7 @@ the rest pick which actions show one.
 | `followAppFocus` | bool | `false` | Activating an app switches to the workspace that owns it. |
 | `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes (nothing tiled, no workspace-specific floating window), switch to the recent workspace. Shared apps don't count — they join every workspace anyway. |
+| `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app (one representative window per app); `true` visits every window, including multiple windows of the same app. |
 
 ## `[settings.gestures]`
 

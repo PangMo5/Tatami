@@ -251,6 +251,10 @@ extension SettingsView {
         Text("Back to recent when empty")
         Text("When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway.")
       }
+      Toggle(isOn: setting(\.switching.cycleSameAppWindows)) {
+        Text("Cycle through every window")
+        Text("Step through each window individually, including multiple windows of the same app, instead of cycling app-by-app.")
+      }
     }
 
     Section("Gestures") {

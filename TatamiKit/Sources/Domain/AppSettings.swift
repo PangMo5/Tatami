@@ -488,23 +488,31 @@ extension AppSettings {
     /// workspace. Shared apps don't count — they join every workspace, so
     /// they can't anchor you to an empty one.
     public var switchToRecentWhenEmpty: Bool
+    /// Window-cycle granularity. When `false` (default), next/previous-window
+    /// cycling steps app-by-app — one representative window per app, so a
+    /// press lands on the next app. When `true`, it visits every window
+    /// individually, including multiple windows of the same app.
+    public var cycleSameAppWindows: Bool
 
     public init(
       loop: Bool = true,
       skipEmpty: Bool = false,
       followAppFocus: Bool = false,
       cycleAcrossDisplays: Bool = false,
-      switchToRecentWhenEmpty: Bool = false
+      switchToRecentWhenEmpty: Bool = false,
+      cycleSameAppWindows: Bool = false
     ) {
       self.loop = loop
       self.skipEmpty = skipEmpty
       self.followAppFocus = followAppFocus
       self.cycleAcrossDisplays = cycleAcrossDisplays
       self.switchToRecentWhenEmpty = switchToRecentWhenEmpty
+      self.cycleSameAppWindows = cycleSameAppWindows
     }
 
     private enum CodingKeys: String, CodingKey {
       case loop, skipEmpty, followAppFocus, cycleAcrossDisplays, switchToRecentWhenEmpty
+      case cycleSameAppWindows
     }
 
     public init(from decoder: Decoder) throws {
@@ -514,6 +522,7 @@ extension AppSettings {
       self.followAppFocus = c.decode(.followAppFocus, default: false)
       self.cycleAcrossDisplays = c.decode(.cycleAcrossDisplays, default: false)
       self.switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
+      self.cycleSameAppWindows = c.decode(.cycleSameAppWindows, default: false)
     }
   }
 }
