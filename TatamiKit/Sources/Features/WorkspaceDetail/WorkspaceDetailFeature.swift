@@ -52,7 +52,7 @@ public struct WorkspaceDetailFeature {
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
-    case floatingToggled(bundleIdentifier: String, isOn: Bool)
+    case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
     case nameSubmitted(String)
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
@@ -143,13 +143,13 @@ public struct WorkspaceDetailFeature {
         }
         return .none
 
-      case .floatingToggled(let bundleId, let isOn):
+      case .layoutChanged(let bundleId, let layout):
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { workspace in
             guard let idx = workspace.apps.firstIndex(where: { $0.bundleIdentifier == bundleId })
             else { return }
-            workspace.apps[idx].floating = isOn
+            workspace.apps[idx].layout = layout
           }
         }
         // Re-tile so the window drops out of (or back into) the layout

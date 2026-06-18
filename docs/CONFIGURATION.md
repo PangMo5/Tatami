@@ -147,30 +147,39 @@ action unbound.
 
 ## `[[sharedApps]]`
 
-Apps listed here are part of **every** workspace. By default they tile into
-each workspace's layout; with `floating = true` they stay untiled and are kept
-**above the tiles everywhere** instead.
+Apps listed here are part of **every** workspace. Each carries a `layout`:
+`tiled` (the default — tiles into each workspace's layout), `floating` (untiled,
+kept **above the tiles everywhere** via a mirror), or `unmanaged` (left exactly
+where it is — still a member, but never tiled or mirrored).
 
 ```toml
 [[sharedApps]]
 bundleIdentifier = "com.apple.iphonesimulator"
 name = "Simulator"
-floating = true          # untiled, always on top, drifts across workspaces
+layout = "floating"      # untiled, always on top, drifts across workspaces
 
 [[sharedApps]]
 bundleIdentifier = "com.apple.Music"
-name = "Music"           # tiled into every workspace's layout
+name = "Music"
+layout = "tiled"         # tiled into every workspace's layout (default)
+
+[[sharedApps]]
+bundleIdentifier = "com.colliderli.iina"
+name = "IINA"
+layout = "unmanaged"     # left alone — a member, but never tiled or mirrored
 ```
 
 Floating windows are kept on top without disabling SIP: Tatami mirrors them
 onto its own always-on-top panels via ScreenCaptureKit, which needs the
 **Screen Recording** permission (Settings → General → Permissions). The mirror
 hides — and the capture stops — whenever the floating app itself has focus.
+`unmanaged` apps need no such permission — the real window is never touched.
 
-Editable in the app under **Workspaces → Shared Apps**.
+Editable in the app under **Workspaces → Shared Apps** (Tiled / Float / Ignore).
 
 Legacy configs with `[[floatingApps]]` migrate automatically on first load:
-each entry becomes a shared app with `floating = true`.
+each entry becomes a shared app with `layout = "floating"`. A pre-1.4 `floating`
+bool on any app or shared app also migrates (`true` → `floating`, else `tiled`).
 
 ## `[[profiles]]` and workspaces
 
@@ -196,7 +205,7 @@ appToFocusBundleId = "app.zen-browser.zen"        # optional: focus this app on 
 bundleIdentifier = "app.zen-browser.zen"
 name = "Zen Browser"
 autoOpen = false                       # launch on activation if not running
-floating = false                       # keep untiled + above the tiles here
+layout = "tiled"                       # "tiled" | "floating" | "unmanaged"
 ```
 
 Workspace fields:
@@ -219,4 +228,4 @@ App assignment fields:
 | `bundleIdentifier` | string | The app's bundle ID. |
 | `name` | string | Display name. |
 | `autoOpen` | bool | Launch the app when the workspace activates — and reopen it on re-entry if its window was closed. |
-| `floating` | bool | Keep the app untiled and above the tiles in this workspace (see `[[sharedApps]]` for the always-on-top mechanics). |
+| `layout` | string | `tiled` (BSP layout), `floating` (untiled, mirrored above the tiles — see `[[sharedApps]]`), or `unmanaged` (left where it is; still a member, no tiling/mirror/Screen Recording). Migrated from the pre-1.4 `floating` bool. |

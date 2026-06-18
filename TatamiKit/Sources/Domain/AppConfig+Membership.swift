@@ -40,12 +40,12 @@ extension AppConfig {
     var nowFloating = false
     mutateWorkspace(workspaceId) { workspace in
       if let idx = workspace.apps.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
-        workspace.apps[idx].floating.toggle()
-        nowFloating = workspace.apps[idx].floating
+        workspace.apps[idx].layout = workspace.apps[idx].layout == .floating ? .tiled : .floating
+        nowFloating = workspace.apps[idx].layout == .floating
       } else {
         workspace.apps.append(
           AppAssignment(
-            bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, floating: true
+            bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, layout: .floating
           )
         )
         nowFloating = true
@@ -61,11 +61,11 @@ extension AppConfig {
   /// new floating state.
   public mutating func toggleSharedFloating(bundleId: String, name: String) -> Bool {
     if let idx = sharedApps.firstIndex(where: { $0.bundleIdentifier == bundleId }) {
-      sharedApps[idx].floating.toggle()
-      return sharedApps[idx].floating
+      sharedApps[idx].layout = sharedApps[idx].layout == .floating ? .tiled : .floating
+      return sharedApps[idx].layout == .floating
     }
     sharedApps.append(
-      SharedApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, floating: true)
+      SharedApp(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, layout: .floating)
     )
     return true
   }

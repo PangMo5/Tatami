@@ -147,11 +147,11 @@ struct WorkspaceDetailView: View {
                   )
                 }
               ),
-              floatingBinding: Binding(
-                get: { assignment.floating },
+              layoutBinding: Binding(
+                get: { assignment.layout },
                 set: { value in
                   store.send(
-                    .floatingToggled(bundleIdentifier: assignment.bundleIdentifier, isOn: value)
+                    .layoutChanged(bundleIdentifier: assignment.bundleIdentifier, layout: value)
                   )
                 }
               ),
@@ -349,7 +349,7 @@ private struct DisplayPickerSection: View {
 private struct AppRow: View {
   let assignment: AppAssignment
   let autoOpenBinding: Binding<Bool>
-  let floatingBinding: Binding<Bool>
+  let layoutBinding: Binding<LayoutMode>
   let onRemove: () -> Void
 
   var body: some View {
@@ -364,15 +364,15 @@ private struct AppRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      HStack(spacing: 6) {
-        Text("Float")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Toggle("Float", isOn: floatingBinding)
-          .labelsHidden()
-          .toggleStyle(.switch)
+      Picker("Layout", selection: layoutBinding) {
+        Text("Tiled").tag(LayoutMode.tiled)
+        Text("Float").tag(LayoutMode.floating)
+        Text("Ignore").tag(LayoutMode.unmanaged)
       }
-      .help("Keep this app untiled and above the tiles in this workspace.")
+      .labelsHidden()
+      .pickerStyle(.segmented)
+      .fixedSize()
+      .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
       HStack(spacing: 6) {
         Text("Auto-open")
           .font(.caption)

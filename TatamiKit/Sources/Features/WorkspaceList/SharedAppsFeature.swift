@@ -30,7 +30,7 @@ public struct SharedAppsFeature {
     case appPickerAppSelected(MacApp)
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
-    case floatingToggled(bundleIdentifier: String, isOn: Bool)
+    case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
   }
 
   @Dependency(\.runningApps) var runningApps
@@ -79,12 +79,12 @@ public struct SharedAppsFeature {
         }
         return .none
 
-      case .floatingToggled(let bundleId, let isOn):
+      case .layoutChanged(let bundleId, let layout):
         state.$config.withLock { config in
           guard let idx = config.sharedApps.firstIndex(where: {
             $0.bundleIdentifier == bundleId
           }) else { return }
-          config.sharedApps[idx].floating = isOn
+          config.sharedApps[idx].layout = layout
         }
         return .none
       }

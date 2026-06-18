@@ -54,7 +54,7 @@ public struct AppConfig: Hashable, Sendable, Codable {
       // which is exactly a shared floating app.
       self.sharedApps = try c.decode([FloatingApp].self, forKey: .floatingApps).map {
         SharedApp(bundleIdentifier: $0.bundleIdentifier, name: $0.name,
-                  iconPath: $0.iconPath, floating: true)
+                  iconPath: $0.iconPath, layout: .floating)
       }
     } else {
       self.sharedApps = []

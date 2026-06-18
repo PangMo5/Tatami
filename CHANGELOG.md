@@ -6,10 +6,22 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
-## Unreleased
+## 1.4.0 — 2026-06-18
+
+### ⚠️ Breaking Changes
+- **Per-app layout is now a mode, not a boolean** — assigned apps and shared apps carry a `layout` of `tiled` / `floating` / `unmanaged` instead of `floating = true/false`. Existing configs (including a pre-1.4 `floating` bool and legacy `[[floatingApps]]`) migrate automatically on load. Once saved, the config uses the new `layout` key, so **downgrading to an older Tatami reads every app as tiled**; hand-edited configs should switch to `layout = "…"`.
 
 ### Improvements
+- **Ignore-tiling layout mode.** A third per-app mode beside tiled and floating: an *unmanaged* app stays a full workspace member — auto-open, show/hide, focus, focus-follows-mouse, and window cycling all apply — but its window is never tiled into the BSP tree nor mirrored onto an on-top panel, and it needs no Screen Recording. Set it per workspace and per shared app with the Tiled / Float / Ignore picker.
+- **Workspaces restore your last-used window.** Activating a workspace with no pinned focus app now returns focus to the exact window you last used there, instead of a fixed app.
+- **Cycle through every window.** The next/previous-window shortcuts walk all visible windows in the active workspace — tiled, floating, and unmanaged — cycling multiple windows of the same app individually.
+- **Add apps by search or from disk.** The app picker searches running apps, and you can add one straight from a file.
 - **Shortcut recording reworked.** The recorder shows layout-independent glyphs (⌘S regardless of your keyboard layout), records on a single click, flags conflicts with another binding by name, and suspends global hotkeys while you're recording — so the combo you press lands in the field instead of firing its action. Global hotkeys now run on Magnet (Carbon) under the hood.
+
+### Fixes
+- **Switching to a workspace no longer bounces back when a native-tab app changes its window id.** Apps with macOS native tabs (e.g. ghostty) swap window ids as you switch tabs, which could leave the BSP tree momentarily empty — and "switch to recent" would bounce you to the previous workspace. The active workspace now re-checks its own on-screen windows before switching.
+- **Focus-follows-mouse only follows into windows Tatami manages**, so notification and HUD panels can't steal focus.
+- **Hide-on-close windows are reclaimed** even when they fire no Accessibility destroy event.
 
 ## 1.3.3 — 2026-06-13
 

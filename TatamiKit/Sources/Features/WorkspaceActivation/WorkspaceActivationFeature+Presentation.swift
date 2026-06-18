@@ -11,8 +11,20 @@ extension WorkspaceActivationFeature {
   static func floatingBundleIds(state: State) -> [String] {
     let perWorkspace = state.primaryActiveWorkspaceID
       .flatMap { id in state.config.activeProfile?.workspaces[id: id] }
-      .map { $0.apps.filter(\.floating).map(\.bundleIdentifier) } ?? []
-    let shared = state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
+      .map { $0.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier) } ?? []
+    let shared = state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
+    return Array(OrderedSet(perWorkspace + shared))
+  }
+
+  /// The active workspace's unmanaged apps + shared unmanaged apps —
+  /// members that are neither tiled nor mirrored, but still count as
+  /// window-cycle targets and (via the discovery cache) FFM hit-test
+  /// windows.
+  static func unmanagedBundleIds(state: State) -> [String] {
+    let perWorkspace = state.primaryActiveWorkspaceID
+      .flatMap { id in state.config.activeProfile?.workspaces[id: id] }
+      .map { $0.apps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier) } ?? []
+    let shared = state.config.sharedApps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier)
     return Array(OrderedSet(perWorkspace + shared))
   }
 

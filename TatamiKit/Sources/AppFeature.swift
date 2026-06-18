@@ -235,7 +235,7 @@ public struct AppFeature {
            .workspaceList(.detail(.assignAppShortcutChanged)):
         return .send(.hotKeys(.refreshBindings))
 
-      case .workspaceList(.detail(.floatingToggled)):
+      case .workspaceList(.detail(.layoutChanged)):
         // Re-tile now if the edited workspace is the active one, so the window
         // drops out of (or back into) the layout immediately.
         guard let wsId = state.workspaceList.detail?.workspaceId,
@@ -245,9 +245,9 @@ public struct AppFeature {
 
       case .workspaceList(.shared(.appPickerAppSelected)),
            .workspaceList(.shared(.appRemoveRequested)),
-           .workspaceList(.shared(.floatingToggled)):
+           .workspaceList(.shared(.layoutChanged)):
         // Shared apps are part of every workspace — re-tile the active one
-        // so the change (tiled ↔ floating ↔ removed) lands immediately.
+        // so the change (tiled / float / ignore / removed) lands immediately.
         guard let wsId = state.activation.primaryActiveWorkspaceID else { return .none }
         return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
 

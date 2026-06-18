@@ -72,14 +72,15 @@ extension WorkspaceActivationFeature {
     // An app registered to the workspace AND shared appears in both lists —
     // dedupe, or its windows get discovered twice and tile twice.
     let bundleIds = Array(OrderedSet(
-      workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
-        + state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier)
+      workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+        + state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
     ))
     // Floating apps (per-workspace + shared) are raised above the tiles after
-    // the tile pass.
+    // the tile pass. Unmanaged apps are neither tiled nor floated — left out
+    // of both sets; the manager still shows/hides them as members.
     let floatingBundleIds = Array(OrderedSet(
-      workspace.apps.filter(\.floating).map(\.bundleIdentifier)
-        + state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier)
+      workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
+        + state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
     ))
     let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
     let sessionTree = state.tilingTrees[workspace.id]

@@ -22,8 +22,7 @@ struct WhatsNewClient: Sendable {
 
 extension WhatsNewClient: DependencyKey {
   static let liveValue: WhatsNewClient = {
-    @Dependency(\.screenRecording) var screenRecording
-    let controller = WhatsNewController(screenRecording: screenRecording)
+    let controller = WhatsNewController()
     return WhatsNewClient { hasExistingConfig in
       await controller.showIfNeeded(hasExistingConfig: hasExistingConfig)
     }
@@ -49,11 +48,6 @@ private final class WhatsNewController {
     version.split(separator: ".").prefix(2).joined(separator: ".")
   }
   private var window: NSWindow?
-  private let screenRecording: ScreenRecordingClient
-
-  init(screenRecording: ScreenRecordingClient) {
-    self.screenRecording = screenRecording
-  }
 
   func showIfNeeded(hasExistingConfig: Bool) {
     let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -64,7 +58,7 @@ private final class WhatsNewController {
     // Fresh install: no migrated config, nothing to explain.
     guard hasExistingConfig else { return }
     // Patch releases share their minor's feature wave — someone who saw
-    // 1.3.0's window must not get the identical one again on 1.3.1.
+    // 1.4.0's window must not get the identical one again on 1.4.1.
     if let lastShown, majorMinor(lastShown) == majorMinor(current) { return }
 
     let window = NSWindow(
@@ -80,13 +74,6 @@ private final class WhatsNewController {
     window.contentView = NSHostingView(
       rootView: WhatsNewView(
         version: current,
-        screenRecordingGranted: screenRecording.isGranted(),
-        onGrant: { [screenRecording] in
-          Task {
-            await screenRecording.requestAccess()
-            await screenRecording.openSettings()
-          }
-        },
         onDone: { [weak self] in
           self?.window?.close()
           self?.window = nil
@@ -106,8 +93,6 @@ private final class WhatsNewController {
 /// changes deserve a first-launch heads-up.
 private struct WhatsNewView: View {
   let version: String
-  let screenRecordingGranted: Bool
-  let onGrant: () -> Void
   let onDone: () -> Void
 
   @State private var showChangelog = false
@@ -117,7 +102,7 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("What's New in Tatami \(version)")
           .font(.title.weight(.semibold))
-        Text("This update changes a couple of things about existing setups.")
+        Text("Per-app layout gains a third mode — and one config field changed shape.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
@@ -130,28 +115,10 @@ private struct WhatsNewView: View {
             .foregroundStyle(.orange)
 
           item(
-            icon: "square.on.square",
-            title: "Floating apps are now Shared Apps",
-            detail: "Your floating list was migrated automatically — `[[floatingApps]]` became `[[sharedApps]]` with `floating = true` in the config. Shared apps are part of every workspace: tiled into each layout, or floating with the Float toggle. Manage them in Workspaces → Shared Apps."
+            icon: "doc.plaintext",
+            title: "App layout is a mode now, not a switch",
+            detail: "Each assigned app and shared app now carries a `layout` of `tiled`, `floating`, or `unmanaged` instead of a `floating = true/false` flag. Your existing config migrates automatically. If you hand-edit `config.toml`, use `layout = \"floating\"` (or `\"tiled\"` / `\"unmanaged\"`) — and note that an older Tatami doesn't understand the new key, so downgrading would read every app as tiled."
           )
-
-          item(
-            icon: "rectangle.dashed",
-            title: "Floating needs Screen Recording",
-            detail: screenRecordingGranted
-              ? "Floating windows now stay above the tiles by mirroring them (no SIP changes). Screen Recording is already granted — you're all set."
-              : "Floating windows now stay above the tiles by mirroring them, which needs the Screen Recording permission. Without it, floating windows won't stay on top."
-          )
-          if !screenRecordingGranted {
-            HStack {
-              Text("macOS applies the grant after a relaunch.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-              Spacer()
-              Button("Grant Screen Recording…", action: onGrant)
-            }
-            .padding(.leading, 34)
-          }
         }
         .padding(6)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -163,19 +130,24 @@ private struct WhatsNewView: View {
           .font(.headline)
 
         item(
-          icon: "macwindow.on.rectangle",
-          title: "Floating windows, no SIP required",
-          detail: "Float any app per workspace or everywhere. Reach for a floating window and the real one is handed back to you; focused floats stack above the rest."
+          icon: "rectangle.slash",
+          title: "Ignore tiling (unmanaged apps)",
+          detail: "A third per-app mode beside Tiled and Float: keep an app as a full workspace member — auto-open, show/hide, focus-follows-mouse, window cycling — but leave its window exactly where it is. No tile, no mirror, no Screen Recording. Pick Tiled / Float / Ignore on any app in a workspace or in Shared Apps."
         )
         item(
-          icon: "keyboard",
-          title: "Shared shortcuts & per-action HUD",
-          detail: "Hotkeys for shared floating and Shared Apps membership (Settings → Shortcuts). The HUD now confirms floats, membership, pause, fullscreen, and balance — each toggleable, with a configurable duration."
+          icon: "macwindow.badge.plus",
+          title: "Workspaces remember your last window",
+          detail: "Switching to a workspace (when no app is pinned for focus) now returns you to the exact window you last used there — not a fixed app."
         )
         item(
-          icon: "sidebar.left",
-          title: "Settings, reorganized",
-          detail: "A System Settings-style sidebar, plus a Screen Recording permission row under General → Permissions."
+          icon: "arrow.left.arrow.right",
+          title: "Cycle through every window",
+          detail: "The next/previous-window shortcuts walk all visible windows in the workspace, including multiple windows of the same app."
+        )
+        item(
+          icon: "magnifyingglass",
+          title: "Add apps by search or from disk",
+          detail: "The app picker searches running apps and can add one straight from a file."
         )
       }
       .padding(.horizontal, 6)

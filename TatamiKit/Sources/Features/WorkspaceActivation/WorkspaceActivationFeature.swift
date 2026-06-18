@@ -708,14 +708,18 @@ public struct WorkspaceActivationFeature {
               let tree = state.tilingTrees[workspaceId]
         else { return .none }
         // The visible windows of the active workspace: tiled (the BSP tree)
-        // plus floating. Both are managed and on-screen, so off-screen /
-        // other-space / minimized windows never enter the cycle. Each window
-        // is its own key, so multiple windows of the same app cycle
-        // individually.
+        // plus floating plus unmanaged. All are managed and on-screen, so
+        // off-screen / other-space / minimized windows never enter the
+        // cycle. Each window is its own key, so multiple windows of the same
+        // app cycle individually.
         var ordered = tree.windows
         let floatingBundles = Self.floatingBundleIds(state: state)
         if !floatingBundles.isEmpty {
           ordered += windowSnapshot.cachedKeys(floatingBundles, false)
+        }
+        let unmanagedBundles = Self.unmanagedBundleIds(state: state)
+        if !unmanagedBundles.isEmpty {
+          ordered += windowSnapshot.cachedKeys(unmanagedBundles, false)
         }
         guard ordered.count > 1 else { return .none }
         let n = ordered.count
@@ -870,8 +874,12 @@ public struct WorkspaceActivationFeature {
         // floating window got no mirror until its app was focused once.
         let floatingIds = state.config.sharedApps.map(\.bundleIdentifier)
           + (state.config.activeProfile?.workspaces[id: id]?
-            .apps.filter(\.floating).map(\.bundleIdentifier) ?? [])
-        let observeIds = Array(OrderedSet((treeIds ?? registeredIds) + floatingIds))
+            .apps.filter { $0.layout == .floating }.map(\.bundleIdentifier) ?? [])
+        // Unmanaged apps are members too — observe them so their window
+        // events keep the cache fresh (FFM + cycling read it).
+        let unmanagedIds = state.config.activeProfile?.workspaces[id: id]?
+          .apps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier) ?? []
+        let observeIds = Array(OrderedSet((treeIds ?? registeredIds) + floatingIds + unmanagedIds))
         debugLog.log(
           "Activate",
           "completed workspaceId=\(id) "

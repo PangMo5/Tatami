@@ -15,11 +15,11 @@ struct SharedAppsView: View {
         ForEach(store.apps) { app in
           SharedAppRow(
             app: app,
-            floatingBinding: Binding(
-              get: { app.floating },
+            layoutBinding: Binding(
+              get: { app.layout },
               set: { value in
                 store.send(
-                  .floatingToggled(bundleIdentifier: app.bundleIdentifier, isOn: value)
+                  .layoutChanged(bundleIdentifier: app.bundleIdentifier, layout: value)
                 )
               }
             ),
@@ -70,7 +70,7 @@ struct SharedAppsView: View {
 
 private struct SharedAppRow: View {
   let app: SharedApp
-  let floatingBinding: Binding<Bool>
+  let layoutBinding: Binding<LayoutMode>
   let onRemove: () -> Void
 
   var body: some View {
@@ -85,15 +85,15 @@ private struct SharedAppRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      HStack(spacing: 6) {
-        Text("Float")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Toggle("Float", isOn: floatingBinding)
-          .labelsHidden()
-          .toggleStyle(.switch)
+      Picker("Layout", selection: layoutBinding) {
+        Text("Tiled").tag(LayoutMode.tiled)
+        Text("Float").tag(LayoutMode.floating)
+        Text("Ignore").tag(LayoutMode.unmanaged)
       }
-      .help("Keep this app untiled and floating above the tiles — in every workspace.")
+      .labelsHidden()
+      .pickerStyle(.segmented)
+      .fixedSize()
+      .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
       Button(role: .destructive, action: onRemove) {
         Image(systemName: "minus.circle.fill")
           .foregroundStyle(.red)

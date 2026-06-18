@@ -108,11 +108,16 @@ extension WorkspaceActivationFeature {
     let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
     // Floating = shown but never tiled (excluded from the tree): this
     // workspace's per-window floating apps + shared floating apps.
-    let floatingSet = Set(workspace.apps.filter(\.floating).map(\.bundleIdentifier))
-      .union(state.config.sharedApps.filter(\.floating).map(\.bundleIdentifier))
+    let floatingSet = Set(workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier))
+      .union(state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier))
+    // Unmanaged = member but never tiled and never mirrored — the real
+    // window is left alone. Tracked so sync skips it like a floating app,
+    // minus the overlay refresh.
+    let unmanagedSet = Set(workspace.apps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier))
+      .union(state.config.sharedApps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier))
     // Shared tiled apps tile into every workspace's layout.
     let sharedTiledSet = Set(
-      state.config.sharedApps.filter { !$0.floating }.map(\.bundleIdentifier)
+      state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
     )
     let assignedAnywhere = Self.everyAssignedBundleId(in: state.config)
     let existing = state.tilingTrees[workspaceId]
@@ -123,11 +128,24 @@ extension WorkspaceActivationFeature {
     // on top live (not just on the next activation). Markers re-resolve in
     // the same beat — floating dots are discovered from live windows, so
     // skipping this left a quit app's dot up until the next focus change.
+    if unmanagedSet.contains(bundleId) {
+      // Unmanaged: never tiled, never mirrored — the window stays put. Still
+      // a member, so a per-workspace unmanaged window closing can empty the
+      // workspace; shared unmanaged apps aren't workspace content.
+      // Still a managed member: discover it (populating the cache, which
+      // feeds both the FFM hit-test and window cycling) but don't tile or
+      // mirror.
+      _ = windowSnapshot.discoverKeys([bundleId], false)
+      return workspace.apps
+        .contains { $0.layout == .unmanaged && $0.bundleIdentifier == bundleId }
+        ? switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+        : .none
+    }
     if floatingSet.contains(bundleId) {
       // A *per-workspace* floating window closing can empty the workspace;
       // shared floats aren't workspace content, so their events don't bounce.
       let emptySwitch = workspace.apps
-        .contains { $0.floating && $0.bundleIdentifier == bundleId }
+        .contains { $0.layout == .floating && $0.bundleIdentifier == bundleId }
         ? switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
         : Effect<Action>.none
       return .merge(
@@ -317,18 +335,23 @@ extension WorkspaceActivationFeature {
     // workspace's own tiled apps against the live window list: a tab switch
     // leaves the app on screen, so a momentarily-stale tree must not be
     // mistaken for an empty workspace and bounce the user to the recent one.
-    let tiledIds = workspace.apps.filter { !$0.floating }.map(\.bundleIdentifier)
-    let hasTiled = !tiledIds.isEmpty
-      && !windowSnapshot.discoverKeys(tiledIds, true).isEmpty
-    guard !hasTiled else {
+    // Tiled *and* unmanaged apps occupy real screen space (only floating
+    // ones are mirrors). A live AX re-check of those tells "tree
+    // momentarily stale" (e.g. a native-tab window-id swap) apart from
+    // "workspace truly empty". requireResizable=false so fixed-size
+    // unmanaged windows (media players, etc.) still count.
+    let onScreenIds = workspace.apps.filter { $0.layout != .floating }.map(\.bundleIdentifier)
+    let hasOnScreen = !onScreenIds.isEmpty
+      && !windowSnapshot.discoverKeys(onScreenIds, false).isEmpty
+    guard !hasOnScreen else {
       debugLog.log(
         "Sync",
-        "ws=\(workspace.name) tree empty but tiled apps still on screen — not switching"
+        "ws=\(workspace.name) tree empty but member apps still on screen — not switching"
       )
       return .none
     }
     // A still-open per-workspace floating window anchors the workspace.
-    let floatingIds = workspace.apps.filter(\.floating).map(\.bundleIdentifier)
+    let floatingIds = workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
     let hasFloating = !floatingIds.isEmpty
       && !windowSnapshot.discoverKeys(floatingIds, false).isEmpty
     guard !hasFloating else { return .none }
