@@ -557,17 +557,26 @@ public struct WorkspaceActivationFeature {
           markerClient.setFocused(key)
         }
         if !state.isActivating,
-           state.compositionsByDisplay.isEmpty,
+           // A borrow direction-pick is armed — a repeat app-activation must
+           // not re-fire the jump (re-entering beginBorrowDirection cancels the
+           // pending pick). Opening a scratchpad app fires appActivated more
+           // than once, and a borrow never makes it the active workspace, so
+           // without this the second event kills the direction prompt.
+           state.borrowCaptureTarget == nil,
            state.config.settings.switching.followAppFocus,
            !state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }),
            let owner = state.config.activeProfile?.workspaces.first(where: {
              $0.apps.contains { $0.bundleIdentifier == bundleId }
            }),
-           // A scratchpad is never activated on its own — activating it would
-           // redirect to a borrow, so focusing a scratchpad app must not yank
-           // it into the current workspace. It's summoned only by an explicit
-           // borrow.
-           owner.kind != .scratchpad,
+           // Suppress only when the owner is already on screen as part of a
+           // composition (its host or a borrowed block) — focusing within a
+           // borrow shouldn't switch away. An app from any *other* workspace
+           // still jumps: it drops the live composition (or summons a
+           // scratchpad as a borrow, replacing the current one), so a borrow
+           // never traps focus on a third app.
+           !state.compositionsByDisplay.values.contains(where: {
+             $0.host == owner.id || $0.borrowed.contains { $0.workspace == owner.id }
+           }),
            state.primaryActiveWorkspaceID != owner.id {
           // The one path that switches workspaces without a hotkey — when a
           // bounce-back is suspected, this line (or its absence) is the tell.

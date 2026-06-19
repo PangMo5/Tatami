@@ -23,7 +23,10 @@ extension WorkspaceActivationFeature {
     // (re-docks if it's already borrowed there).
     if workspace.kind == .scratchpad {
       debugLog.log("Activate", "scratchpad \(workspace.name) → borrow")
-      return performBorrow(targetId: workspaceId, edge: .right, state: &state)
+      // Route through the borrow-direction flow so a scratchpad honors its
+      // default edge — or asks for a direction when set to "Ask" — exactly
+      // like the borrow shortcut, instead of always docking right.
+      return .send(.beginBorrowDirection(workspaceId: workspaceId))
     }
     // Latest-wins: a switch arriving mid-activation supersedes the
     // in-flight one (the effect below is `cancellable(cancelInFlight:)`)
