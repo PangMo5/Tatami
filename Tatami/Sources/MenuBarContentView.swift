@@ -91,12 +91,6 @@ struct MenuBarContentView: View {
       Divider()
     }
 
-    Button(store.activation.isTilingPaused ? "Resume Tiling" : "Pause Tiling") {
-      store.send(.activation(.togglePaused))
-    }
-
-    Divider()
-
     // Opens the main window (the Workspaces / Settings / About tab view).
     // ⌘, is also wired globally via the app's commands.
     Button("Settings") {
