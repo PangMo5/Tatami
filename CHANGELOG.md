@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.4.2 — 2026-06-19
+
+### Fixes
+- **Closing a window returns focus to your most recently used window.** When the focused window closed, focus could jump to the first tile instead of the window you were last on — most noticeably right after creating a second window and quickly toggling another app's tiling on and off. Refocus-on-close now follows per-workspace most-recently-used order, falling back through it to the next on-screen window.
+
 ## 1.4.1 — 2026-06-18
 
 ### Improvements
