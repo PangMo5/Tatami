@@ -691,7 +691,12 @@ public struct WorkspaceActivationFeature {
         return .send(.beginBorrowDirection(workspaceId: id))
 
       case .flushComposition(let display):
-        return applyComposition(display: display, state: state)
+        // Re-tile the composition and (re)push markers — the borrowed block's
+        // windows now exist, so they can be badged with the source's icon.
+        return .merge(
+          applyComposition(display: display, state: state),
+          refreshMarkers(state: state)
+        )
 
       case .activateNext:
         return cycle(by: 1, state: &state)

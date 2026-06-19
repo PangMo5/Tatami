@@ -35,6 +35,7 @@ extension WorkspaceActivationFeature {
   static func markerTargets(
     fullscreenZoomed: Set<WindowKey>,
     floatingKeys: [WindowKey],
+    borrowed: [WindowKey: String],
     cfg: AppSettings.Marker
   ) -> [WindowKey: MarkerTarget] {
     var targets: [WindowKey: MarkerTarget] = [:]
@@ -44,7 +45,32 @@ extension WorkspaceActivationFeature {
     for key in floatingKeys {
       targets[key] = MarkerTarget(colorHex: cfg.floatingColorHex, alwaysVisible: true)
     }
+    // Borrowed windows badge with the borrowed workspace's icon — always
+    // visible (the point is to see what's on loan regardless of focus), and
+    // pushed last so a borrowed window wins over a stray floating/zoom mark.
+    for (key, symbol) in borrowed {
+      targets[key] = MarkerTarget(colorHex: cfg.borrowColorHex, alwaysVisible: true, symbol: symbol)
+    }
     return targets
+  }
+
+  /// Borrowed-window markers across every live composition: each borrowed
+  /// window keyed to its source workspace's icon. Empty when the category is
+  /// off or nothing is borrowed.
+  static func borrowMarkerTargets(state: State) -> [WindowKey: String] {
+    guard state.config.settings.marker.borrowEnabled else { return [:] }
+    var out: [WindowKey: String] = [:]
+    for comp in state.compositionsByDisplay.values {
+      for slot in comp.borrowed {
+        guard let ws = state.config.activeProfile?.workspaces[id: slot.workspace]
+        else { continue }
+        let symbol = ws.symbolIconName ?? "square.stack.3d.up"
+        for key in state.tilingTrees[slot.workspace]?.windows ?? [] {
+          out[key] = symbol
+        }
+      }
+    }
+    return out
   }
 
   /// The fullscreen-zoom marker keys for the active workspace (empty when
@@ -79,12 +105,16 @@ extension WorkspaceActivationFeature {
     let cfg = state.config.settings.marker
     let zoomedKeys = Self.fullscreenMarkerKeys(state: state)
     let floatingIds = cfg.floatingEnabled ? Self.floatingBundleIds(state: state) : []
+    let borrowed = Self.borrowMarkerTargets(state: state)
     return .run { [marker, snapshot = windowSnapshot] _ in
       let floatingKeys: [WindowKey] = floatingIds.isEmpty
         ? []
         : await MainActor.run { snapshot.discoverKeys(floatingIds, false) }
       marker.setTargets(
-        Self.markerTargets(fullscreenZoomed: zoomedKeys, floatingKeys: floatingKeys, cfg: cfg),
+        Self.markerTargets(
+          fullscreenZoomed: zoomedKeys, floatingKeys: floatingKeys,
+          borrowed: borrowed, cfg: cfg
+        ),
         cfg.size, cfg.corner, cfg.hideOnHover
       )
     }
@@ -98,6 +128,7 @@ extension WorkspaceActivationFeature {
     let bundleIds = Self.floatingBundleIds(state: state)
     let cfg = state.config.settings.marker
     let zoomedKeys = Self.fullscreenMarkerKeys(state: state)
+    let borrowed = Self.borrowMarkerTargets(state: state)
     let overlay = floatingOverlay
     return .run { [marker, snapshot = windowSnapshot] _ in
       let keys = await MainActor.run { snapshot.discoverKeys(bundleIds, false) }
@@ -106,6 +137,7 @@ extension WorkspaceActivationFeature {
         Self.markerTargets(
           fullscreenZoomed: zoomedKeys,
           floatingKeys: cfg.floatingEnabled ? keys : [],
+          borrowed: borrowed,
           cfg: cfg
         ),
         cfg.size, cfg.corner, cfg.hideOnHover

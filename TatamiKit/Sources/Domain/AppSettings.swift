@@ -163,6 +163,11 @@ extension AppSettings {
     public var fullscreenEnabled: Bool
     /// Fullscreen-window dot color (`#RRGGBB` or `#RRGGBBAA`).
     public var fullscreenColorHex: String
+    /// Badge the windows of a borrowed block with the borrowed workspace's
+    /// icon, so what's on loan is identifiable at a glance.
+    public var borrowEnabled: Bool
+    /// Borrow-marker badge color (`#RRGGBB` or `#RRGGBBAA`).
+    public var borrowColorHex: String
     /// Dot diameter in points.
     public var size: Double
     /// Which window corner the dot is pinned to.
@@ -176,6 +181,8 @@ extension AppSettings {
       floatingColorHex: String = "#FF9500",
       fullscreenEnabled: Bool = true,
       fullscreenColorHex: String = "#007AFF",
+      borrowEnabled: Bool = true,
+      borrowColorHex: String = "#AF52DE",
       size: Double = 14,
       corner: MarkerCorner = .bottomTrailing,
       hideOnHover: Bool = true
@@ -184,6 +191,8 @@ extension AppSettings {
       self.floatingColorHex = floatingColorHex
       self.fullscreenEnabled = fullscreenEnabled
       self.fullscreenColorHex = fullscreenColorHex
+      self.borrowEnabled = borrowEnabled
+      self.borrowColorHex = borrowColorHex
       self.size = size
       self.corner = corner
       self.hideOnHover = hideOnHover
@@ -192,6 +201,7 @@ extension AppSettings {
     private enum CodingKeys: String, CodingKey {
       case floatingEnabled, floatingColorHex
       case fullscreenEnabled, fullscreenColorHex
+      case borrowEnabled, borrowColorHex
       case size, corner, hideOnHover
     }
 
@@ -201,6 +211,8 @@ extension AppSettings {
       self.floatingColorHex = c.decode(.floatingColorHex, default: "#FF9500")
       self.fullscreenEnabled = c.decode(.fullscreenEnabled, default: true)
       self.fullscreenColorHex = c.decode(.fullscreenColorHex, default: "#007AFF")
+      self.borrowEnabled = c.decode(.borrowEnabled, default: true)
+      self.borrowColorHex = c.decode(.borrowColorHex, default: "#AF52DE")
       self.size = c.decode(.size, default: 14)
       self.corner = c.decode(.corner, default: .bottomTrailing)
       self.hideOnHover = c.decode(.hideOnHover, default: true)

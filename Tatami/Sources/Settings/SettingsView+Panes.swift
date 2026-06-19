@@ -551,6 +551,17 @@ extension SettingsView {
       )
       .disabled(!config.settings.marker.floatingEnabled)
 
+      Toggle(isOn: setting(\.marker.borrowEnabled)) {
+        Text("Mark borrowed windows")
+        Text("Badge the windows of a borrowed block with the borrowed workspace's icon, so what's on loan is clear at a glance.")
+      }
+      ColorPicker(
+        "Borrow color",
+        selection: borderColorBinding(\.marker.borrowColorHex),
+        supportsOpacity: false
+      )
+      .disabled(!config.settings.marker.borrowEnabled)
+
       DebouncedStepper(
         external: config.settings.marker.size,
         range: 8 ... 28,

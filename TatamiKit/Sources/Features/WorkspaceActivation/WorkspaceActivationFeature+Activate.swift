@@ -99,6 +99,10 @@ extension WorkspaceActivationFeature {
     let sessionTree = state.tilingTrees[workspace.id]
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
+    // Borrow markers live across displays; this display's composition was just
+    // cleared, so this is any *other* display's borrows that the global marker
+    // push below must preserve.
+    let borrowedMarkers = Self.borrowMarkerTargets(state: state)
 
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
@@ -280,6 +284,7 @@ extension WorkspaceActivationFeature {
           Self.markerTargets(
             fullscreenZoomed: markerCfg.fullscreenEnabled ? restoredZoom : [],
             floatingKeys: markerCfg.floatingEnabled ? Array(floatingKeys) : [],
+            borrowed: borrowedMarkers,
             cfg: markerCfg
           ),
           markerCfg.size, markerCfg.corner, markerCfg.hideOnHover

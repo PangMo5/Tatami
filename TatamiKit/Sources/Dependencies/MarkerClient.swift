@@ -14,10 +14,14 @@ import SwiftUI
 struct MarkerTarget: Sendable, Equatable {
   var colorHex: String
   var alwaysVisible: Bool
+  /// SF Symbol drawn inside the marker badge instead of a plain dot — borrow
+  /// markers use it to show the borrowed workspace's icon. nil = plain dot.
+  var symbol: String?
 
-  init(colorHex: String, alwaysVisible: Bool = false) {
+  init(colorHex: String, alwaysVisible: Bool = false, symbol: String? = nil) {
     self.colorHex = colorHex
     self.alwaysVisible = alwaysVisible
+    self.symbol = symbol
   }
 }
 
@@ -74,6 +78,7 @@ private final class MarkerController {
   private struct Style: Equatable {
     var hex: String
     var size: Double
+    var symbol: String?
   }
 
   private var panels: [WindowKey: NSPanel] = [:]
@@ -103,6 +108,9 @@ private final class MarkerController {
   private var hoverMonitor: Any?
 
   private var hideOnHover = true
+  /// A symbol marker is a badge, not a dot — render it this much larger than
+  /// the shared dot size so the glyph inside stays legible.
+  private let symbolScale = 2.0
   private var corner: MarkerCorner = .bottomTrailing
   /// Last focused window pushed in via `setFocused`. nil = no focus
   /// (or unknown — markers stay hidden, which is the safe default).
@@ -135,7 +143,8 @@ private final class MarkerController {
     alwaysVisible = Set(targets.filter(\.value.alwaysVisible).keys)
     // Add or update panels for each target.
     for (key, target) in targets {
-      let style = Style(hex: target.colorHex, size: size)
+      let markSize = target.symbol == nil ? size : size * symbolScale
+      let style = Style(hex: target.colorHex, size: markSize, symbol: target.symbol)
       if panels[key] == nil {
         panels[key] = makePanel(style: style)
       } else if styles[key] != style,
@@ -412,7 +421,8 @@ private final class MarkerController {
     MarkerView(
       color: Color(hex: style.hex) ?? .blue,
       size: CGFloat(style.size),
-      padding: glowPadding
+      padding: glowPadding,
+      symbol: style.symbol
     )
   }
 
@@ -444,6 +454,7 @@ private struct MarkerView: View {
   let color: Color
   let size: CGFloat
   let padding: CGFloat
+  var symbol: String?
 
   var body: some View {
     Circle()
@@ -451,6 +462,15 @@ private struct MarkerView: View {
       .overlay(
         Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5)
       )
+      // A borrow marker carries the borrowed workspace's glyph inside the
+      // dot, turning the plain dot into an identifying badge.
+      .overlay {
+        if let symbol {
+          Image(systemName: symbol)
+            .font(.system(size: size * 0.62, weight: .semibold))
+            .foregroundStyle(.white)
+        }
+      }
       .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
       .padding(padding)
   }
