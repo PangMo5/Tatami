@@ -68,6 +68,10 @@ public struct WorkspaceActivationFeature {
     /// Persistent (.combine) borrows keyed by host workspace, so
     /// re-activating a host re-establishes them. `.peek` never lands here.
     public var combineBorrows: [Workspace.ID: [BorrowedSlot]] = [:]
+    /// Pending dock edge while "borrow mode" key capture is armed; nil when
+    /// not capturing. A direction keystroke updates it; a workspace initial
+    /// (or the recent key) commits the borrow at this edge.
+    public var borrowCaptureEdge: BorrowEdge?
 
     /// Latest manual resize / move geometry, captured while the user drags
     /// and flushed to the tree on mouse-up (`.windowDragEnded`). Committing
@@ -185,6 +189,11 @@ public struct WorkspaceActivationFeature {
     /// Grow (`+`) / shrink (`-`) the borrowed block's share of the focused
     /// display's composition.
     case resizeBorrow(delta: CGFloat)
+    /// Enter "borrow mode": arm key capture so the next direction + workspace
+    /// initial (or recent key) summons a workspace. Re-entering cancels.
+    case enterBorrowMode
+    /// Internal: a decoded keystroke from borrow-mode capture.
+    case borrowChordKey(BorrowChordKey)
     /// Internal: re-flush a display's composition after its trees change.
     case flushComposition(display: DisplayName?)
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
@@ -290,6 +299,9 @@ public struct WorkspaceActivationFeature {
     /// AsyncStream with a second one.
     case windowEvents
     case appLaunchEvents
+    /// Auto-cancels borrow-mode key capture if the user never finishes the
+    /// chord, so the tap can't keep swallowing keystrokes.
+    case borrowChordTimeout
     /// Releases the `isActivating` gate if an activation never completes
     /// (see `activationTimedOut`); cancelled by `activationCompleted`.
     case activationWatchdog
@@ -316,6 +328,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.borrowChord) var borrowChord
   @Dependency(\.sls) var sls
 
   public init() {}
@@ -353,6 +366,12 @@ public struct WorkspaceActivationFeature {
             // can't see.
             for await wid in sls.windowDestructionEvents() {
               await send(.windowServerWindowDestroyed(wid))
+            }
+          },
+          .run { [borrowChord] send in
+            // Borrow-mode key capture; the tap only emits while armed.
+            for await key in borrowChord.events() {
+              await send(.borrowChordKey(key))
             }
           }
         )
@@ -619,6 +638,44 @@ public struct WorkspaceActivationFeature {
 
       case .resizeBorrow(let delta):
         return resizeBorrow(delta: delta, state: &state)
+
+      case .enterBorrowMode:
+        // Re-pressing the leader while armed cancels.
+        if state.borrowCaptureEdge != nil {
+          return endBorrowCapture(state: &state)
+        }
+        state.borrowCaptureEdge = .right
+        let initials = Set(
+          (state.config.activeProfile?.workspaces ?? [])
+            .compactMap { $0.keyEquivalent?.lowercased() }
+            .filter { !$0.isEmpty }
+        )
+        debugLog.log("BorrowChord", "enter borrow mode (initials=\(initials.sorted()))")
+        return .merge(
+          .run { [borrowChord] _ in await borrowChord.setArmed(true, initials) },
+          borrowChordTimeout(),
+          borrowChordHint(state: state)
+        )
+
+      case .borrowChordKey(let key):
+        guard let edge = state.borrowCaptureEdge else { return .none }
+        switch key {
+        case .edge(let newEdge):
+          state.borrowCaptureEdge = newEdge
+          // Keep the capture alive and refresh the hint + timeout.
+          return .merge(borrowChordTimeout(), borrowChordHint(state: state))
+        case .workspace(let initial):
+          let target = state.config.activeProfile?.workspaces
+            .first { $0.keyEquivalent?.lowercased() == initial }
+          let end = endBorrowCapture(state: &state)
+          guard let target else { return end }
+          return .merge(end, performBorrow(targetId: target.id, edge: edge, mode: .peek, state: &state))
+        case .recent:
+          let end = endBorrowCapture(state: &state)
+          return .merge(end, .send(.borrowRecent(edge: edge, mode: .peek)))
+        case .cancel:
+          return endBorrowCapture(state: &state)
+        }
 
       case .flushComposition(let display):
         return applyComposition(display: display, state: state)

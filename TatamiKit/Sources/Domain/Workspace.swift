@@ -61,6 +61,12 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// Normal vs scratchpad (borrow-only). Scratchpad is skipped by cycling
   /// and standalone activation; it only shows when borrowed.
   public var kind: WorkspaceKind
+  /// Single-character key identifying this workspace. The switch-modifier
+  /// combo + this key activates it (unless `activateShortcut` overrides), and
+  /// pressing it in borrow mode summons it. Lowercased on use; `h`/`j`/`k`/`l`
+  /// double as borrow-mode direction keys, so a workspace keyed to one of them
+  /// still activates but isn't borrow-summonable.
+  public var keyEquivalent: String?
   public var apps: [AppAssignment]
 
   public init(
@@ -73,6 +79,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     appToFocusBundleId: String? = nil,
     tilingMemory: TilingMemory? = nil,
     kind: WorkspaceKind = .normal,
+    keyEquivalent: String? = nil,
     apps: [AppAssignment] = []
   ) {
     self.id = id
@@ -84,6 +91,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.appToFocusBundleId = appToFocusBundleId
     self.tilingMemory = tilingMemory
     self.kind = kind
+    self.keyEquivalent = keyEquivalent
     self.apps = apps
   }
 }
@@ -94,6 +102,7 @@ extension Workspace {
     case symbolIconName, appToFocusBundleId
     case tilingMemory
     case kind
+    case keyEquivalent
     case apps
   }
 
@@ -108,6 +117,7 @@ extension Workspace {
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
     tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
     kind = try container.decodeIfPresent(WorkspaceKind.self, forKey: .kind) ?? .normal
+    keyEquivalent = try container.decodeIfPresent(String.self, forKey: .keyEquivalent)
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
 }

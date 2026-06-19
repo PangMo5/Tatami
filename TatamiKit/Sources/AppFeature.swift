@@ -269,6 +269,8 @@ public struct AppFeature {
       return .send(.activation(.activatePrevious))
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
+    case .enterBorrowMode:
+      return .send(.activation(.enterBorrowMode))
     case .borrowRecentLeft:
       return .send(.activation(.borrowRecent(edge: .left, mode: .peek)))
     case .borrowRecentRight:

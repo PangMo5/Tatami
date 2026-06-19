@@ -37,10 +37,27 @@ extension HotKey {
 
 extension HotKey {
   // Carbon modifier bit masks.
-  private static let cmd = 256
-  private static let shift = 512
-  private static let option = 2048
-  private static let control = 4096
+  static let cmd = 256
+  static let shift = 512
+  static let option = 2048
+  static let control = 4096
+
+  /// Carbon modifier mask from skhd-style tokens (`"ctrl"`, `"alt"`,
+  /// `"shift"`, `"cmd"` and their aliases) — for settings that store a
+  /// modifier combo without a key, like the workspace key-equivalent modifier.
+  public static func carbonModifiers(from tokens: [String]) -> Int {
+    var mods = 0
+    for token in tokens {
+      switch token.lowercased().trimmingCharacters(in: .whitespaces) {
+      case "cmd", "command", "⌘": mods |= cmd
+      case "shift", "⇧": mods |= shift
+      case "alt", "opt", "option", "⌥": mods |= option
+      case "ctrl", "control", "⌃": mods |= control
+      default: break
+      }
+    }
+    return mods
+  }
 
   /// skhd-style description: `"<mods joined by ' + '> - <key>"`.
   public var displayString: String {
@@ -200,6 +217,18 @@ extension HotKey {
     118: "f4", 119: "end", 120: "f2", 121: "pagedown", 122: "f1",
     123: "left", 124: "right", 125: "down", 126: "up",
   ]
+
+  /// QWERTY-position name for a virtual key code (layout-independent) — used
+  /// by transient key capture (borrow chord) to decode keystrokes the same
+  /// way shortcuts are stored. Nil for unmapped codes.
+  public static func keyName(for keyCode: Int) -> String? { keyCodeToName[keyCode] }
+
+  /// QWERTY virtual key code for a single-character key name (e.g. a
+  /// workspace's `keyEquivalent`), so a stored char + modifier mask forms a
+  /// registerable `HotKey`. Nil for unmapped names.
+  public static func keyCode(forName name: String) -> Int? {
+    nameToKeyCode[name.lowercased()]
+  }
 
   fileprivate static let nameToKeyCode: [String: Int] = {
     var map: [String: Int] = [:]

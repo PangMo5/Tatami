@@ -9,10 +9,22 @@ extension AppConfig {
   public var hotKeyBindings: [HotKeyBinding] {
     var out: [HotKeyBinding] = []
     let workspaces = activeProfile?.workspaces ?? []
+    // Default workspace-switch shortcut: the global modifier combo + a
+    // workspace's `keyEquivalent`. Skipped when the modifier combo is empty
+    // (a bare-key global hotkey would hijack normal typing).
+    let switchModifiers = HotKey.carbonModifiers(from: settings.shortcuts.keyEquivalentModifiers)
 
     for workspace in workspaces {
       if let key = workspace.activateShortcut {
+        // Explicit per-workspace override wins.
         out.append(.init(action: .activateWorkspace(workspace.id), hotKey: key))
+      } else if switchModifiers != 0,
+                let char = workspace.keyEquivalent,
+                let keyCode = HotKey.keyCode(forName: char) {
+        out.append(.init(
+          action: .activateWorkspace(workspace.id),
+          hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: switchModifiers)
+        ))
       }
       if let key = workspace.assignAppShortcut {
         out.append(.init(action: .assignFocusedAppToWorkspace(workspace.id), hotKey: key))
@@ -50,6 +62,7 @@ extension AppConfig {
     add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
     add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
     add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
+    add(.enterBorrowMode, shortcuts.enterBorrowMode)
     add(.borrowRecentLeft, shortcuts.borrowRecentLeft)
     add(.borrowRecentRight, shortcuts.borrowRecentRight)
     add(.borrowRecentUp, shortcuts.borrowRecentUp)

@@ -589,6 +589,44 @@ extension WorkspaceActivationFeature {
     return .merge(.send(.activate(workspaceId: comp.host, setFocus: true)), hud)
   }
 
+  /// Disarm borrow-mode key capture: clear the pending edge, remove the tap,
+  /// and cancel the auto-timeout.
+  func endBorrowCapture(state: inout State) -> Effect<Action> {
+    state.borrowCaptureEdge = nil
+    return .merge(
+      .run { [borrowChord] _ in await borrowChord.setArmed(false, []) },
+      .cancel(id: CancelID.borrowChordTimeout)
+    )
+  }
+
+  /// Auto-cancel borrow-mode capture after a few idle seconds so a half-typed
+  /// chord can't keep the key tap swallowing keystrokes.
+  func borrowChordTimeout() -> Effect<Action> {
+    .run { [clock] send in
+      try? await clock.sleep(for: .seconds(5))
+      await send(.borrowChordKey(.cancel))
+    }
+    .cancellable(id: CancelID.borrowChordTimeout, cancelInFlight: true)
+  }
+
+  /// HUD hint while borrow mode is armed: the pending edge plus each
+  /// workspace's initial, so the user can see what to press.
+  func borrowChordHint(state: State) -> Effect<Action> {
+    guard state.config.settings.hud.shows(\.borrow) else { return .none }
+    let edge = state.borrowCaptureEdge ?? .right
+    let entries = (state.config.activeProfile?.workspaces ?? [])
+      .compactMap { ws -> String? in
+        guard let key = ws.keyEquivalent?.lowercased(), !key.isEmpty else { return nil }
+        return "[\(key.uppercased())] \(ws.name)"
+      }
+    let list = entries.isEmpty ? "no initials set — assign in workspace settings" : entries.joined(separator: "  ")
+    let subtitle = "edge: \(edge.rawValue) · hjkl/arrows · ` recent · esc — \(list)"
+    let durationMs = max(state.config.settings.hud.durationMs, 4000)
+    return .run { [workspaceHUD] _ in
+      await workspaceHUD.show("Borrow", Self.borrowEdgeIcon(edge), subtitle, durationMs)
+    }
+  }
+
   /// Grow / shrink the borrowed block's share of the focused display's
   /// composition by `delta` (clamped to 10–90%), then re-flush. Persists the
   /// new fraction into `combineBorrows` for a combined borrow.

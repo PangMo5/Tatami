@@ -340,6 +340,20 @@ extension SettingsView {
     }
 
     Section("Windows & Workspaces") {
+      VStack(alignment: .leading, spacing: 4) {
+        HStack {
+          Text("Switch modifier")
+          Spacer(minLength: 16)
+          switchModifierToggle("⌃", "ctrl")
+          switchModifierToggle("⌥", "alt")
+          switchModifierToggle("⇧", "shift")
+          switchModifierToggle("⌘", "cmd")
+        }
+        Text("Held with a workspace's key equivalent to switch to it (set each workspace's key in its settings). Clear all to disable the key-equivalent switch.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
       shortcut(
         "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
         description: "Move focus to the next window in the active workspace."
@@ -371,6 +385,10 @@ extension SettingsView {
       shortcut(
         "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
         description: "Focus the active workspace on the previous display (loops around)."
+      )
+      shortcut(
+        "Borrow mode", .enterBorrowMode, \.enterBorrowMode,
+        description: "Enter borrow mode, then press a direction (h/j/k/l or arrows) and a workspace's borrow key to summon it side by side. Backtick = recent, Esc cancels."
       )
       shortcut(
         "Borrow recent workspace (left)", .borrowRecentLeft, \.borrowRecentLeft,
@@ -552,6 +570,23 @@ extension SettingsView {
   /// current combo from it and writes edits straight back, and the live
   /// `HotKeysFeature` re-registers on the change. Conflicts are detected
   /// against every other binding (`AppConfig.shortcutConflict`).
+  /// One compact toggle button for a switch-modifier token (e.g. `"ctrl"`),
+  /// reflecting / editing membership in `keyEquivalentModifiers`.
+  @ViewBuilder
+  func switchModifierToggle(_ symbol: String, _ token: String) -> some View {
+    Toggle(symbol, isOn: Binding(
+      get: { config.settings.shortcuts.keyEquivalentModifiers.contains(token) },
+      set: { on in
+        $config.withLock { c in
+          var mods = c.settings.shortcuts.keyEquivalentModifiers.filter { $0 != token }
+          if on { mods.append(token) }
+          c.settings.shortcuts.keyEquivalentModifiers = mods
+        }
+      }
+    ))
+    .toggleStyle(.button)
+  }
+
   @ViewBuilder
   func shortcut(
     _ title: String,

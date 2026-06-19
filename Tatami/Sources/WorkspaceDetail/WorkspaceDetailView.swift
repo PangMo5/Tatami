@@ -134,6 +134,21 @@ struct WorkspaceDetailView: View {
               : "A normal workspace you switch to and cycle through.")
           }
           .pickerStyle(.menu)
+
+          LabeledContent {
+            TextField(
+              "Key",
+              text: Binding(
+                get: { workspace.keyEquivalent ?? "" },
+                set: { store.send(.keyEquivalentChanged($0.isEmpty ? nil : $0)) }
+              )
+            )
+            .frame(width: 44)
+            .multilineTextAlignment(.center)
+          } label: {
+            Text("Key equivalent")
+            Text("One character. The switch modifier (Settings → Shortcuts) plus this key activates the workspace, and it summons the workspace in borrow mode. An explicit Activate shortcut below overrides the modifier+key default. (h/j/k/l still activate but steer direction in borrow mode.)")
+          }
         }
 
         Section("On Activation") {

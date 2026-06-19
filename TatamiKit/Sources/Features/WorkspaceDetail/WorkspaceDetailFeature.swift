@@ -61,6 +61,7 @@ public struct WorkspaceDetailFeature {
     case displayHintChanged(DisplayName?)
     case tilingMemoryChanged(TilingMemory?)
     case kindChanged(WorkspaceKind)
+    case keyEquivalentChanged(String?)
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
@@ -212,6 +213,17 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.kind = kind }
+        }
+        return .none
+
+      case .keyEquivalentChanged(let raw):
+        // One character, lowercased. Any letter/digit is allowed (it drives
+        // modifier+key activation); h/j/k/l simply aren't borrow-summonable
+        // since those steer direction in borrow mode.
+        let key = raw?.lowercased().first.map(String.init)
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.keyEquivalent = key }
         }
         return .none
 

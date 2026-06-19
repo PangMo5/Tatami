@@ -51,6 +51,8 @@ public enum HotKeyAction: Sendable, Hashable {
   case toggleAppInSharedApps
 
   // Borrow another workspace into the current screen (composition)
+  /// Enter borrow mode (chord): then a direction + workspace initial.
+  case enterBorrowMode
   case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
   case borrowGrow, borrowShrink
   case dismissBorrow
@@ -90,6 +92,7 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "toggle-space"
     case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
     case .toggleAppInSharedApps: "toggle-shared-membership"
+    case .enterBorrowMode: "enter-borrow-mode"
     case .borrowRecentLeft: "borrow-recent-left"
     case .borrowRecentRight: "borrow-recent-right"
     case .borrowRecentUp: "borrow-recent-up"
@@ -135,6 +138,7 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "Toggle pause"
     case .toggleFocusedAppInActiveWorkspace: "Toggle app in workspace"
     case .toggleAppInSharedApps: "Toggle app in Shared Apps"
+    case .enterBorrowMode: "Borrow mode (then direction + initial)"
     case .borrowRecentLeft: "Borrow recent workspace (left)"
     case .borrowRecentRight: "Borrow recent workspace (right)"
     case .borrowRecentUp: "Borrow recent workspace (up)"
