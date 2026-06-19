@@ -340,20 +340,14 @@ extension SettingsView {
     }
 
     Section {
-      VStack(alignment: .leading, spacing: 4) {
-        HStack {
-          Text("Switch modifier")
-          Spacer(minLength: 16)
-          switchModifierToggle("⌃", "ctrl")
-          switchModifierToggle("⌥", "alt")
-          switchModifierToggle("⇧", "shift")
-          switchModifierToggle("⌘", "cmd")
-        }
-        Text("Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the keys below cover recent / next / previous. Clear the modifier to disable key-equivalent switching.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
+      modifierToggleRow(
+        "Switch modifier", \.keyEquivalentModifiers,
+        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the keys below cover recent / next / previous. Clear it to disable key-equivalent switching."
+      )
+      modifierToggleRow(
+        "Assign modifier", \.assignModifiers,
+        description: "Held with a workspace's key equivalent to assign the focused app to it. Distinct from the switch modifier, so one key does both."
+      )
       keyEquivalentShortcut(
         "Recent workspace", .switchToRecentWorkspace,
         key: \.recentWorkspaceKey, override: \.switchToRecentWorkspace,
@@ -648,17 +642,45 @@ extension SettingsView {
     )
   }
 
-  /// One compact toggle button for a switch-modifier token (e.g. `"ctrl"`),
-  /// reflecting / editing membership in `keyEquivalentModifiers`.
+  /// A labeled row of modifier toggle buttons (⌃⌥⇧⌘) editing one modifier
+  /// list (e.g. switch vs assign).
   @ViewBuilder
-  func switchModifierToggle(_ symbol: String, _ token: String) -> some View {
+  func modifierToggleRow(
+    _ title: String,
+    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, [String]>,
+    description: String
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack {
+        Text(title)
+        Spacer(minLength: 16)
+        modifierToggle("⌃", "ctrl", keyPath)
+        modifierToggle("⌥", "alt", keyPath)
+        modifierToggle("⇧", "shift", keyPath)
+        modifierToggle("⌘", "cmd", keyPath)
+      }
+      Text(description)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  /// One compact toggle button for a modifier token (e.g. `"ctrl"`),
+  /// reflecting / editing membership in the given modifier list.
+  @ViewBuilder
+  func modifierToggle(
+    _ symbol: String,
+    _ token: String,
+    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, [String]>
+  ) -> some View {
     Toggle(symbol, isOn: Binding(
-      get: { config.settings.shortcuts.keyEquivalentModifiers.contains(token) },
+      get: { config.settings.shortcuts[keyPath: keyPath].contains(token) },
       set: { on in
         $config.withLock { c in
-          var mods = c.settings.shortcuts.keyEquivalentModifiers.filter { $0 != token }
+          var mods = c.settings.shortcuts[keyPath: keyPath].filter { $0 != token }
           if on { mods.append(token) }
-          c.settings.shortcuts.keyEquivalentModifiers = mods
+          c.settings.shortcuts[keyPath: keyPath] = mods
         }
       }
     ))

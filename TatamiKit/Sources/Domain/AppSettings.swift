@@ -663,6 +663,11 @@ extension AppSettings {
     /// with a workspace's `keyEquivalent`, activates it — the default
     /// workspace-switch shortcut. Empty disables the auto-binding.
     public var keyEquivalentModifiers: [String]
+    /// Modifier combo that, with a workspace's `keyEquivalent`, assigns the
+    /// focused app to that workspace (the default Assign shortcut). Empty
+    /// disables it. Distinct from the switch modifier so one workspace key
+    /// drives both: switch (⌃⌥key) and assign (⌃⌥⇧key).
+    public var assignModifiers: [String]
     /// Single-char key equivalents for workspace navigation: switch-modifier +
     /// this key runs the action, unless the matching explicit shortcut below
     /// overrides it.
@@ -711,6 +716,7 @@ extension AppSettings {
       toggleFocusedAppInActiveWorkspace: HotKey? = nil,
       toggleAppInSharedApps: HotKey? = nil,
       keyEquivalentModifiers: [String] = ["ctrl", "alt"],
+      assignModifiers: [String] = ["ctrl", "alt", "shift"],
       recentWorkspaceKey: String? = nil,
       nextWorkspaceKey: String? = nil,
       previousWorkspaceKey: String? = nil,
@@ -751,6 +757,7 @@ extension AppSettings {
       self.toggleFocusedAppInActiveWorkspace = toggleFocusedAppInActiveWorkspace
       self.toggleAppInSharedApps = toggleAppInSharedApps
       self.keyEquivalentModifiers = keyEquivalentModifiers
+      self.assignModifiers = assignModifiers
       self.recentWorkspaceKey = recentWorkspaceKey
       self.nextWorkspaceKey = nextWorkspaceKey
       self.previousWorkspaceKey = previousWorkspaceKey
@@ -776,7 +783,7 @@ extension AppSettings {
       case balance
       case toggleFloating, toggleSharedFloating, toggleSpaceActivated
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
-      case keyEquivalentModifiers
+      case keyEquivalentModifiers, assignModifiers
       case recentWorkspaceKey, nextWorkspaceKey, previousWorkspaceKey
       case enterBorrowMode
       case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
@@ -813,6 +820,7 @@ extension AppSettings {
       self.toggleFocusedAppInActiveWorkspace = c.decodeIfValid(.toggleFocusedAppInActiveWorkspace)
       self.toggleAppInSharedApps = c.decodeIfValid(.toggleAppInSharedApps)
       self.keyEquivalentModifiers = c.decode(.keyEquivalentModifiers, default: ["ctrl", "alt"])
+      self.assignModifiers = c.decode(.assignModifiers, default: ["ctrl", "alt", "shift"])
       self.recentWorkspaceKey = c.decodeIfValid(.recentWorkspaceKey)
       self.nextWorkspaceKey = c.decodeIfValid(.nextWorkspaceKey)
       self.previousWorkspaceKey = c.decodeIfValid(.previousWorkspaceKey)

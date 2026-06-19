@@ -122,10 +122,26 @@ struct WorkspaceDetailView: View {
         }
 
         Section {
-          // Activate lives in the Key equivalent row above (as the override).
-          HStack {
+          // Activate lives in the Key equivalent row above. Assign reuses the
+          // same key with the assign modifier; the recorder here overrides it.
+          HStack(spacing: 10) {
             Text("Assign focused app here")
-            Spacer(minLength: 16)
+            Spacer(minLength: 12)
+            let assignMods = HotKey.modifierSymbols(
+              from: store.config.settings.shortcuts.assignModifiers
+            )
+            if let key = workspace.keyEquivalent, !key.isEmpty, !assignMods.isEmpty {
+              Text(assignMods + key.uppercased())
+                .font(.system(.body, design: .rounded).weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .opacity(workspace.assignAppShortcut == nil ? 1 : 0.35)
+              Text("or")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+            }
             ShortcutRecorder(
               hotKey: workspace.assignAppShortcut,
               conflict: { store.state.assignShortcutConflict(for: $0) },
@@ -135,7 +151,7 @@ struct WorkspaceDetailView: View {
         } header: {
           Text("Shortcuts")
         } footer: {
-          Text("Assign adds the focused app to this workspace (keeping it in any workspace it's already in) and switches here.")
+          Text("Assign adds the focused app to this workspace (keeping it in any workspace it's already in) and switches here. By default the assign modifier + this workspace's key equivalent; record a shortcut to override.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }

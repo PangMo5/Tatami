@@ -9,14 +9,16 @@ extension AppConfig {
   public var hotKeyBindings: [HotKeyBinding] {
     var out: [HotKeyBinding] = []
     let workspaces = activeProfile?.workspaces ?? []
-    // Default workspace-switch shortcut: the global modifier combo + a
-    // workspace's `keyEquivalent`. Skipped when the modifier combo is empty
-    // (a bare-key global hotkey would hijack normal typing).
+    // Default workspace shortcuts: a global modifier combo + a workspace's
+    // single `keyEquivalent`. One key drives several actions, each with its
+    // own modifier combo. Skipped when the combo is empty (a bare-key global
+    // hotkey would hijack normal typing).
     let switchModifiers = HotKey.carbonModifiers(from: settings.shortcuts.keyEquivalentModifiers)
+    let assignModifiers = HotKey.carbonModifiers(from: settings.shortcuts.assignModifiers)
 
     for workspace in workspaces {
+      // Explicit per-workspace override wins; else switch-modifier + key.
       if let key = workspace.activateShortcut {
-        // Explicit per-workspace override wins.
         out.append(.init(action: .activateWorkspace(workspace.id), hotKey: key))
       } else if switchModifiers != 0,
                 let char = workspace.keyEquivalent,
@@ -26,8 +28,16 @@ extension AppConfig {
           hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: switchModifiers)
         ))
       }
+      // Assign: explicit override wins; else assign-modifier + key.
       if let key = workspace.assignAppShortcut {
         out.append(.init(action: .assignFocusedAppToWorkspace(workspace.id), hotKey: key))
+      } else if assignModifiers != 0,
+                let char = workspace.keyEquivalent,
+                let keyCode = HotKey.keyCode(forName: char) {
+        out.append(.init(
+          action: .assignFocusedAppToWorkspace(workspace.id),
+          hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: assignModifiers)
+        ))
       }
     }
 
