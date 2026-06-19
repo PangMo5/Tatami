@@ -347,6 +347,12 @@ final class RecorderField: NSView {
     didSet { needsDisplay = true }
   }
 
+  /// Local keyDown monitor active only while recording. Capturing through a
+  /// monitor (rather than keyDown/performKeyEquivalent) means special keys
+  /// (Backspace, arrows, Return…) the SwiftUI responder chain would otherwise
+  /// swallow still reach the recorder.
+  private var monitor: Any?
+
   private(set) var isRecording = false {
     didSet {
       guard isRecording != oldValue else { return }
@@ -370,27 +376,28 @@ final class RecorderField: NSView {
   }
 
   override func resignFirstResponder() -> Bool {
-    isRecording = false
+    stopRecording()
     return true
+  }
+
+  override func viewWillMove(toWindow newWindow: NSWindow?) {
+    if newWindow == nil { stopRecording() }
+    super.viewWillMove(toWindow: newWindow)
   }
 
   override func mouseDown(with _: NSEvent) {
     window?.makeFirstResponder(self)
+    guard monitor == nil else { return }
     isRecording = true
-  }
-
-  /// ⌘-based combos arrive as key equivalents, not plain keyDowns, so
-  /// capture both paths while recording.
-  override func performKeyEquivalent(with event: NSEvent) -> Bool {
-    guard isRecording else { return super.performKeyEquivalent(with: event) }
-    return record(event)
-  }
-
-  override func keyDown(with event: NSEvent) {
-    guard isRecording, record(event) else {
-      super.keyDown(with: event)
-      return
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+      guard let self, self.isRecording else { return event }
+      return self.record(event) ? nil : event
     }
+  }
+
+  private func stopRecording() {
+    if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+    isRecording = false
   }
 
   override func draw(_: NSRect) {
@@ -466,7 +473,7 @@ final class RecorderField: NSView {
   /// isn't a usable global shortcut. Returns whether the event was consumed.
   private func record(_ event: NSEvent) -> Bool {
     if event.keyCode == 53 { // Escape cancels.
-      window?.makeFirstResponder(nil)
+      stopRecording()
       return true
     }
     let carbon = carbonModifiers(event.modifierFlags)
@@ -481,13 +488,13 @@ final class RecorderField: NSView {
     // own current key is excluded by the conflict closure, so it reads free.)
     if let owner = conflict?(candidate) {
       NSSound.beep()
-      window?.makeFirstResponder(nil)
+      stopRecording()
       showConflict(owner)
       return true
     }
     hotKey = candidate
     onChange?(candidate)
-    window?.makeFirstResponder(nil)
+    stopRecording()
     return true
   }
 
