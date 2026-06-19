@@ -79,7 +79,6 @@ public struct WorkspaceDetailFeature {
   @Dependency(\.displays) var displays
   @Dependency(\.hotKeys) var hotKeys
   @Dependency(\.appChooser) var appChooser
-  @Dependency(\.debugLog) var debugLog
 
   public init() {}
 
@@ -226,7 +225,6 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .keyEquivalentChanged(let raw):
-        debugLog.log("KeyEquiv", "keyEquivalentChanged raw=\(raw ?? "nil")")
         // The recorder hands a single key *name* (e.g. "d", "delete", "left",
         // ","), stored as-is lowercased — don't truncate to a character, or
         // multi-letter names like "delete" collapse to "e".
