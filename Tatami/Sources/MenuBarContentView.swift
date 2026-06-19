@@ -54,24 +54,37 @@ struct MenuBarContentView: View {
     }
 
     if let workspaces = config.activeProfile?.workspaces, !workspaces.isEmpty {
-      Section("Workspaces") {
-        ForEach(workspaces) { workspace in
-          // Toggle inside a menu renders as a labeled item with a
-          // trailing checkmark when the binding is `true` — the
-          // macOS-native "active" indicator. We swallow the off-write
-          // so re-clicking the active workspace just re-activates it
-          // (matching the toolbar Activate button's behavior).
-          Toggle(isOn: Binding(
-            get: { workspace.id == activeId },
-            set: { newValue in
-              guard newValue else { return }
-              store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+      let regular = workspaces.filter { $0.kind != .scratchpad }
+      let scratchpads = workspaces.filter { $0.kind == .scratchpad }
+      // Switchable workspaces: a Toggle renders the native trailing checkmark
+      // on the active one. We swallow the off-write so re-clicking the active
+      // workspace just re-activates it (matching the toolbar Activate button).
+      if !regular.isEmpty {
+        Section("Workspaces") {
+          ForEach(regular) { workspace in
+            Toggle(isOn: Binding(
+              get: { workspace.id == activeId },
+              set: { newValue in
+                guard newValue else { return }
+                store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+              }
+            )) {
+              Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.dashed")
             }
-          )) {
-            Label(
-              workspace.name,
-              systemImage: workspace.symbolIconName ?? "square.dashed"
-            )
+          }
+        }
+      }
+      // Scratchpads are borrow-only — they never become "active", so a plain
+      // button (clicking borrows onto the focused display) reads truer than a
+      // Toggle, and the dedicated section header is what marks them.
+      if !scratchpads.isEmpty {
+        Section("Scratchpads") {
+          ForEach(scratchpads) { workspace in
+            Button {
+              store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+            } label: {
+              Label(workspace.name, systemImage: workspace.symbolIconName ?? "tray.full")
+            }
           }
         }
       }
