@@ -15,7 +15,8 @@ extension WorkspaceActivationFeature {
     else { return .none }
 
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
+    // The host block's geometry — sub-rect when composed, else full work area.
+    let (_, workArea) = tilingContext(for: workspaceId, state: state)
     let registered = workspace.apps.map(\.bundleIdentifier)
     let existing = state.tilingTrees[workspaceId]
     // On resume from pause we keep any transient (unregistered-anywhere)
@@ -26,7 +27,6 @@ extension WorkspaceActivationFeature {
     let discoverBundles = Array(OrderedSet(registered + existingBundles))
 
     let targets = windowSnapshot.discoverKeys(discoverBundles, true)
-    let workArea = tilingWorkArea(for: display, settings: settings)
 
     let merged = Self.mergeTree(
       existing: existing,
@@ -47,10 +47,7 @@ extension WorkspaceActivationFeature {
     let observeIds = Array(OrderedSet(tree.windows.map(\.bundleId)))
 
     return .merge(
-      applyLayout(
-        tree: tree, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
-      ),
+      flushLayout(workspaceId: workspaceId, state: state),
       .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
       persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
@@ -95,7 +92,9 @@ extension WorkspaceActivationFeature {
       debugLog.log("Sync", "skip \(bundleId): activation in flight")
       return .none
     }
-    guard let workspaceId = state.primaryActiveWorkspaceID,
+    // Route to the block that owns this app: the borrowed workspace when it
+    // registered the app, else the host (= active workspace when uncomposed).
+    guard let workspaceId = state.composedOwner(bundleId: bundleId, key: nil),
           let workspace = state.config.activeProfile?
             .workspaces[id: workspaceId]
     else {
@@ -104,7 +103,6 @@ extension WorkspaceActivationFeature {
     }
 
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
     let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
     // Floating = shown but never tiled (excluded from the tree): this
     // workspace's per-window floating apps + shared floating apps.
@@ -138,7 +136,7 @@ extension WorkspaceActivationFeature {
       _ = windowSnapshot.discoverKeys([bundleId], false)
       return workspace.apps
         .contains { $0.layout == .unmanaged && $0.bundleIdentifier == bundleId }
-        ? switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+        ? handleEmptied(workspaceId: workspaceId, state: state)
         : .none
     }
     if floatingSet.contains(bundleId) {
@@ -146,7 +144,7 @@ extension WorkspaceActivationFeature {
       // shared floats aren't workspace content, so their events don't bounce.
       let emptySwitch = workspace.apps
         .contains { $0.layout == .floating && $0.bundleIdentifier == bundleId }
-        ? switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+        ? handleEmptied(workspaceId: workspaceId, state: state)
         : Effect<Action>.none
       return .merge(
         refreshFloatingPresentation(state: state),
@@ -173,7 +171,9 @@ extension WorkspaceActivationFeature {
       || isUnregisteredAnywhere
 
     let current = windowSnapshot.discoverKeys([bundleId], true)
-    let workArea = tilingWorkArea(for: display, settings: settings)
+    // The block's geometry — composition sub-rect when this is a borrowed/host
+    // block, else the workspace's full work area. New windows insert into it.
+    let (_, workArea) = tilingContext(for: workspaceId, state: state)
     let currentSet = Set(current)
     let treeWindows = existing?.windows ?? []
     let willRemove = treeWindows.contains { $0.bundleId == bundleId && !currentSet.contains($0) }
@@ -267,7 +267,7 @@ extension WorkspaceActivationFeature {
     // deliberately empty one.
     let emptySwitch = removed.isEmpty
       ? Effect<Action>.none
-      : switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+      : handleEmptied(workspaceId: workspaceId, state: state)
 
     guard oldWindows != newWindows, let final = balanced else {
       return .merge(observeEffect, markerRefresh, emptySwitch)
@@ -291,10 +291,7 @@ extension WorkspaceActivationFeature {
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     return .merge(
-      applyLayout(
-        tree: final, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
-      ),
+      flushLayout(workspaceId: workspaceId, state: state),
       observeEffect,
       persist(final, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       markerRefresh,
@@ -357,6 +354,43 @@ extension WorkspaceActivationFeature {
     guard !hasFloating else { return .none }
     debugLog.log("Sync", "ws=\(workspace.name) empty → switch to recent")
     return .send(.activate(workspaceId: recent, setFocus: true))
+  }
+
+  /// Empty-block handling after a sync/prune removal: the host block falls
+  /// back to `switchToRecentIfEmpty`, a borrowed block collapses its borrow so
+  /// the host reclaims the full screen. Both are gated on the tree actually
+  /// being empty, so a deliberately-empty block never bounces.
+  private func handleEmptied(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
+    if state.primaryActiveWorkspaceID == workspaceId {
+      return switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+    }
+    return collapseIfBorrowedEmpty(borrowedId: workspaceId, state: state)
+  }
+
+  /// A borrowed block lost all its windows → dismiss the borrow. Re-checks the
+  /// borrowed workspace's on-screen apps first so a transient empty tree (e.g.
+  /// a native-tab window-id swap) doesn't collapse the composition.
+  private func collapseIfBorrowedEmpty(
+    borrowedId: Workspace.ID,
+    state: State
+  ) -> Effect<Action> {
+    guard !state.isActivating else { return .none }
+    for (display, comp) in state.compositionsByDisplay
+    where comp.borrowed.contains(where: { $0.workspace == borrowedId }) {
+      guard state.tilingTrees[borrowedId]?.windows.isEmpty ?? true,
+            let borrowedWs = state.config.activeProfile?.workspaces[id: borrowedId]
+      else { return .none }
+      let onScreenIds = borrowedWs.apps.filter { $0.layout != .floating }.map(\.bundleIdentifier)
+      let hasOnScreen = !onScreenIds.isEmpty
+        && !windowSnapshot.discoverKeys(onScreenIds, false).isEmpty
+      guard !hasOnScreen else {
+        debugLog.log("Borrow", "borrowed \(borrowedWs.name) tree empty but apps on screen — keep")
+        return .none
+      }
+      debugLog.log("Borrow", "borrowed \(borrowedWs.name) empty → dismiss")
+      return .send(.dismissBorrow(display: display))
+    }
+    return .none
   }
 
   /// Bundle ids registered to any workspace anywhere in the config.
@@ -463,76 +497,85 @@ extension WorkspaceActivationFeature {
   /// Re-tiles the survivors and, when focus was stranded, pulls it to one.
   func pruneOffscreenWindows(state: inout State) -> Effect<Action> {
     guard !state.isTilingPaused, !state.isActivating,
-          let workspaceId = state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
-          let tree = state.tilingTrees[workspaceId]
+          let hostId = state.primaryActiveWorkspaceID
     else { return .none }
 
-    let onScreen = windowSnapshot.onScreenWindowIDs()
-    let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
-    guard !gone.isEmpty else { return .none }
-    // Read focus only when something was actually pruned (refocus needs
-    // it) — pruning is scheduled after every app activation, and the read
-    // is an AX round trip to the frontmost app.
-    let focused = windowSnapshot.focusedWindowKey()
+    // Windows can vanish in the host or in a borrowed block on the focused
+    // display — prune both trees, then flush the composition once.
+    var targetIds = [hostId]
+    if let display = state.focusedDisplay,
+       let comp = state.compositionsByDisplay[display] {
+      targetIds += comp.borrowed.map(\.workspace).filter { $0 != hostId }
+    }
+    let soleTarget = targetIds.count == 1
 
-    var pruned: BSPNode<WindowKey>? = tree
-    for key in gone { pruned = pruned?.removing(key) }
+    let onScreen = windowSnapshot.onScreenWindowIDs()
     let settings = state.config.settings
     let axis = settings.layout.autoBalance
-    let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
-    state.tilingTrees[workspaceId] = balanced
-    let newWindows = Set(balanced?.windows ?? [])
+    // Read focus lazily — only when a prune actually happens (the read is an
+    // AX round trip to the frontmost app, and prune runs after every
+    // activation).
+    var focusedRead = false
+    var focused: WindowKey?
 
-    debugLog.log(
-      "Prune",
-      "ws=\(workspace.name) removed=\(gone.map { $0.windowID }) "
-        + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
-    )
+    var prunedAny = false
+    var effects: [Effect<Action>] = []
+    for workspaceId in targetIds {
+      guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+            let tree = state.tilingTrees[workspaceId]
+      else { continue }
+      let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
+      guard !gone.isEmpty else { continue }
+      if !focusedRead { focused = windowSnapshot.focusedWindowKey(); focusedRead = true }
 
-    let display = workspace.displayHint ?? displays.current()
-    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+      var pruned: BSPNode<WindowKey>? = tree
+      for key in gone { pruned = pruned?.removing(key) }
+      let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
+      state.tilingTrees[workspaceId] = balanced
+      let newWindows = Set(balanced?.windows ?? [])
+      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+      prunedAny = true
 
-    let refocusEffect: Effect<Action> = {
-      guard settings.focus.refocusOnClose, !newWindows.isEmpty,
-            focused == nil || !newWindows.contains(focused!)
-      else { return .none }
-      let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
-        ?? balanced?.windows.first
-      guard let target else { return .none }
-      return .run { [focus = focusManager] _ in await focus.focusWindow(target) }
-    }()
-
-    let retile: Effect<Action> = balanced.map { final in
-      applyLayout(
-        tree: final, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
+      debugLog.log(
+        "Prune",
+        "ws=\(workspace.name) removed=\(gone.map { $0.windowID }) "
+          + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
       )
-    } ?? .none
 
-    return .merge(
-      retile,
-      persist(balanced, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
-      refreshMarkers(state: state),
-      refocusEffect,
+      let refocusEffect: Effect<Action> = {
+        guard settings.focus.refocusOnClose, !newWindows.isEmpty,
+              focused == nil || !newWindows.contains(focused!)
+        else { return .none }
+        // With two blocks live, only the block whose own focused window was
+        // pruned refocuses — pruning a sibling must not steal focus from it.
+        if !soleTarget {
+          guard let focused, gone.contains(focused) else { return .none }
+        }
+        let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
+          ?? balanced?.windows.first
+        guard let target else { return .none }
+        return .run { [focus = focusManager] _ in await focus.focusWindow(target) }
+      }()
+
+      effects.append(
+        persist(balanced, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      )
+      effects.append(refocusEffect)
       // Pruning only runs when windows actually left the screen.
-      switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
-    )
+      effects.append(handleEmptied(workspaceId: workspaceId, state: state))
+    }
+
+    guard prunedAny else { return .none }
+    // One composition-aware flush re-lays every block from the updated trees.
+    effects.append(flushLayout(workspaceId: hostId, state: state))
+    effects.append(refreshMarkers(state: state))
+    return .merge(effects)
   }
 
   func retileActive(state: State) -> Effect<Action> {
     guard let workspaceId = state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
-          let tree = state.tilingTrees[workspaceId]
+          state.tilingTrees[workspaceId] != nil
     else { return .none }
-    let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
-    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    return applyLayout(
-      tree: tree, workspaceId: workspaceId, settings: settings,
-      display: display, fullscreenZoomed: zoomed
-    )
+    return flushLayout(workspaceId: workspaceId, state: state)
   }
 }

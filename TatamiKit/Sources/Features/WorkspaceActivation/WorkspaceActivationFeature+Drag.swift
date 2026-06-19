@@ -10,16 +10,16 @@ extension WorkspaceActivationFeature {
     frame newFrame: CGRect,
     state: inout State
   ) -> Effect<Action> {
-    guard let workspaceId = state.primaryActiveWorkspaceID,
+    guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
 
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
+    // Resize against the block's geometry (composition sub-rect when composed).
+    let (_, workArea) = tilingContext(for: workspaceId, state: state)
     let gap = CGFloat(settings.layout.gapInner)
-    let workArea = tilingWorkArea(for: display, settings: settings)
 
     // The window's currently-tiled frame; compared against the new AX frame
     // to see which edge(s) the user dragged. (1.5 px tolerance also rejects
@@ -68,10 +68,7 @@ extension WorkspaceActivationFeature {
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
-      applyLayout(
-        tree: newTree, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
-      ),
+      flushLayout(workspaceId: workspaceId, state: state),
       persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
@@ -96,16 +93,15 @@ extension WorkspaceActivationFeature {
     dragged: WindowKey,
     state: State
   ) -> (target: WindowKey, targetRect: CGRect, zone: DropZone)? {
-    guard let workspaceId = state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
+    // Resolve the dragged window's owning block; the drop target is searched
+    // within that one tree, so a drop can't cross the workspace boundary.
+    guard let workspaceId = state.workspaceOwning(dragged) ?? state.primaryActiveWorkspaceID,
           let tree = state.tilingTrees[workspaceId],
           tree.pathTo(window: dragged) != nil
     else { return nil }
 
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
-    let workArea = tilingWorkArea(for: display, settings: settings)
+    let (_, workArea) = tilingContext(for: workspaceId, state: state)
     // Cursor in AX top-left coords (matches `frames` / `workArea`).
     let cursor = mouse.axLocation()
 
@@ -132,7 +128,9 @@ extension WorkspaceActivationFeature {
     _ drop: State.PendingDrop,
     state: inout State
   ) -> Effect<Action> {
-    guard let workspaceId = state.primaryActiveWorkspaceID,
+    // Both windows must live in the same block's tree — the drop decision was
+    // made within one tree, so a cross-boundary drop never reaches here.
+    guard let workspaceId = state.workspaceOwning(drop.dragged) ?? state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces[id: workspaceId],
           let tree = state.tilingTrees[workspaceId],
@@ -141,7 +139,6 @@ extension WorkspaceActivationFeature {
     else { return .none }
 
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
     let newTree: BSPNode<WindowKey>
     switch drop.zone {
     case .swap:
@@ -159,10 +156,7 @@ extension WorkspaceActivationFeature {
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
-      applyLayout(
-        tree: newTree, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
-      ),
+      flushLayout(workspaceId: workspaceId, state: state),
       persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }

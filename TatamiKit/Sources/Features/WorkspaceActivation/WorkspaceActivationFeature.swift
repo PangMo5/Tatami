@@ -121,19 +121,37 @@ public struct WorkspaceActivationFeature {
       return activeWorkspacesByDisplay.values.first
     }
 
+    /// The composed workspace (borrowed block or host) that should own a
+    /// window of `bundleId` — by tree membership when `key` is known, else by
+    /// app registration in a borrowed workspace (so a brand-new borrowed
+    /// window routes to its block before it syncs in). Falls back to the
+    /// active workspace, so every non-composed path is byte-identical to
+    /// before.
+    func composedOwner(bundleId: String, key: WindowKey?) -> Workspace.ID? {
+      guard let display = focusedDisplay,
+            let comp = compositionsByDisplay[display]
+      else { return primaryActiveWorkspaceID }
+      if let key {
+        for slot in comp.borrowed
+        where tilingTrees[slot.workspace]?.windows.contains(key) == true {
+          return slot.workspace
+        }
+        if tilingTrees[comp.host]?.windows.contains(key) == true { return comp.host }
+      }
+      for slot in comp.borrowed
+      where config.activeProfile?.workspaces[id: slot.workspace]?
+        .apps.contains(where: { $0.bundleIdentifier == bundleId }) == true {
+        return slot.workspace
+      }
+      return comp.host
+    }
+
     /// The workspace owning `key` within the focused display's composition:
     /// a borrowed workspace if the key is in its tree, else the host. With no
     /// composition active this returns the single active workspace, so every
     /// non-composed path behaves byte-identically to before.
     func workspaceOwning(_ key: WindowKey) -> Workspace.ID? {
-      guard let display = focusedDisplay,
-            let comp = compositionsByDisplay[display]
-      else { return primaryActiveWorkspaceID }
-      for slot in comp.borrowed
-      where tilingTrees[slot.workspace]?.windows.contains(key) == true {
-        return slot.workspace
-      }
-      return comp.host
+      composedOwner(bundleId: key.bundleId, key: key)
     }
 
     /// The workspace the user is acting in: owner of the focused window,
@@ -423,7 +441,7 @@ public struct WorkspaceActivationFeature {
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
           // didActivateApplication).
-          if let key, let wsId = state.primaryActiveWorkspaceID {
+          if let key, let wsId = state.composedOwner(bundleId: bundleId, key: key) {
             let treeWindows = state.tilingTrees[wsId]?.windows ?? []
             let inTree = treeWindows.contains(key)
             // insertionPoint is the *tile* anchor, so only tree windows.
