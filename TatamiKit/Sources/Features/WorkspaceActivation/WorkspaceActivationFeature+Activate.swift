@@ -549,6 +549,28 @@ extension WorkspaceActivationFeature {
     debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
     return .send(.activate(workspaceId: comp.host, setFocus: true))
   }
+
+  /// The display + rect a workspace's tree should tile into right now: its
+  /// composition sub-rect when it's a host/borrowed block, else its own
+  /// display's full work area (pre-feature behavior). The single place every
+  /// focus-relative BSP op resolves geometry, so composed and uncomposed
+  /// paths can't drift.
+  func tilingContext(for workspaceId: Workspace.ID, state: State) -> (display: DisplayName?, rect: CGRect) {
+    if let display = state.focusedDisplay,
+       let comp = state.compositionsByDisplay[display],
+       let slot = comp.borrowed.first {
+      let workArea = tilingWorkArea(for: display, settings: state.config.settings)
+      let gap = CGFloat(state.config.settings.layout.gapInner)
+      let (hostRect, borrowedRect) = Self.subRects(
+        workArea: workArea, edge: slot.edge, fraction: slot.fraction, gap: gap
+      )
+      if workspaceId == comp.host { return (display, hostRect) }
+      if workspaceId == slot.workspace { return (display, borrowedRect) }
+    }
+    let display = state.config.activeProfile?.workspaces[id: workspaceId]?.displayHint
+      ?? displays.current()
+    return (display, tilingWorkArea(for: display, settings: state.config.settings))
+  }
 }
 
 /// Whole milliseconds of a `Duration`, for the activation phase log.

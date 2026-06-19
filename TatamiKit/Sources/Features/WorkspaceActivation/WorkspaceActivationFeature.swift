@@ -775,24 +775,22 @@ public struct WorkspaceActivationFeature {
         }
 
       case .cycleWindowResolved(let key, let direction):
-        guard let workspaceId = state.primaryActiveWorkspaceID,
-              let workspace = state.config.activeProfile?
-                .workspaces[id: workspaceId],
+        guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
               let tree = state.tilingTrees[workspaceId]
         else { return .none }
-        // The visible windows of the active workspace: tiled (the BSP tree)
-        // plus floating plus unmanaged. All are managed and on-screen, so
-        // off-screen / other-space / minimized windows never enter the
-        // cycle. Each window is its own key, so multiple windows of the same
-        // app cycle individually.
+        // Cycle within the focused block. Floating/unmanaged join only when
+        // uncomposed (their bundle sets resolve per active workspace, not per
+        // block); each window is its own key so same-app windows cycle.
         var ordered = tree.windows
-        let floatingBundles = Self.floatingBundleIds(state: state)
-        if !floatingBundles.isEmpty {
-          ordered += windowSnapshot.cachedKeys(floatingBundles, false)
-        }
-        let unmanagedBundles = Self.unmanagedBundleIds(state: state)
-        if !unmanagedBundles.isEmpty {
-          ordered += windowSnapshot.cachedKeys(unmanagedBundles, false)
+        if state.compositionsByDisplay.isEmpty {
+          let floatingBundles = Self.floatingBundleIds(state: state)
+          if !floatingBundles.isEmpty {
+            ordered += windowSnapshot.cachedKeys(floatingBundles, false)
+          }
+          let unmanagedBundles = Self.unmanagedBundleIds(state: state)
+          if !unmanagedBundles.isEmpty {
+            ordered += windowSnapshot.cachedKeys(unmanagedBundles, false)
+          }
         }
         // App-level cycling (the default) keeps one representative window per
         // app, so a press lands on the next *app*; window-level cycling walks
@@ -816,7 +814,7 @@ public struct WorkspaceActivationFeature {
             + "→ \(target.bundleId)#\(target.windowID)"
         )
         let cycleSettings = state.config.settings
-        let cycleDisplay = workspace.displayHint ?? displays.current()
+        let (cycleDisplay, cycleRect) = tilingContext(for: workspaceId, state: state)
         let cycleWarp = cycleSettings.focus.mouseFollowsFocus
         let cycleZoomed = state.fullscreenZoomed[workspaceId] ?? []
         return .run { [mouse = mouse, focus = focusManager] _ in
@@ -825,7 +823,8 @@ public struct WorkspaceActivationFeature {
             let frames = await MainActor.run {
               Self.computeFrames(
                 tree: tree, settings: cycleSettings,
-                targetDisplay: cycleDisplay, fullscreenZoomed: cycleZoomed
+                targetDisplay: cycleDisplay, fullscreenZoomed: cycleZoomed,
+                targetRect: cycleRect
               )
             }
             if let rect = frames[target] {
@@ -840,19 +839,17 @@ public struct WorkspaceActivationFeature {
         }
 
       case .bspFocusResolved(let key, let direction):
-        guard let workspaceId = state.primaryActiveWorkspaceID,
-              let workspace = state.config.activeProfile?
-                .workspaces[id: workspaceId],
+        guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
               let tree = state.tilingTrees[workspaceId]
         else {
           debugLog.log("BSP", "focus \(direction): no active workspace/tree")
           return .none
         }
         let settings = state.config.settings
-        let display = workspace.displayHint ?? displays.current()
+        let (display, workArea) = tilingContext(for: workspaceId, state: state)
         let gap = CGFloat(settings.layout.gapInner)
-        let workArea = tilingWorkArea(for: display, settings: settings)
-        // Directional focus stays within the tiled set.
+        // Directional focus stays within the focused block's tiled set —
+        // a single tree, so it can't cross the workspace boundary.
         guard let target = tree.directionalNeighbor(
           of: key,
           direction: direction,
@@ -878,7 +875,8 @@ public struct WorkspaceActivationFeature {
           if warpMouse {
             let frames = await MainActor.run {
               Self.computeFrames(
-                tree: tree, settings: settings, targetDisplay: display, fullscreenZoomed: zoomed
+                tree: tree, settings: settings, targetDisplay: display,
+                fullscreenZoomed: zoomed, targetRect: workArea
               )
             }
             if let rect = frames[target] {
