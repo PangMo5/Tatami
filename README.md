@@ -29,11 +29,21 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 - Group apps into virtual workspaces with per-workspace app assignments
 - Switch by hotkey, trackpad swipe, or "recent workspace"
+- One **key equivalent** per workspace: hold the switch / assign / borrow modifier with it to switch to it, assign the focused app to it, or borrow it — the same keys drive the recent / next / previous targets, and any action takes an explicit override
 - Optional loop-around, skip-empty, and follow-app-focus behaviors
 - Auto-open assigned apps when a workspace activates — and reopen them on re-entry if their window was closed
 - Per-display workspaces — pin one to a display or follow apps dynamically; each display keeps its own active workspace, and you can cycle per-display or across every display
 - Jump focus between displays, or move the focused app to another workspace
 - Shared apps that join every workspace
+
+### Borrow — compose two workspaces
+
+- **Pull another workspace in beside the current one**, docked to a screen edge (top / bottom / left / right) and tiled side by side — each keeps its own BSP layout, and windows can't cross the boundary
+- **Live and bidirectional**: the borrowed block is the real workspace, so edits there persist back to it
+- Press the borrow modifier + a workspace's key, then a direction (`h` / `j` / `k` / `l` or arrows) to place it — or set a default edge and size, globally or per workspace
+- **Directional focus crosses the boundary**; activating a borrowed workspace fully switches to it; re-borrowing re-docks; `esc` cancels the direction pick
+- Borrowed windows are badged with the borrowed workspace's icon so what's on loan is clear at a glance
+- **Scratchpad workspaces** are borrow-only — excluded from cycling, never activated on their own, and their apps auto-open when summoned
 
 ### Window tiling (yabai-style BSP)
 

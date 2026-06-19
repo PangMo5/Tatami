@@ -6,6 +6,18 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.5.0 — 2026-06-19
+
+### New
+- **Borrow — compose two workspaces side by side.** Pull another workspace in beside the current one, docked to a screen edge (top / bottom / left / right) and tiled next to it. Each block keeps its own BSP layout and windows can't cross the boundary; the borrowed block is the *real* workspace, so edits there persist back to it. Hold the borrow modifier with a workspace's key (or `dismissBorrow` to return it), then steer the direction with `h` / `j` / `k` / `l` / arrows — or set a default edge and size, globally or per workspace. Directional focus crosses the boundary, activating a borrowed workspace fully switches to it, re-borrowing re-docks, and `esc` cancels the direction pick.
+- **One key per workspace.** Give a workspace a single **key equivalent** and hold it with the switch (⌃⌥), assign (⌃⌥⇧), or borrow (⌃⌥⌘) modifier to switch to it, assign the focused app to it, or borrow it — the same keys drive the recent / next / previous targets, and every action still takes an explicit shortcut override. The modifier combos are configurable.
+- **Scratchpad workspaces.** A borrow-only workspace kind — excluded from cycling, never activated on its own, summoned beside another workspace with a borrow (its apps auto-open when you do). Pick the kind in a workspace's settings; scratchpads get their own menu-bar section.
+- **Borrowed windows are badged** with the borrowed workspace's icon so what's on loan is clear at a glance — color and visibility configurable under **Settings → Appearance → Window Markers**.
+
+### Improvements
+- **Settings reorganized.** The separate Shortcuts pane is gone — each shortcut now lives in the pane for the feature it controls (Tiling, Focus & Mouse, Workspaces), and the panes and sections are ordered by how often you reach for them.
+- **Menu bar tidied** — scratchpads list under their own section, and the rarely-used "Pause Tiling" item was removed (pause/resume is still on the `toggleSpaceActivated` shortcut).
+
 ## 1.4.2 — 2026-06-19
 
 ### Fixes

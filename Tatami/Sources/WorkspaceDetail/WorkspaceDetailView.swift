@@ -121,7 +121,7 @@ struct WorkspaceDetailView: View {
                 onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
               ) { store.send(.keyEquivalentChanged($0)) }
             }
-            Text("One key for this workspace. Combined with the switch / assign / borrow modifiers (Settings → Shortcuts) for those actions, and chosen as the borrow direction follows.")
+            Text("One key for this workspace — hold it with the switch / assign / borrow modifier (Settings → Workspaces → Workspace Keys) to run each action.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -148,8 +148,9 @@ struct WorkspaceDetailView: View {
 
         Section {
           // Each action derives from the workspace key (its modifier in
-          // Settings → Shortcuts); the recorder beside it overrides that.
-          // Activate / Assign are meaningless for a borrow-only scratchpad.
+          // Settings → Workspaces → Workspace Keys); the recorder beside it
+          // overrides that. Activate / Assign are meaningless for a
+          // borrow-only scratchpad.
           if workspace.kind != .scratchpad {
             derivedShortcutRow(
               "Activate",
@@ -179,7 +180,7 @@ struct WorkspaceDetailView: View {
         } header: {
           Text("Shortcuts")
         } footer: {
-          Text("Each uses the modifier (Settings → Shortcuts) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below.")
+          Text("Each uses its modifier (Settings → Workspaces → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }

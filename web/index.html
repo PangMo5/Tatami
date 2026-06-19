@@ -22,6 +22,7 @@
     <label for="nav-toggle" class="nav-burger" aria-label="Menu"><span></span></label>
     <div class="nav-links">
       <a href="#workspaces">Workspaces</a>
+      <a href="#borrow">Borrow</a>
       <a href="#tiling">Tiling</a>
       <a href="#floating">Floating</a>
       <a href="./configuration.html">Configuration</a>
@@ -111,7 +112,32 @@
   </div>
 </section>
 
-<section class="section-gray" id="tiling">
+<section class="section-gray" id="borrow">
+  <div class="wrap">
+    <p class="eyebrow">New — borrow</p>
+    <h2>Two workspaces, side by side.</h2>
+    <p class="sub">Need one workspace's window while you work in another? Borrow it in — docked to a screen edge and tiled next to the current one, each keeping its own layout.</p>
+    <div class="features">
+      <div class="feature">
+        <div class="ico">⊞</div>
+        <h3>Docked &amp; tiled</h3>
+        <p>Pull a workspace to the top, bottom, left, or right. The two blocks tile beside each other, each with its own BSP layout — windows stay on their own side.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">↔️</div>
+        <h3>Live, both ways</h3>
+        <p>The borrowed block <em>is</em> the real workspace, so edits there stick. Directional focus crosses the seam; activate it to switch over fully; re-borrow to re-dock.</p>
+      </div>
+      <div class="feature">
+        <div class="ico">⌨️</div>
+        <h3>A key and a direction</h3>
+        <p>Hold the borrow modifier with a workspace's key, then press a direction (<code>h</code> <code>j</code> <code>k</code> <code>l</code> or arrows) — or set a default edge and size. Scratchpad workspaces are borrow-only.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tiling">
   <div class="wrap">
     <p class="eyebrow">Window tiling</p>
     <h2>Tiled automatically, controlled precisely.</h2>
@@ -136,9 +162,9 @@
   </div>
 </section>
 
-<section id="floating">
+<section class="section-gray" id="floating">
   <div class="wrap">
-    <p class="eyebrow">New — floating windows</p>
+    <p class="eyebrow">Floating windows</p>
     <h2>Float anything above the tiles.</h2>
     <p class="sub">Some windows belong on top — a video call, a simulator, a music player. Mark the app as floating and Tatami keeps its windows above the layout.</p>
     <div class="features">
