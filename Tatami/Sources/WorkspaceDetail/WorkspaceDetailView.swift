@@ -288,6 +288,7 @@ struct WorkspaceDetailView: View {
                   )
                 }
               ),
+              showLayoutOptions: workspace.kind != .scratchpad,
               onRemove: {
                 store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
               }
@@ -483,6 +484,9 @@ private struct AppRow: View {
   let assignment: AppAssignment
   let autoOpenBinding: Binding<Bool>
   let layoutBinding: Binding<LayoutMode>
+  /// Layout + auto-open are meaningless for a borrow-only scratchpad (only
+  /// tiled apps take part when borrowed, and it never activates), so hide them.
+  var showLayoutOptions: Bool = true
   let onRemove: () -> Void
 
   var body: some View {
@@ -497,24 +501,26 @@ private struct AppRow: View {
           .foregroundStyle(.secondary)
       }
       Spacer()
-      Picker("Layout", selection: layoutBinding) {
-        Text("Tiled").tag(LayoutMode.tiled)
-        Text("Float").tag(LayoutMode.floating)
-        Text("Ignore").tag(LayoutMode.unmanaged)
+      if showLayoutOptions {
+        Picker("Layout", selection: layoutBinding) {
+          Text("Tiled").tag(LayoutMode.tiled)
+          Text("Float").tag(LayoutMode.floating)
+          Text("Ignore").tag(LayoutMode.unmanaged)
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize()
+        .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
+        HStack(spacing: 6) {
+          Text("Auto-open")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Toggle("Auto-open", isOn: autoOpenBinding)
+            .labelsHidden()
+            .toggleStyle(.switch)
+        }
+        .help("Launch this app automatically when the workspace activates, if it isn't already running.")
       }
-      .labelsHidden()
-      .pickerStyle(.segmented)
-      .fixedSize()
-      .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
-      HStack(spacing: 6) {
-        Text("Auto-open")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Toggle("Auto-open", isOn: autoOpenBinding)
-          .labelsHidden()
-          .toggleStyle(.switch)
-      }
-      .help("Launch this app automatically when the workspace activates, if it isn't already running.")
       Button(role: .destructive, action: onRemove) {
         Image(systemName: "minus.circle.fill")
           .foregroundStyle(.red)
@@ -567,7 +573,28 @@ struct AppPickerSheet: View {
 
   var body: some View {
     NavigationStack {
-      Group {
+      // Always a List so the title + search bar stay anchored at the top; the
+      // empty state overlays it centered (a bare ContentUnavailableView shrank
+      // the content and let the navigation title float to the middle).
+      List(filtered, id: \.bundleIdentifier) { app in
+        Button {
+          onSelect(app)
+        } label: {
+          HStack {
+            AppIcon(bundleIdentifier: app.bundleIdentifier, iconPath: app.iconPath)
+              .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(app.name)
+              Text(app.bundleIdentifier)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+          }
+        }
+        .buttonStyle(.plain)
+      }
+      .overlay {
         if filtered.isEmpty {
           ContentUnavailableView {
             Label(apps.isEmpty ? "No Running Apps" : "No Matches", systemImage: "magnifyingglass")
@@ -575,25 +602,6 @@ struct AppPickerSheet: View {
             Text(apps.isEmpty
               ? "Use “Choose from Files…” to add an app that isn't running."
               : "No running app matches “\(query)”.")
-          }
-        } else {
-          List(filtered, id: \.bundleIdentifier) { app in
-            Button {
-              onSelect(app)
-            } label: {
-              HStack {
-                AppIcon(bundleIdentifier: app.bundleIdentifier, iconPath: app.iconPath)
-                  .frame(width: 22, height: 22)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(app.name)
-                  Text(app.bundleIdentifier)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
-                Spacer()
-              }
-            }
-            .buttonStyle(.plain)
           }
         }
       }
