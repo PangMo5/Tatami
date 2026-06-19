@@ -102,27 +102,13 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("What's New in Tatami \(version)")
           .font(.title.weight(.semibold))
-        Text("Per-app layout gains a third mode — and one config field changed shape.")
+        Text("Borrow another workspace beside the one you're in — tiled side by side, live.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
 
-      // MARK: Changes that touch existing setups
-      GroupBox {
-        VStack(alignment: .leading, spacing: 14) {
-          Label("Changes to your setup", systemImage: "exclamationmark.triangle.fill")
-            .font(.headline)
-            .foregroundStyle(.orange)
-
-          item(
-            icon: "doc.plaintext",
-            title: "App layout is a mode now, not a switch",
-            detail: "Each assigned app and shared app now carries a `layout` of `tiled`, `floating`, or `unmanaged` instead of a `floating = true/false` flag. Your existing config migrates automatically. If you hand-edit `config.toml`, use `layout = \"floating\"` (or `\"tiled\"` / `\"unmanaged\"`) — and note that an older Tatami doesn't understand the new key, so downgrading would read every app as tiled."
-          )
-        }
-        .padding(6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
+      // 1.5.0 is purely additive — nothing in it touches an existing config,
+      // so the "Changes to your setup" box is omitted this release.
 
       // MARK: Feature highlights
       VStack(alignment: .leading, spacing: 14) {
@@ -130,24 +116,19 @@ private struct WhatsNewView: View {
           .font(.headline)
 
         item(
-          icon: "rectangle.slash",
-          title: "Ignore tiling (unmanaged apps)",
-          detail: "A third per-app mode beside Tiled and Float: keep an app as a full workspace member — auto-open, show/hide, focus-follows-mouse, window cycling — but leave its window exactly where it is. No tile, no mirror, no Screen Recording. Pick Tiled / Float / Ignore on any app in a workspace or in Shared Apps."
+          icon: "rectangle.righthalf.inset.filled",
+          title: "Borrow — compose two workspaces",
+          detail: "Pull another workspace in beside the current one, docked to a screen edge and tiled next to it. Each keeps its own layout and windows can't cross the boundary; the borrowed block is the real workspace, so edits there stick. Hold the borrow modifier with a workspace's key, then steer the direction with `h` / `j` / `k` / `l` — or set a default edge and size."
         )
         item(
-          icon: "macwindow.badge.plus",
-          title: "Workspaces remember your last window",
-          detail: "Switching to a workspace (when no app is pinned for focus) now returns you to the exact window you last used there — not a fixed app."
+          icon: "keyboard",
+          title: "One key per workspace",
+          detail: "Give a workspace a single key equivalent and hold it with the switch, assign, or borrow modifier to switch to it, assign the focused app, or borrow it. Recent / next / previous targets work the same way, and any action still takes an explicit shortcut override."
         )
         item(
-          icon: "arrow.left.arrow.right",
-          title: "Cycle through every window",
-          detail: "The next/previous-window shortcuts walk all visible windows in the workspace, including multiple windows of the same app."
-        )
-        item(
-          icon: "magnifyingglass",
-          title: "Add apps by search or from disk",
-          detail: "The app picker searches running apps and can add one straight from a file."
+          icon: "tray.full",
+          title: "Scratchpad workspaces",
+          detail: "A borrow-only workspace kind — excluded from cycling and never activated on its own. Summon it beside another workspace and its apps come up with it; each window wears its icon while it's on loan."
         )
       }
       .padding(.horizontal, 6)
