@@ -670,7 +670,11 @@ public struct WorkspaceActivationFeature {
           let end = endBorrowCapture(state: &state)
           return .merge(end, performBorrow(targetId: target, edge: edge, mode: .peek, state: &state))
         case .cancel:
-          return endBorrowCapture(state: &state)
+          // Esc / timeout: end capture and clear the borrow-mode hint HUD.
+          return .merge(
+            endBorrowCapture(state: &state),
+            .run { [workspaceHUD] _ in await workspaceHUD.dismiss() }
+          )
         }
 
       case .assignFocusedAppToRecentWorkspace:

@@ -610,6 +610,18 @@ extension SettingsView {
     let shortcuts = config.settings.shortcuts
     let modSymbols = HotKey.modifierSymbols(from: shortcuts.keyEquivalentModifiers)
     let hasOverride = shortcuts[keyPath: overrideKP] != nil
+    // Derived assign / borrow combos (same key, other modifiers) shown so the
+    // row reads like a workspace's: one key, three actions.
+    let derived: String? = {
+      guard let key = shortcuts[keyPath: keyKP], !key.isEmpty else { return nil }
+      let glyph = HotKey.keySymbol(forName: key)
+      let assign = HotKey.modifierSymbols(from: shortcuts.assignModifiers)
+      let borrow = HotKey.modifierSymbols(from: shortcuts.borrowModifiers)
+      var parts: [String] = []
+      if !assign.isEmpty { parts.append("assign \(assign)\(glyph)") }
+      if !borrow.isEmpty { parts.append("borrow \(borrow)\(glyph)") }
+      return parts.isEmpty ? nil : parts.joined(separator: "  ·  ")
+    }()
     VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 10) {
         VStack(alignment: .leading, spacing: 2) {
@@ -617,6 +629,11 @@ extension SettingsView {
           Text(description)
             .font(.caption)
             .foregroundStyle(.secondary)
+          if let derived {
+            Text(derived)
+              .font(.caption.monospaced())
+              .foregroundStyle(.tertiary)
+          }
         }
         Spacer(minLength: 12)
         KeyEquivalentRecorder(

@@ -13,20 +13,25 @@ struct WorkspaceHUDClient: Sendable {
   var show: @Sendable (
     _ name: String, _ symbolIconName: String?, _ subtitle: String?, _ durationMs: Int
   ) async -> Void
+  /// Fade out the current HUD immediately (e.g. cancelling borrow mode).
+  var dismiss: @Sendable () async -> Void
 }
 
 extension WorkspaceHUDClient: DependencyKey {
   static let liveValue: WorkspaceHUDClient = {
     @Dependency(\.debugLog) var debugLog
     let controller = WorkspaceHUDController(debugLog: debugLog)
-    return WorkspaceHUDClient { name, icon, subtitle, durationMs in
-      await controller.show(
-        name: name, symbolIconName: icon, subtitle: subtitle, durationMs: durationMs
-      )
-    }
+    return WorkspaceHUDClient(
+      show: { name, icon, subtitle, durationMs in
+        await controller.show(
+          name: name, symbolIconName: icon, subtitle: subtitle, durationMs: durationMs
+        )
+      },
+      dismiss: { await controller.dismiss() }
+    )
   }()
 
-  static let testValue = WorkspaceHUDClient { _, _, _, _ in }
+  static let testValue = WorkspaceHUDClient(show: { _, _, _, _ in }, dismiss: {})
   static let previewValue = testValue
 }
 
@@ -75,6 +80,11 @@ private final class WorkspaceHUDController {
       guard !Task.isCancelled else { return }
       self?.fadeOut(panel)
     }
+  }
+
+  func dismiss() {
+    hideTask?.cancel()
+    if let panel { fadeOut(panel) }
   }
 
   private func fadeOut(_ panel: NSPanel) {
