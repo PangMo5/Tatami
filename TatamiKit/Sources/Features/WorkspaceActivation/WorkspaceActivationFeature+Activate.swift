@@ -530,7 +530,13 @@ extension WorkspaceActivationFeature {
     let settings = state.config.settings
     let existingBorrowedTree = state.tilingTrees[targetId]
     debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge) mode=\(mode)")
-    return .run { [mgr = workspaceManager, snapshot = windowSnapshot, displays] send in
+    let hud = hudEffect(
+      state, \.borrow,
+      "Borrowed \(target.name)",
+      Self.borrowEdgeIcon(edge),
+      subtitle: mode == .combine ? "Combined — stays until dismissed" : nil
+    )
+    let render = Effect<Action>.run { [mgr = workspaceManager, snapshot = windowSnapshot, displays] send in
       await mgr.activate(request)
       var discovered: [WindowKey] = []
       for bundleId in tiledBorrowedBundleIds {
@@ -551,6 +557,18 @@ extension WorkspaceActivationFeature {
       await send(.tilingTreeUpdated(workspaceId: targetId, tree: tree))
       await send(.flushComposition(display: display))
     }
+    return .merge(render, hud)
+  }
+
+  /// SF Symbol for a borrow docked to `edge` — a filled half-rectangle on the
+  /// side the borrowed block sits.
+  static func borrowEdgeIcon(_ edge: BorrowEdge) -> String {
+    switch edge {
+    case .left: "rectangle.lefthalf.inset.filled"
+    case .right: "rectangle.righthalf.inset.filled"
+    case .top: "rectangle.tophalf.inset.filled"
+    case .bottom: "rectangle.bottomhalf.inset.filled"
+    }
   }
 
   /// End the borrow on `display`: drop the composition and re-activate the
@@ -558,10 +576,17 @@ extension WorkspaceActivationFeature {
   /// re-tiles the host to the full work area. Fire-and-forget.
   func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
     guard let display, let comp = state.compositionsByDisplay[display] else { return .none }
+    let borrowedName = comp.borrowed.first
+      .flatMap { state.config.activeProfile?.workspaces[id: $0.workspace]?.name }
     state.compositionsByDisplay[display] = nil
     state.combineBorrows[comp.host] = nil
     debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
-    return .send(.activate(workspaceId: comp.host, setFocus: true))
+    let hud = hudEffect(
+      state, \.borrow,
+      borrowedName.map { "Returned \($0)" } ?? "Dismissed Borrow",
+      "rectangle"
+    )
+    return .merge(.send(.activate(workspaceId: comp.host, setFocus: true)), hud)
   }
 
   /// The display + rect a workspace's tree should tile into right now: its

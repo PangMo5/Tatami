@@ -451,6 +451,10 @@ extension SettingsView {
           Text("Layout commands")
           Text("Commands without a visual cue of their own (balance).")
         }
+        Toggle(isOn: setting(\.hud.borrow)) {
+          Text("Borrow")
+          Text("Borrowing a workspace in beside another, or returning it.")
+        }
         DebouncedStepper(
           external: config.settings.hud.durationMs,
           range: 300 ... 3000,

@@ -17,8 +17,17 @@ struct WorkspaceListView: View {
             row(for: workspace)
               .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
               .contextMenu {
-                Button("Activate") {
-                  activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+                if workspace.kind == .scratchpad {
+                  Button("Borrow Here") {
+                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right, mode: .peek))
+                  }
+                } else {
+                  Button("Activate") {
+                    activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+                  }
+                  Button("Borrow Here") {
+                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right, mode: .peek))
+                  }
                 }
                 Divider()
                 Button("Delete", role: .destructive) {
@@ -76,9 +85,21 @@ struct WorkspaceListView: View {
 
   @ViewBuilder
   private func row(for workspace: Workspace) -> some View {
-    HStack {
+    HStack(spacing: 6) {
       Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
       Spacer()
+      if workspace.kind == .scratchpad {
+        Image(systemName: "tray.full")
+          .foregroundStyle(.secondary)
+          .imageScale(.small)
+          .help("Scratchpad — borrow-only, never activated on its own")
+      }
+      if let host = borrowedHostName(for: workspace) {
+        Image(systemName: "rectangle.righthalf.inset.filled")
+          .foregroundStyle(.tint)
+          .imageScale(.small)
+          .help("Borrowed into \(host)")
+      }
       if let display = activeDisplay(for: workspace) {
         Image(systemName: "circle.fill")
           .foregroundStyle(dotColor(for: display))
@@ -91,6 +112,17 @@ struct WorkspaceListView: View {
   /// The display this workspace is currently active on, if any.
   private func activeDisplay(for workspace: Workspace) -> DisplayName? {
     activationStore.activeWorkspacesByDisplay.first { $0.value == workspace.id }?.key
+  }
+
+  /// The host workspace's name when `workspace` is currently borrowed into a
+  /// live composition, else nil.
+  private func borrowedHostName(for workspace: Workspace) -> String? {
+    for (_, comp) in activationStore.compositionsByDisplay
+    where comp.borrowed.contains(where: { $0.workspace == workspace.id }) {
+      return activationStore.config.activeProfile?.workspaces[id: comp.host]?.name
+        ?? "another workspace"
+    }
+    return nil
   }
 
   /// A distinct dot color per active display (so each monitor's active

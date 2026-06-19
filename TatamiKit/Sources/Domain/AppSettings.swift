@@ -246,6 +246,8 @@ extension AppSettings {
     /// Layout commands without an obvious visual cue of their own
     /// (balance).
     public var layout: Bool
+    /// Borrowing a workspace into / out of the current composition.
+    public var borrow: Bool
     /// How long the overlay stays up, in milliseconds. HUDs that carry a
     /// follow-up hint line linger twice as long.
     public var durationMs: Int
@@ -258,6 +260,7 @@ extension AppSettings {
       tilingPaused: Bool = true,
       fullscreen: Bool = true,
       layout: Bool = true,
+      borrow: Bool = true,
       durationMs: Int = 900
     ) {
       self.enabled = enabled
@@ -267,12 +270,13 @@ extension AppSettings {
       self.tilingPaused = tilingPaused
       self.fullscreen = fullscreen
       self.layout = layout
+      self.borrow = borrow
       self.durationMs = durationMs
     }
 
     private enum CodingKeys: String, CodingKey {
       case enabled, workspaceSwitch, floating, appMembership, tilingPaused
-      case fullscreen, layout, durationMs
+      case fullscreen, layout, borrow, durationMs
     }
 
     public init(from decoder: Decoder) throws {
@@ -284,6 +288,7 @@ extension AppSettings {
       self.tilingPaused = c.decode(.tilingPaused, default: true)
       self.fullscreen = c.decode(.fullscreen, default: true)
       self.layout = c.decode(.layout, default: true)
+      self.borrow = c.decode(.borrow, default: true)
       self.durationMs = c.decode(.durationMs, default: 900)
     }
 
