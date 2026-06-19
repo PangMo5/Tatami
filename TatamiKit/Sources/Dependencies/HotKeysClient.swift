@@ -49,6 +49,10 @@ public enum HotKeyAction: Sendable, Hashable {
   case toggleFocusedAppInActiveWorkspace
   /// Toggle the focused window's app in Shared Apps (added tiled).
   case toggleAppInSharedApps
+
+  // Borrow another workspace into the current screen (composition)
+  case borrowRecentRight
+  case dismissBorrow
 }
 
 extension HotKeyAction {
@@ -85,6 +89,8 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "toggle-space"
     case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
     case .toggleAppInSharedApps: "toggle-shared-membership"
+    case .borrowRecentRight: "borrow-recent-right"
+    case .dismissBorrow: "dismiss-borrow"
     }
   }
 
@@ -123,6 +129,8 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "Toggle pause"
     case .toggleFocusedAppInActiveWorkspace: "Toggle app in workspace"
     case .toggleAppInSharedApps: "Toggle app in Shared Apps"
+    case .borrowRecentRight: "Borrow recent workspace (right)"
+    case .dismissBorrow: "Dismiss borrow"
     }
   }
 

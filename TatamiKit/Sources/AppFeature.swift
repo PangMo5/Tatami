@@ -269,6 +269,10 @@ public struct AppFeature {
       return .send(.activation(.activatePrevious))
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
+    case .borrowRecentRight:
+      return .send(.activation(.borrowRecent(edge: .right, mode: .peek)))
+    case .dismissBorrow:
+      return .send(.activation(.dismissBorrow(display: nil)))
     case .moveFocusedAppToNextWorkspace:
       return .send(.activation(.moveFocusedAppToAdjacent(direction: 1)))
     case .moveFocusedAppToPreviousWorkspace:

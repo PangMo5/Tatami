@@ -44,6 +44,9 @@ struct ActivationRequest: Sendable, Hashable {
   /// to raise, so focus lands on the window the user last used — not just
   /// the app's main window. Nil → fall back to the app-level target.
   var windowKeyToFocus: WindowKey?
+  /// Apps of a borrowed workspace to also keep visible during a composition
+  /// (the borrowed block's windows must stay up alongside the host's).
+  var borrowedApps: [AppAssignment] = []
 
   init(
     workspace: Workspace,
@@ -51,7 +54,8 @@ struct ActivationRequest: Sendable, Hashable {
     targetDisplay: DisplayName?,
     setFocus: Bool = true,
     mouseHidesOnFocus: Bool = false,
-    windowKeyToFocus: WindowKey? = nil
+    windowKeyToFocus: WindowKey? = nil,
+    borrowedApps: [AppAssignment] = []
   ) {
     self.workspace = workspace
     self.sharedApps = sharedApps
@@ -59,6 +63,7 @@ struct ActivationRequest: Sendable, Hashable {
     self.setFocus = setFocus
     self.mouseHidesOnFocus = mouseHidesOnFocus
     self.windowKeyToFocus = windowKeyToFocus
+    self.borrowedApps = borrowedApps
   }
 }
 
@@ -88,7 +93,8 @@ extension WorkspaceManagerClient: DependencyKey {
         @Dependency(\.debugLog) var debugLog
         let workspaceBundleIds = Set(request.workspace.apps.map(\.bundleIdentifier))
         let sharedBundleIds = Set(request.sharedApps.map(\.bundleIdentifier))
-        let keepVisible = workspaceBundleIds.union(sharedBundleIds)
+        let borrowedBundleIds = Set(request.borrowedApps.map(\.bundleIdentifier))
+        let keepVisible = workspaceBundleIds.union(sharedBundleIds).union(borrowedBundleIds)
 
         await MainActor.run {
           let running = NSWorkspace.shared.runningApplications.filter {

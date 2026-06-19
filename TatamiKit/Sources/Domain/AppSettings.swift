@@ -654,6 +654,10 @@ extension AppSettings {
     public var toggleFocusedAppInActiveWorkspace: HotKey?
     /// Toggle the focused window's app in Shared Apps (added tiled).
     public var toggleAppInSharedApps: HotKey?
+    /// Borrow the recent workspace into the current screen, docked right.
+    public var borrowRecentRight: HotKey?
+    /// Dismiss the active borrow on the focused display.
+    public var dismissBorrow: HotKey?
 
     public init(
       focusLeft: HotKey? = nil,
@@ -682,7 +686,9 @@ extension AppSettings {
       toggleSharedFloating: HotKey? = nil,
       toggleSpaceActivated: HotKey? = nil,
       toggleFocusedAppInActiveWorkspace: HotKey? = nil,
-      toggleAppInSharedApps: HotKey? = nil
+      toggleAppInSharedApps: HotKey? = nil,
+      borrowRecentRight: HotKey? = nil,
+      dismissBorrow: HotKey? = nil
     ) {
       self.focusLeft = focusLeft
       self.focusRight = focusRight
@@ -711,6 +717,8 @@ extension AppSettings {
       self.toggleSpaceActivated = toggleSpaceActivated
       self.toggleFocusedAppInActiveWorkspace = toggleFocusedAppInActiveWorkspace
       self.toggleAppInSharedApps = toggleAppInSharedApps
+      self.borrowRecentRight = borrowRecentRight
+      self.dismissBorrow = dismissBorrow
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -725,6 +733,7 @@ extension AppSettings {
       case balance
       case toggleFloating, toggleSharedFloating, toggleSpaceActivated
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
+      case borrowRecentRight, dismissBorrow
     }
 
     public init(from decoder: Decoder) throws {
@@ -756,6 +765,8 @@ extension AppSettings {
       self.toggleSpaceActivated = c.decodeIfValid(.toggleSpaceActivated)
       self.toggleFocusedAppInActiveWorkspace = c.decodeIfValid(.toggleFocusedAppInActiveWorkspace)
       self.toggleAppInSharedApps = c.decodeIfValid(.toggleAppInSharedApps)
+      self.borrowRecentRight = c.decodeIfValid(.borrowRecentRight)
+      self.dismissBorrow = c.decodeIfValid(.dismissBorrow)
     }
   }
 }

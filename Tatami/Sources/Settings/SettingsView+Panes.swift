@@ -372,6 +372,14 @@ extension SettingsView {
         "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
         description: "Focus the active workspace on the previous display (loops around)."
       )
+      shortcut(
+        "Borrow recent workspace (right)", .borrowRecentRight, \.borrowRecentRight,
+        description: "Borrow the recent workspace into the right of the current screen, side by side (press again to dismiss)."
+      )
+      shortcut(
+        "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
+        description: "Return the borrowed workspace and restore the current one to full screen."
+      )
     }
 
     Section("Toggles") {

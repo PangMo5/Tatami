@@ -400,10 +400,13 @@ extension WorkspaceActivationFeature {
     tree: BSPNode<WindowKey>?,
     settings: AppSettings,
     targetDisplay: DisplayName?,
-    fullscreenZoomed: Set<WindowKey> = []
+    fullscreenZoomed: Set<WindowKey> = [],
+    targetRect: CGRect? = nil
   ) -> [WindowKey: CGRect] {
     guard let tree else { return [:] }
-    let workArea = ScreenGeometry.workArea(for: targetDisplay).insetBy(
+    // `targetRect` (a composition sub-rect) is already inset; only the
+    // full-display path applies the outer gap.
+    let workArea = targetRect ?? ScreenGeometry.workArea(for: targetDisplay).insetBy(
       dx: CGFloat(settings.layout.gapOuter),
       dy: CGFloat(settings.layout.gapOuter)
     )
@@ -417,6 +420,134 @@ extension WorkspaceActivationFeature {
       return frames
     }
     return tree.frames(in: workArea, gap: gap)
+  }
+
+  /// Split a work area into (host, borrowed) sub-rects for a borrow docked
+  /// to `edge`; the borrowed block sits on that edge with `fraction` share.
+  static func subRects(
+    workArea: CGRect,
+    edge: BorrowEdge,
+    fraction: CGFloat,
+    gap: CGFloat
+  ) -> (host: CGRect, borrowed: CGRect) {
+    let axis: BSPNode<WindowKey>.SplitAxis =
+      (edge == .left || edge == .right) ? .vertical : .horizontal
+    switch edge {
+    case .left, .top:
+      let (b, h) = axis.subdivide(workArea, ratio: fraction, gap: gap)
+      return (host: h, borrowed: b)
+    case .right, .bottom:
+      let (h, b) = axis.subdivide(workArea, ratio: 1 - fraction, gap: gap)
+      return (host: h, borrowed: b)
+    }
+  }
+
+  /// Flush the display's composition (host + borrowed blocks) in one apply:
+  /// each workspace's tree laid into its sub-rect, frames merged, applied
+  /// together. No-op when the display has no active composition.
+  func applyComposition(display: DisplayName?, state: State) -> Effect<Action> {
+    let settings = state.config.settings
+    guard let display,
+          let comp = state.compositionsByDisplay[display],
+          let slot = comp.borrowed.first,
+          let hostTree = state.tilingTrees[comp.host]
+    else { return .none }
+    let borrowedTree = state.tilingTrees[slot.workspace]
+    let hostZoom = state.fullscreenZoomed[comp.host] ?? []
+    let borrowedZoom = state.fullscreenZoomed[slot.workspace] ?? []
+    let edge = slot.edge
+    let fraction = slot.fraction
+    return .run { [tiler = windowTiler, displays] _ in
+      let merged: [WindowKey: CGRect] = await MainActor.run {
+        let workArea = displays.workArea(display).insetBy(
+          dx: CGFloat(settings.layout.gapOuter),
+          dy: CGFloat(settings.layout.gapOuter)
+        )
+        let gap = CGFloat(settings.layout.gapInner)
+        let (hostRect, borrowedRect) = Self.subRects(
+          workArea: workArea, edge: edge, fraction: fraction, gap: gap
+        )
+        let hf = Self.computeFrames(
+          tree: hostTree, settings: settings, targetDisplay: display,
+          fullscreenZoomed: hostZoom, targetRect: hostRect
+        )
+        let bf = Self.computeFrames(
+          tree: borrowedTree, settings: settings, targetDisplay: display,
+          fullscreenZoomed: borrowedZoom, targetRect: borrowedRect
+        )
+        return hf.merging(bf) { current, _ in current }
+      }
+      guard !merged.isEmpty else { return }
+      await tiler.apply(FrameApplication(windowFrames: merged, targetDisplay: display))
+    }
+    .cancellable(id: CancelID.applyComposition(display), cancelInFlight: true)
+  }
+
+  /// Borrow `targetId` into the focused display's host workspace, docked to
+  /// `edge`. Toggles off if that target is already borrowed there. Live: the
+  /// borrowed block reuses the target's real tree, so edits persist to it.
+  func performBorrow(
+    targetId: Workspace.ID,
+    edge: BorrowEdge,
+    mode: BorrowMode,
+    state: inout State
+  ) -> Effect<Action> {
+    guard let profile = state.config.activeProfile,
+          let target = profile.workspaces[id: targetId],
+          let display = state.focusedDisplay ?? state.activeWorkspacesByDisplay.keys.first,
+          let hostId = state.activeWorkspacesByDisplay[display],
+          hostId != targetId,
+          let hostWs = profile.workspaces[id: hostId]
+    else { return .none }
+    if state.compositionsByDisplay[display]?.borrowed
+      .contains(where: { $0.workspace == targetId }) == true {
+      return dismissBorrow(display: display, state: &state)
+    }
+    let slot = BorrowedSlot(workspace: targetId, edge: edge, mode: mode)
+    state.compositionsByDisplay[display] = Composition(host: hostId, borrowed: [slot])
+    if mode == .combine { state.combineBorrows[hostId] = [slot] }
+    let borrowedApps = target.apps
+    let tiledBorrowedBundleIds = target.apps
+      .filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+    let request = ActivationRequest(
+      workspace: hostWs, sharedApps: state.config.sharedApps,
+      targetDisplay: display, setFocus: false, borrowedApps: borrowedApps
+    )
+    let settings = state.config.settings
+    let existingBorrowedTree = state.tilingTrees[targetId]
+    debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge) mode=\(mode)")
+    return .run { [mgr = workspaceManager, snapshot = windowSnapshot, displays] send in
+      await mgr.activate(request)
+      var discovered: [WindowKey] = []
+      for bundleId in tiledBorrowedBundleIds {
+        discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
+      }
+      let keys = discovered
+      let tree = await MainActor.run { () -> BSPNode<WindowKey>? in
+        let workArea = displays.workArea(display).insetBy(
+          dx: CGFloat(settings.layout.gapOuter),
+          dy: CGFloat(settings.layout.gapOuter)
+        )
+        return Self.mergeTree(
+          existing: existingBorrowedTree, target: keys,
+          focused: { snapshot.focusedWindowKey() },
+          insertionPoint: nil, workArea: workArea, settings: settings
+        )
+      }
+      await send(.tilingTreeUpdated(workspaceId: targetId, tree: tree))
+      await send(.flushComposition(display: display))
+    }
+  }
+
+  /// End the borrow on `display`: drop the composition and re-activate the
+  /// host alone, which hides the borrowed apps (no longer in keepVisible) and
+  /// re-tiles the host to the full work area. Fire-and-forget.
+  func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
+    guard let display, let comp = state.compositionsByDisplay[display] else { return .none }
+    state.compositionsByDisplay[display] = nil
+    state.combineBorrows[comp.host] = nil
+    debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
+    return .send(.activate(workspaceId: comp.host, setFocus: true))
   }
 }
 

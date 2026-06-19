@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// How a workspace remembers its BSP layout across re-activations.
@@ -22,6 +23,21 @@ public enum TilingMemory: String, Hashable, Sendable, Codable, CaseIterable {
   }
 }
 
+/// Normal vs scratchpad. A scratchpad is borrow-only: excluded from cycling
+/// and standalone activation, it only appears when summoned into another
+/// workspace's composition.
+public enum WorkspaceKind: String, Hashable, Sendable, Codable, CaseIterable {
+  case normal
+  case scratchpad
+
+  public var displayName: String {
+    switch self {
+    case .normal: "Normal"
+    case .scratchpad: "Scratchpad"
+    }
+  }
+}
+
 /// One unit of "what's visible right now": a named set of app assignments,
 /// pinned to a display (or floating across displays in `dynamic` mode).
 public struct Workspace: Identifiable, Hashable, Sendable, Codable {
@@ -42,6 +58,9 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// How this workspace remembers its BSP layout across activations.
   /// `nil` inherits the global `AppSettings.defaultTilingMemory`.
   public var tilingMemory: TilingMemory?
+  /// Normal vs scratchpad (borrow-only). Scratchpad is skipped by cycling
+  /// and standalone activation; it only shows when borrowed.
+  public var kind: WorkspaceKind
   public var apps: [AppAssignment]
 
   public init(
@@ -53,6 +72,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     symbolIconName: String? = nil,
     appToFocusBundleId: String? = nil,
     tilingMemory: TilingMemory? = nil,
+    kind: WorkspaceKind = .normal,
     apps: [AppAssignment] = []
   ) {
     self.id = id
@@ -63,6 +83,7 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.symbolIconName = symbolIconName
     self.appToFocusBundleId = appToFocusBundleId
     self.tilingMemory = tilingMemory
+    self.kind = kind
     self.apps = apps
   }
 }
@@ -72,6 +93,7 @@ extension Workspace {
     case id, name, displayHint, activateShortcut, assignAppShortcut
     case symbolIconName, appToFocusBundleId
     case tilingMemory
+    case kind
     case apps
   }
 
@@ -85,10 +107,62 @@ extension Workspace {
     symbolIconName = try container.decodeIfPresent(String.self, forKey: .symbolIconName)
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
     tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
+    kind = try container.decodeIfPresent(WorkspaceKind.self, forKey: .kind) ?? .normal
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
 }
 
 extension Workspace {
   public var isDynamic: Bool { displayHint == nil }
+}
+
+// MARK: - Composition (borrowing workspaces into one screen)
+
+/// Which screen edge a borrowed workspace block docks to.
+public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
+  case top, bottom, left, right
+}
+
+/// How long a borrow stays on screen.
+public enum BorrowMode: String, Hashable, Sendable, Codable {
+  /// Transient — dismissed by toggle or focus change. Edits in the borrowed
+  /// block still persist to that workspace (the borrow is live); only the
+  /// on-screen presence is temporary.
+  case peek
+  /// Persistent — stays until explicitly dismissed, and is re-rendered when
+  /// the host workspace is re-activated.
+  case combine
+}
+
+/// One borrowed workspace docked into a host's composition.
+public struct BorrowedSlot: Hashable, Sendable, Codable {
+  public var workspace: Workspace.ID
+  public var edge: BorrowEdge
+  /// The borrowed block's share of the split axis (0…1).
+  public var fraction: CGFloat
+  public var mode: BorrowMode
+
+  public init(
+    workspace: Workspace.ID,
+    edge: BorrowEdge,
+    fraction: CGFloat = 0.4,
+    mode: BorrowMode = .peek
+  ) {
+    self.workspace = workspace
+    self.edge = edge
+    self.fraction = fraction
+    self.mode = mode
+  }
+}
+
+/// What one display shows: a host workspace plus borrowed blocks. Absent for
+/// a display → it shows its host alone (default, pre-feature behavior).
+public struct Composition: Hashable, Sendable, Codable {
+  public var host: Workspace.ID
+  public var borrowed: [BorrowedSlot]
+
+  public init(host: Workspace.ID, borrowed: [BorrowedSlot] = []) {
+    self.host = host
+    self.borrowed = borrowed
+  }
 }

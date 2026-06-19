@@ -62,6 +62,13 @@ public struct WorkspaceActivationFeature {
     /// tree leaves directly.
     public var fullscreenZoomed: [Workspace.ID: Set<WindowKey>] = [:]
 
+    /// Active composition per display — a host workspace plus borrowed
+    /// blocks. Absent → that display shows its host alone (default behavior).
+    public var compositionsByDisplay: [DisplayName: Composition] = [:]
+    /// Persistent (.combine) borrows keyed by host workspace, so
+    /// re-activating a host re-establishes them. `.peek` never lands here.
+    public var combineBorrows: [Workspace.ID: [BorrowedSlot]] = [:]
+
     /// Latest manual resize / move geometry, captured while the user drags
     /// and flushed to the tree on mouse-up (`.windowDragEnded`). Committing
     /// at the true drag-end (rather than on a time guess) avoids re-tiling
@@ -113,6 +120,29 @@ public struct WorkspaceActivationFeature {
       }
       return activeWorkspacesByDisplay.values.first
     }
+
+    /// The workspace owning `key` within the focused display's composition:
+    /// a borrowed workspace if the key is in its tree, else the host. With no
+    /// composition active this returns the single active workspace, so every
+    /// non-composed path behaves byte-identically to before.
+    func workspaceOwning(_ key: WindowKey) -> Workspace.ID? {
+      guard let display = focusedDisplay,
+            let comp = compositionsByDisplay[display]
+      else { return primaryActiveWorkspaceID }
+      for slot in comp.borrowed
+      where tilingTrees[slot.workspace]?.windows.contains(key) == true {
+        return slot.workspace
+      }
+      return comp.host
+    }
+
+    /// The workspace the user is acting in: owner of the focused window,
+    /// falling back to the single active workspace. Replaces
+    /// `primaryActiveWorkspaceID` for focus-relative ops once composed.
+    func focusedWorkspaceID(focusedKey: WindowKey?) -> Workspace.ID? {
+      if let key = focusedKey { return workspaceOwning(key) }
+      return primaryActiveWorkspaceID
+    }
   }
 
   public enum Action {
@@ -128,6 +158,14 @@ public struct WorkspaceActivationFeature {
     case activateNext
     case activatePrevious
     case activateRecent
+    /// Borrow another workspace into the focused display's host (toggles off
+    /// if the same target is already borrowed there).
+    case borrow(workspaceId: Workspace.ID, edge: BorrowEdge, mode: BorrowMode)
+    /// Borrow the recent workspace (resolved from per-display history).
+    case borrowRecent(edge: BorrowEdge, mode: BorrowMode)
+    case dismissBorrow(display: DisplayName?)
+    /// Internal: re-flush a display's composition after its trees change.
+    case flushComposition(display: DisplayName?)
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
     /// connected display, looping around.
     case focusAdjacentDisplay(direction: Int)
@@ -220,6 +258,7 @@ public struct WorkspaceActivationFeature {
     /// Coalesces frame application per workspace: a newer layout
     /// cancels an in-flight apply so a stale one can't land after it.
     case apply(Workspace.ID)
+    case applyComposition(DisplayName)
     /// Debounces the off-screen prune so rapid app switches collapse into one.
     case prune
     /// Single-consumer stream subscriptions: `cancelInFlight` makes a
@@ -473,6 +512,7 @@ public struct WorkspaceActivationFeature {
           markerClient.setFocused(key)
         }
         if !state.isActivating,
+           state.compositionsByDisplay.isEmpty,
            state.config.settings.switching.followAppFocus,
            !state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }),
            let owner = state.config.activeProfile?.workspaces.first(where: {
@@ -539,6 +579,21 @@ public struct WorkspaceActivationFeature {
           setFocus: setFocus,
           state: &state
         )
+
+      case .borrow(let workspaceId, let edge, let mode):
+        return performBorrow(targetId: workspaceId, edge: edge, mode: mode, state: &state)
+
+      case .borrowRecent(let edge, let mode):
+        guard let display = state.focusedDisplay ?? state.activeWorkspacesByDisplay.keys.first,
+              let recent = state.previousWorkspacesByDisplay[display]
+        else { return .none }
+        return performBorrow(targetId: recent, edge: edge, mode: mode, state: &state)
+
+      case .dismissBorrow(let display):
+        return dismissBorrow(display: display, state: &state)
+
+      case .flushComposition(let display):
+        return applyComposition(display: display, state: state)
 
       case .activateNext:
         return cycle(by: 1, state: &state)

@@ -50,6 +50,8 @@ extension AppConfig {
     add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
     add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
     add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
+    add(.borrowRecentRight, shortcuts.borrowRecentRight)
+    add(.dismissBorrow, shortcuts.dismissBorrow)
     return out
   }
 
