@@ -60,8 +60,17 @@ extension WorkspaceActivationFeature {
       targetDisplay = displays.current()
     }
     // Re-tiling this display to `workspace` dismisses any live composition on
-    // it — a borrow is transient and vanishes when its host re-tiles.
-    if let targetDisplay { state.compositionsByDisplay[targetDisplay] = nil }
+    // it — a borrow is transient and vanishes when its host re-tiles. Capture
+    // the dropped borrow's name so the switch HUD can announce it; skip the
+    // case where we're switching *into* the borrowed workspace (a promotion,
+    // not a return).
+    var dismissedBorrowName: String?
+    if let targetDisplay, let comp = state.compositionsByDisplay[targetDisplay] {
+      if let slot = comp.borrowed.first, slot.workspace != workspaceId {
+        dismissedBorrowName = profile.workspaces[id: slot.workspace]?.name
+      }
+      state.compositionsByDisplay[targetDisplay] = nil
+    }
     // "Most recently used" (no pinned focus app): restore the exact
     // window the user last had focused in this workspace.
     let mruWindow = workspace.appToFocusBundleId == nil
@@ -76,7 +85,12 @@ extension WorkspaceActivationFeature {
       windowKeyToFocus: mruWindow
     )
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
-    let showHUD = setFocus && state.config.settings.hud.shows(\.workspaceSwitch)
+    // Show the HUD on a normal switch, or whenever this switch returned a
+    // borrow (so the dismissal is always announced — even mid-move).
+    let showHUD = setFocus && (
+      state.config.settings.hud.shows(\.workspaceSwitch)
+        || (dismissedBorrowName != nil && state.config.settings.hud.shows(\.borrow))
+    )
 
     let settings = state.config.settings
     // Tile target: this workspace's tiled apps + shared tiled apps. Floating
@@ -106,6 +120,7 @@ extension WorkspaceActivationFeature {
 
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
+    let hudSubtitle = dismissedBorrowName.map { "Returned \($0)" }
     let hudDurationMs = state.config.settings.hud.durationMs
 
     // Floating windows need Screen Recording for their mirrors. Don't fail
@@ -168,7 +183,7 @@ extension WorkspaceActivationFeature {
         phaseStart = now
       }
       if showHUD {
-        await hud.show(hudName, hudIcon, nil, hudDurationMs)
+        await hud.show(hudName, hudIcon, hudSubtitle, hudDurationMs)
       }
       // Tear down the outgoing workspace's mirrors in the same beat as the
       // hide pass — leaving them to the post-tile `setFloating` made the
@@ -604,16 +619,11 @@ extension WorkspaceActivationFeature {
     let display = display ?? state.focusedDisplay
       ?? state.compositionsByDisplay.keys.first
     guard let display, let comp = state.compositionsByDisplay[display] else { return .none }
-    let borrowedName = comp.borrowed.first
-      .flatMap { state.config.activeProfile?.workspaces[id: $0.workspace]?.name }
-    state.compositionsByDisplay[display] = nil
     debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
-    let hud = hudEffect(
-      state, \.borrow,
-      borrowedName.map { "Returned \($0)" } ?? "Dismissed Borrow",
-      "rectangle"
-    )
-    return .merge(.send(.activate(workspaceId: comp.host, setFocus: true)), hud)
+    // Re-activate the host: performActivate drops the composition, tiles the
+    // host full-screen, and its switch HUD announces the returned borrow in its
+    // subtitle.
+    return .send(.activate(workspaceId: comp.host, setFocus: true))
   }
 
   /// Disarm the borrow direction pick: clear the target, remove the tap, and
