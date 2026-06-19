@@ -58,6 +58,208 @@ struct ShortcutRecorder: View {
   }
 }
 
+// MARK: - KeyEquivalentRecorder
+
+/// A recorder for a single-character key equivalent (the switch modifier is
+/// global, so only the bare key is captured). Looks like `ShortcutRecorder`:
+/// a capsule showing the effective combo (e.g. `⌃⌥D`), click to capture one
+/// key, with conflict detection and a clear button.
+struct KeyEquivalentRecorder: View {
+  let key: String?
+  /// The switch-modifier glyphs shown before the key (e.g. `⌃⌥`).
+  let modifierSymbols: String
+  /// Conflict title for a candidate key char, or nil if free.
+  var conflict: (String) -> String? = { _ in nil }
+  var onRecordingChanged: (Bool) -> Void = { _ in }
+  let onChange: (String?) -> Void
+
+  var body: some View {
+    HStack(spacing: 4) {
+      field
+        .frame(width: 96, height: 24)
+
+      Button {
+        onChange(nil)
+      } label: {
+        Image(systemName: "xmark.circle.fill")
+          .font(.system(size: 14))
+          .foregroundStyle(.secondary)
+      }
+      .buttonStyle(.plain)
+      .help("Clear key")
+      .opacity(key == nil ? 0 : 1)
+      .disabled(key == nil)
+    }
+  }
+
+  @ViewBuilder
+  private var field: some View {
+    let representable = KeyCapRepresentable(
+      key: key,
+      modifierSymbols: modifierSymbols,
+      conflict: conflict,
+      onRecordingChanged: onRecordingChanged,
+      onChange: onChange
+    )
+    if #available(macOS 26.0, *) {
+      representable.glassEffect(.regular, in: Capsule())
+    } else {
+      representable.background(.ultraThinMaterial, in: Capsule())
+    }
+  }
+}
+
+private struct KeyCapRepresentable: NSViewRepresentable {
+  let key: String?
+  let modifierSymbols: String
+  let conflict: (String) -> String?
+  let onRecordingChanged: (Bool) -> Void
+  let onChange: (String?) -> Void
+
+  func makeNSView(context _: Context) -> KeyCapField {
+    let field = KeyCapField()
+    field.onChange = onChange
+    field.conflict = conflict
+    field.onRecordingChanged = onRecordingChanged
+    field.modifierSymbols = modifierSymbols
+    field.key = key
+    return field
+  }
+
+  func updateNSView(_ field: KeyCapField, context _: Context) {
+    field.onChange = onChange
+    field.conflict = conflict
+    field.onRecordingChanged = onRecordingChanged
+    field.modifierSymbols = modifierSymbols
+    if !field.isRecording {
+      field.key = key
+    }
+  }
+}
+
+final class KeyCapField: NSView {
+  var onChange: ((String?) -> Void)?
+  var conflict: ((String) -> String?)?
+  var onRecordingChanged: ((Bool) -> Void)?
+  var modifierSymbols = "" { didSet { needsDisplay = true } }
+
+  var key: String? { didSet { needsDisplay = true } }
+
+  private(set) var isRecording = false {
+    didSet {
+      guard isRecording != oldValue else { return }
+      needsDisplay = true
+      onRecordingChanged?(isRecording)
+    }
+  }
+
+  override var acceptsFirstResponder: Bool { true }
+  override var intrinsicContentSize: NSSize { NSSize(width: 96, height: 24) }
+  override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
+  override func becomeFirstResponder() -> Bool { true }
+
+  override func resignFirstResponder() -> Bool {
+    isRecording = false
+    return true
+  }
+
+  override func mouseDown(with _: NSEvent) {
+    window?.makeFirstResponder(self)
+    isRecording = true
+  }
+
+  override func keyDown(with event: NSEvent) {
+    guard isRecording, record(event) else {
+      super.keyDown(with: event)
+      return
+    }
+  }
+
+  /// Capture one bare key (modifiers ignored — the switch modifier is global).
+  private func record(_ event: NSEvent) -> Bool {
+    if event.keyCode == 53 { // Escape cancels.
+      window?.makeFirstResponder(nil)
+      return true
+    }
+    guard let name = HotKey.keyName(for: Int(event.keyCode)) else {
+      NSSound.beep()
+      return true
+    }
+    if let owner = conflict?(name) {
+      NSSound.beep()
+      window?.makeFirstResponder(nil)
+      showConflict(owner)
+      return true
+    }
+    key = name
+    onChange?(name)
+    window?.makeFirstResponder(nil)
+    return true
+  }
+
+  private var conflictResetTask: Task<Void, Never>?
+  private var conflictText: String? { didSet { needsDisplay = true } }
+
+  private func showConflict(_ owner: String) {
+    conflictText = "In use: \(owner)"
+    conflictResetTask?.cancel()
+    conflictResetTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(1.8))
+      guard !Task.isCancelled, let self else { return }
+      conflictText = nil
+    }
+  }
+
+  override func draw(_: NSRect) {
+    if isRecording {
+      let ring = NSBezierPath(
+        roundedRect: bounds.insetBy(dx: 1, dy: 1),
+        xRadius: bounds.height / 2,
+        yRadius: bounds.height / 2
+      )
+      ring.lineWidth = 2
+      NSColor.controlAccentColor.setStroke()
+      ring.stroke()
+    }
+
+    let text: String
+    let color: NSColor
+    let bold: Bool
+    if let conflictText {
+      text = conflictText
+      color = .systemOrange
+      bold = true
+    } else if isRecording {
+      text = "Press a key\u{2026}"
+      color = .secondaryLabelColor
+      bold = false
+    } else if let key {
+      text = modifierSymbols + key.uppercased()
+      color = .labelColor
+      bold = true
+    } else {
+      text = "Set key"
+      color = .secondaryLabelColor
+      bold = false
+    }
+
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    style.lineBreakMode = .byTruncatingTail
+    let attributes: [NSAttributedString.Key: Any] = [
+      .font: NSFont.systemFont(ofSize: 12, weight: bold ? .semibold : .regular),
+      .foregroundColor: color,
+      .paragraphStyle: style,
+    ]
+    let nsText = text as NSString
+    let height = nsText.size(withAttributes: attributes).height
+    nsText.draw(
+      in: NSRect(x: 6, y: (bounds.height - height) / 2, width: bounds.width - 12, height: height),
+      withAttributes: attributes
+    )
+  }
+}
+
 // MARK: - RecorderRepresentable
 
 private struct RecorderRepresentable: NSViewRepresentable {

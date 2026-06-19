@@ -217,10 +217,11 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .keyEquivalentChanged(let raw):
-        // One character, lowercased. Any letter/digit is allowed (it drives
-        // modifier+key activation); h/j/k/l simply aren't borrow-summonable
-        // since those steer direction in borrow mode.
-        let key = raw?.lowercased().first.map(String.init)
+        // Keep the last typed character (so typing over an existing key
+        // replaces it instead of being truncated back to the first), lowercased.
+        // Any character is allowed incl. punctuation like , . ; h/j/k/l simply
+        // aren't borrow-summonable since those steer direction in borrow mode.
+        let key = raw?.lowercased().last.map(String.init)
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.keyEquivalent = key }

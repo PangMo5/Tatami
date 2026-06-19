@@ -592,8 +592,8 @@ extension SettingsView {
   /// `HotKeysFeature` re-registers on the change. Conflicts are detected
   /// against every other binding (`AppConfig.shortcutConflict`).
   /// A navigation shortcut driven by a single-char key equivalent (switch
-  /// modifier + key) with an optional explicit-shortcut override. The key
-  /// field dims when an override is set, since the override wins.
+  /// modifier + key) with an optional explicit-shortcut override. The key cap
+  /// dims when an override is set, since the override wins.
   @ViewBuilder
   func keyEquivalentShortcut(
     _ title: String,
@@ -606,26 +606,27 @@ extension SettingsView {
     let modSymbols = HotKey.modifierSymbols(from: shortcuts.keyEquivalentModifiers)
     let hasOverride = shortcuts[keyPath: overrideKP] != nil
     VStack(alignment: .leading, spacing: 4) {
-      HStack(spacing: 8) {
-        Text(title)
-        Spacer(minLength: 12)
-        if !modSymbols.isEmpty {
-          Text(modSymbols).foregroundStyle(.secondary)
+      HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+          Text(description)
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        TextField("key", text: Binding(
-          get: { shortcuts[keyPath: keyKP] ?? "" },
-          set: { v in
-            $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = v.lowercased().first.map(String.init) }
-          }
-        ))
-        .textFieldStyle(.roundedBorder)
-        .frame(width: 40)
-        .multilineTextAlignment(.center)
+        Spacer(minLength: 12)
+        KeyEquivalentRecorder(
+          key: shortcuts[keyPath: keyKP],
+          modifierSymbols: modSymbols,
+          conflict: { keyEquivalentConflict($0, excluding: action) },
+          onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+        ) { newKey in
+          $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = newKey }
+        }
+        .opacity(hasOverride ? 0.35 : 1)
         .disabled(hasOverride)
-        .opacity(hasOverride ? 0.4 : 1)
-        Text("override")
+        Text("or")
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(.tertiary)
         ShortcutRecorder(
           hotKey: shortcuts[keyPath: overrideKP],
           conflict: { config.shortcutConflict(for: $0, excluding: action) },
@@ -634,11 +635,17 @@ extension SettingsView {
           $config.withLock { $0.settings.shortcuts[keyPath: overrideKP] = hotKey }
         }
       }
-      Text(description)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+
+  /// Conflict title for a candidate key equivalent: the switch modifier + key
+  /// resolved against every other binding, or nil when free / unbound.
+  func keyEquivalentConflict(_ char: String, excluding action: HotKeyAction) -> String? {
+    let mods = HotKey.carbonModifiers(from: config.settings.shortcuts.keyEquivalentModifiers)
+    guard mods != 0, let code = HotKey.keyCode(forName: char) else { return nil }
+    return config.shortcutConflict(
+      for: HotKey(carbonKeyCode: code, carbonModifiers: mods), excluding: action
+    )
   }
 
   /// One compact toggle button for a switch-modifier token (e.g. `"ctrl"`),

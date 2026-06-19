@@ -17,6 +17,17 @@ struct WorkspaceDetailView: View {
     activationStore.activeWorkspacesByDisplay.values.contains(workspace.id)
   }
 
+  /// Conflict title for a candidate key equivalent on this workspace: the
+  /// switch modifier + key resolved against every other binding (excluding
+  /// this workspace's own activate), or nil when free / unbound.
+  private func keyEquivalentConflict(_ char: String) -> String? {
+    let mods = HotKey.carbonModifiers(from: store.config.settings.shortcuts.keyEquivalentModifiers)
+    guard mods != 0, let code = HotKey.keyCode(forName: char) else { return nil }
+    return store.state.activateShortcutConflict(
+      for: HotKey(carbonKeyCode: code, carbonModifiers: mods)
+    )
+  }
+
   var body: some View {
     if let workspace = store.workspace {
       Form {
@@ -60,27 +71,35 @@ struct WorkspaceDetailView: View {
               }
           }
 
-          // Key equivalent — the switch modifier + this key activates the
-          // workspace (and summons it in borrow mode). The Activate shortcut
-          // below overrides it.
-          HStack {
-            Text("Key equivalent")
-            Spacer(minLength: 16)
-            let mods = HotKey.modifierSymbols(
-              from: store.config.settings.shortcuts.keyEquivalentModifiers
-            )
-            if let key = workspace.keyEquivalent, !key.isEmpty, !mods.isEmpty {
-              Text("\(mods)\(key.uppercased())")
-                .font(.callout.monospaced())
-                .foregroundStyle(.secondary)
+          // Key equivalent — switch modifier + this key activates the
+          // workspace (and summons it in borrow mode). The inline override
+          // recorder replaces only the activation combo; the key still drives
+          // borrow summon, so it isn't dimmed.
+          VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 10) {
+              Text("Key equivalent")
+              Spacer(minLength: 12)
+              KeyEquivalentRecorder(
+                key: workspace.keyEquivalent,
+                modifierSymbols: HotKey.modifierSymbols(
+                  from: store.config.settings.shortcuts.keyEquivalentModifiers
+                ),
+                conflict: { keyEquivalentConflict($0) },
+                onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+              ) { store.send(.keyEquivalentChanged($0)) }
+              Text("or")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+              ShortcutRecorder(
+                hotKey: workspace.activateShortcut,
+                conflict: { store.state.activateShortcutConflict(for: $0) },
+                onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+              ) { store.send(.activateShortcutChanged($0)) }
             }
-            TextField("key", text: Binding(
-              get: { workspace.keyEquivalent ?? "" },
-              set: { store.send(.keyEquivalentChanged($0.isEmpty ? nil : $0)) }
-            ))
-            .textFieldStyle(.roundedBorder)
-            .frame(width: 48)
-            .multilineTextAlignment(.center)
+            Text("Switch modifier + this key activates the workspace and summons it in borrow mode. Record an explicit shortcut to override the activation combo (the key still summons in borrow mode).")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
           }
 
           // Kind — normal vs scratchpad.
@@ -103,17 +122,7 @@ struct WorkspaceDetailView: View {
         }
 
         Section {
-          // Centered HStack, not LabeledContent — its baseline-aligned label
-          // floats above the taller recorder capsule.
-          HStack {
-            Text("Activate")
-            Spacer(minLength: 16)
-            ShortcutRecorder(
-              hotKey: workspace.activateShortcut,
-              conflict: { store.state.activateShortcutConflict(for: $0) },
-              onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
-            ) { store.send(.activateShortcutChanged($0)) }
-          }
+          // Activate lives in the Key equivalent row above (as the override).
           HStack {
             Text("Assign focused app here")
             Spacer(minLength: 16)
