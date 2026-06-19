@@ -352,28 +352,31 @@ extension SettingsView {
         "Borrow modifier", \.borrowModifiers,
         description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
       )
-      keyEquivalentShortcut(
-        "Recent workspace", .switchToRecentWorkspace,
-        assign: .assignFocusedAppToRecentWorkspace, borrow: .borrowRecentWorkspace,
-        key: \.recentWorkspaceKey, override: \.switchToRecentWorkspace,
-        description: "Switch back to the previously active workspace."
+      navTarget(
+        "Recent workspace", description: "The previously active workspace.",
+        key: \.recentWorkspaceKey,
+        switchAction: .switchToRecentWorkspace, switchOverride: \.switchToRecentWorkspace,
+        assignAction: .assignFocusedAppToRecentWorkspace, assignOverride: \.assignRecentWorkspace,
+        borrowAction: .borrowRecentWorkspace, borrowOverride: \.borrowRecentWorkspace
       )
-      keyEquivalentShortcut(
-        "Next workspace", .switchToNextWorkspace,
-        assign: .assignFocusedAppToNextWorkspace, borrow: .borrowNextWorkspace,
-        key: \.nextWorkspaceKey, override: \.switchToNextWorkspace,
-        description: "Cycle to the next workspace."
+      navTarget(
+        "Next workspace", description: "The next workspace in the cycle.",
+        key: \.nextWorkspaceKey,
+        switchAction: .switchToNextWorkspace, switchOverride: \.switchToNextWorkspace,
+        assignAction: .assignFocusedAppToNextWorkspace, assignOverride: \.assignNextWorkspace,
+        borrowAction: .borrowNextWorkspace, borrowOverride: \.borrowNextWorkspace
       )
-      keyEquivalentShortcut(
-        "Previous workspace", .switchToPreviousWorkspace,
-        assign: .assignFocusedAppToPreviousWorkspace, borrow: .borrowPreviousWorkspace,
-        key: \.previousWorkspaceKey, override: \.switchToPreviousWorkspace,
-        description: "Cycle to the previous workspace."
+      navTarget(
+        "Previous workspace", description: "The previous workspace in the cycle.",
+        key: \.previousWorkspaceKey,
+        switchAction: .switchToPreviousWorkspace, switchOverride: \.switchToPreviousWorkspace,
+        assignAction: .assignFocusedAppToPreviousWorkspace, assignOverride: \.assignPreviousWorkspace,
+        borrowAction: .borrowPreviousWorkspace, borrowOverride: \.borrowPreviousWorkspace
       )
     } header: {
       Text("Workspace Switching")
     } footer: {
-      Text("Set a single-letter key — the switch modifier + key switches, the assign / borrow modifiers + key assign to or borrow that target. Or record an explicit shortcut to override the switch.")
+      Text("One key per target: the switch / assign / borrow modifier + that key runs each action. Record an explicit shortcut to override any of them.")
         .font(.caption)
         .foregroundStyle(.secondary)
     }
@@ -589,75 +592,70 @@ extension SettingsView {
     }
   }
 
-  /// A recorder row bound to a global `HotKeyAction`. The config's
-  /// `shortcuts` group is the single source of truth: the recorder reads the
-  /// current combo from it and writes edits straight back, and the live
-  /// `HotKeysFeature` re-registers on the change. Conflicts are detected
-  /// against every other binding (`AppConfig.shortcutConflict`).
-  /// A navigation shortcut driven by a single-char key equivalent (switch
-  /// modifier + key) with an optional explicit-shortcut override. The key cap
-  /// dims when an override is set, since the override wins.
+  /// A navigation target (recent / next / previous) shown like a workspace:
+  /// one key equivalent plus a Switch / Assign / Borrow row, each combining
+  /// that key with its global modifier and overridable by an explicit shortcut.
   @ViewBuilder
-  func keyEquivalentShortcut(
+  func navTarget(
     _ title: String,
-    _ action: HotKeyAction,
-    assign assignAction: HotKeyAction,
-    borrow borrowAction: HotKeyAction,
+    description: String,
     key keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
-    override overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
-    description: String
+    switchAction: HotKeyAction, switchOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    assignAction: HotKeyAction, assignOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    borrowAction: HotKeyAction, borrowOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>
   ) -> some View {
     let shortcuts = config.settings.shortcuts
-    let modSymbols = HotKey.modifierSymbols(from: shortcuts.keyEquivalentModifiers)
-    let hasOverride = shortcuts[keyPath: overrideKP] != nil
-    // Derived assign / borrow combos (same key, other modifiers) shown so the
-    // row reads like a workspace's: one key, three actions.
-    let derived: String? = {
-      guard let key = shortcuts[keyPath: keyKP], !key.isEmpty else { return nil }
-      let glyph = HotKey.keySymbol(forName: key)
-      let assign = HotKey.modifierSymbols(from: shortcuts.assignModifiers)
-      let borrow = HotKey.modifierSymbols(from: shortcuts.borrowModifiers)
-      var parts: [String] = []
-      if !assign.isEmpty { parts.append("assign \(assign)\(glyph)") }
-      if !borrow.isEmpty { parts.append("borrow \(borrow)\(glyph)") }
-      return parts.isEmpty ? nil : parts.joined(separator: "  ·  ")
-    }()
-    VStack(alignment: .leading, spacing: 4) {
+    VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 10) {
         VStack(alignment: .leading, spacing: 2) {
           Text(title)
-          Text(description)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          if let derived {
-            Text(derived)
-              .font(.caption.monospaced())
-              .foregroundStyle(.tertiary)
-          }
+          Text(description).font(.caption).foregroundStyle(.secondary)
         }
         Spacer(minLength: 12)
+        Text("Key equivalent").font(.caption).foregroundStyle(.secondary)
         KeyEquivalentRecorder(
           key: shortcuts[keyPath: keyKP],
-          modifierSymbols: modSymbols,
-          conflict: { keyEquivalentConflict($0, switch: action, assign: assignAction, borrow: borrowAction) },
+          modifierSymbols: "",
+          conflict: { keyEquivalentConflict($0, switch: switchAction, assign: assignAction, borrow: borrowAction) },
           onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
-        ) { newKey in
-          $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = newKey }
-        }
-        .opacity(hasOverride ? 0.35 : 1)
-        .disabled(hasOverride)
-        Text("or")
-          .font(.caption)
-          .foregroundStyle(.tertiary)
-        ShortcutRecorder(
-          hotKey: shortcuts[keyPath: overrideKP],
-          conflict: { config.shortcutConflict(for: $0, excluding: action) },
-          onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
-        ) { hotKey in
-          $config.withLock { $0.settings.shortcuts[keyPath: overrideKP] = hotKey }
-        }
+        ) { newKey in $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = newKey } }
       }
+      navDerivedRow("Switch", \.keyEquivalentModifiers, keyKP, switchOverride, switchAction)
+      navDerivedRow("Assign", \.assignModifiers, keyKP, assignOverride, assignAction)
+      navDerivedRow("Borrow", \.borrowModifiers, keyKP, borrowOverride, borrowAction)
     }
+  }
+
+  /// One action row under a nav target: the derived combo (its modifier + the
+  /// target's key) and an explicit-shortcut override beside it.
+  @ViewBuilder
+  func navDerivedRow(
+    _ label: String,
+    _ modifiersKP: WritableKeyPath<AppSettings.Shortcuts, [String]>,
+    _ keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
+    _ overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    _ action: HotKeyAction
+  ) -> some View {
+    let shortcuts = config.settings.shortcuts
+    let mods = HotKey.modifierSymbols(from: shortcuts[keyPath: modifiersKP])
+    let key = shortcuts[keyPath: keyKP]
+    let combo = (key?.isEmpty == false) && !mods.isEmpty ? mods + HotKey.keySymbol(forName: key ?? "") : ""
+    let hasOverride = shortcuts[keyPath: overrideKP] != nil
+    HStack(spacing: 10) {
+      Text(label)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .frame(width: 56, alignment: .leading)
+      ComboCapsule(text: combo, dimmed: hasOverride)
+      Text("or").font(.caption).foregroundStyle(.tertiary)
+      ShortcutRecorder(
+        hotKey: shortcuts[keyPath: overrideKP],
+        conflict: { config.shortcutConflict(for: $0, excluding: action) },
+        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+      ) { hotKey in $config.withLock { $0.settings.shortcuts[keyPath: overrideKP] = hotKey } }
+      Spacer()
+    }
+    .padding(.leading, 12)
   }
 
   /// Conflict title for a candidate key equivalent. The key generates three

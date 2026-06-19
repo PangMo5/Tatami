@@ -46,37 +46,24 @@ extension AppConfig {
       if let key { out.append(.init(action: action, hotKey: key)) }
     }
     let shortcuts = settings.shortcuts
-    // Key-equivalent default with explicit override: an explicit shortcut
-    // wins; otherwise switch-modifier + the single-char key equivalent (when
-    // the modifier combo is non-empty).
-    func addKeyEquiv(_ action: HotKeyAction, override explicit: HotKey?, key char: String?) {
+    // Each nav target's switch / assign / borrow: explicit override wins, else
+    // the matching modifier + the target's key.
+    func addNavAction(_ action: HotKeyAction, override explicit: HotKey?, modifiers: Int, key char: String?) {
       if let explicit {
         out.append(.init(action: action, hotKey: explicit))
-      } else if switchModifiers != 0,
-                let char, let keyCode = HotKey.keyCode(forName: char) {
-        out.append(.init(
-          action: action,
-          hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: switchModifiers)
-        ))
+      } else if modifiers != 0, let char, let keyCode = HotKey.keyCode(forName: char) {
+        out.append(.init(action: action, hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: modifiers)))
       }
     }
-    addKeyEquiv(.switchToNextWorkspace, override: shortcuts.switchToNextWorkspace, key: shortcuts.nextWorkspaceKey)
-    addKeyEquiv(.switchToPreviousWorkspace, override: shortcuts.switchToPreviousWorkspace, key: shortcuts.previousWorkspaceKey)
-    addKeyEquiv(.switchToRecentWorkspace, override: shortcuts.switchToRecentWorkspace, key: shortcuts.recentWorkspaceKey)
-    // The same recent/next/previous key also assigns / borrows that target,
-    // via the assign / borrow modifiers (no separate override).
-    func navExtra(_ assignAction: HotKeyAction, _ borrowAction: HotKeyAction, key char: String?) {
-      guard let char, let keyCode = HotKey.keyCode(forName: char) else { return }
-      if assignModifiers != 0 {
-        out.append(.init(action: assignAction, hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: assignModifiers)))
-      }
-      if borrowModifiers != 0 {
-        out.append(.init(action: borrowAction, hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: borrowModifiers)))
-      }
-    }
-    navExtra(.assignFocusedAppToNextWorkspace, .borrowNextWorkspace, key: shortcuts.nextWorkspaceKey)
-    navExtra(.assignFocusedAppToPreviousWorkspace, .borrowPreviousWorkspace, key: shortcuts.previousWorkspaceKey)
-    navExtra(.assignFocusedAppToRecentWorkspace, .borrowRecentWorkspace, key: shortcuts.recentWorkspaceKey)
+    addNavAction(.switchToRecentWorkspace, override: shortcuts.switchToRecentWorkspace, modifiers: switchModifiers, key: shortcuts.recentWorkspaceKey)
+    addNavAction(.assignFocusedAppToRecentWorkspace, override: shortcuts.assignRecentWorkspace, modifiers: assignModifiers, key: shortcuts.recentWorkspaceKey)
+    addNavAction(.borrowRecentWorkspace, override: shortcuts.borrowRecentWorkspace, modifiers: borrowModifiers, key: shortcuts.recentWorkspaceKey)
+    addNavAction(.switchToNextWorkspace, override: shortcuts.switchToNextWorkspace, modifiers: switchModifiers, key: shortcuts.nextWorkspaceKey)
+    addNavAction(.assignFocusedAppToNextWorkspace, override: shortcuts.assignNextWorkspace, modifiers: assignModifiers, key: shortcuts.nextWorkspaceKey)
+    addNavAction(.borrowNextWorkspace, override: shortcuts.borrowNextWorkspace, modifiers: borrowModifiers, key: shortcuts.nextWorkspaceKey)
+    addNavAction(.switchToPreviousWorkspace, override: shortcuts.switchToPreviousWorkspace, modifiers: switchModifiers, key: shortcuts.previousWorkspaceKey)
+    addNavAction(.assignFocusedAppToPreviousWorkspace, override: shortcuts.assignPreviousWorkspace, modifiers: assignModifiers, key: shortcuts.previousWorkspaceKey)
+    addNavAction(.borrowPreviousWorkspace, override: shortcuts.borrowPreviousWorkspace, modifiers: borrowModifiers, key: shortcuts.previousWorkspaceKey)
     add(.moveFocusedAppToNextWorkspace, shortcuts.moveToNextWorkspace)
     add(.moveFocusedAppToPreviousWorkspace, shortcuts.moveToPreviousWorkspace)
     add(.focusNextDisplay, shortcuts.focusNextDisplay)

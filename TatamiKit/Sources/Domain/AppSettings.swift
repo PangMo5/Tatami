@@ -686,6 +686,14 @@ extension AppSettings {
     public var recentWorkspaceKey: String?
     public var nextWorkspaceKey: String?
     public var previousWorkspaceKey: String?
+    /// Explicit overrides of the assign / borrow combos for the nav targets
+    /// (the switch override is `switchTo…Workspace` above).
+    public var assignRecentWorkspace: HotKey?
+    public var assignNextWorkspace: HotKey?
+    public var assignPreviousWorkspace: HotKey?
+    public var borrowRecentWorkspace: HotKey?
+    public var borrowNextWorkspace: HotKey?
+    public var borrowPreviousWorkspace: HotKey?
     /// Modifier combo that, with a workspace's `keyEquivalent`, starts a borrow
     /// of that workspace — then a direction key (h/j/k/l or arrows) places it.
     /// Empty disables it.
@@ -726,6 +734,12 @@ extension AppSettings {
       recentWorkspaceKey: String? = nil,
       nextWorkspaceKey: String? = nil,
       previousWorkspaceKey: String? = nil,
+      assignRecentWorkspace: HotKey? = nil,
+      assignNextWorkspace: HotKey? = nil,
+      assignPreviousWorkspace: HotKey? = nil,
+      borrowRecentWorkspace: HotKey? = nil,
+      borrowNextWorkspace: HotKey? = nil,
+      borrowPreviousWorkspace: HotKey? = nil,
       borrowModifiers: [String] = ["ctrl", "alt", "cmd"],
       dismissBorrow: HotKey? = nil
     ) {
@@ -761,6 +775,12 @@ extension AppSettings {
       self.recentWorkspaceKey = recentWorkspaceKey
       self.nextWorkspaceKey = nextWorkspaceKey
       self.previousWorkspaceKey = previousWorkspaceKey
+      self.assignRecentWorkspace = assignRecentWorkspace
+      self.assignNextWorkspace = assignNextWorkspace
+      self.assignPreviousWorkspace = assignPreviousWorkspace
+      self.borrowRecentWorkspace = borrowRecentWorkspace
+      self.borrowNextWorkspace = borrowNextWorkspace
+      self.borrowPreviousWorkspace = borrowPreviousWorkspace
       self.borrowModifiers = borrowModifiers
       self.dismissBorrow = dismissBorrow
     }
@@ -779,6 +799,8 @@ extension AppSettings {
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
       case keyEquivalentModifiers, assignModifiers, borrowModifiers
       case recentWorkspaceKey, nextWorkspaceKey, previousWorkspaceKey
+      case assignRecentWorkspace, assignNextWorkspace, assignPreviousWorkspace
+      case borrowRecentWorkspace, borrowNextWorkspace, borrowPreviousWorkspace
       case dismissBorrow
     }
 
@@ -816,6 +838,12 @@ extension AppSettings {
       self.recentWorkspaceKey = c.decodeIfValid(.recentWorkspaceKey)
       self.nextWorkspaceKey = c.decodeIfValid(.nextWorkspaceKey)
       self.previousWorkspaceKey = c.decodeIfValid(.previousWorkspaceKey)
+      self.assignRecentWorkspace = c.decodeIfValid(.assignRecentWorkspace)
+      self.assignNextWorkspace = c.decodeIfValid(.assignNextWorkspace)
+      self.assignPreviousWorkspace = c.decodeIfValid(.assignPreviousWorkspace)
+      self.borrowRecentWorkspace = c.decodeIfValid(.borrowRecentWorkspace)
+      self.borrowNextWorkspace = c.decodeIfValid(.borrowNextWorkspace)
+      self.borrowPreviousWorkspace = c.decodeIfValid(.borrowPreviousWorkspace)
       self.borrowModifiers = c.decode(.borrowModifiers, default: ["ctrl", "alt", "cmd"])
       self.dismissBorrow = c.decodeIfValid(.dismissBorrow)
     }
