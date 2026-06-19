@@ -291,6 +291,7 @@ private final class HotKeysCenter: @unchecked Sendable {
         continuation.yield(action)
       }
       HotKeyCenter.shared.register(with: hotKey)
+      debugLog.log("HotKey", "+ \(identifier) = \(binding.hotKey.displayString)")
       next.append(identifier)
     }
     registeredIdentifiers = next
