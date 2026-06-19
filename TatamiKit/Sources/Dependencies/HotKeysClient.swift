@@ -52,6 +52,17 @@ public enum HotKeyAction: Sendable, Hashable {
   case toggleFocusedAppInActiveWorkspace
   /// Toggle the focused window's app in Shared Apps (added tiled).
   case toggleAppInSharedApps
+
+  // Recent / next / previous workspace as assign / borrow targets (same key
+  // as switching, with the assign / borrow modifier).
+  case assignFocusedAppToRecentWorkspace
+  case assignFocusedAppToNextWorkspace
+  case assignFocusedAppToPreviousWorkspace
+  case borrowRecentWorkspace
+  case borrowNextWorkspace
+  case borrowPreviousWorkspace
+  /// Dismiss the active borrow on the focused display.
+  case dismissBorrow
 }
 
 extension HotKeyAction {
@@ -89,6 +100,13 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "toggle-space"
     case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
     case .toggleAppInSharedApps: "toggle-shared-membership"
+    case .assignFocusedAppToRecentWorkspace: "assign-app-recent-workspace"
+    case .assignFocusedAppToNextWorkspace: "assign-app-next-workspace"
+    case .assignFocusedAppToPreviousWorkspace: "assign-app-prev-workspace"
+    case .borrowRecentWorkspace: "borrow-recent-workspace"
+    case .borrowNextWorkspace: "borrow-next-workspace"
+    case .borrowPreviousWorkspace: "borrow-prev-workspace"
+    case .dismissBorrow: "dismiss-borrow"
     }
   }
 
@@ -129,6 +147,13 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "Toggle pause"
     case .toggleFocusedAppInActiveWorkspace: "Toggle app in workspace"
     case .toggleAppInSharedApps: "Toggle app in Shared Apps"
+    case .assignFocusedAppToRecentWorkspace: "Assign app to recent workspace"
+    case .assignFocusedAppToNextWorkspace: "Assign app to next workspace"
+    case .assignFocusedAppToPreviousWorkspace: "Assign app to previous workspace"
+    case .borrowRecentWorkspace: "Borrow recent workspace"
+    case .borrowNextWorkspace: "Borrow next workspace"
+    case .borrowPreviousWorkspace: "Borrow previous workspace"
+    case .dismissBorrow: "Dismiss borrow"
     }
   }
 

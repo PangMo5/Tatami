@@ -185,20 +185,23 @@ struct WorkspaceDetailView: View {
         }
 
         Section("Borrow Placement") {
+          let globalEdge = store.config.settings.switching.borrowDefaultEdge
+          let globalEdgeLabel = globalEdge?.rawValue.capitalized ?? "Ask"
+          let globalFraction = store.config.settings.switching.borrowFraction
           Picker(
             selection: Binding(
               get: { workspace.borrowEdge },
               set: { store.send(.borrowEdgeChanged($0)) }
             )
           ) {
-            Text("Use default").tag(BorrowEdge?.none)
+            Text("Use Global (\(globalEdgeLabel))").tag(BorrowEdge?.none)
             Divider()
             ForEach(BorrowEdge.allCases, id: \.self) { edge in
               Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
             }
           } label: {
             Text("Direction")
-            Text("Where this workspace docks when borrowed. “Use default” follows Settings (or asks for a direction).")
+            Text("Where this workspace docks when borrowed. Change the global default in Settings.")
           }
           .pickerStyle(.menu)
           Picker(
@@ -207,7 +210,7 @@ struct WorkspaceDetailView: View {
               set: { store.send(.borrowFractionChanged($0)) }
             )
           ) {
-            Text("Use default").tag(Double?.none)
+            Text("Use Global (\(Int((globalFraction * 100).rounded()))%)").tag(Double?.none)
             Divider()
             ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
               Text("\(Int((f * 100).rounded()))%").tag(Double?.some(f))

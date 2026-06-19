@@ -15,34 +15,9 @@ extension WorkspaceActivationFeature {
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces[id: workspaceId]
     else { return .none }
-    // Focus-into-borrowed: when this workspace is currently a borrowed block on
-    // some display, its activate shortcut just moves focus into that block —
-    // the composition stays, rather than re-tiling the display to it alone.
-    for (display, comp) in state.compositionsByDisplay
-    where comp.borrowed.contains(where: { $0.workspace == workspaceId }) {
-      state.focusedDisplay = display
-      let tree = state.tilingTrees[workspaceId]
-      guard let target = state.mruWindows[workspaceId]?.first(where: { tree?.windows.contains($0) == true })
-        ?? tree?.windows.first
-      else { return .none }
-      let (targetDisplay, workArea) = tilingContext(for: workspaceId, state: state)
-      let settings = state.config.settings
-      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-      let warp = setFocus && settings.focus.mouseFollowsFocus
-      debugLog.log("Borrow", "focus into borrowed \(workspace.name)")
-      return .run { [focus = focusManager, mouse] _ in
-        await focus.focusWindow(target)
-        if warp {
-          let frames = await MainActor.run {
-            Self.computeFrames(
-              tree: tree, settings: settings, targetDisplay: targetDisplay,
-              fullscreenZoomed: zoomed, targetRect: workArea
-            )
-          }
-          if let rect = frames[target] { mouse.warp(CGPoint(x: rect.midX, y: rect.midY)) }
-        }
-      }
-    }
+    // (Switching to a borrowed workspace fully activates it — the composition
+    // is dropped as the display re-tiles. Moving focus *into* a borrowed block
+    // without switching is the directional-focus path, not activation.)
     // A scratchpad is borrow-only: there's no "switch to" it. Redirect a
     // standalone activate into a peek borrow on the focused display's host
     // (toggles off if it's already borrowed there).
@@ -614,7 +589,17 @@ extension WorkspaceActivationFeature {
   /// End the borrow on `display`: drop the composition and re-activate the
   /// host alone, which hides the borrowed apps (no longer in keepVisible) and
   /// re-tiles the host to the full work area. Fire-and-forget.
+  /// The recent workspace on the focused display (falls back to any recent) —
+  /// the target for recent-workspace activate / assign / borrow.
+  func recentWorkspaceId(state: State) -> Workspace.ID? {
+    state.focusedDisplay.flatMap { state.previousWorkspacesByDisplay[$0] }
+      ?? state.previousWorkspacesByDisplay.values.first
+  }
+
   func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
+    // A hotkey passes nil → resolve the focused display (then any composed one).
+    let display = display ?? state.focusedDisplay
+      ?? state.compositionsByDisplay.keys.first
     guard let display, let comp = state.compositionsByDisplay[display] else { return .none }
     let borrowedName = comp.borrowed.first
       .flatMap { state.config.activeProfile?.workspaces[id: $0.workspace]?.name }

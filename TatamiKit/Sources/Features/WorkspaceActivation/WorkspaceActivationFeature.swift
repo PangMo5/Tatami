@@ -189,6 +189,14 @@ public struct WorkspaceActivationFeature {
     /// otherwise arm a one-key direction pick (h/j/k/l or arrows). Re-firing
     /// for the same pending target cancels.
     case beginBorrowDirection(workspaceId: Workspace.ID)
+    /// Assign the focused app to the recent / adjacent workspace + switch
+    /// there — the recent/next/previous key with the assign modifier.
+    case assignFocusedAppToRecentWorkspace
+    case assignFocusedAppToAdjacentWorkspace(direction: Int)
+    /// Borrow the recent / adjacent workspace — the recent/next/previous key
+    /// with the borrow modifier.
+    case borrowRecentWorkspace
+    case borrowAdjacentWorkspace(direction: Int)
     /// Internal: a decoded direction keystroke from the borrow direction pick.
     case borrowChordKey(BorrowChordKey)
     /// Internal: re-flush a display's composition after its trees change.
@@ -664,6 +672,22 @@ public struct WorkspaceActivationFeature {
         case .cancel:
           return endBorrowCapture(state: &state)
         }
+
+      case .assignFocusedAppToRecentWorkspace:
+        guard let id = recentWorkspaceId(state: state) else { return .none }
+        return .send(.membershipEdit(.assign(to: id)))
+
+      case .assignFocusedAppToAdjacentWorkspace(let direction):
+        guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
+        return .send(.membershipEdit(.assign(to: id)))
+
+      case .borrowRecentWorkspace:
+        guard let id = recentWorkspaceId(state: state) else { return .none }
+        return .send(.beginBorrowDirection(workspaceId: id))
+
+      case .borrowAdjacentWorkspace(let direction):
+        guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
+        return .send(.beginBorrowDirection(workspaceId: id))
 
       case .flushComposition(let display):
         return applyComposition(display: display, state: state)

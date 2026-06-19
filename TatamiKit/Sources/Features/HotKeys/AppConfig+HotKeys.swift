@@ -63,6 +63,20 @@ extension AppConfig {
     addKeyEquiv(.switchToNextWorkspace, override: shortcuts.switchToNextWorkspace, key: shortcuts.nextWorkspaceKey)
     addKeyEquiv(.switchToPreviousWorkspace, override: shortcuts.switchToPreviousWorkspace, key: shortcuts.previousWorkspaceKey)
     addKeyEquiv(.switchToRecentWorkspace, override: shortcuts.switchToRecentWorkspace, key: shortcuts.recentWorkspaceKey)
+    // The same recent/next/previous key also assigns / borrows that target,
+    // via the assign / borrow modifiers (no separate override).
+    func navExtra(_ assignAction: HotKeyAction, _ borrowAction: HotKeyAction, key char: String?) {
+      guard let char, let keyCode = HotKey.keyCode(forName: char) else { return }
+      if assignModifiers != 0 {
+        out.append(.init(action: assignAction, hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: assignModifiers)))
+      }
+      if borrowModifiers != 0 {
+        out.append(.init(action: borrowAction, hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: borrowModifiers)))
+      }
+    }
+    navExtra(.assignFocusedAppToNextWorkspace, .borrowNextWorkspace, key: shortcuts.nextWorkspaceKey)
+    navExtra(.assignFocusedAppToPreviousWorkspace, .borrowPreviousWorkspace, key: shortcuts.previousWorkspaceKey)
+    navExtra(.assignFocusedAppToRecentWorkspace, .borrowRecentWorkspace, key: shortcuts.recentWorkspaceKey)
     add(.moveFocusedAppToNextWorkspace, shortcuts.moveToNextWorkspace)
     add(.moveFocusedAppToPreviousWorkspace, shortcuts.moveToPreviousWorkspace)
     add(.focusNextDisplay, shortcuts.focusNextDisplay)
@@ -87,6 +101,7 @@ extension AppConfig {
     add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
     add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
     add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
+    add(.dismissBorrow, shortcuts.dismissBorrow)
     return out
   }
 

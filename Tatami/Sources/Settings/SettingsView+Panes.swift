@@ -350,23 +350,26 @@ extension SettingsView {
       )
       keyEquivalentShortcut(
         "Recent workspace", .switchToRecentWorkspace,
+        assign: .assignFocusedAppToRecentWorkspace, borrow: .borrowRecentWorkspace,
         key: \.recentWorkspaceKey, override: \.switchToRecentWorkspace,
         description: "Switch back to the previously active workspace."
       )
       keyEquivalentShortcut(
         "Next workspace", .switchToNextWorkspace,
+        assign: .assignFocusedAppToNextWorkspace, borrow: .borrowNextWorkspace,
         key: \.nextWorkspaceKey, override: \.switchToNextWorkspace,
         description: "Cycle to the next workspace."
       )
       keyEquivalentShortcut(
         "Previous workspace", .switchToPreviousWorkspace,
+        assign: .assignFocusedAppToPreviousWorkspace, borrow: .borrowPreviousWorkspace,
         key: \.previousWorkspaceKey, override: \.switchToPreviousWorkspace,
         description: "Cycle to the previous workspace."
       )
     } header: {
       Text("Workspace Switching")
     } footer: {
-      Text("Set a single-letter key, or record an explicit shortcut to override the modifier+key default.")
+      Text("Set a single-letter key — the switch modifier + key switches, the assign / borrow modifiers + key assign to or borrow that target. Or record an explicit shortcut to override the switch.")
         .font(.caption)
         .foregroundStyle(.secondary)
     }
@@ -435,6 +438,10 @@ extension SettingsView {
         Text("The borrowed workspace's share of the screen. A workspace can override this.")
       }
       .pickerStyle(.menu)
+      shortcut(
+        "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
+        description: "Return the borrowed workspace and restore the current one to full screen."
+      )
     }
 
     Section("Toggles") {
@@ -594,6 +601,8 @@ extension SettingsView {
   func keyEquivalentShortcut(
     _ title: String,
     _ action: HotKeyAction,
+    assign assignAction: HotKeyAction,
+    borrow borrowAction: HotKeyAction,
     key keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
     override overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
     description: String
@@ -613,7 +622,7 @@ extension SettingsView {
         KeyEquivalentRecorder(
           key: shortcuts[keyPath: keyKP],
           modifierSymbols: modSymbols,
-          conflict: { keyEquivalentConflict($0, excluding: action) },
+          conflict: { keyEquivalentConflict($0, switch: action, assign: assignAction, borrow: borrowAction) },
           onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
         ) { newKey in
           $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = newKey }
@@ -634,14 +643,28 @@ extension SettingsView {
     }
   }
 
-  /// Conflict title for a candidate key equivalent: the switch modifier + key
-  /// resolved against every other binding, or nil when free / unbound.
-  func keyEquivalentConflict(_ char: String, excluding action: HotKeyAction) -> String? {
-    let mods = HotKey.carbonModifiers(from: config.settings.shortcuts.keyEquivalentModifiers)
-    guard mods != 0, let code = HotKey.keyCode(forName: char) else { return nil }
-    return config.shortcutConflict(
-      for: HotKey(carbonKeyCode: code, carbonModifiers: mods), excluding: action
-    )
+  /// Conflict title for a candidate key equivalent. The key generates three
+  /// combos — switch / assign / borrow modifier + key — each checked against
+  /// every other binding (excluding this target's matching action). Nil when
+  /// all three are free / unbound.
+  func keyEquivalentConflict(
+    _ char: String,
+    switch switchAction: HotKeyAction,
+    assign assignAction: HotKeyAction,
+    borrow borrowAction: HotKeyAction
+  ) -> String? {
+    guard let code = HotKey.keyCode(forName: char) else { return nil }
+    let s = config.settings.shortcuts
+    func check(_ tokens: [String], _ exclude: HotKeyAction) -> String? {
+      let mods = HotKey.carbonModifiers(from: tokens)
+      guard mods != 0 else { return nil }
+      return config.shortcutConflict(
+        for: HotKey(carbonKeyCode: code, carbonModifiers: mods), excluding: exclude
+      )
+    }
+    return check(s.keyEquivalentModifiers, switchAction)
+      ?? check(s.assignModifiers, assignAction)
+      ?? check(s.borrowModifiers, borrowAction)
   }
 
   /// A labeled row of modifier toggle buttons (⌃⌥⇧⌘) editing one modifier

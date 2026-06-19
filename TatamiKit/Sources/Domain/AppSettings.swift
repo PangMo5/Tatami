@@ -690,6 +690,8 @@ extension AppSettings {
     /// of that workspace — then a direction key (h/j/k/l or arrows) places it.
     /// Empty disables it.
     public var borrowModifiers: [String]
+    /// Dismiss the active borrow on the focused display.
+    public var dismissBorrow: HotKey?
 
     public init(
       focusLeft: HotKey? = nil,
@@ -724,7 +726,8 @@ extension AppSettings {
       recentWorkspaceKey: String? = nil,
       nextWorkspaceKey: String? = nil,
       previousWorkspaceKey: String? = nil,
-      borrowModifiers: [String] = ["ctrl", "alt", "cmd"]
+      borrowModifiers: [String] = ["ctrl", "alt", "cmd"],
+      dismissBorrow: HotKey? = nil
     ) {
       self.focusLeft = focusLeft
       self.focusRight = focusRight
@@ -759,6 +762,7 @@ extension AppSettings {
       self.nextWorkspaceKey = nextWorkspaceKey
       self.previousWorkspaceKey = previousWorkspaceKey
       self.borrowModifiers = borrowModifiers
+      self.dismissBorrow = dismissBorrow
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -775,6 +779,7 @@ extension AppSettings {
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
       case keyEquivalentModifiers, assignModifiers, borrowModifiers
       case recentWorkspaceKey, nextWorkspaceKey, previousWorkspaceKey
+      case dismissBorrow
     }
 
     public init(from decoder: Decoder) throws {
@@ -812,6 +817,7 @@ extension AppSettings {
       self.nextWorkspaceKey = c.decodeIfValid(.nextWorkspaceKey)
       self.previousWorkspaceKey = c.decodeIfValid(.previousWorkspaceKey)
       self.borrowModifiers = c.decode(.borrowModifiers, default: ["ctrl", "alt", "cmd"])
+      self.dismissBorrow = c.decodeIfValid(.dismissBorrow)
     }
   }
 }
