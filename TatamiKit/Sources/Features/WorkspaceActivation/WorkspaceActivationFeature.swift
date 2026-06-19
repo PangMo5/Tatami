@@ -68,10 +68,10 @@ public struct WorkspaceActivationFeature {
     /// Persistent (.combine) borrows keyed by host workspace, so
     /// re-activating a host re-establishes them. `.peek` never lands here.
     public var combineBorrows: [Workspace.ID: [BorrowedSlot]] = [:]
-    /// Pending dock edge while "borrow mode" key capture is armed; nil when
-    /// not capturing. A direction keystroke updates it; a workspace initial
-    /// (or the recent key) commits the borrow at this edge.
-    public var borrowCaptureEdge: BorrowEdge?
+    /// Workspace awaiting a direction key to be borrowed into the current
+    /// screen; nil when not capturing. Set by the borrow combo; a direction
+    /// keystroke commits the borrow at that edge.
+    public var borrowCaptureTarget: Workspace.ID?
 
     /// Latest manual resize / move geometry, captured while the user drags
     /// and flushed to the tree on mouse-up (`.windowDragEnded`). Committing
@@ -189,10 +189,10 @@ public struct WorkspaceActivationFeature {
     /// Grow (`+`) / shrink (`-`) the borrowed block's share of the focused
     /// display's composition.
     case resizeBorrow(delta: CGFloat)
-    /// Enter "borrow mode": arm key capture so the next direction + workspace
-    /// initial (or recent key) summons a workspace. Re-entering cancels.
-    case enterBorrowMode
-    /// Internal: a decoded keystroke from borrow-mode capture.
+    /// Start borrowing `workspaceId`: arm a one-key direction pick (h/j/k/l or
+    /// arrows) that places it; re-firing for the same target cancels.
+    case beginBorrowDirection(workspaceId: Workspace.ID)
+    /// Internal: a decoded direction keystroke from the borrow direction pick.
     case borrowChordKey(BorrowChordKey)
     /// Internal: re-flush a display's composition after its trees change.
     case flushComposition(display: DisplayName?)
@@ -639,40 +639,28 @@ public struct WorkspaceActivationFeature {
       case .resizeBorrow(let delta):
         return resizeBorrow(delta: delta, state: &state)
 
-      case .enterBorrowMode:
-        // Re-pressing the leader while armed cancels.
-        if state.borrowCaptureEdge != nil {
+      case .beginBorrowDirection(let workspaceId):
+        // Re-firing for the same target cancels; otherwise arm a direction
+        // pick for this workspace.
+        if state.borrowCaptureTarget == workspaceId {
           return endBorrowCapture(state: &state)
         }
-        state.borrowCaptureEdge = .right
-        let initials = Set(
-          (state.config.activeProfile?.workspaces ?? [])
-            .compactMap { $0.keyEquivalent?.lowercased() }
-            .filter { !$0.isEmpty }
-        )
-        debugLog.log("BorrowChord", "enter borrow mode (initials=\(initials.sorted()))")
+        guard state.config.activeProfile?.workspaces[id: workspaceId] != nil
+        else { return .none }
+        state.borrowCaptureTarget = workspaceId
+        debugLog.log("BorrowChord", "begin borrow direction for \(workspaceId)")
         return .merge(
-          .run { [borrowChord] _ in await borrowChord.setArmed(true, initials) },
+          .run { [borrowChord] _ in await borrowChord.setArmed(true) },
           borrowChordTimeout(),
           borrowChordHint(state: state)
         )
 
       case .borrowChordKey(let key):
-        guard let edge = state.borrowCaptureEdge else { return .none }
+        guard let target = state.borrowCaptureTarget else { return .none }
         switch key {
-        case .edge(let newEdge):
-          state.borrowCaptureEdge = newEdge
-          // Keep the capture alive and refresh the hint + timeout.
-          return .merge(borrowChordTimeout(), borrowChordHint(state: state))
-        case .workspace(let initial):
-          let target = state.config.activeProfile?.workspaces
-            .first { $0.keyEquivalent?.lowercased() == initial }
+        case .edge(let edge):
           let end = endBorrowCapture(state: &state)
-          guard let target else { return end }
-          return .merge(end, performBorrow(targetId: target.id, edge: edge, mode: .peek, state: &state))
-        case .recent:
-          let end = endBorrowCapture(state: &state)
-          return .merge(end, .send(.borrowRecent(edge: edge, mode: .peek)))
+          return .merge(end, performBorrow(targetId: target, edge: edge, mode: .peek, state: &state))
         case .cancel:
           return endBorrowCapture(state: &state)
         }

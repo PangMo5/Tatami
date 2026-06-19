@@ -15,30 +15,28 @@ extension AppConfig {
     // hotkey would hijack normal typing).
     let switchModifiers = HotKey.carbonModifiers(from: settings.shortcuts.keyEquivalentModifiers)
     let assignModifiers = HotKey.carbonModifiers(from: settings.shortcuts.assignModifiers)
+    let borrowModifiers = HotKey.carbonModifiers(from: settings.shortcuts.borrowModifiers)
 
     for workspace in workspaces {
-      // Explicit per-workspace override wins; else switch-modifier + key.
+      let char = workspace.keyEquivalent
+      let keyCode = char.flatMap { HotKey.keyCode(forName: $0) }
+      func keyEquivBinding(_ action: HotKeyAction, _ modifiers: Int) {
+        guard modifiers != 0, let keyCode else { return }
+        out.append(.init(action: action, hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: modifiers)))
+      }
+      // Explicit per-workspace override wins; else modifier + key equivalent.
       if let key = workspace.activateShortcut {
         out.append(.init(action: .activateWorkspace(workspace.id), hotKey: key))
-      } else if switchModifiers != 0,
-                let char = workspace.keyEquivalent,
-                let keyCode = HotKey.keyCode(forName: char) {
-        out.append(.init(
-          action: .activateWorkspace(workspace.id),
-          hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: switchModifiers)
-        ))
+      } else {
+        keyEquivBinding(.activateWorkspace(workspace.id), switchModifiers)
       }
-      // Assign: explicit override wins; else assign-modifier + key.
       if let key = workspace.assignAppShortcut {
         out.append(.init(action: .assignFocusedAppToWorkspace(workspace.id), hotKey: key))
-      } else if assignModifiers != 0,
-                let char = workspace.keyEquivalent,
-                let keyCode = HotKey.keyCode(forName: char) {
-        out.append(.init(
-          action: .assignFocusedAppToWorkspace(workspace.id),
-          hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: assignModifiers)
-        ))
+      } else {
+        keyEquivBinding(.assignFocusedAppToWorkspace(workspace.id), assignModifiers)
       }
+      // Borrow has no explicit override (direction is picked after the combo).
+      keyEquivBinding(.borrowWorkspace(workspace.id), borrowModifiers)
     }
 
     func add(_ action: HotKeyAction, _ key: HotKey?) {
@@ -86,7 +84,6 @@ extension AppConfig {
     add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
     add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
     add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
-    add(.enterBorrowMode, shortcuts.enterBorrowMode)
     add(.borrowRecentLeft, shortcuts.borrowRecentLeft)
     add(.borrowRecentRight, shortcuts.borrowRecentRight)
     add(.borrowRecentUp, shortcuts.borrowRecentUp)

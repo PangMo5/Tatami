@@ -263,14 +263,14 @@ public struct AppFeature {
       return .send(.activation(.activate(workspaceId: id, setFocus: true)))
     case .assignFocusedAppToWorkspace(let id):
       return .send(.activation(.membershipEdit(.assign(to: id))))
+    case .borrowWorkspace(let id):
+      return .send(.activation(.beginBorrowDirection(workspaceId: id)))
     case .switchToNextWorkspace:
       return .send(.activation(.activateNext))
     case .switchToPreviousWorkspace:
       return .send(.activation(.activatePrevious))
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
-    case .enterBorrowMode:
-      return .send(.activation(.enterBorrowMode))
     case .borrowRecentLeft:
       return .send(.activation(.borrowRecent(edge: .left, mode: .peek)))
     case .borrowRecentRight:

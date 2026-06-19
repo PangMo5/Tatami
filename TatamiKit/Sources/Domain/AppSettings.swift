@@ -674,8 +674,10 @@ extension AppSettings {
     public var recentWorkspaceKey: String?
     public var nextWorkspaceKey: String?
     public var previousWorkspaceKey: String?
-    /// Enter borrow mode (chord): then a direction + workspace initial.
-    public var enterBorrowMode: HotKey?
+    /// Modifier combo that, with a workspace's `keyEquivalent`, starts a borrow
+    /// of that workspace — then a direction key (h/j/k/l or arrows) places it.
+    /// Empty disables it.
+    public var borrowModifiers: [String]
     /// Borrow the recent workspace into the current screen, docked to an edge.
     public var borrowRecentLeft: HotKey?
     public var borrowRecentRight: HotKey?
@@ -720,7 +722,7 @@ extension AppSettings {
       recentWorkspaceKey: String? = nil,
       nextWorkspaceKey: String? = nil,
       previousWorkspaceKey: String? = nil,
-      enterBorrowMode: HotKey? = nil,
+      borrowModifiers: [String] = ["ctrl", "alt", "cmd"],
       borrowRecentLeft: HotKey? = nil,
       borrowRecentRight: HotKey? = nil,
       borrowRecentUp: HotKey? = nil,
@@ -761,7 +763,7 @@ extension AppSettings {
       self.recentWorkspaceKey = recentWorkspaceKey
       self.nextWorkspaceKey = nextWorkspaceKey
       self.previousWorkspaceKey = previousWorkspaceKey
-      self.enterBorrowMode = enterBorrowMode
+      self.borrowModifiers = borrowModifiers
       self.borrowRecentLeft = borrowRecentLeft
       self.borrowRecentRight = borrowRecentRight
       self.borrowRecentUp = borrowRecentUp
@@ -783,9 +785,8 @@ extension AppSettings {
       case balance
       case toggleFloating, toggleSharedFloating, toggleSpaceActivated
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
-      case keyEquivalentModifiers, assignModifiers
+      case keyEquivalentModifiers, assignModifiers, borrowModifiers
       case recentWorkspaceKey, nextWorkspaceKey, previousWorkspaceKey
-      case enterBorrowMode
       case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
       case borrowGrow, borrowShrink, dismissBorrow
     }
@@ -824,7 +825,7 @@ extension AppSettings {
       self.recentWorkspaceKey = c.decodeIfValid(.recentWorkspaceKey)
       self.nextWorkspaceKey = c.decodeIfValid(.nextWorkspaceKey)
       self.previousWorkspaceKey = c.decodeIfValid(.previousWorkspaceKey)
-      self.enterBorrowMode = c.decodeIfValid(.enterBorrowMode)
+      self.borrowModifiers = c.decode(.borrowModifiers, default: ["ctrl", "alt", "cmd"])
       self.borrowRecentLeft = c.decodeIfValid(.borrowRecentLeft)
       self.borrowRecentRight = c.decodeIfValid(.borrowRecentRight)
       self.borrowRecentUp = c.decodeIfValid(.borrowRecentUp)

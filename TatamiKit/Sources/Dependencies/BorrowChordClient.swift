@@ -7,29 +7,24 @@ import OSLog
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "BorrowChord")
 
-/// One decoded keystroke from the borrow-mode key capture.
+/// One decoded keystroke from the borrow direction pick.
 public enum BorrowChordKey: Sendable, Equatable {
-  /// A direction key (h/j/k/l or an arrow) → set the dock edge.
+  /// A direction key (h/j/k/l or an arrow) → dock edge, commits the borrow.
   case edge(BorrowEdge)
-  /// A workspace's lowercased initial → summon that workspace.
-  case workspace(String)
-  /// The reserved recent key (backtick) → summon the recent workspace.
-  case recent
-  /// Escape or any unrecognized key → leave borrow mode.
+  /// Escape or any other key → cancel the pending borrow.
   case cancel
 }
 
-/// Transient global key capture for "borrow mode": after the leader hotkey
-/// fires, a `CGEventTap` consumes the next direction / workspace-initial /
-/// recent / escape keystroke and reports it, so the chord never leaks into the
-/// focused app. The tap is only installed while armed.
+/// Transient global key capture for placing a borrow: after the borrow combo
+/// selects a workspace, a `CGEventTap` consumes the next direction (or escape)
+/// keystroke and reports it, so the key never leaks into the focused app. The
+/// tap is only installed while armed.
 @DependencyClient
 public struct BorrowChordClient: Sendable {
-  /// Process-long stream of decoded chord keys (emits only while armed).
+  /// Process-long stream of decoded direction keys (emits only while armed).
   public var events: @Sendable () -> AsyncStream<BorrowChordKey> = { .finished }
-  /// Install (`armed`) / remove the capture tap; `initials` are the workspace
-  /// commit keys the tap should recognize.
-  public var setArmed: @Sendable (_ armed: Bool, _ initials: Set<String>) async -> Void
+  /// Install (`armed`) / remove the direction-capture tap.
+  public var setArmed: @Sendable (_ armed: Bool) async -> Void
 }
 
 extension BorrowChordClient: DependencyKey {
@@ -38,7 +33,7 @@ extension BorrowChordClient: DependencyKey {
     let tap = BorrowChordTap { continuation.yield($0) }
     return BorrowChordClient(
       events: { stream },
-      setArmed: { armed, initials in tap.setArmed(armed, initials: initials) }
+      setArmed: { armed in tap.setArmed(armed) }
     )
   }
 
@@ -54,22 +49,20 @@ extension DependencyValues {
 
 /// Owns the keyDown `CGEventTap`. Mirrors `MirrorClickTap`: same shared
 /// `EventTapThread`, same re-enable dance, install/teardown routed through the
-/// tap thread so its `initials` state stays lock-free.
+/// tap thread.
 final class BorrowChordTap: @unchecked Sendable {
   @Dependency(\.debugLog) private var debugLog
 
   private var eventTap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
-  private var initials: Set<String> = []
   private let emit: @Sendable (BorrowChordKey) -> Void
 
   init(emit: @escaping @Sendable (BorrowChordKey) -> Void) {
     self.emit = emit
   }
 
-  func setArmed(_ armed: Bool, initials: Set<String>) {
+  func setArmed(_ armed: Bool) {
     EventTapThread.shared.perform { [self] in
-      self.initials = initials
       if armed, eventTap == nil {
         install()
       } else if !armed, eventTap != nil {
@@ -107,7 +100,7 @@ final class BorrowChordTap: @unchecked Sendable {
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
-    debugLog.log("BorrowChord", "tap armed (initials=\(initials.sorted()))")
+    debugLog.log("BorrowChord", "direction tap armed")
   }
 
   private func teardown() {
@@ -126,10 +119,9 @@ final class BorrowChordTap: @unchecked Sendable {
   }
 
   /// Runs on the event-tap thread. Returns `true` to consume the keystroke.
-  /// Directions (h/j/k/l + arrows) and the recent key (backtick) are fixed;
-  /// workspace initials are dynamic. A keystroke with ⌘/⌃/⌥ held (the leader
-  /// re-press, app switching, etc.) or any unrecognized key cancels borrow
-  /// mode and passes through so the user's keystroke isn't swallowed.
+  /// Only direction keys (h/j/k/l + arrows) and escape are recognized; a
+  /// keystroke with ⌘/⌃/⌥ held (e.g. the borrow combo's own release, app
+  /// switching) or any other key cancels and passes through so it isn't eaten.
   fileprivate func handle(keyCode: Int, hasCommandModifiers: Bool) -> Bool {
     guard !hasCommandModifiers, let name = HotKey.keyName(for: keyCode) else {
       emit(.cancel)
@@ -141,12 +133,7 @@ final class BorrowChordTap: @unchecked Sendable {
     case "l", "right": emit(.edge(.right)); return true
     case "k", "up": emit(.edge(.top)); return true
     case "j", "down": emit(.edge(.bottom)); return true
-    case "`": emit(.recent); return true
     default:
-      if initials.contains(name) {
-        emit(.workspace(name))
-        return true
-      }
       emit(.cancel)
       return false
     }

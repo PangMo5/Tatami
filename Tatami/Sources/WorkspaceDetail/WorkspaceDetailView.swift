@@ -28,6 +28,34 @@ struct WorkspaceDetailView: View {
     )
   }
 
+  /// A shortcut row whose default is "modifier + the workspace key equivalent"
+  /// (shown read-only in a capsule) with an explicit-shortcut override beside.
+  @ViewBuilder
+  private func derivedShortcutRow(
+    _ title: String,
+    modifiers: [String],
+    key: String?,
+    override: HotKey?,
+    conflict: @escaping (HotKey) -> String?,
+    onOverride: @escaping (HotKey?) -> Void
+  ) -> some View {
+    HStack(spacing: 10) {
+      Text(title)
+      Spacer(minLength: 12)
+      let mods = HotKey.modifierSymbols(from: modifiers)
+      let combo = (key?.isEmpty == false) && !mods.isEmpty ? mods + (key ?? "").uppercased() : ""
+      ComboCapsule(text: combo, dimmed: override != nil)
+      Text("or")
+        .font(.caption)
+        .foregroundStyle(.tertiary)
+      ShortcutRecorder(
+        hotKey: override,
+        conflict: conflict,
+        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+      ) { onOverride($0) }
+    }
+  }
+
   var body: some View {
     if let workspace = store.workspace {
       Form {
@@ -71,32 +99,20 @@ struct WorkspaceDetailView: View {
               }
           }
 
-          // Key equivalent — switch modifier + this key activates the
-          // workspace (and summons it in borrow mode). The inline override
-          // recorder replaces only the activation combo; the key still drives
-          // borrow summon, so it isn't dimmed.
+          // Key equivalent — the workspace's single key. Combined with the
+          // switch / assign / borrow modifiers below for those actions.
           VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
               Text("Key equivalent")
               Spacer(minLength: 12)
               KeyEquivalentRecorder(
                 key: workspace.keyEquivalent,
-                modifierSymbols: HotKey.modifierSymbols(
-                  from: store.config.settings.shortcuts.keyEquivalentModifiers
-                ),
+                modifierSymbols: "",
                 conflict: { keyEquivalentConflict($0) },
                 onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
               ) { store.send(.keyEquivalentChanged($0)) }
-              Text("or")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-              ShortcutRecorder(
-                hotKey: workspace.activateShortcut,
-                conflict: { store.state.activateShortcutConflict(for: $0) },
-                onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
-              ) { store.send(.activateShortcutChanged($0)) }
             }
-            Text("Switch modifier + this key activates the workspace and summons it in borrow mode. Record an explicit shortcut to override the activation combo (the key still summons in borrow mode).")
+            Text("One key for this workspace. Combined with the switch / assign / borrow modifiers (Settings → Shortcuts) for those actions, and chosen as the borrow direction follows.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -122,36 +138,28 @@ struct WorkspaceDetailView: View {
         }
 
         Section {
-          // Activate lives in the Key equivalent row above. Assign reuses the
-          // same key with the assign modifier; the recorder here overrides it.
-          HStack(spacing: 10) {
-            Text("Assign focused app here")
-            Spacer(minLength: 12)
-            let assignMods = HotKey.modifierSymbols(
-              from: store.config.settings.shortcuts.assignModifiers
-            )
-            if let key = workspace.keyEquivalent, !key.isEmpty, !assignMods.isEmpty {
-              Text(assignMods + key.uppercased())
-                .font(.system(.body, design: .rounded).weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .opacity(workspace.assignAppShortcut == nil ? 1 : 0.35)
-              Text("or")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-            }
-            ShortcutRecorder(
-              hotKey: workspace.assignAppShortcut,
-              conflict: { store.state.assignShortcutConflict(for: $0) },
-              onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
-            ) { store.send(.assignAppShortcutChanged($0)) }
-          }
+          // Activate + Assign both derive from the workspace key (switch /
+          // assign modifier); the recorder beside each overrides that default.
+          derivedShortcutRow(
+            "Activate",
+            modifiers: store.config.settings.shortcuts.keyEquivalentModifiers,
+            key: workspace.keyEquivalent,
+            override: workspace.activateShortcut,
+            conflict: { store.state.activateShortcutConflict(for: $0) },
+            onOverride: { store.send(.activateShortcutChanged($0)) }
+          )
+          derivedShortcutRow(
+            "Assign focused app here",
+            modifiers: store.config.settings.shortcuts.assignModifiers,
+            key: workspace.keyEquivalent,
+            override: workspace.assignAppShortcut,
+            conflict: { store.state.assignShortcutConflict(for: $0) },
+            onOverride: { store.send(.assignAppShortcutChanged($0)) }
+          )
         } header: {
           Text("Shortcuts")
         } footer: {
-          Text("Assign adds the focused app to this workspace (keeping it in any workspace it's already in) and switches here. By default the assign modifier + this workspace's key equivalent; record a shortcut to override.")
+          Text("Activate switches here; Assign also adds the focused app to this workspace. By default the modifier + this workspace's key equivalent; record a shortcut to override.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }

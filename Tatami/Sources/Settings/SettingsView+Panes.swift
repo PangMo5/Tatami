@@ -401,9 +401,9 @@ extension SettingsView {
     }
 
     Section("Borrow") {
-      shortcut(
-        "Borrow mode", .enterBorrowMode, \.enterBorrowMode,
-        description: "Enter borrow mode, then a direction (h/j/k/l or arrows) + a workspace's key summons it side by side. Backtick = recent, Esc cancels."
+      modifierToggleRow(
+        "Borrow modifier", \.borrowModifiers,
+        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key (h/j/k/l or arrows) places it side by side. Clear it to disable."
       )
       shortcut(
         "Borrow recent (left)", .borrowRecentLeft, \.borrowRecentLeft,

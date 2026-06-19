@@ -15,6 +15,34 @@ extension WorkspaceActivationFeature {
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces[id: workspaceId]
     else { return .none }
+    // Focus-into-borrowed: when this workspace is currently a borrowed block on
+    // some display, its activate shortcut just moves focus into that block —
+    // the composition stays, rather than re-tiling the display to it alone.
+    for (display, comp) in state.compositionsByDisplay
+    where comp.borrowed.contains(where: { $0.workspace == workspaceId }) {
+      state.focusedDisplay = display
+      let tree = state.tilingTrees[workspaceId]
+      guard let target = state.mruWindows[workspaceId]?.first(where: { tree?.windows.contains($0) == true })
+        ?? tree?.windows.first
+      else { return .none }
+      let (targetDisplay, workArea) = tilingContext(for: workspaceId, state: state)
+      let settings = state.config.settings
+      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+      let warp = setFocus && settings.focus.mouseFollowsFocus
+      debugLog.log("Borrow", "focus into borrowed \(workspace.name)")
+      return .run { [focus = focusManager, mouse] _ in
+        await focus.focusWindow(target)
+        if warp {
+          let frames = await MainActor.run {
+            Self.computeFrames(
+              tree: tree, settings: settings, targetDisplay: targetDisplay,
+              fullscreenZoomed: zoomed, targetRect: workArea
+            )
+          }
+          if let rect = frames[target] { mouse.warp(CGPoint(x: rect.midX, y: rect.midY)) }
+        }
+      }
+    }
     // A scratchpad is borrow-only: there's no "switch to" it. Redirect a
     // standalone activate into a peek borrow on the focused display's host
     // (toggles off if it's already borrowed there).
@@ -589,18 +617,18 @@ extension WorkspaceActivationFeature {
     return .merge(.send(.activate(workspaceId: comp.host, setFocus: true)), hud)
   }
 
-  /// Disarm borrow-mode key capture: clear the pending edge, remove the tap,
-  /// and cancel the auto-timeout.
+  /// Disarm the borrow direction pick: clear the target, remove the tap, and
+  /// cancel the auto-timeout.
   func endBorrowCapture(state: inout State) -> Effect<Action> {
-    state.borrowCaptureEdge = nil
+    state.borrowCaptureTarget = nil
     return .merge(
-      .run { [borrowChord] _ in await borrowChord.setArmed(false, []) },
+      .run { [borrowChord] _ in await borrowChord.setArmed(false) },
       .cancel(id: CancelID.borrowChordTimeout)
     )
   }
 
-  /// Auto-cancel borrow-mode capture after a few idle seconds so a half-typed
-  /// chord can't keep the key tap swallowing keystrokes.
+  /// Auto-cancel the borrow direction pick after a few idle seconds so a
+  /// half-finished borrow can't keep the key tap swallowing keystrokes.
   func borrowChordTimeout() -> Effect<Action> {
     .run { [clock] send in
       try? await clock.sleep(for: .seconds(5))
@@ -609,21 +637,18 @@ extension WorkspaceActivationFeature {
     .cancellable(id: CancelID.borrowChordTimeout, cancelInFlight: true)
   }
 
-  /// HUD hint while borrow mode is armed: the pending edge plus each
-  /// workspace's initial, so the user can see what to press.
+  /// HUD hint while a borrow direction pick is armed: which workspace, and
+  /// that a direction key places it.
   func borrowChordHint(state: State) -> Effect<Action> {
-    guard state.config.settings.hud.shows(\.borrow) else { return .none }
-    let edge = state.borrowCaptureEdge ?? .right
-    let entries = (state.config.activeProfile?.workspaces ?? [])
-      .compactMap { ws -> String? in
-        guard let key = ws.keyEquivalent?.lowercased(), !key.isEmpty else { return nil }
-        return "[\(key.uppercased())] \(ws.name)"
-      }
-    let list = entries.isEmpty ? "no initials set — assign in workspace settings" : entries.joined(separator: "  ")
-    let subtitle = "edge: \(edge.rawValue) · hjkl/arrows · ` recent · esc — \(list)"
+    guard state.config.settings.hud.shows(\.borrow),
+          let target = state.borrowCaptureTarget,
+          let name = state.config.activeProfile?.workspaces[id: target]?.name
+    else { return .none }
     let durationMs = max(state.config.settings.hud.durationMs, 4000)
     return .run { [workspaceHUD] _ in
-      await workspaceHUD.show("Borrow", Self.borrowEdgeIcon(edge), subtitle, durationMs)
+      await workspaceHUD.show(
+        "Borrow \(name)", "rectangle.split.2x1", "press a direction · h j k l / arrows · esc", durationMs
+      )
     }
   }
 
