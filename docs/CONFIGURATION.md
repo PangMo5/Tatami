@@ -85,7 +85,7 @@ the rest pick which actions show one.
 | `mouseFollowsFocus` | bool | `false` | Warp the cursor to the focused window's tiled position. |
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
-| `refocusOnClose` | bool | `true` | When the focused window closes and focus would be stranded on a now-windowless app, move focus to a remaining window in the workspace. |
+| `refocusOnClose` | bool | `true` | When the focused window closes and focus would be stranded on a now-windowless app, move focus to the most recently used remaining window in the workspace (falling back through recency). |
 | `focusFollowsMouseIgnoreFullscreen` | bool | `true` | While focus-follows-mouse is on, don't shift focus to a window that fills the whole display (full-screen / maximized). |
 | `focusFollowsMouseDisableHotkey` | string | `"Alt"` | Modifier that temporarily suspends focus-follows-mouse: `None`, `Alt`, `Cmd`, `Ctrl`, `Shift`. |
 

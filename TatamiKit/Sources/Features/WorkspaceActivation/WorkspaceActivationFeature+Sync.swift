@@ -283,7 +283,7 @@ extension WorkspaceActivationFeature {
             !removed.isEmpty,
             focused == nil || !newWindows.contains(focused!)
       else { return .none }
-      let target = (insertionPointKey.flatMap { newWindows.contains($0) ? $0 : nil })
+      let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
         ?? final.windows.first
       guard let target else { return .none }
       return .run { [focus = focusManager] _ in await focus.focusWindow(target) }
@@ -498,7 +498,7 @@ extension WorkspaceActivationFeature {
       guard settings.focus.refocusOnClose, !newWindows.isEmpty,
             focused == nil || !newWindows.contains(focused!)
       else { return .none }
-      let target = (state.insertionPoint[workspaceId].flatMap { newWindows.contains($0) ? $0 : nil })
+      let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
         ?? balanced?.windows.first
       guard let target else { return .none }
       return .run { [focus = focusManager] _ in await focus.focusWindow(target) }

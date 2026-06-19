@@ -46,12 +46,13 @@ public struct WorkspaceActivationFeature {
     /// leaf decides north/east/south/west/stack). Updated by focus
     /// events.
     public var insertionPoint: [Workspace.ID: WindowKey] = [:]
-    /// Per-workspace most-recently-focused window, session-only. Unlike
-    /// `insertionPoint` (which `tilingTreeUpdated` resets to the first
-    /// leaf), this is only ever written by an actual focus event — so on
-    /// re-activation it still names the exact window the user last used,
-    /// which the "Most recently used" focus target restores.
-    public var lastFocusedWindow: [Workspace.ID: WindowKey] = [:]
+    /// Per-workspace most-recently-used window order — front is most recent,
+    /// session-only, pruned to the live tree. Written by focus events and
+    /// never reset by tree updates (unlike `insertionPoint`), so it drives
+    /// both "restore last window" on activation and the refocus target when
+    /// the focused window closes — fall back through the list to the next
+    /// most-recent window that's still on screen.
+    public var mruWindows: [Workspace.ID: [WindowKey]] = [:]
     /// Per-workspace set of fullscreen-zoomed windows. Tatami-specific
     /// multi-window fullscreen: each member is trimmed from the tree
     /// before layout and rendered at the workspace's work area. Several
@@ -380,11 +381,28 @@ public struct WorkspaceActivationFeature {
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
           // didActivateApplication).
-          if let key, let wsId = state.primaryActiveWorkspaceID,
-             state.tilingTrees[wsId]?.windows.contains(key) == true
-          {
-            state.insertionPoint[wsId] = key
-            state.lastFocusedWindow[wsId] = key
+          if let key, let wsId = state.primaryActiveWorkspaceID {
+            let treeWindows = state.tilingTrees[wsId]?.windows ?? []
+            let inTree = treeWindows.contains(key)
+            // insertionPoint is the *tile* anchor, so only tree windows.
+            if inTree { state.insertionPoint[wsId] = key }
+            // MRU also records a just-created window not yet synced into the
+            // tree (focus a brand-new window, open KakaoTalk, close it →
+            // focus should return to the new window, not the first leaf), as
+            // long as it belongs to this workspace.
+            let wsApps = state.config.activeProfile?.workspaces[id: wsId]?.apps ?? []
+            let isMember = inTree
+              || wsApps.contains { $0.bundleIdentifier == bundleId }
+              || state.config.sharedApps.contains { $0.bundleIdentifier == bundleId }
+            if isMember {
+              var mru = state.mruWindows[wsId] ?? []
+              mru.removeAll { $0 == key }
+              mru.insert(key, at: 0)
+              // Prune closed windows, but keep the just-focused key even if
+              // it hasn't synced into the tree yet.
+              mru.removeAll { $0 != key && !treeWindows.contains($0) }
+              state.mruWindows[wsId] = mru
+            }
           }
           // Forward the focus change to the marker controller so it
           // can render the dot only on the now-focused window.

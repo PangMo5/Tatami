@@ -52,7 +52,7 @@ extension WorkspaceActivationFeature {
     // "Most recently used" (no pinned focus app): restore the exact
     // window the user last had focused in this workspace.
     let mruWindow = workspace.appToFocusBundleId == nil
-      ? state.lastFocusedWindow[workspaceId]
+      ? state.mruWindows[workspaceId]?.first
       : nil
     let request = ActivationRequest(
       workspace: workspace,
