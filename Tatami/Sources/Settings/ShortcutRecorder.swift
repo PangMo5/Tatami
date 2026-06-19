@@ -260,7 +260,7 @@ final class KeyCapField: NSView {
       color = .secondaryLabelColor
       bold = false
     } else if let key {
-      text = modifierSymbols + key.uppercased()
+      text = modifierSymbols + HotKey.keySymbol(forName: key)
       color = .labelColor
       bold = true
     } else {

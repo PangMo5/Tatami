@@ -52,7 +52,7 @@ struct WorkspaceDetailView: View {
       Text(title)
       Spacer(minLength: 12)
       let mods = HotKey.modifierSymbols(from: modifiers)
-      let combo = (key?.isEmpty == false) && !mods.isEmpty ? mods + (key ?? "").uppercased() : ""
+      let combo = (key?.isEmpty == false) && !mods.isEmpty ? mods + HotKey.keySymbol(forName: key ?? "") : ""
       ComboCapsule(text: combo, dimmed: override != nil)
       Text("or")
         .font(.caption)

@@ -225,11 +225,10 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .keyEquivalentChanged(let raw):
-        // Keep the last typed character (so typing over an existing key
-        // replaces it instead of being truncated back to the first), lowercased.
-        // Any character is allowed incl. punctuation like , . ; h/j/k/l simply
-        // aren't borrow-summonable since those steer direction in borrow mode.
-        let key = raw?.lowercased().last.map(String.init)
+        // The recorder hands a single key *name* (e.g. "d", "delete", "left",
+        // ","), stored as-is lowercased — don't truncate to a character, or
+        // multi-letter names like "delete" collapse to "e".
+        let key = (raw?.isEmpty == false) ? raw?.lowercased() : nil
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.keyEquivalent = key }

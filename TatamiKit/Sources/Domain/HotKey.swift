@@ -242,6 +242,25 @@ extension HotKey {
     nameToKeyCode[name.lowercased()]
   }
 
+  /// Display glyph for a stored key name — macOS symbols for special keys
+  /// (`⌫`, `⏎`, `←`…), uppercased letters/punctuation otherwise. For showing a
+  /// key equivalent in the UI.
+  public static func keySymbol(forName name: String) -> String {
+    switch name.lowercased() {
+    case "delete": "⌫"
+    case "forwarddelete": "⌦"
+    case "return", "enter": "⏎"
+    case "tab": "⇥"
+    case "space": "Space"
+    case "escape": "⎋"
+    case "left": "←"
+    case "right": "→"
+    case "up": "↑"
+    case "down": "↓"
+    default: name.uppercased()
+    }
+  }
+
   fileprivate static let nameToKeyCode: [String: Int] = {
     var map: [String: Int] = [:]
     for (code, name) in keyCodeToName { map[name] = code }
