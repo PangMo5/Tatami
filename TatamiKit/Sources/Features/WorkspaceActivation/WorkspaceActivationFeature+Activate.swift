@@ -534,10 +534,13 @@ extension WorkspaceActivationFeature {
     state.compositionsByDisplay[display] = Composition(host: hostId, borrowed: [slot])
     if mode == .combine { state.combineBorrows[hostId] = [slot] }
     // Only tiled apps from the borrowed workspace participate; float / unmanaged
-    // are ignored while borrowed.
-    let tiledBorrowedBundleIds = target.apps
-      .filter { $0.layout == .tiled }.map(\.bundleIdentifier)
-    let borrowedApps = target.apps.filter { $0.layout == .tiled }
+    // are ignored while borrowed. A scratchpad forces auto-open on all of them
+    // (it only ever shows when borrowed, so its apps should come up then).
+    let tiledBorrowed = target.apps.filter { $0.layout == .tiled }
+    let tiledBorrowedBundleIds = tiledBorrowed.map(\.bundleIdentifier)
+    let borrowedApps: [AppAssignment] = target.kind == .scratchpad
+      ? tiledBorrowed.map { var a = $0; a.autoOpen = true; return a }
+      : tiledBorrowed
     let request = ActivationRequest(
       workspace: hostWs, sharedApps: state.config.sharedApps,
       targetDisplay: display, setFocus: false, borrowedApps: borrowedApps

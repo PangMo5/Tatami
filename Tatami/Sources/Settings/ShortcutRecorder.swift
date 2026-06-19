@@ -171,6 +171,12 @@ final class KeyCapField: NSView {
 
   var key: String? { didSet { needsDisplay = true } }
 
+  /// Local keyDown monitor active only while recording. A bare special key
+  /// (Delete, arrows…) inside a SwiftUI Form/List is otherwise eaten by the
+  /// responder chain before reaching `keyDown`; the monitor intercepts every
+  /// keyDown app-wide and consumes the captured one.
+  private var monitor: Any?
+
   private(set) var isRecording = false {
     didSet {
       guard isRecording != oldValue else { return }
@@ -185,26 +191,39 @@ final class KeyCapField: NSView {
   override func becomeFirstResponder() -> Bool { true }
 
   override func resignFirstResponder() -> Bool {
-    isRecording = false
+    stopRecording()
     return true
+  }
+
+  override func viewWillMove(toWindow newWindow: NSWindow?) {
+    if newWindow == nil { stopRecording() }
+    super.viewWillMove(toWindow: newWindow)
   }
 
   override func mouseDown(with _: NSEvent) {
     window?.makeFirstResponder(self)
-    isRecording = true
+    startRecording()
   }
 
-  override func keyDown(with event: NSEvent) {
-    guard isRecording, record(event) else {
-      super.keyDown(with: event)
-      return
+  private func startRecording() {
+    guard monitor == nil else { return }
+    isRecording = true
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+      guard let self, self.isRecording else { return event }
+      return self.record(event) ? nil : event
     }
   }
 
+  private func stopRecording() {
+    if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+    isRecording = false
+  }
+
   /// Capture one bare key (modifiers ignored — the switch modifier is global).
+  /// Returns true when the event was consumed.
   private func record(_ event: NSEvent) -> Bool {
     if event.keyCode == 53 { // Escape cancels.
-      window?.makeFirstResponder(nil)
+      stopRecording()
       return true
     }
     guard let name = HotKey.keyName(for: Int(event.keyCode)) else {
@@ -213,13 +232,13 @@ final class KeyCapField: NSView {
     }
     if let owner = conflict?(name) {
       NSSound.beep()
-      window?.makeFirstResponder(nil)
+      stopRecording()
       showConflict(owner)
       return true
     }
     key = name
     onChange?(name)
-    window?.makeFirstResponder(nil)
+    stopRecording()
     return true
   }
 

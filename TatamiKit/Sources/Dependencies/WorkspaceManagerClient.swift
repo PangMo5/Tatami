@@ -121,12 +121,12 @@ extension WorkspaceManagerClient: DependencyKey {
             onScreenWindows.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t }
           )
           let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
-          for app in request.workspace.apps where app.autoOpen {
+          func autoOpenIfNeeded(_ app: AppAssignment) {
             let instances = runningByBundle[app.bundleIdentifier] ?? []
             let hasVisibleWindow = instances.contains {
               onScreenOwnerPids.contains($0.processIdentifier)
             }
-            if hasVisibleWindow { continue }
+            if hasVisibleWindow { return }
             guard let url = NSWorkspace.shared
               .urlForApplication(withBundleIdentifier: app.bundleIdentifier)
             else {
@@ -134,7 +134,7 @@ extension WorkspaceManagerClient: DependencyKey {
                 "Manager",
                 "autoOpen \(app.bundleIdentifier): no app URL — skipped"
               )
-              continue
+              return
             }
             debugLog.log(
               "Manager",
@@ -149,6 +149,11 @@ extension WorkspaceManagerClient: DependencyKey {
               }
             }
           }
+          for app in request.workspace.apps where app.autoOpen { autoOpenIfNeeded(app) }
+          // Borrowed apps auto-open too (a borrowed workspace should bring its
+          // apps up when summoned); performBorrow forces this on for a
+          // scratchpad so all of its apps open.
+          for app in request.borrowedApps where app.autoOpen { autoOpenIfNeeded(app) }
 
           // Resolve the focus target among the workspace's own apps.
           // No pinned app ("Most recently used") → the MRU window's app;
