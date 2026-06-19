@@ -989,8 +989,20 @@ public struct WorkspaceActivationFeature {
             + "treeWindows=\(state.tilingTrees[id]?.windows.map { $0.windowID } ?? []) "
             + "observe=\(observeIds)"
         )
+        // A combined borrow persists across switches: now that its host is
+        // active again, re-establish the borrow (the live composition was
+        // cleared when this display re-tiled). Peek borrows leave no
+        // `combineBorrows` entry, so they don't come back.
+        let combineReestablish: Effect<Action> = {
+          guard let slot = state.combineBorrows[id]?.first,
+                slot.workspace != id,
+                state.config.activeProfile?.workspaces[id: slot.workspace] != nil
+          else { return .none }
+          return .send(.borrow(workspaceId: slot.workspace, edge: slot.edge, mode: .combine))
+        }()
         return .merge(
           .cancel(id: CancelID.activationWatchdog),
+          combineReestablish,
           .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
           // The unpaused path already pushed markers from the activation
           // effect's own floating discovery; only the paused path (which

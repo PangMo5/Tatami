@@ -49,6 +49,10 @@ extension WorkspaceActivationFeature {
     } else {
       targetDisplay = displays.current()
     }
+    // Re-tiling this display to `workspace` dismisses any live composition on
+    // it: a peek borrow vanishes here, while a combine's persistent record in
+    // `combineBorrows` survives and is re-established in `activationCompleted`.
+    if let targetDisplay { state.compositionsByDisplay[targetDisplay] = nil }
     // "Most recently used" (no pinned focus app): restore the exact
     // window the user last had focused in this workspace.
     let mruWindow = workspace.appToFocusBundleId == nil
