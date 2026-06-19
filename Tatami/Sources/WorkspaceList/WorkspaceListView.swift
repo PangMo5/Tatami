@@ -19,14 +19,14 @@ struct WorkspaceListView: View {
               .contextMenu {
                 if workspace.kind == .scratchpad {
                   Button("Borrow Here") {
-                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right, mode: .peek))
+                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right))
                   }
                 } else {
                   Button("Activate") {
                     activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
                   }
                   Button("Borrow Here") {
-                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right, mode: .peek))
+                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right))
                   }
                 }
                 Divider()

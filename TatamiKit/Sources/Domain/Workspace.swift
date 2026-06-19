@@ -164,35 +164,24 @@ public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
   }
 }
 
-/// How long a borrow stays on screen.
-public enum BorrowMode: String, Hashable, Sendable, Codable {
-  /// Transient — dismissed by toggle or focus change. Edits in the borrowed
-  /// block still persist to that workspace (the borrow is live); only the
-  /// on-screen presence is temporary.
-  case peek
-  /// Persistent — stays until explicitly dismissed, and is re-rendered when
-  /// the host workspace is re-activated.
-  case combine
-}
-
-/// One borrowed workspace docked into a host's composition.
+/// One borrowed workspace docked into a host's composition. A borrow is always
+/// transient — it's dropped when the host re-tiles (a switch or focus change).
+/// Edits in the borrowed block still persist to that workspace (the borrow is
+/// live); only the on-screen presence is temporary.
 public struct BorrowedSlot: Hashable, Sendable, Codable {
   public var workspace: Workspace.ID
   public var edge: BorrowEdge
   /// The borrowed block's share of the split axis (0…1).
   public var fraction: CGFloat
-  public var mode: BorrowMode
 
   public init(
     workspace: Workspace.ID,
     edge: BorrowEdge,
-    fraction: CGFloat = 0.4,
-    mode: BorrowMode = .peek
+    fraction: CGFloat = 0.4
   ) {
     self.workspace = workspace
     self.edge = edge
     self.fraction = fraction
-    self.mode = mode
   }
 }
 

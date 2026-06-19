@@ -65,9 +65,6 @@ public struct WorkspaceActivationFeature {
     /// Active composition per display — a host workspace plus borrowed
     /// blocks. Absent → that display shows its host alone (default behavior).
     public var compositionsByDisplay: [DisplayName: Composition] = [:]
-    /// Persistent (.combine) borrows keyed by host workspace, so
-    /// re-activating a host re-establishes them. `.peek` never lands here.
-    public var combineBorrows: [Workspace.ID: [BorrowedSlot]] = [:]
     /// Workspace awaiting a direction key to be borrowed into the current
     /// screen; nil when not capturing. Set by the borrow combo; a direction
     /// keystroke commits the borrow at that edge.
@@ -182,7 +179,7 @@ public struct WorkspaceActivationFeature {
     case activateRecent
     /// Borrow another workspace into the focused display's host. Re-borrowing
     /// the same target re-docks it to the new edge.
-    case borrow(workspaceId: Workspace.ID, edge: BorrowEdge, mode: BorrowMode)
+    case borrow(workspaceId: Workspace.ID, edge: BorrowEdge)
     /// Drop the active borrow on a display (internal: composition collapse).
     case dismissBorrow(display: DisplayName?)
     /// Start borrowing `workspaceId`: with a default edge, borrow immediately;
@@ -629,8 +626,8 @@ public struct WorkspaceActivationFeature {
           state: &state
         )
 
-      case .borrow(let workspaceId, let edge, let mode):
-        return performBorrow(targetId: workspaceId, edge: edge, mode: mode, state: &state)
+      case .borrow(let workspaceId, let edge):
+        return performBorrow(targetId: workspaceId, edge: edge, state: &state)
 
       case .dismissBorrow(let display):
         return dismissBorrow(display: display, state: &state)
@@ -653,7 +650,7 @@ public struct WorkspaceActivationFeature {
         // A configured default edge (per-workspace override, else global)
         // borrows immediately; otherwise arm the direction pick.
         if let edge = ws.borrowEdge ?? state.config.settings.switching.borrowDefaultEdge {
-          return performBorrow(targetId: workspaceId, edge: edge, mode: .peek, state: &state)
+          return performBorrow(targetId: workspaceId, edge: edge, state: &state)
         }
         state.borrowCaptureTarget = workspaceId
         debugLog.log("BorrowChord", "begin borrow direction for \(ws.name)")
@@ -668,7 +665,7 @@ public struct WorkspaceActivationFeature {
         switch key {
         case .edge(let edge):
           let end = endBorrowCapture(state: &state)
-          return .merge(end, performBorrow(targetId: target, edge: edge, mode: .peek, state: &state))
+          return .merge(end, performBorrow(targetId: target, edge: edge, state: &state))
         case .cancel:
           // Esc / timeout: end capture and clear the borrow-mode hint HUD.
           return .merge(
@@ -1090,20 +1087,8 @@ public struct WorkspaceActivationFeature {
             + "treeWindows=\(state.tilingTrees[id]?.windows.map { $0.windowID } ?? []) "
             + "observe=\(observeIds)"
         )
-        // A combined borrow persists across switches: now that its host is
-        // active again, re-establish the borrow (the live composition was
-        // cleared when this display re-tiled). Peek borrows leave no
-        // `combineBorrows` entry, so they don't come back.
-        let combineReestablish: Effect<Action> = {
-          guard let slot = state.combineBorrows[id]?.first,
-                slot.workspace != id,
-                state.config.activeProfile?.workspaces[id: slot.workspace] != nil
-          else { return .none }
-          return .send(.borrow(workspaceId: slot.workspace, edge: slot.edge, mode: .combine))
-        }()
         return .merge(
           .cancel(id: CancelID.activationWatchdog),
-          combineReestablish,
           .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
           // The unpaused path already pushed markers from the activation
           // effect's own floating discovery; only the paused path (which

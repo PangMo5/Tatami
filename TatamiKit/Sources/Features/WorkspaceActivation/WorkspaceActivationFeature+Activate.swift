@@ -19,11 +19,11 @@ extension WorkspaceActivationFeature {
     // is dropped as the display re-tiles. Moving focus *into* a borrowed block
     // without switching is the directional-focus path, not activation.)
     // A scratchpad is borrow-only: there's no "switch to" it. Redirect a
-    // standalone activate into a peek borrow on the focused display's host
-    // (toggles off if it's already borrowed there).
+    // standalone activate into a borrow on the focused display's host
+    // (re-docks if it's already borrowed there).
     if workspace.kind == .scratchpad {
       debugLog.log("Activate", "scratchpad \(workspace.name) → borrow")
-      return performBorrow(targetId: workspaceId, edge: .right, mode: .peek, state: &state)
+      return performBorrow(targetId: workspaceId, edge: .right, state: &state)
     }
     // Latest-wins: a switch arriving mid-activation supersedes the
     // in-flight one (the effect below is `cancellable(cancelInFlight:)`)
@@ -60,8 +60,7 @@ extension WorkspaceActivationFeature {
       targetDisplay = displays.current()
     }
     // Re-tiling this display to `workspace` dismisses any live composition on
-    // it: a peek borrow vanishes here, while a combine's persistent record in
-    // `combineBorrows` survives and is re-established in `activationCompleted`.
+    // it — a borrow is transient and vanishes when its host re-tiles.
     if let targetDisplay { state.compositionsByDisplay[targetDisplay] = nil }
     // "Most recently used" (no pinned focus app): restore the exact
     // window the user last had focused in this workspace.
@@ -508,7 +507,6 @@ extension WorkspaceActivationFeature {
   func performBorrow(
     targetId: Workspace.ID,
     edge: BorrowEdge,
-    mode: BorrowMode,
     state: inout State
   ) -> Effect<Action> {
     guard let profile = state.config.activeProfile,
@@ -525,14 +523,12 @@ extension WorkspaceActivationFeature {
       var comp = existing
       comp.borrowed[idx].edge = edge
       state.compositionsByDisplay[display] = comp
-      if state.combineBorrows[hostId] != nil { state.combineBorrows[hostId] = comp.borrowed }
       debugLog.log("Borrow", "re-dock \(target.name) → \(edge)")
       return applyComposition(display: display, state: state)
     }
     let fraction = target.borrowFraction ?? state.config.settings.switching.borrowFraction
-    let slot = BorrowedSlot(workspace: targetId, edge: edge, fraction: fraction, mode: mode)
+    let slot = BorrowedSlot(workspace: targetId, edge: edge, fraction: fraction)
     state.compositionsByDisplay[display] = Composition(host: hostId, borrowed: [slot])
-    if mode == .combine { state.combineBorrows[hostId] = [slot] }
     // Only tiled apps from the borrowed workspace participate; float / unmanaged
     // are ignored while borrowed. A scratchpad forces auto-open on all of them
     // (it only ever shows when borrowed, so its apps should come up then).
@@ -547,12 +543,11 @@ extension WorkspaceActivationFeature {
     )
     let settings = state.config.settings
     let existingBorrowedTree = state.tilingTrees[targetId]
-    debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge) mode=\(mode)")
+    debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge)")
     let hud = hudEffect(
       state, \.borrow,
       "Borrowed \(target.name)",
-      Self.borrowEdgeIcon(edge),
-      subtitle: mode == .combine ? "Combined — stays until dismissed" : nil
+      Self.borrowEdgeIcon(edge)
     )
     let render = Effect<Action>.run { [mgr = workspaceManager, snapshot = windowSnapshot, displays] send in
       await mgr.activate(request)
@@ -607,7 +602,6 @@ extension WorkspaceActivationFeature {
     let borrowedName = comp.borrowed.first
       .flatMap { state.config.activeProfile?.workspaces[id: $0.workspace]?.name }
     state.compositionsByDisplay[display] = nil
-    state.combineBorrows[comp.host] = nil
     debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
     let hud = hudEffect(
       state, \.borrow,
