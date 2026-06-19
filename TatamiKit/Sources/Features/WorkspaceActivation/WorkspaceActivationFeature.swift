@@ -250,6 +250,9 @@ public struct WorkspaceActivationFeature {
     case resize(BSPDirection, delta: CGFloat)
     case toggleOrientation
     case toggleZoomFullscreen
+    /// Equalize both split axes. Resolved against the focused window so it
+    /// balances the owning block when a composition is active.
+    case balance
   }
 
   /// Cancellation identifiers for debounced window-event handling.
@@ -910,10 +913,11 @@ public struct WorkspaceActivationFeature {
         // `autoBalance` setting governs only the automatic balancing applied
         // on activation (see `performActivate`); gating the hotkey on it made
         // balance a no-op whenever auto-balance was off — which is the default.
-        return .merge(
-          applyTreeTransform(state: &state) { $0.balanced(axis: .both) },
-          hudEffect(state, \.layout, "Layout Balanced", "equal.circle")
-        )
+        // Resolve the focused window first so balance targets the owning block
+        // when a composition is active (and the HUD/flush stay in one place).
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .balance)
+        }
 
       case .bspOpResolved(let key, let op):
         return applyBSPOp(windowKey: key, op: op, state: &state)
@@ -1066,6 +1070,30 @@ public struct WorkspaceActivationFeature {
     .cancellable(id: CancelID.apply(workspaceId), cancelInFlight: true)
   }
 
+  /// Composition-aware flush for a workspace whose tree was just mutated.
+  /// When the workspace is a block in an active composition, the whole
+  /// composition is re-laid (both blocks into their sub-rects) so a
+  /// single-tree apply can't clobber the sibling block; otherwise it tiles
+  /// into its own work area. The mutated tree must already be written to
+  /// `state.tilingTrees[workspaceId]`.
+  func flushLayout(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
+    for (display, comp) in state.compositionsByDisplay
+    where comp.host == workspaceId
+      || comp.borrowed.contains(where: { $0.workspace == workspaceId }) {
+      return applyComposition(display: display, state: state)
+    }
+    guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+          let tree = state.tilingTrees[workspaceId]
+    else { return .none }
+    let settings = state.config.settings
+    let display = workspace.displayHint ?? displays.current()
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    return applyLayout(
+      tree: tree, workspaceId: workspaceId, settings: settings,
+      display: display, fullscreenZoomed: zoomed
+    )
+  }
+
   /// Snapshot the tree to disk when the workspace opted into
   /// `.persistent` memory. No-op otherwise. The tree is bundle-id
   /// keyed (`WindowKey`s die at process exit); fullscreen-zoom is
@@ -1093,7 +1121,10 @@ public struct WorkspaceActivationFeature {
     op: BSPOp,
     state: inout State
   ) -> Effect<Action> {
-    guard let workspaceId = state.primaryActiveWorkspaceID,
+    // Resolve to the block that owns the focused window — the borrowed
+    // workspace when composed, else the single active one. Every mutation
+    // runs on this one tree, so directional ops can't cross the boundary.
+    guard let workspaceId = state.workspaceOwning(windowKey) ?? state.primaryActiveWorkspaceID,
           let workspace = state.config.activeProfile?
             .workspaces[id: workspaceId],
           var tree = state.tilingTrees[workspaceId]
@@ -1111,9 +1142,10 @@ public struct WorkspaceActivationFeature {
     )
 
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
+    // The block's geometry: a composition sub-rect when composed, else the
+    // workspace's full work area. (Display is re-derived in `flushLayout`.)
+    let (_, workArea) = tilingContext(for: workspaceId, state: state)
     let gap = CGFloat(settings.layout.gapInner)
-    let workArea = tilingWorkArea(for: display, settings: settings)
     // Ops with no obvious visual cue of their own attach a HUD here.
     var hud: Effect<Action> = .none
 
@@ -1167,42 +1199,20 @@ public struct WorkspaceActivationFeature {
           ? "arrow.up.left.and.arrow.down.right"
           : "arrow.down.right.and.arrow.up.left"
       )
+
+    case .balance:
+      tree = tree.balanced(axis: .both)
+      hud = hudEffect(state, \.layout, "Layout Balanced", "equal.circle")
     }
 
     state.tilingTrees[workspaceId] = tree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
-      applyLayout(
-        tree: tree, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
-      ),
+      flushLayout(workspaceId: workspaceId, state: state),
       persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       refreshMarkers(state: state),
       hud
-    )
-  }
-
-  private func applyTreeTransform(
-    state: inout State,
-    _ transform: (BSPNode<WindowKey>) -> BSPNode<WindowKey>
-  ) -> Effect<Action> {
-    guard let workspaceId = state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
-          let tree = state.tilingTrees[workspaceId]
-    else { return .none }
-    let newTree = transform(tree)
-    state.tilingTrees[workspaceId] = newTree
-    let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
-    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    return .merge(
-      applyLayout(
-        tree: newTree, workspaceId: workspaceId, settings: settings,
-        display: display, fullscreenZoomed: zoomed
-      ),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
     )
   }
 
