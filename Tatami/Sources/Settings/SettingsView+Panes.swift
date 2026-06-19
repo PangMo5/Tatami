@@ -373,8 +373,28 @@ extension SettingsView {
         description: "Focus the active workspace on the previous display (loops around)."
       )
       shortcut(
+        "Borrow recent workspace (left)", .borrowRecentLeft, \.borrowRecentLeft,
+        description: "Borrow the recent workspace into the left of the current screen, side by side (press again to dismiss)."
+      )
+      shortcut(
         "Borrow recent workspace (right)", .borrowRecentRight, \.borrowRecentRight,
         description: "Borrow the recent workspace into the right of the current screen, side by side (press again to dismiss)."
+      )
+      shortcut(
+        "Borrow recent workspace (up)", .borrowRecentUp, \.borrowRecentUp,
+        description: "Borrow the recent workspace into the top of the current screen, stacked (press again to dismiss)."
+      )
+      shortcut(
+        "Borrow recent workspace (down)", .borrowRecentDown, \.borrowRecentDown,
+        description: "Borrow the recent workspace into the bottom of the current screen, stacked (press again to dismiss)."
+      )
+      shortcut(
+        "Grow borrowed block", .borrowGrow, \.borrowGrow,
+        description: "Give the borrowed workspace a larger share of the screen."
+      )
+      shortcut(
+        "Shrink borrowed block", .borrowShrink, \.borrowShrink,
+        description: "Give the borrowed workspace a smaller share of the screen."
       )
       shortcut(
         "Dismiss borrow", .dismissBorrow, \.dismissBorrow,

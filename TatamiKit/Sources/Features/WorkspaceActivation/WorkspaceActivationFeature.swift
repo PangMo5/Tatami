@@ -182,6 +182,9 @@ public struct WorkspaceActivationFeature {
     /// Borrow the recent workspace (resolved from per-display history).
     case borrowRecent(edge: BorrowEdge, mode: BorrowMode)
     case dismissBorrow(display: DisplayName?)
+    /// Grow (`+`) / shrink (`-`) the borrowed block's share of the focused
+    /// display's composition.
+    case resizeBorrow(delta: CGFloat)
     /// Internal: re-flush a display's composition after its trees change.
     case flushComposition(display: DisplayName?)
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
@@ -613,6 +616,9 @@ public struct WorkspaceActivationFeature {
 
       case .dismissBorrow(let display):
         return dismissBorrow(display: display, state: &state)
+
+      case .resizeBorrow(let delta):
+        return resizeBorrow(delta: delta, state: &state)
 
       case .flushComposition(let display):
         return applyComposition(display: display, state: state)

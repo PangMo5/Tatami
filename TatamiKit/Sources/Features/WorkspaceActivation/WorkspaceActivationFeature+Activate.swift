@@ -589,6 +589,25 @@ extension WorkspaceActivationFeature {
     return .merge(.send(.activate(workspaceId: comp.host, setFocus: true)), hud)
   }
 
+  /// Grow / shrink the borrowed block's share of the focused display's
+  /// composition by `delta` (clamped to 10–90%), then re-flush. Persists the
+  /// new fraction into `combineBorrows` for a combined borrow.
+  func resizeBorrow(delta: CGFloat, state: inout State) -> Effect<Action> {
+    guard let display = state.focusedDisplay ?? state.activeWorkspacesByDisplay.keys.first,
+          var comp = state.compositionsByDisplay[display],
+          !comp.borrowed.isEmpty
+    else { return .none }
+    let clamped = min(0.9, max(0.1, comp.borrowed[0].fraction + delta))
+    guard clamped != comp.borrowed[0].fraction else { return .none }
+    comp.borrowed[0].fraction = clamped
+    state.compositionsByDisplay[display] = comp
+    if state.combineBorrows[comp.host] != nil {
+      state.combineBorrows[comp.host] = comp.borrowed
+    }
+    debugLog.log("Borrow", "resize borrowed fraction → \(clamped)")
+    return applyComposition(display: display, state: state)
+  }
+
   /// The display + rect a workspace's tree should tile into right now: its
   /// composition sub-rect when it's a host/borrowed block, else its own
   /// display's full work area (pre-feature behavior). The single place every

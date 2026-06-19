@@ -659,8 +659,14 @@ extension AppSettings {
     public var toggleFocusedAppInActiveWorkspace: HotKey?
     /// Toggle the focused window's app in Shared Apps (added tiled).
     public var toggleAppInSharedApps: HotKey?
-    /// Borrow the recent workspace into the current screen, docked right.
+    /// Borrow the recent workspace into the current screen, docked to an edge.
+    public var borrowRecentLeft: HotKey?
     public var borrowRecentRight: HotKey?
+    public var borrowRecentUp: HotKey?
+    public var borrowRecentDown: HotKey?
+    /// Grow / shrink the borrowed block's share of the screen.
+    public var borrowGrow: HotKey?
+    public var borrowShrink: HotKey?
     /// Dismiss the active borrow on the focused display.
     public var dismissBorrow: HotKey?
 
@@ -692,7 +698,12 @@ extension AppSettings {
       toggleSpaceActivated: HotKey? = nil,
       toggleFocusedAppInActiveWorkspace: HotKey? = nil,
       toggleAppInSharedApps: HotKey? = nil,
+      borrowRecentLeft: HotKey? = nil,
       borrowRecentRight: HotKey? = nil,
+      borrowRecentUp: HotKey? = nil,
+      borrowRecentDown: HotKey? = nil,
+      borrowGrow: HotKey? = nil,
+      borrowShrink: HotKey? = nil,
       dismissBorrow: HotKey? = nil
     ) {
       self.focusLeft = focusLeft
@@ -722,7 +733,12 @@ extension AppSettings {
       self.toggleSpaceActivated = toggleSpaceActivated
       self.toggleFocusedAppInActiveWorkspace = toggleFocusedAppInActiveWorkspace
       self.toggleAppInSharedApps = toggleAppInSharedApps
+      self.borrowRecentLeft = borrowRecentLeft
       self.borrowRecentRight = borrowRecentRight
+      self.borrowRecentUp = borrowRecentUp
+      self.borrowRecentDown = borrowRecentDown
+      self.borrowGrow = borrowGrow
+      self.borrowShrink = borrowShrink
       self.dismissBorrow = dismissBorrow
     }
 
@@ -738,7 +754,8 @@ extension AppSettings {
       case balance
       case toggleFloating, toggleSharedFloating, toggleSpaceActivated
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
-      case borrowRecentRight, dismissBorrow
+      case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
+      case borrowGrow, borrowShrink, dismissBorrow
     }
 
     public init(from decoder: Decoder) throws {
@@ -770,7 +787,12 @@ extension AppSettings {
       self.toggleSpaceActivated = c.decodeIfValid(.toggleSpaceActivated)
       self.toggleFocusedAppInActiveWorkspace = c.decodeIfValid(.toggleFocusedAppInActiveWorkspace)
       self.toggleAppInSharedApps = c.decodeIfValid(.toggleAppInSharedApps)
+      self.borrowRecentLeft = c.decodeIfValid(.borrowRecentLeft)
       self.borrowRecentRight = c.decodeIfValid(.borrowRecentRight)
+      self.borrowRecentUp = c.decodeIfValid(.borrowRecentUp)
+      self.borrowRecentDown = c.decodeIfValid(.borrowRecentDown)
+      self.borrowGrow = c.decodeIfValid(.borrowGrow)
+      self.borrowShrink = c.decodeIfValid(.borrowShrink)
       self.dismissBorrow = c.decodeIfValid(.dismissBorrow)
     }
   }
