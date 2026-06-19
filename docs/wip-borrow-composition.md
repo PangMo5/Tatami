@@ -47,11 +47,15 @@
   - `WorkspaceList/WorkspaceListView.swift`: scratchpad/borrowed 뱃지 + "Borrow Here" 컨텍스트 메뉴.
 
 ## 남은 작업
-### #18 엣지 케이스 (대부분 해소됨)
+### #18 엣지 케이스 (완료)
 - 해소: float/unmanaged 무시, target==host 차단, 재도킹, cross-block focus, 외부 핫키 충돌(코드 이슈 아님).
-- **남은 검토**: 멀티 디스플레이 borrow(현재 focusedDisplay 기준), fullscreen-zoom 블록 내, borrowed marker dot(보류).
-- **combine 데드코드 결정 필요**: borrow는 항상 `.peek`. `combineBorrows` + `activationCompleted` 재establish 로직은 존재하나 UI로 도달 불가 → 제거할지 재배선할지(change-hygiene). dismissBorrow 액션은 내부(collapse/peek)용으로 유지.
-### #19 문서 + 1.5.0 릴리즈
+- **combine 데드코드 제거 완료**(`34704f0`): `.peek`만 쓰이고 `combineBorrows`는 채워지지도 않던 죽은 영속 골격 → `BorrowMode`/`BorrowedSlot.mode`/`combineBorrows`/activationCompleted 재establish/mode 인자 전부 삭제. borrow는 항상 transient. dismissBorrow는 유지(실사용).
+- **fullscreen-zoom × composition 검증 → 버그 없음**: zoom은 `flushLayout`→`applyComposition` 경유로 처리되고 `computeFrames(targetRect:)`가 zoom 창을 블록 sub-rect에 가둠.
+- **borrow marker 완료**(`f2958d4`): 빌려온 블록의 각 창에 빌려온 워크스페이스 아이콘 배지(MarkerTarget.symbol). `borrowMarkerTargets()`가 모든 composition 수집→모든 마커 push 경로에 머지, flushComposition에서 재푸시. 설정 `marker.borrowEnabled/borrowColorHex`(Appearance). 심볼 마커는 dot의 2배 크기.
+- 멀티 디스플레이: borrow는 focusedDisplay 기준, 마커는 전 디스플레이 composition 수집으로 처리됨.
+### 메뉴바 정리 (완료)
+- scratchpad 전용 "Scratchpads" 섹션 분리(`4a90146`), Pause Tiling 제거(`be1219e`, 핫키 `toggleSpaceActivated`로 접근).
+### #19 문서 + 1.5.0 릴리즈 (다음)
 - `docs/CONFIGURATION.md`(kind/keyEquivalent/3 modifiers/nav keys/borrow defaults/scratchpad), `CHANGELOG.md` 1.5.0(기존 Breaking 포맷), `WhatsNewClient.swift`, `README.md`. `Project.swift` `appVersion` → 1.5.0, `v1.5.0` 태그 push(release CI가 태그=appVersion 검증). **태그 push는 outward/destructive → 사용자 확인 후.**
 
 ## 주의 / 함정
