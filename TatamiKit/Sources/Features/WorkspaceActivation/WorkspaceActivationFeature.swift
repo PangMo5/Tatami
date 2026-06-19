@@ -580,14 +580,15 @@ public struct WorkspaceActivationFeature {
         return debouncedSync(bundleId, delayMs: 0)
 
       case .activateInitial:
-        guard let profile = state.config.activeProfile,
-              !profile.workspaces.isEmpty
-        else { return .none }
+        guard let profile = state.config.activeProfile else { return .none }
+        // Scratchpads are borrow-only — never auto-activate one on launch.
+        let candidates = profile.workspaces.filter { $0.kind != .scratchpad }
+        guard !candidates.isEmpty else { return .none }
         let frontBundle = windowSnapshot.frontmostApp()?.bundleId
-        let target = profile.workspaces.first { ws in
+        let target = candidates.first { ws in
           guard let fb = frontBundle else { return false }
           return ws.apps.contains { $0.bundleIdentifier == fb }
-        } ?? profile.workspaces[0]
+        } ?? candidates[0]
         debugLog.log(
           "Activate",
           "initial → ws=\(target.name) (frontmost=\(frontBundle ?? "nil"))"

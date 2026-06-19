@@ -117,6 +117,25 @@ struct WorkspaceDetailView: View {
           .pickerStyle(.menu)
         }
 
+        Section("Kind") {
+          Picker(
+            selection: Binding(
+              get: { workspace.kind },
+              set: { store.send(.kindChanged($0)) }
+            )
+          ) {
+            ForEach(WorkspaceKind.allCases, id: \.self) { kind in
+              Text(kind.displayName).tag(kind)
+            }
+          } label: {
+            Text("Workspace kind")
+            Text(workspace.kind == .scratchpad
+              ? "Borrow-only: excluded from cycling and never activated on its own — pull it in beside another workspace with a borrow."
+              : "A normal workspace you switch to and cycle through.")
+          }
+          .pickerStyle(.menu)
+        }
+
         Section("On Activation") {
           Picker(
             selection: Binding(

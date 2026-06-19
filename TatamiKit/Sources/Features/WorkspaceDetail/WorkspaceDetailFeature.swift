@@ -60,6 +60,7 @@ public struct WorkspaceDetailFeature {
     case appToFocusChanged(String?)
     case displayHintChanged(DisplayName?)
     case tilingMemoryChanged(TilingMemory?)
+    case kindChanged(WorkspaceKind)
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
@@ -204,6 +205,13 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.tilingMemory = memory }
+        }
+        return .none
+
+      case .kindChanged(let kind):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.kind = kind }
         }
         return .none
 

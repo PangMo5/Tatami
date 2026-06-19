@@ -15,6 +15,13 @@ extension WorkspaceActivationFeature {
     guard let profile = state.config.activeProfile,
           let workspace = profile.workspaces[id: workspaceId]
     else { return .none }
+    // A scratchpad is borrow-only: there's no "switch to" it. Redirect a
+    // standalone activate into a peek borrow on the focused display's host
+    // (toggles off if it's already borrowed there).
+    if workspace.kind == .scratchpad {
+      debugLog.log("Activate", "scratchpad \(workspace.name) → borrow")
+      return performBorrow(targetId: workspaceId, edge: .right, mode: .peek, state: &state)
+    }
     // Latest-wins: a switch arriving mid-activation supersedes the
     // in-flight one (the effect below is `cancellable(cancelInFlight:)`)
     // instead of being dropped — dropping read as "the hotkey got
@@ -319,7 +326,10 @@ extension WorkspaceActivationFeature {
   /// "move focused app to next/previous workspace". Returns `nil` when there
   /// is no eligible target (e.g. at an end with looping off).
   func adjacentWorkspaceId(by direction: Int, state: State) -> Workspace.ID? {
-    guard let all = state.config.activeProfile?.workspaces, !all.isEmpty
+    // Scratchpads are borrow-only — never a cycle destination.
+    guard let all = state.config.activeProfile?.workspaces
+            .filter({ $0.kind != .scratchpad }),
+          !all.isEmpty
     else { return nil }
     let settings = state.config.settings
     // Scope the cycle. `cycleAcrossDisplays` → every workspace. Otherwise stay
