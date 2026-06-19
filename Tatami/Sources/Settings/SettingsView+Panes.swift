@@ -132,23 +132,6 @@ extension SettingsView {
 
   @ViewBuilder
   var tilingPane: some View {
-    Section("Gaps") {
-      DebouncedStepper(
-        external: config.settings.layout.gapInner,
-        range: 0 ... 100,
-        detail: "Space between adjacent tiled windows.",
-        label: { "Inner gap: \($0) px" },
-        commit: { v in $config.withLock { $0.settings.layout.gapInner = v } }
-      )
-      DebouncedStepper(
-        external: config.settings.layout.gapOuter,
-        range: 0 ... 100,
-        detail: "Space between the tiles and the screen edge.",
-        label: { "Outer gap: \($0) px" },
-        commit: { v in $config.withLock { $0.settings.layout.gapOuter = v } }
-      )
-    }
-
     Section("Layout") {
       Picker(selection: setting(\.layout.autoBalance)) {
         ForEach(AutoBalanceMode.allCases) { mode in
@@ -182,6 +165,23 @@ extension SettingsView {
         Text("Default tiling memory")
         Text("How workspaces remember their layout unless they override it.")
       }
+    }
+
+    Section("Gaps") {
+      DebouncedStepper(
+        external: config.settings.layout.gapInner,
+        range: 0 ... 100,
+        detail: "Space between adjacent tiled windows.",
+        label: { "Inner gap: \($0) px" },
+        commit: { v in $config.withLock { $0.settings.layout.gapInner = v } }
+      )
+      DebouncedStepper(
+        external: config.settings.layout.gapOuter,
+        range: 0 ... 100,
+        detail: "Space between the tiles and the screen edge.",
+        label: { "Outer gap: \($0) px" },
+        commit: { v in $config.withLock { $0.settings.layout.gapOuter = v } }
+      )
     }
 
     Section("Move & Resize") {
@@ -353,39 +353,6 @@ extension SettingsView {
         .foregroundStyle(.secondary)
     }
 
-    Section("Move App & Displays") {
-      shortcut(
-        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
-        description: "Move the focused app to the next workspace and follow it there."
-      )
-      shortcut(
-        "Move app to previous workspace",
-        .moveFocusedAppToPreviousWorkspace,
-        \.moveToPreviousWorkspace,
-        description: "Move the focused app to the previous workspace and follow it there."
-      )
-      shortcut(
-        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
-        description: "Focus the active workspace on the next display (loops around)."
-      )
-      shortcut(
-        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
-        description: "Focus the active workspace on the previous display (loops around)."
-      )
-      shortcut(
-        "Toggle app in workspace",
-        .toggleFocusedAppInActiveWorkspace,
-        \.toggleFocusedAppInActiveWorkspace,
-        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
-      )
-      shortcut(
-        "Toggle app in Shared Apps",
-        .toggleAppInSharedApps,
-        \.toggleAppInSharedApps,
-        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
-      )
-    }
-
     Section("Borrow") {
       Picker(
         selection: Binding(
@@ -420,6 +387,39 @@ extension SettingsView {
       shortcut(
         "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
         description: "Return the borrowed workspace and restore the current one to full screen."
+      )
+    }
+
+    Section("Move App & Displays") {
+      shortcut(
+        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
+        description: "Move the focused app to the next workspace and follow it there."
+      )
+      shortcut(
+        "Move app to previous workspace",
+        .moveFocusedAppToPreviousWorkspace,
+        \.moveToPreviousWorkspace,
+        description: "Move the focused app to the previous workspace and follow it there."
+      )
+      shortcut(
+        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
+        description: "Focus the active workspace on the next display (loops around)."
+      )
+      shortcut(
+        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
+        description: "Focus the active workspace on the previous display (loops around)."
+      )
+      shortcut(
+        "Toggle app in workspace",
+        .toggleFocusedAppInActiveWorkspace,
+        \.toggleFocusedAppInActiveWorkspace,
+        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
+      )
+      shortcut(
+        "Toggle app in Shared Apps",
+        .toggleAppInSharedApps,
+        \.toggleAppInSharedApps,
+        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
       )
     }
 

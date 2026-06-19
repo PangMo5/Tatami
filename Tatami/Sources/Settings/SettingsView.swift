@@ -21,8 +21,8 @@ struct SettingsView: View {
   enum Pane: String, CaseIterable, Identifiable {
     case general
     case tiling
-    case focusMouse
     case workspaces
+    case focusMouse
     case appearance
 
     var id: String { rawValue }
