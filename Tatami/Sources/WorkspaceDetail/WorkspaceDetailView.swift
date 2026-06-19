@@ -156,10 +156,24 @@ struct WorkspaceDetailView: View {
             conflict: { store.state.assignShortcutConflict(for: $0) },
             onOverride: { store.send(.assignAppShortcutChanged($0)) }
           )
+          // Borrow has no explicit override — the direction is picked right
+          // after the combo — so it shows the combo plus a "then a direction"
+          // hint instead of a recorder.
+          HStack(spacing: 10) {
+            Text("Borrow")
+            Spacer(minLength: 12)
+            let mods = HotKey.modifierSymbols(from: store.config.settings.shortcuts.borrowModifiers)
+            let key = workspace.keyEquivalent
+            let combo = (key?.isEmpty == false) && !mods.isEmpty ? mods + (key ?? "").uppercased() : ""
+            ComboCapsule(text: combo)
+            Text("then a direction")
+              .font(.caption)
+              .foregroundStyle(.tertiary)
+          }
         } header: {
           Text("Shortcuts")
         } footer: {
-          Text("Activate switches here; Assign also adds the focused app to this workspace. By default the modifier + this workspace's key equivalent; record a shortcut to override.")
+          Text("All three use the modifier (Settings → Shortcuts) + this workspace's key equivalent: Activate switches here, Assign also adds the focused app, Borrow pulls this workspace in beside the current one (then press a direction). Record a shortcut to override Activate / Assign.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
