@@ -663,6 +663,12 @@ extension AppSettings {
     /// with a workspace's `keyEquivalent`, activates it — the default
     /// workspace-switch shortcut. Empty disables the auto-binding.
     public var keyEquivalentModifiers: [String]
+    /// Single-char key equivalents for workspace navigation: switch-modifier +
+    /// this key runs the action, unless the matching explicit shortcut below
+    /// overrides it.
+    public var recentWorkspaceKey: String?
+    public var nextWorkspaceKey: String?
+    public var previousWorkspaceKey: String?
     /// Enter borrow mode (chord): then a direction + workspace initial.
     public var enterBorrowMode: HotKey?
     /// Borrow the recent workspace into the current screen, docked to an edge.
@@ -705,6 +711,9 @@ extension AppSettings {
       toggleFocusedAppInActiveWorkspace: HotKey? = nil,
       toggleAppInSharedApps: HotKey? = nil,
       keyEquivalentModifiers: [String] = ["ctrl", "alt"],
+      recentWorkspaceKey: String? = nil,
+      nextWorkspaceKey: String? = nil,
+      previousWorkspaceKey: String? = nil,
       enterBorrowMode: HotKey? = nil,
       borrowRecentLeft: HotKey? = nil,
       borrowRecentRight: HotKey? = nil,
@@ -742,6 +751,9 @@ extension AppSettings {
       self.toggleFocusedAppInActiveWorkspace = toggleFocusedAppInActiveWorkspace
       self.toggleAppInSharedApps = toggleAppInSharedApps
       self.keyEquivalentModifiers = keyEquivalentModifiers
+      self.recentWorkspaceKey = recentWorkspaceKey
+      self.nextWorkspaceKey = nextWorkspaceKey
+      self.previousWorkspaceKey = previousWorkspaceKey
       self.enterBorrowMode = enterBorrowMode
       self.borrowRecentLeft = borrowRecentLeft
       self.borrowRecentRight = borrowRecentRight
@@ -765,6 +777,7 @@ extension AppSettings {
       case toggleFloating, toggleSharedFloating, toggleSpaceActivated
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
       case keyEquivalentModifiers
+      case recentWorkspaceKey, nextWorkspaceKey, previousWorkspaceKey
       case enterBorrowMode
       case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
       case borrowGrow, borrowShrink, dismissBorrow
@@ -800,6 +813,9 @@ extension AppSettings {
       self.toggleFocusedAppInActiveWorkspace = c.decodeIfValid(.toggleFocusedAppInActiveWorkspace)
       self.toggleAppInSharedApps = c.decodeIfValid(.toggleAppInSharedApps)
       self.keyEquivalentModifiers = c.decode(.keyEquivalentModifiers, default: ["ctrl", "alt"])
+      self.recentWorkspaceKey = c.decodeIfValid(.recentWorkspaceKey)
+      self.nextWorkspaceKey = c.decodeIfValid(.nextWorkspaceKey)
+      self.previousWorkspaceKey = c.decodeIfValid(.previousWorkspaceKey)
       self.enterBorrowMode = c.decodeIfValid(.enterBorrowMode)
       self.borrowRecentLeft = c.decodeIfValid(.borrowRecentLeft)
       self.borrowRecentRight = c.decodeIfValid(.borrowRecentRight)

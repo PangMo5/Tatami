@@ -35,9 +35,23 @@ extension AppConfig {
       if let key { out.append(.init(action: action, hotKey: key)) }
     }
     let shortcuts = settings.shortcuts
-    add(.switchToNextWorkspace, shortcuts.switchToNextWorkspace)
-    add(.switchToPreviousWorkspace, shortcuts.switchToPreviousWorkspace)
-    add(.switchToRecentWorkspace, shortcuts.switchToRecentWorkspace)
+    // Key-equivalent default with explicit override: an explicit shortcut
+    // wins; otherwise switch-modifier + the single-char key equivalent (when
+    // the modifier combo is non-empty).
+    func addKeyEquiv(_ action: HotKeyAction, override explicit: HotKey?, key char: String?) {
+      if let explicit {
+        out.append(.init(action: action, hotKey: explicit))
+      } else if switchModifiers != 0,
+                let char, let keyCode = HotKey.keyCode(forName: char) {
+        out.append(.init(
+          action: action,
+          hotKey: HotKey(carbonKeyCode: keyCode, carbonModifiers: switchModifiers)
+        ))
+      }
+    }
+    addKeyEquiv(.switchToNextWorkspace, override: shortcuts.switchToNextWorkspace, key: shortcuts.nextWorkspaceKey)
+    addKeyEquiv(.switchToPreviousWorkspace, override: shortcuts.switchToPreviousWorkspace, key: shortcuts.previousWorkspaceKey)
+    addKeyEquiv(.switchToRecentWorkspace, override: shortcuts.switchToRecentWorkspace, key: shortcuts.recentWorkspaceKey)
     add(.moveFocusedAppToNextWorkspace, shortcuts.moveToNextWorkspace)
     add(.moveFocusedAppToPreviousWorkspace, shortcuts.moveToPreviousWorkspace)
     add(.focusNextDisplay, shortcuts.focusNextDisplay)

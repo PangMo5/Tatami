@@ -59,6 +59,47 @@ struct WorkspaceDetailView: View {
                 if !focused { store.send(.nameSubmitted(nameDraft)) }
               }
           }
+
+          // Key equivalent — the switch modifier + this key activates the
+          // workspace (and summons it in borrow mode). The Activate shortcut
+          // below overrides it.
+          HStack {
+            Text("Key equivalent")
+            Spacer(minLength: 16)
+            let mods = HotKey.modifierSymbols(
+              from: store.config.settings.shortcuts.keyEquivalentModifiers
+            )
+            if let key = workspace.keyEquivalent, !key.isEmpty, !mods.isEmpty {
+              Text("\(mods)\(key.uppercased())")
+                .font(.callout.monospaced())
+                .foregroundStyle(.secondary)
+            }
+            TextField("key", text: Binding(
+              get: { workspace.keyEquivalent ?? "" },
+              set: { store.send(.keyEquivalentChanged($0.isEmpty ? nil : $0)) }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .frame(width: 48)
+            .multilineTextAlignment(.center)
+          }
+
+          // Kind — normal vs scratchpad.
+          Picker(
+            selection: Binding(
+              get: { workspace.kind },
+              set: { store.send(.kindChanged($0)) }
+            )
+          ) {
+            ForEach(WorkspaceKind.allCases, id: \.self) { kind in
+              Text(kind.displayName).tag(kind)
+            }
+          } label: {
+            Text("Kind")
+            Text(workspace.kind == .scratchpad
+              ? "Borrow-only: excluded from cycling and never activated on its own — pull it in beside another workspace with a borrow."
+              : "A normal workspace you switch to and cycle through. Borrow mode summons it by this key (h/j/k/l steer direction, so a workspace keyed to one isn't borrow-summonable).")
+          }
+          .pickerStyle(.menu)
         }
 
         Section {
@@ -115,40 +156,6 @@ struct WorkspaceDetailView: View {
               ?? "Follow the global default — \(globalDefault.displayName). Change it in Settings.")
           }
           .pickerStyle(.menu)
-        }
-
-        Section("Kind") {
-          Picker(
-            selection: Binding(
-              get: { workspace.kind },
-              set: { store.send(.kindChanged($0)) }
-            )
-          ) {
-            ForEach(WorkspaceKind.allCases, id: \.self) { kind in
-              Text(kind.displayName).tag(kind)
-            }
-          } label: {
-            Text("Workspace kind")
-            Text(workspace.kind == .scratchpad
-              ? "Borrow-only: excluded from cycling and never activated on its own — pull it in beside another workspace with a borrow."
-              : "A normal workspace you switch to and cycle through.")
-          }
-          .pickerStyle(.menu)
-
-          LabeledContent {
-            TextField(
-              "Key",
-              text: Binding(
-                get: { workspace.keyEquivalent ?? "" },
-                set: { store.send(.keyEquivalentChanged($0.isEmpty ? nil : $0)) }
-              )
-            )
-            .frame(width: 44)
-            .multilineTextAlignment(.center)
-          } label: {
-            Text("Key equivalent")
-            Text("One character. The switch modifier (Settings → Shortcuts) plus this key activates the workspace, and it summons the workspace in borrow mode. An explicit Activate shortcut below overrides the modifier+key default. (h/j/k/l still activate but steer direction in borrow mode.)")
-          }
         }
 
         Section("On Activation") {

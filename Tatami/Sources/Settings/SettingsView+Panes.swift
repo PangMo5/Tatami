@@ -339,7 +339,7 @@ extension SettingsView {
       )
     }
 
-    Section("Windows & Workspaces") {
+    Section {
       VStack(alignment: .leading, spacing: 4) {
         HStack {
           Text("Switch modifier")
@@ -349,11 +349,35 @@ extension SettingsView {
           switchModifierToggle("⇧", "shift")
           switchModifierToggle("⌘", "cmd")
         }
-        Text("Held with a workspace's key equivalent to switch to it (set each workspace's key in its settings). Clear all to disable the key-equivalent switch.")
+        Text("Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the keys below cover recent / next / previous. Clear the modifier to disable key-equivalent switching.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
+      keyEquivalentShortcut(
+        "Recent workspace", .switchToRecentWorkspace,
+        key: \.recentWorkspaceKey, override: \.switchToRecentWorkspace,
+        description: "Switch back to the previously active workspace."
+      )
+      keyEquivalentShortcut(
+        "Next workspace", .switchToNextWorkspace,
+        key: \.nextWorkspaceKey, override: \.switchToNextWorkspace,
+        description: "Cycle to the next workspace."
+      )
+      keyEquivalentShortcut(
+        "Previous workspace", .switchToPreviousWorkspace,
+        key: \.previousWorkspaceKey, override: \.switchToPreviousWorkspace,
+        description: "Cycle to the previous workspace."
+      )
+    } header: {
+      Text("Workspace Switching")
+    } footer: {
+      Text("Set a single-letter key, or record an explicit shortcut to override the modifier+key default.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    Section("Windows & Displays") {
       shortcut(
         "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
         description: "Move focus to the next window in the active workspace."
@@ -361,12 +385,6 @@ extension SettingsView {
       shortcut(
         "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
         description: "Move focus to the previous window in the active workspace."
-      )
-      shortcut("Next workspace", .switchToNextWorkspace, \.switchToNextWorkspace)
-      shortcut("Previous workspace", .switchToPreviousWorkspace, \.switchToPreviousWorkspace)
-      shortcut(
-        "Recent workspace", .switchToRecentWorkspace, \.switchToRecentWorkspace,
-        description: "Switch back to the previously active workspace."
       )
       shortcut(
         "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
@@ -386,25 +404,28 @@ extension SettingsView {
         "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
         description: "Focus the active workspace on the previous display (loops around)."
       )
+    }
+
+    Section("Borrow") {
       shortcut(
         "Borrow mode", .enterBorrowMode, \.enterBorrowMode,
-        description: "Enter borrow mode, then press a direction (h/j/k/l or arrows) and a workspace's borrow key to summon it side by side. Backtick = recent, Esc cancels."
+        description: "Enter borrow mode, then a direction (h/j/k/l or arrows) + a workspace's key summons it side by side. Backtick = recent, Esc cancels."
       )
       shortcut(
-        "Borrow recent workspace (left)", .borrowRecentLeft, \.borrowRecentLeft,
-        description: "Borrow the recent workspace into the left of the current screen, side by side (press again to dismiss)."
+        "Borrow recent (left)", .borrowRecentLeft, \.borrowRecentLeft,
+        description: "Borrow the recent workspace into the left, side by side (press again to dismiss)."
       )
       shortcut(
-        "Borrow recent workspace (right)", .borrowRecentRight, \.borrowRecentRight,
-        description: "Borrow the recent workspace into the right of the current screen, side by side (press again to dismiss)."
+        "Borrow recent (right)", .borrowRecentRight, \.borrowRecentRight,
+        description: "Borrow the recent workspace into the right, side by side (press again to dismiss)."
       )
       shortcut(
-        "Borrow recent workspace (up)", .borrowRecentUp, \.borrowRecentUp,
-        description: "Borrow the recent workspace into the top of the current screen, stacked (press again to dismiss)."
+        "Borrow recent (up)", .borrowRecentUp, \.borrowRecentUp,
+        description: "Borrow the recent workspace into the top, stacked (press again to dismiss)."
       )
       shortcut(
-        "Borrow recent workspace (down)", .borrowRecentDown, \.borrowRecentDown,
-        description: "Borrow the recent workspace into the bottom of the current screen, stacked (press again to dismiss)."
+        "Borrow recent (down)", .borrowRecentDown, \.borrowRecentDown,
+        description: "Borrow the recent workspace into the bottom, stacked (press again to dismiss)."
       )
       shortcut(
         "Grow borrowed block", .borrowGrow, \.borrowGrow,
@@ -570,6 +591,56 @@ extension SettingsView {
   /// current combo from it and writes edits straight back, and the live
   /// `HotKeysFeature` re-registers on the change. Conflicts are detected
   /// against every other binding (`AppConfig.shortcutConflict`).
+  /// A navigation shortcut driven by a single-char key equivalent (switch
+  /// modifier + key) with an optional explicit-shortcut override. The key
+  /// field dims when an override is set, since the override wins.
+  @ViewBuilder
+  func keyEquivalentShortcut(
+    _ title: String,
+    _ action: HotKeyAction,
+    key keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
+    override overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    description: String
+  ) -> some View {
+    let shortcuts = config.settings.shortcuts
+    let modSymbols = HotKey.modifierSymbols(from: shortcuts.keyEquivalentModifiers)
+    let hasOverride = shortcuts[keyPath: overrideKP] != nil
+    VStack(alignment: .leading, spacing: 4) {
+      HStack(spacing: 8) {
+        Text(title)
+        Spacer(minLength: 12)
+        if !modSymbols.isEmpty {
+          Text(modSymbols).foregroundStyle(.secondary)
+        }
+        TextField("key", text: Binding(
+          get: { shortcuts[keyPath: keyKP] ?? "" },
+          set: { v in
+            $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = v.lowercased().first.map(String.init) }
+          }
+        ))
+        .textFieldStyle(.roundedBorder)
+        .frame(width: 40)
+        .multilineTextAlignment(.center)
+        .disabled(hasOverride)
+        .opacity(hasOverride ? 0.4 : 1)
+        Text("override")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        ShortcutRecorder(
+          hotKey: shortcuts[keyPath: overrideKP],
+          conflict: { config.shortcutConflict(for: $0, excluding: action) },
+          onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+        ) { hotKey in
+          $config.withLock { $0.settings.shortcuts[keyPath: overrideKP] = hotKey }
+        }
+      }
+      Text(description)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
   /// One compact toggle button for a switch-modifier token (e.g. `"ctrl"`),
   /// reflecting / editing membership in `keyEquivalentModifiers`.
   @ViewBuilder

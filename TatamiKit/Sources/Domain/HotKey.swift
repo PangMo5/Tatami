@@ -59,6 +59,18 @@ extension HotKey {
     return mods
   }
 
+  /// macOS glyphs (`⌃⌥⇧⌘`, in canonical order) for skhd modifier tokens —
+  /// for showing the effective key-equivalent combo in settings.
+  public static func modifierSymbols(from tokens: [String]) -> String {
+    let mods = carbonModifiers(from: tokens)
+    var out = ""
+    if mods & control != 0 { out += "⌃" }
+    if mods & option != 0 { out += "⌥" }
+    if mods & shift != 0 { out += "⇧" }
+    if mods & cmd != 0 { out += "⌘" }
+    return out
+  }
+
   /// skhd-style description: `"<mods joined by ' + '> - <key>"`.
   public var displayString: String {
     var mods: [String] = []
