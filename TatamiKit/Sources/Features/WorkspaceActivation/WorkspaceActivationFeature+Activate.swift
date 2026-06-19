@@ -23,10 +23,22 @@ extension WorkspaceActivationFeature {
     // (re-docks if it's already borrowed there).
     if workspace.kind == .scratchpad {
       debugLog.log("Activate", "scratchpad \(workspace.name) → borrow")
-      // Route through the borrow-direction flow so a scratchpad honors its
-      // default edge — or asks for a direction when set to "Ask" — exactly
-      // like the borrow shortcut, instead of always docking right.
-      return .send(.beginBorrowDirection(workspaceId: workspaceId))
+      let resolved = workspace.borrowEdge ?? state.config.settings.switching.borrowDefaultEdge
+      if let resolved {
+        // A configured default edge → dock straight there.
+        return performBorrow(targetId: workspaceId, edge: resolved, state: &state)
+      }
+      if setFocus {
+        // "Ask" via a deliberate shortcut (switch/borrow): open the direction
+        // picker with nothing placed yet, like the borrow shortcut.
+        return .send(.beginBorrowDirection(workspaceId: workspaceId))
+      }
+      // "Ask" via focusing the app: dock provisionally at the fallback edge so
+      // the window never floats unplaced, then open the picker to re-steer it.
+      return .merge(
+        performBorrow(targetId: workspaceId, edge: .right, state: &state),
+        .send(.beginBorrowDirection(workspaceId: workspaceId))
+      )
     }
     // Latest-wins: a switch arriving mid-activation supersedes the
     // in-flight one (the effect below is `cancellable(cancelInFlight:)`)
