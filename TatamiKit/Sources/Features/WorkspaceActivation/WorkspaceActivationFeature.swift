@@ -563,6 +563,11 @@ public struct WorkspaceActivationFeature {
            let owner = state.config.activeProfile?.workspaces.first(where: {
              $0.apps.contains { $0.bundleIdentifier == bundleId }
            }),
+           // A scratchpad is never activated on its own — activating it would
+           // redirect to a borrow, so focusing a scratchpad app must not yank
+           // it into the current workspace. It's summoned only by an explicit
+           // borrow.
+           owner.kind != .scratchpad,
            state.primaryActiveWorkspaceID != owner.id {
           // The one path that switches workspaces without a hotkey — when a
           // bounce-back is suspected, this line (or its absence) is the tell.
