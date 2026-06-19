@@ -23,7 +23,6 @@ struct SettingsView: View {
     case tiling
     case focusMouse
     case workspaces
-    case shortcuts
     case appearance
 
     var id: String { rawValue }
@@ -34,7 +33,6 @@ struct SettingsView: View {
       case .tiling: "Tiling"
       case .focusMouse: "Focus & Mouse"
       case .workspaces: "Workspaces"
-      case .shortcuts: "Shortcuts"
       case .appearance: "Appearance"
       }
     }
@@ -45,7 +43,6 @@ struct SettingsView: View {
       case .tiling: "rectangle.split.2x2"
       case .focusMouse: "cursorarrow.motionlines"
       case .workspaces: "square.stack.3d.up"
-      case .shortcuts: "keyboard"
       case .appearance: "paintbrush"
       }
     }
@@ -67,7 +64,6 @@ struct SettingsView: View {
         case .tiling: tilingPane
         case .focusMouse: focusMousePane
         case .workspaces: workspacesPane
-        case .shortcuts: shortcutsPane
         case .appearance: appearancePane
         }
       }

@@ -183,6 +183,42 @@ extension SettingsView {
         Text("How workspaces remember their layout unless they override it.")
       }
     }
+
+    Section("Move & Resize") {
+      shortcut("Swap left", .swapLeft, \.swapLeft)
+      shortcut("Swap right", .swapRight, \.swapRight)
+      shortcut("Swap up", .swapUp, \.swapUp)
+      shortcut("Swap down", .swapDown, \.swapDown)
+      shortcut("Grow", .resizeGrow, \.resizeGrow)
+      shortcut("Shrink", .resizeShrink, \.resizeShrink)
+      shortcut(
+        "Toggle orientation", .toggleOrientation, \.toggleOrientation,
+        description: "Flip the split between the focused window and its neighbour (side-by-side ↔ stacked)."
+      )
+      shortcut(
+        "Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen,
+        description: "Zoom the focused window to fill the workspace. Tatami can keep several windows zoomed at once."
+      )
+      shortcut(
+        "Balance", .balance, \.balance,
+        description: "Reset every split in the layout to equal sizes."
+      )
+    }
+
+    Section("Toggles") {
+      shortcut(
+        "Toggle floating", .toggleFloating, \.toggleFloating,
+        description: "Float the focused app in the active workspace (added here as floating if it wasn't assigned); toggle again to re-tile it."
+      )
+      shortcut(
+        "Toggle shared floating", .toggleSharedFloating, \.toggleSharedFloating,
+        description: "Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet. Toggling off flips it to shared tiled; leaving Shared Apps is the membership toggle in Workspaces."
+      )
+      shortcut(
+        "Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated,
+        description: "Pause or resume tiling for the active workspace. While paused, windows keep their current frames."
+      )
+    }
   }
 
   // MARK: - Focus & Mouse
@@ -224,6 +260,24 @@ extension SettingsView {
       }
       .disabled(!config.settings.focus.focusFollowsMouse)
     }
+
+    Section("Directional Focus") {
+      shortcut("Focus left", .focusLeft, \.focusLeft)
+      shortcut("Focus right", .focusRight, \.focusRight)
+      shortcut("Focus up", .focusUp, \.focusUp)
+      shortcut("Focus down", .focusDown, \.focusDown)
+    }
+
+    Section("Window Cycling") {
+      shortcut(
+        "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
+        description: "Move focus to the next window in the active workspace."
+      )
+      shortcut(
+        "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
+        description: "Move focus to the previous window in the active workspace."
+      )
+    }
   }
 
   // MARK: - Workspaces
@@ -255,6 +309,118 @@ extension SettingsView {
         Text("Cycle through every window")
         Text("Step through each window individually, including multiple windows of the same app, instead of cycling app-by-app.")
       }
+    }
+
+    Section {
+      modifierToggleRow(
+        "Switch modifier", \.keyEquivalentModifiers,
+        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the keys below cover recent / next / previous. Clear it to disable key-equivalent switching."
+      )
+      modifierToggleRow(
+        "Assign modifier", \.assignModifiers,
+        description: "Held with a workspace's key equivalent to assign the focused app to it."
+      )
+      modifierToggleRow(
+        "Borrow modifier", \.borrowModifiers,
+        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
+      )
+      navTarget(
+        "Recent workspace", description: "The previously active workspace.",
+        key: \.recentWorkspaceKey,
+        switchAction: .switchToRecentWorkspace, switchOverride: \.switchToRecentWorkspace,
+        assignAction: .assignFocusedAppToRecentWorkspace, assignOverride: \.assignRecentWorkspace,
+        borrowAction: .borrowRecentWorkspace, borrowOverride: \.borrowRecentWorkspace
+      )
+      navTarget(
+        "Next workspace", description: "The next workspace in the cycle.",
+        key: \.nextWorkspaceKey,
+        switchAction: .switchToNextWorkspace, switchOverride: \.switchToNextWorkspace,
+        assignAction: .assignFocusedAppToNextWorkspace, assignOverride: \.assignNextWorkspace,
+        borrowAction: .borrowNextWorkspace, borrowOverride: \.borrowNextWorkspace
+      )
+      navTarget(
+        "Previous workspace", description: "The previous workspace in the cycle.",
+        key: \.previousWorkspaceKey,
+        switchAction: .switchToPreviousWorkspace, switchOverride: \.switchToPreviousWorkspace,
+        assignAction: .assignFocusedAppToPreviousWorkspace, assignOverride: \.assignPreviousWorkspace,
+        borrowAction: .borrowPreviousWorkspace, borrowOverride: \.borrowPreviousWorkspace
+      )
+    } header: {
+      Text("Workspace Keys")
+    } footer: {
+      Text("One key per target: the switch / assign / borrow modifier + that key runs each action. Record an explicit shortcut to override any of them.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    Section("Move App & Displays") {
+      shortcut(
+        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
+        description: "Move the focused app to the next workspace and follow it there."
+      )
+      shortcut(
+        "Move app to previous workspace",
+        .moveFocusedAppToPreviousWorkspace,
+        \.moveToPreviousWorkspace,
+        description: "Move the focused app to the previous workspace and follow it there."
+      )
+      shortcut(
+        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
+        description: "Focus the active workspace on the next display (loops around)."
+      )
+      shortcut(
+        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
+        description: "Focus the active workspace on the previous display (loops around)."
+      )
+      shortcut(
+        "Toggle app in workspace",
+        .toggleFocusedAppInActiveWorkspace,
+        \.toggleFocusedAppInActiveWorkspace,
+        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
+      )
+      shortcut(
+        "Toggle app in Shared Apps",
+        .toggleAppInSharedApps,
+        \.toggleAppInSharedApps,
+        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
+      )
+    }
+
+    Section("Borrow") {
+      Picker(
+        selection: Binding(
+          get: { config.settings.switching.borrowDefaultEdge },
+          set: { e in $config.withLock { $0.settings.switching.borrowDefaultEdge = e } }
+        )
+      ) {
+        Text("Ask (pick a direction)").tag(BorrowEdge?.none)
+        Divider()
+        ForEach(BorrowEdge.allCases, id: \.self) { edge in
+          Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+        }
+      } label: {
+        Text("Default direction")
+        Text("Where a borrow docks. “Ask” means press a direction (h/j/k/l or arrows) after the borrow combo. A workspace can override this.")
+      }
+      .pickerStyle(.menu)
+      Picker(
+        selection: Binding(
+          get: { config.settings.switching.borrowFraction },
+          set: { f in $config.withLock { $0.settings.switching.borrowFraction = f } }
+        )
+      ) {
+        ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
+          Text("\(Int((f * 100).rounded()))%").tag(f)
+        }
+      } label: {
+        Text("Default size")
+        Text("The borrowed workspace's share of the screen. A workspace can override this.")
+      }
+      .pickerStyle(.menu)
+      shortcut(
+        "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
+        description: "Return the borrowed workspace and restore the current one to full screen."
+      )
     }
 
     Section("Gestures") {
@@ -301,177 +467,6 @@ extension SettingsView {
           .foregroundStyle(.secondary)
       }
       .disabled(!config.settings.gestures.enabled)
-    }
-  }
-
-  // MARK: - Shortcuts
-
-  @ViewBuilder
-  var shortcutsPane: some View {
-    Section("Focus") {
-      shortcut("Focus left", .focusLeft, \.focusLeft)
-      shortcut("Focus right", .focusRight, \.focusRight)
-      shortcut("Focus up", .focusUp, \.focusUp)
-      shortcut("Focus down", .focusDown, \.focusDown)
-    }
-
-    Section("Move / Swap") {
-      shortcut("Swap left", .swapLeft, \.swapLeft)
-      shortcut("Swap right", .swapRight, \.swapRight)
-      shortcut("Swap up", .swapUp, \.swapUp)
-      shortcut("Swap down", .swapDown, \.swapDown)
-    }
-
-    Section("Resize & Layout") {
-      shortcut("Grow", .resizeGrow, \.resizeGrow)
-      shortcut("Shrink", .resizeShrink, \.resizeShrink)
-      shortcut(
-        "Toggle orientation", .toggleOrientation, \.toggleOrientation,
-        description: "Flip the split between the focused window and its neighbour (side-by-side ↔ stacked)."
-      )
-      shortcut(
-        "Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen,
-        description: "Zoom the focused window to fill the workspace. Tatami can keep several windows zoomed at once."
-      )
-      shortcut(
-        "Balance", .balance, \.balance,
-        description: "Reset every split in the layout to equal sizes."
-      )
-    }
-
-    Section {
-      modifierToggleRow(
-        "Switch modifier", \.keyEquivalentModifiers,
-        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the keys below cover recent / next / previous. Clear it to disable key-equivalent switching."
-      )
-      modifierToggleRow(
-        "Assign modifier", \.assignModifiers,
-        description: "Held with a workspace's key equivalent to assign the focused app to it. Distinct from the switch modifier, so one key does both."
-      )
-      modifierToggleRow(
-        "Borrow modifier", \.borrowModifiers,
-        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
-      )
-      navTarget(
-        "Recent workspace", description: "The previously active workspace.",
-        key: \.recentWorkspaceKey,
-        switchAction: .switchToRecentWorkspace, switchOverride: \.switchToRecentWorkspace,
-        assignAction: .assignFocusedAppToRecentWorkspace, assignOverride: \.assignRecentWorkspace,
-        borrowAction: .borrowRecentWorkspace, borrowOverride: \.borrowRecentWorkspace
-      )
-      navTarget(
-        "Next workspace", description: "The next workspace in the cycle.",
-        key: \.nextWorkspaceKey,
-        switchAction: .switchToNextWorkspace, switchOverride: \.switchToNextWorkspace,
-        assignAction: .assignFocusedAppToNextWorkspace, assignOverride: \.assignNextWorkspace,
-        borrowAction: .borrowNextWorkspace, borrowOverride: \.borrowNextWorkspace
-      )
-      navTarget(
-        "Previous workspace", description: "The previous workspace in the cycle.",
-        key: \.previousWorkspaceKey,
-        switchAction: .switchToPreviousWorkspace, switchOverride: \.switchToPreviousWorkspace,
-        assignAction: .assignFocusedAppToPreviousWorkspace, assignOverride: \.assignPreviousWorkspace,
-        borrowAction: .borrowPreviousWorkspace, borrowOverride: \.borrowPreviousWorkspace
-      )
-    } header: {
-      Text("Workspace Switching")
-    } footer: {
-      Text("One key per target: the switch / assign / borrow modifier + that key runs each action. Record an explicit shortcut to override any of them.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-
-    Section("Windows & Displays") {
-      shortcut(
-        "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
-        description: "Move focus to the next window in the active workspace."
-      )
-      shortcut(
-        "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
-        description: "Move focus to the previous window in the active workspace."
-      )
-      shortcut(
-        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
-        description: "Move the focused app to the next workspace and follow it there."
-      )
-      shortcut(
-        "Move app to previous workspace",
-        .moveFocusedAppToPreviousWorkspace,
-        \.moveToPreviousWorkspace,
-        description: "Move the focused app to the previous workspace and follow it there."
-      )
-      shortcut(
-        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
-        description: "Focus the active workspace on the next display (loops around)."
-      )
-      shortcut(
-        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
-        description: "Focus the active workspace on the previous display (loops around)."
-      )
-    }
-
-    Section("Borrow") {
-      Picker(
-        selection: Binding(
-          get: { config.settings.switching.borrowDefaultEdge },
-          set: { e in $config.withLock { $0.settings.switching.borrowDefaultEdge = e } }
-        )
-      ) {
-        Text("Ask (pick a direction)").tag(BorrowEdge?.none)
-        Divider()
-        ForEach(BorrowEdge.allCases, id: \.self) { edge in
-          Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
-        }
-      } label: {
-        Text("Default direction")
-        Text("Where a borrow docks. “Ask” means press a direction (h/j/k/l or arrows) after the borrow combo. A workspace can override this.")
-      }
-      .pickerStyle(.menu)
-      Picker(
-        selection: Binding(
-          get: { config.settings.switching.borrowFraction },
-          set: { f in $config.withLock { $0.settings.switching.borrowFraction = f } }
-        )
-      ) {
-        ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
-          Text("\(Int((f * 100).rounded()))%").tag(f)
-        }
-      } label: {
-        Text("Default size")
-        Text("The borrowed workspace's share of the screen. A workspace can override this.")
-      }
-      .pickerStyle(.menu)
-      shortcut(
-        "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
-        description: "Return the borrowed workspace and restore the current one to full screen."
-      )
-    }
-
-    Section("Toggles") {
-      shortcut(
-        "Toggle floating", .toggleFloating, \.toggleFloating,
-        description: "Float the focused app in the active workspace (added here as floating if it wasn't assigned); toggle again to re-tile it."
-      )
-      shortcut(
-        "Toggle shared floating", .toggleSharedFloating, \.toggleSharedFloating,
-        description: "Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet. Toggling off flips it to shared tiled; leaving Shared Apps is the membership toggle below."
-      )
-      shortcut(
-        "Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated,
-        description: "Pause or resume tiling for the active workspace. While paused, windows keep their current frames."
-      )
-      shortcut(
-        "Toggle app in workspace",
-        .toggleFocusedAppInActiveWorkspace,
-        \.toggleFocusedAppInActiveWorkspace,
-        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
-      )
-      shortcut(
-        "Toggle app in Shared Apps",
-        .toggleAppInSharedApps,
-        \.toggleAppInSharedApps,
-        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
-      )
     }
   }
 
