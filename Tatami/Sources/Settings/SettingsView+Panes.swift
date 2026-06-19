@@ -348,6 +348,10 @@ extension SettingsView {
         "Assign modifier", \.assignModifiers,
         description: "Held with a workspace's key equivalent to assign the focused app to it. Distinct from the switch modifier, so one key does both."
       )
+      modifierToggleRow(
+        "Borrow modifier", \.borrowModifiers,
+        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
+      )
       keyEquivalentShortcut(
         "Recent workspace", .switchToRecentWorkspace,
         assign: .assignFocusedAppToRecentWorkspace, borrow: .borrowRecentWorkspace,
@@ -404,10 +408,6 @@ extension SettingsView {
     }
 
     Section("Borrow") {
-      modifierToggleRow(
-        "Borrow modifier", \.borrowModifiers,
-        description: "Held with a workspace's key equivalent to borrow it into the current screen. Clear it to disable."
-      )
       Picker(
         selection: Binding(
           get: { config.settings.switching.borrowDefaultEdge },
