@@ -1,58 +1,68 @@
 # WIP: Borrow / Composition feature
 
-`/compact` 후 이 파일을 Read해서 이어가기 위한 상태 문서. 작업 브랜치 `feature/borrow-composition`.
+`/compact` 후 이 파일을 Read해서 이어가기 위한 상태 문서. 작업 브랜치 `feature/borrow-composition` (main 1.4.2와 분리, clean).
+
+> 이 문서는 여러 차례의 재설계(chord → **mode-less borrow**, keyEquivalent, recorder 모니터, Settings IA 리팩토링)를 모두 반영한 최신본이다.
 
 ## 목표 & 철학 (locked)
-다른 워크스페이스를 현재 화면 가장자리(상/하/좌/우)에 **빌려와** 나란히 타일.
-- **2레벨 경계**: host/borrowed 각자 자기 BSP 트리 유지. 최상위는 `[host 블록 | borrowed 블록]` 분할. **창은 워크스페이스 경계 못 넘음**(directional op이 단일 트리라 자동 차단).
-- **라이브 양방향**: borrowed 블록 = 그 워크스페이스의 실제 트리(`tilingTrees[borrowedId]`). 조작이 본진에 반영(세션은 공유 트리, 디스크는 persist).
-- **모드 2개**: `.peek`(전환 시 해제) / `.combine`(명시 해제까지 + host 재활성 시 재현).
-- **scratchpad kind**: 빌리기 전용(사이클/단독 활성 제외). 일반 워크스페이스도 빌림 가능.
+다른 워크스페이스를 현재 화면 가장자리(상/하/좌/우)에 **빌려와(borrow)** 나란히 타일.
+- **2레벨 경계**: host/borrowed 각자 자기 BSP 트리 유지. 최상위 `[host 블록 | borrowed 블록]` 분할. 창은 워크스페이스 경계 못 넘음(단일 트리라 directional op 자동 차단).
+- **라이브 양방향**: borrowed 블록 = 그 워크스페이스의 실제 트리(`tilingTrees[borrowedId]`). 세션은 공유 트리, 디스크는 persist.
+- **핵심 통찰**: 2레벨 트리 literal 병합 금지. 두 `BSPNode`를 별도 유지 → 각자 sub-rect에 `frames(in:)` → merge → 한 번 apply.
 
-핵심 통찰: 2레벨 트리 **literal 병합 금지**. host/borrowed 두 `BSPNode`를 별도 유지 → 각자 sub-rect에 `frames(in:)` → merge → 한 번 apply. 경계 금지가 공짜.
+## 단축키 모델 (전체의 중심)
+**워크스페이스(또는 nav 타겟)마다 키 하나 + 액션마다 전역 모디파이어.**
+- `keyEquivalentModifiers`(switch, 기본 ⌃⌥) + 키 → 활성
+- `assignModifiers`(기본 ⌃⌥⇧) + 키 → 포커스 앱 assign + 이동
+- `borrowModifiers`(기본 ⌃⌥⌘) + 키 → borrow (이후 방향)
+- 각 액션은 명시 HotKey로 **override** 가능. `hotKeyBindings`(AppConfig+HotKeys.swift)가 "override 있으면 그것, 없으면 modifier+key" 합성.
+- 충돌 검사: 키 입력 시 **세 조합(switch/assign/borrow) 전부** 기존 바인딩과 교차 검증(`keyEquivalentConflict`). override는 자기 액션 제외.
 
-## 브랜치 & 커밋 (최신순)
-- `feature/borrow-composition` (main 1.4.2와 분리)
-- `76a03d4` keyEquivalent + nvim-style borrow chord
-- `8d5e9fe` recent-borrow 핫키(4방향) + boundary resize
-- `54218a9` M4 HUD + 워크스페이스 목록 affordance
-- `1b19730` M3 scratchpad kind
-- `f0021d8` M3 combine 영속
-- `1e5f8ee` M2 sync/prune/drag/mru 라우팅
-- `8298d96` M2 BSP op 라우팅
-- `4cf16e8` M1
+## Mode-less borrow 흐름
+`borrowModifiers+키`(또는 `Workspace.borrowShortcut`) → `beginBorrowDirection(workspaceId)`:
+- **기본 edge 있으면**(`workspace.borrowEdge ?? settings.switching.borrowDefaultEdge`) → 즉시 `performBorrow(.peek)`.
+- 없으면 → `BorrowChordClient.setArmed(true)`(direction-only CGEventTap) + HUD 힌트 + 5s 타임아웃. h/j/k/l/화살표 → `performBorrow(target, edge, .peek)`; esc/그외/타임아웃 → 취소 + `workspaceHUD.dismiss()`.
+- **재-borrow(이미 borrow된 타겟)** → dismiss 아니라 **edge 재도킹**(`performBorrow` 내부).
+- **현재(host) 워크스페이스 borrow 차단** + "Already here" HUD.
+- borrow는 **tiled 앱만** 참여(float/unmanaged 무시). **scratchpad는 모든 앱 auto-open 강제**(manager가 `request.borrowedApps` autoOpen 처리).
+- borrow 크기 = `workspace.borrowFraction ?? settings.switching.borrowFraction`(기본 0.4).
 
-## 완료 (M1~M4 + 핫키/chord) — 전부 빌드 OK
-- **Domain** (`Workspace.swift`): `WorkspaceKind{normal,scratchpad}`, `BorrowEdge`, `BorrowMode{peek,combine}`, `BorrowedSlot{workspace,edge,fraction,mode}`, `Composition{host,borrowed}`. `Workspace.kind`, `Workspace.keyEquivalent`(단일 문자, Codable 마이그레이션).
-- **State** (`WorkspaceActivationFeature.swift`): `compositionsByDisplay`, `combineBorrows`, `borrowCaptureEdge`. resolver `composedOwner(bundleId:key:)` / `workspaceOwning(_:)` / `focusedWorkspaceID` — composition 없으면 `primaryActiveWorkspaceID` fallback.
-- **Tiling** (`+Activate.swift`): `computeFrames(targetRect:)`, `static subRects`, `applyComposition(display:state:)`(`CancelID.applyComposition`), `tilingContext(for:state:)`, `performBorrow`, `dismissBorrow`, `resizeBorrow`. `flushLayout(workspaceId:state:)`(composition-aware flush, `WorkspaceActivationFeature.swift`).
-- **M2 라우팅**: bspFocus/cycle/applyBSPOp(+`.balance` 통합, `applyTreeTransform` 제거)/drag(syncTreeRatio·dropDecision·applyDrop)/sync/prune/reflow/retile 전부 owning 블록으로. sync는 `composedOwner`로 owning ws 결정, borrowed write-through. prune은 host+borrowed 두 트리. empty 처리: host→`switchToRecentIfEmpty`, borrowed→`collapseIfBorrowedEmpty`(dismiss). 모든 flush가 `flushLayout` 경유.
-- **M3 combine**: `performActivate`가 display 재타일 시 `compositionsByDisplay[display]=nil`(peek blur). `activationCompleted`에서 `combineBorrows[id]` 있으면 `.borrow(.combine)` 재발행.
-- **M3 scratchpad**: `adjacentWorkspaceId`/`activateInitial`에서 제외, `performActivate`에서 scratchpad 단독 활성→`performBorrow(.peek,.right)` redirect. WorkspaceDetail Kind picker.
-- **M4 UI**: borrow/dismiss HUD(`settings.hud.borrow` 카테고리+토글, edge 아이콘). 워크스페이스 목록 scratchpad/borrowed 뱃지 + "Borrow Here" 컨텍스트 메뉴.
-- **핫키 (one-shot)**: `borrowRecent{Left,Right,Up,Down}`, `borrowGrow`/`borrowShrink`(resizeBorrow ±0.05), `dismissBorrow`. HotKeyAction/Shortcuts/AppConfig/AppFeature/SettingsView 전부 와이어.
-- **chord (nvim식)**: `enterBorrowMode` 리더 핫키 → `borrowCaptureEdge=.right` + `BorrowChordClient.setArmed(true, initials)` + 5s 타임아웃 + HUD 힌트. `BorrowChordClient`(신규 파일, `EventTapThread` 위 keyDown CGEventTap, `MirrorClickTap` 패턴) → `.borrowChordKey(BorrowChordKey)`. h/j/k/l·화살표=edge, 워크스페이스 keyEquivalent=소환, backtick=recent, esc/그외=취소. ⌘/⌃/⌥ 동반 키는 pass-through+취소. `events()` 구독은 `startObservingWindowEvents` merge에 상주.
-- **keyEquivalent 활성화**: `settings.shortcuts.keyEquivalentModifiers`([String] skhd 토큰, default `["ctrl","alt"]`). `hotKeyBindings`가 explicit `activateShortcut` 없고 모디파이어 비어있지 않으면 `modifier+keyEquivalent → activateWorkspace` 합성. `HotKey.keyCode(forName:)`/`keyName(for:)`/`carbonModifiers(from:)` 헬퍼 추가.
-- **GUI**: WorkspaceDetail "Key equivalent" 필드(소문자 1자) + Kind picker. Settings→Shortcuts "Switch modifier" 토글(⌃⌥⇧⌘ button toggle) + "Borrow mode" recorder row + recent/resize/dismiss rows.
+## Focus
+- **directional focus(←↓↑→)가 host↔borrowed 경계 넘음**(`crossBlockFocus`, sibling 블록 최근접 창). bspFocusResolved의 no-neighbor 분기에서 호출.
+- **borrow된 워크스페이스 키로 활성 = 진짜 전환**(composition 드롭). focus-into-borrowed 가드는 제거됨(전환을 가로채던 버그). focus만 옮기는 건 directional focus 담당.
 
-## 주의 / 알려진 한계
-- **Tuist**: 신규 .swift 추가 시 `tuist generate --no-open` 필요(glob `**`). 이미 `BorrowChordClient.swift` 추가 후 generate 완료. `Project.swift` `appVersion`(현재 1.4.2)이 버전 단일 소스.
-- **swiftformat 깨짐**: repo `.swiftformat`의 `--type-blank-lines consistent`가 설치된 0.61.1에서 미지원 → lint 실패. 내 코드 문제 아님. 수동 스타일 유지 중. (원하면 `.swiftformat`에서 그 줄을 `preserve`로 고치는 것도 별도 작업.)
-- **combine 재현 flash**: combine host 재활성 시 host 단독 타일 → borrow 재발행이라 한 번 깜빡임(이중 activate). 허용. #18에서 개선 가능(performActivate를 combine-aware로).
-- **borrowed marker dot 미구현**: M4에서 의도적 보류(공간 분할로 충분). #18 후보.
-- **per-workspace borrowShortcut**: keyEquivalent+borrow mode로 대체됨(별도 HotKey 안 만듦).
+## 완료 (전부 빌드 OK, 사용자 실사용 테스트 완료)
+- **Domain/Workspace.swift**: `kind`, `keyEquivalent`, `borrowShortcut`, `borrowEdge`, `borrowFraction` + Codable. `BorrowEdge(.opposite)`, `BorrowMode`, `BorrowedSlot`, `Composition`.
+- **Domain/AppSettings.swift**: `Shortcuts`에 keyEquivalentModifiers/assignModifiers/borrowModifiers, {recent,next,previous}WorkspaceKey, switchTo/assign/borrow {Recent,Next,Previous}Workspace(override), dismissBorrow. `Switching`에 borrowDefaultEdge/borrowFraction. `HUD.borrow` 카테고리. `Shortcuts` 커스텀 init/CodingKeys/decode 주의(필드 추가 시 4곳 갱신).
+- **Domain/HotKey.swift**: `keyName(for:)`, `keyCode(forName:)`, `carbonModifiers(from:)`, `modifierSymbols(from:)`, `keySymbol(forName:)`(글리프).
+- **WorkspaceActivationFeature**(+Activate/+Sync/.swift): composition state(`compositionsByDisplay`, `combineBorrows`, `borrowCaptureTarget`), resolver(`composedOwner`/`workspaceOwning`), `applyComposition`/`flushLayout`/`tilingContext`/`performBorrow`(재도킹·tiled-only)/`dismissBorrow`(nil→focusedDisplay)/`beginBorrowDirection`/`crossBlockFocus`/`recentWorkspaceId`. sync/prune/drag/BSP-op 전부 owning 블록 라우팅. recent/next/prev assign·borrow 액션 + 핸들러.
+- **Dependencies/BorrowChordClient.swift**: direction-only keyDown CGEventTap(EventTapThread), `events()`/`setArmed(Bool)`. BorrowChordKey{edge, cancel}.
+- **Dependencies/WorkspaceHUDClient.swift**: `dismiss()` 추가.
+- **Dependencies/WorkspaceManagerClient.swift**: borrowedApps auto-open(`autoOpenIfNeeded`), keepVisible union.
+- **HotKeysClient/AppConfig+HotKeys/AppFeature**: HotKeyAction(activate/assign/borrowWorkspace(id) + nav assign/borrow + dismissBorrow), 합성/라우팅.
+- **GUI**:
+  - `Tatami/Sources/Settings/ShortcutRecorder.swift`: `KeyEquivalentRecorder`(단일 bare 키), `RecorderField`(full combo) — **둘 다 로컬 NSEvent keyDown 모니터**로 캡처(특수키 안정), `ComboCapsule`(읽기전용 파생 조합).
+  - `Settings/SettingsView.swift`/`SettingsView+Panes.swift`: **Shortcuts pane 제거**. pane 순서 General→Tiling→Workspaces→Focus&Mouse→Appearance. 단축키 분산(Tiling: Move&Resize·Toggles / Focus&Mouse: Directional Focus·Window Cycling / Workspaces: Workspace Keys(modifierToggleRow+navTarget)·Borrow(기본 dir/size+dismiss)·Move App & Displays). 헬퍼: `shortcut`, `navTarget`/`navDerivedRow`, `modifierToggleRow`/`modifierToggle`, `keyEquivalentConflict`.
+  - `WorkspaceDetail/WorkspaceDetailView.swift` + `WorkspaceDetailFeature.swift`: Key equivalent(키만) + Kind picker(상단), Shortcuts(Activate/Assign/Borrow `derivedShortcutRow` + override), Borrow Placement(edge/fraction override, "Use Global (값)"), scratchpad는 무의미 옵션 숨김(Activate/Assign/On-Activation/Display + 앱별 layout/auto-open). Add App 빈 상태 버그 수정(List+overlay).
+  - `WorkspaceList/WorkspaceListView.swift`: scratchpad/borrowed 뱃지 + "Borrow Here" 컨텍스트 메뉴.
 
 ## 남은 작업
-### #18 엣지 케이스
-- 멀티 디스플레이(borrowed `displayHint` 무시 — 현재 focusedDisplay 기준), fullscreen-zoom 블록 내, floating/unmanaged 미러 스코프(composition 시 borrowed floating 위치), target==host 가드(있음), combine flash 개선, borrowed marker dot(옵션).
-- borrow 중 다른 display 활성/디스플레이 분리 시 composition 정리 검증.
+### #18 엣지 케이스 (대부분 해소됨)
+- 해소: float/unmanaged 무시, target==host 차단, 재도킹, cross-block focus, 외부 핫키 충돌(코드 이슈 아님).
+- **남은 검토**: 멀티 디스플레이 borrow(현재 focusedDisplay 기준), fullscreen-zoom 블록 내, borrowed marker dot(보류).
+- **combine 데드코드 결정 필요**: borrow는 항상 `.peek`. `combineBorrows` + `activationCompleted` 재establish 로직은 존재하나 UI로 도달 불가 → 제거할지 재배선할지(change-hygiene). dismissBorrow 액션은 내부(collapse/peek)용으로 유지.
 ### #19 문서 + 1.5.0 릴리즈
-- `docs/CONFIGURATION.md`(kind/keyEquivalent/keyEquivalentModifiers/borrow 핫키/borrow mode), `CHANGELOG.md` 1.5.0(기존 Breaking 포맷 맞춰), `WhatsNewClient.swift`, `README.md`. `Project.swift` `appVersion` → 1.5.0, `v1.5.0` 태그 push(release CI가 태그=appVersion 검증).
-- main 머지 전략: feature 브랜치 → main PR or fast-forward.
+- `docs/CONFIGURATION.md`(kind/keyEquivalent/3 modifiers/nav keys/borrow defaults/scratchpad), `CHANGELOG.md` 1.5.0(기존 Breaking 포맷), `WhatsNewClient.swift`, `README.md`. `Project.swift` `appVersion` → 1.5.0, `v1.5.0` 태그 push(release CI가 태그=appVersion 검증). **태그 push는 outward/destructive → 사용자 확인 후.**
 
-## 빌드 / 테스트
+## 주의 / 함정
+- **Tuist**: 신규 .swift는 `tuist generate --no-open` 필요(glob `**`). `BorrowChordClient.swift` 추가 시 이미 generate함. 버전 단일 소스 = `Project.swift` `appVersion`.
+- **테스트 스킴 이름**: `TatamiTests` 아님 — 실제 스킴 확인 필요(`xcodebuild -workspace Tatami.xcworkspace -list`).
+- **swiftformat 깨짐**: `.swiftformat`의 `--type-blank-lines consistent`가 설치된 0.61.1 미지원 → lint 실패. 수동 스타일 유지.
+- **debugLog는 앱 타깃에서 internal**(접근 불가) — 레코더 등 앱 타깃 진단은 reducer 경유 로그로.
+- 모디파이어 토큰은 `"cmd"`(not `"command"`) — modifierToggle과 round-trip.
+
+## 빌드 / 실행
 - 로직: `xcodebuild -workspace Tatami.xcworkspace -scheme TatamiKit -destination 'platform=macOS' build`
 - 전체: `-scheme Tatami`
 - 실행: `killall Tatami; open ~/Library/Developer/Xcode/DerivedData/Tatami-abzoohblcyzqwbfbfgakdjqklexa/Build/Products/Debug/Tatami.app`
-- 테스트 절차: 워크스페이스 2개에 keyEquivalent 지정(예: a, d) → Settings→Shortcuts에서 "Borrow mode"에 핫키(예 ⌥;), "Switch modifier" ⌃⌥ 확인 → ⌃⌥+a/d 전환 동작 확인 → Borrow mode 핫키 후 `l`(우) 그다음 `d` → d가 우측에 나란히. backtick=recent. esc 취소. dismiss 핫키/토글 복원.
-- 디버그 로그: Settings→Debug ON → `~/.config/tatami/tatami.log` (`[Borrow]`/`[BorrowChord]`/`[BSP]`/`[Sync]`/`[Prune]`).
+- 디버그 로그: Settings → General → Debug ON → `~/.config/tatami/tatami.log` (`[Borrow]`/`[BorrowChord]`/`[HotKey]`/`[BSP]`/`[Sync]`/`[Prune]`).
