@@ -526,8 +526,10 @@ extension WorkspaceActivationFeature {
   }
 
   /// Borrow `targetId` into the focused display's host workspace, docked to
-  /// `edge`. Toggles off if that target is already borrowed there. Live: the
-  /// borrowed block reuses the target's real tree, so edits persist to it.
+  /// `edge`. Re-borrowing a target already borrowed there just re-docks it to
+  /// the new edge. Live: the borrowed block reuses the target's real tree, so
+  /// edits persist to it. Only the borrowed workspace's *tiled* apps take part
+  /// — its floating / unmanaged apps are ignored while borrowed.
   func performBorrow(
     targetId: Workspace.ID,
     edge: BorrowEdge,
@@ -541,16 +543,26 @@ extension WorkspaceActivationFeature {
           hostId != targetId,
           let hostWs = profile.workspaces[id: hostId]
     else { return .none }
-    if state.compositionsByDisplay[display]?.borrowed
-      .contains(where: { $0.workspace == targetId }) == true {
-      return dismissBorrow(display: display, state: &state)
+    // Already borrowed here → re-dock to the new edge instead of toggling off
+    // (the apps are already visible, so just re-flush the composition).
+    if let existing = state.compositionsByDisplay[display],
+       let idx = existing.borrowed.firstIndex(where: { $0.workspace == targetId }) {
+      var comp = existing
+      comp.borrowed[idx].edge = edge
+      state.compositionsByDisplay[display] = comp
+      if state.combineBorrows[hostId] != nil { state.combineBorrows[hostId] = comp.borrowed }
+      debugLog.log("Borrow", "re-dock \(target.name) → \(edge)")
+      return applyComposition(display: display, state: state)
     }
-    let slot = BorrowedSlot(workspace: targetId, edge: edge, mode: mode)
+    let fraction = target.borrowFraction ?? state.config.settings.switching.borrowFraction
+    let slot = BorrowedSlot(workspace: targetId, edge: edge, fraction: fraction, mode: mode)
     state.compositionsByDisplay[display] = Composition(host: hostId, borrowed: [slot])
     if mode == .combine { state.combineBorrows[hostId] = [slot] }
-    let borrowedApps = target.apps
+    // Only tiled apps from the borrowed workspace participate; float / unmanaged
+    // are ignored while borrowed.
     let tiledBorrowedBundleIds = target.apps
       .filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+    let borrowedApps = target.apps.filter { $0.layout == .tiled }
     let request = ActivationRequest(
       workspace: hostWs, sharedApps: state.config.sharedApps,
       targetDisplay: display, setFocus: false, borrowedApps: borrowedApps
@@ -652,23 +664,56 @@ extension WorkspaceActivationFeature {
     }
   }
 
-  /// Grow / shrink the borrowed block's share of the focused display's
-  /// composition by `delta` (clamped to 10–90%), then re-flush. Persists the
-  /// new fraction into `combineBorrows` for a combined borrow.
-  func resizeBorrow(delta: CGFloat, state: inout State) -> Effect<Action> {
-    guard let display = state.focusedDisplay ?? state.activeWorkspacesByDisplay.keys.first,
-          var comp = state.compositionsByDisplay[display],
-          !comp.borrowed.isEmpty
-    else { return .none }
-    let clamped = min(0.9, max(0.1, comp.borrowed[0].fraction + delta))
-    guard clamped != comp.borrowed[0].fraction else { return .none }
-    comp.borrowed[0].fraction = clamped
-    state.compositionsByDisplay[display] = comp
-    if state.combineBorrows[comp.host] != nil {
-      state.combineBorrows[comp.host] = comp.borrowed
+  /// Directional focus at a block edge crossing into the sibling composition
+  /// block (host ↔ borrowed): the nearest window in the sibling toward the
+  /// shared boundary, plus the geometry for a mouse warp. Nil when the
+  /// direction doesn't point across the boundary or there's no sibling window.
+  func crossBlockFocus(
+    from key: WindowKey,
+    currentId: Workspace.ID,
+    currentTree: BSPNode<WindowKey>,
+    currentRect: CGRect,
+    direction: BSPDirection,
+    state: State
+  ) -> (target: WindowKey, display: DisplayName?, tree: BSPNode<WindowKey>, rect: CGRect, zoomed: Set<WindowKey>)? {
+    guard let display = state.focusedDisplay,
+          let comp = state.compositionsByDisplay[display],
+          let slot = comp.borrowed.first
+    else { return nil }
+    let dirEdge: BorrowEdge = {
+      switch direction {
+      case .east: .right
+      case .west: .left
+      case .north: .top
+      case .south: .bottom
+      }
+    }()
+    // Host crosses toward the borrowed dock; borrowed crosses back (opposite).
+    let siblingId: Workspace.ID
+    if currentId == comp.host {
+      guard dirEdge == slot.edge else { return nil }
+      siblingId = slot.workspace
+    } else if currentId == slot.workspace {
+      guard dirEdge == slot.edge.opposite else { return nil }
+      siblingId = comp.host
+    } else {
+      return nil
     }
-    debugLog.log("Borrow", "resize borrowed fraction → \(clamped)")
-    return applyComposition(display: display, state: state)
+    guard let siblingTree = state.tilingTrees[siblingId], !siblingTree.windows.isEmpty
+    else { return nil }
+    let gap = CGFloat(state.config.settings.layout.gapInner)
+    let (_, siblingRect) = tilingContext(for: siblingId, state: state)
+    let siblingFrames = siblingTree.frames(in: siblingRect, gap: gap)
+    guard !siblingFrames.isEmpty else { return nil }
+    let center: CGPoint = currentTree.frames(in: currentRect, gap: gap)[key]
+      .map { CGPoint(x: $0.midX, y: $0.midY) }
+      ?? CGPoint(x: currentRect.midX, y: currentRect.midY)
+    let target = siblingFrames.min {
+      hypot($0.value.midX - center.x, $0.value.midY - center.y)
+        < hypot($1.value.midX - center.x, $1.value.midY - center.y)
+    }?.key
+    guard let target else { return nil }
+    return (target, display, siblingTree, siblingRect, state.fullscreenZoomed[siblingId] ?? [])
   }
 
   /// The display + rect a workspace's tree should tile into right now: its

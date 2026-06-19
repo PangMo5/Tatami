@@ -52,11 +52,6 @@ public enum HotKeyAction: Sendable, Hashable {
   case toggleFocusedAppInActiveWorkspace
   /// Toggle the focused window's app in Shared Apps (added tiled).
   case toggleAppInSharedApps
-
-  // Borrow another workspace into the current screen (composition)
-  case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
-  case borrowGrow, borrowShrink
-  case dismissBorrow
 }
 
 extension HotKeyAction {
@@ -94,13 +89,6 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "toggle-space"
     case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
     case .toggleAppInSharedApps: "toggle-shared-membership"
-    case .borrowRecentLeft: "borrow-recent-left"
-    case .borrowRecentRight: "borrow-recent-right"
-    case .borrowRecentUp: "borrow-recent-up"
-    case .borrowRecentDown: "borrow-recent-down"
-    case .borrowGrow: "borrow-grow"
-    case .borrowShrink: "borrow-shrink"
-    case .dismissBorrow: "dismiss-borrow"
     }
   }
 
@@ -141,13 +129,6 @@ extension HotKeyAction {
     case .toggleSpaceActivated: "Toggle pause"
     case .toggleFocusedAppInActiveWorkspace: "Toggle app in workspace"
     case .toggleAppInSharedApps: "Toggle app in Shared Apps"
-    case .borrowRecentLeft: "Borrow recent workspace (left)"
-    case .borrowRecentRight: "Borrow recent workspace (right)"
-    case .borrowRecentUp: "Borrow recent workspace (up)"
-    case .borrowRecentDown: "Borrow recent workspace (down)"
-    case .borrowGrow: "Grow borrowed block"
-    case .borrowShrink: "Shrink borrowed block"
-    case .dismissBorrow: "Dismiss borrow"
     }
   }
 

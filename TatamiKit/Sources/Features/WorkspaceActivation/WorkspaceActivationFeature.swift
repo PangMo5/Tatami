@@ -180,17 +180,14 @@ public struct WorkspaceActivationFeature {
     case activateNext
     case activatePrevious
     case activateRecent
-    /// Borrow another workspace into the focused display's host (toggles off
-    /// if the same target is already borrowed there).
+    /// Borrow another workspace into the focused display's host. Re-borrowing
+    /// the same target re-docks it to the new edge.
     case borrow(workspaceId: Workspace.ID, edge: BorrowEdge, mode: BorrowMode)
-    /// Borrow the recent workspace (resolved from per-display history).
-    case borrowRecent(edge: BorrowEdge, mode: BorrowMode)
+    /// Drop the active borrow on a display (internal: composition collapse).
     case dismissBorrow(display: DisplayName?)
-    /// Grow (`+`) / shrink (`-`) the borrowed block's share of the focused
-    /// display's composition.
-    case resizeBorrow(delta: CGFloat)
-    /// Start borrowing `workspaceId`: arm a one-key direction pick (h/j/k/l or
-    /// arrows) that places it; re-firing for the same target cancels.
+    /// Start borrowing `workspaceId`: with a default edge, borrow immediately;
+    /// otherwise arm a one-key direction pick (h/j/k/l or arrows). Re-firing
+    /// for the same pending target cancels.
     case beginBorrowDirection(workspaceId: Workspace.ID)
     /// Internal: a decoded direction keystroke from the borrow direction pick.
     case borrowChordKey(BorrowChordKey)
@@ -627,28 +624,31 @@ public struct WorkspaceActivationFeature {
       case .borrow(let workspaceId, let edge, let mode):
         return performBorrow(targetId: workspaceId, edge: edge, mode: mode, state: &state)
 
-      case .borrowRecent(let edge, let mode):
-        guard let display = state.focusedDisplay ?? state.activeWorkspacesByDisplay.keys.first,
-              let recent = state.previousWorkspacesByDisplay[display]
-        else { return .none }
-        return performBorrow(targetId: recent, edge: edge, mode: mode, state: &state)
-
       case .dismissBorrow(let display):
         return dismissBorrow(display: display, state: &state)
 
-      case .resizeBorrow(let delta):
-        return resizeBorrow(delta: delta, state: &state)
-
       case .beginBorrowDirection(let workspaceId):
-        // Re-firing for the same target cancels; otherwise arm a direction
-        // pick for this workspace.
+        // Re-firing for the same pending target cancels.
         if state.borrowCaptureTarget == workspaceId {
           return endBorrowCapture(state: &state)
         }
-        guard state.config.activeProfile?.workspaces[id: workspaceId] != nil
+        guard let ws = state.config.activeProfile?.workspaces[id: workspaceId]
         else { return .none }
+        // Can't borrow the workspace that's already active on this display.
+        if state.primaryActiveWorkspaceID == workspaceId {
+          debugLog.log("Borrow", "skip borrow of current workspace \(ws.name)")
+          return hudEffect(
+            state, \.borrow, "Already here", "rectangle",
+            subtitle: "Can't borrow the current workspace"
+          )
+        }
+        // A configured default edge (per-workspace override, else global)
+        // borrows immediately; otherwise arm the direction pick.
+        if let edge = ws.borrowEdge ?? state.config.settings.switching.borrowDefaultEdge {
+          return performBorrow(targetId: workspaceId, edge: edge, mode: .peek, state: &state)
+        }
         state.borrowCaptureTarget = workspaceId
-        debugLog.log("BorrowChord", "begin borrow direction for \(workspaceId)")
+        debugLog.log("BorrowChord", "begin borrow direction for \(ws.name)")
         return .merge(
           .run { [borrowChord] _ in await borrowChord.setArmed(true) },
           borrowChordTimeout(),
@@ -921,8 +921,8 @@ public struct WorkspaceActivationFeature {
         let settings = state.config.settings
         let (display, workArea) = tilingContext(for: workspaceId, state: state)
         let gap = CGFloat(settings.layout.gapInner)
-        // Directional focus stays within the focused block's tiled set —
-        // a single tree, so it can't cross the workspace boundary.
+        // Directional focus moves within the block; at the block edge it can
+        // cross into the sibling composition block (host ↔ borrowed).
         guard let target = tree.directionalNeighbor(
           of: key,
           direction: direction,
@@ -930,6 +930,27 @@ public struct WorkspaceActivationFeature {
           gap: gap,
           focusOrder: tree.windows
         ) else {
+          if let cross = crossBlockFocus(
+            from: key, currentId: workspaceId, currentTree: tree,
+            currentRect: workArea, direction: direction, state: state
+          ) {
+            debugLog.log("BSP", "focus \(direction) → cross into \(cross.target.bundleId)")
+            let warp = settings.focus.mouseFollowsFocus
+            return .run { [mouse = mouse, focus = focusManager] _ in
+              await focus.focusWindow(cross.target)
+              if warp {
+                let frames = await MainActor.run {
+                  Self.computeFrames(
+                    tree: cross.tree, settings: settings, targetDisplay: cross.display,
+                    fullscreenZoomed: cross.zoomed, targetRect: cross.rect
+                  )
+                }
+                if let rect = frames[cross.target] {
+                  mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
+                }
+              }
+            }
+          }
           debugLog.log(
             "BSP",
             "focus \(direction) from \(key.bundleId)#\(key.windowID): no neighbor"

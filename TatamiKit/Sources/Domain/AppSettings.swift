@@ -498,6 +498,12 @@ extension AppSettings {
     /// press lands on the next app. When `true`, it visits every window
     /// individually, including multiple windows of the same app.
     public var cycleSameAppWindows: Bool
+    /// Default edge a borrow docks to. `nil` → no default: a direction key is
+    /// picked after the borrow combo. A per-workspace `borrowEdge` overrides.
+    public var borrowDefaultEdge: BorrowEdge?
+    /// The borrowed block's default share of the screen (0.1…0.9). A
+    /// per-workspace `borrowFraction` overrides.
+    public var borrowFraction: Double
 
     public init(
       loop: Bool = true,
@@ -505,7 +511,9 @@ extension AppSettings {
       followAppFocus: Bool = false,
       cycleAcrossDisplays: Bool = false,
       switchToRecentWhenEmpty: Bool = false,
-      cycleSameAppWindows: Bool = false
+      cycleSameAppWindows: Bool = false,
+      borrowDefaultEdge: BorrowEdge? = nil,
+      borrowFraction: Double = 0.4
     ) {
       self.loop = loop
       self.skipEmpty = skipEmpty
@@ -513,11 +521,13 @@ extension AppSettings {
       self.cycleAcrossDisplays = cycleAcrossDisplays
       self.switchToRecentWhenEmpty = switchToRecentWhenEmpty
       self.cycleSameAppWindows = cycleSameAppWindows
+      self.borrowDefaultEdge = borrowDefaultEdge
+      self.borrowFraction = borrowFraction
     }
 
     private enum CodingKeys: String, CodingKey {
       case loop, skipEmpty, followAppFocus, cycleAcrossDisplays, switchToRecentWhenEmpty
-      case cycleSameAppWindows
+      case cycleSameAppWindows, borrowDefaultEdge, borrowFraction
     }
 
     public init(from decoder: Decoder) throws {
@@ -528,6 +538,8 @@ extension AppSettings {
       self.cycleAcrossDisplays = c.decode(.cycleAcrossDisplays, default: false)
       self.switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
       self.cycleSameAppWindows = c.decode(.cycleSameAppWindows, default: false)
+      self.borrowDefaultEdge = c.decodeIfValid(.borrowDefaultEdge)
+      self.borrowFraction = c.decode(.borrowFraction, default: 0.4)
     }
   }
 }
@@ -678,16 +690,6 @@ extension AppSettings {
     /// of that workspace — then a direction key (h/j/k/l or arrows) places it.
     /// Empty disables it.
     public var borrowModifiers: [String]
-    /// Borrow the recent workspace into the current screen, docked to an edge.
-    public var borrowRecentLeft: HotKey?
-    public var borrowRecentRight: HotKey?
-    public var borrowRecentUp: HotKey?
-    public var borrowRecentDown: HotKey?
-    /// Grow / shrink the borrowed block's share of the screen.
-    public var borrowGrow: HotKey?
-    public var borrowShrink: HotKey?
-    /// Dismiss the active borrow on the focused display.
-    public var dismissBorrow: HotKey?
 
     public init(
       focusLeft: HotKey? = nil,
@@ -722,14 +724,7 @@ extension AppSettings {
       recentWorkspaceKey: String? = nil,
       nextWorkspaceKey: String? = nil,
       previousWorkspaceKey: String? = nil,
-      borrowModifiers: [String] = ["ctrl", "alt", "cmd"],
-      borrowRecentLeft: HotKey? = nil,
-      borrowRecentRight: HotKey? = nil,
-      borrowRecentUp: HotKey? = nil,
-      borrowRecentDown: HotKey? = nil,
-      borrowGrow: HotKey? = nil,
-      borrowShrink: HotKey? = nil,
-      dismissBorrow: HotKey? = nil
+      borrowModifiers: [String] = ["ctrl", "alt", "cmd"]
     ) {
       self.focusLeft = focusLeft
       self.focusRight = focusRight
@@ -764,13 +759,6 @@ extension AppSettings {
       self.nextWorkspaceKey = nextWorkspaceKey
       self.previousWorkspaceKey = previousWorkspaceKey
       self.borrowModifiers = borrowModifiers
-      self.borrowRecentLeft = borrowRecentLeft
-      self.borrowRecentRight = borrowRecentRight
-      self.borrowRecentUp = borrowRecentUp
-      self.borrowRecentDown = borrowRecentDown
-      self.borrowGrow = borrowGrow
-      self.borrowShrink = borrowShrink
-      self.dismissBorrow = dismissBorrow
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -787,8 +775,6 @@ extension AppSettings {
       case toggleFocusedAppInActiveWorkspace, toggleAppInSharedApps
       case keyEquivalentModifiers, assignModifiers, borrowModifiers
       case recentWorkspaceKey, nextWorkspaceKey, previousWorkspaceKey
-      case borrowRecentLeft, borrowRecentRight, borrowRecentUp, borrowRecentDown
-      case borrowGrow, borrowShrink, dismissBorrow
     }
 
     public init(from decoder: Decoder) throws {
@@ -826,13 +812,6 @@ extension AppSettings {
       self.nextWorkspaceKey = c.decodeIfValid(.nextWorkspaceKey)
       self.previousWorkspaceKey = c.decodeIfValid(.previousWorkspaceKey)
       self.borrowModifiers = c.decode(.borrowModifiers, default: ["ctrl", "alt", "cmd"])
-      self.borrowRecentLeft = c.decodeIfValid(.borrowRecentLeft)
-      self.borrowRecentRight = c.decodeIfValid(.borrowRecentRight)
-      self.borrowRecentUp = c.decodeIfValid(.borrowRecentUp)
-      self.borrowRecentDown = c.decodeIfValid(.borrowRecentDown)
-      self.borrowGrow = c.decodeIfValid(.borrowGrow)
-      self.borrowShrink = c.decodeIfValid(.borrowShrink)
-      self.dismissBorrow = c.decodeIfValid(.dismissBorrow)
     }
   }
 }

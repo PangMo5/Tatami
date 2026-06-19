@@ -67,6 +67,15 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// double as borrow-mode direction keys, so a workspace keyed to one of them
   /// still activates but isn't borrow-summonable.
   public var keyEquivalent: String?
+  /// Explicit shortcut overriding the borrow-modifier + key default for
+  /// borrowing this workspace; a direction key still follows to place it.
+  public var borrowShortcut: HotKey?
+  /// Per-workspace override of the default borrow edge (`nil` → fall back to
+  /// the global default; if that's also nil, pick a direction after the combo).
+  public var borrowEdge: BorrowEdge?
+  /// Per-workspace override of the borrowed share of the screen (`nil` →
+  /// global default).
+  public var borrowFraction: Double?
   public var apps: [AppAssignment]
 
   public init(
@@ -80,6 +89,9 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     tilingMemory: TilingMemory? = nil,
     kind: WorkspaceKind = .normal,
     keyEquivalent: String? = nil,
+    borrowShortcut: HotKey? = nil,
+    borrowEdge: BorrowEdge? = nil,
+    borrowFraction: Double? = nil,
     apps: [AppAssignment] = []
   ) {
     self.id = id
@@ -92,6 +104,9 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.tilingMemory = tilingMemory
     self.kind = kind
     self.keyEquivalent = keyEquivalent
+    self.borrowShortcut = borrowShortcut
+    self.borrowEdge = borrowEdge
+    self.borrowFraction = borrowFraction
     self.apps = apps
   }
 }
@@ -103,6 +118,9 @@ extension Workspace {
     case tilingMemory
     case kind
     case keyEquivalent
+    case borrowShortcut
+    case borrowEdge
+    case borrowFraction
     case apps
   }
 
@@ -118,6 +136,9 @@ extension Workspace {
     tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
     kind = try container.decodeIfPresent(WorkspaceKind.self, forKey: .kind) ?? .normal
     keyEquivalent = try container.decodeIfPresent(String.self, forKey: .keyEquivalent)
+    borrowShortcut = try container.decodeIfPresent(HotKey.self, forKey: .borrowShortcut)
+    borrowEdge = try container.decodeIfPresent(BorrowEdge.self, forKey: .borrowEdge)
+    borrowFraction = try container.decodeIfPresent(Double.self, forKey: .borrowFraction)
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
 }
@@ -131,6 +152,16 @@ extension Workspace {
 /// Which screen edge a borrowed workspace block docks to.
 public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
   case top, bottom, left, right
+
+  /// The opposing edge — the host block sits opposite the borrowed dock.
+  public var opposite: BorrowEdge {
+    switch self {
+    case .top: .bottom
+    case .bottom: .top
+    case .left: .right
+    case .right: .left
+    }
+  }
 }
 
 /// How long a borrow stays on screen.

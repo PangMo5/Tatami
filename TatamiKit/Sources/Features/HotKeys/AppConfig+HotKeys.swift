@@ -35,8 +35,11 @@ extension AppConfig {
       } else {
         keyEquivBinding(.assignFocusedAppToWorkspace(workspace.id), assignModifiers)
       }
-      // Borrow has no explicit override (direction is picked after the combo).
-      keyEquivBinding(.borrowWorkspace(workspace.id), borrowModifiers)
+      if let key = workspace.borrowShortcut {
+        out.append(.init(action: .borrowWorkspace(workspace.id), hotKey: key))
+      } else {
+        keyEquivBinding(.borrowWorkspace(workspace.id), borrowModifiers)
+      }
     }
 
     func add(_ action: HotKeyAction, _ key: HotKey?) {
@@ -84,13 +87,6 @@ extension AppConfig {
     add(.toggleSpaceActivated, shortcuts.toggleSpaceActivated)
     add(.toggleFocusedAppInActiveWorkspace, shortcuts.toggleFocusedAppInActiveWorkspace)
     add(.toggleAppInSharedApps, shortcuts.toggleAppInSharedApps)
-    add(.borrowRecentLeft, shortcuts.borrowRecentLeft)
-    add(.borrowRecentRight, shortcuts.borrowRecentRight)
-    add(.borrowRecentUp, shortcuts.borrowRecentUp)
-    add(.borrowRecentDown, shortcuts.borrowRecentDown)
-    add(.borrowGrow, shortcuts.borrowGrow)
-    add(.borrowShrink, shortcuts.borrowShrink)
-    add(.dismissBorrow, shortcuts.dismissBorrow)
     return out
   }
 

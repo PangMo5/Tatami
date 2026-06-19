@@ -403,36 +403,38 @@ extension SettingsView {
     Section("Borrow") {
       modifierToggleRow(
         "Borrow modifier", \.borrowModifiers,
-        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key (h/j/k/l or arrows) places it side by side. Clear it to disable."
+        description: "Held with a workspace's key equivalent to borrow it into the current screen. Clear it to disable."
       )
-      shortcut(
-        "Borrow recent (left)", .borrowRecentLeft, \.borrowRecentLeft,
-        description: "Borrow the recent workspace into the left, side by side (press again to dismiss)."
-      )
-      shortcut(
-        "Borrow recent (right)", .borrowRecentRight, \.borrowRecentRight,
-        description: "Borrow the recent workspace into the right, side by side (press again to dismiss)."
-      )
-      shortcut(
-        "Borrow recent (up)", .borrowRecentUp, \.borrowRecentUp,
-        description: "Borrow the recent workspace into the top, stacked (press again to dismiss)."
-      )
-      shortcut(
-        "Borrow recent (down)", .borrowRecentDown, \.borrowRecentDown,
-        description: "Borrow the recent workspace into the bottom, stacked (press again to dismiss)."
-      )
-      shortcut(
-        "Grow borrowed block", .borrowGrow, \.borrowGrow,
-        description: "Give the borrowed workspace a larger share of the screen."
-      )
-      shortcut(
-        "Shrink borrowed block", .borrowShrink, \.borrowShrink,
-        description: "Give the borrowed workspace a smaller share of the screen."
-      )
-      shortcut(
-        "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
-        description: "Return the borrowed workspace and restore the current one to full screen."
-      )
+      Picker(
+        selection: Binding(
+          get: { config.settings.switching.borrowDefaultEdge },
+          set: { e in $config.withLock { $0.settings.switching.borrowDefaultEdge = e } }
+        )
+      ) {
+        Text("Ask (pick a direction)").tag(BorrowEdge?.none)
+        Divider()
+        ForEach(BorrowEdge.allCases, id: \.self) { edge in
+          Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+        }
+      } label: {
+        Text("Default direction")
+        Text("Where a borrow docks. “Ask” means press a direction (h/j/k/l or arrows) after the borrow combo. A workspace can override this.")
+      }
+      .pickerStyle(.menu)
+      Picker(
+        selection: Binding(
+          get: { config.settings.switching.borrowFraction },
+          set: { f in $config.withLock { $0.settings.switching.borrowFraction = f } }
+        )
+      ) {
+        ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
+          Text("\(Int((f * 100).rounded()))%").tag(f)
+        }
+      } label: {
+        Text("Default size")
+        Text("The borrowed workspace's share of the screen. A workspace can override this.")
+      }
+      .pickerStyle(.menu)
     }
 
     Section("Toggles") {

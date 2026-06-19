@@ -271,20 +271,6 @@ public struct AppFeature {
       return .send(.activation(.activatePrevious))
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
-    case .borrowRecentLeft:
-      return .send(.activation(.borrowRecent(edge: .left, mode: .peek)))
-    case .borrowRecentRight:
-      return .send(.activation(.borrowRecent(edge: .right, mode: .peek)))
-    case .borrowRecentUp:
-      return .send(.activation(.borrowRecent(edge: .top, mode: .peek)))
-    case .borrowRecentDown:
-      return .send(.activation(.borrowRecent(edge: .bottom, mode: .peek)))
-    case .borrowGrow:
-      return .send(.activation(.resizeBorrow(delta: 0.05)))
-    case .borrowShrink:
-      return .send(.activation(.resizeBorrow(delta: -0.05)))
-    case .dismissBorrow:
-      return .send(.activation(.dismissBorrow(display: nil)))
     case .moveFocusedAppToNextWorkspace:
       return .send(.activation(.moveFocusedAppToAdjacent(direction: 1)))
     case .moveFocusedAppToPreviousWorkspace:

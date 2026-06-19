@@ -17,15 +17,24 @@ struct WorkspaceDetailView: View {
     activationStore.activeWorkspacesByDisplay.values.contains(workspace.id)
   }
 
-  /// Conflict title for a candidate key equivalent on this workspace: the
-  /// switch modifier + key resolved against every other binding (excluding
-  /// this workspace's own activate), or nil when free / unbound.
+  /// Conflict title for a candidate key equivalent on this workspace. The one
+  /// key generates three combos — switch+key (activate), assign+key, borrow+key
+  /// — so each is checked against every other binding (excluding this
+  /// workspace's matching action). Nil when all three are free / unbound.
   private func keyEquivalentConflict(_ char: String) -> String? {
-    let mods = HotKey.carbonModifiers(from: store.config.settings.shortcuts.keyEquivalentModifiers)
-    guard mods != 0, let code = HotKey.keyCode(forName: char) else { return nil }
-    return store.state.activateShortcutConflict(
-      for: HotKey(carbonKeyCode: code, carbonModifiers: mods)
-    )
+    guard let code = HotKey.keyCode(forName: char) else { return nil }
+    let s = store.config.settings.shortcuts
+    func combo(_ tokens: [String]) -> HotKey? {
+      let mods = HotKey.carbonModifiers(from: tokens)
+      return mods == 0 ? nil : HotKey(carbonKeyCode: code, carbonModifiers: mods)
+    }
+    if let hk = combo(s.keyEquivalentModifiers),
+       let owner = store.state.activateShortcutConflict(for: hk) { return owner }
+    if let hk = combo(s.assignModifiers),
+       let owner = store.state.assignShortcutConflict(for: hk) { return owner }
+    if let hk = combo(s.borrowModifiers),
+       let owner = store.state.borrowShortcutConflict(for: hk) { return owner }
+    return nil
   }
 
   /// A shortcut row whose default is "modifier + the workspace key equivalent"
@@ -138,51 +147,85 @@ struct WorkspaceDetailView: View {
         }
 
         Section {
-          // Activate + Assign both derive from the workspace key (switch /
-          // assign modifier); the recorder beside each overrides that default.
-          derivedShortcutRow(
-            "Activate",
-            modifiers: store.config.settings.shortcuts.keyEquivalentModifiers,
-            key: workspace.keyEquivalent,
-            override: workspace.activateShortcut,
-            conflict: { store.state.activateShortcutConflict(for: $0) },
-            onOverride: { store.send(.activateShortcutChanged($0)) }
-          )
-          derivedShortcutRow(
-            "Assign focused app here",
-            modifiers: store.config.settings.shortcuts.assignModifiers,
-            key: workspace.keyEquivalent,
-            override: workspace.assignAppShortcut,
-            conflict: { store.state.assignShortcutConflict(for: $0) },
-            onOverride: { store.send(.assignAppShortcutChanged($0)) }
-          )
-          // Borrow has no explicit override — the direction is picked right
-          // after the combo — so it shows the combo plus a "then a direction"
-          // hint instead of a recorder.
-          HStack(spacing: 10) {
-            Text("Borrow")
-            Spacer(minLength: 12)
-            let mods = HotKey.modifierSymbols(from: store.config.settings.shortcuts.borrowModifiers)
-            let key = workspace.keyEquivalent
-            let combo = (key?.isEmpty == false) && !mods.isEmpty ? mods + (key ?? "").uppercased() : ""
-            ComboCapsule(text: combo)
-            Text("then a direction")
-              .font(.caption)
-              .foregroundStyle(.tertiary)
+          // Each action derives from the workspace key (its modifier in
+          // Settings → Shortcuts); the recorder beside it overrides that.
+          // Activate / Assign are meaningless for a borrow-only scratchpad.
+          if workspace.kind != .scratchpad {
+            derivedShortcutRow(
+              "Activate",
+              modifiers: store.config.settings.shortcuts.keyEquivalentModifiers,
+              key: workspace.keyEquivalent,
+              override: workspace.activateShortcut,
+              conflict: { store.state.activateShortcutConflict(for: $0) },
+              onOverride: { store.send(.activateShortcutChanged($0)) }
+            )
+            derivedShortcutRow(
+              "Assign focused app here",
+              modifiers: store.config.settings.shortcuts.assignModifiers,
+              key: workspace.keyEquivalent,
+              override: workspace.assignAppShortcut,
+              conflict: { store.state.assignShortcutConflict(for: $0) },
+              onOverride: { store.send(.assignAppShortcutChanged($0)) }
+            )
           }
+          derivedShortcutRow(
+            "Borrow",
+            modifiers: store.config.settings.shortcuts.borrowModifiers,
+            key: workspace.keyEquivalent,
+            override: workspace.borrowShortcut,
+            conflict: { store.state.borrowShortcutConflict(for: $0) },
+            onOverride: { store.send(.borrowShortcutChanged($0)) }
+          )
         } header: {
           Text("Shortcuts")
         } footer: {
-          Text("All three use the modifier (Settings → Shortcuts) + this workspace's key equivalent: Activate switches here, Assign also adds the focused app, Borrow pulls this workspace in beside the current one (then press a direction). Record a shortcut to override Activate / Assign.")
+          Text("Each uses the modifier (Settings → Shortcuts) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
 
-        DisplayPickerSection(
-          availableDisplays: store.availableDisplays,
-          selectedHint: workspace.displayHint,
-          onSelect: { store.send(.displayHintChanged($0)) }
-        )
+        Section("Borrow Placement") {
+          Picker(
+            selection: Binding(
+              get: { workspace.borrowEdge },
+              set: { store.send(.borrowEdgeChanged($0)) }
+            )
+          ) {
+            Text("Use default").tag(BorrowEdge?.none)
+            Divider()
+            ForEach(BorrowEdge.allCases, id: \.self) { edge in
+              Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+            }
+          } label: {
+            Text("Direction")
+            Text("Where this workspace docks when borrowed. “Use default” follows Settings (or asks for a direction).")
+          }
+          .pickerStyle(.menu)
+          Picker(
+            selection: Binding(
+              get: { workspace.borrowFraction },
+              set: { store.send(.borrowFractionChanged($0)) }
+            )
+          ) {
+            Text("Use default").tag(Double?.none)
+            Divider()
+            ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
+              Text("\(Int((f * 100).rounded()))%").tag(Double?.some(f))
+            }
+          } label: {
+            Text("Size")
+            Text("This workspace's share of the screen when borrowed.")
+          }
+          .pickerStyle(.menu)
+        }
+
+        if workspace.kind != .scratchpad {
+          DisplayPickerSection(
+            availableDisplays: store.availableDisplays,
+            selectedHint: workspace.displayHint,
+            onSelect: { store.send(.displayHintChanged($0)) }
+          )
+        }
 
         Section("Tiling Memory") {
           let globalDefault = store.config.settings.layout.defaultTilingMemory
@@ -205,22 +248,24 @@ struct WorkspaceDetailView: View {
           .pickerStyle(.menu)
         }
 
-        Section("On Activation") {
-          Picker(
-            selection: Binding(
-              get: { workspace.appToFocusBundleId },
-              set: { store.send(.appToFocusChanged($0)) }
-            )
-          ) {
-            Text("Most recently used").tag(String?.none)
-            ForEach(workspace.apps, id: \.bundleIdentifier) { app in
-              Text(app.name).tag(String?.some(app.bundleIdentifier))
+        if workspace.kind != .scratchpad {
+          Section("On Activation") {
+            Picker(
+              selection: Binding(
+                get: { workspace.appToFocusBundleId },
+                set: { store.send(.appToFocusChanged($0)) }
+              )
+            ) {
+              Text("Most recently used").tag(String?.none)
+              ForEach(workspace.apps, id: \.bundleIdentifier) { app in
+                Text(app.name).tag(String?.some(app.bundleIdentifier))
+              }
+            } label: {
+              Text("Focus app")
+              Text("Which assigned app gets focus when this workspace activates.")
             }
-          } label: {
-            Text("Focus app")
-            Text("Which assigned app gets focus when this workspace activates.")
+            .pickerStyle(.menu)
           }
-          .pickerStyle(.menu)
         }
 
         Section {

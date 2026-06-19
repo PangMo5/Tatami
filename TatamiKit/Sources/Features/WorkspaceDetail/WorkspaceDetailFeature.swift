@@ -41,6 +41,11 @@ public struct WorkspaceDetailFeature {
         for: candidate, excluding: .assignFocusedAppToWorkspace(workspaceId)
       )
     }
+
+    /// Same, for the borrow-shortcut recorder.
+    public func borrowShortcutConflict(for candidate: HotKey) -> String? {
+      config.shortcutConflict(for: candidate, excluding: .borrowWorkspace(workspaceId))
+    }
   }
 
   public enum Action: BindableAction {
@@ -62,6 +67,9 @@ public struct WorkspaceDetailFeature {
     case tilingMemoryChanged(TilingMemory?)
     case kindChanged(WorkspaceKind)
     case keyEquivalentChanged(String?)
+    case borrowShortcutChanged(HotKey?)
+    case borrowEdgeChanged(BorrowEdge?)
+    case borrowFractionChanged(Double?)
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
@@ -225,6 +233,27 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.keyEquivalent = key }
+        }
+        return .none
+
+      case .borrowShortcutChanged(let hotKey):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.borrowShortcut = hotKey }
+        }
+        return .none
+
+      case .borrowEdgeChanged(let edge):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.borrowEdge = edge }
+        }
+        return .none
+
+      case .borrowFractionChanged(let fraction):
+        let id = state.workspaceId
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.borrowFraction = fraction }
         }
         return .none
 
