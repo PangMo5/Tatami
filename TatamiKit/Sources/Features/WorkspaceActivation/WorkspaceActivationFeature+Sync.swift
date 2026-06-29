@@ -318,23 +318,17 @@ extension WorkspaceActivationFeature {
       )
     }()
 
-    // Mouse-follows-focus when focus moved without the mouse. Two cases: a
-    // *newly opened* window the OS focused, and a *close* that shifted focus to
-    // a surviving tile (Tatami's refocus above didn't fire because focus landed
-    // validly on its own). Ordinary click-focus is excluded — a new window is
-    // rare, and the close warp skips when the cursor is already on the tile.
+    // Mouse-follows-focus when focus moved without the mouse: a *newly opened*
+    // window the OS focused, or a *close* that shifted focus to a surviving tile
+    // (Tatami's refocus above didn't fire because focus landed validly on its
+    // own). Warp to the tile's new center either way — on a close the surviving
+    // tile expands over where the cursor sat, so "cursor already inside" is not
+    // a reason to skip. Ordinary click-focus doesn't reach here (no tree edit).
     let warpEffect: Effect<Action> = {
-      guard let focused, newWindows.contains(focused) else { return .none }
-      if newWindows.subtracting(oldWindows).contains(focused) {
-        return warpToWindow(focused, in: final, workspaceId: workspaceId, state: state)
-      }
-      if !removed.isEmpty {
-        return warpToWindow(
-          focused, in: final, workspaceId: workspaceId, state: state,
-          skipIfCursorInside: true
-        )
-      }
-      return .none
+      guard let focused, newWindows.contains(focused),
+            newWindows.subtracting(oldWindows).contains(focused) || !removed.isEmpty
+      else { return .none }
+      return warpToWindow(focused, in: final, workspaceId: workspaceId, state: state)
     }()
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
