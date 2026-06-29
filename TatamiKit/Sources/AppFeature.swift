@@ -169,6 +169,17 @@ public struct AppFeature {
             for await _ in accessibility.changes() {
               await send(.accessibilityTrustChanged(accessibility.isTrusted()))
             }
+          },
+          // TEMP diagnostic (#8 AX-revoke freeze): a trust heartbeat. Runs on
+          // the cooperative pool, not the main actor, so it keeps logging even
+          // while the main thread is blocked — the `tatami.log.prev` timeline
+          // then shows exactly when AXIsProcessTrusted() flips relative to the
+          // freeze. Remove once the freeze is diagnosed.
+          .run { [accessibility, debugLog] _ in
+            while !Task.isCancelled {
+              try? await Task.sleep(for: .seconds(1))
+              debugLog.log("AXTrust", "trusted=\(accessibility.isTrusted())")
+            }
           }
         )
         .cancellable(id: CancelID.startupSubscriptions, cancelInFlight: true)

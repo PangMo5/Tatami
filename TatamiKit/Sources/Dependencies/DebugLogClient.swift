@@ -117,6 +117,17 @@ private final class DebugLogWriter: @unchecked Sendable {
   private func openTruncated() {
     do {
       try ConfigLocation.ensureDirectoryExists()
+      // Preserve the previous session before starting fresh: a freeze that
+      // needed a force-quit/reboot leaves its trace in `tatami.log.prev` even
+      // after relaunch truncates the live file (otherwise the only evidence is
+      // gone the moment the app comes back up). A fresh session still truncates
+      // the live file so it doesn't scroll past last week's noise.
+      let prevURL = fileURL.deletingLastPathComponent()
+        .appendingPathComponent("tatami.log.prev", isDirectory: false)
+      if FileManager.default.fileExists(atPath: fileURL.path) {
+        try? FileManager.default.removeItem(at: prevURL)
+        try? FileManager.default.copyItem(at: fileURL, to: prevURL)
+      }
       // Truncate. A fresh debug session shouldn't have to scroll past
       // last week's noise.
       try Data().write(to: fileURL, options: .atomic)
