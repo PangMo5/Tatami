@@ -40,13 +40,13 @@ struct AppConfigMembershipTests {
 
     let nowFloating = config.toggleFloating(bundleId: "a", name: "A", in: ws.id)
     #expect(nowFloating)
-    #expect(config.activeProfile?.workspaces[id: ws.id]?.apps.first?.floating == true)
+    #expect(config.activeProfile?.workspaces[id: ws.id]?.apps.first?.layout == .floating)
 
     // Un-floating keeps the membership.
     let unfloated = config.toggleFloating(bundleId: "a", name: "A", in: ws.id)
     #expect(!unfloated)
     #expect(apps(config, ws.id) == ["a"])
-    #expect(config.activeProfile?.workspaces[id: ws.id]?.apps.first?.floating == false)
+    #expect(config.activeProfile?.workspaces[id: ws.id]?.apps.first?.layout == .tiled)
   }
 
   @Test
@@ -61,7 +61,7 @@ struct AppConfigMembershipTests {
     let flipped = config.toggleSharedFloating(bundleId: "a", name: "A")
     #expect(!flipped)
     #expect(config.sharedApps.map(\.bundleIdentifier) == ["a"])
-    #expect(config.sharedApps.first?.floating == false)
+    #expect(config.sharedApps.first?.layout == .tiled)
   }
 
   @Test
@@ -70,7 +70,7 @@ struct AppConfigMembershipTests {
 
     let added = config.toggleSharedMembership(bundleId: "a", name: "A")
     #expect(added)
-    #expect(config.sharedApps.first?.floating == false)
+    #expect(config.sharedApps.first?.layout == .tiled)
 
     let removed = config.toggleSharedMembership(bundleId: "a", name: "A")
     #expect(!removed)
@@ -80,7 +80,7 @@ struct AppConfigMembershipTests {
   @Test
   func moveAppCarriesExistingAssignmentMetadata() {
     let assignment = AppAssignment(
-      bundleIdentifier: "a", name: "Custom Name", autoOpen: true, floating: true
+      bundleIdentifier: "a", name: "Custom Name", autoOpen: true, layout: .floating
     )
     let ws1 = Workspace(name: "one", apps: [assignment])
     let ws2 = Workspace(name: "two")
@@ -91,7 +91,7 @@ struct AppConfigMembershipTests {
     let moved = config.activeProfile?.workspaces[id: ws2.id]?.apps.first
     #expect(moved?.name == "Custom Name")
     #expect(moved?.autoOpen == true)
-    #expect(moved?.floating == true)
+    #expect(moved?.layout == .floating)
   }
 
   @Test
