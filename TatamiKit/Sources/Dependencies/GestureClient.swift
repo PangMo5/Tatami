@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Dependencies
 import DependenciesMacros
 import OSLog
@@ -171,6 +172,14 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   /// shared HID stream.
   fileprivate func consume(type: CGEventType, event: CGEvent) {
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
+      // After an AX revoke the system disables active taps; re-enabling fights
+      // it and the oscillation wedges the shared HID stream (system-wide input
+      // freeze — see #8). Re-enable only while still trusted, else tear down.
+      guard AXIsProcessTrusted() else {
+        debugLog.log("Gesture", "tap disabled + AX untrusted — tearing down")
+        teardownTap()
+        return
+      }
       debugLog.log("Gesture", "tap disabled by system (\(type.rawValue)) — re-enabling")
       if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
       return
