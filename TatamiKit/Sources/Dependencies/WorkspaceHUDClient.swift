@@ -13,6 +13,13 @@ struct WorkspaceHUDClient: Sendable {
   var show: @Sendable (
     _ name: String, _ symbolIconName: String?, _ subtitle: String?, _ durationMs: Int
   ) async -> Void
+  /// Like `show`, but anchored to a specific display instead of the cursor's
+  /// screen (`nil` → cursor's screen, same as `show`). Used to announce a
+  /// focus move on the *old* monitor when a switch crosses displays.
+  var showOnDisplay: @Sendable (
+    _ name: String, _ symbolIconName: String?, _ subtitle: String?,
+    _ durationMs: Int, _ display: DisplayName?
+  ) async -> Void
   /// Fade out the current HUD immediately (e.g. cancelling borrow mode).
   var dismiss: @Sendable () async -> Void
 }
@@ -24,14 +31,23 @@ extension WorkspaceHUDClient: DependencyKey {
     return WorkspaceHUDClient(
       show: { name, icon, subtitle, durationMs in
         await controller.show(
-          name: name, symbolIconName: icon, subtitle: subtitle, durationMs: durationMs
+          name: name, symbolIconName: icon, subtitle: subtitle,
+          durationMs: durationMs, display: nil
+        )
+      },
+      showOnDisplay: { name, icon, subtitle, durationMs, display in
+        await controller.show(
+          name: name, symbolIconName: icon, subtitle: subtitle,
+          durationMs: durationMs, display: display
         )
       },
       dismiss: { await controller.dismiss() }
     )
   }()
 
-  static let testValue = WorkspaceHUDClient(show: { _, _, _, _ in }, dismiss: {})
+  static let testValue = WorkspaceHUDClient(
+    show: { _, _, _, _ in }, showOnDisplay: { _, _, _, _, _ in }, dismiss: {}
+  )
   static let previewValue = testValue
 }
 
@@ -44,55 +60,69 @@ extension DependencyValues {
 
 @MainActor
 private final class WorkspaceHUDController {
-  private var panel: NSPanel?
-  private var hideTask: Task<Void, Never>?
+  /// One live HUD per screen, keyed by display id — a cross-monitor switch
+  /// shows two at once (the workspace name on the focused monitor, a
+  /// "focus moved" note on the one being left), so a single shared panel
+  /// would clobber one of them.
+  private struct Entry {
+    let panel: NSPanel
+    var hideTask: Task<Void, Never>?
+  }
+  private var entries: [CGDirectDisplayID: Entry] = [:]
   private let debugLog: DebugLogClient
 
   init(debugLog: DebugLogClient) {
     self.debugLog = debugLog
   }
 
-  func show(name: String, symbolIconName: String?, subtitle: String?, durationMs: Int) {
+  func show(
+    name: String, symbolIconName: String?, subtitle: String?,
+    durationMs: Int, display: DisplayName?
+  ) {
     debugLog.log(
-      "HUDDiag", "show title=\(name) hint=\(subtitle != nil) durationMs=\(durationMs)"
+      "HUDDiag",
+      "show title=\(name) hint=\(subtitle != nil) durationMs=\(durationMs) "
+        + "display=\(display?.name ?? "cursor")"
     )
-    // Every HUD gets a *fresh* panel: once a panel has been ordered out, a
-    // later window-alpha animation on it completes instantly (no fade) —
-    // observed as some HUDs vanishing without animation. Retiring the old
-    // panel and never reusing it keeps each fade on first-show state. This
-    // also removes the show/fade races a shared panel needed guards for.
-    hideTask?.cancel()
-    panel?.orderOut(nil)
+    guard let screen = resolveScreen(display), let screenID = screen.displayID else { return }
+    // Every HUD gets a *fresh* panel (per screen): once a panel has been
+    // ordered out, a later window-alpha animation on it completes instantly
+    // (no fade). Retiring the old panel *for this screen* and never reusing it
+    // keeps each fade on first-show state; panels on other screens are left
+    // alone so simultaneous HUDs coexist.
+    entries[screenID]?.hideTask?.cancel()
+    entries[screenID]?.panel.orderOut(nil)
 
     let panel = makePanel()
-    self.panel = panel
     panel.contentView = NSHostingView(
       rootView: WorkspaceHUDView(name: name, symbolIconName: symbolIconName, subtitle: subtitle)
     )
-    layout(panel, hasSubtitle: subtitle != nil)
+    layout(panel, hasSubtitle: subtitle != nil, on: screen)
     panel.alphaValue = 1
     panel.orderFrontRegardless()
 
-    hideTask = Task { [weak self] in
+    let hideTask = Task { [weak self] in
       // A hint line takes longer to read than a glanceable title.
       let duration = max(100, subtitle == nil ? durationMs : durationMs * 2)
       try? await Task.sleep(for: .milliseconds(duration))
       guard !Task.isCancelled else { return }
-      self?.fadeOut(panel)
+      self?.fadeOut(screenID)
     }
+    entries[screenID] = Entry(panel: panel, hideTask: hideTask)
   }
 
   func dismiss() {
-    hideTask?.cancel()
-    if let panel { fadeOut(panel) }
+    for screenID in Array(entries.keys) { fadeOut(screenID) }
   }
 
-  private func fadeOut(_ panel: NSPanel) {
+  private func fadeOut(_ screenID: CGDirectDisplayID) {
+    guard let entry = entries.removeValue(forKey: screenID) else { return }
+    entry.hideTask?.cancel()
+    let panel = entry.panel
     // Fade the content *view*, not the window: NSWindow's alpha animator
-    // proved unreliable for this panel configuration — after the first
-    // fade of the process, later animations completed instantly (no fade),
-    // fresh panel or not. The view animator is plain Core Animation and
-    // behaves every time.
+    // proved unreliable for this panel configuration — after the first fade of
+    // the process, later animations completed instantly (no fade), fresh panel
+    // or not. The view animator is plain Core Animation and behaves every time.
     guard let view = panel.contentView else {
       panel.orderOut(nil)
       return
@@ -106,6 +136,17 @@ private final class WorkspaceHUDController {
       self?.debugLog.log("HUDDiag", "fadeOut done")
       panel?.orderOut(nil)
     }
+  }
+
+  /// The screen a HUD targets: a named display (pinned), else the screen the
+  /// cursor is on — `NSScreen.main` follows the key window, which after a
+  /// workspace switch can be a different display than the user is looking at.
+  private func resolveScreen(_ display: DisplayName?) -> NSScreen? {
+    if let display {
+      return DisplayResolver.screenOrPrimary(for: display)
+    }
+    let mouse = NSEvent.mouseLocation
+    return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
   }
 
   private func makePanel() -> NSPanel {
@@ -124,16 +165,9 @@ private final class WorkspaceHUDController {
     return panel
   }
 
-  private func layout(_ panel: NSPanel, hasSubtitle: Bool) {
+  private func layout(_ panel: NSPanel, hasSubtitle: Bool, on screen: NSScreen) {
     let size = NSSize(width: hasSubtitle ? 340 : 280, height: hasSubtitle ? 174 : 150)
     panel.setContentSize(size)
-    // The screen the cursor is on — `NSScreen.main` follows the key
-    // window, which after a workspace switch can be a different display
-    // than the one the user is looking at.
-    let mouse = NSEvent.mouseLocation
-    let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
-      ?? NSScreen.main
-    guard let screen else { return }
     let visible = screen.visibleFrame
     // Centered horizontally, near the bottom of the usable area.
     let origin = NSPoint(

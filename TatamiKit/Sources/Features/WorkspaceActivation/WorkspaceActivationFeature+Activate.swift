@@ -74,6 +74,13 @@ extension WorkspaceActivationFeature {
     } else {
       targetDisplay = displays.current()
     }
+    // The switch HUD shows on the display focus lands on; on a cross-monitor
+    // switch a second HUD on the monitor being left says where focus went, so
+    // it doesn't look like the workspace just vanished.
+    let oldDisplay = state.focusedDisplay
+    let crossMonitor = setFocus
+      && oldDisplay != nil && targetDisplay != nil
+      && !oldDisplay!.matches(targetDisplay!)
     // Re-tiling this display to `workspace` dismisses any live composition on
     // it — a borrow is transient and vanishes when its host re-tiles. Capture
     // the dropped borrow's name so the switch HUD can announce it; skip the
@@ -141,7 +148,26 @@ extension WorkspaceActivationFeature {
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
     let hudSubtitle = dismissedBorrowName.map { "Returned \($0)" }
+    // The switch HUD shows on the display focus landed on (the target). On a
+    // same-monitor switch with no resolved target it falls back to the cursor.
+    let hudDisplay = targetDisplay
     let hudDurationMs = state.config.settings.hud.durationMs
+
+    // On a cross-monitor switch, a second HUD on the monitor being left names
+    // where focus went. Separate panel (the controller tracks one per screen),
+    // shown alongside the switch HUD on the new monitor.
+    let crossMonitorHUD: Effect<Action> = {
+      guard crossMonitor,
+            state.config.settings.hud.shows(\.workspaceSwitch),
+            let oldDisplay, let targetDisplay
+      else { return .none }
+      let targetName = targetDisplay.name
+      return .run { [workspaceHUD] _ in
+        await workspaceHUD.showOnDisplay(
+          "Focus moved", "arrow.right.to.line", "to \(targetName)", hudDurationMs, oldDisplay
+        )
+      }
+    }()
 
     // Floating windows need Screen Recording for their mirrors. Don't fail
     // silently ("floating just doesn't stay on top"): surface the system
@@ -179,7 +205,7 @@ extension WorkspaceActivationFeature {
     // hotkey press. Under system load the default priority leaves our
     // main-actor hops queued behind everything else — exactly when the
     // switch already crawls on slow AX replies.
-    return .merge(screenRecordingWarning, watchdog, .run(priority: .userInteractive) { [
+    return .merge(screenRecordingWarning, watchdog, crossMonitorHUD, .run(priority: .userInteractive) { [
       mgr = workspaceManager,
       tiler = windowTiler,
       store = layoutStore,
@@ -203,7 +229,7 @@ extension WorkspaceActivationFeature {
         phaseStart = now
       }
       if showHUD {
-        await hud.show(hudName, hudIcon, hudSubtitle, hudDurationMs)
+        await hud.showOnDisplay(hudName, hudIcon, hudSubtitle, hudDurationMs, hudDisplay)
       }
       // Tear down the outgoing workspace's mirrors in the same beat as the
       // hide pass — leaving them to the post-tile `setFloating` made the
