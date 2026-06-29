@@ -250,6 +250,24 @@ extension WorkspaceActivationFeature {
     let newWindows = Set(balanced?.windows ?? [])
     state.tilingTrees[workspaceId] = balanced
 
+    // A native-tab switch (Ghostty, Terminal) retires the active tab's
+    // CGWindowID and surfaces a new one for the same app — so a fullscreen-zoom
+    // recorded on the retired id would fall back to a half tile. Migrate the
+    // zoom on a now-absent id to its replacement (same app, newly in the tree);
+    // drop a zoom whose window is simply gone.
+    if var zoom = state.fullscreenZoomed[workspaceId], !zoom.isEmpty {
+      let addedKeys = newWindows.subtracting(oldWindows)
+      var changed = false
+      for stale in zoom where balanced?.pathTo(window: stale) == nil {
+        zoom.remove(stale)
+        if let replacement = addedKeys.first(where: { $0.bundleId == stale.bundleId }) {
+          zoom.insert(replacement)
+        }
+        changed = true
+      }
+      if changed { state.fullscreenZoomed[workspaceId] = zoom.isEmpty ? nil : zoom }
+    }
+
     let added = newWindows.subtracting(oldWindows).map { $0.windowID }
     let removed = oldWindows.subtracting(newWindows).map { $0.windowID }
     debugLog.log(
