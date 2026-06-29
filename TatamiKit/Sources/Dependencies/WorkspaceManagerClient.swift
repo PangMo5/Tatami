@@ -172,7 +172,15 @@ extension WorkspaceManagerClient: DependencyKey {
             ?? request.windowKeyToFocus?.bundleId
             ?? request.workspace.apps.last?.bundleIdentifier
           let appsToShow = running.filter { keepVisible.contains($0.bundleIdentifier ?? "") }
+          // The MRU focus target can be a transient (unregistered) window —
+          // folded into the host's tree this session and restored on a borrow
+          // return. It isn't in `keepVisible`/`appsToShow`, but it's on screen and
+          // is the window the user last used, so honor it directly from the
+          // running set instead of falling back to a registered app.
           let toFocus = appsToShow.first { $0.bundleIdentifier == focusBundleId }
+            ?? request.windowKeyToFocus.flatMap { mru in
+              running.first { $0.processIdentifier == mru.pid }
+            }
             ?? appsToShow.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }
 
           // 1. Show the workspace + floating apps and focus FIRST, before
