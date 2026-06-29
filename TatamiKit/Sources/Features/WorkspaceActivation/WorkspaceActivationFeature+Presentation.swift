@@ -90,7 +90,8 @@ extension WorkspaceActivationFeature {
     _ key: WindowKey,
     in tree: BSPNode<WindowKey>,
     workspaceId: Workspace.ID,
-    state: State
+    state: State,
+    skipIfCursorInside: Bool = false
   ) -> Effect<Action> {
     guard state.config.settings.focus.mouseFollowsFocus else { return .none }
     let settings = state.config.settings
@@ -103,6 +104,10 @@ extension WorkspaceActivationFeature {
           fullscreenZoomed: zoomed, targetRect: rect
         )
         guard let r = frames[key] else { return nil }
+        // A close that shifts focus to a surviving tile carries the cursor —
+        // but not if it's already on that tile (a background-window close, a
+        // click, or focus-follows-mouse leaves the cursor where it belongs).
+        if skipIfCursorInside, r.contains(mouse.axLocation()) { return nil }
         return CGPoint(x: r.midX, y: r.midY)
       }
       if let center { mouse.warp(center) }

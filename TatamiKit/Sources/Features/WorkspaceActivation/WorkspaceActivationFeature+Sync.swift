@@ -318,15 +318,23 @@ extension WorkspaceActivationFeature {
       )
     }()
 
-    // Mouse-follows-focus for a *newly opened* window: when the window that
-    // just appeared is the one the OS focused, warp the cursor onto it. Scoped
-    // to new windows so ordinary click-focus doesn't yank the cursor around —
-    // the hotkey focus paths already warp, but a new window never flowed
-    // through them.
+    // Mouse-follows-focus when focus moved without the mouse. Two cases: a
+    // *newly opened* window the OS focused, and a *close* that shifted focus to
+    // a surviving tile (Tatami's refocus above didn't fire because focus landed
+    // validly on its own). Ordinary click-focus is excluded — a new window is
+    // rare, and the close warp skips when the cursor is already on the tile.
     let warpEffect: Effect<Action> = {
-      guard let focused, newWindows.subtracting(oldWindows).contains(focused)
-      else { return .none }
-      return warpToWindow(focused, in: final, workspaceId: workspaceId, state: state)
+      guard let focused, newWindows.contains(focused) else { return .none }
+      if newWindows.subtracting(oldWindows).contains(focused) {
+        return warpToWindow(focused, in: final, workspaceId: workspaceId, state: state)
+      }
+      if !removed.isEmpty {
+        return warpToWindow(
+          focused, in: final, workspaceId: workspaceId, state: state,
+          skipIfCursorInside: true
+        )
+      }
+      return .none
     }()
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
