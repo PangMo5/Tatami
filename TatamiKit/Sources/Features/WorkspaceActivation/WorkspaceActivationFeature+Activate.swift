@@ -79,6 +79,10 @@ extension WorkspaceActivationFeature {
     // the dropped borrow's name so the switch HUD can announce it; skip the
     // case where we're switching *into* the borrowed workspace (a promotion,
     // not a return).
+    // Borrow in / release re-tiles a display that currently hosts a composition;
+    // only then is the hide pass borrow-scoped to the managed universe. A plain
+    // switch to a non-composed display passes an empty set → legacy full hide.
+    let droppingBorrow = targetDisplay.flatMap { state.compositionsByDisplay[$0] } != nil
     var dismissedBorrowName: String?
     if let targetDisplay, let comp = state.compositionsByDisplay[targetDisplay] {
       if let slot = comp.borrowed.first, slot.workspace != workspaceId {
@@ -97,7 +101,8 @@ extension WorkspaceActivationFeature {
       targetDisplay: targetDisplay,
       setFocus: setFocus,
       mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus,
-      windowKeyToFocus: mruWindow
+      windowKeyToFocus: mruWindow,
+      managedBundleIds: droppingBorrow ? state.managedBundleIds : []
     )
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
     // Show the HUD on a normal switch, or whenever this switch returned a
@@ -574,7 +579,8 @@ extension WorkspaceActivationFeature {
       : tiledBorrowed
     let request = ActivationRequest(
       workspace: hostWs, sharedApps: state.config.sharedApps,
-      targetDisplay: display, setFocus: false, borrowedApps: borrowedApps
+      targetDisplay: display, setFocus: false, borrowedApps: borrowedApps,
+      managedBundleIds: state.managedBundleIds
     )
     let settings = state.config.settings
     let existingBorrowedTree = state.tilingTrees[targetId]

@@ -122,6 +122,19 @@ public struct WorkspaceActivationFeature {
       return activeWorkspacesByDisplay.values.first
     }
 
+    /// The Tatami-managed universe: every bundle id registered to a workspace
+    /// in the active profile, plus shared apps. Borrow activations pass this to
+    /// the hide pass so an unregistered floating app isn't swept away with the
+    /// managed ones; a plain switch passes an empty set and keeps the original
+    /// "hide everything unassigned" behavior.
+    var managedBundleIds: Set<String> {
+      var ids = Set(config.sharedApps.map(\.bundleIdentifier))
+      for workspace in config.activeProfile?.workspaces ?? [] {
+        for app in workspace.apps { ids.insert(app.bundleIdentifier) }
+      }
+      return ids
+    }
+
     /// The composed workspace (borrowed block or host) that should own a
     /// window of `bundleId` — by tree membership when `key` is known, else by
     /// app registration in a borrowed workspace (so a brand-new borrowed

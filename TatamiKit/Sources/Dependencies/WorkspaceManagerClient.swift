@@ -47,6 +47,13 @@ struct ActivationRequest: Sendable, Hashable {
   /// Apps of a borrowed workspace to also keep visible during a composition
   /// (the borrowed block's windows must stay up alongside the host's).
   var borrowedApps: [AppAssignment] = []
+  /// The Tatami-managed "universe": every bundle id registered to a workspace
+  /// in the active profile, plus shared apps. When non-empty, the hide pass
+  /// only hides apps in this set — an app the user never registered (a floating
+  /// utility, a system dialog) is left alone. Supplied on *borrow* activations
+  /// (borrow in / release); a plain switch passes an empty set → legacy "hide
+  /// every non-kept app".
+  var managedBundleIds: Set<String> = []
 
   init(
     workspace: Workspace,
@@ -55,7 +62,8 @@ struct ActivationRequest: Sendable, Hashable {
     setFocus: Bool = true,
     mouseHidesOnFocus: Bool = false,
     windowKeyToFocus: WindowKey? = nil,
-    borrowedApps: [AppAssignment] = []
+    borrowedApps: [AppAssignment] = [],
+    managedBundleIds: Set<String> = []
   ) {
     self.workspace = workspace
     self.sharedApps = sharedApps
@@ -64,6 +72,7 @@ struct ActivationRequest: Sendable, Hashable {
     self.mouseHidesOnFocus = mouseHidesOnFocus
     self.windowKeyToFocus = windowKeyToFocus
     self.borrowedApps = borrowedApps
+    self.managedBundleIds = managedBundleIds
   }
 }
 
@@ -95,6 +104,7 @@ extension WorkspaceManagerClient: DependencyKey {
         let sharedBundleIds = Set(request.sharedApps.map(\.bundleIdentifier))
         let borrowedBundleIds = Set(request.borrowedApps.map(\.bundleIdentifier))
         let keepVisible = workspaceBundleIds.union(sharedBundleIds).union(borrowedBundleIds)
+        let managedBundleIds = request.managedBundleIds
 
         await MainActor.run {
           let running = NSWorkspace.shared.runningApplications.filter {
@@ -230,6 +240,12 @@ extension WorkspaceManagerClient: DependencyKey {
               continue
             }
             if keepVisible.contains(bundleId) { continue }
+            // Borrow-scoped: only hide apps Tatami actually manages somewhere.
+            // An app the user never registered — a floating utility, a system
+            // dialog, a one-off window — is never ours to hide, so a borrow in
+            // or release leaves it where it is. (Empty set → legacy hide-
+            // everything for plain switches that don't supply the universe.)
+            if !managedBundleIds.isEmpty, !managedBundleIds.contains(bundleId) { continue }
             if app.isFinder, !isAnyWorkspaceAppRunning { continue }
             if let pidsOnTargetDisplay,
                !pidsOnTargetDisplay.contains(app.processIdentifier) {
