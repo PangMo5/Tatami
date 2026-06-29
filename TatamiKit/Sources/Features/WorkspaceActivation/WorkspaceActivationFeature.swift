@@ -687,16 +687,21 @@ public struct WorkspaceActivationFeature {
         return .run { [screenRecording, workspaceHUD] _ in
           let axTrusted = await MainActor.run { isAccessibilityTrusted() }
           guard !axTrusted else { return }
-          let screenGranted = screenRecording.isGranted()
+          // AX is missing — always surface a HUD (AX is the master gate). Prompt
+          // AX, and when Screen Recording is *also* missing prompt it in the same
+          // beat and name both; otherwise name AX alone.
           _ = await MainActor.run { ensureAccessibilityTrust() }
-          guard !screenGranted else { return }
-          await screenRecording.requestAccess()
+          let subtitle: String
+          if screenRecording.isGranted() {
+            subtitle = "Grant Accessibility in System Settings → "
+              + "Privacy & Security, then relaunch Tatami"
+          } else {
+            await screenRecording.requestAccess()
+            subtitle = "Grant Accessibility and Screen Recording in System Settings → "
+              + "Privacy & Security, then relaunch Tatami"
+          }
           await workspaceHUD.show(
-            "Permissions Needed",
-            "exclamationmark.triangle.fill",
-            "Grant Accessibility and Screen Recording in System Settings → "
-              + "Privacy & Security, then relaunch Tatami",
-            permsHudMs
+            "Permissions Needed", "exclamationmark.triangle.fill", subtitle, permsHudMs
           )
         }
 
