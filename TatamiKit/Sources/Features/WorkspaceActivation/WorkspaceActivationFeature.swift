@@ -577,7 +577,18 @@ public struct WorkspaceActivationFeature {
         return .merge(bundleIds.map { debouncedSync($0, delayMs: 10) })
 
       case .appLaunched(let bundleId, _):
-        return debouncedSync(bundleId, delayMs: 10)
+        // Observe the new app immediately — even before it's in any tree.
+        // A transient (unregistered) app's first window can appear seconds after
+        // launch with AX not yet ready; the initial sync then discovers nothing,
+        // and because the app isn't in any tree it's also not in the observe set
+        // — so nothing re-triggers discovery and the late window never tiles
+        // (until the next workspace switch). Arming the observer now breaks that
+        // chicken-and-egg: its AX-retry installs kAXWindowCreated as soon as the
+        // app is reachable, which re-runs the sync when the window shows up.
+        return .merge(
+          debouncedSync(bundleId, delayMs: 10),
+          .run { [observer = windowObserver] _ in await observer.observe([bundleId]) }
+        )
 
       case .appActivated(let bundleId):
         if MacApp.isTatami(bundleId) {
