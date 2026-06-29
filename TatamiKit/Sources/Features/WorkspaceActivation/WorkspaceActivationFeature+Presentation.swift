@@ -82,6 +82,33 @@ extension WorkspaceActivationFeature {
     return state.fullscreenZoomed[workspaceId] ?? []
   }
 
+  /// Warp the cursor to the center of `key`'s tile when mouse-follows-focus is
+  /// on. No-op when the setting is off or `key` has no frame. The shared body
+  /// behind every "focus moved → follow it" path that isn't a hotkey (new
+  /// window, refocus-on-close).
+  func warpToWindow(
+    _ key: WindowKey,
+    in tree: BSPNode<WindowKey>,
+    workspaceId: Workspace.ID,
+    state: State
+  ) -> Effect<Action> {
+    guard state.config.settings.focus.mouseFollowsFocus else { return .none }
+    let settings = state.config.settings
+    let (display, rect) = tilingContext(for: workspaceId, state: state)
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    return .run { [mouse] _ in
+      let center = await MainActor.run { () -> CGPoint? in
+        let frames = Self.computeFrames(
+          tree: tree, settings: settings, targetDisplay: display,
+          fullscreenZoomed: zoomed, targetRect: rect
+        )
+        guard let r = frames[key] else { return nil }
+        return CGPoint(x: r.midX, y: r.midY)
+      }
+      if let center { mouse.warp(center) }
+    }
+  }
+
   /// Show a HUD message when its category (and the master switch) is
   /// enabled in settings — every non-workspace-switch HUD funnels through
   /// here so the per-category toggles stay authoritative.

@@ -311,7 +311,22 @@ extension WorkspaceActivationFeature {
       let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
         ?? final.windows.first
       guard let target else { return .none }
-      return .run { [focus = focusManager] _ in await focus.focusWindow(target) }
+      // Refocus-on-close moves focus programmatically — carry the cursor too.
+      return .merge(
+        .run { [focus = focusManager] _ in await focus.focusWindow(target) },
+        warpToWindow(target, in: final, workspaceId: workspaceId, state: state)
+      )
+    }()
+
+    // Mouse-follows-focus for a *newly opened* window: when the window that
+    // just appeared is the one the OS focused, warp the cursor onto it. Scoped
+    // to new windows so ordinary click-focus doesn't yank the cursor around —
+    // the hotkey focus paths already warp, but a new window never flowed
+    // through them.
+    let warpEffect: Effect<Action> = {
+      guard let focused, newWindows.subtracting(oldWindows).contains(focused)
+      else { return .none }
+      return warpToWindow(focused, in: final, workspaceId: workspaceId, state: state)
     }()
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
@@ -321,6 +336,7 @@ extension WorkspaceActivationFeature {
       persist(final, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       markerRefresh,
       refocusEffect,
+      warpEffect,
       emptySwitch
     )
   }
@@ -586,8 +602,12 @@ extension WorkspaceActivationFeature {
         }
         let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
           ?? balanced?.windows.first
-        guard let target else { return .none }
-        return .run { [focus = focusManager] _ in await focus.focusWindow(target) }
+        guard let target, let final = balanced else { return .none }
+        // Refocus-on-close moves focus programmatically — carry the cursor too.
+        return .merge(
+          .run { [focus = focusManager] _ in await focus.focusWindow(target) },
+          warpToWindow(target, in: final, workspaceId: workspaceId, state: state)
+        )
       }()
 
       effects.append(
