@@ -233,7 +233,11 @@ private final class ObservedApp {
     )
 
     if observed.needsAXRetry {
-      observed.scheduleAXRetry(attemptsRemaining: 10)
+      // A heavy app's first cold launch can take several seconds before its AX
+      // layer answers — 25 × 200 ms gives it room (the old 2 s budget gave up
+      // before slow apps were ready, so their kAXWindowCreated was never armed
+      // and a lazily-opened window stayed untiled until a workspace switch).
+      observed.scheduleAXRetry(attemptsRemaining: 25)
     }
 
     return observed
@@ -293,20 +297,27 @@ private final class ObservedApp {
       )
       let ok = self.registerNotifications(info: id)
       self.refreshWindowSubscriptions()
-      if ok && self.lastSubscribedWindowCount > 0 {
+      if ok {
+        // AX is ready: kAXWindowCreated is now armed, so a window that appears
+        // from here on fires a real event on its own — arming the subscription
+        // was the retry's whole job. Replay any window that slipped in while AX
+        // was not ready (the OS dropped those notifications); the live
+        // subscription covers the rest, so stop retrying even with no window
+        // yet (the old `ok && windows > 0` gate kept burning attempts and could
+        // give up before a lazy window opened).
         debugLog.log(
           "Observer",
           "ax retry SUCCEEDED pid=\(self.pid) bundle=\(self.bundleId) windows=\(self.lastSubscribedWindowCount)"
         )
         self.retryTask = nil
-        // Force a reconcile now that AX woke up — the windowCreated
-        // notifications we missed during the cannotComplete window
-        // need to be replayed somehow, and the cheapest path is to
-        // synthesize a windowCreated event so the reducer rediscovers.
-        self.continuation.yield(.windowCreated(bundleId: self.bundleId))
+        if self.lastSubscribedWindowCount > 0 {
+          self.continuation.yield(.windowCreated(bundleId: self.bundleId))
+        }
         return
       }
-      if attemptsRemaining > 1 {
+      // Keep retrying only while the app is alive and AX still isn't ready —
+      // giving up early is what left a slow app's late window unobserved.
+      if attemptsRemaining > 1, ObservedApp.isPidAlive(self.pid) {
         self.scheduleAXRetry(attemptsRemaining: attemptsRemaining - 1)
       } else {
         debugLog.log(
