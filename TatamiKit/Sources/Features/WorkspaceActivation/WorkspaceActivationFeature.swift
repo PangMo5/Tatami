@@ -192,6 +192,9 @@ public struct WorkspaceActivationFeature {
     /// Activate a sensible workspace on launch so tiling starts
     /// immediately instead of waiting for the first manual switch.
     case activateInitial
+    /// Startup permission gate: prompt for any missing permission, surfacing
+    /// Accessibility + Screen Recording together when both are absent.
+    case surfaceMissingPermissions
     case activate(workspaceId: Workspace.ID, setFocus: Bool)
     case activateNext
     case activatePrevious
@@ -670,6 +673,32 @@ public struct WorkspaceActivationFeature {
           "initial → ws=\(target.name) (frontmost=\(frontBundle ?? "nil"))"
         )
         return .send(.activate(workspaceId: target.id, setFocus: false))
+
+      case .surfaceMissingPermissions:
+        // Startup permission gate, kept beside the floating Screen-Recording
+        // warning (performActivate) so all permission prompting funnels through
+        // one feature. AX is the master gate — tiling does nothing without it —
+        // so prompt it first; when Screen Recording is *also* missing, surface
+        // both in the same beat (each system prompt + one HUD naming both)
+        // instead of meeting the Screen-Recording prompt later, on the first
+        // floating window. (When AX is missing the app can't tile, so the lazy
+        // floating warning never fires before relaunch — no double prompt.)
+        let permsHudMs = max(state.config.settings.hud.durationMs * 2, 4000)
+        return .run { [screenRecording, workspaceHUD] _ in
+          let axTrusted = await MainActor.run { isAccessibilityTrusted() }
+          guard !axTrusted else { return }
+          let screenGranted = screenRecording.isGranted()
+          _ = await MainActor.run { ensureAccessibilityTrust() }
+          guard !screenGranted else { return }
+          await screenRecording.requestAccess()
+          await workspaceHUD.show(
+            "Permissions Needed",
+            "exclamationmark.triangle.fill",
+            "Grant Accessibility and Screen Recording in System Settings → "
+              + "Privacy & Security, then relaunch Tatami",
+            permsHudMs
+          )
+        }
 
       case .activate(let workspaceId, let setFocus):
         return performActivate(

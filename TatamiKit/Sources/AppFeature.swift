@@ -98,11 +98,11 @@ public struct AppFeature {
           .send(.activation(.activateInitial)),
           .send(.settingsChanged(settings)),
           .run { _ in
-            await MainActor.run {
-              _ = ensureAccessibilityTrust()
-              boundGlobalAXMessagingTimeout()
-            }
+            await MainActor.run { boundGlobalAXMessagingTimeout() }
           },
+          // Permission prompting lives in the activation feature (next to the
+          // floating Screen-Recording warning); startup just triggers it.
+          .send(.activation(.surfaceMissingPermissions)),
           // Always consume swipe events; the tap itself is toggled on/off
           // in `.settingsChanged`.
           .run { [client = gestures] send in
