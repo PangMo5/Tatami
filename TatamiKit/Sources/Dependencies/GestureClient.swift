@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 import Dependencies
 import DependenciesMacros
 import OSLog
@@ -23,8 +22,7 @@ public enum SwipeDirection: Sendable, Hashable {
 
 extension GestureClient: DependencyKey {
   static let liveValue: GestureClient = {
-    @Dependency(\.debugLog) var debugLog
-    let recognizer = HorizontalSwipeRecognizer(debugLog: debugLog)
+    let recognizer = HorizontalSwipeRecognizer()
     return GestureClient(
       start: { fingers, threshold in
         await recognizer.start(fingers: fingers, threshold: threshold)
@@ -53,17 +51,14 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Gestures
 
 /// Recognizes multi-finger horizontal swipes from the HID gesture tap.
 ///
-/// The active tap is serviced on `EventTapThread`, not the main run loop: an
-/// active `.defaultTap` sits in-line in the shared HID stream, so if the run
-/// loop servicing it ever stalls the kernel holds *all* system input until the
-/// tap watchdog fires (seconds) — and Tatami's main thread does block on
-/// Accessibility IPC (notably right after AX is revoked at runtime, where the
-/// blocking call outlives the stale `AXIsProcessTrusted` cache). Servicing the
-/// tap off-main means a blocked main thread can never freeze system input. The
-/// AppKit decode (`NSEvent(cgEvent:)` + `allTouches()`) still hops to the main
-/// actor, where it's safe. `tap`/`runLoopSource` are touched only on the tap
-/// thread and the recognizer state only on the main actor, so both stay
-/// lock-free with no shared mutable access.
+/// The tap source lives on the main run loop, so all mutable state is
+/// touched only from the main actor. The C callback receives `self` via
+/// the tap's `userInfo` pointer (no global shared instance).
+///
+/// Deliberately NOT moved to `EventTapThread`: decoding the touches
+/// requires `NSEvent(cgEvent:)` + `allTouches()`, and AppKit gives no
+/// off-main-thread guarantee for either — the main-thread cost is only
+/// paid while the (off-by-default) gesture setting is on.
 private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   let directions: AsyncStream<SwipeDirection>
   private let emit: AsyncStream<SwipeDirection>.Continuation
@@ -75,16 +70,12 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     var displacement: CGFloat { current - origin }
   }
 
-  private let debugLog: DebugLogClient
+  @Dependency(\.debugLog) private var debugLog
 
-  /// Tap state — touched only on `EventTapThread` (install / teardown / the
-  /// re-enable inside the callback).
   private var tap: CFMachPort?
-  private var runLoopSource: CFRunLoopSource?
-
-  /// Recognizer config + state — touched only on the main actor.
   private var requiredFingers = 3
   private var threshold = 0.3
+
   private var travelByTouch: [ObjectIdentifier: Travel] = [:]
   private var didFireForCurrentGesture = false
   private var lastSampleAt = Date.distantPast
@@ -92,8 +83,7 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   /// A new gesture starts once the touchpad has been quiet this long.
   private let restGap: TimeInterval = 0.8
 
-  init(debugLog: DebugLogClient) {
-    self.debugLog = debugLog
+  init() {
     var continuation: AsyncStream<SwipeDirection>.Continuation!
     self.directions = AsyncStream(bufferingPolicy: .bufferingNewest(4)) { continuation = $0 }
     self.emit = continuation
@@ -103,29 +93,20 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   func start(fingers: Int, threshold: Double) {
     self.requiredFingers = min(max(fingers, 2), 4)
     self.threshold = threshold
-    debugLog.log("Gesture", "start fingers=\(requiredFingers) threshold=\(self.threshold)")
-    EventTapThread.shared.perform { [self] in installTap() }
-  }
-
-  @MainActor
-  func stop() {
-    EventTapThread.shared.perform { [self] in teardownTap() }
-    reset()
-  }
-
-  /// Runs on `EventTapThread`. Creates the active gesture tap and attaches its
-  /// source to that thread's run loop so the shared HID stream is serviced
-  /// off-main.
-  private func installTap() {
     guard tap == nil else { return }
+
     let context = Unmanaged.passUnretained(self).toOpaque()
-    // ACTIVE tap (`.defaultTap`), deliberately not `.listenOnly`: TCC gates
-    // active taps on Accessibility but listen-only taps on Input Monitoring —
-    // any listen-only tapCreate (regardless of mask or location) pops the
-    // "receive keystrokes from any application" warning and, once that entry
-    // exists denied, fails even with Accessibility granted. Active taps are the
-    // skhd / yabai model. The callback passes every event through unmodified
-    // and the mask is gesture-only, so it never touches clicks or keys.
+    // ACTIVE tap (`.defaultTap`), deliberately not `.listenOnly`: TCC
+    // gates active taps on Accessibility but listen-only taps on Input
+    // Monitoring — any listen-only tapCreate (regardless of mask or tap
+    // location) pops the "receive keystrokes from any application"
+    // warning and lists the app under Privacy → Input Monitoring; once
+    // that entry exists *denied*, listen-only taps fail even with
+    // Accessibility granted (FFM died with it). Active taps are the
+    // skhd / yabai model. The callback passes every event through
+    // unmodified, and the mask is gesture-only, so a stalled callback
+    // can at worst delay gesture events — clicks and keys never route
+    // through here.
     let created = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
       place: .headInsertEventTap,
@@ -146,52 +127,39 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
       debugLog.log("Gesture", "tap create FAILED (accessibility?)")
       return
     }
-    guard let source = CFMachPortCreateRunLoopSource(nil, created, 0) else { return }
     tap = created
-    runLoopSource = source
-    EventTapThread.shared.addSource(source)
+    let source = CFMachPortCreateRunLoopSource(nil, created, 0)
+    CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
     CGEvent.tapEnable(tap: created, enable: true)
-    debugLog.log("Gesture", "tap installed (active, on event-tap thread)")
+    debugLog.log(
+      "Gesture",
+      "tap started fingers=\(requiredFingers) threshold=\(threshold)"
+    )
   }
 
-  /// Runs on `EventTapThread`. Disables + detaches the tap.
-  private func teardownTap() {
+  @MainActor
+  func stop() {
     guard let tap else { return }
     CGEvent.tapEnable(tap: tap, enable: false)
-    if let runLoopSource { EventTapThread.shared.removeSource(runLoopSource) }
     CFMachPortInvalidate(tap)
     self.tap = nil
-    self.runLoopSource = nil
+    reset()
     debugLog.log("Gesture", "tap stopped")
   }
 
-  /// C-callback entry point, invoked on `EventTapThread`. Re-enables the tap if
-  /// the system disabled it; otherwise hops the AppKit decode + fold onto the
-  /// main actor. The hop is async so the callback returns the event
-  /// immediately — a stalled main thread just queues these, it never holds the
-  /// shared HID stream.
+  /// C-callback entry point. Re-enables the tap if the system disabled it,
+  /// otherwise hops to the main actor to fold the gesture event in.
   fileprivate func consume(type: CGEventType, event: CGEvent) {
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
-      // After an AX revoke the system disables active taps; re-enabling fights
-      // it and the oscillation wedges the shared HID stream (system-wide input
-      // freeze — see #8). Re-enable only while still trusted, else tear down.
-      guard AXIsProcessTrusted() else {
-        debugLog.log("Gesture", "tap disabled + AX untrusted — tearing down")
-        teardownTap()
-        return
-      }
       debugLog.log("Gesture", "tap disabled by system (\(type.rawValue)) — re-enabling")
       if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
       return
     }
     guard type.rawValue == NSEvent.EventType.gesture.rawValue,
-          let copy = event.copy()
+          let nsEvent = NSEvent(cgEvent: event)
     else { return }
-    let boxed = UncheckedCGEvent(copy)
-    DispatchQueue.main.async { [weak self] in
-      guard let self, let nsEvent = NSEvent(cgEvent: boxed.value) else { return }
-      MainActor.assumeIsolated { self.ingest(nsEvent) }
-    }
+    let boxed = Unchecked(nsEvent)
+    MainActor.assumeIsolated { ingest(boxed.value) }
   }
 
   @MainActor
@@ -263,10 +231,10 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     didFireForCurrentGesture = false
   }
 
-  /// Ferries a non-Sendable `CGEvent` from the tap-thread callback onto the
-  /// main actor, where it's decoded into an `NSEvent`.
-  private struct UncheckedCGEvent: @unchecked Sendable {
-    let value: CGEvent
-    init(_ value: CGEvent) { self.value = value }
+  /// Ferries a non-Sendable `NSEvent` across the (already main-bound)
+  /// isolation hop from the C callback.
+  private struct Unchecked: @unchecked Sendable {
+    let value: NSEvent
+    init(_ value: NSEvent) { self.value = value }
   }
 }

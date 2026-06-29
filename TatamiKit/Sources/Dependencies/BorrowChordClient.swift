@@ -112,14 +112,6 @@ final class BorrowChordTap: @unchecked Sendable {
   }
 
   fileprivate func reEnable() {
-    // After an AX revoke the system disables active taps; re-enabling fights it
-    // and the oscillation wedges the shared HID stream (system-wide input
-    // freeze — see #8). Re-enable only while still trusted, else tear down.
-    guard AXIsProcessTrusted() else {
-      debugLog.log("BorrowChord", "tap disabled + AX untrusted — tearing down")
-      teardown()
-      return
-    }
     if let tap = eventTap {
       debugLog.log("BorrowChord", "tap disabled by system — re-enabling")
       CGEvent.tapEnable(tap: tap, enable: true)

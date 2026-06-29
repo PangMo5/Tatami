@@ -148,14 +148,6 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// by sending a `tapDisabledByTimeout` event and turning the tap off.
   /// Flip it back on so focus-follows-mouse keeps working.
   fileprivate func reEnableTap() {
-    // After an AX revoke the system disables active taps; re-enabling fights it
-    // and the oscillation wedges the shared HID stream (system-wide input
-    // freeze — see #8). Re-enable only while still trusted, else tear down.
-    guard AXIsProcessTrusted() else {
-      debugLog.log("FocusDiag", "ffm tap disabled + AX untrusted — tearing down")
-      teardown()
-      return
-    }
     if let tap = eventTap {
       debugLog.log("FocusDiag", "ffm tap disabled by system — re-enabling")
       CGEvent.tapEnable(tap: tap, enable: true)
