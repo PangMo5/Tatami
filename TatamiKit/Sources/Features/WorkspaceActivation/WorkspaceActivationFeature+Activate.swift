@@ -90,6 +90,12 @@ extension WorkspaceActivationFeature {
     // only then is the hide pass borrow-scoped to the managed universe. A plain
     // switch to a non-composed display passes an empty set → legacy full hide.
     let droppingBorrow = targetDisplay.flatMap { state.compositionsByDisplay[$0] } != nil
+    // Restoring the *host* of a live composition (a borrow release), as opposed
+    // to switching away to a third workspace. The host never left the screen, so
+    // its tree's transient (unregistered) members must survive the re-tile —
+    // a fresh switch deliberately starts clean.
+    let restoringHost =
+      targetDisplay.flatMap { state.compositionsByDisplay[$0]?.host } == workspaceId
     var dismissedBorrowName: String?
     if let targetDisplay, let comp = state.compositionsByDisplay[targetDisplay] {
       if let slot = comp.borrowed.first, slot.workspace != workspaceId {
@@ -125,9 +131,17 @@ extension WorkspaceActivationFeature {
     // the tree.
     // An app registered to the workspace AND shared appears in both lists —
     // dedupe, or its windows get discovered twice and tile twice.
+    // Restoring the host after a borrow keeps its tree's transient members
+    // (apps folded in this session but registered nowhere) — discover them too,
+    // or `mergeTree` would drop them as stale and they'd fall out of the tiling.
+    // A fresh switch passes none, so transients drop as designed.
+    let transientBundles = restoringHost
+      ? (state.tilingTrees[workspace.id]?.windows.map(\.bundleId) ?? [])
+      : []
     let bundleIds = Array(OrderedSet(
       workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
         + state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+        + transientBundles
     ))
     // Floating apps (per-workspace + shared) are raised above the tiles after
     // the tile pass. Unmanaged apps are neither tiled nor floated — left out
