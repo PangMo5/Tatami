@@ -233,11 +233,15 @@ private final class ObservedApp {
     )
 
     if observed.needsAXRetry {
-      // A heavy app's first cold launch can take several seconds before its AX
-      // layer answers — 25 × 200 ms gives it room (the old 2 s budget gave up
-      // before slow apps were ready, so their kAXWindowCreated was never armed
-      // and a lazily-opened window stayed untiled until a workspace switch).
-      observed.scheduleAXRetry(attemptsRemaining: 25)
+      // A heavy app's cold launch can take many seconds before its AX layer
+      // answers (Electron especially). Retry generously: yabai re-arms every
+      // 100 ms with no cap until the app is observable. We cap at 150 × 200 ms
+      // (~30 s) plus a pid-alive guard so a slow app's kAXWindowCreated still
+      // gets armed instead of giving up after a few seconds and missing the
+      // first lazily-opened window. An app whose AX comes up sooner stops early
+      // (the retry returns the moment registration succeeds); a workspace
+      // switch's re-scan is the final safety net.
+      observed.scheduleAXRetry(attemptsRemaining: 150)
     }
 
     return observed
