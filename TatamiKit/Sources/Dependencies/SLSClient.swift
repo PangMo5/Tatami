@@ -36,6 +36,12 @@ struct SLSClient: Sendable {
   /// than one Space; we use that to keep them out of the BSP tree.
   var spacesForWindow: @Sendable (CGWindowID) -> [UInt64] = { _ in [] }
 
+  /// Whether the active Space is a native macOS fullscreen Space. Tatami goes
+  /// dormant in one: re-tiling there would write frames to (or raise) Desktop
+  /// windows and bounce the user back out of fullscreen to the Desktop.
+  /// Defaults to `false` so a missing framework never disables tiling.
+  var isActiveSpaceFullscreen: @Sendable () -> Bool = { false }
+
   /// Standard-window CGWindowIDs the OS reports as ordered-in on `space`.
   /// Used as the source of truth instead of bruteforcing AX remote
   /// tokens.
@@ -63,6 +69,7 @@ extension SLSClient: DependencyKey {
     return SLSClient(
       mainConnectionID: { center.connectionID },
       spacesForWindow: { center.spaces(for: $0) },
+      isActiveSpaceFullscreen: { center.isActiveSpaceFullscreen() },
       windowList: { center.windowList(on: $0) },
       focusWindow: { psn, wid, ref in
         var mutPSN = psn
@@ -108,6 +115,12 @@ private typealias SLSRegisterConnectionNotifyProcFn =
   @convention(c) (Int32, SLSConnectionNotifyCallback, UInt32, UnsafeMutableRawPointer?) -> CGError
 private typealias SLSRequestNotificationsForWindowsFn =
   @convention(c) (Int32, UnsafePointer<UInt32>?, Int32) -> CGError
+private typealias SLSGetActiveSpaceFn = @convention(c) (Int32) -> UInt64
+private typealias SLSSpaceGetTypeFn = @convention(c) (Int32, UInt64) -> Int32
+
+/// `SLSSpaceGetType` value for a native macOS fullscreen Space. yabai uses
+/// the same number (`0` is a normal user Space, `2` is system).
+private let kSLSSpaceTypeFullscreen: Int32 = 4
 
 /// SLS window-server event for "window destroyed" — also fires when an app
 /// hides a window on close without an AX notification (KakaoTalk, Discord).
@@ -131,6 +144,8 @@ private final class SLSCenter: @unchecked Sendable {
   private let symPostEventRecord: SLPSPostEventRecordToFn?
   private let symRegisterNotify: SLSRegisterConnectionNotifyProcFn?
   private let symRequestNotifications: SLSRequestNotificationsForWindowsFn?
+  private let symGetActiveSpace: SLSGetActiveSpaceFn?
+  private let symSpaceGetType: SLSSpaceGetTypeFn?
 
   private let destructionStream: AsyncStream<CGWindowID>
   /// Yielded from the WindowServer notify callback (main run loop). The
@@ -160,6 +175,10 @@ private final class SLSCenter: @unchecked Sendable {
       .map { unsafeBitCast($0, to: SLSRegisterConnectionNotifyProcFn.self) }
     self.symRequestNotifications = h.flatMap { dlsym($0, "SLSRequestNotificationsForWindows") }
       .map { unsafeBitCast($0, to: SLSRequestNotificationsForWindowsFn.self) }
+    self.symGetActiveSpace = h.flatMap { dlsym($0, "SLSGetActiveSpace") }
+      .map { unsafeBitCast($0, to: SLSGetActiveSpaceFn.self) }
+    self.symSpaceGetType = h.flatMap { dlsym($0, "SLSSpaceGetType") }
+      .map { unsafeBitCast($0, to: SLSSpaceGetTypeFn.self) }
     if let h, let connSym = dlsym(h, "SLSMainConnectionID") {
       let fn = unsafeBitCast(connSym, to: SLSMainConnectionIDFn.self)
       self.connectionID = fn()
@@ -194,6 +213,20 @@ private final class SLSCenter: @unchecked Sendable {
       .takeRetainedValue()
     else { return [] }
     return (raw as? [CGWindowID]) ?? []
+  }
+
+  /// Whether the active Space is a native macOS fullscreen Space, via the
+  /// same `SLSGetActiveSpace` + `SLSSpaceGetType` pair yabai uses. Returns
+  /// `false` whenever the framework or symbols are unavailable, so a missing
+  /// SkyLight never reads as "always fullscreen" and silences tiling.
+  func isActiveSpaceFullscreen() -> Bool {
+    guard connectionID != 0,
+          let getActive = symGetActiveSpace,
+          let getType = symSpaceGetType
+    else { return false }
+    let sid = getActive(connectionID)
+    guard sid != 0 else { return false }
+    return getType(connectionID, sid) == kSLSSpaceTypeFullscreen
   }
 
   /// Focus-with-raise via a synthesized annotated session event.

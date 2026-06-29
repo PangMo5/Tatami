@@ -39,6 +39,12 @@ public struct WorkspaceActivationFeature {
     /// Runtime-only "pause tiling" flag. Workspace switching keeps
     /// running while tiling is paused; flipped by `togglePaused`.
     public var isTilingPaused = false
+    /// True while the active Space is a native macOS fullscreen Space. Every
+    /// layout side effect (reconcile, sync, prune, followAppFocus jump) is
+    /// gated on this — re-tiling or raising a Desktop window from a fullscreen
+    /// Space bounces the user straight back to the Desktop. Set from the
+    /// space-change observer.
+    public var isInFullscreenSpace = false
     /// Per-workspace BSP tree of window keys, kept in-memory only.
     public var tilingTrees: [Workspace.ID: BSPNode<WindowKey>] = [:]
     /// Sticky per-workspace insertion point. The next window inserted
@@ -251,6 +257,10 @@ public struct WorkspaceActivationFeature {
     /// Wake / native-Space-change / "something on the system shifted":
     /// re-reconcile every tree-resident + registered app.
     case reconcileAllTrackedApps
+    /// A native-Space change (or wake): re-read whether the active Space is a
+    /// native fullscreen Space, set `isInFullscreenSpace`, and reconcile only
+    /// when it isn't (re-tiling into a fullscreen Space bounces to the Desktop).
+    case activeSpaceChanged
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
     case appActivated(bundleId: String)
@@ -531,11 +541,21 @@ public struct WorkspaceActivationFeature {
             case .terminated(let bundleId):
               await send(.appTerminated(bundleId: bundleId))
             case .activeSpaceChanged, .didWake:
-              await send(.reconcileAllTrackedApps)
+              await send(.activeSpaceChanged)
             }
           }
         }
         .cancellable(id: CancelID.appLaunchEvents, cancelInFlight: true)
+
+      case .activeSpaceChanged:
+        // Re-read whether we're in a native fullscreen Space. Every layout side
+        // effect (sync, prune, reconcile, followAppFocus jump) is gated on this
+        // flag — re-tiling into a fullscreen Space fights the OS and bounces the
+        // user to the Desktop; returning from one catches the tree up below.
+        let nowFullscreen = sls.isActiveSpaceFullscreen()
+        state.isInFullscreenSpace = nowFullscreen
+        debugLog.log("Space", "active space changed: fullscreen=\(nowFullscreen)")
+        return nowFullscreen ? .none : .send(.reconcileAllTrackedApps)
 
       case .reconcileAllTrackedApps:
         // Union of tree members + registered apps in the active
@@ -590,6 +610,11 @@ public struct WorkspaceActivationFeature {
            !state.compositionsByDisplay.values.contains(where: {
              $0.host == owner.id || $0.borrowed.contains { $0.workspace == owner.id }
            }),
+           // An app activating as its window enters native fullscreen would
+           // otherwise jump to its workspace and raise Desktop windows, bouncing
+           // the user back out of the fullscreen Space (symptom: enter fullscreen
+           // of a workspace-B app from A → lands on Desktop + switches to B).
+           !state.isInFullscreenSpace,
            state.primaryActiveWorkspaceID != owner.id {
           // The one path that switches workspaces without a hotkey — when a
           // bounce-back is suspected, this line (or its absence) is the tell.

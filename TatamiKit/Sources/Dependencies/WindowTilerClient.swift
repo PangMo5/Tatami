@@ -145,13 +145,12 @@ extension WindowTilerClient: DependencyKey {
 
   @MainActor
   private static func applyFrame(_ frame: CGRect, to window: AXUIElement) -> String {
-    if isFullScreen(window) {
-      _ = AXUIElementSetAttributeValue(
-        window,
-        "AXFullScreen" as CFString,
-        false as CFTypeRef
-      )
-    }
+    // A native-fullscreen window is not ours to lay out. The old behavior
+    // forced it out of fullscreen (`AXFullScreen = false`) before writing the
+    // tiled frame — so the space-change reconcile that fires the instant the
+    // user enters fullscreen bounced them straight back to the Desktop. Leave
+    // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
+    if isFullScreen(window) { return "skipped-fullscreen" }
 
     var posError = AXError.success
     var position = CGPoint(x: frame.minX, y: frame.minY)

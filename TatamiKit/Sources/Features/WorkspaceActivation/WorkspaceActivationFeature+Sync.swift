@@ -83,6 +83,13 @@ extension WorkspaceActivationFeature {
       debugLog.log("Sync", "skip \(bundleId): tiling paused")
       return .none
     }
+    // Dormant in a native fullscreen Space: re-tiling would write frames to (or
+    // raise) Desktop windows and bounce the user out of fullscreen. The space-
+    // change observer reconciles once they return to a normal Space.
+    guard !state.isInFullscreenSpace else {
+      debugLog.log("Sync", "skip \(bundleId): native fullscreen space")
+      return .none
+    }
     if MacApp.isTatami(bundleId) {
       return .none
     }
@@ -499,6 +506,14 @@ extension WorkspaceActivationFeature {
     guard !state.isTilingPaused, !state.isActivating,
           let hostId = state.primaryActiveWorkspaceID
     else { return .none }
+    // In a native fullscreen Space the Desktop's windows are all off-screen, so
+    // the on-screen list reports them "gone". Pruning then would empty the tree
+    // and bounce the user out of fullscreen — stay put until they return (the
+    // space-change reconcile catches up on exit).
+    if state.isInFullscreenSpace {
+      debugLog.log("Prune", "skip: native fullscreen space")
+      return .none
+    }
 
     // Windows can vanish in the host or in a borrowed block on the focused
     // display — prune both trees, then flush the composition once.
