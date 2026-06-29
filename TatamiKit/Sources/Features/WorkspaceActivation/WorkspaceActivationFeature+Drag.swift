@@ -16,6 +16,14 @@ extension WorkspaceActivationFeature {
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
 
+    // A fullscreen-zoomed window is rendered at the full work area, not at a
+    // tile — dragging its edge isn't a tile resize, so don't rewrite tree
+    // ratios from it. Snap it back to its fullscreen frame instead.
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    if zoomed.contains(key) {
+      return flushLayout(workspaceId: workspaceId, state: state)
+    }
+
     let settings = state.config.settings
     // Resize against the block's geometry (composition sub-rect when composed).
     let (_, workArea) = tilingContext(for: workspaceId, state: state)
@@ -65,7 +73,6 @@ extension WorkspaceActivationFeature {
 
     guard newTree != tree else { return .none }
     state.tilingTrees[workspaceId] = newTree
-    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
       flushLayout(workspaceId: workspaceId, state: state),
@@ -100,12 +107,23 @@ extension WorkspaceActivationFeature {
           tree.pathTo(window: dragged) != nil
     else { return nil }
 
+    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    // Dragging a fullscreen-zoomed window: it owns the whole work area, so
+    // there's no tile-level drop target — and the tiles hidden behind it must
+    // not light up an overlay.
+    if zoomed.contains(dragged) { return nil }
+
     let settings = state.config.settings
     let (_, workArea) = tilingContext(for: workspaceId, state: state)
     // Cursor in AX top-left coords (matches `frames` / `workArea`).
     let cursor = mouse.axLocation()
 
-    let allFrames = tree.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
+    // Hit-test against the frames the user actually sees: fullscreen-zoomed
+    // windows are trimmed (the rest reshape around them, exactly as
+    // `computeFrames` renders), so a zoomed window's stale tile slot never
+    // becomes a drop target for another window's drag.
+    guard let visible = Self.treeTrimmingZoomed(tree, zoomed: zoomed) else { return nil }
+    let allFrames = visible.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
     guard let target = allFrames.first(where: { other, rect in
             other != dragged && rect.contains(cursor)
           })?.key,
@@ -208,5 +226,21 @@ extension WorkspaceActivationFeature {
     }
     guard let removed = seeded.removing(source) else { return tree }
     return removed.inserting(source, near: target, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+  }
+
+  /// `tree` with its fullscreen-zoomed windows trimmed out — the layout the
+  /// user actually sees behind / around the zoom overlay. Mirrors the trim in
+  /// `computeFrames` so drag hit-testing reads the rendered frames, not the
+  /// raw tree (where a zoomed window still occupies its old slot). Returns nil
+  /// when every window is zoomed.
+  static func treeTrimmingZoomed(
+    _ tree: BSPNode<WindowKey>,
+    zoomed: Set<WindowKey>
+  ) -> BSPNode<WindowKey>? {
+    let active = zoomed.filter { tree.pathTo(window: $0) != nil }
+    guard !active.isEmpty else { return tree }
+    var trimmed: BSPNode<WindowKey>? = tree
+    for key in active { trimmed = trimmed?.removing(key) }
+    return trimmed
   }
 }
