@@ -101,6 +101,13 @@ private let mirrorCommitBeat: TimeInterval = 0.03
 
 @MainActor
 private func performFocus(pid: pid_t, windowID: CGWindowID) {
+  // AX revoked at runtime: bail before any AX round trip. Each AX call below
+  // would otherwise wait out the messaging timeout (~1s), and focus-follows-
+  // mouse fires this on every throttled mouse-move — saturating the main
+  // thread, which stalls the active gesture tap that lives on the main run
+  // loop and freezes system-wide input. `AXIsProcessTrusted()` is a local,
+  // non-blocking trust-cache read.
+  guard AXIsProcessTrusted() else { return }
   if let app = NSRunningApplication(processIdentifier: pid) {
     app.activate(options: [.activateIgnoringOtherApps])
   }

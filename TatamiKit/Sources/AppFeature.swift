@@ -40,6 +40,8 @@ public struct AppFeature {
     /// An internal failure was reported or resolved (ErrorReportClient).
     case errorReportEvent(ErrorReportEvent)
     case errorReportsDismissed
+    /// Accessibility trust changed at runtime (revoke detection).
+    case accessibilityTrustChanged(Bool)
   }
 
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
@@ -51,6 +53,7 @@ public struct AppFeature {
   @Dependency(\.debugLog) var debugLog
   @Dependency(\.errorReporter) var errorReporter
   @Dependency(\.workspaceHUD) var workspaceHUD
+  @Dependency(\.accessibility) var accessibility
 
   /// Identifies the app-lifetime subscription bundle so a duplicate
   /// `.task` (defensive; see `didStartUp`) replaces rather than doubles it.
@@ -155,6 +158,17 @@ public struct AppFeature {
             for await event in errorReporter.events() {
               await send(.errorReportEvent(event))
             }
+          },
+          // Revoking Accessibility at runtime must tear down the active event
+          // taps (focus-follows-mouse + gestures): otherwise their callbacks
+          // keep issuing AX calls that block on the messaging timeout and
+          // saturate the main thread — which stalls the gesture tap on the
+          // main run loop and freezes system-wide input. The stream also
+          // ticks on app re-activation, so re-read trust on every tick.
+          .run { [accessibility] send in
+            for await _ in accessibility.changes() {
+              await send(.accessibilityTrustChanged(accessibility.isTrusted()))
+            }
           }
         )
         .cancellable(id: CancelID.startupSubscriptions, cancelInFlight: true)
@@ -189,6 +203,21 @@ public struct AppFeature {
       case .errorReportsDismissed:
         state.errorReports.removeAll()
         return .none
+
+      case .accessibilityTrustChanged(let trusted):
+        // Only act on a revoke. A *new* grant doesn't reach the running
+        // process (AX needs a relaunch), so re-arming here wouldn't work —
+        // the user relaunches, which re-installs everything fresh.
+        guard !trusted else { return .none }
+        debugLog.log("App", "accessibility revoked — tearing down active event taps")
+        return .merge(
+          .run { [focusFollowsMouse] _ in
+            await focusFollowsMouse.configure(
+              FocusFollowsMouseConfig(enabled: false, disableModifier: .none)
+            )
+          },
+          .run { [gestures] _ in await gestures.stop() }
+        )
 
       case .settingsChanged(let settings):
         let ffm = FocusFollowsMouseConfig(
