@@ -185,6 +185,11 @@ final class WindowKeyCache {
   }
 
   private var entries: [Key: [WindowKey]] = [:]
+  /// Last id set handed to `setManaged` / `sls.watchWindows`. An unchanged
+  /// window population — the common case, since most discoveries (focus
+  /// change, resize, front-switch reconcile) add or remove nothing — skips
+  /// the redundant Set copy under lock and the SLS re-subscribe.
+  private var lastPublishedIDs: Set<CGWindowID> = []
 
   func cached(_ bundleId: String, requireResizable: Bool) -> [WindowKey]? {
     entries[Key(bundleId: bundleId, requireResizable: requireResizable)]
@@ -220,6 +225,10 @@ final class WindowKeyCache {
   /// discovery funnels through `store`, keeping the snapshot in step.
   private func publishManagedWindows() {
     let ids = Set(entries.values.flatMap { $0 }.map(\.windowID))
+    // Both sinks are idempotent "set state to this" calls; when the id set is
+    // unchanged the previous publish already left them in this exact state.
+    guard ids != lastPublishedIDs else { return }
+    lastPublishedIDs = ids
     @Dependency(\.managedWindows) var managedWindows
     @Dependency(\.sls) var sls
     managedWindows.setManaged(ids)
