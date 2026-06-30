@@ -6,6 +6,21 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.5.1 — 2026-06-30
+
+### Improvements
+- **Faster tiling on busy workspaces.** The re-tile that runs on every window open/close and workspace switch does noticeably less work — its merge step dropped from quadratic to linear in the number of windows, with fewer allocations in the layout walks. Tatami also no longer re-publishes its managed-window set when a focus change or reconcile didn't actually add or remove a window, trimming steady-state CPU.
+- **A cross-monitor focus move is announced on the monitor you left**, so it's clear where focus went on multi-display setups.
+- **Smoother gesture-sensitivity slider** — dragging it in Settings no longer re-renders the whole form on every tick.
+
+### Fixes
+- **Focus follows windows more reliably.** Focus now follows to newly opened and refocused windows, to the surviving tile when a window closes, and — with focus-follows-mouse — to the window actually under the cursor even when the machine is busy. Windows that briefly flap their accessibility role are kept instead of dropped.
+- **Slow-launching apps tile their first window.** Heavy apps (e.g. Electron) whose accessibility layer comes up late now have their first window picked up and tiled instead of missed.
+- **Workspace-switch leftovers cleaned up.** Unregistered apps no longer linger across a workspace switch, and the cursor warps to the focused tile when a window closes even if that tile had expanded over the pointer.
+- **Borrow fixes.** Returning a borrow refocuses the block you were last using, releasing a borrow re-tiles the host's own windows, and unregistered floating apps stay visible while a borrow is docked.
+- **Native fullscreen & zoom.** Entering native fullscreen no longer bounces back to the Desktop, fullscreen-zoom carries across a native-tab window swap, and a fullscreen-zoomed window's stale tile is no longer a drag drop-target.
+- **Permission prompts.** The startup HUD shows whenever Accessibility is missing, and Accessibility and Screen Recording are surfaced together.
+
 ## 1.5.0 — 2026-06-19
 
 ### New
