@@ -86,14 +86,16 @@ extension WorkspaceActivationFeature {
     // the dropped borrow's name so the switch HUD can announce it; skip the
     // case where we're switching *into* the borrowed workspace (a promotion,
     // not a return).
-    // Borrow in / release re-tiles a display that currently hosts a composition;
-    // only then is the hide pass borrow-scoped to the managed universe. A plain
-    // switch to a non-composed display passes an empty set → legacy full hide.
-    let droppingBorrow = targetDisplay.flatMap { state.compositionsByDisplay[$0] } != nil
     // Restoring the *host* of a live composition (a borrow release), as opposed
     // to switching away to a third workspace. The host never left the screen, so
-    // its tree's transient (unregistered) members must survive the re-tile —
-    // a fresh switch deliberately starts clean.
+    // its tree's transient (unregistered) members must survive the re-tile, and
+    // the hide pass stays borrow-scoped to the managed universe so an
+    // unregistered floating app summoned alongside the borrow is left alone.
+    // Every other activation — a fresh switch, *and* switching to a third
+    // workspace while a borrow is still up — passes an empty set → legacy full
+    // hide, so nothing unmanaged lingers on the new workspace. (The earlier
+    // `compositionsByDisplay[display] != nil` gate leaked the managed-only scope
+    // onto third-workspace switches, stranding the unregistered app on screen.)
     let restoringHost =
       targetDisplay.flatMap { state.compositionsByDisplay[$0]?.host } == workspaceId
     var dismissedBorrowName: String?
@@ -103,11 +105,28 @@ extension WorkspaceActivationFeature {
       }
       state.compositionsByDisplay[targetDisplay] = nil
     }
-    // "Most recently used" (no pinned focus app): restore the exact
-    // window the user last had focused in this workspace.
-    let mruWindow = workspace.appToFocusBundleId == nil
-      ? state.mruWindows[workspaceId]?.first
-      : nil
+    // "Most recently used" (no pinned focus app): restore the exact window the
+    // user last had focused in this workspace. On a plain switch the target must
+    // be a window that survives the switch's hide pass — a registered or shared
+    // member. An unregistered app folded into the tree this session (a transient)
+    // is hidden by the switch, so restoring it as the focus target would have the
+    // manager *resurrect* it (unhide + raise + activate) and the post-switch sync
+    // re-fold it into the tree — making it stick on every return (the symptom:
+    // "an unregistered app lingers across workspaces"). The design contract is
+    // that transients drop out on the next activation; MRU restoration must not
+    // defeat it. Only a borrow return (`restoringHost`) keeps transients on
+    // screen (managed-scoped hide), so the last-used transient is restorable
+    // there — that's the borrow-return focus the manager honors.
+    let mruCandidates = workspace.appToFocusBundleId == nil
+      ? (state.mruWindows[workspaceId] ?? [])
+      : []
+    let isWorkspaceMember: (WindowKey) -> Bool = { key in
+      workspace.apps.contains { $0.bundleIdentifier == key.bundleId }
+        || state.config.sharedApps.contains { $0.bundleIdentifier == key.bundleId }
+    }
+    let mruWindow = restoringHost
+      ? mruCandidates.first
+      : mruCandidates.first(where: isWorkspaceMember)
     debugLog.log(
       "FocusTarget",
       "ws=\(workspace.name) pin=\(workspace.appToFocusBundleId ?? "nil(MRU)") "
@@ -121,7 +140,7 @@ extension WorkspaceActivationFeature {
       setFocus: setFocus,
       mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus,
       windowKeyToFocus: mruWindow,
-      managedBundleIds: droppingBorrow ? state.managedBundleIds : []
+      managedBundleIds: restoringHost ? state.managedBundleIds : []
     )
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
     // Show the HUD on a normal switch, or whenever this switch returned a
@@ -638,7 +657,11 @@ extension WorkspaceActivationFeature {
       comp.borrowed[idx].edge = edge
       state.compositionsByDisplay[display] = comp
       debugLog.log("Borrow", "re-dock \(target.name) → \(edge)")
-      return applyComposition(display: display, state: state)
+      // Re-summoning an already-docked block re-lands focus on it too.
+      return .merge(
+        applyComposition(display: display, state: state),
+        focusBorrowedBlock(workspaceId: targetId, state: state)
+      )
     }
     let fraction = target.borrowFraction ?? state.config.settings.switching.borrowFraction
     let slot = BorrowedSlot(workspace: targetId, edge: edge, fraction: fraction)
@@ -684,8 +707,33 @@ extension WorkspaceActivationFeature {
       }
       await send(.tilingTreeUpdated(workspaceId: targetId, tree: tree))
       await send(.flushComposition(display: display))
+      // The borrowed tree is now in state — land focus + cursor on it (a borrow
+      // only unhides its apps, so nothing else moves focus off the host).
+      await send(.focusBorrowedBlock(workspaceId: targetId))
     }
     return .merge(render, hud)
+  }
+
+  /// Land focus on a just-summoned borrowed block: the last-used window still
+  /// in its tree, else the tree's first window, and — under mouse-follows-focus
+  /// — warp the cursor onto it. A deliberate borrow means "work in this now", so
+  /// focus + cursor should follow; the borrow itself only *unhides* the apps
+  /// (`setFocus: false`) and leaves both on the host. A scratchpad seemed to
+  /// land focus only by accident — force-opening its app spawns a fresh window
+  /// that the new-window sync warps to — but borrowing an already-running
+  /// workspace creates no window, so it never warped. This makes both
+  /// consistent. No-op while the borrowed tree is still empty (a cold-launching
+  /// app); the new-window sync warps once its window appears, as before.
+  func focusBorrowedBlock(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
+    guard let tree = state.tilingTrees[workspaceId] else { return .none }
+    let target = (state.mruWindows[workspaceId] ?? [])
+      .first { tree.windows.contains($0) } ?? tree.windows.first
+    guard let target else { return .none }
+    debugLog.log("Borrow", "focus borrowed block → \(target.bundleId)#\(target.windowID)")
+    return .merge(
+      .run { [focus = focusManager] _ in await focus.focusWindow(target) },
+      warpToWindow(target, in: tree, workspaceId: workspaceId, state: state)
+    )
   }
 
   /// SF Symbol for a borrow docked to `edge` — a filled half-rectangle on the

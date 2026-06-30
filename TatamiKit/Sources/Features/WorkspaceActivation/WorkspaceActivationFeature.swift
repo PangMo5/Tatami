@@ -220,6 +220,10 @@ public struct WorkspaceActivationFeature {
     case borrowChordKey(BorrowChordKey)
     /// Internal: re-flush a display's composition after its trees change.
     case flushComposition(display: DisplayName?)
+    /// Internal: land focus + cursor on a freshly-borrowed block once its tree
+    /// is in state — the deliberate-summon focus an unhide-only borrow can't
+    /// provide on its own.
+    case focusBorrowedBlock(workspaceId: Workspace.ID)
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
     /// connected display, looping around.
     case focusAdjacentDisplay(direction: Int)
@@ -794,6 +798,9 @@ public struct WorkspaceActivationFeature {
           applyComposition(display: display, state: state),
           refreshMarkers(state: state)
         )
+
+      case .focusBorrowedBlock(let workspaceId):
+        return focusBorrowedBlock(workspaceId: workspaceId, state: state)
 
       case .activateNext:
         return cycle(by: 1, state: &state)
