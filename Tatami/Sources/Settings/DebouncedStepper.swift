@@ -53,3 +53,81 @@ struct DebouncedStepper<V: Strideable>: View {
     }
   }
 }
+
+/// A `Slider` whose value lives in local `@State`, committed to the shared
+/// config on a short debounce — same rationale as `DebouncedStepper`. Binding
+/// a Slider directly to the observed `@Shared` config wrote the config (and
+/// synchronously re-rendered the whole `SettingsView` Form) on every drag
+/// tick. The live readout reads the local value so the number tracks the
+/// thumb without touching the store until the drag settles.
+struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloatingPoint {
+  let title: String
+  let external: V
+  let range: ClosedRange<V>
+  let step: V.Stride
+  let minLabel: String
+  let maxLabel: String
+  let detail: String?
+  let readout: (V) -> String
+  let commit: (V) -> Void
+  @State private var local: V
+
+  init(
+    title: String,
+    external: V,
+    range: ClosedRange<V>,
+    step: V.Stride,
+    minLabel: String,
+    maxLabel: String,
+    detail: String? = nil,
+    readout: @escaping (V) -> String,
+    commit: @escaping (V) -> Void
+  ) {
+    self.title = title
+    self.external = external
+    self.range = range
+    self.step = step
+    self.minLabel = minLabel
+    self.maxLabel = maxLabel
+    self.detail = detail
+    self.readout = readout
+    self.commit = commit
+    _local = State(initialValue: external)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack {
+        Text(title)
+        Spacer()
+        Text(readout(local))
+          .foregroundStyle(.secondary)
+          .monospacedDigit()
+      }
+      Slider(value: $local, in: range, step: step) {
+        Text(title)
+      } minimumValueLabel: {
+        Text(minLabel)
+      } maximumValueLabel: {
+        Text(maxLabel)
+      }
+      .labelsHidden()
+      if let detail {
+        Text(detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+    }
+    // Persist after the drag settles. `.task(id:)` cancels the prior run
+    // whenever `local` changes, so rapid ticks coalesce into one write.
+    .task(id: local) {
+      guard local != external else { return }
+      try? await Task.sleep(for: .milliseconds(120))
+      guard !Task.isCancelled else { return }
+      commit(local)
+    }
+    .onChange(of: external) { _, newValue in
+      if newValue != local { local = newValue }
+    }
+  }
+}

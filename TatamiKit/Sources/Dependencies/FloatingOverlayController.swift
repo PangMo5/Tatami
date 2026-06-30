@@ -683,7 +683,7 @@ final class FloatingOverlayController {
     debugLog.log("FocusDiag", "mirror hover/click activate \(key.bundleId)#\(key.windowID)")
     raiseAXWindow(key)
     NSRunningApplication(processIdentifier: key.pid)?
-      .activate(options: [.activateIgnoringOtherApps])
+      .activate()
     // An already-frontmost app fires no didActivate notification — settle
     // the suppression state directly (e.g. a mirror restored by a menu-bar
     // click while its app stayed active would otherwise stay up as an

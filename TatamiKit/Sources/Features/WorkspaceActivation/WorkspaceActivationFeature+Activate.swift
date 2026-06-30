@@ -244,7 +244,7 @@ extension WorkspaceActivationFeature {
     // hotkey press. Under system load the default priority leaves our
     // main-actor hops queued behind everything else — exactly when the
     // switch already crawls on slow AX replies.
-    return .merge(screenRecordingWarning, watchdog, crossMonitorHUD, .run(priority: .userInteractive) { [
+    return .merge(screenRecordingWarning, watchdog, crossMonitorHUD, .run(priority: .high) { [
       mgr = workspaceManager,
       tiler = windowTiler,
       store = layoutStore,

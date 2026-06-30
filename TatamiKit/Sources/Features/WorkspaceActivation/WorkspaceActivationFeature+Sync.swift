@@ -487,9 +487,11 @@ extension WorkspaceActivationFeature {
       if tree != nil { tree = current }
     }
 
-    let newOnes = target.filter { id in
-      !(tree?.windows.contains(id) ?? false)
-    }
+    // `tree.windows` is a full recursive tree walk that allocates a fresh
+    // array; hoist it into a Set once instead of rebuilding + linear-scanning
+    // it per target window (the per-element `contains` made this O(N²)).
+    let existing = Set(tree?.windows ?? [])
+    let newOnes = target.filter { !existing.contains($0) }
     guard !newOnes.isEmpty else { return tree }
 
     let viewSplit = settings.layout.splitType.bspSplitAxis()

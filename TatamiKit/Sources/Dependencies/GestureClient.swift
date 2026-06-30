@@ -73,6 +73,7 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   @Dependency(\.debugLog) private var debugLog
 
   private var tap: CFMachPort?
+  private var runLoopSource: CFRunLoopSource?
   private var requiredFingers = 3
   private var threshold = 0.3
 
@@ -130,6 +131,7 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     tap = created
     let source = CFMachPortCreateRunLoopSource(nil, created, 0)
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+    runLoopSource = source
     CGEvent.tapEnable(tap: created, enable: true)
     debugLog.log(
       "Gesture",
@@ -141,8 +143,15 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   func stop() {
     guard let tap else { return }
     CGEvent.tapEnable(tap: tap, enable: false)
+    // Remove the source explicitly (matches BorrowChordTap/MirrorClickTap);
+    // relying on `CFMachPortInvalidate` to implicitly drop it left the run
+    // loop holding the source until its next prune.
+    if let runLoopSource {
+      CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+    }
     CFMachPortInvalidate(tap)
     self.tap = nil
+    runLoopSource = nil
     reset()
     debugLog.log("Gesture", "tap stopped")
   }

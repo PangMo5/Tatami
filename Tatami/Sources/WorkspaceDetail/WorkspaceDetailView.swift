@@ -540,19 +540,35 @@ struct AppIcon: View {
   let iconPath: String?
 
   var body: some View {
-    if let iconPath, let image = NSImage(contentsOfFile: iconPath) {
+    if let image = Self.resolvedIcon(bundleIdentifier: bundleIdentifier, iconPath: iconPath) {
       Image(nsImage: image)
-        .resizable()
-        .scaledToFit()
-    } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
-    {
-      Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
         .resizable()
         .scaledToFit()
     } else {
       Image(systemName: "app.dashed")
         .foregroundStyle(.secondary)
     }
+  }
+
+  /// Decoding an icon from disk (`NSImage(contentsOfFile:)`) or resolving it
+  /// via `NSWorkspace` ran on every `body` pass — in the app lists each row
+  /// re-decoded its icon on every keystroke/scroll. Memoize by icon path
+  /// (else bundle id) so a given icon is decoded once.
+  private static let cache = NSCache<NSString, NSImage>()
+
+  private static func resolvedIcon(bundleIdentifier: String, iconPath: String?) -> NSImage? {
+    let key = (iconPath ?? bundleIdentifier) as NSString
+    if let hit = cache.object(forKey: key) { return hit }
+    let image: NSImage? =
+      if let iconPath, let fromFile = NSImage(contentsOfFile: iconPath) {
+        fromFile
+      } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+        NSWorkspace.shared.icon(forFile: url.path)
+      } else {
+        nil
+      }
+    if let image { cache.setObject(image, forKey: key) }
+    return image
   }
 }
 

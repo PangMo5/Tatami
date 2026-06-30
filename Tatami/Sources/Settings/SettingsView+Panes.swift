@@ -437,35 +437,21 @@ extension SettingsView {
       }
       .disabled(!config.settings.gestures.enabled)
 
-      VStack(alignment: .leading, spacing: 4) {
-        // `Gestures.sensitivity` owns the threshold ↔ sensitivity mapping
-        // (inverse of the swipe distance: higher = shorter swipe).
-        let sensitivity = config.settings.gestures.sensitivity
-        HStack {
-          Text("Sensitivity")
-          Spacer()
-          Text("\(Int((sensitivity * 100).rounded()))%")
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-        }
-        Slider(
-          value: setting(\.gestures.sensitivity),
-          in: 0 ... 1,
-          step: 0.0125
-        ) {
-          // Hidden — the HStack above is the visible label; leaving this in
-          // place made the grouped Form render "Sensitivity" twice.
-          Text("Sensitivity")
-        } minimumValueLabel: {
-          Text("Low")
-        } maximumValueLabel: {
-          Text("High")
-        }
-        .labelsHidden()
-        Text("How far you must swipe to switch — higher sensitivity needs a shorter swipe.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
+      // `Gestures.sensitivity` owns the threshold ↔ sensitivity mapping
+      // (inverse of the swipe distance: higher = shorter swipe). Debounced so
+      // a drag doesn't write the @Shared config — and re-render the whole
+      // Form — on every tick (same rationale as DebouncedStepper).
+      DebouncedSlider(
+        title: "Sensitivity",
+        external: config.settings.gestures.sensitivity,
+        range: 0 ... 1,
+        step: 0.0125,
+        minLabel: "Low",
+        maxLabel: "High",
+        detail: "How far you must swipe to switch — higher sensitivity needs a shorter swipe.",
+        readout: { "\(Int(($0 * 100).rounded()))%" },
+        commit: { setting(\.gestures.sensitivity).wrappedValue = $0 }
+      )
       .disabled(!config.settings.gestures.enabled)
     }
   }

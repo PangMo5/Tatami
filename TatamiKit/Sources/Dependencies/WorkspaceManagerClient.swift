@@ -206,7 +206,7 @@ extension WorkspaceManagerClient: DependencyKey {
             } else {
               toFocus.raiseMainWindow()
             }
-            toFocus.activate(options: [.activateIgnoringOtherApps])
+            toFocus.activate()
           } else if request.setFocus {
             // Empty workspace — none of its apps are running, so nothing
             // above took focus. Hand it to Finder BEFORE the hide pass:
@@ -221,7 +221,7 @@ extension WorkspaceManagerClient: DependencyKey {
               "focus → Finder (no workspace app running, empty desktop)"
             )
             running.first { $0.isFinder }?
-              .activate(options: [.activateIgnoringOtherApps])
+              .activate()
           }
 
           // 2. Hide everything else. Finder is special-cased: only hide

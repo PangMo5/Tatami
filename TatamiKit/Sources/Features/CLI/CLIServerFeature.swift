@@ -36,7 +36,14 @@ public struct CLIServerFeature {
     public static func == (lhs: Action, rhs: Action) -> Bool {
       switch (lhs, rhs) {
       case (.start, .start): true
-      case (.startCompleted, .startCompleted): true
+      case (.startCompleted(let l), .startCompleted(let r)):
+        // `Error` isn't Equatable; compare by Result case so a success and a
+        // failure don't collapse to equal (which silently broke exhaustive
+        // `TestStore` assertions and `_printChanges` diffing on this case).
+        switch (l, r) {
+        case (.success, .success), (.failure, .failure): true
+        default: false
+        }
       case (.incomingRequest(let lhsReq, _), .incomingRequest(let rhsReq, _)):
         lhsReq == rhsReq
       case (.delegate(let lhs), .delegate(let rhs)): lhs == rhs

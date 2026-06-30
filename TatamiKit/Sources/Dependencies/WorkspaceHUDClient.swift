@@ -134,7 +134,9 @@ private final class WorkspaceHUDController {
       view.animator().alphaValue = 0
     } completionHandler: { [weak self, weak panel] in
       self?.debugLog.log("HUDDiag", "fadeOut done")
-      panel?.orderOut(nil)
+      // CA completion handlers fire on the main thread; assert it so the
+      // main-actor `orderOut` is well-typed under strict concurrency.
+      MainActor.assumeIsolated { panel?.orderOut(nil) }
     }
   }
 

@@ -164,6 +164,10 @@ public struct AppFeature {
         return .none
 
       case .errorReportEvent(.reported(let report)):
+        // Skip redundant state churn + a duplicate HUD when an identical
+        // report is re-emitted (the Hub replays standing reports on every
+        // subscribe). Symmetric with `.resolved` below, which already guards.
+        guard state.errorReports[id: report.id] != report else { return .none }
         state.errorReports[id: report.id] = report
         // Errors always show, regardless of the HUD category toggles —
         // gating them would hide exactly what the user asked to see.

@@ -20,6 +20,21 @@ public struct WindowKey: Hashable, Sendable, Codable {
     self.windowID = windowID
     self.bundleId = bundleId
   }
+
+  // Identity is `(pid, windowID)` — both are fixed for the window's lifetime
+  // and the pair never recurs. `bundleId` is a non-identifying payload
+  // (functionally determined by the window), so excluding it from equality
+  // and hashing keeps every Set / dictionary / BSP-leaf-key semantics
+  // identical while dropping per-key String hashing from every tree walk,
+  // frames lookup, and membership pass.
+  public static func == (lhs: WindowKey, rhs: WindowKey) -> Bool {
+    lhs.pid == rhs.pid && lhs.windowID == rhs.windowID
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(pid)
+    hasher.combine(windowID)
+  }
 }
 
 /// Private Accessibility bridge that maps an `AXUIElement` to its
@@ -102,7 +117,7 @@ private let mirrorCommitBeat: TimeInterval = 0.03
 @MainActor
 private func performFocus(pid: pid_t, windowID: CGWindowID) {
   if let app = NSRunningApplication(processIdentifier: pid) {
-    app.activate(options: [.activateIgnoringOtherApps])
+    app.activate()
   }
   let axApp = AXUIElementCreateApplication(pid)
   var raw: CFTypeRef?

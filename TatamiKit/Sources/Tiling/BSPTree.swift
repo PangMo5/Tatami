@@ -283,9 +283,20 @@ extension BSPNode {
 extension BSPNode {
   /// All window ids in tree order. Stacks expand by `windowList` order.
   public var windows: [WindowID] {
+    var out: [WindowID] = []
+    appendWindows(into: &out)
+    return out
+  }
+
+  /// Append tree-order window ids into a shared buffer — avoids the
+  /// per-branch `left.windows + right.windows` concatenation that
+  /// reallocated a fresh array at every node on a full walk.
+  private func appendWindows(into out: inout [WindowID]) {
     switch self {
-    case .leaf(let leaf): leaf.windowList
-    case .branch(let b): b.left.windows + b.right.windows
+    case .leaf(let leaf): out.append(contentsOf: leaf.windowList)
+    case .branch(let b):
+      b.left.appendWindows(into: &out)
+      b.right.appendWindows(into: &out)
     }
   }
 
@@ -788,31 +799,21 @@ extension BSPNode {
 
   /// Clear `parentZoom` on every leaf except the one at `keepPath`.
   public func clearingParentZoom(except keepPath: [Side]) -> BSPNode {
-    var node = self
-    let paths = allLeafPaths()
-    for path in paths where path != keepPath {
-      node = node.replacing(path: path) { leafNode in
-        guard case .leaf(var leaf) = leafNode else { return leafNode }
-        leaf.parentZoom = false
+    // Single bottom-up rebuild clearing every leaf but `keepPath`, instead
+    // of one full root→leaf `replacing(path:)` rebuild per leaf (which made
+    // this O(leaves²) tree reconstructions).
+    func walk(_ node: BSPNode, _ path: [Side]) -> BSPNode {
+      switch node {
+      case .leaf(var leaf):
+        if path != keepPath { leaf.parentZoom = false }
         return .leaf(leaf)
+      case .branch(var b):
+        b.left = walk(b.left, path + [.left])
+        b.right = walk(b.right, path + [.right])
+        return .branch(b)
       }
     }
-    return node
-  }
-
-  /// All leaf paths in tree order. Used by `clearingParentZoom`.
-  public func allLeafPaths() -> [[Side]] {
-    var out: [[Side]] = []
-    func walk(_ n: BSPNode, _ p: [Side]) {
-      switch n {
-      case .leaf: out.append(p)
-      case .branch(let b):
-        walk(b.left, p + [.left])
-        walk(b.right, p + [.right])
-      }
-    }
-    walk(self, [])
-    return out
+    return walk(self, [])
   }
 }
 
@@ -841,11 +842,16 @@ extension BSPNode {
   ) -> WindowID? {
     let frames = self.frames(in: workArea, gap: gap)
     guard let mine = frames[key] else { return nil }
+    // Precompute the focus-order rank (first index per id) once so the
+    // recency tiebreak is an O(1) lookup, not a fresh O(n) `firstIndex`
+    // scan per candidate (was O(candidates × focusOrder)).
+    var rankByID: [WindowID: Int] = [:]
+    for (i, id) in focusOrder.enumerated() where rankByID[id] == nil { rankByID[id] = i }
     var best: (id: WindowID, distance: CGFloat, rank: Int)?
     for (other, rect) in frames where other != key {
       guard inDirection(from: mine, to: rect, direction: direction) else { continue }
       let dist = distance(from: mine, to: rect, direction: direction)
-      let rank = focusOrder.firstIndex(of: other) ?? Int.max
+      let rank = rankByID[other] ?? Int.max
       if let b = best {
         if dist < b.distance || (dist == b.distance && rank < b.rank) {
           best = (other, dist, rank)

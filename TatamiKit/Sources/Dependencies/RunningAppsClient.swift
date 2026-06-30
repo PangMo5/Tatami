@@ -12,21 +12,28 @@ struct RunningAppsClient: Sendable {
 }
 
 extension RunningAppsClient: DependencyKey {
+  // `NSWorkspace.runningApplications` and `NSRunningApplication`'s
+  // `localizedName`/`bundleURL` are main-thread AppKit; the sibling snapshot
+  // clients (WindowSnapshotClient.runningBundleIds/frontmostApp) wrap the same
+  // access this way. Both call sites (`.addAppButtonTapped` in the detail /
+  // shared-apps reducers) are UI-driven, so the main-actor contract holds.
   static let liveValue = RunningAppsClient(
     current: {
-      NSWorkspace.shared.runningApplications
-        .filter { $0.activationPolicy == .regular }
-        .compactMap { app -> MacApp? in
-          guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else {
-            return nil
+      MainActor.assumeIsolated {
+        NSWorkspace.shared.runningApplications
+          .filter { $0.activationPolicy == .regular }
+          .compactMap { app -> MacApp? in
+            guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else {
+              return nil
+            }
+            return MacApp(
+              bundleIdentifier: bundleId,
+              name: app.localizedName ?? bundleId,
+              iconPath: app.bundleURL?.path
+            )
           }
-          return MacApp(
-            bundleIdentifier: bundleId,
-            name: app.localizedName ?? bundleId,
-            iconPath: app.bundleURL?.path
-          )
-        }
-        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+          .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+      }
     }
   )
 
