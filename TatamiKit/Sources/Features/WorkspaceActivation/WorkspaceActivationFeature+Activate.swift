@@ -108,6 +108,12 @@ extension WorkspaceActivationFeature {
     let mruWindow = workspace.appToFocusBundleId == nil
       ? state.mruWindows[workspaceId]?.first
       : nil
+    debugLog.log(
+      "FocusTarget",
+      "ws=\(workspace.name) pin=\(workspace.appToFocusBundleId ?? "nil(MRU)") "
+        + "mru=\(state.mruWindows[workspaceId]?.map { "\($0.bundleId)#\($0.windowID)" } ?? []) "
+        + "pick=\(mruWindow.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil")"
+    )
     let request = ActivationRequest(
       workspace: workspace,
       sharedApps: state.config.sharedApps,
@@ -229,7 +235,8 @@ extension WorkspaceActivationFeature {
       marker = marker,
       snapshot = windowSnapshot,
       displays = displays,
-      debugLog = debugLog
+      debugLog = debugLog,
+      focus = focusManager
     ] send in
       // Wall-clock per phase — AX round trips block on *other* apps' run
       // loops, so when a switch crawls under load this names the phase
@@ -365,11 +372,38 @@ extension WorkspaceActivationFeature {
           markerCfg.size, markerCfg.corner, markerCfg.hideOnHover
         )
         if warpMouse {
-          let center = await MainActor.run { () -> CGPoint? in
-            guard let key = snapshot.focusedWindowKey(), let rect = frames[key] else { return nil }
-            return CGPoint(x: rect.midX, y: rect.midY)
+          let warp = await MainActor.run { () -> (key: WindowKey, rect: CGRect, live: WindowKey?)? in
+            // Warp to the window this activation deliberately focused (the MRU
+            // target), not a live `focusedWindowKey()` read. That read races
+            // the async app activation and can return a *different* frontmost
+            // window (e.g. Siri keeping front while ChatGPT is the target),
+            // sending the cursor to the wrong tile — where focus-follows-mouse
+            // then grabs focus to it. Fall back to the live read only when this
+            // workspace has no MRU target (a pinned-app or empty workspace).
+            let live = snapshot.focusedWindowKey()
+            let key = mruWindow ?? live
+            guard let key, let rect = frames[key] else { return nil }
+            return (key, rect, live)
           }
-          if let center { mouse.warp(center) }
+          if let warp {
+            let center = CGPoint(x: warp.rect.midX, y: warp.rect.midY)
+            debugLog.log(
+              "Warp",
+              "activate target=\(warp.key.bundleId)#\(warp.key.windowID) "
+                + "live=\(warp.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil") "
+                + "→ (\(Int(center.x)),\(Int(center.y)))"
+            )
+            // The deliberate activation focus can be stolen mid-switch — an app
+            // like Siri grabs frontmost as it unhides — leaving the keyboard
+            // focus on the wrong tile while the cursor warps to the intended
+            // one, so directional focus then anchors on the wrong window. When
+            // the live frontmost differs from the window we're warping to,
+            // re-assert the intended focus now that the layout has settled.
+            if warp.live != warp.key {
+              await focus.focusWindow(warp.key)
+            }
+            mouse.warp(center)
+          }
         }
       }
       debugLog.log(

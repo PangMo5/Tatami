@@ -63,13 +63,29 @@ extension WindowSnapshotClient: DependencyKey {
         WindowKeyCache.shared.store(
           discovery, bundleIds: bundleIds, requireResizable: requireResizable
         )
-        guard !discovery.unreachable.isEmpty else { return discovery.keys }
+        var keys = discovery.keys
+        // A subrole flap drops a still-enumerated window from `keys`; restore
+        // it from cache (where `store` just preserved it) so a transient
+        // misclassification doesn't read as "window closed" to the tree — the
+        // poisoning that evicted ChatGPT and left Siri owning the workspace.
+        if !discovery.retained.isEmpty {
+          var have = Set(keys.map(\.windowID))
+          for bundleId in bundleIds {
+            let cached = WindowKeyCache.shared
+              .cached(bundleId, requireResizable: requireResizable) ?? []
+            for key in cached
+            where discovery.retained.contains(key.windowID) && !have.contains(key.windowID) {
+              keys.append(key)
+              have.insert(key.windowID)
+            }
+          }
+        }
+        guard !discovery.unreachable.isEmpty else { return keys }
         // An unreachable app (AX timeout — busy or hung, not "no windows")
         // answers with its last-known keys, so a slow app under system
         // load doesn't read as "all windows closed" and get dropped from
         // trees, mirrors, and markers. The next reachable scan replaces it.
         @Dependency(\.debugLog) var debugLog
-        var keys = discovery.keys
         for bundleId in discovery.unreachable {
           let stale = WindowKeyCache.shared
             .cached(bundleId, requireResizable: requireResizable) ?? []
@@ -183,8 +199,19 @@ final class WindowKeyCache {
   func store(_ discovery: WindowDiscovery, bundleIds: [String], requireResizable: Bool) {
     let grouped = Dictionary(grouping: discovery.keys, by: \.bundleId)
     for bundleId in bundleIds where !discovery.unreachable.contains(bundleId) {
-      entries[Key(bundleId: bundleId, requireResizable: requireResizable)] =
-        grouped[bundleId] ?? []
+      let cacheKey = Key(bundleId: bundleId, requireResizable: requireResizable)
+      var fresh = grouped[bundleId] ?? []
+      // A window that only flapped its subrole this pass is still enumerated,
+      // so keep its last-known key rather than overwriting it away — the same
+      // "couldn't classify ≠ closed" guarantee `unreachable` gives a whole
+      // bundle, applied per window. It re-validates on the next clean scan.
+      if !discovery.retained.isEmpty {
+        let freshIDs = Set(fresh.map(\.windowID))
+        fresh += (entries[cacheKey] ?? []).filter {
+          discovery.retained.contains($0.windowID) && !freshIDs.contains($0.windowID)
+        }
+      }
+      entries[cacheKey] = fresh
     }
     publishManagedWindows()
   }

@@ -1366,6 +1366,11 @@ public struct WorkspaceActivationFeature {
     let gap = CGFloat(settings.layout.gapInner)
     // Ops with no obvious visual cue of their own attach a HUD here.
     var hud: Effect<Action> = .none
+    // Ops that relocate the focused window itself (swap/warp) should carry the
+    // cursor with it under mouse-follows-focus — the directional *focus* paths
+    // already warp, but the swap path moved the window and left the cursor
+    // behind on the now-other tile.
+    var warpFocused = false
 
     switch op {
     case .swap(let direction):
@@ -1382,6 +1387,7 @@ public struct WorkspaceActivationFeature {
         guard warped != tree else { return .none }
         tree = warped
       }
+      warpFocused = true
 
     case .resize(let direction, let delta):
       // Grow/shrink the focused window along the axis implied by the
@@ -1430,6 +1436,9 @@ public struct WorkspaceActivationFeature {
       flushLayout(workspaceId: workspaceId, state: state),
       persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
       refreshMarkers(state: state),
+      warpFocused
+        ? warpToWindow(windowKey, in: tree, workspaceId: workspaceId, state: state)
+        : .none,
       hud
     )
   }

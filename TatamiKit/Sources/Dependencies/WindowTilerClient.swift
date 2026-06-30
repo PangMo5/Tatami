@@ -248,6 +248,15 @@ struct WindowDiscovery: Sendable {
   /// system load reads as "all windows closed" and gets dropped from
   /// trees, mirrors, and markers.
   var unreachable: Set<String> = []
+  /// Windows AX enumerated this pass but rejected *only* because their
+  /// subrole momentarily read as non-standard (e.g. `AXDialog`). macOS
+  /// flaps a window's subrole transiently — Activity Monitor's own main
+  /// window reports `AXDialog` for a beat at launch — so a window a
+  /// consumer already tracks must not be treated as closed on the strength
+  /// of one flap. Its `WindowKey` is absent from `keys` (it failed the
+  /// standard-subrole gate), so consumers preserve the last-known key for
+  /// these ids, exactly as they do for `unreachable` bundles.
+  var retained: Set<CGWindowID> = []
 }
 
 /// All visible, regular, tile-able windows that belong to the given
@@ -292,6 +301,7 @@ func discoverWindowKeys(
 
   var result: [WindowKey] = []
   var unreachable: Set<String> = []
+  var retainedIDs: Set<CGWindowID> = []
   let attrs = [
     kAXMinimizedAttribute,
     kAXSubroleAttribute,
@@ -359,6 +369,10 @@ func discoverWindowKeys(
         // Standard windows only. Dialogs / IME indicators / tooltips
         // fall outside this set, so they never enter the tree.
         if let subrole, subrole != kAXStandardWindowSubrole as String {
+          // A subrole flap is transient (see `WindowDiscovery.retained`):
+          // record the id so consumers keep tracking a window that's still
+          // enumerated, rather than dropping it as closed.
+          if widProbe != 0 { retainedIDs.insert(widProbe) }
           reject(widProbe, "subrole=\(subrole)")
           continue
         }
@@ -408,7 +422,10 @@ func discoverWindowKeys(
   if !unreachable.isEmpty {
     result.removeAll { unreachable.contains($0.bundleId) }
   }
-  return WindowDiscovery(keys: result, unreachable: unreachable)
+  // A retained id that *did* validate on a later pid/bundle in this same scan
+  // is genuinely standard — don't also flag it as flapped.
+  retainedIDs.subtract(result.map(\.windowID))
+  return WindowDiscovery(keys: result, unreachable: unreachable, retained: retainedIDs)
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowTiler")
