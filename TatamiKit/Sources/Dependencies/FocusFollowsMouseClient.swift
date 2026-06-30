@@ -68,6 +68,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   fileprivate var lastFireAt = Date.distantPast
   fileprivate let throttleInterval: TimeInterval = 0.05
   fileprivate var lastFocusedWindowID: CGWindowID = 0
+  /// The in-flight focus hop. A newer fire cancels it so only the latest
+  /// cursor target is applied — touched only on the event-tap thread, like
+  /// the rest of this controller's lock-free state.
+  private var focusTask: Task<Void, Never>?
   fileprivate let debugLog: DebugLogClient
   private let managedWindows: ManagedWindowsClient
 
@@ -141,6 +145,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
     eventTap = nil
     runLoopSource = nil
+    // Drop any pending focus hop so a move captured just before disable
+    // can't move focus after FFM was turned off.
+    focusTask?.cancel()
+    focusTask = nil
     debugLog.log("FocusDiag", "ffm tap removed")
   }
 
@@ -183,7 +191,15 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // `focusWindow` is `@MainActor` (AppKit activate + AX raise), so hop.
     let pid = info.pid
     let windowID = info.windowID
-    Task { @MainActor in focusWindow(pid: pid, windowID: windowID) }
+    // Coalesce: cancel any still-pending hop so a burst of moves under
+    // main-thread contention applies only the latest target — a queued hop
+    // for a window the cursor has already left would land focus on the wrong
+    // window. Latest-fire-wins.
+    focusTask?.cancel()
+    focusTask = Task { @MainActor in
+      guard !Task.isCancelled else { return }
+      focusWindow(pid: pid, windowID: windowID)
+    }
   }
 
   private func modifiersIndicateDisable(_ flags: CGEventFlags) -> Bool {
