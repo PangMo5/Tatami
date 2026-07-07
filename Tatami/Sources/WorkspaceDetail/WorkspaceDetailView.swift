@@ -352,6 +352,7 @@ struct WorkspaceDetailView: View {
       .onReceive(
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
       ) { _ in store.send(.refreshDisplays) }
+      .alert($store.scope(state: \.alert, action: \.alert))
     } else {
       ContentUnavailableView(
         "Workspace Unavailable",

@@ -16,6 +16,7 @@ public struct SharedAppsFeature {
     @Shared(.tatamiConfig) public var config = AppConfig()
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
+    @Presents public var alert: AlertState<Action.Alert>?
 
     public init() {}
 
@@ -31,6 +32,11 @@ public struct SharedAppsFeature {
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
+    case alert(PresentationAction<Alert>)
+
+    public enum Alert: Equatable {
+      case confirmAppRemoval(bundleIdentifier: String)
+    }
   }
 
   @Dependency(\.runningApps) var runningApps
@@ -74,9 +80,28 @@ public struct SharedAppsFeature {
         }
 
       case .appRemoveRequested(let bundleId):
+        let name = state.apps.first { $0.bundleIdentifier == bundleId }?.name ?? bundleId
+        state.alert = AlertState {
+          TextState("Remove \"\(name)\" from every workspace?")
+        } actions: {
+          ButtonState(role: .destructive, action: .confirmAppRemoval(bundleIdentifier: bundleId)) {
+            TextState("Remove")
+          }
+          ButtonState(role: .cancel) {
+            TextState("Cancel")
+          }
+        } message: {
+          TextState("Shared apps appear in all workspaces, so this removes it everywhere. You can add it back anytime.")
+        }
+        return .none
+
+      case .alert(.presented(.confirmAppRemoval(let bundleId))):
         state.$config.withLock { config in
           config.sharedApps.removeAll { $0.bundleIdentifier == bundleId }
         }
+        return .none
+
+      case .alert:
         return .none
 
       case .layoutChanged(let bundleId, let layout):
@@ -89,5 +114,6 @@ public struct SharedAppsFeature {
         return .none
       }
     }
+    .ifLet(\.$alert, action: \.alert)
   }
 }

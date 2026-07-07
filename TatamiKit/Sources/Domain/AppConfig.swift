@@ -1,4 +1,5 @@
 import Foundation
+import IdentifiedCollections
 
 /// Root of the on-disk Tatami configuration.
 ///
@@ -90,6 +91,37 @@ extension AppConfig {
       guard var workspace = profile.workspaces[id: id] else { return }
       body(&workspace)
       profile.workspaces[id: id] = workspace
+    }
+  }
+
+  /// Place `draggedId` — the effect of a sidebar drag-and-drop that both
+  /// reorders within a section and moves between the "Workspaces" and
+  /// "Scratchpads" sections. `kind` is the destination section; the workspace
+  /// lands just before or after `targetId` (per `after`), matching the drop
+  /// line the view drew above/below that row. `targetId == nil` appends to
+  /// `kind`'s subset. Retypes the workspace when it crosses sections.
+  public mutating func placeWorkspace(
+    _ draggedId: Workspace.ID,
+    kind: WorkspaceKind,
+    relativeTo targetId: Workspace.ID?,
+    after: Bool
+  ) {
+    guard draggedId != targetId else { return }
+    mutateActiveProfile { profile in
+      guard var moved = profile.workspaces[id: draggedId] else { return }
+      moved.kind = kind
+      var rest = Array(profile.workspaces)
+      rest.removeAll { $0.id == draggedId }
+
+      let insertionIndex: Int
+      if let targetId, let targetIdx = rest.firstIndex(where: { $0.id == targetId }) {
+        insertionIndex = after ? targetIdx + 1 : targetIdx
+      } else {
+        let slots = rest.indices.filter { rest[$0].kind == kind }
+        insertionIndex = slots.last.map { $0 + 1 } ?? rest.count
+      }
+      rest.insert(moved, at: insertionIndex)
+      profile.workspaces = IdentifiedArray(uniqueElements: rest)
     }
   }
 }

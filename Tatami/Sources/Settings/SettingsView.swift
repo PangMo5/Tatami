@@ -70,6 +70,7 @@ struct SettingsView: View {
       .formStyle(.grouped)
       .navigationTitle((pane ?? .general).title)
     }
+    .alert($store.scope(state: \.alert, action: \.alert))
     .frame(minWidth: 680, minHeight: 540)
     // All side effects (status reads, permission/CLI/update streams, the AX
     // change subscription) live in the reducer — the view just starts it.

@@ -23,11 +23,22 @@ public struct WorkspaceListFeature {
     public var draftName = ""
     public var detail: WorkspaceDetailFeature.State?
     public var shared: SharedAppsFeature.State?
+    @Presents public var alert: AlertState<Action.Alert>?
 
     public init() {}
 
     public var workspaces: IdentifiedArrayOf<Workspace> {
       config.activeProfile?.workspaces ?? []
+    }
+
+    /// Regular workspaces — the "Workspaces" sidebar section.
+    public var normalWorkspaces: [Workspace] {
+      workspaces.filter { $0.kind != .scratchpad }
+    }
+
+    /// Borrow-only workspaces — the separate "Scratchpads" sidebar section.
+    public var scratchpadWorkspaces: [Workspace] {
+      workspaces.filter { $0.kind == .scratchpad }
     }
   }
 
@@ -36,10 +47,21 @@ public struct WorkspaceListFeature {
     case addWorkspaceFormSubmitted
     case addWorkspaceFormCancelled
     case workspaceDeleteRequested(Workspace.ID)
+    case workspaceDropped(
+      draggedId: Workspace.ID,
+      kind: WorkspaceKind,
+      relativeTo: Workspace.ID?,
+      after: Bool
+    )
     case sidebarSelected(SidebarItem?)
     case detail(WorkspaceDetailFeature.Action)
     case shared(SharedAppsFeature.Action)
+    case alert(PresentationAction<Alert>)
     case binding(BindingAction<State>)
+
+    public enum Alert: Equatable {
+      case confirmDeletion(Workspace.ID)
+    }
   }
 
   @Dependency(\.displays) var displays
@@ -75,6 +97,22 @@ public struct WorkspaceListFeature {
         return .none
 
       case .workspaceDeleteRequested(let id):
+        guard let name = state.workspaces[id: id]?.name else { return .none }
+        state.alert = AlertState {
+          TextState("Delete \"\(name)\"?")
+        } actions: {
+          ButtonState(role: .destructive, action: .confirmDeletion(id)) {
+            TextState("Delete")
+          }
+          ButtonState(role: .cancel) {
+            TextState("Cancel")
+          }
+        } message: {
+          TextState("This removes the workspace and its app assignments, shortcuts, and layout. This can't be undone.")
+        }
+        return .none
+
+      case .alert(.presented(.confirmDeletion(let id))):
         if state.selection == .workspace(id) {
           state.selection = nil
           state.detail = nil
@@ -83,6 +121,15 @@ public struct WorkspaceListFeature {
           config.mutateActiveProfile { profile in
             profile.workspaces.remove(id: id)
           }
+        }
+        return .none
+
+      case .alert:
+        return .none
+
+      case let .workspaceDropped(draggedId, kind, target, after):
+        state.$config.withLock { config in
+          config.placeWorkspace(draggedId, kind: kind, relativeTo: target, after: after)
         }
         return .none
 
@@ -111,5 +158,6 @@ public struct WorkspaceListFeature {
     .ifLet(\.shared, action: \.shared) {
       SharedAppsFeature()
     }
+    .ifLet(\.$alert, action: \.alert)
   }
 }

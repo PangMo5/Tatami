@@ -7,7 +7,7 @@ import TatamiKit
 /// exactly like a workspace's — flipped on it makes the app *shared
 /// floating*: untiled and kept above the tiles everywhere.
 struct SharedAppsView: View {
-  let store: StoreOf<SharedAppsFeature>
+  @Bindable var store: StoreOf<SharedAppsFeature>
 
   var body: some View {
     Form {
@@ -65,6 +65,7 @@ struct SharedAppsView: View {
         onCancel: { store.send(.appPickerDismissed) }
       )
     }
+    .alert($store.scope(state: \.alert, action: \.alert))
   }
 }
 

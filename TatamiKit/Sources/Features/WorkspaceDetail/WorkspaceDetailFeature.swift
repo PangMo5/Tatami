@@ -15,6 +15,7 @@ public struct WorkspaceDetailFeature {
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
     public var availableDisplays: [DisplayName] = []
+    @Presents public var alert: AlertState<Action.Alert>?
 
     public init(workspaceId: Workspace.ID) {
       self.workspaceId = workspaceId
@@ -73,6 +74,11 @@ public struct WorkspaceDetailFeature {
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
+    case alert(PresentationAction<Alert>)
+
+    public enum Alert: Equatable {
+      case confirmAppRemoval(bundleIdentifier: String)
+    }
   }
 
   @Dependency(\.runningApps) var runningApps
@@ -134,12 +140,31 @@ public struct WorkspaceDetailFeature {
         }
 
       case .appRemoveRequested(let bundleId):
+        let name = state.apps.first { $0.bundleIdentifier == bundleId }?.name ?? bundleId
+        state.alert = AlertState {
+          TextState("Remove \"\(name)\"?")
+        } actions: {
+          ButtonState(role: .destructive, action: .confirmAppRemoval(bundleIdentifier: bundleId)) {
+            TextState("Remove")
+          }
+          ButtonState(role: .cancel) {
+            TextState("Cancel")
+          }
+        } message: {
+          TextState("It will no longer open or tile in this workspace. You can add it back anytime.")
+        }
+        return .none
+
+      case .alert(.presented(.confirmAppRemoval(let bundleId))):
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { workspace in
             workspace.apps.removeAll { $0.bundleIdentifier == bundleId }
           }
         }
+        return .none
+
+      case .alert:
         return .none
 
       case .autoOpenToggled(let bundleId, let isOn):
@@ -260,5 +285,6 @@ public struct WorkspaceDetailFeature {
         return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
       }
     }
+    .ifLet(\.$alert, action: \.alert)
   }
 }

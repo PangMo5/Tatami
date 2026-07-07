@@ -6,6 +6,18 @@ struct WorkspaceListView: View {
   @Bindable var store: StoreOf<WorkspaceListFeature>
   let activationStore: StoreOf<WorkspaceActivationFeature>
 
+  /// Where the in-flight drag would land: a row + which edge (below when
+  /// `after`). Drives the insertion line the row overlays draw. Set/cleared by
+  /// each row's two `.dropDestination` half-zones via `isTargeted`, which
+  /// SwiftUI toggles reliably on enter/exit/drop/cancel (the reason this beats
+  /// a hand-cleared `DropDelegate`).
+  struct DropIndicator: Equatable {
+    let workspaceID: Workspace.ID
+    let after: Bool
+  }
+
+  @State private var dropIndicator: DropIndicator?
+
   var body: some View {
     NavigationSplitView {
       List(selection: $store.selection.sending(\.sidebarSelected)) {
@@ -13,32 +25,38 @@ struct WorkspaceListView: View {
           // `id: \.sidebarItem` (not Workspace's own ID): macOS only wires
           // the selection gesture when the ForEach id type matches the
           // List's selection type.
-          ForEach(store.workspaces, id: \.sidebarItem) { workspace in
-            row(for: workspace)
-              .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
-              .contextMenu {
-                if workspace.kind == .scratchpad {
-                  Button("Borrow Here") {
-                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right))
-                  }
-                } else {
-                  Button("Activate") {
-                    activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
-                  }
-                  Button("Borrow Here") {
-                    activationStore.send(.borrow(workspaceId: workspace.id, edge: .right))
-                  }
-                }
-                Divider()
-                Button("Delete", role: .destructive) {
-                  store.send(.workspaceDeleteRequested(workspace.id))
-                }
-              }
+          ForEach(store.normalWorkspaces, id: \.sidebarItem) { workspace in
+            draggableRow(workspace)
           }
           .onDelete { offsets in
             for offset in offsets {
-              store.send(.workspaceDeleteRequested(store.workspaces[offset].id))
+              store.send(.workspaceDeleteRequested(store.normalWorkspaces[offset].id))
             }
+          }
+        }
+        // Scratchpads are borrow-only — never activated on their own — so they
+        // get their own section (mirrors the menu bar). Always shown so a row
+        // can be dragged in to convert it, even when currently empty.
+        Section("Scratchpads") {
+          ForEach(store.scratchpadWorkspaces, id: \.sidebarItem) { workspace in
+            draggableRow(workspace)
+          }
+          .onDelete { offsets in
+            for offset in offsets {
+              store.send(.workspaceDeleteRequested(store.scratchpadWorkspaces[offset].id))
+            }
+          }
+          // Empty ForEach exposes no drop target, so give the section one to
+          // land the first scratchpad (appended → no target row).
+          if store.scratchpadWorkspaces.isEmpty {
+            Label("Drag a workspace here", systemImage: "tray")
+              .font(.callout)
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .contentShape(Rectangle())
+              .dropDestination(for: String.self) { ids, _ in
+                dropWorkspace(ids, kind: .scratchpad, relativeTo: nil, after: false)
+              }
           }
         }
         // The Shared pseudo-workspace: its apps live in every workspace.
@@ -81,6 +99,7 @@ struct WorkspaceListView: View {
     .sheet(isPresented: $store.isAddSheetPresented) {
       AddWorkspaceForm(store: store)
     }
+    .alert($store.scope(state: \.alert, action: \.alert))
   }
 
   @ViewBuilder
@@ -88,12 +107,6 @@ struct WorkspaceListView: View {
     HStack(spacing: 6) {
       Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
       Spacer()
-      if workspace.kind == .scratchpad {
-        Image(systemName: "tray.full")
-          .foregroundStyle(.secondary)
-          .imageScale(.small)
-          .help("Scratchpad — borrow-only, never activated on its own")
-      }
       if let host = borrowedHostName(for: workspace) {
         Image(systemName: "rectangle.righthalf.inset.filled")
           .foregroundStyle(.tint)
@@ -107,6 +120,101 @@ struct WorkspaceListView: View {
           .help("Active on \(display.name)")
       }
     }
+    .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
+    .contextMenu {
+      if workspace.kind == .scratchpad {
+        Button("Borrow Here") {
+          activationStore.send(.borrow(workspaceId: workspace.id, edge: .right))
+        }
+      } else {
+        Button("Activate") {
+          activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+        }
+        Button("Borrow Here") {
+          activationStore.send(.borrow(workspaceId: workspace.id, edge: .right))
+        }
+      }
+      Divider()
+      Button("Delete", role: .destructive) {
+        store.send(.workspaceDeleteRequested(workspace.id))
+      }
+    }
+  }
+
+  /// `row(for:)` wrapped as a drag source + drop target. One mechanism serves
+  /// both intra-section reorder and cross-section retyping: the row carries
+  /// its id, and two stacked half-height drop zones split it into an
+  /// above/below target so the insertion line follows the cursor and the drop
+  /// lands there (`workspace.kind` picks the destination section).
+  @ViewBuilder
+  private func draggableRow(_ workspace: Workspace) -> some View {
+    row(for: workspace)
+      .draggable(workspace.id.uuidString) {
+        dragPreview(for: workspace)
+      }
+      .overlay {
+        VStack(spacing: 0) {
+          dropZone(workspace, after: false)
+          dropZone(workspace, after: true)
+        }
+      }
+      .overlay(alignment: .top) {
+        insertionLine(visible: dropIndicator == DropIndicator(workspaceID: workspace.id, after: false))
+      }
+      .overlay(alignment: .bottom) {
+        insertionLine(visible: dropIndicator == DropIndicator(workspaceID: workspace.id, after: true))
+      }
+  }
+
+  /// Half of a row's drop area. `isTargeted` toggles the insertion line for
+  /// this edge; SwiftUI drives it, so the line never strands.
+  private func dropZone(_ workspace: Workspace, after: Bool) -> some View {
+    Color.clear
+      .contentShape(Rectangle())
+      .dropDestination(for: String.self) { ids, _ in
+        dropWorkspace(ids, kind: workspace.kind, relativeTo: workspace.id, after: after)
+      } isTargeted: { targeted in
+        let marker = DropIndicator(workspaceID: workspace.id, after: after)
+        if targeted {
+          dropIndicator = marker
+        } else if dropIndicator == marker {
+          dropIndicator = nil
+        }
+      }
+  }
+
+  @ViewBuilder
+  private func insertionLine(visible: Bool) -> some View {
+    if visible {
+      Capsule()
+        .fill(.tint)
+        .frame(height: 2)
+        .padding(.horizontal, 4)
+        .allowsHitTesting(false)
+    }
+  }
+
+  /// What the cursor carries mid-drag: icon + name on an opaque pill so it
+  /// reads against any backdrop.
+  private func dragPreview(for workspace: Workspace) -> some View {
+    Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
+      .padding(.horizontal, 10)
+      .padding(.vertical, 6)
+      .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  /// Resolve a dropped workspace id and place it relative to a target row
+  /// (nil target → append to the kind's subset).
+  private func dropWorkspace(
+    _ ids: [String],
+    kind: WorkspaceKind,
+    relativeTo targetId: Workspace.ID?,
+    after: Bool
+  ) -> Bool {
+    guard let first = ids.first, let draggedId = UUID(uuidString: first) else { return false }
+    dropIndicator = nil
+    store.send(.workspaceDropped(draggedId: draggedId, kind: kind, relativeTo: targetId, after: after))
+    return true
   }
 
   /// The display this workspace is currently active on, if any.

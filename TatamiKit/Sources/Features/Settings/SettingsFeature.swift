@@ -14,6 +14,7 @@ public struct SettingsFeature {
     public var hasAXPermission = true
     /// Same flash-avoidance default as `hasAXPermission`.
     public var hasScreenRecordingPermission = true
+    @Presents public var alert: AlertState<Action.Alert>?
 
     public init() {}
   }
@@ -34,6 +35,11 @@ public struct SettingsFeature {
     case checkForUpdatesTapped
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
+    case alert(PresentationAction<Alert>)
+
+    public enum Alert: Equatable {
+      case confirmUninstall
+    }
   }
 
   @Dependency(\.cliInstaller) var cliInstaller
@@ -71,10 +77,28 @@ public struct SettingsFeature {
         }
 
       case .uninstallCLITapped:
+        state.alert = AlertState {
+          TextState("Uninstall tatami CLI?")
+        } actions: {
+          ButtonState(role: .destructive, action: .confirmUninstall) {
+            TextState("Uninstall")
+          }
+          ButtonState(role: .cancel) {
+            TextState("Cancel")
+          }
+        } message: {
+          TextState("Removes the tatami symlink from /usr/local/bin. You can reinstall it anytime from here.")
+        }
+        return .none
+
+      case .alert(.presented(.confirmUninstall)):
         return .run { [cliInstaller] send in
           await cliInstaller.uninstall()
           await send(.refreshCLIStatus)
         }
+
+      case .alert:
+        return .none
 
       case .accessibilityChanged:
         state.hasAXPermission = accessibility.isTrusted()
@@ -110,5 +134,6 @@ public struct SettingsFeature {
         return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
       }
     }
+    .ifLet(\.$alert, action: \.alert)
   }
 }
