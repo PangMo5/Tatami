@@ -23,6 +23,14 @@ struct SharedAppsView: View {
                 )
               }
             ),
+            autoOpenBinding: Binding(
+              get: { app.autoOpen },
+              set: { value in
+                store.send(
+                  .autoOpenToggled(bundleIdentifier: app.bundleIdentifier, isOn: value)
+                )
+              }
+            ),
             onRemove: {
               store.send(.appRemoveRequested(bundleIdentifier: app.bundleIdentifier))
             }
@@ -72,6 +80,7 @@ struct SharedAppsView: View {
 private struct SharedAppRow: View {
   let app: SharedApp
   let layoutBinding: Binding<LayoutMode>
+  let autoOpenBinding: Binding<Bool>
   let onRemove: () -> Void
 
   var body: some View {
@@ -95,6 +104,15 @@ private struct SharedAppRow: View {
       .pickerStyle(.segmented)
       .fixedSize()
       .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
+      HStack(spacing: 6) {
+        Text("Auto-open")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Toggle("Auto-open", isOn: autoOpenBinding)
+          .labelsHidden()
+          .toggleStyle(.switch)
+      }
+      .help("Launch this app automatically when a workspace activates, if it has no open window. Also restores it when minimized.")
       Button(role: .destructive, action: onRemove) {
         Image(systemName: "minus.circle.fill")
           .foregroundStyle(.red)

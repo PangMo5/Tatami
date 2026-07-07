@@ -131,39 +131,43 @@ extension WorkspaceManagerClient: DependencyKey {
             onScreenWindows.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t }
           )
           let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
-          func autoOpenIfNeeded(_ app: AppAssignment) {
-            let instances = runningByBundle[app.bundleIdentifier] ?? []
+          func autoOpenIfNeeded(_ bundleId: String) {
+            let instances = runningByBundle[bundleId] ?? []
             let hasVisibleWindow = instances.contains {
               onScreenOwnerPids.contains($0.processIdentifier)
             }
             if hasVisibleWindow { return }
             guard let url = NSWorkspace.shared
-              .urlForApplication(withBundleIdentifier: app.bundleIdentifier)
+              .urlForApplication(withBundleIdentifier: bundleId)
             else {
-              debugLog.log(
-                "Manager",
-                "autoOpen \(app.bundleIdentifier): no app URL — skipped"
-              )
+              debugLog.log("Manager", "autoOpen \(bundleId): no app URL — skipped")
               return
             }
-            debugLog.log(
-              "Manager",
-              "autoOpen \(app.bundleIdentifier) (running=\(!instances.isEmpty))"
-            )
+            debugLog.log("Manager", "autoOpen \(bundleId) (running=\(!instances.isEmpty))")
             let config = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
               if let error {
                 logger.error(
-                  "open \(app.bundleIdentifier, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                  "open \(bundleId, privacy: .public): \(error.localizedDescription, privacy: .public)"
                 )
               }
             }
           }
-          for app in request.workspace.apps where app.autoOpen { autoOpenIfNeeded(app) }
+          for app in request.workspace.apps where app.autoOpen {
+            autoOpenIfNeeded(app.bundleIdentifier)
+          }
           // Borrowed apps auto-open too (a borrowed workspace should bring its
           // apps up when summoned); performBorrow forces this on for a
           // scratchpad so all of its apps open.
-          for app in request.borrowedApps where app.autoOpen { autoOpenIfNeeded(app) }
+          for app in request.borrowedApps where app.autoOpen {
+            autoOpenIfNeeded(app.bundleIdentifier)
+          }
+          // Shared apps are present in every workspace, so an auto-open one is
+          // (re)opened on any activation — this is what restores a minimized
+          // shared app now that focus no longer de-minimizes it.
+          for app in request.sharedApps where app.autoOpen {
+            autoOpenIfNeeded(app.bundleIdentifier)
+          }
 
           // Resolve the focus target among the workspace's own apps.
           // No pinned app ("Most recently used") → the MRU window's app;
@@ -344,7 +348,10 @@ extension NSRunningApplication {
       unhide()
       return
     }
-    AXUIElementPerformAction(raw as! AXUIElement, kAXRaiseAction as CFString)
+    let mainWindow = raw as! AXUIElement
+    // Don't restore a window the user minimized (see raiseWindow).
+    guard !axWindowIsMinimized(mainWindow) else { return }
+    AXUIElementPerformAction(mainWindow, kAXRaiseAction as CFString)
   }
 
   /// Raise a specific window of this app by `CGWindowID` (the MRU focus
@@ -364,6 +371,9 @@ extension NSRunningApplication {
     for window in windows {
       var wid: CGWindowID = 0
       if _AXUIElementGetWindow(window, &wid) == .success, wid == windowID {
+        // The MRU target is minimized → the user put it away; leave it.
+        // Restoring is auto-open's job, not focus's.
+        guard !axWindowIsMinimized(window) else { return }
         AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
         AXUIElementPerformAction(window, kAXRaiseAction as CFString)
         return

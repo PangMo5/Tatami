@@ -13,6 +13,10 @@ public struct SharedApp: Identifiable, Hashable, Sendable, Codable {
   public var iconPath: String?
   /// How this app's windows are laid out across workspaces.
   public var layout: LayoutMode
+  /// Launch/reopen this app on workspace activation when it has no on-screen
+  /// window — same meaning as `AppAssignment.autoOpen`, and the sole intended
+  /// path that restores a minimized shared app (focus never de-minimizes).
+  public var autoOpen: Bool
 
   public var id: String { bundleIdentifier }
 
@@ -20,20 +24,23 @@ public struct SharedApp: Identifiable, Hashable, Sendable, Codable {
     bundleIdentifier: String,
     name: String,
     iconPath: String? = nil,
-    layout: LayoutMode = .tiled
+    layout: LayoutMode = .tiled,
+    autoOpen: Bool = false
   ) {
     self.bundleIdentifier = bundleIdentifier
     self.name = name
     self.iconPath = iconPath
     self.layout = layout
+    self.autoOpen = autoOpen
   }
 
-  public init(_ app: MacApp, layout: LayoutMode = .tiled) {
+  public init(_ app: MacApp, layout: LayoutMode = .tiled, autoOpen: Bool = false) {
     self.init(
       bundleIdentifier: app.bundleIdentifier,
       name: app.name,
       iconPath: app.iconPath,
-      layout: layout
+      layout: layout,
+      autoOpen: autoOpen
     )
   }
 
@@ -42,7 +49,7 @@ public struct SharedApp: Identifiable, Hashable, Sendable, Codable {
   }
 
   private enum CodingKeys: String, CodingKey {
-    case bundleIdentifier, name, iconPath, layout, floating
+    case bundleIdentifier, name, iconPath, layout, floating, autoOpen
   }
 
   public init(from decoder: Decoder) throws {
@@ -56,6 +63,7 @@ public struct SharedApp: Identifiable, Hashable, Sendable, Codable {
     } else {
       layout = ((try? c.decode(Bool.self, forKey: .floating)) == true) ? .floating : .tiled
     }
+    autoOpen = (try? c.decode(Bool.self, forKey: .autoOpen)) ?? false
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -64,5 +72,6 @@ public struct SharedApp: Identifiable, Hashable, Sendable, Codable {
     try c.encode(name, forKey: .name)
     try c.encodeIfPresent(iconPath, forKey: .iconPath)
     try c.encode(layout, forKey: .layout)
+    try c.encode(autoOpen, forKey: .autoOpen)
   }
 }

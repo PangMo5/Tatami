@@ -32,6 +32,7 @@ public struct SharedAppsFeature {
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
+    case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
     case alert(PresentationAction<Alert>)
 
     public enum Alert: Equatable {
@@ -110,6 +111,15 @@ public struct SharedAppsFeature {
             $0.bundleIdentifier == bundleId
           }) else { return }
           config.sharedApps[idx].layout = layout
+        }
+        return .none
+
+      case .autoOpenToggled(let bundleId, let isOn):
+        state.$config.withLock { config in
+          guard let idx = config.sharedApps.firstIndex(where: {
+            $0.bundleIdentifier == bundleId
+          }) else { return }
+          config.sharedApps[idx].autoOpen = isOn
         }
         return .none
       }

@@ -129,8 +129,21 @@ private func performFocus(pid: pid_t, windowID: CGWindowID) {
   for window in windows {
     var wid: CGWindowID = 0
     guard _AXUIElementGetWindow(window, &wid) == .success, wid == windowID else { continue }
+    // Never de-minimize a window the user minimized: raising a minimized
+    // window restores it. Auto-open is the only intended restore path.
+    if axWindowIsMinimized(window) { break }
     AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
     AXUIElementPerformAction(window, kAXRaiseAction as CFString)
     break
   }
+}
+
+/// Whether an AX window element is minimized. Missing/unreadable attribute
+/// reads as not-minimized (raise proceeds) — the conservative default.
+func axWindowIsMinimized(_ window: AXUIElement) -> Bool {
+  var raw: CFTypeRef?
+  guard AXUIElementCopyAttributeValue(
+    window, kAXMinimizedAttribute as CFString, &raw
+  ) == .success, let value = raw as? Bool else { return false }
+  return value
 }
