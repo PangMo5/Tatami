@@ -7,6 +7,9 @@ private struct FullscreenItem: Identifiable, Equatable {
   var index: Int
   var bundleId: String
   var liveKey: WindowKey?
+  /// Slot of this fullscreen window (nil when live) — lets restore target the
+  /// exact same-app window's occurrence in an inactive preview.
+  var slot: SlotID?
   var id: Int { index }
 }
 
@@ -170,7 +173,9 @@ struct WorkspaceLayoutPreview: View {
         enabled: store.selectedTile != nil
       ) {
         if let sel = store.selectedTile {
-          store.send(.toggleFullscreen(bundleId: sel.bundleId, liveKey: sel.liveKey, zoomIn: true))
+          store.send(.toggleFullscreen(
+            bundleId: sel.bundleId, liveKey: sel.liveKey, occurrence: sel.occurrence, zoomIn: true
+          ))
         }
       }
     }
@@ -267,7 +272,7 @@ struct WorkspaceLayoutPreview: View {
 
   private var fullscreenList: [FullscreenItem] {
     (resolved?.fullscreenItems() ?? []).enumerated().map { idx, item in
-      FullscreenItem(index: idx, bundleId: item.bundleId, liveKey: item.liveKey)
+      FullscreenItem(index: idx, bundleId: item.bundleId, liveKey: item.liveKey, slot: item.slot)
     }
   }
 
@@ -354,7 +359,11 @@ struct WorkspaceLayoutPreview: View {
     .background(Capsule().fill(Color.accentColor.opacity(0.18)))
     .opacity(dragging ? 0.4 : 1)
     .help("Tap or drag onto the tiles to restore")
-    .onTapGesture { store.send(.toggleFullscreen(bundleId: item.bundleId, liveKey: item.liveKey, zoomIn: false)) }
+    .onTapGesture {
+      store.send(.toggleFullscreen(
+        bundleId: item.bundleId, liveKey: item.liveKey, occurrence: item.slot?.occurrence, zoomIn: false
+      ))
+    }
     .gesture(chipDragGesture(item))
   }
 
@@ -371,7 +380,9 @@ struct WorkspaceLayoutPreview: View {
         }
         // Dropped below the band, onto the tile area → restore (re-tile).
         if value.location.y > bandHeight {
-          store.send(.toggleFullscreen(bundleId: item.bundleId, liveKey: item.liveKey, zoomIn: false))
+          store.send(.toggleFullscreen(
+            bundleId: item.bundleId, liveKey: item.liveKey, occurrence: item.slot?.occurrence, zoomIn: false
+          ))
         }
       }
   }
@@ -430,7 +441,9 @@ struct WorkspaceLayoutPreview: View {
     .opacity(isDragging ? 0.3 : 1)
     .onTapGesture {
       if let bid = leaf.representative {
-        store.send(.tileTapped(path: leaf.path, bundleId: bid, liveKey: leaf.liveKey))
+        store.send(.tileTapped(
+          path: leaf.path, bundleId: bid, liveKey: leaf.liveKey, occurrence: leaf.slot?.occurrence
+        ))
       }
     }
     .gesture(tileDragGesture(leaf, allLeaves: allLeaves))
@@ -449,7 +462,9 @@ struct WorkspaceLayoutPreview: View {
         }
         // Dropped on the fullscreen band → fullscreen this window.
         if hasFullscreen, value.location.y < bandHeight, let bid = leaf.representative {
-          store.send(.toggleFullscreen(bundleId: bid, liveKey: leaf.liveKey, zoomIn: true))
+          store.send(.toggleFullscreen(
+            bundleId: bid, liveKey: leaf.liveKey, occurrence: leaf.slot?.occurrence, zoomIn: true
+          ))
           return
         }
         guard let drop = dropTarget(leaves: allLeaves, source: leaf.path, at: value.location) else { return }
@@ -619,28 +634,27 @@ struct WorkspaceLayoutPreview: View {
       ?? bundleId
   }
 
-  /// Labels for every rendered window — fullscreen chips *and* tiles — assigned
-  /// from one shared per-app counter so several windows of the same app read
-  /// distinctly. A live window uses its exact title (by key, no counter); an
-  /// inactive one (bundle-id template) consumes the next title of that app by
-  /// occurrence. Chips are counted before tiles so the two never collide.
+  /// Labels for every rendered window — fullscreen chips *and* tiles. A live
+  /// window uses its exact title (by key); an inactive one indexes the app's
+  /// titles by its slot occurrence (windowID rank), which aligns with
+  /// `titlesByBundle` (also windowID-sorted), so several windows of one app read
+  /// distinctly and consistently across chips and tiles.
   private func windowLabels(fullscreen: [FullscreenItem], tiles: [RenderLeaf])
     -> (chips: [Int: String], tiles: [[BSPSide]: String]) {
     let byBundle = store.titlesByBundle
     let titles = store.windowTitles
-    var counts: [String: Int] = [:]
-    func take(_ bid: String, liveKey: WindowKey?) -> String {
+    func label(_ bid: String, liveKey: WindowKey?, occurrence: Int?) -> String {
       if let key = liveKey, let title = titles[key], !title.isEmpty { return title }
-      let occurrence = counts[bid, default: 0]
-      counts[bid] = occurrence + 1
-      if let list = byBundle[bid], occurrence < list.count { return list[occurrence] }
+      if let occurrence, let list = byBundle[bid], occurrence < list.count { return list[occurrence] }
       return appName(for: bid)
     }
     var chips: [Int: String] = [:]
-    for item in fullscreen { chips[item.index] = take(item.bundleId, liveKey: item.liveKey) }
+    for item in fullscreen {
+      chips[item.index] = label(item.bundleId, liveKey: item.liveKey, occurrence: item.slot?.occurrence)
+    }
     var tileOut: [[BSPSide]: String] = [:]
     for tile in tiles where tile.representative != nil {
-      tileOut[tile.path] = take(tile.representative!, liveKey: tile.liveKey)
+      tileOut[tile.path] = label(tile.representative!, liveKey: tile.liveKey, occurrence: tile.slot?.occurrence)
     }
     return (chips, tileOut)
   }

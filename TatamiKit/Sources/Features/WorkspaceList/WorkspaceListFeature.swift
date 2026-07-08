@@ -65,6 +65,7 @@ public struct WorkspaceListFeature {
   }
 
   @Dependency(\.displays) var displays
+  @Dependency(\.layoutStore) var layoutStore
 
   public init() {}
 
@@ -122,7 +123,9 @@ public struct WorkspaceListFeature {
             profile.workspaces.remove(id: id)
           }
         }
-        return .none
+        // Drop the saved layout too, so layouts.json doesn't accumulate orphaned
+        // entries (the delete confirmation promises the layout is removed).
+        return .run { [layoutStore] _ in layoutStore.clear(id) }
 
       case .alert:
         return .none

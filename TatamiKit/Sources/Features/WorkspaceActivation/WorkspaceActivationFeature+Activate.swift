@@ -308,10 +308,10 @@ extension WorkspaceActivationFeature {
             dy: CGFloat(settings.layout.gapOuter)
           )
           var base = sessionTree
-          var persistedZoomBundleIds: [String] = []
+          var persistedZoomSlots: [SlotID] = []
           if let snapshot = persistedSnapshot {
             base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
-            persistedZoomBundleIds = snapshot.fullscreenZoomedBundleIds
+            persistedZoomSlots = snapshot.fullscreenZoomedSlots
           }
           let merged = Self.mergeTree(
             existing: base,
@@ -327,7 +327,7 @@ extension WorkspaceActivationFeature {
             if !zoomed.isEmpty { return zoomed }
             guard let tree else { return [] }
             return Self.resolveFullscreenZoom(
-              bundleIds: persistedZoomBundleIds, among: tree.windows
+              slots: persistedZoomSlots, keys: keys, among: tree.windows
             )
           }()
           let frames = Self.computeFrames(
@@ -344,11 +344,14 @@ extension WorkspaceActivationFeature {
           await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
         }
         if let tree {
+          let slots = slotAssignment(tree.windows)
           store.save(
             workspaceId,
             LayoutSnapshot(
-              tree: tree.mapWindows { $0.bundleId },
-              fullscreenZoomedBundleIds: restoredZoom.map(\.bundleId).sorted()
+              tree: tree.mapWindows { slots[$0]! },
+              fullscreenZoomedSlots: restoredZoom
+                .compactMap { slots[$0] }
+                .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) }
             )
           )
         }
@@ -520,24 +523,20 @@ extension WorkspaceActivationFeature {
     return nil
   }
 
-  /// Map persisted fullscreen-zoom bundle ids back onto live windows,
-  /// consuming a distinct window per entry so that several zoomed windows
-  /// of the *same* app each resolve to a different window (mirrors
-  /// `BSPNode.hydrate`, which drains a per-bundle queue). Entries with no
-  /// remaining live match are dropped — the layout degrades gracefully
-  /// when an app has fewer windows than it did at save time.
+  /// Map persisted fullscreen-zoom slots back onto live windows via the same
+  /// windowID-rank assignment `hydrate` uses (`slotToKey` over `keys`), so a
+  /// specific same-app window resolves to the exact slot it was zoomed in — not
+  /// just "some window of that app". Slots whose window isn't in the laid-out
+  /// tree are dropped, so the layout degrades gracefully when an app has fewer
+  /// windows than at save time.
   static func resolveFullscreenZoom(
-    bundleIds: [String],
+    slots: [SlotID],
+    keys: [WindowKey],
     among windows: [WindowKey]
   ) -> Set<WindowKey> {
-    var available = windows
-    var resolved: Set<WindowKey> = []
-    for bundleId in bundleIds {
-      guard let i = available.firstIndex(where: { $0.bundleId == bundleId })
-      else { continue }
-      resolved.insert(available.remove(at: i))
-    }
-    return resolved
+    let keyForSlot = slotToKey(keys)
+    let present = Set(windows)
+    return Set(slots.compactMap { keyForSlot[$0] }.filter { present.contains($0) })
   }
 
   /// Lay the tree out, trimming fullscreen-zoomed windows so the rest

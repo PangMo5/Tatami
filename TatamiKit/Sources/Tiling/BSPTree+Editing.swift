@@ -229,14 +229,21 @@ extension BSPNode {
 
 // MARK: - Synthesized template (preview when no live tree / snapshot exists)
 
-extension BSPNode where WindowID == String {
-  /// Build a bundle-id layout template from tiled app assignments in order,
+extension BSPNode where WindowID == SlotID {
+  /// Build a `SlotID` layout template from tiled app assignments in order,
   /// using the same insertion policy live tiling uses — so the preview matches
   /// what activation would actually produce. nil when there are no tiled apps.
-  /// The view and the reducer both call this so their tree structure (and thus
-  /// edit-op paths) line up.
-  public static func synthesizedTemplate(tiledBundleIds: [String]) -> BSPNode<String>? {
-    BSPNode<String>.build(tiledBundleIds, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+  /// Each bundle id gets occurrence 0, 1, … in appearance order (a workspace
+  /// that lists the same app twice yields two distinct slots). The view and the
+  /// reducer both call this so their tree structure (and edit-op paths) line up.
+  public static func synthesizedTemplate(tiledBundleIds: [String]) -> BSPNode<SlotID>? {
+    var counts: [String: Int] = [:]
+    let slots = tiledBundleIds.map { bundleId -> SlotID in
+      let occurrence = counts[bundleId, default: 0]
+      counts[bundleId] = occurrence + 1
+      return SlotID(bundleId: bundleId, occurrence: occurrence)
+    }
+    return BSPNode<SlotID>.build(slots, in: CGRect(x: 0, y: 0, width: 1, height: 1))
   }
 }
 
@@ -261,25 +268,28 @@ public func tiledLayoutBundleIds(workspace: Workspace, sharedApps: [SharedApp]) 
 /// preview must show it. Hidden shared apps stay out. The view and the reducer
 /// both call this so their tree (and edit-op paths) match.
 public func previewLayoutTemplate(
-  snapshot: BSPNode<String>?,
+  snapshot: BSPNode<SlotID>?,
   workspace: Workspace,
   sharedApps: [SharedApp],
   presentBundleIds: Set<String>
-) -> BSPNode<String>? {
+) -> BSPNode<SlotID>? {
   let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
-  var tree = snapshot ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
+  var tree = snapshot ?? BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: tiled)
   guard workspace.kind != .scratchpad else { return tree }
-  let inTree = Set(tree?.windows ?? [])
+  let inTree = Set((tree?.windows ?? []).map(\.bundleId))
   let missing = sharedApps
     .filter { $0.layout == .tiled }
     .map(\.bundleIdentifier)
     .filter { presentBundleIds.contains($0) && !inTree.contains($0) }
     .sorted()
+  // A missing shared app has no slot in the tree yet, so it joins at occurrence
+  // 0 (its first — and only — window merged into the preview).
   for bundleId in missing {
+    let slot = SlotID(bundleId: bundleId, occurrence: 0)
     if let existing = tree {
-      tree = existing.inserting(bundleId, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+      tree = existing.inserting(slot, in: CGRect(x: 0, y: 0, width: 1, height: 1))
     } else {
-      tree = .leaf(BSPLeaf(windowList: [bundleId]))
+      tree = .leaf(BSPLeaf(windowList: [slot]))
     }
   }
   return tree

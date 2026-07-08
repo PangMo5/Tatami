@@ -1366,9 +1366,14 @@ public struct WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard let tree else { return .none }
     let id = workspace.id
-    let template = tree.mapWindows { $0.bundleId }
-    let zoomedBundleIds = fullscreenZoomed.map(\.bundleId).sorted()
-    let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedBundleIds: zoomedBundleIds)
+    // Occurrence-aware slots (windowID rank per bundle) so two windows of one
+    // app persist their distinct positions; the same map keys the zoom set.
+    let slots = slotAssignment(tree.windows)
+    let template = tree.mapWindows { slots[$0]! }
+    let zoomedSlots = fullscreenZoomed
+      .compactMap { slots[$0] }
+      .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) }
+    let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedSlots: zoomedSlots)
     return .run { [store = layoutStore] _ in store.save(id, snapshot) }
   }
 

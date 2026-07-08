@@ -179,39 +179,36 @@ extension BSPNode {
 // MARK: - Hydrate (persistent → live)
 
 extension BSPNode where WindowID == WindowKey {
-  /// Rebuild a live tree from a persisted bundle-id `template`,
-  /// matching bundle ids against live windows from `keys`. Leaves whose
-  /// bundle id has no matching live window collapse (sibling promotes),
-  /// so a saved layout gracefully degrades when an app isn't running.
-  /// Leaf metadata (insertDirection, preferredChild, preferredSplit,
-  /// parentZoom) is preserved; per-leaf stacks are reconstructed
-  /// best-effort by consuming the live key queue in order.
-  /// Windows present in `keys` but absent from the template are NOT
-  /// added here — the caller folds those in via the normal merge/insert
-  /// path afterward.
+  /// Rebuild a live tree from a persisted `SlotID` `template`, matching each
+  /// slot against the live window that holds it — the Nth window of that app by
+  /// `windowID` ascending (see `slotToKey`). Leaves whose slot has no matching
+  /// live window collapse (sibling promotes), so a saved layout gracefully
+  /// degrades when an app isn't running. Leaf metadata (insertDirection,
+  /// preferredChild, preferredSplit, parentZoom) is preserved. Windows present
+  /// in `keys` but absent from the template are NOT added here — the caller
+  /// folds those in via the normal merge/insert path afterward.
+  ///
+  /// Unlike the old bundle-id template, matching is by `SlotID` (windowID rank),
+  /// not a positional FIFO queue, so two windows of one app land in the exact
+  /// slots the layout recorded rather than in Accessibility-enumeration order.
   public static func hydrate(
-    template: BSPNode<String>,
+    template: BSPNode<SlotID>,
     keys: [WindowKey]
   ) -> BSPNode<WindowKey>? {
-    var queues: [String: Deque<WindowKey>] = [:]
-    for key in keys {
-      queues[key.bundleId, default: []].append(key)
-    }
-    func build(_ node: BSPNode<String>) -> BSPNode<WindowKey>? {
+    let keyForSlot = slotToKey(keys)
+    func build(_ node: BSPNode<SlotID>) -> BSPNode<WindowKey>? {
       switch node {
-      case .leaf(let stringLeaf):
+      case .leaf(let slotLeaf):
         var hydratedList: [WindowKey] = []
-        for bundleId in stringLeaf.windowList {
-          guard let key = queues[bundleId]?.popFirst() else { continue }
+        for slot in slotLeaf.windowList {
+          guard let key = keyForSlot[slot] else { continue }
           hydratedList.append(key)
         }
         guard !hydratedList.isEmpty else { return nil }
         var hydratedOrder: [WindowKey] = []
-        for bundleId in stringLeaf.windowOrder {
-          if let match = hydratedList.first(where: { $0.bundleId == bundleId }),
-             !hydratedOrder.contains(match)
-          {
-            hydratedOrder.append(match)
+        for slot in slotLeaf.windowOrder {
+          if let key = keyForSlot[slot], !hydratedOrder.contains(key) {
+            hydratedOrder.append(key)
           }
         }
         for key in hydratedList where !hydratedOrder.contains(key) {
@@ -220,24 +217,24 @@ extension BSPNode where WindowID == WindowKey {
         let leaf = BSPLeaf<WindowKey>(
           windowList: hydratedList,
           windowOrder: hydratedOrder,
-          insertDirection: stringLeaf.insertDirection,
-          preferredChild: stringLeaf.preferredChild,
-          preferredSplit: stringLeaf.preferredSplit,
-          parentZoom: stringLeaf.parentZoom
+          insertDirection: slotLeaf.insertDirection,
+          preferredChild: slotLeaf.preferredChild,
+          preferredSplit: slotLeaf.preferredSplit,
+          parentZoom: slotLeaf.parentZoom
         )
         return .leaf(leaf)
-      case .branch(let stringBranch):
-        let l = build(stringBranch.left)
-        let r = build(stringBranch.right)
+      case .branch(let slotBranch):
+        let l = build(slotBranch.left)
+        let r = build(slotBranch.right)
         switch (l, r) {
         case (nil, nil): return nil
         case (let l?, nil): return l
         case (nil, let r?): return r
         case (let l?, let r?):
           return .branch(BSPBranch(
-            split: stringBranch.split,
-            ratio: stringBranch.ratio,
-            preferredChild: stringBranch.preferredChild,
+            split: slotBranch.split,
+            ratio: slotBranch.ratio,
+            preferredChild: slotBranch.preferredChild,
             left: l,
             right: r
           ))

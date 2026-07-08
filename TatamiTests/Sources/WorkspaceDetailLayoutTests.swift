@@ -12,6 +12,10 @@ import Testing
 struct WorkspaceLayoutFeatureTests {
   private let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
 
+  private func slot(_ bundle: String, _ occurrence: Int = 0) -> SlotID {
+    SlotID(bundleId: bundle, occurrence: occurrence)
+  }
+
   private func makeState(_ ws: Workspace) -> WorkspaceLayoutFeature.State {
     let state = WorkspaceLayoutFeature.State(workspaceId: ws.id)
     state.$config.withLock {
@@ -43,7 +47,7 @@ struct WorkspaceLayoutFeatureTests {
     await store.finish()
 
     #expect(saved.value[ws.id] != nil)
-    #expect(Set(saved.value[ws.id]?.tree.windows ?? []) == ["a", "b"])
+    #expect(Set((saved.value[ws.id]?.tree.windows ?? []).map(\.bundleId)) == ["a", "b"])
     #expect(store.state.layoutSnapshot != nil)
   }
 
@@ -56,7 +60,7 @@ struct WorkspaceLayoutFeatureTests {
         AppAssignment(bundleIdentifier: "b", name: "B"),
       ]
     )
-    let base = LayoutSnapshot(tree: BSPNode.build(["a", "b"], in: unit)!)
+    let base = LayoutSnapshot(tree: BSPNode.build([slot("a"), slot("b")], in: unit)!)
     let saved = LockIsolated<[UUID: LayoutSnapshot]>([:])
     var state = makeState(ws)
     state.layoutSnapshot = base
@@ -70,12 +74,12 @@ struct WorkspaceLayoutFeatureTests {
     await store.send(.tileMoved(sourceTrimmedPath: [.left], targetTrimmedPath: [.right], zone: .swap))
     await store.finish()
 
-    #expect(Set(saved.value[ws.id]?.tree.windows ?? []) == ["a", "b"])
+    #expect(Set((saved.value[ws.id]?.tree.windows ?? []).map(\.bundleId)) == ["a", "b"])
     #expect(saved.value[ws.id]?.tree != base.tree)
   }
 
   @Test
-  func inactiveFullscreenTogglePersistsBundleId() async {
+  func inactiveFullscreenTogglePersistsSlot() async {
     let ws = Workspace(name: "W", apps: [AppAssignment(bundleIdentifier: "a", name: "A")])
     let saved = LockIsolated<[UUID: LayoutSnapshot]>([:])
     let store = TestStore(initialState: makeState(ws)) {
@@ -85,9 +89,9 @@ struct WorkspaceLayoutFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.toggleFullscreen(bundleId: "a", liveKey: nil, zoomIn: true))
+    await store.send(.toggleFullscreen(bundleId: "a", liveKey: nil, occurrence: 0, zoomIn: true))
     await store.finish()
-    #expect(saved.value[ws.id]?.fullscreenZoomedBundleIds == ["a"])
+    #expect(saved.value[ws.id]?.fullscreenZoomedSlots == [slot("a", 0)])
   }
 
   @Test
@@ -124,15 +128,28 @@ struct WorkspaceLayoutFeatureTests {
 
   @Test
   func templatePathMappingKeepsSameAppLeavesDistinct() {
-    // Two "a" leaves + one "b". Each rendered tile must map to a *distinct*
-    // full-tree path — the old bundle-id `pathTo` collapsed both "a" tiles to
-    // the first "a", so a same-app relocate targeted the wrong (or its own) leaf.
-    let tree = BSPNode.build(["a", "a", "b"], in: unit)!
-    let resolved = ResolvedLayout.template(tree, zoomedBundleIds: [])
+    // Two "a" slots + one "b". Each rendered tile must map to a *distinct*
+    // full-tree path — SlotID identity keeps same-app leaves apart, so a
+    // same-app relocate targets the right (not its own) leaf.
+    let tree = BSPNode.build([slot("a", 0), slot("a", 1), slot("b")], in: unit)!
+    let resolved = ResolvedLayout.template(tree, zoomedSlots: [])
     let (tiles, _) = resolved.renderRegions(in: unit, hidden: [])
     let fullPaths = tiles.map { resolved.fullLeafPath(trimmedLeafPath: $0.path, hidden: []) }
     #expect(fullPaths.allSatisfy { $0 != nil })
     #expect(Set(fullPaths.compactMap { $0 }).count == tiles.count)
+  }
+
+  @Test
+  func migratesLegacyBundleIdSnapshotToOccurrenceSlots() {
+    // v1 on disk: two "a" leaves + one "b", with one "a" fullscreen-zoomed.
+    let legacy = BSPNode.build(["a", "a", "b"], in: unit)!
+    let migrated = LayoutSnapshot.migratedFromV1(tree: legacy, zoomedBundleIds: ["a"])
+    let windows = migrated.tree.windows
+    #expect(Set(windows.map(\.bundleId)) == ["a", "b"])
+    // The two "a" leaves get distinct occurrences (0, 1) so they stay arrangeable.
+    #expect(windows.filter { $0.bundleId == "a" }.map(\.occurrence).sorted() == [0, 1])
+    #expect(migrated.fullscreenZoomedSlots == [slot("a", 0)])
+    #expect(migrated.version == 2)
   }
 
   @Test
@@ -150,7 +167,7 @@ struct WorkspaceLayoutFeatureTests {
   @Test
   func onAppearLoadsSnapshot() async {
     let ws = Workspace(name: "W", apps: [AppAssignment(bundleIdentifier: "a", name: "A")])
-    let snapshot = LayoutSnapshot(tree: .leaf(BSPLeaf(windowList: ["a"])))
+    let snapshot = LayoutSnapshot(tree: .leaf(BSPLeaf(windowList: [slot("a")])))
     let store = TestStore(initialState: makeState(ws)) {
       WorkspaceLayoutFeature()
     } withDependencies: {

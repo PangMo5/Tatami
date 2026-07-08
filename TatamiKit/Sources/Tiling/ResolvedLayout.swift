@@ -13,10 +13,10 @@ import Foundation
 /// resolution + trimmed→full mapping) and the view (which renders) share it.
 public enum ResolvedLayout: Equatable {
   case live(BSPNode<WindowKey>, zoomed: Set<WindowKey>)
-  /// Bundle-id template. `zoomedBundleIds` is a *list* (not a set): a workspace
-  /// can hold several windows of the same app, and each fullscreen entry is one
-  /// window — matching `LayoutSnapshot.fullscreenZoomedBundleIds`.
-  case template(BSPNode<String>, zoomedBundleIds: [String])
+  /// `SlotID` template (persisted snapshot, else synthesized). `zoomedSlots`
+  /// identifies the fullscreen-zoomed windows by slot, so which window of an app
+  /// is zoomed is exact — matching `LayoutSnapshot.fullscreenZoomedSlots`.
+  case template(BSPNode<SlotID>, zoomedSlots: [SlotID])
 
   public static func resolve(
     workspace: Workspace,
@@ -46,7 +46,7 @@ public enum ResolvedLayout: Equatable {
     // snapshot) — mirror it so the inactive preview matches. Balancing only
     // re-weights ratios, so edit-op paths are unaffected.
     if autoBalance != .none { template = template.balanced(axis: autoBalance) }
-    return .template(template, zoomedBundleIds: snapshot?.fullscreenZoomedBundleIds ?? [])
+    return .template(template, zoomedSlots: snapshot?.fullscreenZoomedSlots ?? [])
   }
 
   public var isLive: Bool { if case .live = self { return true } else { return false } }
@@ -73,18 +73,19 @@ public enum ResolvedLayout: Equatable {
       let trimmed = pendingRatio.map { base.applying(.setRatio(path: $0.path, ratio: $0.ratio)) } ?? base
       let tiles = trimmed.leafRegions(in: rect, gap: 0).map { r in
         RenderLeaf(path: r.path, rect: r.rect, bundleIds: r.leaf.windowList.map(\.bundleId),
-                   liveKey: r.leaf.windowList.first)
+                   liveKey: r.leaf.windowList.first, slot: nil)
       }
       let dividers = trimmed.branchRegions(in: rect, gap: 0).map {
         RenderDivider(path: $0.path, rect: $0.rect, axis: $0.axis, ratio: $0.ratio)
       }
       return (tiles, dividers)
-    case .template(let tree, let zoomedBundleIds):
-      guard let base = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
+    case .template(let tree, let zoomedSlots):
+      guard let base = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden)
       else { return ([], []) }
       let trimmed = pendingRatio.map { base.applying(.setRatio(path: $0.path, ratio: $0.ratio)) } ?? base
       let tiles = trimmed.leafRegions(in: rect, gap: 0).map { r in
-        RenderLeaf(path: r.path, rect: r.rect, bundleIds: r.leaf.windowList, liveKey: nil)
+        RenderLeaf(path: r.path, rect: r.rect, bundleIds: r.leaf.windowList.map(\.bundleId),
+                   liveKey: nil, slot: r.leaf.windowList.first)
       }
       let dividers = trimmed.branchRegions(in: rect, gap: 0).map {
         RenderDivider(path: $0.path, rect: $0.rect, axis: $0.axis, ratio: $0.ratio)
@@ -93,16 +94,19 @@ public enum ResolvedLayout: Equatable {
     }
   }
 
-  public func fullscreenItems() -> [(bundleId: String, liveKey: WindowKey?)] {
+  public func fullscreenItems() -> [(bundleId: String, liveKey: WindowKey?, slot: SlotID?)] {
     switch self {
     case .live(let tree, let zoomed):
       return zoomed
         .filter { tree.pathTo(window: $0) != nil }
         .sorted { $0.windowID < $1.windowID }
-        .map { (bundleId: $0.bundleId, liveKey: $0) }
-    case .template(let tree, let zoomedBundleIds):
+        .map { (bundleId: $0.bundleId, liveKey: $0, slot: nil) }
+    case .template(let tree, let zoomedSlots):
       let present = Set(tree.windows)
-      return zoomedBundleIds.filter { present.contains($0) }.sorted().map { (bundleId: $0, liveKey: nil) }
+      return zoomedSlots
+        .filter { present.contains($0) }
+        .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) }
+        .map { (bundleId: $0.bundleId, liveKey: nil, slot: $0) }
     }
   }
 
@@ -116,16 +120,14 @@ public enum ResolvedLayout: Equatable {
             let rep = leaf.windowList.first
       else { return nil }
       return tree.pathTo(window: rep)
-    case .template(let tree, let zoomedBundleIds):
-      // Walk the token trees, not the bundle-id tree: `pathTo(window: bundleId)`
-      // would collapse repeated same-app leaves to the first occurrence, so a
-      // same-app relocate/swap would target the wrong (or its own) leaf.
-      let t = Self.tokenizedTrim(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
-      guard let trimmed = t.trimmed,
+    case .template(let tree, let zoomedSlots):
+      // `SlotID` is unique per leaf, so a direct `pathTo` disambiguates same-app
+      // leaves — no tokenization needed.
+      guard let trimmed = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden),
             case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
-            let token = leaf.windowList.first
+            let slot = leaf.windowList.first
       else { return nil }
-      return t.full.pathTo(window: token)
+      return tree.pathTo(window: slot)
     }
   }
 
@@ -138,12 +140,11 @@ public enum ResolvedLayout: Equatable {
             let lp = tree.pathTo(window: l), let rp = tree.pathTo(window: r)
       else { return nil }
       return Self.commonPrefix(lp, rp)
-    case .template(let tree, let zoomedBundleIds):
-      let t = Self.tokenizedTrim(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
-      guard let trimmed = t.trimmed,
+    case .template(let tree, let zoomedSlots):
+      guard let trimmed = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden),
             case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
             let l = b.left.windows.first, let r = b.right.windows.first,
-            let lp = t.full.pathTo(window: l), let rp = t.full.pathTo(window: r)
+            let lp = tree.pathTo(window: l), let rp = tree.pathTo(window: r)
       else { return nil }
       return Self.commonPrefix(lp, rp)
     }
@@ -155,43 +156,22 @@ public enum ResolvedLayout: Equatable {
     return trimmed
   }
 
-  /// Tokenized trim shared by rendering and path-mapping. Rekeys the template to
-  /// unique `Int` tokens (so same-bundle-id leaves stay distinct), drops every
-  /// window of a `hidden` app (a shared app with no live window — it wouldn't
-  /// tile on switch), and drops the fullscreen-zoomed windows by count per
-  /// bundle id (a workspace with several windows of one app trims only as many
-  /// as are zoomed). Returns the full and trimmed *token* trees plus the
-  /// token→bundle-id map. Path mapping walks the token trees, so a repeated
-  /// bundle id never collapses to its first occurrence.
-  private static func tokenizedTrim(
-    _ tree: BSPNode<String>,
-    zoomedBundleIds: [String],
-    hidden: Set<String>
-  ) -> (full: BSPNode<Int>, trimmed: BSPNode<Int>?, back: [Int: String]) {
-    let (tokenized, back) = tree.tokenized()
-    guard !zoomedBundleIds.isEmpty || !hidden.isEmpty else { return (tokenized, tokenized, back) }
-    var counts: [String: Int] = [:]
-    for bid in zoomedBundleIds { counts[bid, default: 0] += 1 }
-    var remove: Set<Int> = []
-    for token in tokenized.windows where hidden.contains(back[token]!) { remove.insert(token) }
-    for (bid, count) in counts {
-      let matching = tokenized.windows.filter { back[$0] == bid }
-      remove.formUnion(matching.prefix(count))
-    }
-    guard !remove.isEmpty else { return (tokenized, tokenized, back) }
-    var trimmed: BSPNode<Int>? = tokenized
-    for token in remove { trimmed = trimmed?.removing(token) }
-    return (tokenized, trimmed, back)
-  }
-
-  /// Trim the template for rendering, mapped back to bundle ids.
+  /// Trim the template for rendering + path-mapping: drop every slot of a
+  /// `hidden` app (a shared app with no live window — it wouldn't tile on
+  /// switch) and every fullscreen-zoomed slot. `SlotID` is unique per leaf, so
+  /// removal is exact (no count-based guessing) and the surviving structure maps
+  /// back to full-tree paths via a plain `pathTo`.
   private static func trimTemplate(
-    _ tree: BSPNode<String>,
-    zoomedBundleIds: [String],
+    _ tree: BSPNode<SlotID>,
+    zoomedSlots: [SlotID],
     hidden: Set<String>
-  ) -> BSPNode<String>? {
-    let t = tokenizedTrim(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
-    return t.trimmed?.mapWindows { t.back[$0]! }
+  ) -> BSPNode<SlotID>? {
+    var remove = Set(zoomedSlots)
+    for slot in tree.windows where hidden.contains(slot.bundleId) { remove.insert(slot) }
+    guard !remove.isEmpty else { return tree }
+    var trimmed: BSPNode<SlotID>? = tree
+    for slot in remove { trimmed = trimmed?.removing(slot) }
+    return trimmed
   }
 
   private static func commonPrefix(_ a: [BSPSide], _ b: [BSPSide]) -> [BSPSide] {
@@ -209,6 +189,9 @@ public struct RenderLeaf: Identifiable {
   public var rect: CGRect
   public var bundleIds: [String]
   public var liveKey: WindowKey?
+  /// The template slot of the leaf's first window (nil when live). Lets the view
+  /// target a specific same-app window (occurrence) for inactive fullscreen.
+  public var slot: SlotID?
   public var id: [BSPSide] { path }
   public var representative: String? { bundleIds.first }
   public var stackCount: Int { bundleIds.count }

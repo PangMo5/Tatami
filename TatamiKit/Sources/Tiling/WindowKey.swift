@@ -37,6 +37,47 @@ public struct WindowKey: Hashable, Sendable, Codable {
   }
 }
 
+/// Occurrence-stable slot identity for a persisted layout leaf.
+///
+/// A saved layout can't reference a live `WindowKey` (pid/windowID are
+/// reassigned across sessions), and a bare bundle id can't tell two windows of
+/// one app apart. `SlotID` closes the gap: `occurrence` is the window's rank
+/// among its app's windows sorted by `windowID` ascending. Within a session
+/// windowIDs are stable, so a given window keeps its slot and a swap of two
+/// same-app leaves persists which occurrence sits where. Across a full restart
+/// windowIDs are reassigned, so the mapping is best-effort then.
+public struct SlotID: Hashable, Sendable, Codable {
+  public var bundleId: String
+  public var occurrence: Int
+
+  public init(bundleId: String, occurrence: Int) {
+    self.bundleId = bundleId
+    self.occurrence = occurrence
+  }
+}
+
+/// Assign each live window its `SlotID` — occurrence = windowID-ascending rank
+/// within its bundle. The Accessibility window order is unstable (and can drop
+/// fullscreen windows), so windowID is the deterministic anchor.
+public func slotAssignment(_ keys: [WindowKey]) -> [WindowKey: SlotID] {
+  var byBundle: [String: [WindowKey]] = [:]
+  for key in keys { byBundle[key.bundleId, default: []].append(key) }
+  var out: [WindowKey: SlotID] = [:]
+  for (bundleId, group) in byBundle {
+    for (idx, key) in group.sorted(by: { $0.windowID < $1.windowID }).enumerated() {
+      out[key] = SlotID(bundleId: bundleId, occurrence: idx)
+    }
+  }
+  return out
+}
+
+/// Inverse of `slotAssignment` — the live window for each slot.
+public func slotToKey(_ keys: [WindowKey]) -> [SlotID: WindowKey] {
+  var out: [SlotID: WindowKey] = [:]
+  for (key, slot) in slotAssignment(keys) { out[slot] = key }
+  return out
+}
+
 /// Private Accessibility bridge that maps an `AXUIElement` to its
 /// `CGWindowID`. Apple has shipped this symbol since 10.10; every
 /// common macOS tiling tool relies on it because the public AX API

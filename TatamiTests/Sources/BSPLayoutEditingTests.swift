@@ -153,13 +153,20 @@ struct BSPLayoutEditingTests {
 
   @Test
   func synthesizedTemplateBuildsFromBundleIds() {
-    let template = BSPNode<String>.synthesizedTemplate(tiledBundleIds: ["a", "b"])
-    #expect(Set(template?.windows ?? []) == ["a", "b"])
+    let template = BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: ["a", "b"])
+    #expect(Set((template?.windows ?? []).map(\.bundleId)) == ["a", "b"])
+  }
+
+  @Test
+  func synthesizedTemplateGivesRepeatedAppDistinctOccurrences() {
+    let template = BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: ["a", "a"])
+    #expect(Set(template?.windows ?? []) == [SlotID(bundleId: "a", occurrence: 0),
+                                             SlotID(bundleId: "a", occurrence: 1)])
   }
 
   @Test
   func synthesizedTemplateIsNilWhenEmpty() {
-    #expect(BSPNode<String>.synthesizedTemplate(tiledBundleIds: []) == nil)
+    #expect(BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: []) == nil)
   }
 
   // MARK: - Drop-zone geometry

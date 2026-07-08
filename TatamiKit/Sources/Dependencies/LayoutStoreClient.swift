@@ -17,23 +17,107 @@ struct LayoutStoreClient: Sendable {
   var clear: @Sendable (UUID) -> Void
 }
 
-/// On-disk shape of one workspace's tiling memory. Stored alongside the
-/// tree so a workspace can restore its BSP layout and which
-/// (bundle-identified) windows were fullscreen-zoomed at the time of
-/// the last save. Parent-zoom (per-leaf, single-tile) is carried by
-/// the leaf itself inside `tree`.
+/// On-disk shape of one workspace's tiling memory. Stores the BSP layout keyed
+/// by `SlotID` (bundle id + windowID-rank occurrence) so two windows of one app
+/// keep distinct, arrangeable positions, plus which slots were fullscreen-zoomed
+/// at save time. Parent-zoom (per-leaf, single-tile) is carried by the leaf
+/// itself inside `tree`.
 public struct LayoutSnapshot: Codable, Hashable, Sendable {
-  public var tree: BSPNode<String>
-  /// Bundle identifiers of the *fullscreen*-zoomed windows at save
-  /// time. Tatami-specific multi-window fullscreen: each one renders
-  /// at the workspace work area and is excluded from the rest of the
-  /// tree's layout. On hydration, each entry re-attaches to the first
-  /// live window matching that bundle id.
-  public var fullscreenZoomedBundleIds: [String]
+  /// Schema version. Absent/1 on disk = the legacy bundle-id shape
+  /// (`BSPNode<String>` + `fullscreenZoomedBundleIds`), migrated on read.
+  public var version: Int
+  public var tree: BSPNode<SlotID>
+  /// Slots that were *fullscreen*-zoomed at save time. Tatami-specific
+  /// multi-window fullscreen: each renders at the workspace work area and is
+  /// excluded from the rest of the tree's layout. SlotID-keyed (not a bundle-id
+  /// count list) so which window of an app is zoomed is unambiguous.
+  public var fullscreenZoomedSlots: [SlotID]
 
-  public init(tree: BSPNode<String>, fullscreenZoomedBundleIds: [String] = []) {
+  public static let currentVersion = 2
+
+  public init(tree: BSPNode<SlotID>, fullscreenZoomedSlots: [SlotID] = []) {
+    self.version = Self.currentVersion
     self.tree = tree
-    self.fullscreenZoomedBundleIds = fullscreenZoomedBundleIds
+    self.fullscreenZoomedSlots = fullscreenZoomedSlots
+  }
+
+  /// Migrate a legacy v1 snapshot (bundle-id tree + bundle-id zoom list) to v2.
+  /// Occurrence is assigned by per-bundle appearance order in tree traversal,
+  /// via `tokenized()` so a stacked leaf's list/order stay paired; zoom entries
+  /// map to the Nth occurrence of their bundle by the same order.
+  static func migratedFromV1(tree legacy: BSPNode<String>, zoomedBundleIds: [String]) -> LayoutSnapshot {
+    let (tokenized, back) = legacy.tokenized()
+    var counts: [String: Int] = [:]
+    var slotForToken: [Int: SlotID] = [:]
+    for token in tokenized.windows {
+      let bundleId = back[token]!
+      let occurrence = counts[bundleId, default: 0]
+      counts[bundleId] = occurrence + 1
+      slotForToken[token] = SlotID(bundleId: bundleId, occurrence: occurrence)
+    }
+    let slotTree = tokenized.mapWindows { slotForToken[$0]! }
+    var zoomCounts: [String: Int] = [:]
+    let zoomSlots = zoomedBundleIds.map { bundleId -> SlotID in
+      let occurrence = zoomCounts[bundleId, default: 0]
+      zoomCounts[bundleId] = occurrence + 1
+      return SlotID(bundleId: bundleId, occurrence: occurrence)
+    }
+    return LayoutSnapshot(tree: slotTree, fullscreenZoomedSlots: zoomSlots)
+  }
+}
+
+/// Per-entry decoder: reads a v2 snapshot, or migrates a legacy v1 one. Wrapped
+/// so a single unreadable entry can be skipped (see `readMap`) instead of
+/// resetting every workspace's layout.
+private struct MigratingSnapshot: Decodable {
+  let snapshot: LayoutSnapshot
+
+  private enum CodingKeys: String, CodingKey {
+    case version, tree, fullscreenZoomedSlots, fullscreenZoomedBundleIds
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+    if version >= 2 {
+      let tree = try container.decode(BSPNode<SlotID>.self, forKey: .tree)
+      let zoom = try container.decodeIfPresent([SlotID].self, forKey: .fullscreenZoomedSlots) ?? []
+      snapshot = LayoutSnapshot(tree: tree, fullscreenZoomedSlots: zoom)
+    } else {
+      let legacyTree = try container.decode(BSPNode<String>.self, forKey: .tree)
+      let legacyZoom = try container.decodeIfPresent([String].self, forKey: .fullscreenZoomedBundleIds) ?? []
+      snapshot = LayoutSnapshot.migratedFromV1(tree: legacyTree, zoomedBundleIds: legacyZoom)
+    }
+  }
+}
+
+/// Decodes the whole `layouts.json` map, skipping any single entry that fails
+/// to decode/migrate instead of letting one bad workspace reset all of them.
+/// The top-level decode still throws if the file isn't a JSON object at all.
+private struct ResilientSnapshotMap: Decodable {
+  let map: [String: LayoutSnapshot]
+  let skipped: [String]
+
+  private struct AnyKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: AnyKey.self)
+    var out: [String: LayoutSnapshot] = [:]
+    var dropped: [String] = []
+    for key in container.allKeys {
+      if let entry = try? container.decode(MigratingSnapshot.self, forKey: key) {
+        out[key.stringValue] = entry.snapshot
+      } else {
+        dropped.append(key.stringValue)
+      }
+    }
+    map = out
+    skipped = dropped
   }
 }
 
@@ -120,12 +204,25 @@ private actor LayoutStore {
 
   private func readMap() -> [String: LayoutSnapshot] {
     // A missing file is the normal first-run state; a file that exists but
-    // doesn't decode means stored layouts are being dropped — surface that.
+    // doesn't decode at all means stored layouts are being dropped — surface it.
     guard let data = try? Data(contentsOf: fileURL) else { return [:] }
+    @Dependency(\.errorReporter) var reporter
     do {
-      return try YYJSONDecoder().decode([String: LayoutSnapshot].self, from: data)
+      // Decode per entry (v2 or migrated-v1) so one unreadable workspace is
+      // skipped rather than resetting every workspace's layout.
+      let decoded = try YYJSONDecoder().decode(ResilientSnapshotMap.self, from: data)
+      if decoded.skipped.isEmpty {
+        reporter.resolve("Layouts")
+      } else {
+        // Not silent: a skipped entry is a real (partial) loss, surface it.
+        reporter.report(
+          "Layouts",
+          "\(decoded.skipped.count) workspace layout(s) could not be read and were reset",
+          "workspaceIds: \(decoded.skipped.joined(separator: ", "))"
+        )
+      }
+      return decoded.map
     } catch {
-      @Dependency(\.errorReporter) var reporter
       reporter.report(
         "Layouts",
         "layouts.json could not be read — saved layouts reset",

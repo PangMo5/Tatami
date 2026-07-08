@@ -9,10 +9,14 @@ public struct SelectedTile: Equatable {
   public var path: [BSPSide]
   public var bundleId: String
   public var liveKey: WindowKey?
-  public init(path: [BSPSide], bundleId: String, liveKey: WindowKey?) {
+  /// Slot occurrence of the tile's window (nil when live) — lets the toolbar
+  /// fullscreen a specific same-app window in an inactive preview.
+  public var occurrence: Int?
+  public init(path: [BSPSide], bundleId: String, liveKey: WindowKey?, occurrence: Int?) {
     self.path = path
     self.bundleId = bundleId
     self.liveKey = liveKey
+    self.occurrence = occurrence
   }
 }
 
@@ -140,7 +144,7 @@ public struct WorkspaceLayoutFeature {
     case activationObserved(liveTree: BSPNode<WindowKey>?, liveZoomed: Set<WindowKey>, isActive: Bool)
 
     // Selection
-    case tileTapped(path: [BSPSide], bundleId: String, liveKey: WindowKey?)
+    case tileTapped(path: [BSPSide], bundleId: String, liveKey: WindowKey?, occurrence: Int?)
     case backgroundTapped
 
     /// A non-tiled chip's "configure" action — bubble up so the parent reveals
@@ -155,7 +159,9 @@ public struct WorkspaceLayoutFeature {
     case mirror(axis: BSPSplitAxis)
     case balance
     case toggleOrientation
-    case toggleFullscreen(bundleId: String, liveKey: WindowKey?, zoomIn: Bool)
+    /// `occurrence` targets a specific same-app window when inactive (the slot's
+    /// windowID rank); nil/ignored when live (the exact `liveKey` is used).
+    case toggleFullscreen(bundleId: String, liveKey: WindowKey?, occurrence: Int?, zoomIn: Bool)
 
     // Effect results
     case layoutSnapshotLoaded(LayoutSnapshot?)
@@ -254,10 +260,10 @@ public struct WorkspaceLayoutFeature {
         state.windowInfoLoadedFor = state.workspaceId
         return .none
 
-      case .tileTapped(let path, let bundleId, let liveKey):
+      case .tileTapped(let path, let bundleId, let liveKey, let occurrence):
         state.selectedTile = state.selectedTile?.path == path
           ? nil
-          : SelectedTile(path: path, bundleId: bundleId, liveKey: liveKey)
+          : SelectedTile(path: path, bundleId: bundleId, liveKey: liveKey, occurrence: occurrence)
         return .none
 
       case .backgroundTapped:
@@ -302,13 +308,14 @@ public struct WorkspaceLayoutFeature {
         state.selectedTile = nil
         return route(.toggleOrientation(leafPath: full), state: &state)
 
-      case .toggleFullscreen(let bundleId, let liveKey, let zoomIn):
+      case .toggleFullscreen(let bundleId, let liveKey, let occurrence, let zoomIn):
         state.selectedTile = nil
         // Active: per-window toggle against the live tree (state decides in/out).
         if state.resolved?.isLive == true, let key = liveKey {
           return .send(.delegate(.activeFullscreenToggled(windowKey: key)))
         }
-        return toggleInactiveFullscreen(bundleId: bundleId, zoomIn: zoomIn, state: &state)
+        let slot = SlotID(bundleId: bundleId, occurrence: occurrence ?? 0)
+        return toggleInactiveFullscreen(slot: slot, zoomIn: zoomIn, state: &state)
 
       case .delegate:
         return .none
@@ -333,14 +340,14 @@ public struct WorkspaceLayoutFeature {
             presentBundleIds: state.presentBundleIds
           )
     else { return .none }
-    // Rekey to unique tokens so relocate is unambiguous even when a bundle id
-    // repeats across leaves, apply, then map back to bundle ids.
-    let (tokenized, back) = template.tokenized()
-    let newTemplate = tokenized.applying(op).mapWindows { back[$0]! }
+    // `SlotID` leaves are unique, so the op applies directly — a same-app swap
+    // now produces a distinct tree (and persists) instead of collapsing to a
+    // no-op the way a bundle-id template did.
+    let newTemplate = template.applying(op)
     guard newTemplate != template else { return .none }
     let snapshot = LayoutSnapshot(
       tree: newTemplate,
-      fullscreenZoomedBundleIds: state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
+      fullscreenZoomedSlots: state.layoutSnapshot?.fullscreenZoomedSlots ?? []
     )
     state.layoutSnapshot = snapshot
     return .merge(
@@ -350,7 +357,7 @@ public struct WorkspaceLayoutFeature {
   }
 
   private func toggleInactiveFullscreen(
-    bundleId: String, zoomIn: Bool, state: inout State
+    slot: SlotID, zoomIn: Bool, state: inout State
   ) -> Effect<Action> {
     let id = state.workspaceId
     guard let workspace = state.workspace,
@@ -361,18 +368,16 @@ public struct WorkspaceLayoutFeature {
             presentBundleIds: state.presentBundleIds
           )
     else { return .none }
-    var zoomed = state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
+    var zoomed = Set(state.layoutSnapshot?.fullscreenZoomedSlots ?? [])
     if zoomIn {
-      // Can't zoom more windows of an app than the layout holds.
-      let total = template.windows.filter { $0 == bundleId }.count
-      let current = zoomed.filter { $0 == bundleId }.count
-      guard current < total else { return .none }
-      zoomed.append(bundleId)
+      // Only zoom a slot the layout actually holds.
+      guard template.windows.contains(slot) else { return .none }
+      zoomed.insert(slot)
     } else {
-      guard let idx = zoomed.firstIndex(of: bundleId) else { return .none }
-      zoomed.remove(at: idx)
+      guard zoomed.remove(slot) != nil else { return .none }
     }
-    let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedBundleIds: zoomed.sorted())
+    let sortedZoom = zoomed.sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) }
+    let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedSlots: sortedZoom)
     state.layoutSnapshot = snapshot
     return .merge(
       .run { [layoutStore] _ in layoutStore.save(id, snapshot) },
