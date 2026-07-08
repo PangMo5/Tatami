@@ -76,7 +76,7 @@ extension WorkspaceActivationFeature {
 
     return .merge(
       flushLayout(workspaceId: workspaceId, state: state),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace)
     )
   }
 
@@ -130,14 +130,8 @@ extension WorkspaceActivationFeature {
           let targetRect = allFrames[target]
     else { return nil }
 
-    switch dropQuadrant(point: cursor, in: targetRect) {
-    case .none: return nil
-    case .center: return (target, targetRect, .swap)
-    case .top: return (target, targetRect, .top)
-    case .right: return (target, targetRect, .right)
-    case .bottom: return (target, targetRect, .bottom)
-    case .left: return (target, targetRect, .left)
-    }
+    guard let zone = DropZone.quadrant(point: cursor, in: targetRect) else { return nil }
+    return (target, targetRect, zone)
   }
 
   /// Commit a frozen drop decision: swap the two windows in place, or warp
@@ -156,76 +150,26 @@ extension WorkspaceActivationFeature {
           tree.pathTo(window: drop.target) != nil
     else { return .none }
 
-    let settings = state.config.settings
     let newTree: BSPNode<WindowKey>
     switch drop.zone {
     case .swap:
       newTree = tree.swapping(drop.dragged, drop.target)
     case .top:
-      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .horizontal, child: .first)
+      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .horizontal, child: .first)
     case .right:
-      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .vertical, child: .second)
+      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .vertical, child: .second)
     case .bottom:
-      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .horizontal, child: .second)
+      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .horizontal, child: .second)
     case .left:
-      newTree = warpInto(tree: tree, source: drop.dragged, target: drop.target, axis: .vertical, child: .first)
+      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .vertical, child: .first)
     }
     state.tilingTrees[workspaceId] = newTree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
       flushLayout(workspaceId: workspaceId, state: state),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace)
     )
-  }
-
-  /// Returns which quadrant of `rect` `point` falls into. The center
-  /// is a square covering the middle 50% of the rect; outside it the
-  /// four triangles fan out to the corners.
-  private enum DropQuadrant { case none, center, top, right, bottom, left }
-  private func dropQuadrant(point: CGPoint, in rect: CGRect) -> DropQuadrant {
-    let wp = CGPoint(x: point.x - rect.origin.x, y: point.y - rect.origin.y)
-    let centerRect = CGRect(
-      x: 0.25 * rect.width, y: 0.25 * rect.height,
-      width: 0.5 * rect.width, height: 0.5 * rect.height
-    )
-    if centerRect.contains(wp) { return .center }
-    // Four triangles. Use signed cross products against the rect's
-    // diagonals to classify.
-    let mid = CGPoint(x: 0.5 * rect.width, y: 0.5 * rect.height)
-    let onAboveDownDiag = (wp.x - 0) * (rect.height - 0) - (wp.y - 0) * (rect.width - 0) < 0
-    let onAboveUpDiag = (wp.x - 0) * (0 - rect.height) - (wp.y - rect.height) * (rect.width - 0) < 0
-    _ = mid
-    // Coordinates are AX top-left (y grows downward), so the *top* triangle
-    // is the small-y one, `(false, false)`, and the bottom is `(true, true)`.
-    switch (onAboveDownDiag, onAboveUpDiag) {
-    case (false, false): return .top
-    case (false, true):  return .right
-    case (true, true):   return .bottom
-    case (true, false):  return .left
-    }
-  }
-
-  /// Warp `source` next to `target` with a specific split axis +
-  /// child placement: remove source from current slot, then re-insert
-  /// next to target after seeding the target leaf's `preferredSplit`
-  /// + `preferredChild`.
-  private func warpInto(
-    tree: BSPNode<WindowKey>,
-    source: WindowKey,
-    target: WindowKey,
-    axis: BSPNode<WindowKey>.SplitAxis,
-    child: BSPNode<WindowKey>.Child
-  ) -> BSPNode<WindowKey> {
-    guard let targetPath = tree.pathTo(window: target) else { return tree }
-    let seeded = tree.replacing(path: targetPath) { node in
-      guard case .leaf(var leaf) = node else { return node }
-      leaf.preferredSplit = axis
-      leaf.preferredChild = child
-      return .leaf(leaf)
-    }
-    guard let removed = seeded.removing(source) else { return tree }
-    return removed.inserting(source, near: target, in: CGRect(x: 0, y: 0, width: 1, height: 1))
   }
 
   /// `tree` with its fullscreen-zoomed windows trimmed out — the layout the

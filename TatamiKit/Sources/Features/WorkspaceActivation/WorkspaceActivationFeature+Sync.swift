@@ -49,7 +49,7 @@ extension WorkspaceActivationFeature {
     return .merge(
       flushLayout(workspaceId: workspaceId, state: state),
       .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
-      persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+      persist(tree, fullscreenZoomed: zoomed, for: workspace)
     )
   }
 
@@ -335,7 +335,7 @@ extension WorkspaceActivationFeature {
     return .merge(
       flushLayout(workspaceId: workspaceId, state: state),
       observeEffect,
-      persist(final, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
+      persist(final, fullscreenZoomed: zoomed, for: workspace),
       markerRefresh,
       refocusEffect,
       warpEffect,
@@ -615,7 +615,7 @@ extension WorkspaceActivationFeature {
       }()
 
       effects.append(
-        persist(balanced, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory)
+        persist(balanced, fullscreenZoomed: zoomed, for: workspace)
       )
       effects.append(refocusEffect)
       // Pruning only runs when windows actually left the screen.

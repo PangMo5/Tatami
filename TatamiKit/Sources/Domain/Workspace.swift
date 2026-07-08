@@ -1,28 +1,6 @@
 import CoreGraphics
 import Foundation
 
-/// How a workspace remembers its BSP layout across re-activations.
-public enum TilingMemory: String, Hashable, Sendable, Codable, CaseIterable {
-  /// Remember for the lifetime of the app process. Switching away and
-  /// back preserves split axes + user-tuned ratios, but a restart
-  /// starts clean. (Default — matches prior behavior.)
-  case session
-  /// Remember across restarts. The tree shape (split axes + ratios) is
-  /// snapshotted to disk keyed by bundle id, and restored when the same
-  /// apps are present again.
-  case persistent
-
-  /// UI label — lives on the domain type like every other settings
-  /// enum's `displayName` (one convention instead of app-target
-  /// extensions for some enums and domain members for others).
-  public var displayName: String {
-    switch self {
-    case .session: "Session"
-    case .persistent: "Persistent"
-    }
-  }
-}
-
 /// Normal vs scratchpad. A scratchpad is borrow-only: excluded from cycling
 /// and standalone activation, it only appears when summoned into another
 /// workspace's composition.
@@ -55,9 +33,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// Bundle identifier of the app to focus when this workspace activates.
   /// Nil = focus the most recently active assigned app.
   public var appToFocusBundleId: String?
-  /// How this workspace remembers its BSP layout across activations.
-  /// `nil` inherits the global `AppSettings.defaultTilingMemory`.
-  public var tilingMemory: TilingMemory?
   /// Normal vs scratchpad (borrow-only). Scratchpad is skipped by cycling
   /// and standalone activation; it only shows when borrowed.
   public var kind: WorkspaceKind
@@ -86,7 +61,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     assignAppShortcut: HotKey? = nil,
     symbolIconName: String? = nil,
     appToFocusBundleId: String? = nil,
-    tilingMemory: TilingMemory? = nil,
     kind: WorkspaceKind = .normal,
     keyEquivalent: String? = nil,
     borrowShortcut: HotKey? = nil,
@@ -101,7 +75,6 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.assignAppShortcut = assignAppShortcut
     self.symbolIconName = symbolIconName
     self.appToFocusBundleId = appToFocusBundleId
-    self.tilingMemory = tilingMemory
     self.kind = kind
     self.keyEquivalent = keyEquivalent
     self.borrowShortcut = borrowShortcut
@@ -115,7 +88,6 @@ extension Workspace {
   private enum CodingKeys: String, CodingKey {
     case id, name, displayHint, activateShortcut, assignAppShortcut
     case symbolIconName, appToFocusBundleId
-    case tilingMemory
     case kind
     case keyEquivalent
     case borrowShortcut
@@ -133,7 +105,6 @@ extension Workspace {
     assignAppShortcut = try container.decodeIfPresent(HotKey.self, forKey: .assignAppShortcut)
     symbolIconName = try container.decodeIfPresent(String.self, forKey: .symbolIconName)
     appToFocusBundleId = try container.decodeIfPresent(String.self, forKey: .appToFocusBundleId)
-    tilingMemory = try container.decodeIfPresent(TilingMemory.self, forKey: .tilingMemory)
     kind = try container.decodeIfPresent(WorkspaceKind.self, forKey: .kind) ?? .normal
     keyEquivalent = try container.decodeIfPresent(String.self, forKey: .keyEquivalent)
     borrowShortcut = try container.decodeIfPresent(HotKey.self, forKey: .borrowShortcut)

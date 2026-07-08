@@ -175,7 +175,6 @@ extension WorkspaceActivationFeature {
       workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
         + state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
     ))
-    let memory = workspace.tilingMemory ?? settings.layout.defaultTilingMemory
     let sessionTree = state.tilingTrees[workspace.id]
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
@@ -284,10 +283,10 @@ extension WorkspaceActivationFeature {
       // activation's main-actor hops.
       guard !Task.isCancelled else { return }
       if !isPaused {
+        // Layouts always persist now — restore the saved template whenever
+        // there's no in-memory tree yet (fresh launch / first activation).
         let persistedSnapshot: LayoutSnapshot? =
-          memory == .persistent && sessionTree == nil
-            ? await store.load(workspaceId)
-            : nil
+          sessionTree == nil ? await store.load(workspaceId) : nil
         // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
         // AX round trips — AX scans block on each target app's run loop
         // (measured 50 ms–1.2 s per switch), which is what made switching
@@ -344,7 +343,7 @@ extension WorkspaceActivationFeature {
         if !restoredZoom.isEmpty, zoomed.isEmpty {
           await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
         }
-        if memory == .persistent, let tree {
+        if let tree {
           store.save(
             workspaceId,
             LayoutSnapshot(

@@ -252,6 +252,9 @@ public struct WorkspaceActivationFeature {
     case bspToggleZoomFullscreen
     case bspBalance
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
+    /// GUI layout-preview edit for the *active* workspace: apply a structural
+    /// op to its live tree, re-tile on screen, and persist per memory setting.
+    case layoutEdited(workspaceId: Workspace.ID, op: LayoutEditOp)
     case windowChanged(WindowChangeEvent)
     /// Incrementally reconcile a single app's windows into the active
     /// tree: add new windows, drop gone ones, touch nothing else.
@@ -1147,6 +1150,21 @@ public struct WorkspaceActivationFeature {
       case .bspOpResolved(let key, let op):
         return applyBSPOp(windowKey: key, op: op, state: &state)
 
+      case .layoutEdited(let workspaceId, let op):
+        // Only the active workspace has a live tree here; the inactive path
+        // edits the on-disk snapshot in WorkspaceDetailFeature instead.
+        guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+              let tree = state.tilingTrees[workspaceId]
+        else { return .none }
+        let newTree = tree.applying(op)
+        guard newTree != tree else { return .none }
+        state.tilingTrees[workspaceId] = newTree
+        let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+        return .merge(
+          flushLayout(workspaceId: workspaceId, state: state),
+          persist(newTree, fullscreenZoomed: zoomed, for: workspace)
+        )
+
       case .persistedFullscreenZoomRestored(let workspaceId, let keys):
         state.fullscreenZoomed[workspaceId] = keys.isEmpty ? nil : keys
         return .none
@@ -1319,19 +1337,16 @@ public struct WorkspaceActivationFeature {
     )
   }
 
-  /// Snapshot the tree to disk when the workspace opted into
-  /// `.persistent` memory. No-op otherwise. The tree is bundle-id
-  /// keyed (`WindowKey`s die at process exit); fullscreen-zoom is
-  /// recorded so it survives a restart too. Per-leaf parent-zoom is
-  /// carried inside the tree itself.
+  /// Snapshot the tree to disk so the workspace's BSP layout survives a
+  /// restart. The tree is bundle-id keyed (`WindowKey`s die at process exit);
+  /// fullscreen-zoom is recorded so it survives too. Per-leaf parent-zoom is
+  /// carried inside the tree itself. No-op only when the tree is empty.
   func persist(
     _ tree: BSPNode<WindowKey>?,
     fullscreenZoomed: Set<WindowKey>,
-    for workspace: Workspace,
-    default defaultMemory: TilingMemory
+    for workspace: Workspace
   ) -> Effect<Action> {
-    let memory = workspace.tilingMemory ?? defaultMemory
-    guard memory == .persistent, let tree else { return .none }
+    guard let tree else { return .none }
     let id = workspace.id
     let template = tree.mapWindows { $0.bundleId }
     let zoomedBundleIds = fullscreenZoomed.map(\.bundleId).sorted()
@@ -1441,7 +1456,7 @@ public struct WorkspaceActivationFeature {
 
     return .merge(
       flushLayout(workspaceId: workspaceId, state: state),
-      persist(tree, fullscreenZoomed: zoomed, for: workspace, default: settings.layout.defaultTilingMemory),
+      persist(tree, fullscreenZoomed: zoomed, for: workspace),
       refreshMarkers(state: state),
       warpFocused
         ? warpToWindow(windowKey, in: tree, workspaceId: workspaceId, state: state)

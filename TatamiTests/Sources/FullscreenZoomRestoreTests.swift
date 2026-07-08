@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import TatamiKit
 
-/// `tilingMemory == .persistent` saves the fullscreen-zoomed windows as a
+/// A persisted layout saves the fullscreen-zoomed windows as a
 /// list of bundle ids (window identity is process-scoped and meaningless
 /// after a restart). On restore, each persisted entry must consume a
 /// *distinct* live window so that several zoomed windows of the same app

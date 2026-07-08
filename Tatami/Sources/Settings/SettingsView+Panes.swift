@@ -157,14 +157,6 @@ extension SettingsView {
         Text("New window placement")
         Text("Which side of the new split holds the inserted window.")
       }
-      Picker(selection: setting(\.layout.defaultTilingMemory)) {
-        ForEach(TilingMemory.allCases, id: \.self) { memory in
-          Text(memory.displayName).tag(memory)
-        }
-      } label: {
-        Text("Default tiling memory")
-        Text("How workspaces remember their layout unless they override it.")
-      }
     }
 
     Section("Gaps") {

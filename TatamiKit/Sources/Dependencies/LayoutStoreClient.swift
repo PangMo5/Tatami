@@ -4,9 +4,9 @@ import Foundation
 import OSLog
 import YYJSON
 
-/// Persists per-workspace BSP layout snapshots so workspaces with
-/// `tilingMemory == .persistent` keep their split axes + ratios across
-/// app restarts. Snapshots are keyed by workspace UUID and store a
+/// Persists per-workspace BSP layout snapshots so every workspace keeps its
+/// split axes + ratios across app restarts. Snapshots are keyed by workspace
+/// UUID and store a
 /// `BSPNode<String>` (bundle-id leaves) — `WindowKey`s are process-
 /// scoped and meaningless after a restart, so we serialize the shape
 /// and re-hydrate it against live windows on the next activation.
@@ -22,16 +22,16 @@ struct LayoutStoreClient: Sendable {
 /// (bundle-identified) windows were fullscreen-zoomed at the time of
 /// the last save. Parent-zoom (per-leaf, single-tile) is carried by
 /// the leaf itself inside `tree`.
-struct LayoutSnapshot: Codable, Hashable, Sendable {
-  var tree: BSPNode<String>
+public struct LayoutSnapshot: Codable, Hashable, Sendable {
+  public var tree: BSPNode<String>
   /// Bundle identifiers of the *fullscreen*-zoomed windows at save
   /// time. Tatami-specific multi-window fullscreen: each one renders
   /// at the workspace work area and is excluded from the rest of the
   /// tree's layout. On hydration, each entry re-attaches to the first
   /// live window matching that bundle id.
-  var fullscreenZoomedBundleIds: [String]
+  public var fullscreenZoomedBundleIds: [String]
 
-  init(tree: BSPNode<String>, fullscreenZoomedBundleIds: [String] = []) {
+  public init(tree: BSPNode<String>, fullscreenZoomedBundleIds: [String] = []) {
     self.tree = tree
     self.fullscreenZoomedBundleIds = fullscreenZoomedBundleIds
   }

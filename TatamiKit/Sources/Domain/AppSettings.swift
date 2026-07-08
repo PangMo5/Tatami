@@ -331,24 +331,19 @@ extension AppSettings {
     /// `.second` (default) puts new windows on the right / bottom of
     /// the new split.
     public var windowPlacement: WindowPlacement
-    /// Global default for how workspaces remember their BSP layout.
-    /// A workspace's own `tilingMemory` overrides this when set.
-    public var defaultTilingMemory: TilingMemory
 
     public init(
       gapInner: Int = 8,
       gapOuter: Int = 8,
       autoBalance: AutoBalanceMode = .none,
       splitType: SplitTypePreference = .auto,
-      windowPlacement: WindowPlacement = .second,
-      defaultTilingMemory: TilingMemory = .session
+      windowPlacement: WindowPlacement = .second
     ) {
       self.gapInner = gapInner
       self.gapOuter = gapOuter
       self.autoBalance = autoBalance
       self.splitType = splitType
       self.windowPlacement = windowPlacement
-      self.defaultTilingMemory = defaultTilingMemory
     }
 
     // `windowOriginMode` (a yabai `window_origin_display` port) used to
@@ -358,7 +353,6 @@ extension AppSettings {
     // that still carry the key are ignored harmlessly.
     private enum CodingKeys: String, CodingKey {
       case gapInner, gapOuter, autoBalance, splitType, windowPlacement
-      case defaultTilingMemory
     }
 
     public init(from decoder: Decoder) throws {
@@ -377,7 +371,6 @@ extension AppSettings {
       }
       self.splitType = c.decode(.splitType, default: .auto)
       self.windowPlacement = c.decode(.windowPlacement, default: .second)
-      self.defaultTilingMemory = c.decode(.defaultTilingMemory, default: .session)
     }
   }
 }

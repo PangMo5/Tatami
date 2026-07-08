@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Dependencies
 import DependenciesMacros
@@ -49,6 +50,10 @@ struct WindowSnapshotClient: Sendable {
   /// Bundle ids of every running app (any activation policy — the
   /// skip-empty cycle counts background-only members too).
   var runningBundleIds: @Sendable () -> Set<String> = { [] }
+  /// AX window titles for the given keys, for the GUI layout preview to
+  /// disambiguate several windows of the same app. Best-effort: windows that
+  /// don't answer / have no title are simply absent from the result.
+  var windowTitles: @Sendable (_ keys: [WindowKey]) -> [WindowKey: String] = { _ in [:] }
 }
 
 extension WindowSnapshotClient: DependencyKey {
@@ -146,6 +151,34 @@ extension WindowSnapshotClient: DependencyKey {
       MainActor.assumeIsolated {
         Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
       }
+    },
+    windowTitles: { keys in
+      MainActor.assumeIsolated {
+        guard !keys.isEmpty else { return [:] }
+        var out: [WindowKey: String] = [:]
+        // One AX app handle per pid; map each app's windows by CGWindowID once.
+        for (pid, group) in Dictionary(grouping: keys, by: \.pid) {
+          let axApp = AXUIElementCreateApplication(pid)
+          var raw: CFTypeRef?
+          guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &raw) == .success,
+                let windows = raw as? [AXUIElement]
+          else { continue }
+          var titleByWindowID: [CGWindowID: String] = [:]
+          for window in windows {
+            var wid: CGWindowID = 0
+            guard _AXUIElementGetWindow(window, &wid) == .success, wid != 0 else { continue }
+            var titleRaw: CFTypeRef?
+            if AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRaw) == .success,
+               let title = titleRaw as? String, !title.isEmpty {
+              titleByWindowID[wid] = title
+            }
+          }
+          for key in group where titleByWindowID[key.windowID] != nil {
+            out[key] = titleByWindowID[key.windowID]
+          }
+        }
+        return out
+      }
     }
     )
   }()
@@ -156,7 +189,8 @@ extension WindowSnapshotClient: DependencyKey {
     focusedWindowKey: { nil },
     frontmostApp: { nil },
     onScreenWindowIDs: { [] },
-    runningBundleIds: { [] }
+    runningBundleIds: { [] },
+    windowTitles: { _ in [:] }
   )
   static let previewValue = testValue
 }

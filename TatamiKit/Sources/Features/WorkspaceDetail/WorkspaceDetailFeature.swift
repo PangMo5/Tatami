@@ -15,6 +15,13 @@ public struct WorkspaceDetailFeature {
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
     public var availableDisplays: [DisplayName] = []
+    /// Persisted layout template for this workspace, loaded on appear. Drives
+    /// the layout preview when the workspace isn't currently active (no live
+    /// tree); edits write back through here.
+    public var layoutSnapshot: LayoutSnapshot?
+    /// AX titles for the active workspace's live windows, keyed by window —
+    /// lets the preview disambiguate several windows of the same app.
+    public var windowTitles: [WindowKey: String] = [:]
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(workspaceId: Workspace.ID) {
@@ -65,7 +72,6 @@ public struct WorkspaceDetailFeature {
     case assignAppShortcutChanged(HotKey?)
     case appToFocusChanged(String?)
     case displayHintChanged(DisplayName?)
-    case tilingMemoryChanged(TilingMemory?)
     case kindChanged(WorkspaceKind)
     case keyEquivalentChanged(String?)
     case borrowShortcutChanged(HotKey?)
@@ -74,6 +80,23 @@ public struct WorkspaceDetailFeature {
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
+    /// Persisted layout snapshot arrived from disk (or nil if none saved yet).
+    case layoutSnapshotLoaded(LayoutSnapshot?)
+    /// A layout-preview edit for this *inactive* workspace: apply to its
+    /// template, persist, and opt the workspace into `.persistent` memory so
+    /// the edit is honored on next activation. (Active edits route to
+    /// `WorkspaceActivationFeature.layoutEdited` instead.)
+    case layoutEdited(LayoutEditOp)
+    /// Fullscreen-zoom (`zoomIn: true`) or restore (`false`) one window of
+    /// `bundleId` in this *inactive* workspace's saved layout. Tracked as a
+    /// count in `fullscreenZoomedBundleIds` (a workspace can hold several
+    /// windows of the same app), matching how activation restores them. Active
+    /// toggles route to `bspToggleZoomFullscreen` per live window instead.
+    case layoutFullscreenToggled(bundleId: String, zoomIn: Bool)
+    /// Fetch AX titles for the active workspace's live windows (driven by the
+    /// view, which holds the live tree).
+    case loadWindowTitles([WindowKey])
+    case windowTitlesLoaded([WindowKey: String])
     case alert(PresentationAction<Alert>)
 
     public enum Alert: Equatable {
@@ -85,6 +108,8 @@ public struct WorkspaceDetailFeature {
   @Dependency(\.displays) var displays
   @Dependency(\.hotKeys) var hotKeys
   @Dependency(\.appChooser) var appChooser
+  @Dependency(\.layoutStore) var layoutStore
+  @Dependency(\.windowSnapshot) var windowSnapshot
 
   public init() {}
 
@@ -97,6 +122,71 @@ public struct WorkspaceDetailFeature {
 
       case .onAppear:
         state.availableDisplays = displays.all()
+        let id = state.workspaceId
+        return .run { [layoutStore] send in
+          await send(.layoutSnapshotLoaded(layoutStore.load(id)))
+        }
+
+      case .layoutSnapshotLoaded(let snapshot):
+        state.layoutSnapshot = snapshot
+        return .none
+
+      case .layoutEdited(let op):
+        let id = state.workspaceId
+        guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
+        let tiled = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+        guard let template = state.layoutSnapshot?.tree
+          ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
+        else { return .none }
+        // Rekey to unique tokens so relocate is unambiguous even when a bundle
+        // id repeats across leaves, apply, then map back to bundle ids.
+        let (tokenized, back) = template.tokenized()
+        let newTemplate = tokenized.applying(op).mapWindows { back[$0]! }
+        guard newTemplate != template else { return .none }
+        let snapshot = LayoutSnapshot(
+          tree: newTemplate,
+          fullscreenZoomedBundleIds: state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
+        )
+        state.layoutSnapshot = snapshot
+        // Layouts always persist, so the edit is saved and honored on the next
+        // activation without touching any per-workspace memory flag.
+        return .run { [layoutStore] _ in layoutStore.save(id, snapshot) }
+
+      case .layoutFullscreenToggled(let bundleId, let zoomIn):
+        let id = state.workspaceId
+        guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
+        let tiled = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+        guard let template = state.layoutSnapshot?.tree
+          ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
+        else { return .none }
+        var zoomed = state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
+        if zoomIn {
+          // Cap at the number of that app's windows in the layout — can't zoom
+          // more windows than exist.
+          let total = template.windows.filter { $0 == bundleId }.count
+          let current = zoomed.filter { $0 == bundleId }.count
+          guard current < total else { return .none }
+          zoomed.append(bundleId)
+        } else {
+          guard let idx = zoomed.firstIndex(of: bundleId) else { return .none }
+          zoomed.remove(at: idx)
+        }
+        let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedBundleIds: zoomed.sorted())
+        state.layoutSnapshot = snapshot
+        return .run { [layoutStore] _ in layoutStore.save(id, snapshot) }
+
+      case .loadWindowTitles(let keys):
+        guard !keys.isEmpty else {
+          state.windowTitles = [:]
+          return .none
+        }
+        return .run { [windowSnapshot] send in
+          let titles = await MainActor.run { windowSnapshot.windowTitles(keys) }
+          await send(.windowTitlesLoaded(titles))
+        }
+
+      case .windowTitlesLoaded(let titles):
+        state.windowTitles = titles
         return .none
 
       case .refreshDisplays:
@@ -232,13 +322,6 @@ public struct WorkspaceDetailFeature {
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.displayHint = display }
-        }
-        return .none
-
-      case .tilingMemoryChanged(let memory):
-        let id = state.workspaceId
-        state.$config.withLock { config in
-          config.mutateWorkspace(id) { $0.tilingMemory = memory }
         }
         return .none
 

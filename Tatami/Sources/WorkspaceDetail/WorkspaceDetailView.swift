@@ -68,6 +68,42 @@ struct WorkspaceDetailView: View {
   var body: some View {
     if let workspace = store.workspace {
       Form {
+        Section {
+          let liveTree = activationStore.tilingTrees[workspace.id]
+          let resolved = ResolvedLayout.resolve(
+            workspace: workspace,
+            isActive: isActive(workspace),
+            liveTree: liveTree,
+            liveZoomed: activationStore.fullscreenZoomed[workspace.id] ?? [],
+            snapshot: store.layoutSnapshot,
+            autoBalance: store.config.settings.layout.autoBalance
+          )
+          WorkspaceLayoutPreview(
+            workspace: workspace,
+            resolved: resolved,
+            settings: store.config.settings,
+            sharedApps: store.config.sharedApps,
+            windowTitles: store.windowTitles,
+            onEdit: { op in
+              if resolved?.isLive == true {
+                activationStore.send(.layoutEdited(workspaceId: workspace.id, op: op))
+              } else {
+                store.send(.layoutEdited(op))
+              }
+            },
+            onToggleFullscreen: { bundleId, liveKey, zoomIn in
+              if resolved?.isLive == true, let key = liveKey {
+                // Live: per-window toggle (state decides zoom in/out).
+                activationStore.send(.bspOpResolved(windowKey: key, op: .toggleZoomFullscreen))
+              } else {
+                store.send(.layoutFullscreenToggled(bundleId: bundleId, zoomIn: zoomIn))
+              }
+            }
+          )
+        } header: {
+          Text("Layout")
+        }
+
         Section("Workspace") {
           // Icon picker — opens the SF Symbol grid on tap. Plain HStack with
           // center alignment so the label sits vertically centered against
@@ -231,27 +267,6 @@ struct WorkspaceDetailView: View {
           )
         }
 
-        Section("Tiling Memory") {
-          let globalDefault = store.config.settings.layout.defaultTilingMemory
-          Picker(
-            selection: Binding(
-              get: { workspace.tilingMemory },
-              set: { store.send(.tilingMemoryChanged($0)) }
-            )
-          ) {
-            Text("Use Global (\(globalDefault.displayName))").tag(TilingMemory?.none)
-            Divider()
-            ForEach(TilingMemory.allCases, id: \.self) { memory in
-              Text(memory.displayName).tag(TilingMemory?.some(memory))
-            }
-          } label: {
-            Text("Remember layout")
-            Text(workspace.tilingMemory.map(memoryDescription)
-              ?? "Follow the global default — \(globalDefault.displayName). Change it in Settings.")
-          }
-          .pickerStyle(.menu)
-        }
-
         if workspace.kind != .scratchpad {
           Section("On Activation") {
             Picker(
@@ -348,6 +363,11 @@ struct WorkspaceDetailView: View {
       // display list (a plain `.task` only fires on first appearance, which
       // left later workspaces' pickers showing just their own pinned display).
       .task(id: workspace.id) { store.send(.onAppear) }
+      // Fetch AX window titles for the live tree so the preview can label same-
+      // app windows distinctly. Re-runs whenever the live window set changes.
+      .task(id: activationStore.tilingTrees[workspace.id].map { Set($0.windows) } ?? []) {
+        store.send(.loadWindowTitles(Array(activationStore.tilingTrees[workspace.id]?.windows ?? [])))
+      }
       // Refresh the pinned-display picker when monitors are plugged/unplugged.
       .onReceive(
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
@@ -360,13 +380,6 @@ struct WorkspaceDetailView: View {
         description: Text("This workspace no longer exists.")
       )
     }
-  }
-}
-
-private func memoryDescription(_ memory: TilingMemory) -> String {
-  switch memory {
-  case .session: "Keep split ratios while the app runs; reset on restart."
-  case .persistent: "Remember the layout across app restarts."
   }
 }
 
