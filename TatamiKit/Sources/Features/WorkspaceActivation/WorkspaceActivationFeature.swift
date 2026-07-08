@@ -255,6 +255,10 @@ public struct WorkspaceActivationFeature {
     /// GUI layout-preview edit for the *active* workspace: apply a structural
     /// op to its live tree, re-tile on screen, and persist per memory setting.
     case layoutEdited(workspaceId: Workspace.ID, op: LayoutEditOp)
+    /// A GUI edit changed an *inactive* workspace's saved layout — drop its
+    /// resident in-memory tree/zoom so the next activation rebuilds from the
+    /// edited snapshot rather than the stale session state.
+    case invalidateResidentLayout(workspaceId: Workspace.ID)
     case windowChanged(WindowChangeEvent)
     /// Incrementally reconcile a single app's windows into the active
     /// tree: add new windows, drop gone ones, touch nothing else.
@@ -1164,6 +1168,17 @@ public struct WorkspaceActivationFeature {
           flushLayout(workspaceId: workspaceId, state: state),
           persist(newTree, fullscreenZoomed: zoomed, for: workspace)
         )
+
+      case .invalidateResidentLayout(let workspaceId):
+        // The inactive workspace's saved snapshot was edited in the GUI. Its
+        // resident session tree/zoom would otherwise win at the next activation
+        // (activation only loads the snapshot when there's no session tree), so
+        // drop them — activation then rebuilds from the edited snapshot.
+        guard !state.activeWorkspacesByDisplay.values.contains(workspaceId) else { return .none }
+        state.tilingTrees[workspaceId] = nil
+        state.fullscreenZoomed[workspaceId] = nil
+        state.insertionPoint[workspaceId] = nil
+        return .none
 
       case .persistedFullscreenZoomRestored(let workspaceId, let keys):
         state.fullscreenZoomed[workspaceId] = keys.isEmpty ? nil : keys

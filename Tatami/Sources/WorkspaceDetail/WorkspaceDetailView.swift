@@ -72,6 +72,7 @@ struct WorkspaceDetailView: View {
           let liveTree = activationStore.tilingTrees[workspace.id]
           let resolved = ResolvedLayout.resolve(
             workspace: workspace,
+            sharedApps: store.config.sharedApps,
             isActive: isActive(workspace),
             liveTree: liveTree,
             liveZoomed: activationStore.fullscreenZoomed[workspace.id] ?? [],
@@ -89,6 +90,9 @@ struct WorkspaceDetailView: View {
                 activationStore.send(.layoutEdited(workspaceId: workspace.id, op: op))
               } else {
                 store.send(.layoutEdited(op))
+                // Drop the stale resident tree so the next activation rebuilds
+                // from the edited snapshot.
+                activationStore.send(.invalidateResidentLayout(workspaceId: workspace.id))
               }
             },
             onToggleFullscreen: { bundleId, liveKey, zoomIn in
@@ -97,6 +101,7 @@ struct WorkspaceDetailView: View {
                 activationStore.send(.bspOpResolved(windowKey: key, op: .toggleZoomFullscreen))
               } else {
                 store.send(.layoutFullscreenToggled(bundleId: bundleId, zoomIn: zoomIn))
+                activationStore.send(.invalidateResidentLayout(workspaceId: workspace.id))
               }
             }
           )
@@ -180,6 +185,52 @@ struct WorkspaceDetailView: View {
               : "A normal workspace you switch to and cycle through. Borrow mode summons it by this key (h/j/k/l steer direction, so a workspace keyed to one isn't borrow-summonable).")
           }
           .pickerStyle(.menu)
+        }
+
+        Section {
+          ForEach(store.apps) { assignment in
+            AppRow(
+              assignment: assignment,
+              autoOpenBinding: Binding(
+                get: { assignment.autoOpen },
+                set: { value in
+                  store.send(
+                    .autoOpenToggled(bundleIdentifier: assignment.bundleIdentifier, isOn: value)
+                  )
+                }
+              ),
+              layoutBinding: Binding(
+                get: { assignment.layout },
+                set: { value in
+                  store.send(
+                    .layoutChanged(bundleIdentifier: assignment.bundleIdentifier, layout: value)
+                  )
+                }
+              ),
+              showLayoutOptions: workspace.kind != .scratchpad,
+              onRemove: {
+                store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
+              }
+            )
+          }
+        } header: {
+          HStack {
+            Text("Apps")
+            Spacer()
+            Button {
+              store.send(.addAppButtonTapped)
+            } label: {
+              Label("Add", systemImage: "plus.circle")
+                .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+          }
+        } footer: {
+          if store.apps.isEmpty {
+            Text("No apps yet. Tap + to assign one.")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
         }
 
         Section {
@@ -284,52 +335,6 @@ struct WorkspaceDetailView: View {
               Text("Which assigned app gets focus when this workspace activates.")
             }
             .pickerStyle(.menu)
-          }
-        }
-
-        Section {
-          ForEach(store.apps) { assignment in
-            AppRow(
-              assignment: assignment,
-              autoOpenBinding: Binding(
-                get: { assignment.autoOpen },
-                set: { value in
-                  store.send(
-                    .autoOpenToggled(bundleIdentifier: assignment.bundleIdentifier, isOn: value)
-                  )
-                }
-              ),
-              layoutBinding: Binding(
-                get: { assignment.layout },
-                set: { value in
-                  store.send(
-                    .layoutChanged(bundleIdentifier: assignment.bundleIdentifier, layout: value)
-                  )
-                }
-              ),
-              showLayoutOptions: workspace.kind != .scratchpad,
-              onRemove: {
-                store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
-              }
-            )
-          }
-        } header: {
-          HStack {
-            Text("Apps")
-            Spacer()
-            Button {
-              store.send(.addAppButtonTapped)
-            } label: {
-              Label("Add", systemImage: "plus.circle")
-                .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.borderless)
-          }
-        } footer: {
-          if store.apps.isEmpty {
-            Text("No apps yet. Tap + to assign one.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
           }
         }
       }

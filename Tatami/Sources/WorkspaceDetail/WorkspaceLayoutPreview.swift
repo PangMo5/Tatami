@@ -20,6 +20,7 @@ enum ResolvedLayout: Equatable {
 
   static func resolve(
     workspace: Workspace,
+    sharedApps: [SharedApp],
     isActive: Bool,
     liveTree: BSPNode<WindowKey>?,
     liveZoomed: Set<WindowKey>,
@@ -33,7 +34,7 @@ enum ResolvedLayout: Equatable {
     if isActive, let liveTree, !liveTree.windows.isEmpty {
       return .live(liveTree, zoomed: liveZoomed)
     }
-    let tiled = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+    let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
     guard var template = snapshot?.tree ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled),
           !template.windows.isEmpty
     else { return nil }
@@ -206,6 +207,17 @@ private struct SelectedTile: Equatable {
   var liveKey: WindowKey?
 }
 
+/// A workspace member that isn't tiled — floating (mirrored above the tiles) or
+/// ignored (left alone). Shown in a band, not the BSP canvas.
+private struct NonTiledApp: Identifiable {
+  var bundleId: String
+  var name: String
+  var iconPath: String?
+  var mode: LayoutMode
+  var isShared: Bool
+  var id: String { bundleId }
+}
+
 /// In-progress divider resize: the trimmed path (for the active-handle
 /// highlight) plus the mapped full-tree path (what's actually edited).
 private struct PendingRatio: Equatable {
@@ -257,9 +269,76 @@ struct WorkspaceLayoutPreview: View {
       } else {
         toolbar
         canvas
+        if !nonTiledApps.isEmpty { nonTiledBand }
         footnote
       }
     }
+  }
+
+  // MARK: Non-tiled band (floating + ignored, read-only)
+
+  private var nonTiledApps: [NonTiledApp] {
+    var out: [NonTiledApp] = []
+    for app in workspace.apps where app.layout != .tiled {
+      out.append(NonTiledApp(bundleId: app.bundleIdentifier, name: app.name,
+                             iconPath: app.iconPath, mode: app.layout, isShared: false))
+    }
+    // A scratchpad borrows only its own apps; shared apps belong to the host.
+    if workspace.kind != .scratchpad {
+      for app in sharedApps where app.layout != .tiled {
+        out.append(NonTiledApp(bundleId: app.bundleIdentifier, name: app.name,
+                               iconPath: app.iconPath, mode: app.layout, isShared: true))
+      }
+    }
+    return out
+  }
+
+  private var nonTiledBand: some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Label("Not tiled", systemImage: "rectangle.dashed")
+        .font(.caption2.bold())
+        .foregroundStyle(.secondary)
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+          ForEach(nonTiledApps) { app in nonTiledChip(app) }
+        }
+        .padding(.horizontal, 2)
+      }
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+    )
+  }
+
+  private func nonTiledChip(_ app: NonTiledApp) -> some View {
+    HStack(spacing: 5) {
+      if app.isShared {
+        Image(systemName: "square.on.square").font(.system(size: 9)).foregroundStyle(.secondary)
+      }
+      AppIcon(bundleIdentifier: app.bundleId, iconPath: app.iconPath)
+        .frame(width: 18, height: 18)
+      Text(app.name).font(.caption).lineLimit(1).truncationMode(.middle).frame(maxWidth: 150)
+      Image(systemName: app.mode == .floating ? "rectangle.on.rectangle" : "nosign")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 5)
+    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+    .help(nonTiledHelp(app))
+  }
+
+  private func nonTiledHelp(_ app: NonTiledApp) -> String {
+    let mode = app.mode == .floating ? "Floating — kept above the tiles" : "Ignored — left where it is"
+    return app.isShared ? "\(mode) · Shared (in every workspace)" : mode
+  }
+
+  private func isShared(_ bundleId: String) -> Bool {
+    sharedApps.contains { $0.bundleIdentifier == bundleId }
   }
 
   // MARK: Empty
@@ -545,6 +624,16 @@ struct WorkspaceLayoutPreview: View {
           .foregroundStyle(.white)
           .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
           .padding(3)
+      }
+      if let bid = leaf.representative, isShared(bid) {
+        Image(systemName: "square.on.square")
+          .font(.system(size: 9))
+          .foregroundStyle(.white)
+          .padding(3)
+          .background(Circle().fill(Color.accentColor.opacity(0.75)))
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+          .padding(3)
+          .help("Shared app — in every workspace")
       }
     }
     .padding(2)

@@ -134,7 +134,7 @@ public struct WorkspaceDetailFeature {
       case .layoutEdited(let op):
         let id = state.workspaceId
         guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
-        let tiled = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+        let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: state.config.sharedApps)
         guard let template = state.layoutSnapshot?.tree
           ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
         else { return .none }
@@ -155,7 +155,7 @@ public struct WorkspaceDetailFeature {
       case .layoutFullscreenToggled(let bundleId, let zoomIn):
         let id = state.workspaceId
         guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
-        let tiled = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+        let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: state.config.sharedApps)
         guard let template = state.layoutSnapshot?.tree
           ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
         else { return .none }

@@ -240,6 +240,19 @@ extension BSPNode where WindowID == String {
   }
 }
 
+/// Bundle ids that tile into a workspace's layout, in a stable order: the
+/// workspace's own tiled apps, then tiled shared apps (present in every
+/// workspace, so they join each workspace's tree). Floating / unmanaged apps —
+/// workspace-local or shared — never enter the tree. A scratchpad only borrows
+/// its own apps into a host (which already carries the shared apps), so shared
+/// apps are excluded there. The preview view and the detail reducer both call
+/// this so their synthesized template (and thus edit-op paths) match.
+public func tiledLayoutBundleIds(workspace: Workspace, sharedApps: [SharedApp]) -> [String] {
+  let own = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+  guard workspace.kind != .scratchpad else { return own }
+  return own + sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+}
+
 // MARK: - Drop-zone geometry (shared by live drag + preview)
 
 extension DropZone {
