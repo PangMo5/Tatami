@@ -253,6 +253,38 @@ public func tiledLayoutBundleIds(workspace: Workspace, sharedApps: [SharedApp]) 
   return own + sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
 }
 
+/// The bundle-id template a workspace's inactive preview should render + edit:
+/// the saved snapshot (else a synthesized tree), with any *currently present*
+/// tiled shared app that's missing merged in. A shared app can be added — or
+/// first launched — after the snapshot was saved, so it wouldn't be in the
+/// snapshot; but since it's in every workspace and has a live window now, the
+/// preview must show it. Hidden shared apps stay out. The view and the reducer
+/// both call this so their tree (and edit-op paths) match.
+public func previewLayoutTemplate(
+  snapshot: BSPNode<String>?,
+  workspace: Workspace,
+  sharedApps: [SharedApp],
+  presentBundleIds: Set<String>
+) -> BSPNode<String>? {
+  let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
+  var tree = snapshot ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
+  guard workspace.kind != .scratchpad else { return tree }
+  let inTree = Set(tree?.windows ?? [])
+  let missing = sharedApps
+    .filter { $0.layout == .tiled }
+    .map(\.bundleIdentifier)
+    .filter { presentBundleIds.contains($0) && !inTree.contains($0) }
+    .sorted()
+  for bundleId in missing {
+    if let existing = tree {
+      tree = existing.inserting(bundleId, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+    } else {
+      tree = .leaf(BSPLeaf(windowList: [bundleId]))
+    }
+  }
+  return tree
+}
+
 // MARK: - Drop-zone geometry (shared by live drag + preview)
 
 extension DropZone {

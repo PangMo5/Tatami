@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import ComposableArchitecture
 import SFSafeSymbols
 import SwiftUI
@@ -73,6 +74,7 @@ struct WorkspaceDetailView: View {
           let resolved = ResolvedLayout.resolve(
             workspace: workspace,
             sharedApps: store.config.sharedApps,
+            presentBundleIds: store.presentBundleIds,
             isActive: isActive(workspace),
             liveTree: liveTree,
             liveZoomed: activationStore.fullscreenZoomed[workspace.id] ?? [],
@@ -370,10 +372,26 @@ struct WorkspaceDetailView: View {
       // display list (a plain `.task` only fires on first appearance, which
       // left later workspaces' pickers showing just their own pinned display).
       .task(id: workspace.id) { store.send(.onAppear) }
-      // Fetch AX window titles for the workspace's apps so the preview can
-      // label windows (even when this workspace isn't active — the apps are
-      // running regardless). Re-runs when the tiled app set changes.
+      // Fetch AX window titles + which apps are present, once on appear.
       .task(id: tiledLayoutBundleIds(workspace: workspace, sharedApps: store.config.sharedApps)) {
+        store.send(.loadWindowTitles(bundleIds: tiledLayoutBundleIds(
+          workspace: workspace, sharedApps: store.config.sharedApps
+        )))
+      }
+      // Subscription (not polling): refresh titles + presence when apps
+      // activate / hide / unhide / launch / quit — the events that change a
+      // window's title or whether a shared app is currently showing.
+      .onReceive(
+        Publishers.MergeMany(
+          [
+            NSWorkspace.didActivateApplicationNotification,
+            NSWorkspace.didHideApplicationNotification,
+            NSWorkspace.didUnhideApplicationNotification,
+            NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.didTerminateApplicationNotification,
+          ].map { NSWorkspace.shared.notificationCenter.publisher(for: $0) }
+        )
+      ) { _ in
         store.send(.loadWindowTitles(bundleIds: tiledLayoutBundleIds(
           workspace: workspace, sharedApps: store.config.sharedApps
         )))

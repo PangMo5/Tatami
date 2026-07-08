@@ -150,10 +150,12 @@ public struct WorkspaceDetailFeature {
       case .layoutEdited(let op):
         let id = state.workspaceId
         guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
-        let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: state.config.sharedApps)
-        guard let template = state.layoutSnapshot?.tree
-          ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
-        else { return .none }
+        guard let template = previewLayoutTemplate(
+          snapshot: state.layoutSnapshot?.tree,
+          workspace: workspace,
+          sharedApps: state.config.sharedApps,
+          presentBundleIds: state.presentBundleIds
+        ) else { return .none }
         // Rekey to unique tokens so relocate is unambiguous even when a bundle
         // id repeats across leaves, apply, then map back to bundle ids.
         let (tokenized, back) = template.tokenized()
@@ -171,10 +173,12 @@ public struct WorkspaceDetailFeature {
       case .layoutFullscreenToggled(let bundleId, let zoomIn):
         let id = state.workspaceId
         guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
-        let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: state.config.sharedApps)
-        guard let template = state.layoutSnapshot?.tree
-          ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled)
-        else { return .none }
+        guard let template = previewLayoutTemplate(
+          snapshot: state.layoutSnapshot?.tree,
+          workspace: workspace,
+          sharedApps: state.config.sharedApps,
+          presentBundleIds: state.presentBundleIds
+        ) else { return .none }
         var zoomed = state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
         if zoomIn {
           // Cap at the number of that app's windows in the layout — can't zoom

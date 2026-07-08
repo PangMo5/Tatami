@@ -21,6 +21,7 @@ enum ResolvedLayout: Equatable {
   static func resolve(
     workspace: Workspace,
     sharedApps: [SharedApp],
+    presentBundleIds: Set<String>,
     isActive: Bool,
     liveTree: BSPNode<WindowKey>?,
     liveZoomed: Set<WindowKey>,
@@ -34,9 +35,12 @@ enum ResolvedLayout: Equatable {
     if isActive, let liveTree, !liveTree.windows.isEmpty {
       return .live(liveTree, zoomed: liveZoomed)
     }
-    let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
-    guard var template = snapshot?.tree ?? BSPNode<String>.synthesizedTemplate(tiledBundleIds: tiled),
-          !template.windows.isEmpty
+    guard var template = previewLayoutTemplate(
+      snapshot: snapshot?.tree,
+      workspace: workspace,
+      sharedApps: sharedApps,
+      presentBundleIds: presentBundleIds
+    ), !template.windows.isEmpty
     else { return nil }
     // Activation applies auto-balance to the tree it builds (and to a restored
     // snapshot) — mirror it so the inactive preview matches. Balancing only
