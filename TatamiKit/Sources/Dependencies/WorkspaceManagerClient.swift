@@ -145,6 +145,13 @@ extension WorkspaceManagerClient: DependencyKey {
             }
             debugLog.log("Manager", "autoOpen \(bundleId) (running=\(!instances.isEmpty))")
             let config = NSWorkspace.OpenConfiguration()
+            // On a followAppFocus switch (setFocus=false) auto-open must not
+            // steal the foreground: re-opening an already-running auto-open app
+            // (e.g. Dia) would `openApplication`-activate it and raise it over
+            // the app the user just switched to (Comet). Only a deliberate
+            // switch (setFocus=true) lets a launched app come to front; there
+            // the focus block still owns the final focus.
+            config.activates = request.setFocus
             NSWorkspace.shared.openApplication(at: url, configuration: config) { _, error in
               if let error {
                 logger.error(
