@@ -255,6 +255,17 @@ public struct AppFeature {
         guard let wsId = state.activation.primaryActiveWorkspaceID else { return .none }
         return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
 
+      // Layout-preview edits to the *active* workspace: the layout reducer can't
+      // reach the activation sibling, so it delegates and we forward here.
+      case let .workspaceList(.detail(.layout(.delegate(.activeLayoutEdited(workspaceId, op))))):
+        return .send(.activation(.layoutEdited(workspaceId: workspaceId, op: op)))
+
+      case let .workspaceList(.detail(.layout(.delegate(.activeFullscreenToggled(windowKey))))):
+        return .send(.activation(.bspOpResolved(windowKey: windowKey, op: .toggleZoomFullscreen)))
+
+      case let .workspaceList(.detail(.layout(.delegate(.residentLayoutInvalidated(workspaceId))))):
+        return .send(.activation(.invalidateResidentLayout(workspaceId: workspaceId)))
+
       default:
         return .none
       }

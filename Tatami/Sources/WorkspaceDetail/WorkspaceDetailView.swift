@@ -1,9 +1,16 @@
 import AppKit
-import Combine
 import ComposableArchitecture
 import SFSafeSymbols
 import SwiftUI
 import TatamiKit
+
+/// The sibling activation store's per-workspace slice, mirrored into the layout
+/// reducer. Equatable so `.onChange` only fires on real changes.
+private struct ActivationSlice: Equatable {
+  var liveTree: BSPNode<WindowKey>?
+  var liveZoomed: Set<WindowKey>
+  var isActive: Bool
+}
 
 struct WorkspaceDetailView: View {
   @Bindable var store: StoreOf<WorkspaceDetailFeature>
@@ -16,6 +23,14 @@ struct WorkspaceDetailView: View {
   /// display. Drives the toolbar Activate button's disabled state.
   private func isActive(_ workspace: Workspace) -> Bool {
     activationStore.activeWorkspacesByDisplay.values.contains(workspace.id)
+  }
+
+  private func activationSlice(_ id: Workspace.ID) -> ActivationSlice {
+    ActivationSlice(
+      liveTree: activationStore.tilingTrees[id],
+      liveZoomed: activationStore.fullscreenZoomed[id] ?? [],
+      isActive: activationStore.activeWorkspacesByDisplay.values.contains(id)
+    )
   }
 
   /// Conflict title for a candidate key equivalent on this workspace. The one
@@ -70,45 +85,7 @@ struct WorkspaceDetailView: View {
     if let workspace = store.workspace {
       Form {
         Section {
-          let liveTree = activationStore.tilingTrees[workspace.id]
-          let resolved = ResolvedLayout.resolve(
-            workspace: workspace,
-            sharedApps: store.config.sharedApps,
-            presentBundleIds: store.presentBundleIds,
-            isActive: isActive(workspace),
-            liveTree: liveTree,
-            liveZoomed: activationStore.fullscreenZoomed[workspace.id] ?? [],
-            snapshot: store.layoutSnapshot,
-            autoBalance: store.config.settings.layout.autoBalance
-          )
-          WorkspaceLayoutPreview(
-            workspace: workspace,
-            resolved: resolved,
-            settings: store.config.settings,
-            sharedApps: store.config.sharedApps,
-            windowTitles: store.windowTitles,
-            presentBundleIds: store.presentBundleIds,
-            previewReady: store.previewReady,
-            onEdit: { op in
-              if resolved?.isLive == true {
-                activationStore.send(.layoutEdited(workspaceId: workspace.id, op: op))
-              } else {
-                store.send(.layoutEdited(op))
-                // Drop the stale resident tree so the next activation rebuilds
-                // from the edited snapshot.
-                activationStore.send(.invalidateResidentLayout(workspaceId: workspace.id))
-              }
-            },
-            onToggleFullscreen: { bundleId, liveKey, zoomIn in
-              if resolved?.isLive == true, let key = liveKey {
-                // Live: per-window toggle (state decides zoom in/out).
-                activationStore.send(.bspOpResolved(windowKey: key, op: .toggleZoomFullscreen))
-              } else {
-                store.send(.layoutFullscreenToggled(bundleId: bundleId, zoomIn: zoomIn))
-                activationStore.send(.invalidateResidentLayout(workspaceId: workspace.id))
-              }
-            }
-          )
+          WorkspaceLayoutPreview(store: store.scope(state: \.layout, action: \.layout))
         } header: {
           Text("Layout")
         }
@@ -372,28 +349,13 @@ struct WorkspaceDetailView: View {
       // display list (a plain `.task` only fires on first appearance, which
       // left later workspaces' pickers showing just their own pinned display).
       .task(id: workspace.id) { store.send(.onAppear) }
-      // Fetch AX window titles + which apps are present, once on appear.
-      .task(id: tiledLayoutBundleIds(workspace: workspace, sharedApps: store.config.sharedApps)) {
-        store.send(.loadWindowTitles(bundleIds: tiledLayoutBundleIds(
-          workspace: workspace, sharedApps: store.config.sharedApps
-        )))
-      }
-      // Subscription (not polling): refresh titles + presence when apps
-      // activate / hide / unhide / launch / quit — the events that change a
-      // window's title or whether a shared app is currently showing.
-      .onReceive(
-        Publishers.MergeMany(
-          [
-            NSWorkspace.didActivateApplicationNotification,
-            NSWorkspace.didHideApplicationNotification,
-            NSWorkspace.didUnhideApplicationNotification,
-            NSWorkspace.didLaunchApplicationNotification,
-            NSWorkspace.didTerminateApplicationNotification,
-          ].map { NSWorkspace.shared.notificationCenter.publisher(for: $0) }
-        )
-      ) { _ in
-        store.send(.loadWindowTitles(bundleIds: tiledLayoutBundleIds(
-          workspace: workspace, sharedApps: store.config.sharedApps
+      // Mirror the sibling activation store's slice for this workspace into the
+      // layout reducer (it can't read the activation subtree directly). The
+      // Equatable gate fires only on real changes to this workspace's tree /
+      // zoom / active state.
+      .onChange(of: activationSlice(workspace.id), initial: true) { _, slice in
+        store.send(.layout(.activationObserved(
+          liveTree: slice.liveTree, liveZoomed: slice.liveZoomed, isActive: slice.isActive
         )))
       }
       // Refresh the pinned-display picker when monitors are plugged/unplugged.

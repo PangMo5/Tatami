@@ -15,32 +15,14 @@ public struct WorkspaceDetailFeature {
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
     public var availableDisplays: [DisplayName] = []
-    /// Persisted layout template for this workspace, loaded on appear. Drives
-    /// the layout preview when the workspace isn't currently active (no live
-    /// tree); edits write back through here.
-    public var layoutSnapshot: LayoutSnapshot?
-    /// AX titles for the workspace's apps' live windows, keyed by window —
-    /// lets the preview disambiguate several windows of the same app.
-    public var windowTitles: [WindowKey: String] = [:]
-    /// Bundle ids that currently have discoverable (tileable) windows. A shared
-    /// app absent here is hidden and wouldn't tile on switch, so the preview
-    /// omits it.
-    public var presentBundleIds: Set<String> = []
-    /// Which workspace the async preview loads (snapshot, window info) have
-    /// completed for. The preview shows a loading indicator until both match
-    /// the current workspace — so it renders once, settled, instead of
-    /// flickering through the load burst. (No timer / magic delay.)
-    public var snapshotLoadedFor: Workspace.ID?
-    public var windowInfoLoadedFor: Workspace.ID?
-
-    /// True once both preview loads have completed for the current workspace.
-    public var previewReady: Bool {
-      snapshotLoadedFor == workspaceId && windowInfoLoadedFor == workspaceId
-    }
+    /// The layout-preview concern (resolve/edit/persist), owned by its own
+    /// reducer.
+    public var layout: WorkspaceLayoutFeature.State
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(workspaceId: Workspace.ID) {
       self.workspaceId = workspaceId
+      self.layout = WorkspaceLayoutFeature.State(workspaceId: workspaceId)
     }
 
     public var workspace: Workspace? {
@@ -95,23 +77,7 @@ public struct WorkspaceDetailFeature {
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
-    /// Persisted layout snapshot arrived from disk (or nil if none saved yet).
-    case layoutSnapshotLoaded(LayoutSnapshot?)
-    /// A layout-preview edit for this *inactive* workspace: apply to its
-    /// template, persist, and opt the workspace into `.persistent` memory so
-    /// the edit is honored on next activation. (Active edits route to
-    /// `WorkspaceActivationFeature.layoutEdited` instead.)
-    case layoutEdited(LayoutEditOp)
-    /// Fullscreen-zoom (`zoomIn: true`) or restore (`false`) one window of
-    /// `bundleId` in this *inactive* workspace's saved layout. Tracked as a
-    /// count in `fullscreenZoomedBundleIds` (a workspace can hold several
-    /// windows of the same app), matching how activation restores them. Active
-    /// toggles route to `bspToggleZoomFullscreen` per live window instead.
-    case layoutFullscreenToggled(bundleId: String, zoomIn: Bool)
-    /// Fetch AX titles for the workspace's apps' live windows (by bundle id, so
-    /// it works even when the workspace isn't active).
-    case loadWindowTitles(bundleIds: [String])
-    case windowInfoLoaded(titles: [WindowKey: String], present: Set<String>)
+    case layout(WorkspaceLayoutFeature.Action)
     case alert(PresentationAction<Alert>)
 
     public enum Alert: Equatable {
@@ -123,13 +89,12 @@ public struct WorkspaceDetailFeature {
   @Dependency(\.displays) var displays
   @Dependency(\.hotKeys) var hotKeys
   @Dependency(\.appChooser) var appChooser
-  @Dependency(\.layoutStore) var layoutStore
-  @Dependency(\.windowSnapshot) var windowSnapshot
 
   public init() {}
 
   public var body: some ReducerOf<Self> {
     BindingReducer()
+    Scope(state: \.layout, action: \.layout) { WorkspaceLayoutFeature() }
     Reduce { state, action in
       switch action {
       case .binding:
@@ -137,88 +102,10 @@ public struct WorkspaceDetailFeature {
 
       case .onAppear:
         state.availableDisplays = displays.all()
-        let id = state.workspaceId
-        return .run { [layoutStore] send in
-          await send(.layoutSnapshotLoaded(layoutStore.load(id)))
-        }
-
-      case .layoutSnapshotLoaded(let snapshot):
-        state.layoutSnapshot = snapshot
-        state.snapshotLoadedFor = state.workspaceId
         return .none
 
-      case .layoutEdited(let op):
-        let id = state.workspaceId
-        guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
-        guard let template = previewLayoutTemplate(
-          snapshot: state.layoutSnapshot?.tree,
-          workspace: workspace,
-          sharedApps: state.config.sharedApps,
-          presentBundleIds: state.presentBundleIds
-        ) else { return .none }
-        // Rekey to unique tokens so relocate is unambiguous even when a bundle
-        // id repeats across leaves, apply, then map back to bundle ids.
-        let (tokenized, back) = template.tokenized()
-        let newTemplate = tokenized.applying(op).mapWindows { back[$0]! }
-        guard newTemplate != template else { return .none }
-        let snapshot = LayoutSnapshot(
-          tree: newTemplate,
-          fullscreenZoomedBundleIds: state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
-        )
-        state.layoutSnapshot = snapshot
-        // Layouts always persist, so the edit is saved and honored on the next
-        // activation without touching any per-workspace memory flag.
-        return .run { [layoutStore] _ in layoutStore.save(id, snapshot) }
-
-      case .layoutFullscreenToggled(let bundleId, let zoomIn):
-        let id = state.workspaceId
-        guard let workspace = state.config.activeProfile?.workspaces[id: id] else { return .none }
-        guard let template = previewLayoutTemplate(
-          snapshot: state.layoutSnapshot?.tree,
-          workspace: workspace,
-          sharedApps: state.config.sharedApps,
-          presentBundleIds: state.presentBundleIds
-        ) else { return .none }
-        var zoomed = state.layoutSnapshot?.fullscreenZoomedBundleIds ?? []
-        if zoomIn {
-          // Cap at the number of that app's windows in the layout — can't zoom
-          // more windows than exist.
-          let total = template.windows.filter { $0 == bundleId }.count
-          let current = zoomed.filter { $0 == bundleId }.count
-          guard current < total else { return .none }
-          zoomed.append(bundleId)
-        } else {
-          guard let idx = zoomed.firstIndex(of: bundleId) else { return .none }
-          zoomed.remove(at: idx)
-        }
-        let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedBundleIds: zoomed.sorted())
-        state.layoutSnapshot = snapshot
-        return .run { [layoutStore] _ in layoutStore.save(id, snapshot) }
-
-      case .loadWindowTitles(let bundleIds):
-        guard !bundleIds.isEmpty else {
-          state.windowTitles = [:]
-          state.presentBundleIds = []
-          state.windowInfoLoadedFor = state.workspaceId
-          return .none
-        }
-        // Discover the apps' live windows by bundle id — even when this
-        // workspace isn't active, its apps are running, so their AX titles are
-        // readable. The discovered set also tells the preview which shared apps
-        // are currently present (hidden ones won't tile on switch).
-        return .run { [windowSnapshot] send in
-          let (titles, present) = await MainActor.run {
-            () -> ([WindowKey: String], Set<String>) in
-            let keys = windowSnapshot.cachedKeys(bundleIds, true)
-            return (windowSnapshot.windowTitles(keys), Set(keys.map(\.bundleId)))
-          }
-          await send(.windowInfoLoaded(titles: titles, present: present))
-        }
-
-      case .windowInfoLoaded(let titles, let present):
-        state.windowTitles = titles
-        state.presentBundleIds = present
-        state.windowInfoLoadedFor = state.workspaceId
+      case .layout:
+        // Handled by the layout reducer; AppFeature observes `.layout.delegate`.
         return .none
 
       case .refreshDisplays:

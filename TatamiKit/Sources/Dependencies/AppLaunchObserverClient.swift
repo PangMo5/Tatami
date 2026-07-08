@@ -6,7 +6,14 @@ import OSLog
 
 /// Streams regular-app launch events from `NSWorkspace`. Used by the
 /// activation reducer so apps that the user opens manually (e.g.
-/// KakaoTalk) get folded into the active workspace's BSP layout.
+/// KakaoTalk) get folded into the active workspace's BSP layout — and by the
+/// layout preview to refresh window titles / shared-app presence.
+///
+/// `events()` is **multicast**: every call returns a fresh, independent stream,
+/// and each `NSWorkspace` notification fans out to all live consumers. So the
+/// activation reducer (one process-lifetime subscription) and the layout
+/// preview (a fresh subscription per workspace selection) can both consume it
+/// without starving each other.
 @DependencyClient
 struct AppLaunchObserverClient: Sendable {
   var events: @Sendable () -> AsyncStream<AppLaunchEvent> = { AsyncStream { _ in } }
@@ -27,7 +34,7 @@ enum AppLaunchEvent: Sendable, Hashable {
 extension AppLaunchObserverClient: DependencyKey {
   static let liveValue: AppLaunchObserverClient = {
     let center = AppLaunchObserverCenter()
-    return AppLaunchObserverClient(events: { center.events })
+    return AppLaunchObserverClient(events: { center.makeStream() })
   }()
 
   static let testValue = AppLaunchObserverClient(events: {
@@ -45,41 +52,53 @@ extension DependencyValues {
 }
 
 private final class AppLaunchObserverCenter: @unchecked Sendable {
-  let events: AsyncStream<AppLaunchEvent>
-  private let continuation: AsyncStream<AppLaunchEvent>.Continuation
+  private let lock = NSLock()
+  private var continuations: [UUID: AsyncStream<AppLaunchEvent>.Continuation] = [:]
+
+  /// A fresh independent stream per caller; each is registered for fan-out and
+  /// deregisters itself on termination (subscription cancelled).
+  func makeStream() -> AsyncStream<AppLaunchEvent> {
+    let id = UUID()
+    return AsyncStream(bufferingPolicy: .unbounded) { continuation in
+      lock.withLock { continuations[id] = continuation }
+      continuation.onTermination = { [weak self] _ in
+        self?.lock.withLock { _ = self?.continuations.removeValue(forKey: id) }
+      }
+    }
+  }
+
+  private func broadcast(_ event: AppLaunchEvent) {
+    let live = lock.withLock { Array(continuations.values) }
+    for continuation in live { continuation.yield(event) }
+  }
 
   init() {
-    var c: AsyncStream<AppLaunchEvent>.Continuation!
-    self.events = AsyncStream(bufferingPolicy: .unbounded) { c = $0 }
-    self.continuation = c
-
     let nc = NSWorkspace.shared.notificationCenter
-    let cont = continuation
     nc.addObserver(
       forName: NSWorkspace.didLaunchApplicationNotification,
       object: nil,
       queue: .main
-    ) { notification in
+    ) { [weak self] notification in
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
           as? NSRunningApplication,
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      cont.yield(.launched(bundleId: bundleId, name: app.localizedName ?? bundleId))
+      self?.broadcast(.launched(bundleId: bundleId, name: app.localizedName ?? bundleId))
     }
     nc.addObserver(
       forName: NSWorkspace.didActivateApplicationNotification,
       object: nil,
       queue: .main
-    ) { notification in
+    ) { [weak self] notification in
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
           as? NSRunningApplication,
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      cont.yield(.activated(bundleId: bundleId))
+      self?.broadcast(.activated(bundleId: bundleId))
     }
     // Unhide fires when a previously-hidden app's windows come back —
     // e.g. KakaoTalk opening a chat via the Notification Center while
@@ -90,26 +109,26 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       forName: NSWorkspace.didUnhideApplicationNotification,
       object: nil,
       queue: .main
-    ) { notification in
+    ) { [weak self] notification in
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
           as? NSRunningApplication,
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      cont.yield(.activated(bundleId: bundleId))
+      self?.broadcast(.activated(bundleId: bundleId))
     }
     nc.addObserver(
       forName: NSWorkspace.didTerminateApplicationNotification,
       object: nil,
       queue: .main
-    ) { notification in
+    ) { [weak self] notification in
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
           as? NSRunningApplication,
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty
       else { return }
-      cont.yield(.terminated(bundleId: bundleId))
+      self?.broadcast(.terminated(bundleId: bundleId))
     }
     // Native macOS Space changes don't fire any per-app notification.
     // Without this the on-screen window set silently drifts away from
@@ -118,13 +137,12 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       forName: NSWorkspace.activeSpaceDidChangeNotification,
       object: nil,
       queue: .main
-    ) { _ in
-      cont.yield(.activeSpaceChanged)
+    ) { [weak self] _ in
+      self?.broadcast(.activeSpaceChanged)
     }
-    // Mirror of `didUnhide` — record but don't broadcast a redundant
-    // `.activated` (apps almost always also raise a windowFocused, and
-    // an extra reconcile here would just churn the BSP). Kept as an
-    // observer so we can hook into it later if needed.
+    // `didHide` — no broadcast: the reducer would churn the BSP, and hiding an
+    // app activates whatever's behind it, so `didActivate` already covers the
+    // "window set changed" case for consumers. Kept as a hook point.
     nc.addObserver(
       forName: NSWorkspace.didHideApplicationNotification,
       object: nil,
@@ -136,8 +154,8 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       forName: NSWorkspace.didWakeNotification,
       object: nil,
       queue: .main
-    ) { _ in
-      cont.yield(.didWake)
+    ) { [weak self] _ in
+      self?.broadcast(.didWake)
     }
   }
 }
