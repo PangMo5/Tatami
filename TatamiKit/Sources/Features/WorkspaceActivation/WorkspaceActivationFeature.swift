@@ -998,24 +998,25 @@ public struct WorkspaceActivationFeature {
         // Cycle within the focused block. Floating/unmanaged join only when
         // uncomposed (their bundle sets resolve per active workspace, not per
         // block); each window is its own key so same-app windows cycle.
-        var ordered = tree.windows
+        var allWindows = tree.windows
         if state.compositionsByDisplay.isEmpty {
           let floatingBundles = Self.floatingBundleIds(state: state)
           if !floatingBundles.isEmpty {
-            ordered += windowSnapshot.cachedKeys(floatingBundles, false)
+            allWindows += windowSnapshot.cachedKeys(floatingBundles, false)
           }
           let unmanagedBundles = Self.unmanagedBundleIds(state: state)
           if !unmanagedBundles.isEmpty {
-            ordered += windowSnapshot.cachedKeys(unmanagedBundles, false)
+            allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
           }
         }
         // App-level cycling (the default) keeps one representative window per
         // app, so a press lands on the next *app*; window-level cycling walks
         // every window, including same-app ones.
         let byWindow = state.config.settings.switching.cycleSameAppWindows
+        var ordered = allWindows
         if !byWindow {
           var seenApps = Set<String>()
-          ordered = ordered.filter { seenApps.insert($0.bundleId).inserted }
+          ordered = allWindows.filter { seenApps.insert($0.bundleId).inserted }
         }
         guard ordered.count > 1 else { return .none }
         let n = ordered.count
@@ -1023,7 +1024,18 @@ public struct WorkspaceActivationFeature {
         let idx = byWindow
           ? (ordered.firstIndex(of: key) ?? -1)
           : (ordered.firstIndex { $0.bundleId == key.bundleId } ?? -1)
-        let target = ordered[((idx + step) % n + n) % n]
+        var target = ordered[((idx + step) % n + n) % n]
+        // App-level cycle lands on the target app's most-recently-focused
+        // window, not its first-in-tree representative — so returning to an app
+        // restores the window you last used there (e.g. Dia's personal window,
+        // not work). Falls back to the representative if the app has no MRU yet.
+        if !byWindow {
+          let mru = state.mruWindows[workspaceId] ?? []
+          let live = Set(allWindows)
+          if let recent = mru.first(where: { $0.bundleId == target.bundleId && live.contains($0) }) {
+            target = recent
+          }
+        }
         guard target != key else { return .none }
         debugLog.log(
           "BSP",
@@ -1034,7 +1046,7 @@ public struct WorkspaceActivationFeature {
         let (cycleDisplay, cycleRect) = tilingContext(for: workspaceId, state: state)
         let cycleWarp = cycleSettings.focus.mouseFollowsFocus
         let cycleZoomed = state.fullscreenZoomed[workspaceId] ?? []
-        return .run { [mouse = mouse, focus = focusManager] _ in
+        return .run { [mouse = mouse, focus = focusManager, target] _ in
           await focus.focusWindow(target)
           if cycleWarp {
             let frames = await MainActor.run {
