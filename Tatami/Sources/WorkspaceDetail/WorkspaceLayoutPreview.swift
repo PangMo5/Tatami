@@ -64,7 +64,7 @@ enum ResolvedLayout: Equatable {
 
   /// Tiles + dividers for the *non-zoomed* windows, laid out in `rect` after
   /// trimming the fullscreen-zoomed ones (so the rest reshapes to fill).
-  func renderRegions(in rect: CGRect) -> (tiles: [RenderLeaf], dividers: [RenderDivider]) {
+  func renderRegions(in rect: CGRect, hidden: Set<String>) -> (tiles: [RenderLeaf], dividers: [RenderDivider]) {
     switch self {
     case .live(let tree, let zoomed):
       guard let trimmed = Self.trim(tree, removing: zoomed) else { return ([], []) }
@@ -77,7 +77,8 @@ enum ResolvedLayout: Equatable {
       }
       return (tiles, dividers)
     case .template(let tree, let zoomedBundleIds):
-      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds) else { return ([], []) }
+      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
+      else { return ([], []) }
       let tiles = trimmed.leafRegions(in: rect, gap: 0).map { r in
         RenderLeaf(path: r.path, rect: r.rect, bundleIds: r.leaf.windowList, liveKey: nil)
       }
@@ -103,7 +104,7 @@ enum ResolvedLayout: Equatable {
 
   // MARK: Trimmed → full-tree path mapping
 
-  func fullLeafPath(trimmedLeafPath: [BSPSide]) -> [BSPSide]? {
+  func fullLeafPath(trimmedLeafPath: [BSPSide], hidden: Set<String>) -> [BSPSide]? {
     switch self {
     case .live(let tree, let zoomed):
       guard let trimmed = Self.trim(tree, removing: zoomed),
@@ -112,7 +113,7 @@ enum ResolvedLayout: Equatable {
       else { return nil }
       return tree.pathTo(window: rep)
     case .template(let tree, let zoomedBundleIds):
-      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds),
+      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden),
             case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
             let rep = leaf.windowList.first
       else { return nil }
@@ -120,7 +121,7 @@ enum ResolvedLayout: Equatable {
     }
   }
 
-  func fullBranchPath(trimmedBranchPath: [BSPSide]) -> [BSPSide]? {
+  func fullBranchPath(trimmedBranchPath: [BSPSide], hidden: Set<String>) -> [BSPSide]? {
     switch self {
     case .live(let tree, let zoomed):
       guard let trimmed = Self.trim(tree, removing: zoomed),
@@ -130,7 +131,7 @@ enum ResolvedLayout: Equatable {
       else { return nil }
       return Self.commonPrefix(lp, rp)
     case .template(let tree, let zoomedBundleIds):
-      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds),
+      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden),
             case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
             let l = b.left.windows.first, let r = b.right.windows.first,
             let lp = tree.pathTo(window: l), let rp = tree.pathTo(window: r)
@@ -145,16 +146,22 @@ enum ResolvedLayout: Equatable {
     return trimmed
   }
 
-  /// Remove exactly the fullscreen-zoomed windows (by count per bundle id) so a
-  /// workspace with several windows of one app trims only as many as are
-  /// zoomed. Tokenizes to distinguish same-bundle-id leaves, removes the first
-  /// N in tree order, then maps back to bundle ids.
-  private static func trimTemplate(_ tree: BSPNode<String>, zoomedBundleIds: [String]) -> BSPNode<String>? {
-    guard !zoomedBundleIds.isEmpty else { return tree }
+  /// Trim the template for rendering: drop every window of a `hidden` app (a
+  /// shared app with no live window — it wouldn't tile on switch), and drop the
+  /// fullscreen-zoomed windows by count per bundle id (so a workspace with
+  /// several windows of one app trims only as many as are zoomed). Tokenizes to
+  /// distinguish same-bundle-id leaves, then maps back to bundle ids.
+  private static func trimTemplate(
+    _ tree: BSPNode<String>,
+    zoomedBundleIds: [String],
+    hidden: Set<String>
+  ) -> BSPNode<String>? {
+    guard !zoomedBundleIds.isEmpty || !hidden.isEmpty else { return tree }
     var counts: [String: Int] = [:]
     for bid in zoomedBundleIds { counts[bid, default: 0] += 1 }
     let (tokenized, back) = tree.tokenized()
     var remove: Set<Int> = []
+    for token in tokenized.windows where hidden.contains(back[token]!) { remove.insert(token) }
     for (bid, count) in counts {
       let matching = tokenized.windows.filter { back[$0] == bid }
       remove.formUnion(matching.prefix(count))
@@ -241,6 +248,9 @@ struct WorkspaceLayoutPreview: View {
   let settings: AppSettings
   let sharedApps: [SharedApp]
   let windowTitles: [WindowKey: String]
+  /// Bundle ids with a currently-discoverable window — a shared app not here is
+  /// hidden and is omitted from the preview (it wouldn't tile on switch).
+  let presentBundleIds: Set<String>
   let onEdit: (LayoutEditOp) -> Void
   /// Fullscreen-zoom (`zoomIn: true`) or restore (`false`) a window. `liveKey`
   /// is present only for the active workspace (per-window toggle); otherwise
@@ -251,20 +261,38 @@ struct WorkspaceLayoutPreview: View {
   @State private var tileDrag: (source: [BSPSide], location: CGPoint)?
   @State private var chipDrag: (item: FullscreenItem, location: CGPoint)?
   @State private var selectedTile: SelectedTile?
+  /// Debounced copy of `resolved`. Activation and the title/snapshot loads emit
+  /// a burst of updates at first appearance; rendering from a settled copy
+  /// coalesces them into one visible update instead of a flicker.
+  @State private var displayed: ResolvedLayout?
+  @State private var settled = false
 
   private let coordinateSpace = "layoutCanvas"
   private let canvasAspect: CGFloat = 16.0 / 10.0
   private let maxTileAreaHeight: CGFloat = 240
   private let bandHeight: CGFloat = 56
   private let bandGap: CGFloat = 8
+  private let settleDelay: Duration = .milliseconds(180)
 
-  private var hasFullscreen: Bool { resolved?.hasFullscreen ?? false }
+  /// The layout actually rendered — the debounced value.
+  private var current: ResolvedLayout? { displayed }
+
+  private var hasFullscreen: Bool { current?.hasFullscreen ?? false }
+
+  /// Shared tiled apps with no live window — hidden, so omitted from the
+  /// rendered tiles (kept in the template so editing paths still resolve).
+  private var hiddenSharedBundleIds: Set<String> {
+    Set(sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier))
+      .subtracting(presentBundleIds)
+  }
   /// Vertical offset of the tile area — below the fullscreen band when present.
   private var tileAreaTop: CGFloat { hasFullscreen ? bandHeight + bandGap : 0 }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      if resolved == nil {
+      if !settled {
+        loadingPlaceholder
+      } else if current == nil {
         emptyState
       } else {
         toolbar
@@ -273,6 +301,23 @@ struct WorkspaceLayoutPreview: View {
         footnote
       }
     }
+    // Debounce: `.task(id:)` cancels + restarts on every change to `resolved`,
+    // so the settled copy only updates after a quiet window — coalescing the
+    // init burst into one visible render.
+    .task(id: resolved) {
+      try? await Task.sleep(for: settleDelay)
+      displayed = resolved
+      settled = true
+    }
+  }
+
+  private var loadingPlaceholder: some View {
+    HStack(spacing: 8) {
+      ProgressView().controlSize(.small)
+      Text("Loading layout…").font(.callout).foregroundStyle(.secondary)
+    }
+    .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+    .padding(.vertical, 8)
   }
 
   // MARK: Non-tiled band (floating + ignored, read-only)
@@ -374,7 +419,8 @@ struct WorkspaceLayoutPreview: View {
         help: "Toggle split orientation of the selected tile",
         enabled: selectedTile != nil
       ) {
-        if let sel = selectedTile, let full = resolved?.fullLeafPath(trimmedLeafPath: sel.path) {
+        if let sel = selectedTile,
+           let full = current?.fullLeafPath(trimmedLeafPath: sel.path, hidden: hiddenSharedBundleIds) {
           edit(.toggleOrientation(leafPath: full))
         }
       }
@@ -419,8 +465,9 @@ struct WorkspaceLayoutPreview: View {
       let tileArea = CGSize(width: geo.size.width, height: geo.size.height - tileAreaTop)
       let canvasRect = fittedCanvas(in: tileArea).offsetBy(dx: 0, dy: tileAreaTop)
       let dock = dockRect(in: canvasRect)
-      let effective = resolved?.applyingLocal(pendingRatio.map { .setRatio(path: $0.fullPath, ratio: $0.ratio) })
-      let regions = effective?.renderRegions(in: dock) ?? (tiles: [], dividers: [])
+      let effective = current?.applyingLocal(pendingRatio.map { .setRatio(path: $0.fullPath, ratio: $0.ratio) })
+      let regions = effective?.renderRegions(in: dock, hidden: hiddenSharedBundleIds) ?? (tiles: [], dividers: [])
+      let labels = tileLabels(regions.tiles)
 
       ZStack(alignment: .topLeading) {
         if hasFullscreen {
@@ -450,7 +497,7 @@ struct WorkspaceLayoutPreview: View {
         }
 
         ForEach(regions.tiles) { leaf in
-          tileView(leaf, allLeaves: regions.tiles)
+          tileView(leaf, allLeaves: regions.tiles, label: labels[leaf.path] ?? "")
         }
         ForEach(regions.dividers) { divider in
           dividerHandle(divider)
@@ -459,10 +506,14 @@ struct WorkspaceLayoutPreview: View {
           overlay.allowsHitTesting(false)
         }
         if let drag = tileDrag, let source = regions.tiles.first(where: { $0.path == drag.source }) {
-          dragGhost(bundleId: source.representative ?? "", liveKey: source.liveKey, at: drag.location)
+          dragGhost(bundleId: source.representative ?? "", label: labels[drag.source] ?? "", at: drag.location)
         }
         if let chip = chipDrag {
-          dragGhost(bundleId: chip.item.bundleId, liveKey: chip.item.liveKey, at: chip.location)
+          dragGhost(
+            bundleId: chip.item.bundleId,
+            label: chipLabel(bundleId: chip.item.bundleId, liveKey: chip.item.liveKey),
+            at: chip.location
+          )
         }
       }
       .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -479,16 +530,16 @@ struct WorkspaceLayoutPreview: View {
   }
 
   private var fullscreenList: [FullscreenItem] {
-    (resolved?.fullscreenItems() ?? []).enumerated().map { idx, item in
+    (current?.fullscreenItems() ?? []).enumerated().map { idx, item in
       FullscreenItem(index: idx, bundleId: item.bundleId, liveKey: item.liveKey)
     }
   }
 
   private var footnote: some View {
     HStack(spacing: 6) {
-      Image(systemName: (resolved?.isLive == true) ? "dot.radiowaves.left.and.right" : "clock.arrow.circlepath")
+      Image(systemName: (current?.isLive == true) ? "dot.radiowaves.left.and.right" : "clock.arrow.circlepath")
         .font(.caption2)
-      Text((resolved?.isLive == true)
+      Text((current?.isLive == true)
         ? "Live — edits re-tile your windows now."
         : "Saved layout — edits apply on next activation.")
         .font(.caption)
@@ -552,7 +603,7 @@ struct WorkspaceLayoutPreview: View {
     return HStack(spacing: 6) {
       AppIcon(bundleIdentifier: item.bundleId, iconPath: iconPath(for: item.bundleId))
         .frame(width: 18, height: 18)
-      Text(label(bundleId: item.bundleId, liveKey: item.liveKey))
+      Text(chipLabel(bundleId: item.bundleId, liveKey: item.liveKey))
         .font(.caption)
         .lineLimit(1)
         .truncationMode(.middle)
@@ -590,7 +641,7 @@ struct WorkspaceLayoutPreview: View {
 
   // MARK: Tile
 
-  private func tileView(_ leaf: RenderLeaf, allLeaves: [RenderLeaf]) -> some View {
+  private func tileView(_ leaf: RenderLeaf, allLeaves: [RenderLeaf], label: String) -> some View {
     let isDragging = tileDrag?.source == leaf.path
     let isSelected = selectedTile?.path == leaf.path
     return ZStack {
@@ -606,7 +657,7 @@ struct WorkspaceLayoutPreview: View {
           AppIcon(bundleIdentifier: bid, iconPath: iconPath(for: bid))
             .frame(width: min(28, leaf.rect.height * 0.4), height: min(28, leaf.rect.height * 0.4))
           if leaf.rect.height > 44, leaf.rect.width > 54 {
-            Text(label(bundleId: bid, liveKey: leaf.liveKey))
+            Text(label)
               .font(.caption2)
               .lineLimit(1)
               .truncationMode(.middle)
@@ -669,8 +720,8 @@ struct WorkspaceLayoutPreview: View {
           return
         }
         guard let drop = dropTarget(leaves: allLeaves, source: leaf.path, at: value.location),
-              let sourceFull = resolved?.fullLeafPath(trimmedLeafPath: leaf.path),
-              let targetFull = resolved?.fullLeafPath(trimmedLeafPath: drop.path)
+              let sourceFull = current?.fullLeafPath(trimmedLeafPath: leaf.path, hidden: hiddenSharedBundleIds),
+              let targetFull = current?.fullLeafPath(trimmedLeafPath: drop.path, hidden: hiddenSharedBundleIds)
         else { return }
         edit(.relocate(source: sourceFull, target: targetFull, zone: drop.zone))
       }
@@ -678,11 +729,11 @@ struct WorkspaceLayoutPreview: View {
 
   // MARK: Drag ghost
 
-  private func dragGhost(bundleId: String, liveKey: WindowKey?, at point: CGPoint) -> some View {
+  private func dragGhost(bundleId: String, label: String, at point: CGPoint) -> some View {
     HStack(spacing: 6) {
       AppIcon(bundleIdentifier: bundleId, iconPath: iconPath(for: bundleId))
         .frame(width: 18, height: 18)
-      Text(label(bundleId: bundleId, liveKey: liveKey))
+      Text(label)
         .font(.caption)
         .lineLimit(1)
     }
@@ -732,7 +783,7 @@ struct WorkspaceLayoutPreview: View {
         let ratio = min(0.9, max(0.1, raw))
         if let pending = pendingRatio, pending.trimmedPath == divider.path {
           pendingRatio = PendingRatio(trimmedPath: pending.trimmedPath, fullPath: pending.fullPath, ratio: ratio)
-        } else if let full = resolved?.fullBranchPath(trimmedBranchPath: divider.path) {
+        } else if let full = current?.fullBranchPath(trimmedBranchPath: divider.path, hidden: hiddenSharedBundleIds) {
           pendingRatio = PendingRatio(trimmedPath: divider.path, fullPath: full, ratio: ratio)
         }
       }
@@ -843,8 +894,43 @@ struct WorkspaceLayoutPreview: View {
       ?? bundleId
   }
 
-  private func label(bundleId: String, liveKey: WindowKey?) -> String {
+  /// Live window titles grouped by bundle id (sorted by window id) so several
+  /// windows of one app can be distinguished — even for an inactive workspace,
+  /// since the fetch discovers windows by bundle id regardless of activation.
+  private var titlesByBundle: [String: [String]] {
+    var grouped: [String: [(CGWindowID, String)]] = [:]
+    for (key, title) in windowTitles {
+      grouped[key.bundleId, default: []].append((key.windowID, title))
+    }
+    return grouped.mapValues { $0.sorted { $0.0 < $1.0 }.map(\.1) }
+  }
+
+  /// Per-tile display labels. A live tile uses its exact window's title; an
+  /// inactive tile (bundle-id template) takes the nth title of that app, by
+  /// occurrence order, so repeated same-app tiles read distinctly.
+  private func tileLabels(_ tiles: [RenderLeaf]) -> [[BSPSide]: String] {
+    let byBundle = titlesByBundle
+    var counts: [String: Int] = [:]
+    var out: [[BSPSide]: String] = [:]
+    for tile in tiles {
+      guard let bid = tile.representative else { continue }
+      if let key = tile.liveKey, let title = windowTitles[key], !title.isEmpty {
+        out[tile.path] = title
+        continue
+      }
+      let occurrence = counts[bid, default: 0]
+      counts[bid] = occurrence + 1
+      if let titles = byBundle[bid], occurrence < titles.count {
+        out[tile.path] = titles[occurrence]
+      } else {
+        out[tile.path] = appName(for: bid)
+      }
+    }
+    return out
+  }
+
+  private func chipLabel(bundleId: String, liveKey: WindowKey?) -> String {
     if let key = liveKey, let title = windowTitles[key], !title.isEmpty { return title }
-    return appName(for: bundleId)
+    return titlesByBundle[bundleId]?.first ?? appName(for: bundleId)
   }
 }

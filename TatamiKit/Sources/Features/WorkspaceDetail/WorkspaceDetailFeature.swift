@@ -19,9 +19,13 @@ public struct WorkspaceDetailFeature {
     /// the layout preview when the workspace isn't currently active (no live
     /// tree); edits write back through here.
     public var layoutSnapshot: LayoutSnapshot?
-    /// AX titles for the active workspace's live windows, keyed by window —
+    /// AX titles for the workspace's apps' live windows, keyed by window —
     /// lets the preview disambiguate several windows of the same app.
     public var windowTitles: [WindowKey: String] = [:]
+    /// Bundle ids that currently have discoverable (tileable) windows. A shared
+    /// app absent here is hidden and wouldn't tile on switch, so the preview
+    /// omits it.
+    public var presentBundleIds: Set<String> = []
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(workspaceId: Workspace.ID) {
@@ -93,10 +97,10 @@ public struct WorkspaceDetailFeature {
     /// windows of the same app), matching how activation restores them. Active
     /// toggles route to `bspToggleZoomFullscreen` per live window instead.
     case layoutFullscreenToggled(bundleId: String, zoomIn: Bool)
-    /// Fetch AX titles for the active workspace's live windows (driven by the
-    /// view, which holds the live tree).
-    case loadWindowTitles([WindowKey])
-    case windowTitlesLoaded([WindowKey: String])
+    /// Fetch AX titles for the workspace's apps' live windows (by bundle id, so
+    /// it works even when the workspace isn't active).
+    case loadWindowTitles(bundleIds: [String])
+    case windowInfoLoaded(titles: [WindowKey: String], present: Set<String>)
     case alert(PresentationAction<Alert>)
 
     public enum Alert: Equatable {
@@ -175,18 +179,28 @@ public struct WorkspaceDetailFeature {
         state.layoutSnapshot = snapshot
         return .run { [layoutStore] _ in layoutStore.save(id, snapshot) }
 
-      case .loadWindowTitles(let keys):
-        guard !keys.isEmpty else {
+      case .loadWindowTitles(let bundleIds):
+        guard !bundleIds.isEmpty else {
           state.windowTitles = [:]
+          state.presentBundleIds = []
           return .none
         }
+        // Discover the apps' live windows by bundle id — even when this
+        // workspace isn't active, its apps are running, so their AX titles are
+        // readable. The discovered set also tells the preview which shared apps
+        // are currently present (hidden ones won't tile on switch).
         return .run { [windowSnapshot] send in
-          let titles = await MainActor.run { windowSnapshot.windowTitles(keys) }
-          await send(.windowTitlesLoaded(titles))
+          let (titles, present) = await MainActor.run {
+            () -> ([WindowKey: String], Set<String>) in
+            let keys = windowSnapshot.cachedKeys(bundleIds, true)
+            return (windowSnapshot.windowTitles(keys), Set(keys.map(\.bundleId)))
+          }
+          await send(.windowInfoLoaded(titles: titles, present: present))
         }
 
-      case .windowTitlesLoaded(let titles):
+      case .windowInfoLoaded(let titles, let present):
         state.windowTitles = titles
+        state.presentBundleIds = present
         return .none
 
       case .refreshDisplays:

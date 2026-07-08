@@ -85,6 +85,7 @@ struct WorkspaceDetailView: View {
             settings: store.config.settings,
             sharedApps: store.config.sharedApps,
             windowTitles: store.windowTitles,
+            presentBundleIds: store.presentBundleIds,
             onEdit: { op in
               if resolved?.isLive == true {
                 activationStore.send(.layoutEdited(workspaceId: workspace.id, op: op))
@@ -368,10 +369,13 @@ struct WorkspaceDetailView: View {
       // display list (a plain `.task` only fires on first appearance, which
       // left later workspaces' pickers showing just their own pinned display).
       .task(id: workspace.id) { store.send(.onAppear) }
-      // Fetch AX window titles for the live tree so the preview can label same-
-      // app windows distinctly. Re-runs whenever the live window set changes.
-      .task(id: activationStore.tilingTrees[workspace.id].map { Set($0.windows) } ?? []) {
-        store.send(.loadWindowTitles(Array(activationStore.tilingTrees[workspace.id]?.windows ?? [])))
+      // Fetch AX window titles for the workspace's apps so the preview can
+      // label windows (even when this workspace isn't active — the apps are
+      // running regardless). Re-runs when the tiled app set changes.
+      .task(id: tiledLayoutBundleIds(workspace: workspace, sharedApps: store.config.sharedApps)) {
+        store.send(.loadWindowTitles(bundleIds: tiledLayoutBundleIds(
+          workspace: workspace, sharedApps: store.config.sharedApps
+        )))
       }
       // Refresh the pinned-display picker when monitors are plugged/unplugged.
       .onReceive(
