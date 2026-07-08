@@ -86,6 +86,7 @@ struct WorkspaceDetailView: View {
             sharedApps: store.config.sharedApps,
             windowTitles: store.windowTitles,
             presentBundleIds: store.presentBundleIds,
+            previewReady: store.previewReady,
             onEdit: { op in
               if resolved?.isLive == true {
                 activationStore.send(.layoutEdited(workspaceId: workspace.id, op: op))

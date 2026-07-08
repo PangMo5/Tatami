@@ -251,6 +251,9 @@ struct WorkspaceLayoutPreview: View {
   /// Bundle ids with a currently-discoverable window — a shared app not here is
   /// hidden and is omitted from the preview (it wouldn't tile on switch).
   let presentBundleIds: Set<String>
+  /// The workspace's async preview data (snapshot + window info) has loaded;
+  /// until then a loading indicator is shown instead of a partial render.
+  let previewReady: Bool
   let onEdit: (LayoutEditOp) -> Void
   /// Fullscreen-zoom (`zoomIn: true`) or restore (`false`) a window. `liveKey`
   /// is present only for the active workspace (per-window toggle); otherwise
@@ -261,21 +264,14 @@ struct WorkspaceLayoutPreview: View {
   @State private var tileDrag: (source: [BSPSide], location: CGPoint)?
   @State private var chipDrag: (item: FullscreenItem, location: CGPoint)?
   @State private var selectedTile: SelectedTile?
-  /// Debounced copy of `resolved`. Activation and the title/snapshot loads emit
-  /// a burst of updates at first appearance; rendering from a settled copy
-  /// coalesces them into one visible update instead of a flicker.
-  @State private var displayed: ResolvedLayout?
-  @State private var settled = false
 
   private let coordinateSpace = "layoutCanvas"
   private let canvasAspect: CGFloat = 16.0 / 10.0
   private let maxTileAreaHeight: CGFloat = 240
   private let bandHeight: CGFloat = 56
   private let bandGap: CGFloat = 8
-  private let settleDelay: Duration = .milliseconds(180)
 
-  /// The layout actually rendered — the debounced value.
-  private var current: ResolvedLayout? { displayed }
+  private var current: ResolvedLayout? { resolved }
 
   private var hasFullscreen: Bool { current?.hasFullscreen ?? false }
 
@@ -290,7 +286,10 @@ struct WorkspaceLayoutPreview: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      if !settled {
+      // Show the indicator until this workspace's preview data has actually
+      // loaded (snapshot + window info) — one settled render instead of
+      // flickering through the load burst. No timer.
+      if !previewReady {
         loadingPlaceholder
       } else if current == nil {
         emptyState
@@ -300,14 +299,6 @@ struct WorkspaceLayoutPreview: View {
         if !nonTiledApps.isEmpty { nonTiledBand }
         footnote
       }
-    }
-    // Debounce: `.task(id:)` cancels + restarts on every change to `resolved`,
-    // so the settled copy only updates after a quiet window — coalescing the
-    // init burst into one visible render.
-    .task(id: resolved) {
-      try? await Task.sleep(for: settleDelay)
-      displayed = resolved
-      settled = true
     }
   }
 

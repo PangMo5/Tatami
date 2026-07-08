@@ -26,6 +26,17 @@ public struct WorkspaceDetailFeature {
     /// app absent here is hidden and wouldn't tile on switch, so the preview
     /// omits it.
     public var presentBundleIds: Set<String> = []
+    /// Which workspace the async preview loads (snapshot, window info) have
+    /// completed for. The preview shows a loading indicator until both match
+    /// the current workspace — so it renders once, settled, instead of
+    /// flickering through the load burst. (No timer / magic delay.)
+    public var snapshotLoadedFor: Workspace.ID?
+    public var windowInfoLoadedFor: Workspace.ID?
+
+    /// True once both preview loads have completed for the current workspace.
+    public var previewReady: Bool {
+      snapshotLoadedFor == workspaceId && windowInfoLoadedFor == workspaceId
+    }
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init(workspaceId: Workspace.ID) {
@@ -133,6 +144,7 @@ public struct WorkspaceDetailFeature {
 
       case .layoutSnapshotLoaded(let snapshot):
         state.layoutSnapshot = snapshot
+        state.snapshotLoadedFor = state.workspaceId
         return .none
 
       case .layoutEdited(let op):
@@ -183,6 +195,7 @@ public struct WorkspaceDetailFeature {
         guard !bundleIds.isEmpty else {
           state.windowTitles = [:]
           state.presentBundleIds = []
+          state.windowInfoLoadedFor = state.workspaceId
           return .none
         }
         // Discover the apps' live windows by bundle id — even when this
@@ -201,6 +214,7 @@ public struct WorkspaceDetailFeature {
       case .windowInfoLoaded(let titles, let present):
         state.windowTitles = titles
         state.presentBundleIds = present
+        state.windowInfoLoadedFor = state.workspaceId
         return .none
 
       case .refreshDisplays:
