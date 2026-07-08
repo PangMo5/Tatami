@@ -123,6 +123,31 @@ struct WorkspaceLayoutFeatureTests {
   }
 
   @Test
+  func templatePathMappingKeepsSameAppLeavesDistinct() {
+    // Two "a" leaves + one "b". Each rendered tile must map to a *distinct*
+    // full-tree path — the old bundle-id `pathTo` collapsed both "a" tiles to
+    // the first "a", so a same-app relocate targeted the wrong (or its own) leaf.
+    let tree = BSPNode.build(["a", "a", "b"], in: unit)!
+    let resolved = ResolvedLayout.template(tree, zoomedBundleIds: [])
+    let (tiles, _) = resolved.renderRegions(in: unit, hidden: [])
+    let fullPaths = tiles.map { resolved.fullLeafPath(trimmedLeafPath: $0.path, hidden: []) }
+    #expect(fullPaths.allSatisfy { $0 != nil })
+    #expect(Set(fullPaths.compactMap { $0 }).count == tiles.count)
+  }
+
+  @Test
+  func revealAppBubblesDelegate() async {
+    let ws = Workspace(name: "W", apps: [AppAssignment(bundleIdentifier: "a", name: "A")])
+    let store = TestStore(initialState: makeState(ws)) {
+      WorkspaceLayoutFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.revealApp(bundleId: "a", isShared: true))
+    await store.receive(\.delegate)
+  }
+
+  @Test
   func onAppearLoadsSnapshot() async {
     let ws = Workspace(name: "W", apps: [AppAssignment(bundleIdentifier: "a", name: "A")])
     let snapshot = LayoutSnapshot(tree: .leaf(BSPLeaf(windowList: ["a"])))

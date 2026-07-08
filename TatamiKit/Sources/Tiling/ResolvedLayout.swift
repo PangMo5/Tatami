@@ -117,11 +117,15 @@ public enum ResolvedLayout: Equatable {
       else { return nil }
       return tree.pathTo(window: rep)
     case .template(let tree, let zoomedBundleIds):
-      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden),
+      // Walk the token trees, not the bundle-id tree: `pathTo(window: bundleId)`
+      // would collapse repeated same-app leaves to the first occurrence, so a
+      // same-app relocate/swap would target the wrong (or its own) leaf.
+      let t = Self.tokenizedTrim(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
+      guard let trimmed = t.trimmed,
             case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
-            let rep = leaf.windowList.first
+            let token = leaf.windowList.first
       else { return nil }
-      return tree.pathTo(window: rep)
+      return t.full.pathTo(window: token)
     }
   }
 
@@ -135,10 +139,11 @@ public enum ResolvedLayout: Equatable {
       else { return nil }
       return Self.commonPrefix(lp, rp)
     case .template(let tree, let zoomedBundleIds):
-      guard let trimmed = Self.trimTemplate(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden),
+      let t = Self.tokenizedTrim(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
+      guard let trimmed = t.trimmed,
             case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
             let l = b.left.windows.first, let r = b.right.windows.first,
-            let lp = tree.pathTo(window: l), let rp = tree.pathTo(window: r)
+            let lp = t.full.pathTo(window: l), let rp = t.full.pathTo(window: r)
       else { return nil }
       return Self.commonPrefix(lp, rp)
     }
@@ -150,30 +155,43 @@ public enum ResolvedLayout: Equatable {
     return trimmed
   }
 
-  /// Trim the template for rendering: drop every window of a `hidden` app (a
-  /// shared app with no live window — it wouldn't tile on switch), and drop the
-  /// fullscreen-zoomed windows by count per bundle id (so a workspace with
-  /// several windows of one app trims only as many as are zoomed). Tokenizes to
-  /// distinguish same-bundle-id leaves, then maps back to bundle ids.
-  private static func trimTemplate(
+  /// Tokenized trim shared by rendering and path-mapping. Rekeys the template to
+  /// unique `Int` tokens (so same-bundle-id leaves stay distinct), drops every
+  /// window of a `hidden` app (a shared app with no live window — it wouldn't
+  /// tile on switch), and drops the fullscreen-zoomed windows by count per
+  /// bundle id (a workspace with several windows of one app trims only as many
+  /// as are zoomed). Returns the full and trimmed *token* trees plus the
+  /// token→bundle-id map. Path mapping walks the token trees, so a repeated
+  /// bundle id never collapses to its first occurrence.
+  private static func tokenizedTrim(
     _ tree: BSPNode<String>,
     zoomedBundleIds: [String],
     hidden: Set<String>
-  ) -> BSPNode<String>? {
-    guard !zoomedBundleIds.isEmpty || !hidden.isEmpty else { return tree }
+  ) -> (full: BSPNode<Int>, trimmed: BSPNode<Int>?, back: [Int: String]) {
+    let (tokenized, back) = tree.tokenized()
+    guard !zoomedBundleIds.isEmpty || !hidden.isEmpty else { return (tokenized, tokenized, back) }
     var counts: [String: Int] = [:]
     for bid in zoomedBundleIds { counts[bid, default: 0] += 1 }
-    let (tokenized, back) = tree.tokenized()
     var remove: Set<Int> = []
     for token in tokenized.windows where hidden.contains(back[token]!) { remove.insert(token) }
     for (bid, count) in counts {
       let matching = tokenized.windows.filter { back[$0] == bid }
       remove.formUnion(matching.prefix(count))
     }
-    guard !remove.isEmpty else { return tree }
+    guard !remove.isEmpty else { return (tokenized, tokenized, back) }
     var trimmed: BSPNode<Int>? = tokenized
     for token in remove { trimmed = trimmed?.removing(token) }
-    return trimmed?.mapWindows { back[$0]! }
+    return (tokenized, trimmed, back)
+  }
+
+  /// Trim the template for rendering, mapped back to bundle ids.
+  private static func trimTemplate(
+    _ tree: BSPNode<String>,
+    zoomedBundleIds: [String],
+    hidden: Set<String>
+  ) -> BSPNode<String>? {
+    let t = tokenizedTrim(tree, zoomedBundleIds: zoomedBundleIds, hidden: hidden)
+    return t.trimmed?.mapWindows { t.back[$0]! }
   }
 
   private static func commonPrefix(_ a: [BSPSide], _ b: [BSPSide]) -> [BSPSide] {

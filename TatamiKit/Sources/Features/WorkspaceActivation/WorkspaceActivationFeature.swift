@@ -539,6 +539,9 @@ public struct WorkspaceActivationFeature {
             debouncedPrune(),
             .run { _ in markerClient.setFocused(focusedKey) }
           )
+        case .windowTitleChanged:
+          // Cosmetic — only the layout preview cares. No re-tile.
+          return .none
         }
 
       case .syncAppWindows(let bundleId):

@@ -38,6 +38,10 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// manual move/resize exactly at drag-end instead of guessing with a time
   /// debounce.
   case windowDragEnded
+  /// A window's AX title changed. Cosmetic for tiling (activation ignores it),
+  /// but lets the layout preview refresh titles live while the app stays
+  /// frontmost — no app switch, so `didActivateApplication` never fires.
+  case windowTitleChanged(bundleId: String)
 }
 
 extension WindowObserverClient: DependencyKey {
@@ -47,7 +51,7 @@ extension WindowObserverClient: DependencyKey {
       observe: { bundleIds in
         await center.observe(bundleIds: bundleIds)
       },
-      events: { center.events }
+      events: { center.makeStream() }
     )
   }()
 
@@ -80,8 +84,13 @@ extension DependencyValues {
 /// Termination cleanup runs on each `observe` call and on every event
 /// hop.
 private final class WindowObserverCenter: @unchecked Sendable {
-  let events: AsyncStream<WindowChangeEvent>
+  /// Fan-in: every `ObservedApp` and the drag monitor yield here. A pump task
+  /// forwards each event to all live subscribers, so multiple consumers
+  /// (activation + the layout preview) each get their own stream without
+  /// stealing events from one another.
   private let continuation: AsyncStream<WindowChangeEvent>.Continuation
+  private let lock = NSLock()
+  private var subscribers: [UUID: AsyncStream<WindowChangeEvent>.Continuation] = [:]
   private var observed: [pid_t: ObservedApp] = [:]
   /// Global mouse-up monitor; emits `.windowDragEnded` so the reducer commits
   /// a manual move/resize at the true end of the drag.
@@ -89,8 +98,29 @@ private final class WindowObserverCenter: @unchecked Sendable {
 
   init() {
     var c: AsyncStream<WindowChangeEvent>.Continuation!
-    self.events = AsyncStream(bufferingPolicy: .unbounded) { c = $0 }
+    let fanIn = AsyncStream(bufferingPolicy: .unbounded) { c = $0 }
     self.continuation = c
+    // Process-lifetime pump: fan-in → all subscribers, in order.
+    Task { [weak self] in
+      for await event in fanIn { self?.broadcast(event) }
+    }
+  }
+
+  /// A fresh multicast stream per caller. Registered under the lock and
+  /// dropped on termination (subscriber cancels its `for await`).
+  func makeStream() -> AsyncStream<WindowChangeEvent> {
+    let id = UUID()
+    return AsyncStream(bufferingPolicy: .unbounded) { continuation in
+      lock.withLock { subscribers[id] = continuation }
+      continuation.onTermination = { [weak self] _ in
+        self?.lock.withLock { _ = self?.subscribers.removeValue(forKey: id) }
+      }
+    }
+  }
+
+  private func broadcast(_ event: WindowChangeEvent) {
+    let live = lock.withLock { Array(subscribers.values) }
+    for continuation in live { continuation.yield(event) }
   }
 
   func observe(bundleIds: [String]) async {
@@ -500,8 +530,9 @@ private func axObserverCallback(
     case kAXMenuClosedNotification as String:
       app.isMenuOpen = false
     case kAXTitleChangedNotification as String:
-      // Cosmetic; subscribed for completeness, no reconcile work needed.
-      break
+      // Cosmetic for tiling; forwarded so the layout preview can refresh
+      // titles live. The activation reducer ignores it.
+      app.continuation.yield(.windowTitleChanged(bundleId: app.bundleId))
     default:
       break
     }

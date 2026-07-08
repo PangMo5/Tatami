@@ -18,7 +18,16 @@ public struct WorkspaceDetailFeature {
     /// The layout-preview concern (resolve/edit/persist), owned by its own
     /// reducer.
     public var layout: WorkspaceLayoutFeature.State
+    /// One-shot request to scroll the Apps section to an app row (from the
+    /// layout preview's "Configure in Apps"). The token distinguishes repeat
+    /// requests for the same app so the view's scroll refires.
+    public var appScrollRequest: ScrollRequest?
     @Presents public var alert: AlertState<Action.Alert>?
+
+    public struct ScrollRequest: Equatable {
+      public var bundleId: String
+      public var token: Int
+    }
 
     public init(workspaceId: Workspace.ID) {
       self.workspaceId = workspaceId
@@ -77,6 +86,8 @@ public struct WorkspaceDetailFeature {
     case refreshDisplays
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
+    /// Scroll the Apps section to (and briefly highlight) this app's row.
+    case scrollToApp(bundleId: String)
     case layout(WorkspaceLayoutFeature.Action)
     case alert(PresentationAction<Alert>)
 
@@ -285,6 +296,11 @@ public struct WorkspaceDetailFeature {
 
       case .shortcutRecordingChanged(let recording):
         return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
+
+      case .scrollToApp(let bundleId):
+        let token = (state.appScrollRequest?.token ?? 0) + 1
+        state.appScrollRequest = State.ScrollRequest(bundleId: bundleId, token: token)
+        return .none
       }
     }
     .ifLet(\.$alert, action: \.alert)

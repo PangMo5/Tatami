@@ -266,6 +266,14 @@ public struct AppFeature {
       case let .workspaceList(.detail(.layout(.delegate(.residentLayoutInvalidated(workspaceId))))):
         return .send(.activation(.invalidateResidentLayout(workspaceId: workspaceId)))
 
+      // "Configure" on a non-tiled chip: send the user to where the app is
+      // set up — the Shared Apps sidebar section, or this workspace's Apps
+      // section (already the selected detail).
+      case let .workspaceList(.detail(.layout(.delegate(.revealAppSettings(bundleId, isShared))))):
+        return isShared
+          ? .send(.workspaceList(.sidebarSelected(.shared)))
+          : .send(.workspaceList(.detail(.scrollToApp(bundleId: bundleId))))
+
       default:
         return .none
       }

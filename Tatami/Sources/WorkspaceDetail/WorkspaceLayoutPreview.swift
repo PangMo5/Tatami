@@ -108,6 +108,16 @@ struct WorkspaceLayoutPreview: View {
     .padding(.vertical, 5)
     .background(Capsule().fill(Color.secondary.opacity(0.12)))
     .help(nonTiledHelp(app))
+    .contextMenu {
+      Button {
+        store.send(.revealApp(bundleId: app.bundleId, isShared: app.isShared))
+      } label: {
+        Label(
+          app.isShared ? "Configure in Shared Apps" : "Configure in Apps",
+          systemImage: "gearshape"
+        )
+      }
+    }
   }
 
   private func nonTiledHelp(_ app: NonTiledApp) -> String {
@@ -193,11 +203,11 @@ struct WorkspaceLayoutPreview: View {
         in: dock, hidden: hidden,
         pendingRatio: pendingRatio.map { ($0.trimmedPath, $0.ratio) }
       ) ?? (tiles: [], dividers: [])
-      let labels = tileLabels(regions.tiles)
+      let labels = windowLabels(fullscreen: fullscreen, tiles: regions.tiles)
 
       ZStack(alignment: .topLeading) {
         if hasFullscreen {
-          fullscreenBand(fullscreen, in: bandRect)
+          fullscreenBand(fullscreen, labels: labels.chips, in: bandRect)
         }
 
         RoundedRectangle(cornerRadius: 8)
@@ -223,7 +233,7 @@ struct WorkspaceLayoutPreview: View {
         }
 
         ForEach(regions.tiles) { leaf in
-          tileView(leaf, allLeaves: regions.tiles, label: labels[leaf.path] ?? "")
+          tileView(leaf, allLeaves: regions.tiles, label: labels.tiles[leaf.path] ?? "")
         }
         ForEach(regions.dividers) { divider in
           dividerHandle(divider)
@@ -232,12 +242,12 @@ struct WorkspaceLayoutPreview: View {
           overlay.allowsHitTesting(false)
         }
         if let drag = tileDrag, let source = regions.tiles.first(where: { $0.path == drag.source }) {
-          dragGhost(bundleId: source.representative ?? "", label: labels[drag.source] ?? "", at: drag.location)
+          dragGhost(bundleId: source.representative ?? "", label: labels.tiles[drag.source] ?? "", at: drag.location)
         }
         if let chip = chipDrag {
           dragGhost(
             bundleId: chip.item.bundleId,
-            label: chipLabel(bundleId: chip.item.bundleId, liveKey: chip.item.liveKey),
+            label: labels.chips[chip.item.index] ?? "",
             at: chip.location
           )
         }
@@ -297,7 +307,9 @@ struct WorkspaceLayoutPreview: View {
 
   // MARK: Fullscreen band (drag target + draggable chips)
 
-  private func fullscreenBand(_ items: [FullscreenItem], in rect: CGRect) -> some View {
+  private func fullscreenBand(
+    _ items: [FullscreenItem], labels: [Int: String], in rect: CGRect
+  ) -> some View {
     let armed = tileDrag != nil
     return VStack(alignment: .leading, spacing: 3) {
       Label("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right")
@@ -306,7 +318,7 @@ struct WorkspaceLayoutPreview: View {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 8) {
           ForEach(items) { item in
-            fullscreenChip(item)
+            fullscreenChip(item, label: labels[item.index] ?? "")
           }
         }
         .padding(.horizontal, 2)
@@ -323,12 +335,12 @@ struct WorkspaceLayoutPreview: View {
     .position(x: rect.midX, y: rect.midY)
   }
 
-  private func fullscreenChip(_ item: FullscreenItem) -> some View {
+  private func fullscreenChip(_ item: FullscreenItem, label: String) -> some View {
     let dragging = chipDrag?.item == item
     return HStack(spacing: 6) {
       AppIcon(bundleIdentifier: item.bundleId, iconPath: iconPath(for: item.bundleId))
         .frame(width: 18, height: 18)
-      Text(chipLabel(bundleId: item.bundleId, liveKey: item.liveKey))
+      Text(label)
         .font(.caption)
         .lineLimit(1)
         .truncationMode(.middle)
@@ -607,33 +619,29 @@ struct WorkspaceLayoutPreview: View {
       ?? bundleId
   }
 
-  /// Per-tile display labels. A live tile uses its exact window's title; an
-  /// inactive tile (bundle-id template) takes the nth title of that app, by
-  /// occurrence order, so repeated same-app tiles read distinctly.
-  private func tileLabels(_ tiles: [RenderLeaf]) -> [[BSPSide]: String] {
+  /// Labels for every rendered window — fullscreen chips *and* tiles — assigned
+  /// from one shared per-app counter so several windows of the same app read
+  /// distinctly. A live window uses its exact title (by key, no counter); an
+  /// inactive one (bundle-id template) consumes the next title of that app by
+  /// occurrence. Chips are counted before tiles so the two never collide.
+  private func windowLabels(fullscreen: [FullscreenItem], tiles: [RenderLeaf])
+    -> (chips: [Int: String], tiles: [[BSPSide]: String]) {
     let byBundle = store.titlesByBundle
     let titles = store.windowTitles
     var counts: [String: Int] = [:]
-    var out: [[BSPSide]: String] = [:]
-    for tile in tiles {
-      guard let bid = tile.representative else { continue }
-      if let key = tile.liveKey, let title = titles[key], !title.isEmpty {
-        out[tile.path] = title
-        continue
-      }
+    func take(_ bid: String, liveKey: WindowKey?) -> String {
+      if let key = liveKey, let title = titles[key], !title.isEmpty { return title }
       let occurrence = counts[bid, default: 0]
       counts[bid] = occurrence + 1
-      if let list = byBundle[bid], occurrence < list.count {
-        out[tile.path] = list[occurrence]
-      } else {
-        out[tile.path] = appName(for: bid)
-      }
+      if let list = byBundle[bid], occurrence < list.count { return list[occurrence] }
+      return appName(for: bid)
     }
-    return out
-  }
-
-  private func chipLabel(bundleId: String, liveKey: WindowKey?) -> String {
-    if let key = liveKey, let title = store.windowTitles[key], !title.isEmpty { return title }
-    return store.titlesByBundle[bundleId]?.first ?? appName(for: bundleId)
+    var chips: [Int: String] = [:]
+    for item in fullscreen { chips[item.index] = take(item.bundleId, liveKey: item.liveKey) }
+    var tileOut: [[BSPSide]: String] = [:]
+    for tile in tiles where tile.representative != nil {
+      tileOut[tile.path] = take(tile.representative!, liveKey: tile.liveKey)
+    }
+    return (chips, tileOut)
   }
 }

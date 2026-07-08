@@ -143,6 +143,11 @@ public struct WorkspaceLayoutFeature {
     case tileTapped(path: [BSPSide], bundleId: String, liveKey: WindowKey?)
     case backgroundTapped
 
+    /// A non-tiled chip's "configure" action — bubble up so the parent reveals
+    /// the app's settings (Shared Apps section for shared, else this workspace's
+    /// Apps section).
+    case revealApp(bundleId: String, isShared: Bool)
+
     // Structural-edit intents (carry TRIMMED paths; the reducer maps → full)
     case dividerResized(trimmedBranchPath: [BSPSide], ratio: CGFloat)
     case tileMoved(sourceTrimmedPath: [BSPSide], targetTrimmedPath: [BSPSide], zone: DropZone)
@@ -167,14 +172,18 @@ public struct WorkspaceLayoutFeature {
       /// Drop the resident in-memory tree so the next activation rebuilds from
       /// the edited snapshot.
       case residentLayoutInvalidated(workspaceId: Workspace.ID)
+      /// Reveal an app's settings: `isShared` → the Shared Apps section, else
+      /// this workspace's Apps section.
+      case revealAppSettings(bundleId: String, isShared: Bool)
     }
   }
 
   @Dependency(\.layoutStore) var layoutStore
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.appLaunch) var appLaunch
+  @Dependency(\.windowObserver) var windowObserver
 
-  private enum CancelID { case appActivity }
+  private enum CancelID { case appActivity, windowTitles }
 
   public init() {}
 
@@ -188,13 +197,24 @@ public struct WorkspaceLayoutFeature {
         }
 
       case .startObservingAppActivity:
-        // Reuse the multicast NSWorkspace stream: any app launch/activate/
-        // unhide/terminate/space change may alter a window title or which
-        // shared apps are present → refresh (subscription, not polling).
-        return .run { [appLaunch] send in
-          for await _ in appLaunch.events() { await send(.appActivityTick) }
-        }
-        .cancellable(id: CancelID.appActivity, cancelInFlight: true)
+        // Two subscriptions, both reused multicast streams (not polling):
+        //  1. NSWorkspace app events — launch/activate/unhide/terminate/space
+        //     change may alter a title or which shared apps are present.
+        //  2. AX title changes — catches in-app renames (terminal cwd, browser
+        //     tab) while the app stays frontmost, which (1) can't see. Only
+        //     fires for observed apps (the active workspace + tracked).
+        return .merge(
+          .run { [appLaunch] send in
+            for await _ in appLaunch.events() { await send(.appActivityTick) }
+          }
+          .cancellable(id: CancelID.appActivity, cancelInFlight: true),
+          .run { [windowObserver] send in
+            for await event in windowObserver.events() {
+              if case .windowTitleChanged = event { await send(.appActivityTick) }
+            }
+          }
+          .cancellable(id: CancelID.windowTitles, cancelInFlight: true)
+        )
 
       case .appActivityTick:
         return .send(.loadWindowTitles(bundleIds: state.tiledBundleIds))
@@ -243,6 +263,9 @@ public struct WorkspaceLayoutFeature {
       case .backgroundTapped:
         state.selectedTile = nil
         return .none
+
+      case .revealApp(let bundleId, let isShared):
+        return .send(.delegate(.revealAppSettings(bundleId: bundleId, isShared: isShared)))
 
       case .dividerResized(let trimmedBranchPath, let ratio):
         guard let full = state.resolved?.fullBranchPath(

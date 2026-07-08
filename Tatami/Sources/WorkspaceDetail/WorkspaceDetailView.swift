@@ -18,6 +18,10 @@ struct WorkspaceDetailView: View {
   @State private var nameDraft: String = ""
   @FocusState private var nameFieldFocused: Bool
   @State private var symbolPickerPresented = false
+  /// App row briefly tinted after a "Configure in Apps" jump, so the user's eye
+  /// lands on the right row.
+  @State private var highlightedApp: String?
+  private let highlightFlash: Duration = .seconds(1.6)
 
   /// True when *this* workspace is the currently-active one on any
   /// display. Drives the toolbar Activate button's disabled state.
@@ -83,6 +87,7 @@ struct WorkspaceDetailView: View {
 
   var body: some View {
     if let workspace = store.workspace {
+      ScrollViewReader { proxy in
       Form {
         Section {
           WorkspaceLayoutPreview(store: store.scope(state: \.layout, action: \.layout))
@@ -192,6 +197,11 @@ struct WorkspaceDetailView: View {
               onRemove: {
                 store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
               }
+            )
+            .id("app-\(assignment.bundleIdentifier)")
+            .listRowBackground(
+              highlightedApp == assignment.bundleIdentifier
+                ? Color.accentColor.opacity(0.18) : nil
             )
           }
         } header: {
@@ -363,6 +373,16 @@ struct WorkspaceDetailView: View {
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
       ) { _ in store.send(.refreshDisplays) }
       .alert($store.scope(state: \.alert, action: \.alert))
+      // A "Configure in Apps" jump: scroll the Apps section to the row and
+      // flash it. Keyed on the request token so repeat jumps refire.
+      .task(id: store.appScrollRequest?.token) {
+        guard let request = store.appScrollRequest else { return }
+        withAnimation { proxy.scrollTo("app-\(request.bundleId)", anchor: .center) }
+        withAnimation { highlightedApp = request.bundleId }
+        try? await Task.sleep(for: highlightFlash)
+        withAnimation { highlightedApp = nil }
+      }
+      } // ScrollViewReader
     } else {
       ContentUnavailableView(
         "Workspace Unavailable",
