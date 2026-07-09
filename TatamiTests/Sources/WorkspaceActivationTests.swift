@@ -214,6 +214,8 @@ struct WorkspaceActivationFeatureTests {
       $0.previousWorkspacesByDisplay[Self.display] = ws1.id
       $0.activeWorkspacesByDisplay[Self.display] = ws2.id
       $0.lastActiveDisplay[ws2.id] = Self.display
+      $0.displayWorkspaceHistory[Self.display] = [ws2.id]
+      $0.workspaceMRU = [ws2.id]
     }
   }
 
@@ -346,6 +348,8 @@ struct WorkspaceActivationFeatureTests {
     let gone = DisplayName("Gone Display")
     let ws1 = Workspace(name: "one")
     let state = Self.makeState(workspaces: [ws1]) {
+      // Both were connected; the reconfigure below unplugs `gone`.
+      $0.connectedDisplays = [gone, Self.display]
       $0.activeWorkspacesByDisplay[gone] = ws1.id
       $0.previousWorkspacesByDisplay[gone] = ws1.id
       $0.lastActiveDisplay[ws1.id] = gone
@@ -354,12 +358,116 @@ struct WorkspaceActivationFeatureTests {
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     }
+    store.exhaustivity = .off
 
-    await store.send(.displaysReconfigured([Self.display])) {
-      $0.activeWorkspacesByDisplay = [:]
-      $0.previousWorkspacesByDisplay = [:]
-      $0.lastActiveDisplay = [:]
-      $0.focusedDisplay = nil
-    }
+    // Disconnecting `gone` drops its per-display state (no new display → no
+    // restore plan).
+    await store.send(.displaysReconfigured([Self.display]))
+    #expect(store.state.connectedDisplays == [Self.display])
+    #expect(store.state.activeWorkspacesByDisplay.isEmpty)
+    #expect(store.state.previousWorkspacesByDisplay.isEmpty)
+    #expect(store.state.lastActiveDisplay.isEmpty)
+    #expect(store.state.focusedDisplay == nil)
+  }
+
+  // MARK: - Display reconnect planning (pure)
+
+  private func workspace(_ name: String, hint: DisplayName? = nil) -> Workspace {
+    Workspace(name: name, displayHint: hint)
+  }
+
+  @Test
+  func reconnectRestoresLastShownWhenPinnedOrFreeDynamic() {
+    let b = DisplayName("B")
+    let wB = workspace("wB", hint: b)
+    #expect(
+      WorkspaceActivationFeature.planDisplayRestore(
+        connected: [b], newlyConnected: [b], workspaces: [wB], active: [:], history: [b: [wB.id]]
+      ) == [DisplayAssignment(display: b, workspace: wB.id)]
+    )
+    // A dynamic last-shown IS restored — as long as it isn't in use elsewhere.
+    let dyn = workspace("dyn")
+    #expect(
+      WorkspaceActivationFeature.planDisplayRestore(
+        connected: [b], newlyConnected: [b], workspaces: [dyn], active: [:], history: [b: [dyn.id]]
+      ) == [DisplayAssignment(display: b, workspace: dyn.id)]
+    )
+  }
+
+  @Test
+  func reconnectFallsBackToFirstPinnedThenMostRecentFreeDynamic() {
+    let b = DisplayName("B")
+    let pinned = workspace("pinned", hint: b)
+    #expect(
+      WorkspaceActivationFeature.planDisplayRestore(
+        connected: [b], newlyConnected: [b], workspaces: [pinned], active: [:], history: [:]
+      ) == [DisplayAssignment(display: b, workspace: pinned.id)]
+    )
+    // No pinned → rule 3: the most-recently-used free dynamic (MRU order).
+    let a = DisplayName("A")
+    let used = workspace("used")      // dynamic, currently on A
+    let recent = workspace("recent")  // dynamic, free, more recent than `older`
+    let older = workspace("older")    // dynamic, free
+    let plan = WorkspaceActivationFeature.planDisplayRestore(
+      connected: [a, b], newlyConnected: [b],
+      workspaces: [used, recent, older],
+      active: [a: used.id], history: [:],
+      workspaceMRU: [used.id, recent.id, older.id]
+    )
+    #expect(plan == [
+      DisplayAssignment(display: a, workspace: used.id),     // re-assert A
+      DisplayAssignment(display: b, workspace: recent.id),   // used is elsewhere → recent
+    ])
+  }
+
+  @Test
+  func reconnectReAssertsConnectedDisplaysAndLeavesUnpinnedNewOnesEmpty() {
+    // The Figma case: dynamic Figma on A; B reconnects with nothing pinned to
+    // it. The plan re-asserts A→figma (overwriting macOS's shuffle) and leaves
+    // B empty — Figma stays on A rather than drifting to B.
+    let a = DisplayName("A"), b = DisplayName("B")
+    let figma = workspace("figma")  // dynamic
+    let plan = WorkspaceActivationFeature.planDisplayRestore(
+      connected: [a, b], newlyConnected: [b],
+      workspaces: [figma], active: [a: figma.id], history: [b: [figma.id]]
+    )
+    #expect(plan == [DisplayAssignment(display: a, workspace: figma.id)])
+  }
+
+  @Test
+  func reconnectReclaimsPinnedFromAnotherDisplayAndRefillsIt() {
+    let a = DisplayName("A"), b = DisplayName("B")
+    let wB = workspace("wB", hint: b)          // pinned to B, currently up on A
+    let wAprev = workspace("wAprev", hint: a)  // A's previous workspace
+    let plan = WorkspaceActivationFeature.planDisplayRestore(
+      connected: [a, b], newlyConnected: [b],
+      workspaces: [wB, wAprev],
+      active: [a: wB.id],
+      history: [b: [wB.id], a: [wB.id, wAprev.id]]
+    )
+    #expect(plan == [
+      DisplayAssignment(display: a, workspace: wAprev.id),
+      DisplayAssignment(display: b, workspace: wB.id),
+    ])
+  }
+
+  @Test
+  func vacatedRefillWalksHistoryPastWorkspacesInUseElsewhere() {
+    let a = DisplayName("A"), b = DisplayName("B"), c = DisplayName("C")
+    let wB = workspace("wB", hint: b)          // reclaimed to B
+    let wOnC = workspace("wOnC")               // dynamic, currently up on C
+    let wOlder = workspace("wOlder", hint: a)  // A's older workspace
+    let plan = WorkspaceActivationFeature.planDisplayRestore(
+      connected: [a, b, c], newlyConnected: [b],
+      workspaces: [wB, wOnC, wOlder],
+      active: [a: wB.id, c: wOnC.id],
+      history: [b: [wB.id], a: [wB.id, wOnC.id, wOlder.id]]
+    )
+    // B←wB; A skips wB (now on B) and wOnC (on C) → wOlder; C re-asserts wOnC.
+    #expect(plan == [
+      DisplayAssignment(display: a, workspace: wOlder.id),
+      DisplayAssignment(display: b, workspace: wB.id),
+      DisplayAssignment(display: c, workspace: wOnC.id),
+    ])
   }
 }

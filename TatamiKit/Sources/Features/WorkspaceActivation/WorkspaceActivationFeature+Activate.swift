@@ -4,12 +4,24 @@ import ComposableArchitecture
 import Foundation
 import OrderedCollections
 
+/// A workspace to (re)activate on a specific display — the unit of a
+/// display-reconnect restore plan (and its pending queue).
+public struct DisplayAssignment: Equatable, Sendable {
+  public var display: DisplayName
+  public var workspace: Workspace.ID
+  public init(display: DisplayName, workspace: Workspace.ID) {
+    self.display = display
+    self.workspace = workspace
+  }
+}
+
 extension WorkspaceActivationFeature {
   // MARK: - Activation
 
   func performActivate(
     workspaceId: Workspace.ID,
     setFocus: Bool,
+    displayOverride: DisplayName? = nil,
     state: inout State
   ) -> Effect<Action> {
     guard let profile = state.config.activeProfile,
@@ -72,7 +84,9 @@ extension WorkspaceActivationFeature {
       }
       targetDisplay = connected ?? displays.primary() ?? hint
     } else {
-      targetDisplay = displays.current()
+      // Dynamic workspace: normally the cursor's display, but a reconnect
+      // restore pins it to the specific monitor being refilled.
+      targetDisplay = displayOverride ?? displays.current()
     }
     // The switch HUD shows on the display focus lands on; on a cross-monitor
     // switch a second HUD on the monitor being left says where focus went, so
@@ -539,6 +553,115 @@ extension WorkspaceActivationFeature {
     return Set(slots.compactMap { keyForSlot[$0] }.filter { present.contains($0) })
   }
 
+  /// Pick the workspace to put on `display`, or nil to leave it be. Pure.
+  ///
+  /// - `reconnect` (a monitor just plugged in):
+  ///     1. the last workspace shown here, if it's pinned here, or it's dynamic
+  ///        and not currently in use on another display;
+  ///     2. else the first workspace statically pinned to this display;
+  ///     3. else a dynamic workspace not in use on another display — the most
+  ///        recently used one (`workspaceMRU`), falling back to the first.
+  /// - vacated (a dynamic workspace just left this display): walk the display's
+  ///   MRU history newest→oldest and take the first workspace that belongs here
+  ///   (dynamic, or pinned to this display) and isn't already in use elsewhere —
+  ///   so the monitor falls back to what the user last had on it.
+  static func chooseWorkspaceForDisplay(
+    _ display: DisplayName,
+    reconnect: Bool,
+    byId: [Workspace.ID: Workspace],
+    workspaces: [Workspace],
+    assigned: [DisplayName: Workspace.ID],
+    history: [DisplayName: [Workspace.ID]],
+    workspaceMRU: [Workspace.ID] = []
+  ) -> Workspace.ID? {
+    func pinned(_ id: Workspace.ID) -> Bool { byId[id]?.displayHint?.matches(display) ?? false }
+    func isDynamic(_ id: Workspace.ID) -> Bool { byId[id]?.isDynamic ?? false }
+    func elsewhere(_ id: Workspace.ID) -> Bool {
+      assigned.contains { $0.key != display && $0.value == id }
+    }
+    if reconnect {
+      // 1. last shown here — pinned here, or a free dynamic.
+      if let last = (history[display] ?? []).first(where: { byId[$0] != nil }),
+         pinned(last) || (isDynamic(last) && !elsewhere(last)) {
+        return last
+      }
+      // 2. first pinned to this display.
+      if let firstPinned = workspaces.first(where: {
+        $0.kind != .scratchpad && ($0.displayHint?.matches(display) ?? false)
+      }) {
+        return firstPinned.id
+      }
+      // 3. a free dynamic: most-recently-used, else the first.
+      if let recentDynamic = workspaceMRU.first(where: {
+        byId[$0] != nil && isDynamic($0) && !elsewhere($0)
+      }) {
+        return recentDynamic
+      }
+      return workspaces.first { $0.kind != .scratchpad && $0.isDynamic && !elsewhere($0.id) }?.id
+    }
+    return (history[display] ?? []).first {
+      byId[$0] != nil && !elsewhere($0) && (isDynamic($0) || pinned($0))
+    }
+  }
+
+  /// The full set of (display → workspace) activations to run when the display
+  /// configuration changes. Pure so the rules + reclaim recursion are testable.
+  ///
+  /// It re-asserts every still-connected display's current workspace (so macOS's
+  /// own window shuffle on a config change is overwritten by Tatami's layout),
+  /// and fills each `newlyConnected` monitor per `chooseWorkspaceForDisplay`.
+  /// When a pinned workspace is reclaimed from another display A, A is refilled
+  /// by walking its history (recursively), skipping anything in use elsewhere.
+  static func planDisplayRestore(
+    connected: [DisplayName],
+    newlyConnected: Set<DisplayName>,
+    workspaces: [Workspace],
+    active: [DisplayName: Workspace.ID],
+    history: [DisplayName: [Workspace.ID]],
+    workspaceMRU: [Workspace.ID] = []
+  ) -> [DisplayAssignment] {
+    var byId: [Workspace.ID: Workspace] = [:]
+    for w in workspaces where w.kind != .scratchpad { byId[w.id] = w }
+
+    // Live simulation of which workspace sits on each display as the plan grows.
+    var assigned = active
+    var visited: Set<DisplayName> = []
+
+    func displayShowing(_ id: Workspace.ID) -> DisplayName? {
+      assigned.first { $0.value == id }?.key
+    }
+    func pinned(_ id: Workspace.ID, to display: DisplayName) -> Bool {
+      byId[id]?.displayHint?.matches(display) ?? false
+    }
+
+    func fill(_ display: DisplayName, reconnect: Bool) {
+      guard visited.insert(display).inserted else { return }
+      guard let target = chooseWorkspaceForDisplay(
+        display, reconnect: reconnect, byId: byId,
+        workspaces: workspaces, assigned: assigned, history: history,
+        workspaceMRU: workspaceMRU
+      ), byId[target] != nil
+      else { return }
+      if let other = displayShowing(target), other != display {
+        // Already up on another display — only pull it over if it's pinned here.
+        guard pinned(target, to: display) else { return }
+        assigned[other] = nil
+        assigned[display] = target
+        fill(other, reconnect: false)
+      } else {
+        assigned[display] = target
+      }
+    }
+
+    for display in connected where newlyConnected.contains(display) {
+      fill(display, reconnect: true)
+    }
+    // Re-assert every connected display's (possibly reclaimed/filled) workspace.
+    return connected.compactMap { display in
+      assigned[display].map { DisplayAssignment(display: display, workspace: $0) }
+    }
+  }
+
   /// Lay the tree out, trimming fullscreen-zoomed windows so the rest
   /// of the tree shapes around as if they weren't present. Parent-zoom
   /// is handled inside `tree.frames(...)` directly.
@@ -871,7 +994,16 @@ extension WorkspaceActivationFeature {
       if workspaceId == comp.host { return (display, hostRect) }
       if workspaceId == slot.workspace { return (display, borrowedRect) }
     }
-    let display = state.config.activeProfile?.workspaces[id: workspaceId]?.displayHint
+    // Tile on the display the workspace is *actually* on — not its logical
+    // home. A pinned workspace displaced off its (disconnected/other) monitor,
+    // or a dynamic one moved across monitors, must lay out for the display it
+    // really occupies; resolving to `displayHint`/`displays.current()` sized it
+    // to the wrong monitor, leaving a gap / wrong ratio (the intermittent
+    // cross-display tiling bug). `activeWorkspacesByDisplay` is the source of
+    // truth for placement; fall back to the hint (fresh pinned activation) then
+    // the cursor (fresh dynamic activation).
+    let display = state.activeWorkspacesByDisplay.first { $0.value == workspaceId }?.key
+      ?? state.config.activeProfile?.workspaces[id: workspaceId]?.displayHint
       ?? displays.current()
     return (display, tilingWorkArea(for: display, settings: state.config.settings))
   }

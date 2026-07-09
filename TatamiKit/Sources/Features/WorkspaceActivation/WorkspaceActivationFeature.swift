@@ -25,6 +25,20 @@ public struct WorkspaceActivationFeature {
     /// unpinned ones), so cycling can scope dynamic workspaces to the monitor
     /// they were last on.
     public var lastActiveDisplay: [Workspace.ID: DisplayName] = [:]
+    /// Per-display MRU list of workspaces shown on it (newest first). Unlike
+    /// `activeWorkspacesByDisplay`, this survives a disconnect (session only, not
+    /// pruned when a display goes away), so reconnecting a monitor can restore
+    /// its last workspace and walk older ones when the newest is in use.
+    public var displayWorkspaceHistory: [DisplayName: [Workspace.ID]] = [:]
+    /// Global MRU of workspaces (newest first), for the reconnect fallback of
+    /// "the last-used dynamic workspace not in use on another display."
+    public var workspaceMRU: [Workspace.ID] = []
+    /// Displays connected as of the last reconfigure, to detect which ones are
+    /// newly plugged in on the next change.
+    public var connectedDisplays: Set<DisplayName> = []
+    /// Reconnect restores to run one-at-a-time through the single (latest-wins)
+    /// activation slot — dequeued as each activation completes.
+    public var pendingDisplayRestores: [DisplayAssignment] = []
     /// The display the user is currently acting on (cursor screen), refreshed
     /// before focus-sensitive ops so "the current workspace" resolves to the
     /// right monitor instead of an arbitrary one.
@@ -199,6 +213,13 @@ public struct WorkspaceActivationFeature {
     case activateNext
     case activatePrevious
     case activateRecent
+    /// Restore a workspace onto a specific display (silent, no focus steal) —
+    /// used when a monitor is reconnected. Dynamic workspaces are pinned to the
+    /// display for this activation via `displayOverride`.
+    case restoreDisplay(workspaceId: Workspace.ID, display: DisplayName)
+    /// Drain the reconnect-restore queue one activation at a time through the
+    /// single (latest-wins) activation slot.
+    case processDisplayRestores
     /// Borrow another workspace into the focused display's host. Re-borrowing
     /// the same target re-docks it to the new edge.
     case borrow(workspaceId: Workspace.ID, edge: BorrowEdge)
@@ -418,6 +439,15 @@ public struct WorkspaceActivationFeature {
 
       case .displaysReconfigured(let names):
         let connected = Set(names)
+        // Displays present now but not at the last reconfigure = freshly plugged
+        // in. (Empty `connectedDisplays` is the pre-startup state; seed it in
+        // `activateInitial` so a first *unplug* isn't mistaken for a plug-in.)
+        let newlyConnected = Set(names.filter { !state.connectedDisplays.contains($0) })
+        // Only a real connect/disconnect (the display *set* changed) triggers a
+        // re-tile; a bare resolution/arrangement tweak doesn't reshuffle
+        // workspaces.
+        let setChanged = connected != state.connectedDisplays
+        state.connectedDisplays = connected
         state.activeWorkspacesByDisplay = state.activeWorkspacesByDisplay
           .filter { connected.contains($0.key) }
         state.previousWorkspacesByDisplay = state.previousWorkspacesByDisplay
@@ -426,16 +456,35 @@ public struct WorkspaceActivationFeature {
         // workspaces aren't stranded off-screen in the cycle.
         state.lastActiveDisplay = state.lastActiveDisplay
           .filter { connected.contains($0.value) }
+        // `displayWorkspaceHistory` is deliberately NOT filtered — it must
+        // survive a disconnect so a reconnect can restore the monitor's last
+        // workspace.
         if let focused = state.focusedDisplay, !connected.contains(focused) {
           state.focusedDisplay = nil
         }
         debugLog.log(
           "Display",
           "reconfigured connected=\(names.map(\.name)) "
+            + "new=\(newlyConnected.map(\.name)) "
             + "activeByDisplay=\(state.activeWorkspacesByDisplay.map { "\($0.key.name)→\($0.value)" }) "
             + "focused=\(state.focusedDisplay?.name ?? "nil")"
         )
-        return .none
+        guard setChanged, let profile = state.config.activeProfile else { return .none }
+        let plan = Self.planDisplayRestore(
+          connected: names,
+          newlyConnected: newlyConnected,
+          workspaces: profile.workspaces.elements,
+          active: state.activeWorkspacesByDisplay,
+          history: state.displayWorkspaceHistory,
+          workspaceMRU: state.workspaceMRU
+        )
+        guard !plan.isEmpty else { return .none }
+        debugLog.log(
+          "Display",
+          "restore plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })"
+        )
+        state.pendingDisplayRestores = plan
+        return .send(.processDisplayRestores)
 
       case .windowChanged(let event):
         switch event {
@@ -685,6 +734,9 @@ public struct WorkspaceActivationFeature {
 
       case .activateInitial:
         guard let profile = state.config.activeProfile else { return .none }
+        // Seed the connected-display set so the first real reconfigure diffs
+        // against reality (an unplug must not read as everything plugging in).
+        state.connectedDisplays = Set(displays.all())
         // Scratchpads are borrow-only — never auto-activate one on launch.
         let candidates = profile.workspaces.filter { $0.kind != .scratchpad }
         guard !candidates.isEmpty else { return .none }
@@ -731,11 +783,27 @@ public struct WorkspaceActivationFeature {
         }
 
       case .activate(let workspaceId, let setFocus):
+        // A deliberate switch supersedes any in-flight reconnect restore cascade
+        // — the user's action wins over the display-restore queue.
+        state.pendingDisplayRestores = []
         return performActivate(
           workspaceId: workspaceId,
           setFocus: setFocus,
           state: &state
         )
+
+      case .restoreDisplay(let workspaceId, let display):
+        return performActivate(
+          workspaceId: workspaceId,
+          setFocus: false,
+          displayOverride: display,
+          state: &state
+        )
+
+      case .processDisplayRestores:
+        guard !state.pendingDisplayRestores.isEmpty else { return .none }
+        let next = state.pendingDisplayRestores.removeFirst()
+        return .send(.restoreDisplay(workspaceId: next.workspace, display: next.display))
 
       case .borrow(let workspaceId, let edge):
         return performBorrow(targetId: workspaceId, edge: edge, state: &state)
@@ -1218,9 +1286,44 @@ public struct WorkspaceActivationFeature {
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
           state.previousWorkspacesByDisplay[display] = previous
         }
+        var emptiedByMove: [DisplayName] = []
         if let display {
+          // Invariant: a workspace is on exactly one display. Clear stale copies
+          // so a dynamic workspace that just moved here doesn't stay recorded on
+          // the display it left (which would strand that monitor "occupied").
+          for (other, ws) in state.activeWorkspacesByDisplay where other != display && ws == id {
+            state.activeWorkspacesByDisplay[other] = nil
+            emptiedByMove.append(other)
+          }
           state.activeWorkspacesByDisplay[display] = id
           state.lastActiveDisplay[id] = display
+          // Per-display MRU (survives disconnect): most recent first, deduped.
+          var mru = state.displayWorkspaceHistory[display] ?? []
+          mru.removeAll { $0 == id }
+          mru.insert(id, at: 0)
+          state.displayWorkspaceHistory[display] = mru
+          // Global MRU too (reconnect dynamic fallback).
+          state.workspaceMRU.removeAll { $0 == id }
+          state.workspaceMRU.insert(id, at: 0)
+        }
+        // A display a dynamic workspace just vacated gets refilled with what the
+        // user last had on it — same rules as a reconnect. Skipped mid-cascade
+        // (a reconnect plan already schedules its own refills).
+        if state.pendingDisplayRestores.isEmpty, !emptiedByMove.isEmpty,
+           let profile = state.config.activeProfile {
+          var byId: [Workspace.ID: Workspace] = [:]
+          for w in profile.workspaces.elements where w.kind != .scratchpad { byId[w.id] = w }
+          let fills = emptiedByMove
+            .filter { state.connectedDisplays.contains($0) }
+            .compactMap { vacated -> DisplayAssignment? in
+              Self.chooseWorkspaceForDisplay(
+                vacated, reconnect: false, byId: byId,
+                workspaces: profile.workspaces.elements,
+                assigned: state.activeWorkspacesByDisplay,
+                history: state.displayWorkspaceHistory
+              ).map { DisplayAssignment(display: vacated, workspace: $0) }
+            }
+          state.pendingDisplayRestores = fills
         }
         let treeIds = state.tilingTrees[id]?.windows.map(\.bundleId)
         let registeredIds = state.config.activeProfile?
@@ -1262,7 +1365,10 @@ public struct WorkspaceActivationFeature {
           // workspace the user actually settles on pays for revalidation.
           state.isTilingPaused
             ? .none
-            : .merge(observeIds.map { debouncedSync($0, delayMs: 150) })
+            : .merge(observeIds.map { debouncedSync($0, delayMs: 150) }),
+          // Drain the reconnect-restore queue: this activation just freed the
+          // single activation slot, so kick the next display's restore (if any).
+          state.pendingDisplayRestores.isEmpty ? .none : .send(.processDisplayRestores)
         )
 
       case .activationTimedOut:

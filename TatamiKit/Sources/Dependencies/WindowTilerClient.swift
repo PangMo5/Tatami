@@ -152,20 +152,27 @@ extension WindowTilerClient: DependencyKey {
     // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
     if isFullScreen(window) { return "skipped-fullscreen" }
 
-    var posError = AXError.success
-    var position = CGPoint(x: frame.minX, y: frame.minY)
-    if let posValue = AXValueCreate(.cgPoint, &position) {
-      posError = AXUIElementSetAttributeValue(
-        window, kAXPositionAttribute as CFString, posValue
-      )
+    // Apply position + size TWICE. Moving a window to a larger display, macOS
+    // clamps the size to the window's *current* (smaller) display before the
+    // position write lands it on the new one — so a single pos→size pass leaves
+    // it short (the cross-display gap / wrong ratio). The second pass runs with
+    // the window already on the target display, where the size isn't clamped.
+    // (yabai does the same repeated set for cross-display moves.)
+    func setPosition() -> AXError {
+      var position = CGPoint(x: frame.minX, y: frame.minY)
+      guard let value = AXValueCreate(.cgPoint, &position) else { return .success }
+      return AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
     }
-    var sizeError = AXError.success
-    var size = CGSize(width: frame.width, height: frame.height)
-    if let sizeValue = AXValueCreate(.cgSize, &size) {
-      sizeError = AXUIElementSetAttributeValue(
-        window, kAXSizeAttribute as CFString, sizeValue
-      )
+    func setSize() -> AXError {
+      var size = CGSize(width: frame.width, height: frame.height)
+      guard let value = AXValueCreate(.cgSize, &size) else { return .success }
+      return AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
     }
+
+    _ = setPosition()
+    _ = setSize()
+    let posError = setPosition()
+    let sizeError = setSize()
 
     if posError == .success, sizeError == .success { return "ok" }
     return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
