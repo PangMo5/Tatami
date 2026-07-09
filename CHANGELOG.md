@@ -6,6 +6,25 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.6.0 — 2026-07-09
+
+### ⚠️ Breaking Changes
+- **Layouts always persist.** The per-workspace "session only" tiling-memory option has been removed — every workspace now keeps its layout across restarts. Existing configs that set it still load fine (the setting is ignored), but the option is gone from Settings and the config schema.
+
+### New
+- **Workspace layout preview + editor.** Each workspace's settings now open with a live graphic of its tile layout that you can edit in place: drag a divider to resize, drag a tile onto another to move it (drop on an edge to split, center to swap), rotate, mirror, balance, and toggle a tile's split orientation. A separate band shows fullscreen-zoomed windows — drag a tile onto it to fullscreen, or a chip back down to restore. It works for **inactive** workspaces too (edits are saved and applied the next time you switch to them), scratchpads show their borrow dock, and floating / ignored / shared apps appear in a "Not tiled" band. Windows show their real titles, and right-clicking a not-tiled app jumps to where it's configured.
+- **Workspaces return to their monitor when you reconnect a display.** Replug an external display and the workspace that lived on it comes back: a workspace pinned to that monitor reclaims it (and the display it was borrowed onto falls back to what it last showed), otherwise the monitor restores its own most-recent workspace. Moving a workspace to another monitor now also refills the one it left.
+
+### Improvements
+- **Two windows of the same app keep their own tile.** Layouts now track each window by its position among its app's windows, so several windows of one app hold distinct, arrangeable spots (and remember which one was fullscreen) instead of collapsing together. Layout memory is also hardened — one unreadable entry no longer wipes every workspace's layout, and layouts from older versions migrate automatically.
+- **Reorder workspaces by dragging** them in the sidebar, and **destructive actions now ask first** — deleting a workspace or removing an app prompts for confirmation.
+
+### Fixes
+- **`⌥Tab` returns to the window you were using.** Switching back to an app with several windows now lands on its most recently focused one instead of an arbitrary window.
+- **Switching to an app no longer raises the wrong one.** When activating an app pulls its workspace forward, an always-open app in that workspace no longer steals the foreground.
+- **Switching workspaces keeps minimized windows minimized** instead of restoring them.
+- **Cross-display moves size correctly.** Moving a workspace to another monitor no longer leaves its windows short or the wrong ratio — macOS could clamp a window's size to its old display mid-move; Tatami now re-applies the frame so it fills the monitor it lands on.
+
 ## 1.5.1 — 2026-06-30
 
 ### Improvements

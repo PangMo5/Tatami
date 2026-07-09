@@ -99,16 +99,28 @@ private struct WhatsNewView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
       VStack(alignment: .leading, spacing: 4) {
         Text("What's New in Tatami \(version)")
           .font(.title.weight(.semibold))
-        Text("Borrow another workspace beside the one you're in — tiled side by side, live.")
+        Text("See and edit each workspace's tile layout right in its settings — live.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
 
-      // 1.5.0 is purely additive — nothing in it touches an existing config,
-      // so the "Changes to your setup" box is omitted this release.
+      // MARK: Breaking changes
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Breaking Changes", systemImage: "exclamationmark.triangle.fill")
+          .font(.subheadline.weight(.semibold))
+        Text("The per-workspace \u{201C}session only\u{201D} tiling-memory option is gone — every workspace now keeps its layout across restarts. Configs that set it still load fine; the setting is simply ignored.")
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .padding(12)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.12)))
 
       // MARK: Feature highlights
       VStack(alignment: .leading, spacing: 14) {
@@ -116,24 +128,29 @@ private struct WhatsNewView: View {
           .font(.headline)
 
         item(
-          icon: "rectangle.righthalf.inset.filled",
-          title: "Borrow — compose two workspaces",
-          detail: "Pull another workspace in beside the current one, docked to a screen edge and tiled next to it. Each keeps its own layout and windows can't cross the boundary; the borrowed block is the real workspace, so edits there stick. Hold the borrow modifier with a workspace's key, then steer the direction with `h` / `j` / `k` / `l` — or set a default edge and size."
+          icon: "rectangle.split.2x2",
+          title: "Layout preview & editor",
+          detail: "Every workspace's settings now open with a live graphic of its tiles. Drag a divider to resize, drag a tile onto another to move it (edge to split, center to swap), and rotate, mirror, balance, or flip a tile's orientation. Fullscreen windows sit in their own band you can drag in and out of. It works on **inactive** workspaces too — edits apply next time you switch to them."
         )
         item(
-          icon: "keyboard",
-          title: "One key per workspace",
-          detail: "Give a workspace a single key equivalent and hold it with the switch, assign, or borrow modifier to switch to it, assign the focused app, or borrow it. Recent / next / previous targets work the same way, and any action still takes an explicit shortcut override."
+          icon: "macwindow.on.rectangle",
+          title: "Same-app windows keep their spot",
+          detail: "Two windows of one app now hold distinct, arrangeable tiles (and remember which was fullscreen) instead of collapsing together. Layout memory is hardened too: one bad entry no longer resets everything, and older layouts migrate automatically."
         )
         item(
-          icon: "tray.full",
-          title: "Scratchpad workspaces",
-          detail: "A borrow-only workspace kind — excluded from cycling and never activated on its own. Summon it beside another workspace and its apps come up with it; each window wears its icon while it's on loan."
+          icon: "display.2",
+          title: "Displays restore on reconnect",
+          detail: "Replug a monitor and the workspace that lived on it comes back — a pinned workspace reclaims its screen, otherwise the monitor restores its most-recent one. Moving a workspace between monitors also refills the one it left, and cross-display moves now size correctly."
+        )
+        item(
+          icon: "line.3.horizontal",
+          title: "Reorder by dragging, confirm before deleting",
+          detail: "Drag workspaces and scratchpads to reorder them in the sidebar. Deleting a workspace or removing an app now asks first."
         )
       }
       .padding(.horizontal, 6)
-
-      Spacer(minLength: 0)
+        }
+      }
 
       HStack {
         Button("View Full Changelog…") { showChangelog = true }
