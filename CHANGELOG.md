@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.6.1 — 2026-07-10
+
+### Fixes
+- **Fullscreen-zoom survives a monitor unplug/replug.** Closing and reopening a display no longer drops a workspace's fullscreen-zoom — the display churn briefly hid the window, which used to clear its zoom for good; now the window returns with the same id and stays zoomed. Genuinely closing a zoomed window still un-zooms the workspace, and reopening one starts fresh without inheriting the old zoom.
+
 ## 1.6.0 — 2026-07-09
 
 ### ⚠️ Breaking Changes
