@@ -253,16 +253,22 @@ extension WorkspaceActivationFeature {
     // A native-tab switch (Ghostty, Terminal) retires the active tab's
     // CGWindowID and surfaces a new one for the same app — so a fullscreen-zoom
     // recorded on the retired id would fall back to a half tile. Migrate the
-    // zoom on a now-absent id to its replacement (same app, newly in the tree);
-    // drop a zoom whose window is simply gone.
+    // zoom to the replacement (same app, newly in the tree).
+    //
+    // Only *migrate* — never drop a zoom key just because its window isn't in
+    // the tree this pass. A window transiently absent (monitor unplug/replug
+    // churn empties the tree, then the window returns with the same id) would
+    // otherwise lose its zoom permanently. A key whose window is genuinely gone
+    // is harmless: `computeFrames` ignores a zoom key not in the tree, so the
+    // workspace un-zooms correctly on close and the stale key just lingers.
     if var zoom = state.fullscreenZoomed[workspaceId], !zoom.isEmpty {
       let addedKeys = newWindows.subtracting(oldWindows)
       var changed = false
       for stale in zoom where balanced?.pathTo(window: stale) == nil {
+        guard let replacement = addedKeys.first(where: { $0.bundleId == stale.bundleId })
+        else { continue }
         zoom.remove(stale)
-        if let replacement = addedKeys.first(where: { $0.bundleId == stale.bundleId }) {
-          zoom.insert(replacement)
-        }
+        zoom.insert(replacement)
         changed = true
       }
       if changed { state.fullscreenZoomed[workspaceId] = zoom.isEmpty ? nil : zoom }
