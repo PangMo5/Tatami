@@ -724,6 +724,15 @@ public struct WorkspaceActivationFeature {
         // debounce only exists to let a focus-driven off-screen guess
         // settle, which doesn't apply here.
         debugLog.log("SLS", "window destroyed wid=\(wid)")
+        // Genuine destroy (a real close — not a monitor-unplug off-screen, which
+        // fires no destroy): drop this window from any fullscreen-zoom set so a
+        // reopened window doesn't inherit the closed one's zoom. The sync prune
+        // deliberately keeps keys for transiently-absent windows; only a real
+        // destroy clears them.
+        for (wsId, zoom) in state.fullscreenZoomed where zoom.contains(where: { $0.windowID == wid }) {
+          let remaining = zoom.filter { $0.windowID != wid }
+          state.fullscreenZoomed[wsId] = remaining.isEmpty ? nil : remaining
+        }
         return pruneOffscreenWindows(state: &state)
 
       case .pruneOffscreenWindows:
