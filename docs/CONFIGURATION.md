@@ -72,12 +72,9 @@ the rest pick which actions show one.
 | `autoBalance` | string | `"none"` | Re-equalize splits after every insert/remove. One of `none`, `horizontal`, `vertical`, `both`. (Legacy bool values still decode: `true` → `both`, `false` → `none`.) |
 | `splitType` | string | `"auto"` | Default split axis when a new window splits a tile: `auto` (aspect-based), `horizontal`, `vertical`. |
 | `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
-| `defaultTilingMemory` | string | `"session"` | How workspaces remember their layout: `session` or `persistent`. A workspace can override this. |
 
-`defaultTilingMemory` values:
-
-- `session` — keep the layout (split axes + ratios) while the app runs; reset on restart
-- `persistent` — remember the layout across app restarts (saved to disk)
+Workspaces always remember their layout — split axes and ratios are persisted
+to disk and restored on the next launch.
 
 ## `[settings.focus]`
 
@@ -96,12 +93,12 @@ the rest pick which actions show one.
 | --- | --- | --- | --- |
 | `loop` | bool | `true` | Wrap from the last workspace back to the first (and vice versa). |
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when cycling next/previous. |
-| `followAppFocus` | bool | `false` | Activating an app switches to the workspace that owns it. |
+| `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
 | `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes (nothing tiled, no workspace-specific floating window), switch to the recent workspace. Shared apps don't count — they join every workspace anyway. |
 | `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app (one representative window per app); `true` visits every window, including multiple windows of the same app. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
-| `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0…1). A workspace's `borrowFraction` overrides this. |
+| `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
 
 ## `[settings.gestures]`
 
@@ -129,9 +126,11 @@ Small corner dots that identify zoomed, floating, and borrowed windows.
 
 ## `[settings.shortcuts]`
 
-Most values are skhd-style shortcut strings (see above). Omit a key to leave that
-action unbound. The exceptions are the three `*Modifiers` arrays below, which
-drive the per-workspace **key equivalent** model.
+Most values are skhd-style shortcut strings (see above). Omitting a key leaves
+that action unbound; a brand-new config (no `config.toml` yet) is seeded with a
+recommended starter set — see [Recommended defaults](#recommended-defaults) —
+that you can freely re-record or clear. The exceptions are the three
+`*Modifiers` arrays below, which drive the per-workspace **key equivalent** model.
 
 ### Workspace keys (switch / assign / borrow)
 
@@ -147,6 +146,11 @@ hold it with one of three global modifier combos to choose the action:
 
 Modifier tokens are `ctrl`, `alt`, `shift`, `cmd`. An empty array disables that
 action's key-equivalent combo (so a bare key can't hijack typing).
+
+The **Default** column above is the fallback used when the key is missing from
+an *existing* config. A fresh install instead seeds the recommended combos
+`keyEquivalentModifiers = ["ctrl", "alt", "shift"]` and
+`assignModifiers = ["alt", "shift", "cmd"]` (see [Recommended defaults](#recommended-defaults)).
 
 The same three modifiers also drive the **recent / next / previous** navigation
 targets, each with its own key:
@@ -187,6 +191,36 @@ restores the host to full screen.
 | `toggleFocusedAppInActiveWorkspace` | Add the focused window's app to the active workspace (or remove it if already a member) |
 | `toggleAppInSharedApps` | Add the focused app to Shared Apps (tiled into every workspace), or remove it if already shared |
 | `toggleSpaceActivated` | Pause/resume tiling |
+
+### Recommended defaults
+
+A brand-new config (no `config.toml` yet) is seeded with a usable starter
+scheme so actions work out of the box. `⌃⌥` drives the window/tile operations;
+workspace **switch** moves to `⌃⌥⇧` and **assign** to `⌥⇧⌘`, so a workspace's
+one-key equivalent never collides with a `⌃⌥` focus key. Anything here can be
+re-recorded or cleared.
+
+| Action | Shortcut |
+| --- | --- |
+| Focus left / down / up / right | `⌃⌥H` · `⌃⌥J` · `⌃⌥K` · `⌃⌥L` |
+| Swap left / down / up / right | `⌃⌥←` · `⌃⌥↓` · `⌃⌥↑` · `⌃⌥→` |
+| Grow / shrink | `⌃⌥=` · `⌃⌥-` |
+| Toggle orientation | `⌃⌥S` |
+| Toggle fullscreen | `⌃⌥⏎` |
+| Balance | `⌃⌥E` |
+| Cycle next / previous window | `⌥⇥` · `⌥⇧⇥` |
+| Toggle floating | `⌥⌘⏎` |
+| Toggle shared floating | `⌥⇧⌘⏎` |
+| Toggle tiling (pause) | `⌃⌥⇧⌘Z` |
+| Toggle app in workspace | `⌃⌥/` |
+| Toggle app in Shared Apps | `⌃⌥⇧/` |
+| Move app to previous / next workspace | `⌃⌥⇧[` · `⌃⌥⇧]` |
+| Focus previous / next display | `⌃⌥⇧←` · `⌃⌥⇧→` |
+| Dismiss borrow | `⌃⌥⌘/` |
+| Recent / next / previous workspace key | `\` · `.` · `,` |
+
+Workspace **switch / assign / borrow** combine the modifiers above with each
+workspace's key equivalent and with the recent / next / previous keys.
 
 ## `[[sharedApps]]`
 
@@ -241,7 +275,6 @@ symbolIconName = "safari.fill"        # any SF Symbol name
 kind = "normal"                        # "normal" | "scratchpad" (borrow-only)
 keyEquivalent = "b"                    # switch/assign/borrow modifier + this key
 borrowEdge = "right"                   # optional: dock to this edge when borrowed
-tilingMemory = "session"               # optional: overrides defaultTilingMemory
 displayHint = "Built-in Retina Display"           # optional: pin to a display ("<uuid>::<name>" or "<name>")
 appToFocusBundleId = "app.zen-browser.zen"        # optional: focus this app on activation
 
@@ -265,9 +298,8 @@ Workspace fields:
 | `assignAppShortcut` | string? | Explicit override for the assign combo (add the focused app, keeping its other memberships, and switch here). |
 | `borrowShortcut` | string? | Explicit override for the borrow combo. |
 | `borrowEdge` | string? | Override the default borrow edge for this workspace: `top`, `bottom`, `left`, `right`. Omit to use `settings.switching.borrowDefaultEdge` (or the direction-pick when that's unset). |
-| `borrowFraction` | double? | Override the borrowed-block size for this workspace (0…1). Omit to use `settings.switching.borrowFraction`. |
+| `borrowFraction` | double? | Override the borrowed-block size for this workspace (0.1…0.9). Omit to use `settings.switching.borrowFraction`. |
 | `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation; omit for most-recently-used. |
-| `tilingMemory` | string? | `session` / `persistent`; omit to use the global default. |
 | `displayHint` | string? | Pin the workspace to a display — `"<uuid>::<name>"` or just `"<name>"`. Omit to follow apps dynamically. Falls back to the primary display when the pinned monitor is absent. |
 
 App assignment fields:
