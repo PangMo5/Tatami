@@ -19,6 +19,10 @@ public enum HotKeyAction: Sendable, Hashable {
   case switchToPreviousWorkspace
   case switchToRecentWorkspace
 
+  // Profiles
+  /// Switch to (activate) a specific profile.
+  case activateProfile(Profile.ID)
+
   // Move the focused app to an adjacent workspace (relocate + switch)
   case moveFocusedAppToNextWorkspace
   case moveFocusedAppToPreviousWorkspace
@@ -76,6 +80,7 @@ extension HotKeyAction {
     case .switchToNextWorkspace: "next-workspace"
     case .switchToPreviousWorkspace: "prev-workspace"
     case .switchToRecentWorkspace: "recent-workspace"
+    case .activateProfile(let id): "activate-profile-\(id.uuidString)"
     case .moveFocusedAppToNextWorkspace: "move-app-next-workspace"
     case .moveFocusedAppToPreviousWorkspace: "move-app-prev-workspace"
     case .focusNextDisplay: "focus-next-display"
@@ -123,6 +128,8 @@ extension HotKeyAction {
     case .switchToNextWorkspace: "Next workspace"
     case .switchToPreviousWorkspace: "Previous workspace"
     case .switchToRecentWorkspace: "Recent workspace"
+    case .activateProfile(let id):
+      "Switch to " + (config.profiles.first(where: { $0.id == id })?.name ?? "profile")
     case .moveFocusedAppToNextWorkspace: "Move app to next workspace"
     case .moveFocusedAppToPreviousWorkspace: "Move app to previous workspace"
     case .focusNextDisplay: "Focus next display"

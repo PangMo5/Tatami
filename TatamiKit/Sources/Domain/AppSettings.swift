@@ -247,6 +247,8 @@ extension AppSettings {
     public var enabled: Bool
     /// Workspace name overlay when switching workspaces.
     public var workspaceSwitch: Bool
+    /// Profile name overlay when switching profiles.
+    public var profileSwitch: Bool
     /// Float state changes — per-workspace and shared.
     public var floating: Bool
     /// App added to / removed from a workspace or Shared Apps.
@@ -267,6 +269,7 @@ extension AppSettings {
     public init(
       enabled: Bool = true,
       workspaceSwitch: Bool = true,
+      profileSwitch: Bool = true,
       floating: Bool = true,
       appMembership: Bool = true,
       tilingPaused: Bool = true,
@@ -277,6 +280,7 @@ extension AppSettings {
     ) {
       self.enabled = enabled
       self.workspaceSwitch = workspaceSwitch
+      self.profileSwitch = profileSwitch
       self.floating = floating
       self.appMembership = appMembership
       self.tilingPaused = tilingPaused
@@ -287,7 +291,7 @@ extension AppSettings {
     }
 
     private enum CodingKeys: String, CodingKey {
-      case enabled, workspaceSwitch, floating, appMembership, tilingPaused
+      case enabled, workspaceSwitch, profileSwitch, floating, appMembership, tilingPaused
       case fullscreen, layout, borrow, durationMs
     }
 
@@ -295,6 +299,7 @@ extension AppSettings {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       self.enabled = c.decode(.enabled, default: true)
       self.workspaceSwitch = c.decode(.workspaceSwitch, default: true)
+      self.profileSwitch = c.decode(.profileSwitch, default: true)
       self.floating = c.decode(.floating, default: true)
       self.appMembership = c.decode(.appMembership, default: true)
       self.tilingPaused = c.decode(.tilingPaused, default: true)

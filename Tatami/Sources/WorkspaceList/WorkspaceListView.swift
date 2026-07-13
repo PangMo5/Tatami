@@ -21,6 +21,7 @@ struct WorkspaceListView: View {
   var body: some View {
     NavigationSplitView {
       List(selection: $store.selection.sending(\.sidebarSelected)) {
+        profilesSection
         Section("Workspaces") {
           // `id: \.sidebarItem` (not Workspace's own ID): macOS only wires
           // the selection gesture when the ForEach id type matches the
@@ -99,7 +100,59 @@ struct WorkspaceListView: View {
     .sheet(isPresented: $store.isAddSheetPresented) {
       AddWorkspaceForm(store: store)
     }
+    .sheet(isPresented: Binding(
+      get: { store.profileSheet != nil },
+      set: { if !$0 { store.send(.profileSheetCancelled) } }
+    )) {
+      ProfileNameForm(store: store)
+    }
     .alert($store.scope(state: \.alert, action: \.alert))
+  }
+
+  /// The "Profiles" sidebar section: one row per profile (click switches;
+  /// right-click duplicates / renames / deletes that specific profile) plus a
+  /// "New Profile" row. Rows are plain buttons (not List-selectable) so picking
+  /// a profile never collides with workspace-row selection.
+  @ViewBuilder
+  private var profilesSection: some View {
+    let activeId = store.config.activeProfileId ?? store.config.profiles.first?.id
+    Section("Profiles") {
+      ForEach(store.config.profiles) { profile in
+        Button {
+          store.send(.profileSelected(profile.id))
+        } label: {
+          HStack {
+            Label(profile.name, systemImage: "rectangle.stack")
+            Spacer()
+            if profile.id == activeId {
+              Image(systemName: "circle.fill")
+                .foregroundStyle(.green)
+                .imageScale(.small)
+                .help("Active profile")
+            }
+          }
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+          Button("Duplicate") { store.send(.duplicateProfileTapped(profile.id)) }
+          Button("Rename…") { store.send(.renameProfileTapped(profile.id)) }
+          if store.config.profiles.count > 1 {
+            Divider()
+            Button("Delete", role: .destructive) {
+              store.send(.deleteProfileRequested(profile.id))
+            }
+          }
+        }
+      }
+      Button {
+        store.send(.newProfileButtonTapped)
+      } label: {
+        Label("New Profile", systemImage: "plus")
+      }
+      .buttonStyle(.plain)
+      .foregroundStyle(.secondary)
+    }
   }
 
   @ViewBuilder
@@ -275,6 +328,41 @@ private struct AddWorkspaceForm: View {
       ToolbarItem(placement: .confirmationAction) {
         Button("Add") { store.send(.addWorkspaceFormSubmitted) }
           .disabled(store.draftName.trimmingCharacters(in: .whitespaces).isEmpty)
+      }
+    }
+    .padding()
+    .onAppear { nameFieldFocused = true }
+  }
+}
+
+private struct ProfileNameForm: View {
+  @Bindable var store: StoreOf<WorkspaceListFeature>
+  @FocusState private var nameFieldFocused: Bool
+
+  private var isNew: Bool {
+    if case .new = store.profileSheet { return true }
+    return false
+  }
+
+  var body: some View {
+    Form {
+      Section {
+        TextField("Name", text: $store.profileDraftName)
+          .focused($nameFieldFocused)
+          .onSubmit { store.send(.profileSheetSubmitted) }
+      } header: {
+        Text(isNew ? "New Profile" : "Rename Profile")
+      }
+    }
+    .formStyle(.grouped)
+    .frame(width: 360)
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") { store.send(.profileSheetCancelled) }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button(isNew ? "Create" : "Rename") { store.send(.profileSheetSubmitted) }
+          .disabled(store.profileDraftName.trimmingCharacters(in: .whitespaces).isEmpty)
       }
     }
     .padding()

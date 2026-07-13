@@ -206,6 +206,14 @@ public struct WorkspaceActivationFeature {
     /// Activate a sensible workspace on launch so tiling starts
     /// immediately instead of waiting for the first manual switch.
     case activateInitial
+    /// Set the active profile from the persisted session (ProfileSessionStore)
+    /// at startup, before `activateInitial` — no re-activation of its own.
+    case restoreActiveProfile(Profile.ID)
+    /// Re-activate the whole active profile across *every* connected display —
+    /// a manual profile switch fires no `displaysReconfigured`, so this re-runs
+    /// the same per-display restore plan to retile all monitors for the new
+    /// profile (apps show/hide/tile per its workspaces).
+    case reactivateActiveProfile
     /// Startup permission gate: prompt for any missing permission, surfacing
     /// Accessibility + Screen Recording together when both are absent.
     case surfaceMissingPermissions
@@ -740,6 +748,40 @@ public struct WorkspaceActivationFeature {
 
       case .appTerminated(let bundleId):
         return debouncedSync(bundleId, delayMs: 0)
+
+      case .restoreActiveProfile(let id):
+        // Startup-only: adopt the persisted selection if it still exists.
+        // Bindings + `activateInitial` are sent after this, so they target it.
+        guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
+        state.$config.withLock { $0.activeProfileId = id }
+        return .none
+
+      case .reactivateActiveProfile:
+        guard let profile = state.config.activeProfile else { return .none }
+        let connected = displays.all()
+        guard !connected.isEmpty else { return .send(.activateInitial) }
+        // The prior per-display assignments point at the *old* profile's
+        // workspace ids (independent per profile), so start fresh and re-fill
+        // every display from the new profile — its pinned workspaces land on
+        // their monitors, dynamics fill the rest (reuses the reconnect planner).
+        state.activeWorkspacesByDisplay = [:]
+        state.pendingDisplayRestores = []
+        let plan = Self.planDisplayRestore(
+          connected: connected,
+          newlyConnected: Set(connected),
+          workspaces: profile.workspaces.elements,
+          active: [:],
+          history: state.displayWorkspaceHistory,
+          workspaceMRU: state.workspaceMRU
+        )
+        debugLog.log(
+          "Profile",
+          "reactivate \(profile.name) plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })"
+        )
+        // Empty profile (nothing pinnable) → nothing to tile; leave screens as-is.
+        guard !plan.isEmpty else { return .none }
+        state.pendingDisplayRestores = plan
+        return .send(.processDisplayRestores)
 
       case .activateInitial:
         guard let profile = state.config.activeProfile else { return .none }

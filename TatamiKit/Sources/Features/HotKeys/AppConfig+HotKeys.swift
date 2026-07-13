@@ -42,6 +42,14 @@ extension AppConfig {
       }
     }
 
+    // Each profile's own switch shortcut, registered for *every* profile (not
+    // just the active one) so any profile can be activated from any other.
+    for profile in profiles {
+      if let key = profile.shortcut {
+        out.append(.init(action: .activateProfile(profile.id), hotKey: key))
+      }
+    }
+
     func add(_ action: HotKeyAction, _ key: HotKey?) {
       if let key { out.append(.init(action: action, hotKey: key)) }
     }

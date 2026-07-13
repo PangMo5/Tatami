@@ -40,6 +40,10 @@ public struct AppFeature {
     /// An internal failure was reported or resolved (ErrorReportClient).
     case errorReportEvent(ErrorReportEvent)
     case errorReportsDismissed
+    /// Switch to (activate) a profile — from the menu or a profile hotkey.
+    case activateProfile(Profile.ID)
+    /// Deep-copy a profile (fresh ids + copied layouts) right after it.
+    case duplicateProfile(Profile.ID)
   }
 
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
@@ -51,6 +55,8 @@ public struct AppFeature {
   @Dependency(\.debugLog) var debugLog
   @Dependency(\.errorReporter) var errorReporter
   @Dependency(\.workspaceHUD) var workspaceHUD
+  @Dependency(\.layoutStore) var layoutStore
+  @Dependency(\.profileSessionStore) var profileSessionStore
 
   /// Identifies the app-lifetime subscription bundle so a duplicate
   /// `.task` (defensive; see `didStartUp`) replaces rather than doubles it.
@@ -92,7 +98,16 @@ public struct AppFeature {
           .send(.cli(.start)),
           .send(.activation(.startObservingWindowEvents)),
           .send(.activation(.startObservingAppLaunches)),
-          .send(.activation(.activateInitial)),
+          // Restore the last-active profile (persisted in ProfileSessionStore,
+          // not config.toml) before initial activation, so tiling + hotkeys
+          // target it. No saved selection → straight to the default profile.
+          .run { [profileSessionStore] send in
+            if let id = await profileSessionStore.loadActiveProfileId() {
+              await send(.activation(.restoreActiveProfile(id)))
+              await send(.hotKeys(.refreshBindings))
+            }
+            await send(.activation(.activateInitial))
+          },
           .send(.settingsChanged(settings)),
           .run { _ in
             await MainActor.run { boundGlobalAXMessagingTimeout() }
@@ -229,6 +244,46 @@ public struct AppFeature {
       case .hotKeys(.actionTriggered(let hotKeyAction)):
         return route(hotKeyAction, state: state)
 
+      case .activateProfile(let id):
+        guard state.config.activeProfileId != id,
+              let profile = state.config.profiles.first(where: { $0.id == id })
+        else { return .none }
+        state.$config.withLock { $0.activeProfileId = id }
+        // The new profile has different workspaces — drop any stale sidebar
+        // selection so the detail pane doesn't dangle on a workspace that isn't
+        // in this profile.
+        state.workspaceList.selection = nil
+        state.workspaceList.detail = nil
+        state.workspaceList.shared = nil
+        let hud = state.config.settings.hud
+        let name = profile.name
+        return .merge(
+          // Bindings change with the active profile's workspaces; re-register.
+          .send(.hotKeys(.refreshBindings)),
+          // Retile every display for the new profile (all workspaces update).
+          .send(.activation(.reactivateActiveProfile)),
+          .run { [profileSessionStore, workspaceHUD] _ in
+            profileSessionStore.saveActiveProfileId(id)
+            if hud.shows(\.profileSwitch) {
+              await workspaceHUD.show(name, "rectangle.stack.fill", nil, hud.durationMs)
+            }
+          }
+        )
+
+      case .duplicateProfile(let id):
+        let remap = state.$config.withLock { $0.duplicateProfile(id) }
+        guard !remap.isEmpty else { return .none }
+        return .merge(
+          .send(.hotKeys(.refreshBindings)),
+          // Copy each source workspace's saved layout onto its fresh id so the
+          // clone opens looking identical (layouts are keyed by workspace id).
+          .run { [layoutStore] _ in
+            for (old, new) in remap {
+              if let snapshot = await layoutStore.load(old) { layoutStore.save(new, snapshot) }
+            }
+          }
+        )
+
       case .cli(.delegate(.activateRequested(let workspaceId))):
         // The CLI drives the same activation pipeline as hotkeys.
         return .send(.activation(.activate(workspaceId: workspaceId, setFocus: true)))
@@ -237,6 +292,12 @@ public struct AppFeature {
            .workspaceList(.workspaceDeleteRequested),
            .workspaceList(.detail(.activateShortcutChanged)),
            .workspaceList(.detail(.assignAppShortcutChanged)):
+        return .send(.hotKeys(.refreshBindings))
+
+      // Profile management (sidebar toolbar) routes its side-effecting ops here.
+      case .workspaceList(.delegate(.activateProfile(let id))):
+        return .send(.activateProfile(id))
+      case .workspaceList(.delegate(.profilesChanged)):
         return .send(.hotKeys(.refreshBindings))
 
       case .workspaceList(.detail(.layoutChanged)):
@@ -294,6 +355,8 @@ public struct AppFeature {
       return .send(.activation(.activatePrevious))
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
+    case .activateProfile(let id):
+      return .send(.activateProfile(id))
     case .assignFocusedAppToRecentWorkspace:
       return .send(.activation(.assignFocusedAppToRecentWorkspace))
     case .assignFocusedAppToNextWorkspace:

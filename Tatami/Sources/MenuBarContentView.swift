@@ -91,6 +91,26 @@ struct MenuBarContentView: View {
       Divider()
     }
 
+    // Quick profile switcher (management — add / duplicate / rename — lives in
+    // the main window). Only shown when there's more than one to pick from; the
+    // active one carries the native checkmark.
+    if config.profiles.count > 1 {
+      Section("Profiles") {
+        ForEach(config.profiles) { profile in
+          Toggle(isOn: Binding(
+            get: { profile.id == (config.activeProfileId ?? config.profiles.first?.id) },
+            set: { on in
+              guard on else { return }
+              store.send(.activateProfile(profile.id))
+            }
+          )) {
+            Label(profile.name, systemImage: "rectangle.stack")
+          }
+        }
+      }
+      Divider()
+    }
+
     // Opens the main window (the Workspaces / Settings / About tab view).
     // ⌘, is also wired globally via the app's commands.
     Button("Settings") {
