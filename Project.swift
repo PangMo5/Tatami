@@ -50,7 +50,10 @@ let project = Project(
         "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
         "LSUIElement": true,
         "LSApplicationCategoryType": "public.app-category.productivity",
-        "CFBundleDisplayName": "Tatami",
+        "CFBundleDisplayName": "$(APP_DISPLAY_NAME)",
+        // CFBundleName is what the Privacy & Security (TCC) list shows — set it
+        // too, otherwise the Debug build still reads as "Tatami" there.
+        "CFBundleName": "$(APP_DISPLAY_NAME)",
         "NSHumanReadableCopyright":
           "© 2026 PangMo5. Released under GPL-3.0. Inspired by FlashSpace and yabai.",
         "SUFeedURL": "https://pangmo5.dev/Tatami/appcast.xml",
@@ -87,20 +90,41 @@ let project = Project(
         .external(name: "Sparkle"),
         .external(name: "SFSafeSymbols"),
       ],
-      settings: .settings(base: [
-        "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
-        "MARKETING_VERSION": SettingValue(stringLiteral: appVersion),
-        "CURRENT_PROJECT_VERSION": SettingValue(stringLiteral: buildNumber),
-        "SPARKLE_PUBLIC_ED_KEY": SettingValue(stringLiteral: sparklePublicEDKey),
-        // Tuist defaults macOS app targets to ad-hoc ("-") signing, which
-        // makes macOS re-prompt for every TCC permission on each rebuild
-        // because the binary hash changes. Pin the target back to the
-        // developer's Apple Development cert. The release workflow
-        // overrides these with the Developer ID identity.
-        "CODE_SIGN_STYLE": "Automatic",
-        "CODE_SIGN_IDENTITY": "Apple Development",
-        "DEVELOPMENT_TEAM": SettingValue(stringLiteral: developmentTeam),
-      ])
+      settings: .settings(
+        base: [
+          "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
+          "MARKETING_VERSION": SettingValue(stringLiteral: appVersion),
+          "CURRENT_PROJECT_VERSION": SettingValue(stringLiteral: buildNumber),
+          "SPARKLE_PUBLIC_ED_KEY": SettingValue(stringLiteral: sparklePublicEDKey),
+          // Release display name; Debug overrides it below.
+          "APP_DISPLAY_NAME": "Tatami",
+          // Tuist defaults macOS app targets to ad-hoc ("-") signing, which
+          // makes macOS re-prompt for every TCC permission on each rebuild
+          // because the binary hash changes. Pin the target back to the
+          // developer's Apple Development cert — a team-based requirement, so
+          // the grant survives rebuilds. The release workflow overrides these
+          // with the Developer ID identity.
+          "CODE_SIGN_STYLE": "Automatic",
+          "CODE_SIGN_IDENTITY": "Apple Development",
+          "DEVELOPMENT_TEAM": SettingValue(stringLiteral: developmentTeam),
+        ],
+        configurations: [
+          // The local Debug build gets its own bundle id + display name so it
+          // is a *distinct* app to macOS: its Accessibility / Screen Recording
+          // (TCC) grant is separate from an installed Release build, so the
+          // two never fight over one TCC entry (which made permissions flip on
+          // each dev run). Paired with the stable Apple Development signature
+          // above, the dev app's grant then survives rebuilds. `isTatami`
+          // already treats any `dev.PangMo5.Tatami.*` flavor as Tatami itself,
+          // and the config path is bundle-id-independent (shared with Release).
+          .debug(name: "Debug", settings: [
+            "PRODUCT_BUNDLE_IDENTIFIER": "\(bundleIdPrefix).Tatami.debug",
+            "APP_DISPLAY_NAME": "Tatami Dev",
+            "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon-Debug",
+          ]),
+          .release(name: "Release"),
+        ]
+      )
     ),
     .target(
       name: "TatamiKit",
