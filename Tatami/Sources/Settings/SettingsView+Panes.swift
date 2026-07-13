@@ -263,11 +263,11 @@ extension SettingsView {
     Section("Window Cycling") {
       shortcut(
         "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
-        description: "Move focus to the next window in the active workspace."
+        description: "Move focus to the next app in the active workspace, landing on that app's most recently used window. Turn on “Cycle through every window” (in Workspaces) to step through each window individually instead."
       )
       shortcut(
         "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
-        description: "Move focus to the previous window in the active workspace."
+        description: "Move focus to the previous app in the active workspace, landing on that app's most recently used window. Turn on “Cycle through every window” (in Workspaces) to step through each window individually instead."
       )
     }
   }

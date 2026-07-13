@@ -5,8 +5,11 @@ import TOML
 
 extension SharedReaderKey where Self == FileStorageKey<AppConfig>.Default {
   /// `@Shared(.tatamiConfig)` reads and writes the user's config TOML at
-  /// `$XDG_CONFIG_HOME/tatami/config.toml`, falling back to an empty default
-  /// `AppConfig` (with a `Default` profile) when the file is missing.
+  /// `$XDG_CONFIG_HOME/tatami/config.toml`, falling back to a seeded default
+  /// `AppConfig` (a `Default` profile + the recommended starter shortcuts)
+  /// when the file is missing — so a fresh install is usable out of the box.
+  /// The seed only fills a missing file; an existing config decodes as-is
+  /// (`Shortcuts.recommended` is deliberately not a per-field decode fallback).
   ///
   /// The directory is created on first access; serialization uses TOMLKit so
   /// existing dotfiles-style edits made outside the app are preserved.
@@ -59,7 +62,7 @@ extension SharedReaderKey where Self == FileStorageKey<AppConfig>.Default {
           }
         }
       ),
-      default: AppConfig()
+      default: AppConfig(settings: AppSettings(shortcuts: .recommended))
     ]
   }
 }

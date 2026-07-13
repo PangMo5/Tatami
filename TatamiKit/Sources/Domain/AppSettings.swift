@@ -513,7 +513,7 @@ extension AppSettings {
     public init(
       loop: Bool = true,
       skipEmpty: Bool = false,
-      followAppFocus: Bool = false,
+      followAppFocus: Bool = true,
       cycleAcrossDisplays: Bool = false,
       switchToRecentWhenEmpty: Bool = false,
       cycleSameAppWindows: Bool = false,
@@ -539,7 +539,7 @@ extension AppSettings {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       self.loop = c.decode(.loop, default: true)
       self.skipEmpty = c.decode(.skipEmpty, default: false)
-      self.followAppFocus = c.decode(.followAppFocus, default: false)
+      self.followAppFocus = c.decode(.followAppFocus, default: true)
       self.cycleAcrossDisplays = c.decode(.cycleAcrossDisplays, default: false)
       self.switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
       self.cycleSameAppWindows = c.decode(.cycleSameAppWindows, default: false)
@@ -853,6 +853,52 @@ extension AppSettings {
       self.dismissBorrow = c.decodeIfValid(.dismissBorrow)
     }
   }
+}
+
+extension AppSettings.Shortcuts {
+  /// The starter shortcut set seeded into a *fresh* config (no `config.toml`
+  /// on disk yet), so a new install is usable out of the box instead of every
+  /// action needing to be recorded by hand. Applied only as the fresh-install
+  /// seed (see `TatamiConfigKey`), never as a decode fallback: an existing
+  /// config that omits — or deliberately clears — a shortcut keeps it unbound.
+  ///
+  /// Scheme: `⌃⌥` drives the many window/tile ops (focus, swap, resize,
+  /// orientation, fullscreen, balance); workspace *switch* moves to `⌃⌥⇧` and
+  /// *assign* to `⌥⇧⌘`, so a workspace's one-key equivalent never collides
+  /// with a `⌃⌥` focus key. Window cycling rides the otherwise-free `⌥Tab`.
+  public static let recommended = AppSettings.Shortcuts(
+    focusLeft: HotKey(parsing: "ctrl + alt - h"),
+    focusRight: HotKey(parsing: "ctrl + alt - l"),
+    focusUp: HotKey(parsing: "ctrl + alt - k"),
+    focusDown: HotKey(parsing: "ctrl + alt - j"),
+    moveToNextWorkspace: HotKey(parsing: "ctrl + alt + shift - ]"),
+    moveToPreviousWorkspace: HotKey(parsing: "ctrl + alt + shift - ["),
+    focusNextDisplay: HotKey(parsing: "ctrl + alt + shift - right"),
+    focusPreviousDisplay: HotKey(parsing: "ctrl + alt + shift - left"),
+    cycleNextWindow: HotKey(parsing: "alt - tab"),
+    cyclePreviousWindow: HotKey(parsing: "alt + shift - tab"),
+    resizeGrow: HotKey(parsing: "ctrl + alt - ="),
+    resizeShrink: HotKey(parsing: "ctrl + alt - -"),
+    swapLeft: HotKey(parsing: "ctrl + alt - left"),
+    swapRight: HotKey(parsing: "ctrl + alt - right"),
+    swapUp: HotKey(parsing: "ctrl + alt - up"),
+    swapDown: HotKey(parsing: "ctrl + alt - down"),
+    toggleOrientation: HotKey(parsing: "ctrl + alt - s"),
+    toggleFullscreen: HotKey(parsing: "ctrl + alt - return"),
+    balance: HotKey(parsing: "ctrl + alt - e"),
+    toggleFloating: HotKey(parsing: "alt + cmd - return"),
+    toggleSharedFloating: HotKey(parsing: "alt + shift + cmd - return"),
+    toggleSpaceActivated: HotKey(parsing: "ctrl + alt + shift + cmd - z"),
+    toggleFocusedAppInActiveWorkspace: HotKey(parsing: "ctrl + alt - /"),
+    toggleAppInSharedApps: HotKey(parsing: "ctrl + alt + shift - /"),
+    keyEquivalentModifiers: ["ctrl", "alt", "shift"],
+    assignModifiers: ["alt", "shift", "cmd"],
+    recentWorkspaceKey: "\\",
+    nextWorkspaceKey: ".",
+    previousWorkspaceKey: ",",
+    borrowModifiers: ["ctrl", "alt", "cmd"],
+    dismissBorrow: HotKey(parsing: "ctrl + alt + cmd - /")
+  )
 }
 
 /// How often Sparkle checks for updates in the background.

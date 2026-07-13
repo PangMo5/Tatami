@@ -51,3 +51,42 @@ struct ConfigDecodeTests {
     }
   }
 }
+
+/// The recommended starter shortcuts seed a fresh install (`TatamiConfigKey`).
+/// They're built from skhd strings via `HotKey(parsing:)`, which fails soft to
+/// nil — so a typo'd string would silently ship an unbound action. Guard both
+/// the parse and the resulting bindings being conflict-free.
+struct RecommendedShortcutsTests {
+  @Test
+  func everyIntendedBindingParses() {
+    let s = AppSettings.Shortcuts.recommended
+    let bound: [HotKey?] = [
+      s.focusLeft, s.focusRight, s.focusUp, s.focusDown,
+      s.moveToNextWorkspace, s.moveToPreviousWorkspace,
+      s.focusNextDisplay, s.focusPreviousDisplay,
+      s.cycleNextWindow, s.cyclePreviousWindow,
+      s.resizeGrow, s.resizeShrink,
+      s.swapLeft, s.swapRight, s.swapUp, s.swapDown,
+      s.toggleOrientation, s.toggleFullscreen, s.balance,
+      s.toggleFloating, s.toggleSharedFloating, s.toggleSpaceActivated,
+      s.toggleFocusedAppInActiveWorkspace, s.toggleAppInSharedApps,
+      s.dismissBorrow,
+    ]
+    #expect(bound.allSatisfy { $0 != nil })
+  }
+
+  @Test
+  func seededConfigHasNoConflictingBindings() {
+    // The exact fresh-install seed used by `@Shared(.tatamiConfig)`.
+    let config = AppConfig(settings: AppSettings(shortcuts: .recommended))
+    let bindings = config.hotKeyBindings
+    #expect(!bindings.isEmpty)
+    // No two distinct actions may resolve to the same key combo.
+    let clashes = Dictionary(grouping: bindings, by: \.hotKey)
+      .filter { Set($0.value.map(\.action)).count > 1 }
+    #expect(
+      clashes.isEmpty,
+      "conflicting recommended shortcuts: \(clashes.keys.map(\.displayString))"
+    )
+  }
+}
