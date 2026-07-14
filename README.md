@@ -36,6 +36,13 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Jump focus between displays, or move the focused app to another workspace
 - Shared apps that join every workspace
 
+### Profiles
+
+- Group workspaces into **profiles** and switch the whole set at once — each profile has its own workspaces, app assignments, and shortcuts
+- Switch by hotkey or from the menu bar; switching re-tiles every display for the new profile
+- **Auto-activate** a profile by display setup — monitor count, or specific displays connected / disconnected — with a warning when two profiles' rules overlap at the same priority
+- Per-profile SF Symbol icon, shown in the sidebar, menu bar, and switch HUD
+
 ### Borrow — compose two workspaces
 
 - **Pull another workspace in beside the current one**, docked to a screen edge (top / bottom / left / right) and tiled side by side — each keeps its own BSP layout, and windows can't cross the boundary
@@ -69,7 +76,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 ### Interface & config
 
-- Menu bar item showing the active workspace (icon + name)
+- Customizable menu bar item — toggle the active workspace's icon / name and (with more than one profile) the active profile's icon / name
 - On-screen HUD confirming switches, float toggles, membership changes, and more — each individually toggleable, with follow-up hints (e.g. the shortcut that fully removes a just-unfloated app)
 - Per-workspace SF Symbol icons
 - Native SwiftUI settings

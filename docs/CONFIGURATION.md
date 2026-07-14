@@ -44,7 +44,10 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `showWorkspaceName` | bool | `true` | Show the active workspace's name next to its icon in the menu bar. |
+| `showWorkspaceIcon` | bool | `true` | Show the active workspace's icon in the menu bar. |
+| `showWorkspaceName` | bool | `true` | Show the active workspace's name in the menu bar. |
+| `showProfileIcon` | bool | `true` | Show the active profile's icon (only when more than one profile exists). |
+| `showProfileName` | bool | `false` | Show the active profile's name (only when more than one profile exists). |
 
 ## `[settings.hud]`
 
@@ -228,7 +231,10 @@ workspace's key equivalent and with the recent / next / previous keys.
 Apps listed here are part of **every** workspace. Each carries a `layout`:
 `tiled` (the default — tiles into each workspace's layout), `floating` (untiled,
 kept **above the tiles everywhere** via a mirror), or `unmanaged` (left exactly
-where it is — still a member, but never tiled or mirrored).
+where it is — still a member, but never tiled or mirrored). Each also has an
+optional `autoOpen` (bool, default `false`) that launches — or reopens — the app
+on workspace activation when it has no on-screen window, and an auto-written
+`iconPath` (string, machine-managed — you don't set it by hand).
 
 ```toml
 [[sharedApps]]
@@ -271,6 +277,7 @@ next to `config.toml`, never written into `config.toml` itself.
 [[profiles]]
 id = "00000000-0000-0000-0000-000000000001"
 name = "Default"
+symbolIconName = "rectangle.stack"     # optional: SF Symbol (sidebar / menu bar / HUD)
 shortcut = "ctrl + alt + cmd - 1"      # optional: hotkey to switch to this profile
 
 # Optional: auto-activate this profile when the connected displays match. All
@@ -304,8 +311,9 @@ Profile fields:
 | --- | --- | --- |
 | `id` | UUID | Stable identifier. |
 | `name` | string | Display name. |
+| `symbolIconName` | string? | SF Symbol shown for the profile in the sidebar, menu bar, and switch HUD. Omit for the default `rectangle.stack`. |
 | `shortcut` | string? | skhd-style hotkey that switches to this profile. |
-| `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only. |
+| `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only; a present table with no conditions is a catch-all that matches any configuration. |
 
 `[profiles.autoActivation]` — all keys optional and AND-ed; when several
 profiles match, the most specific wins (`exactly` > `contains`, more conditions
@@ -343,3 +351,4 @@ App assignment fields:
 | `name` | string | Display name. |
 | `autoOpen` | bool | Launch the app when the workspace activates — and reopen it on re-entry if its window was closed. |
 | `layout` | string | `tiled` (BSP layout), `floating` (untiled, mirrored above the tiles — see `[[sharedApps]]`), or `unmanaged` (left where it is; still a member, no tiling/mirror/Screen Recording). Migrated from the pre-1.4 `floating` bool. |
+| `iconPath` | string? | Cached path to the app's icon, written automatically. You don't set this by hand. |
