@@ -300,6 +300,25 @@ public struct AppFeature {
       case .workspaceList(.delegate(.profilesChanged)):
         return .send(.hotKeys(.refreshBindings))
 
+      // A display rule auto-switched the profile: activation already retiled;
+      // run the remaining switch side effects (rebind hotkeys, persist, HUD).
+      case .activation(.delegate(.profileAutoActivated(let id))):
+        guard let profile = state.config.profiles.first(where: { $0.id == id }) else { return .none }
+        state.workspaceList.selection = nil
+        state.workspaceList.detail = nil
+        state.workspaceList.shared = nil
+        let hud = state.config.settings.hud
+        let name = profile.name
+        return .merge(
+          .send(.hotKeys(.refreshBindings)),
+          .run { [profileSessionStore, workspaceHUD] _ in
+            profileSessionStore.saveActiveProfileId(id)
+            if hud.shows(\.profileSwitch) {
+              await workspaceHUD.show(name, "rectangle.stack.fill", nil, hud.durationMs)
+            }
+          }
+        )
+
       case .workspaceList(.detail(.layoutChanged)):
         // Re-tile now if the edited workspace is the active one, so the window
         // drops out of (or back into) the layout immediately.

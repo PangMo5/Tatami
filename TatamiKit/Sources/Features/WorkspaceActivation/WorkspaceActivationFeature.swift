@@ -318,6 +318,15 @@ public struct WorkspaceActivationFeature {
     /// (an app stuck past every AX timeout) can't refuse all future
     /// activations and syncs for the rest of the session.
     case activationTimedOut
+    /// Bubbled to AppFeature, which owns the profile-switch side effects
+    /// (hotkey rebind, session-store save, HUD) the activation feature can't do.
+    case delegate(Delegate)
+
+    public enum Delegate: Equatable {
+      /// A display rule matched and this feature already retiled for it —
+      /// AppFeature runs the remaining switch side effects.
+      case profileAutoActivated(Profile.ID)
+    }
   }
 
   /// What to do with the focused window's app once it's resolved.
@@ -477,22 +486,43 @@ public struct WorkspaceActivationFeature {
             + "activeByDisplay=\(state.activeWorkspacesByDisplay.map { "\($0.key.name)→\($0.value)" }) "
             + "focused=\(state.focusedDisplay?.name ?? "nil")"
         )
-        guard setChanged, let profile = state.config.activeProfile else { return .none }
+        guard setChanged else { return .none }
+        // Auto-activation: if a profile's display rule now matches the connected
+        // set (and isn't already active), switch to it and retile every display
+        // for the new profile. Its workspace ids differ from the current
+        // profile's, so start fresh — clear the per-display map and fill all.
+        var autoSwitch: Effect<Action> = .none
+        var restoreNewlyConnected = newlyConnected
+        var restoreActive = state.activeWorkspacesByDisplay
+        let currentActiveProfile = state.config.activeProfileId ?? state.config.profiles.first?.id
+        if let matched = state.config.autoActiveProfile(connected: connected),
+           matched != currentActiveProfile {
+          state.$config.withLock { $0.activeProfileId = matched }
+          state.activeWorkspacesByDisplay = [:]
+          restoreActive = [:]
+          restoreNewlyConnected = connected
+          autoSwitch = .send(.delegate(.profileAutoActivated(matched)))
+          debugLog.log(
+            "Profile",
+            "auto-activate \(state.config.activeProfile?.name ?? "?") for \(names.map(\.name))"
+          )
+        }
+        guard let profile = state.config.activeProfile else { return autoSwitch }
         let plan = Self.planDisplayRestore(
           connected: names,
-          newlyConnected: newlyConnected,
+          newlyConnected: restoreNewlyConnected,
           workspaces: profile.workspaces.elements,
-          active: state.activeWorkspacesByDisplay,
+          active: restoreActive,
           history: state.displayWorkspaceHistory,
           workspaceMRU: state.workspaceMRU
         )
-        guard !plan.isEmpty else { return .none }
+        guard !plan.isEmpty else { return autoSwitch }
         debugLog.log(
           "Display",
           "restore plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })"
         )
         state.pendingDisplayRestores = plan
-        return .send(.processDisplayRestores)
+        return .merge(autoSwitch, .send(.processDisplayRestores))
 
       case .windowChanged(let event):
         switch event {
@@ -783,11 +813,27 @@ public struct WorkspaceActivationFeature {
         state.pendingDisplayRestores = plan
         return .send(.processDisplayRestores)
 
+      case .delegate:
+        return .none
+
       case .activateInitial:
-        guard let profile = state.config.activeProfile else { return .none }
-        // Seed the connected-display set so the first real reconfigure diffs
-        // against reality (an unplug must not read as everything plugging in).
+        // Startup: a matching display rule wins over the persisted / first
+        // selection, so launching docked lands in the docked profile.
         state.connectedDisplays = Set(displays.all())
+        let startupActive = state.config.activeProfileId ?? state.config.profiles.first?.id
+        if let matched = state.config.autoActiveProfile(connected: state.connectedDisplays),
+           matched != startupActive {
+          state.$config.withLock { $0.activeProfileId = matched }
+          debugLog.log("Profile", "startup auto-activate for displays=\(displays.all().map(\.name))")
+          return .merge(
+            .send(.delegate(.profileAutoActivated(matched))),
+            .send(.reactivateActiveProfile)
+          )
+        }
+        // (connectedDisplays already seeded above so the first real reconfigure
+        // diffs against reality — an unplug must not read as everything
+        // plugging in.)
+        guard let profile = state.config.activeProfile else { return .none }
         // Scratchpads are borrow-only — never auto-activate one on launch.
         let candidates = profile.workspaces.filter { $0.kind != .scratchpad }
         guard !candidates.isEmpty else { return .none }

@@ -89,6 +89,8 @@ struct WorkspaceListView: View {
         WorkspaceDetailView(store: detailStore, activationStore: activationStore)
       } else if let sharedStore = store.scope(state: \.shared, action: \.shared) {
         SharedAppsView(store: sharedStore)
+      } else if let profileStore = store.scope(state: \.profileDetail, action: \.profileDetail) {
+        ProfileDetailView(store: profileStore)
       } else {
         ContentUnavailableView(
           "No Workspace Selected",
@@ -99,12 +101,6 @@ struct WorkspaceListView: View {
     }
     .sheet(isPresented: $store.isAddSheetPresented) {
       AddWorkspaceForm(store: store)
-    }
-    .sheet(isPresented: Binding(
-      get: { store.profileSheet != nil },
-      set: { if !$0 { store.send(.profileSheetCancelled) } }
-    )) {
-      ProfileNameForm(store: store)
     }
     .alert($store.scope(state: \.alert, action: \.alert))
   }
@@ -117,26 +113,25 @@ struct WorkspaceListView: View {
   private var profilesSection: some View {
     let activeId = store.config.activeProfileId ?? store.config.profiles.first?.id
     Section("Profiles") {
-      ForEach(store.config.profiles) { profile in
-        Button {
-          store.send(.profileSelected(profile.id))
-        } label: {
-          HStack {
-            Label(profile.name, systemImage: "rectangle.stack")
-            Spacer()
-            if profile.id == activeId {
-              Image(systemName: "circle.fill")
-                .foregroundStyle(.green)
-                .imageScale(.small)
-                .help("Active profile")
-            }
+      // Selectable rows (like workspaces): click opens the profile's detail
+      // settings; the green dot marks the *active* (running) profile — distinct
+      // from the selected one. Switching is the Activate button in the detail.
+      // `id: \.sidebarItem` (matching the List's selection type) is what wires
+      // the selection gesture — Profile's own UUID id wouldn't.
+      ForEach(store.config.profiles, id: \.sidebarItem) { profile in
+        HStack {
+          Label(profile.name, systemImage: "rectangle.stack")
+          Spacer()
+          if profile.id == activeId {
+            Image(systemName: "circle.fill")
+              .foregroundStyle(.green)
+              .imageScale(.small)
+              .help("Active profile")
           }
-          .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .tag(WorkspaceListFeature.SidebarItem.profile(profile.id) as WorkspaceListFeature.SidebarItem?)
         .contextMenu {
           Button("Duplicate") { store.send(.duplicateProfileTapped(profile.id)) }
-          Button("Rename…") { store.send(.renameProfileTapped(profile.id)) }
           if store.config.profiles.count > 1 {
             Divider()
             Button("Delete", role: .destructive) {
@@ -303,6 +298,11 @@ private extension Workspace {
   var sidebarItem: WorkspaceListFeature.SidebarItem { .workspace(id) }
 }
 
+private extension Profile {
+  /// Sidebar row identity for the profile rows — same reason as `Workspace`.
+  var sidebarItem: WorkspaceListFeature.SidebarItem { .profile(id) }
+}
+
 private struct AddWorkspaceForm: View {
   @Bindable var store: StoreOf<WorkspaceListFeature>
   @FocusState private var nameFieldFocused: Bool
@@ -335,37 +335,3 @@ private struct AddWorkspaceForm: View {
   }
 }
 
-private struct ProfileNameForm: View {
-  @Bindable var store: StoreOf<WorkspaceListFeature>
-  @FocusState private var nameFieldFocused: Bool
-
-  private var isNew: Bool {
-    if case .new = store.profileSheet { return true }
-    return false
-  }
-
-  var body: some View {
-    Form {
-      Section {
-        TextField("Name", text: $store.profileDraftName)
-          .focused($nameFieldFocused)
-          .onSubmit { store.send(.profileSheetSubmitted) }
-      } header: {
-        Text(isNew ? "New Profile" : "Rename Profile")
-      }
-    }
-    .formStyle(.grouped)
-    .frame(width: 360)
-    .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") { store.send(.profileSheetCancelled) }
-      }
-      ToolbarItem(placement: .confirmationAction) {
-        Button(isNew ? "Create" : "Rename") { store.send(.profileSheetSubmitted) }
-          .disabled(store.profileDraftName.trimmingCharacters(in: .whitespaces).isEmpty)
-      }
-    }
-    .padding()
-    .onAppear { nameFieldFocused = true }
-  }
-}

@@ -93,6 +93,19 @@ extension AppConfig {
     return profiles.first
   }
 
+  /// The profile whose auto-activation rule best matches `connected`, or nil
+  /// when none match. Most-specific wins (see `ProfileActivation.specificity`);
+  /// ties break toward the earlier profile in order.
+  public func autoActiveProfile(connected: Set<DisplayName>) -> Profile.ID? {
+    var best: (id: Profile.ID, score: Int)?
+    for profile in profiles {
+      guard let rule = profile.autoActivation, rule.matches(connected: connected) else { continue }
+      let score = rule.specificity
+      if best == nil || score > best!.score { best = (profile.id, score) }
+    }
+    return best?.id
+  }
+
   /// Index of the active profile in `profiles`, or nil when there are none.
   private var activeProfileIndex: Int? {
     if let id = activeProfileId, let idx = profiles.firstIndex(where: { $0.id == id }) {
@@ -128,6 +141,9 @@ extension AppConfig {
     clone.id = UUID()
     clone.name = "\(src.name) copy"
     clone.shortcut = nil
+    // Don't inherit the source's switch shortcut or auto-activation rule — two
+    // profiles firing on the same hotkey / display set would collide.
+    clone.autoActivation = nil
     clone.workspaces = IdentifiedArray(uniqueElements: clonedWorkspaces)
     profiles.insert(clone, at: srcIdx + 1)
     return remap

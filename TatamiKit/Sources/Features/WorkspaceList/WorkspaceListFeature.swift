@@ -8,9 +8,10 @@ import Sharing
 /// `WorkspaceDetailFeature` or `SharedAppsFeature` child.
 @Reducer
 public struct WorkspaceListFeature {
-  /// What the sidebar can select: a regular workspace, or the Shared
-  /// pseudo-workspace.
+  /// What the sidebar can select: a profile (its settings), a regular
+  /// workspace, or the Shared pseudo-workspace.
   public enum SidebarItem: Equatable, Hashable, Sendable {
+    case profile(Profile.ID)
     case workspace(Workspace.ID)
     case shared
   }
@@ -21,11 +22,10 @@ public struct WorkspaceListFeature {
     public var selection: SidebarItem?
     public var isAddSheetPresented = false
     public var draftName = ""
-    /// Drives the profile name sheet (create / rename); nil = hidden.
-    public var profileSheet: ProfileSheet?
-    public var profileDraftName = ""
     public var detail: WorkspaceDetailFeature.State?
     public var shared: SharedAppsFeature.State?
+    /// Profile settings shown in the detail pane (like `detail` for a workspace).
+    public var profileDetail: ProfileDetailFeature.State?
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init() {}
@@ -45,12 +45,6 @@ public struct WorkspaceListFeature {
     }
   }
 
-  /// Which profile the name sheet is editing.
-  public enum ProfileSheet: Equatable {
-    case new
-    case rename(Profile.ID)
-  }
-
   public enum Action: BindableAction {
     case addWorkspaceButtonTapped
     case addWorkspaceFormSubmitted
@@ -63,16 +57,13 @@ public struct WorkspaceListFeature {
       after: Bool
     )
     case sidebarSelected(SidebarItem?)
-    // Profiles — a list in the sidebar with a per-profile context menu.
-    case profileSelected(Profile.ID)
+    // Profiles — a sidebar list; selecting one opens its detail settings.
     case newProfileButtonTapped
     case duplicateProfileTapped(Profile.ID)
-    case renameProfileTapped(Profile.ID)
-    case profileSheetSubmitted
-    case profileSheetCancelled
     case deleteProfileRequested(Profile.ID)
     case detail(WorkspaceDetailFeature.Action)
     case shared(SharedAppsFeature.Action)
+    case profileDetail(ProfileDetailFeature.Action)
     case alert(PresentationAction<Alert>)
     case binding(BindingAction<State>)
     case delegate(Delegate)
@@ -155,6 +146,11 @@ public struct WorkspaceListFeature {
         return .run { [layoutStore] _ in layoutStore.clear(id) }
 
       case .alert(.presented(.confirmProfileDeletion(let id))):
+        // Drop the detail pane if it was showing the deleted profile.
+        if state.selection == .profile(id) {
+          state.selection = nil
+          state.profileDetail = nil
+        }
         // Clear the deleted profile's workspace layouts, then remove it. If it
         // was the active one, switch to the new first profile.
         let wsIds = state.config.profiles.first(where: { $0.id == id })?.workspaces.map(\.id) ?? []
@@ -181,20 +177,24 @@ public struct WorkspaceListFeature {
       case .sidebarSelected(let item):
         state.selection = item
         switch item {
+        case .profile(let id):
+          state.profileDetail = ProfileDetailFeature.State(profileId: id)
+          state.detail = nil
+          state.shared = nil
         case .workspace(let id):
           state.detail = WorkspaceDetailFeature.State(workspaceId: id)
           state.shared = nil
+          state.profileDetail = nil
         case .shared:
           state.detail = nil
           state.shared = SharedAppsFeature.State()
+          state.profileDetail = nil
         case nil:
           state.detail = nil
           state.shared = nil
+          state.profileDetail = nil
         }
         return .none
-
-      case .profileSelected(let id):
-        return .send(.delegate(.activateProfile(id)))
 
       case .duplicateProfileTapped(let id):
         let remap = state.$config.withLock { $0.duplicateProfile(id) }
@@ -211,42 +211,18 @@ public struct WorkspaceListFeature {
         )
 
       case .newProfileButtonTapped:
-        state.profileSheet = .new
-        state.profileDraftName = ""
-        return .none
+        // Create an empty profile and open its detail so it's named + configured
+        // there. It doesn't become active until "Activate" in the detail.
+        let profile = Profile(name: "New Profile")
+        state.$config.withLock { $0.profiles.append(profile) }
+        return .send(.sidebarSelected(.profile(profile.id)))
 
-      case .renameProfileTapped(let id):
-        state.profileSheet = .rename(id)
-        state.profileDraftName = state.config.profiles.first(where: { $0.id == id })?.name ?? ""
-        return .none
-
-      case .profileSheetSubmitted:
-        let trimmed = state.profileDraftName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let sheet = state.profileSheet
-        state.profileSheet = nil
-        state.profileDraftName = ""
-        guard !trimmed.isEmpty else { return .none }
-        switch sheet {
-        case .new:
-          // Create with the entered name and switch to it so ⌘N fills it out.
-          let profile = Profile(name: trimmed)
-          state.$config.withLock { $0.profiles.append(profile) }
-          return .send(.delegate(.activateProfile(profile.id)))
-        case .rename(let id):
-          state.$config.withLock { config in
-            if let idx = config.profiles.firstIndex(where: { $0.id == id }) {
-              config.profiles[idx].name = trimmed
-            }
-          }
-          return .send(.delegate(.profilesChanged))
-        case nil:
-          return .none
-        }
-
-      case .profileSheetCancelled:
-        state.profileSheet = nil
-        state.profileDraftName = ""
-        return .none
+      // Profile detail bubbles its side-effecting ops up (switch → AppFeature,
+      // delete → the confirm alert here, edits → hotkey rebind).
+      case .profileDetail(.delegate(.activateProfile(let id))):
+        return .send(.delegate(.activateProfile(id)))
+      case .profileDetail(.delegate(.profilesChanged)):
+        return .send(.delegate(.profilesChanged))
 
       case .deleteProfileRequested(let id):
         // Keep at least one profile; the delete option is hidden past that too.
@@ -265,7 +241,7 @@ public struct WorkspaceListFeature {
         }
         return .none
 
-      case .detail, .shared, .binding, .delegate:
+      case .detail, .shared, .binding, .delegate, .profileDetail:
         return .none
       }
     }
@@ -274,6 +250,9 @@ public struct WorkspaceListFeature {
     }
     .ifLet(\.shared, action: \.shared) {
       SharedAppsFeature()
+    }
+    .ifLet(\.profileDetail, action: \.profileDetail) {
+      ProfileDetailFeature()
     }
     .ifLet(\.$alert, action: \.alert)
   }

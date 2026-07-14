@@ -8,17 +8,22 @@ public struct Profile: Identifiable, Hashable, Sendable, Codable {
   public var name: String
   /// Optional global shortcut that activates this profile.
   public var shortcut: HotKey?
+  /// Optional rule that auto-activates this profile when the connected displays
+  /// match (nil = manual only). See `ProfileActivation`.
+  public var autoActivation: ProfileActivation?
   public var workspaces: IdentifiedArrayOf<Workspace>
 
   public init(
     id: UUID = UUID(),
     name: String,
     shortcut: HotKey? = nil,
+    autoActivation: ProfileActivation? = nil,
     workspaces: IdentifiedArrayOf<Workspace> = []
   ) {
     self.id = id
     self.name = name
     self.shortcut = shortcut
+    self.autoActivation = autoActivation
     self.workspaces = workspaces
   }
 }
