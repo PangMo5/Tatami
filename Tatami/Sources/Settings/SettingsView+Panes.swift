@@ -2,9 +2,9 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
-/// The six settings panes, one `@ViewBuilder` per sidebar entry — split
-/// out of `SettingsView.swift` so the shell (sidebar + helpers) and the
-/// form content stay separately navigable.
+/// The settings panes, one `@ViewBuilder` per sidebar entry — split out of
+/// `SettingsView.swift` so the shell (sidebar + helpers) and the form content
+/// stay separately navigable.
 extension SettingsView {
   // MARK: - General
 
@@ -259,17 +259,6 @@ extension SettingsView {
       shortcut("Focus up", .focusUp, \.focusUp)
       shortcut("Focus down", .focusDown, \.focusDown)
     }
-
-    Section("Window Cycling") {
-      shortcut(
-        "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
-        description: "Move focus to the next app in the active workspace, landing on that app's most recently used window. Turn on “Cycle through every window” (in Workspaces) to step through each window individually instead."
-      )
-      shortcut(
-        "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
-        description: "Move focus to the previous app in the active workspace, landing on that app's most recently used window. Turn on “Cycle through every window” (in Workspaces) to step through each window individually instead."
-      )
-    }
   }
 
   // MARK: - Workspaces
@@ -297,52 +286,54 @@ extension SettingsView {
         Text("Back to recent when empty")
         Text("When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway.")
       }
+    }
+
+    Section("Window Cycling") {
       Toggle(isOn: setting(\.switching.cycleSameAppWindows)) {
         Text("Cycle through every window")
         Text("Step through each window individually, including multiple windows of the same app, instead of cycling app-by-app.")
       }
+      shortcut(
+        "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
+        description: "Move focus to the next window in the active workspace. With “Cycle through every window” off, it steps app-by-app, landing on each app's most recently used window."
+      )
+      shortcut(
+        "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
+        description: "Move focus to the previous window in the active workspace. With “Cycle through every window” off, it steps app-by-app, landing on each app's most recently used window."
+      )
     }
 
-    Section {
-      modifierToggleRow(
-        "Switch modifier", \.keyEquivalentModifiers,
-        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the keys below cover recent / next / previous. Clear it to disable key-equivalent switching."
+    Section("Move App & Displays") {
+      shortcut(
+        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
+        description: "Move the focused app to the next workspace and follow it there."
       )
-      modifierToggleRow(
-        "Assign modifier", \.assignModifiers,
-        description: "Held with a workspace's key equivalent to assign the focused app to it."
+      shortcut(
+        "Move app to previous workspace",
+        .moveFocusedAppToPreviousWorkspace,
+        \.moveToPreviousWorkspace,
+        description: "Move the focused app to the previous workspace and follow it there."
       )
-      modifierToggleRow(
-        "Borrow modifier", \.borrowModifiers,
-        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
+      shortcut(
+        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
+        description: "Focus the active workspace on the next display (loops around)."
       )
-      navTarget(
-        "Recent workspace", description: "The previously active workspace.",
-        key: \.recentWorkspaceKey,
-        switchAction: .switchToRecentWorkspace, switchOverride: \.switchToRecentWorkspace,
-        assignAction: .assignFocusedAppToRecentWorkspace, assignOverride: \.assignRecentWorkspace,
-        borrowAction: .borrowRecentWorkspace, borrowOverride: \.borrowRecentWorkspace
+      shortcut(
+        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
+        description: "Focus the active workspace on the previous display (loops around)."
       )
-      navTarget(
-        "Next workspace", description: "The next workspace in the cycle.",
-        key: \.nextWorkspaceKey,
-        switchAction: .switchToNextWorkspace, switchOverride: \.switchToNextWorkspace,
-        assignAction: .assignFocusedAppToNextWorkspace, assignOverride: \.assignNextWorkspace,
-        borrowAction: .borrowNextWorkspace, borrowOverride: \.borrowNextWorkspace
+      shortcut(
+        "Toggle app in workspace",
+        .toggleFocusedAppInActiveWorkspace,
+        \.toggleFocusedAppInActiveWorkspace,
+        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
       )
-      navTarget(
-        "Previous workspace", description: "The previous workspace in the cycle.",
-        key: \.previousWorkspaceKey,
-        switchAction: .switchToPreviousWorkspace, switchOverride: \.switchToPreviousWorkspace,
-        assignAction: .assignFocusedAppToPreviousWorkspace, assignOverride: \.assignPreviousWorkspace,
-        borrowAction: .borrowPreviousWorkspace, borrowOverride: \.borrowPreviousWorkspace
+      shortcut(
+        "Toggle app in Shared Apps",
+        .toggleAppInSharedApps,
+        \.toggleAppInSharedApps,
+        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
       )
-    } header: {
-      Text("Workspace Keys")
-    } footer: {
-      Text("One key per target: the switch / assign / borrow modifier + that key runs each action. Record an explicit shortcut to override any of them.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
 
     Section("Borrow") {
@@ -382,40 +373,69 @@ extension SettingsView {
       )
     }
 
-    Section("Move App & Displays") {
-      shortcut(
-        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
-        description: "Move the focused app to the next workspace and follow it there."
+  }
+
+  // MARK: - Workspace Keys
+
+  @ViewBuilder
+  var workspaceKeysPane: some View {
+    Section {
+      modifierToggleRow(
+        "Switch modifier", \.keyEquivalentModifiers,
+        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the built-in targets below cover recent / next / previous. Clear it to disable key-equivalent switching."
       )
-      shortcut(
-        "Move app to previous workspace",
-        .moveFocusedAppToPreviousWorkspace,
-        \.moveToPreviousWorkspace,
-        description: "Move the focused app to the previous workspace and follow it there."
+      modifierToggleRow(
+        "Assign modifier", \.assignModifiers,
+        description: "Held with a workspace's key equivalent to assign the focused app to it."
       )
-      shortcut(
-        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
-        description: "Focus the active workspace on the next display (loops around)."
+      modifierToggleRow(
+        "Borrow modifier", \.borrowModifiers,
+        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
       )
-      shortcut(
-        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
-        description: "Focus the active workspace on the previous display (loops around)."
-      )
-      shortcut(
-        "Toggle app in workspace",
-        .toggleFocusedAppInActiveWorkspace,
-        \.toggleFocusedAppInActiveWorkspace,
-        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
-      )
-      shortcut(
-        "Toggle app in Shared Apps",
-        .toggleAppInSharedApps,
-        \.toggleAppInSharedApps,
-        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
-      )
+    } header: {
+      Text("Modifiers")
+    } footer: {
+      Text("These combine with each workspace's own key equivalent to switch, assign, or borrow it.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
-    Section("Gestures") {
+    Section {
+      navTarget(
+        "Recent workspace", description: "The previously active workspace.",
+        key: \.recentWorkspaceKey,
+        switchAction: .switchToRecentWorkspace, switchOverride: \.switchToRecentWorkspace,
+        assignAction: .assignFocusedAppToRecentWorkspace, assignOverride: \.assignRecentWorkspace,
+        borrowAction: .borrowRecentWorkspace, borrowOverride: \.borrowRecentWorkspace
+      )
+      navTarget(
+        "Next workspace", description: "The next workspace in the cycle.",
+        key: \.nextWorkspaceKey,
+        switchAction: .switchToNextWorkspace, switchOverride: \.switchToNextWorkspace,
+        assignAction: .assignFocusedAppToNextWorkspace, assignOverride: \.assignNextWorkspace,
+        borrowAction: .borrowNextWorkspace, borrowOverride: \.borrowNextWorkspace
+      )
+      navTarget(
+        "Previous workspace", description: "The previous workspace in the cycle.",
+        key: \.previousWorkspaceKey,
+        switchAction: .switchToPreviousWorkspace, switchOverride: \.switchToPreviousWorkspace,
+        assignAction: .assignFocusedAppToPreviousWorkspace, assignOverride: \.assignPreviousWorkspace,
+        borrowAction: .borrowPreviousWorkspace, borrowOverride: \.borrowPreviousWorkspace
+      )
+    } header: {
+      Text("Built-in Targets")
+    } footer: {
+      Text("Recent / next / previous behave like workspaces: one key each, combined with the modifiers above. Record an explicit shortcut to override any of them.")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  // MARK: - Gestures
+
+  @ViewBuilder
+  var gesturesPane: some View {
+    Section("Trackpad") {
       Toggle(isOn: setting(\.gestures.enabled)) {
         Text("Swipe to switch workspaces")
         Text("Swipe left/right on the trackpad to move to the next/previous workspace.")

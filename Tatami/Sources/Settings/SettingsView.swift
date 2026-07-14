@@ -22,7 +22,9 @@ struct SettingsView: View {
     case general
     case tiling
     case workspaces
+    case workspaceKeys
     case focusMouse
+    case gestures
     case appearance
 
     var id: String { rawValue }
@@ -31,8 +33,10 @@ struct SettingsView: View {
       switch self {
       case .general: "General"
       case .tiling: "Tiling"
-      case .focusMouse: "Focus & Mouse"
       case .workspaces: "Workspaces"
+      case .workspaceKeys: "Workspace Keys"
+      case .focusMouse: "Focus & Mouse"
+      case .gestures: "Gestures"
       case .appearance: "Appearance"
       }
     }
@@ -41,8 +45,10 @@ struct SettingsView: View {
       switch self {
       case .general: "gearshape"
       case .tiling: "rectangle.split.2x2"
-      case .focusMouse: "cursorarrow.motionlines"
       case .workspaces: "square.stack.3d.up"
+      case .workspaceKeys: "keyboard"
+      case .focusMouse: "cursorarrow.motionlines"
+      case .gestures: "hand.draw"
       case .appearance: "paintbrush"
       }
     }
@@ -62,8 +68,10 @@ struct SettingsView: View {
         switch pane ?? .general {
         case .general: generalPane
         case .tiling: tilingPane
-        case .focusMouse: focusMousePane
         case .workspaces: workspacesPane
+        case .workspaceKeys: workspaceKeysPane
+        case .focusMouse: focusMousePane
+        case .gestures: gesturesPane
         case .appearance: appearancePane
         }
       }
