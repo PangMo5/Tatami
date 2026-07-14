@@ -281,6 +281,7 @@ public struct AppFeature {
         state.workspaceList.shared = nil
         let hud = state.config.settings.hud
         let name = profile.name
+        let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
         return .merge(
           // Bindings change with the active profile's workspaces; re-register.
           .send(.hotKeys(.refreshBindings)),
@@ -289,7 +290,7 @@ public struct AppFeature {
           .run { [profileSessionStore, workspaceHUD] _ in
             profileSessionStore.saveActiveProfileId(id)
             if hud.shows(\.profileSwitch) {
-              await workspaceHUD.show(name, "rectangle.stack.fill", nil, hud.durationMs)
+              await workspaceHUD.show(name, symbol, nil, hud.durationMs)
             }
           }
         )
@@ -333,12 +334,13 @@ public struct AppFeature {
         state.workspaceList.shared = nil
         let hud = state.config.settings.hud
         let name = profile.name
+        let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
         return .merge(
           .send(.hotKeys(.refreshBindings)),
           .run { [profileSessionStore, workspaceHUD] _ in
             profileSessionStore.saveActiveProfileId(id)
             if hud.shows(\.profileSwitch) {
-              await workspaceHUD.show(name, "rectangle.stack.fill", nil, hud.durationMs)
+              await workspaceHUD.show(name, symbol, nil, hud.durationMs)
             }
           }
         )
