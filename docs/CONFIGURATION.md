@@ -55,6 +55,7 @@ the rest pick which actions show one.
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | Master switch for every overlay. |
 | `workspaceSwitch` | bool | `true` | Workspace name when switching. |
+| `profileSwitch` | bool | `true` | Profile name when switching profiles (manual or auto). |
 | `floating` | bool | `true` | Float state changes — per-workspace and shared. |
 | `appMembership` | bool | `true` | App added to / removed from a workspace or Shared Apps. |
 | `tilingPaused` | bool | `true` | Tiling paused / resumed. |
@@ -260,13 +261,25 @@ bool on any app or shared app also migrates (`true` → `floating`, else `tiled`
 
 ## `[[profiles]]` and workspaces
 
-A profile holds a set of workspaces. Each workspace assigns apps and optional
-per-workspace overrides.
+A profile is a named bundle of workspaces. You can define several and switch
+between them (a switch re-tiles every display for the new profile), and a
+profile can **auto-activate** based on which monitors are connected. Which
+profile is currently active is session state — stored in `profile-session.json`
+next to `config.toml`, never written into `config.toml` itself.
 
 ```toml
 [[profiles]]
 id = "00000000-0000-0000-0000-000000000001"
 name = "Default"
+shortcut = "ctrl + alt + cmd - 1"      # optional: hotkey to switch to this profile
+
+# Optional: auto-activate this profile when the connected displays match. All
+# set conditions apply together (AND); omit the table for manual switching only.
+[profiles.autoActivation]
+displayCount = ">=2"                        # "==N" | ">=N" | "<=N"
+whenConnectedMatch = "contains"             # "contains" (present) | "exactly" (set ==)
+whenConnected = ["37D8832A-…::IP1640"]      # these must be connected
+whenDisconnected = ["0E769C72-…::Projector"] # these must be unplugged
 
 [[profiles.workspaces]]
 id = "00000000-0000-0000-0000-000000000010"
@@ -284,6 +297,26 @@ name = "Zen Browser"
 autoOpen = false                       # launch on activation if not running
 layout = "tiled"                       # "tiled" | "floating" | "unmanaged"
 ```
+
+Profile fields:
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Stable identifier. |
+| `name` | string | Display name. |
+| `shortcut` | string? | skhd-style hotkey that switches to this profile. |
+| `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only. |
+
+`[profiles.autoActivation]` — all keys optional and AND-ed; when several
+profiles match, the most specific wins (`exactly` > `contains`, more conditions
+rank higher; ties go to the earlier profile):
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `displayCount` | string? | Connected-monitor count: `"==1"`, `">=2"`, `"<=1"`. |
+| `whenConnected` | string[]? | Displays that must be connected (`"<uuid>::<name>"` or `"<name>"`). |
+| `whenConnectedMatch` | string | `"contains"` (default — listed present, extras allowed) or `"exactly"` (connected set equals the list). |
+| `whenDisconnected` | string[]? | Displays that must be unplugged. |
 
 Workspace fields:
 

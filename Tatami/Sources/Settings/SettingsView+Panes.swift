@@ -469,6 +469,10 @@ extension SettingsView {
           Text("Workspace switch")
           Text("The workspace's name when you switch to it.")
         }
+        Toggle(isOn: setting(\.hud.profileSwitch)) {
+          Text("Profile switch")
+          Text("The profile's name when you switch profiles (manual or auto).")
+        }
         Toggle(isOn: setting(\.hud.floating)) {
           Text("Floating changes")
           Text("Floated / tiled — per-workspace and shared.")
