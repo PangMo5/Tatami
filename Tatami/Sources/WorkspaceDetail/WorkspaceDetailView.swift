@@ -148,7 +148,7 @@ struct WorkspaceDetailView: View {
                 onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
               ) { store.send(.keyEquivalentChanged($0)) }
             }
-            Text("One key for this workspace — hold it with the switch / assign / borrow modifier (Settings → Workspaces → Workspace Keys) to run each action.")
+            Text("One key for this workspace — hold it with the switch / assign / borrow modifier (Settings → Workspace Keys) to run each action.")
               .font(.caption)
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -226,9 +226,8 @@ struct WorkspaceDetailView: View {
 
         Section {
           // Each action derives from the workspace key (its modifier in
-          // Settings → Workspaces → Workspace Keys); the recorder beside it
-          // overrides that. Activate / Assign are meaningless for a
-          // borrow-only scratchpad.
+          // Settings → Workspace Keys); the recorder beside it overrides that.
+          // Activate / Assign are meaningless for a borrow-only scratchpad.
           if workspace.kind != .scratchpad {
             derivedShortcutRow(
               "Activate",
@@ -256,9 +255,20 @@ struct WorkspaceDetailView: View {
             onOverride: { store.send(.borrowShortcutChanged($0)) }
           )
         } header: {
-          Text("Shortcuts")
+          HStack {
+            Text("Shortcuts")
+            Spacer()
+            Button {
+              store.send(.openWorkspaceKeysTapped)
+            } label: {
+              Label("Workspace Keys", systemImage: "keyboard")
+                .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .help("Edit the switch / assign / borrow modifiers these combine with, in Settings → Workspace Keys.")
+          }
         } footer: {
-          Text("Each uses its modifier (Settings → Workspaces → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below.")
+          Text("Each uses its modifier (Settings → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }

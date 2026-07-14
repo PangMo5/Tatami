@@ -3,6 +3,20 @@ import Foundation
 import Perception
 import Sharing
 
+/// A top-level tab in the main window.
+public enum AppTab: String, Equatable, Sendable {
+  case workspaces
+  case settings
+  case about
+}
+
+/// A deep-link target inside the Settings tab (a specific pane). Set on
+/// `AppFeature.State` to route the Settings tab to a pane, then cleared once
+/// the view consumes it.
+public enum SettingsSection: String, Equatable, Sendable {
+  case workspaceKeys
+}
+
 /// Top-level reducer. Composes the feature reducers that make up the
 /// Tatami app and routes global hotkey events to the right child.
 @Reducer
@@ -14,6 +28,12 @@ public struct AppFeature {
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
     public var cli = CLIServerFeature.State()
+    /// The selected top-level tab. Driven by the TabView and set
+    /// programmatically for deep-links (e.g. jump to a Settings pane).
+    public var selectedTab: AppTab = .workspaces
+    /// A pending Settings deep-link: the Settings view routes to this pane on
+    /// appearance, then clears it via `.settingsSectionConsumed`.
+    public var pendingSettingsSection: SettingsSection?
     /// Standing internal failures (config parse errors, invalid shortcuts,
     /// I/O failures) surfaced via the menu bar until resolved or dismissed.
     public var errorReports: IdentifiedArrayOf<ErrorReport> = []
@@ -27,6 +47,10 @@ public struct AppFeature {
 
   public enum Action {
     case task
+    /// The top-level tab changed (TabView selection).
+    case tabSelected(AppTab)
+    /// The Settings view routed to `pendingSettingsSection`; clear it.
+    case settingsSectionConsumed
     case swiped(SwipeDirection)
     /// Global settings changed on disk (e.g. via the Settings tab) —
     /// reconfigure the launch-time integrations that don't re-read
@@ -353,6 +377,21 @@ public struct AppFeature {
         return isShared
           ? .send(.workspaceList(.sidebarSelected(.shared)))
           : .send(.workspaceList(.detail(.scrollToApp(bundleId: bundleId))))
+
+      // A workspace's derived shortcut deep-links to the modifier scheme it
+      // reads from: jump to the Settings tab and route it to Workspace Keys.
+      case .workspaceList(.detail(.openWorkspaceKeysTapped)):
+        state.selectedTab = .settings
+        state.pendingSettingsSection = .workspaceKeys
+        return .none
+
+      case .tabSelected(let tab):
+        state.selectedTab = tab
+        return .none
+
+      case .settingsSectionConsumed:
+        state.pendingSettingsSection = nil
+        return .none
 
       default:
         return .none

@@ -10,6 +10,12 @@ import TatamiKit
 /// System-Settings-style layout: a sidebar of panes on the left, one
 /// grouped form per pane on the right.
 struct SettingsView: View {
+  /// A deep-link from elsewhere in the app (e.g. a workspace's derived
+  /// shortcut) requesting a specific pane. Routed into `pane`, then cleared
+  /// via `onSectionConsumed`.
+  var pendingSection: SettingsSection? = nil
+  var onSectionConsumed: () -> Void = {}
+
   @Shared(.tatamiConfig) var config = AppConfig()
   // Not `private`: the pane bodies live in SettingsView+Panes.swift, a
   // cross-file extension of this view.
@@ -83,6 +89,13 @@ struct SettingsView: View {
     // All side effects (status reads, permission/CLI/update streams, the AX
     // change subscription) live in the reducer — the view just starts it.
     .task { await store.send(.task).finish() }
+    // Consume a deep-link into a specific pane (e.g. from a workspace's
+    // derived shortcut). `initial` covers the tab already being open.
+    .onChange(of: pendingSection, initial: true) { _, section in
+      guard let section, let target = Pane(rawValue: section.rawValue) else { return }
+      pane = target
+      onSectionConsumed()
+    }
   }
 
   // MARK: - Helpers

@@ -88,6 +88,9 @@ public struct WorkspaceDetailFeature {
     case shortcutRecordingChanged(Bool)
     /// Scroll the Apps section to (and briefly highlight) this app's row.
     case scrollToApp(bundleId: String)
+    /// Deep-link to Settings → Workspace Keys — the modifier scheme these
+    /// derived shortcuts combine with. A pure signal AppFeature intercepts.
+    case openWorkspaceKeysTapped
     case layout(WorkspaceLayoutFeature.Action)
     case alert(PresentationAction<Alert>)
 
@@ -300,6 +303,9 @@ public struct WorkspaceDetailFeature {
       case .scrollToApp(let bundleId):
         let token = (state.appScrollRequest?.token ?? 0) + 1
         state.appScrollRequest = State.ScrollRequest(bundleId: bundleId, token: token)
+        return .none
+
+      case .openWorkspaceKeysTapped:
         return .none
       }
     }
