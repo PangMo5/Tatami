@@ -41,9 +41,11 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func emptyRuleNeverMatches() {
-    #expect(!ProfileActivation().matches(connected: [builtin, ext]))
-    #expect(!ProfileActivation().matches(connected: []))
+  func emptyRuleIsACatchAllThatAlwaysMatches() {
+    // A non-nil rule with no conditions = auto-activation on, un-narrowed.
+    #expect(ProfileActivation().matches(connected: [builtin, ext]))
+    #expect(ProfileActivation().matches(connected: []))
+    #expect(!ProfileActivation().hasConditions)
   }
 
   @Test
@@ -77,5 +79,125 @@ struct ProfileActivationTests {
     let data = try JSONEncoder().encode(rule)
     let decoded = try JSONDecoder().decode(ProfileActivation.self, from: data)
     #expect(decoded == rule)
+  }
+
+  // MARK: - Overlap
+
+  @Test
+  func containsRulesOverlapViaSuperset() {
+    let a = ProfileActivation(whenConnected: .contains([ext]))
+    let b = ProfileActivation(whenConnected: .contains([proj]))
+    // A set containing both ext and proj satisfies both.
+    #expect(a.overlaps(with: b))
+  }
+
+  @Test
+  func exactlyDisjointSetsDoNotOverlap() {
+    let a = ProfileActivation(whenConnected: .exactly([builtin]))
+    let b = ProfileActivation(whenConnected: .exactly([ext]))
+    #expect(!a.overlaps(with: b))
+  }
+
+  @Test
+  func exactlyOverlapsAContainedSubsetRule() {
+    let a = ProfileActivation(whenConnected: .exactly([builtin, ext]))
+    let b = ProfileActivation(whenConnected: .contains([ext]))
+    #expect(a.overlaps(with: b)) // C = {builtin, ext}
+  }
+
+  @Test
+  func countOnlyRulesOverlapAtASharedSize() {
+    let a = ProfileActivation(displayCount: .atLeast(2))
+    let b = ProfileActivation(displayCount: .atLeast(3))
+    #expect(a.overlaps(with: b)) // |C| >= 3 satisfies both
+  }
+
+  @Test
+  func exactCountVsHigherAtLeastDoNotOverlap() {
+    let a = ProfileActivation(displayCount: .exactly(1))
+    let b = ProfileActivation(displayCount: .atLeast(2))
+    #expect(!a.overlaps(with: b))
+  }
+
+  @Test
+  func catchAllOverlapsAnySatisfiableRule() {
+    let catchAll = ProfileActivation()
+    let real = ProfileActivation(whenConnected: .contains([ext]))
+    #expect(catchAll.overlaps(with: real))
+    #expect(real.overlaps(with: catchAll))
+  }
+
+  @Test
+  func disconnectedOnlyRulesOverlapOnBareLaptop() {
+    let a = ProfileActivation(whenDisconnected: [ext])
+    let b = ProfileActivation(whenDisconnected: [proj])
+    #expect(a.overlaps(with: b)) // C = {} satisfies both
+  }
+
+  // MARK: - Diagnostic
+
+  @Test
+  func diagnosticFlagsEqualSpecificityAsConflict() {
+    let p1 = Profile(name: "Dual A", autoActivation: .init(displayCount: .atLeast(2)))
+    let p2 = Profile(name: "Dual B", autoActivation: .init(displayCount: .atLeast(3)))
+    let config = AppConfig(profiles: [p1, p2])
+    let d1 = config.autoActivationDiagnostic(for: p1.id)
+    #expect(d1.hasConflict)
+    #expect(d1.ambiguousWith == ["Dual B"])
+  }
+
+  @Test
+  func diagnosticReportsShadowingBothWays() {
+    // "exactly [builtin, ext]" is more specific than "contains [ext]"; they
+    // overlap on {builtin, ext}.
+    let specific = Profile(name: "Specific", autoActivation: .init(whenConnected: .exactly([builtin, ext])))
+    let general = Profile(name: "General", autoActivation: .init(whenConnected: .contains([ext])))
+    let config = AppConfig(profiles: [specific, general])
+    let dGeneral = config.autoActivationDiagnostic(for: general.id)
+    #expect(!dGeneral.hasConflict)
+    #expect(dGeneral.shadowedBy == ["Specific"])
+    let dSpecific = config.autoActivationDiagnostic(for: specific.id)
+    #expect(dSpecific.shadows == ["General"])
+  }
+
+  @Test
+  func diagnosticEmptyWhenRulesCannotBothMatch() {
+    let laptop = Profile(name: "Laptop", autoActivation: .init(displayCount: .exactly(1)))
+    let docked = Profile(name: "Docked", autoActivation: .init(displayCount: .atLeast(2)))
+    let config = AppConfig(profiles: [laptop, docked])
+    #expect(config.autoActivationDiagnostic(for: laptop.id).isEmpty)
+    #expect(config.autoActivationDiagnostic(for: docked.id).isEmpty)
+  }
+
+  @Test
+  func manualProfilesHaveNoDiagnostic() {
+    let manual = Profile(name: "Manual")
+    let auto = Profile(name: "Auto", autoActivation: .init(displayCount: .atLeast(2)))
+    let config = AppConfig(profiles: [manual, auto])
+    #expect(config.autoActivationDiagnostic(for: manual.id).isEmpty)
+    // `auto` only overlaps *enabled* rules; `manual` (nil) isn't one.
+    #expect(config.autoActivationDiagnostic(for: auto.id).isEmpty)
+  }
+
+  @Test
+  func twoCatchAllProfilesConflict() {
+    // Both enabled with no conditions ("any") → both always match → order
+    // alone decides. This is the any/any case that must be flagged.
+    let p1 = Profile(name: "Any A", autoActivation: .init())
+    let p2 = Profile(name: "Any B", autoActivation: .init())
+    let config = AppConfig(profiles: [p1, p2])
+    #expect(config.autoActivationDiagnostic(for: p1.id).ambiguousWith == ["Any B"])
+    #expect(config.autoActivationDiagnostic(for: p2.id).hasConflict)
+  }
+
+  @Test
+  func catchAllIsShadowedByASpecificRule() {
+    let fallback = Profile(name: "Fallback", autoActivation: .init())
+    let docked = Profile(name: "Docked", autoActivation: .init(displayCount: .atLeast(2)))
+    let config = AppConfig(profiles: [fallback, docked])
+    let dFallback = config.autoActivationDiagnostic(for: fallback.id)
+    #expect(!dFallback.hasConflict)
+    #expect(dFallback.shadowedBy == ["Docked"]) // more specific wins where both match
+    #expect(config.autoActivationDiagnostic(for: docked.id).shadows == ["Fallback"])
   }
 }

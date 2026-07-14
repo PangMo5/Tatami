@@ -65,105 +65,160 @@ struct ProfileDetailView: View {
 
   // MARK: - Auto-activation editor
 
-  /// Normalize + send. A fully-empty rule becomes `nil` (manual only).
+  /// Persist the edited rule. While auto-activation is on, an all-Any rule is a
+  /// deliberate catch-all (kept non-nil); the section's toggle owns `nil` (off).
   private func emit(_ rule: ProfileActivation) {
-    let empty = rule.whenConnected == nil
-      && rule.whenDisconnected.isEmpty
-      && rule.displayCount == nil
-    store.send(.autoActivationChanged(empty ? nil : rule))
+    store.send(.autoActivationChanged(rule))
   }
 
   @ViewBuilder
   private func autoActivationSection(_ profile: Profile) -> some View {
+    let enabled = profile.autoActivation != nil
     let cur = profile.autoActivation ?? ProfileActivation()
     Section {
-      Picker("Monitor count", selection: Binding<CountMode>(
-        get: {
-          switch cur.displayCount {
-          case .none: .any
-          case .exactly: .exactly
-          case .atLeast: .atLeast
-          case .atMost: .atMost
-          }
-        },
-        set: { mode in
-          let n = cur.displayCount.map(count) ?? max(1, store.availableDisplays.count)
-          var next = cur
-          switch mode {
-          case .any: next.displayCount = nil
-          case .exactly: next.displayCount = .exactly(n)
-          case .atLeast: next.displayCount = .atLeast(n)
-          case .atMost: next.displayCount = .atMost(n)
-          }
-          emit(next)
-        }
-      )) {
-        Text("Any").tag(CountMode.any)
-        Text("Exactly").tag(CountMode.exactly)
-        Text("At least").tag(CountMode.atLeast)
-        Text("At most").tag(CountMode.atMost)
-      }
-      if let dc = cur.displayCount {
-        Stepper(
-          "\(count(dc)) monitor\(count(dc) == 1 ? "" : "s")",
-          value: Binding<Int>(
-            get: { count(dc) },
-            set: { n in
-              var next = cur
-              switch dc {
-              case .exactly: next.displayCount = .exactly(n)
-              case .atLeast: next.displayCount = .atLeast(n)
-              case .atMost: next.displayCount = .atMost(n)
-              }
-              emit(next)
-            }
-          ),
-          in: 1 ... 8
-        )
-      }
+      Toggle("Auto-activate this profile", isOn: Binding(
+        get: { enabled },
+        // On → keep/seed a rule (empty = catch-all); off → nil (manual only).
+        set: { on in store.send(.autoActivationChanged(on ? cur : nil)) }
+      ))
 
-      // Per-monitor requirement: Required (must be connected) / Excluded (must
-      // be unplugged) / Any. Clearer than separate connected/excluded lists.
-      if store.availableDisplays.isEmpty {
-        Text("No monitors detected yet.")
+      if enabled {
+        if !cur.hasConditions {
+          Label {
+            Text("No conditions — activates on any configuration. Add a monitor condition below to narrow it.")
+          } icon: {
+            Image(systemName: "info.circle")
+          }
           .font(.caption).foregroundStyle(.secondary)
-      } else {
-        ForEach(store.availableDisplays, id: \.self) { display in
-          Picker(display.name, selection: Binding<DisplayReq>(
-            get: {
-              if cur.whenDisconnected.contains(where: { $0.matches(display) }) { return .excluded }
-              if cur.whenConnected?.displays.contains(where: { $0.matches(display) }) ?? false { return .required }
-              return .any
-            },
-            set: { req in
-              var required = (cur.whenConnected?.displays ?? []).filter { !$0.matches(display) }
-              var excluded = cur.whenDisconnected.filter { !$0.matches(display) }
-              switch req {
-              case .any: break
-              case .required: required.append(display)
-              case .excluded: excluded.append(display)
-              }
-              var next = cur
-              next.whenConnected = required.isEmpty ? nil : .contains(required)
-              next.whenDisconnected = excluded
-              emit(next)
+        }
+
+        Picker("Monitor count", selection: Binding<CountMode>(
+          get: {
+            switch cur.displayCount {
+            case .none: .any
+            case .exactly: .exactly
+            case .atLeast: .atLeast
+            case .atMost: .atMost
             }
-          )) {
-            Text("Any").tag(DisplayReq.any)
-            Text("Required").tag(DisplayReq.required)
-            Text("Excluded").tag(DisplayReq.excluded)
+          },
+          set: { mode in
+            let n = cur.displayCount.map(count) ?? max(1, store.availableDisplays.count)
+            var next = cur
+            switch mode {
+            case .any: next.displayCount = nil
+            case .exactly: next.displayCount = .exactly(n)
+            case .atLeast: next.displayCount = .atLeast(n)
+            case .atMost: next.displayCount = .atMost(n)
+            }
+            emit(next)
+          }
+        )) {
+          Text("Any").tag(CountMode.any)
+          Text("Exactly").tag(CountMode.exactly)
+          Text("At least").tag(CountMode.atLeast)
+          Text("At most").tag(CountMode.atMost)
+        }
+        if let dc = cur.displayCount {
+          Stepper(
+            "\(count(dc)) monitor\(count(dc) == 1 ? "" : "s")",
+            value: Binding<Int>(
+              get: { count(dc) },
+              set: { n in
+                var next = cur
+                switch dc {
+                case .exactly: next.displayCount = .exactly(n)
+                case .atLeast: next.displayCount = .atLeast(n)
+                case .atMost: next.displayCount = .atMost(n)
+                }
+                emit(next)
+              }
+            ),
+            in: 1 ... 8
+          )
+        }
+
+        // Per-monitor requirement: Required (must be connected) / Excluded
+        // (must be unplugged) / Any. Clearer than separate lists.
+        if store.availableDisplays.isEmpty {
+          Text("No monitors detected yet.")
+            .font(.caption).foregroundStyle(.secondary)
+        } else {
+          ForEach(store.availableDisplays, id: \.self) { display in
+            Picker(display.name, selection: Binding<DisplayReq>(
+              get: {
+                if cur.whenDisconnected.contains(where: { $0.matches(display) }) { return .excluded }
+                if cur.whenConnected?.displays.contains(where: { $0.matches(display) }) ?? false { return .required }
+                return .any
+              },
+              set: { req in
+                var required = (cur.whenConnected?.displays ?? []).filter { !$0.matches(display) }
+                var excluded = cur.whenDisconnected.filter { !$0.matches(display) }
+                switch req {
+                case .any: break
+                case .required: required.append(display)
+                case .excluded: excluded.append(display)
+                }
+                var next = cur
+                next.whenConnected = required.isEmpty ? nil : .contains(required)
+                next.whenDisconnected = excluded
+                emit(next)
+              }
+            )) {
+              Text("Any").tag(DisplayReq.any)
+              Text("Required").tag(DisplayReq.required)
+              Text("Excluded").tag(DisplayReq.excluded)
+            }
           }
         }
+
+        let diagnostic = store.autoActivationDiagnostic
+        if !diagnostic.isEmpty { diagnosticRows(diagnostic) }
       }
     } header: {
       Text("Auto-Activation")
     } footer: {
-      Text("Auto-switch to this profile when the monitors match — all conditions apply together. Per monitor: Required = must be connected, Excluded = must be unplugged. Leave everything Any for manual only.")
+      Text("When on, auto-switch to this profile as the monitors match — all conditions apply together. Per monitor: Required = must be connected, Excluded = must be unplugged.")
         .font(.caption).foregroundStyle(.secondary)
     }
   }
 
   private func count(_ rule: CountRule) -> Int {
     switch rule { case .exactly(let n), .atLeast(let n), .atMost(let n): n }
+  }
+
+  // MARK: - Overlap diagnostic
+
+  /// Inline warning (equal-specificity conflict) + info (intended shadowing)
+  /// about how this profile's rule overlaps the others'.
+  @ViewBuilder
+  private func diagnosticRows(_ d: ProfileActivationDiagnostic) -> some View {
+    if !d.ambiguousWith.isEmpty {
+      Label {
+        Text("Also matches \(quoted(d.ambiguousWith)) at the same priority — profile order decides which one activates. Make one more specific, or reorder them in the sidebar.")
+      } icon: {
+        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+      }
+      .font(.caption)
+    }
+    if !d.shadowedBy.isEmpty {
+      Label {
+        Text("Overlaps \(quoted(d.shadowedBy)) — more specific, so it wins where both match.")
+      } icon: {
+        Image(systemName: "info.circle")
+      }
+      .font(.caption).foregroundStyle(.secondary)
+    }
+    if !d.shadows.isEmpty {
+      Label {
+        Text("Wins over \(quoted(d.shadows)) where both match.")
+      } icon: {
+        Image(systemName: "info.circle")
+      }
+      .font(.caption).foregroundStyle(.secondary)
+    }
+  }
+
+  private func quoted(_ names: [String]) -> String {
+    names.map { "“\($0)”" }.joined(separator: ", ")
   }
 }

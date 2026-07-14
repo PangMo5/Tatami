@@ -29,6 +29,11 @@ public struct ProfileDetailFeature {
     public func shortcutConflict(for candidate: HotKey) -> String? {
       config.shortcutConflict(for: candidate, excluding: .activateProfile(profileId))
     }
+
+    /// How this profile's auto-activation rule overlaps the other profiles'.
+    public var autoActivationDiagnostic: ProfileActivationDiagnostic {
+      config.autoActivationDiagnostic(for: profileId)
+    }
   }
 
   public enum Action: BindableAction {

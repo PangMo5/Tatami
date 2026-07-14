@@ -106,6 +106,31 @@ extension AppConfig {
     return best?.id
   }
 
+  /// How one profile's auto-activation rule relates to the others': which
+  /// profiles fire on the same configuration, and whether the tie is decided
+  /// by order (equal specificity — a genuine conflict) or by precedence
+  /// (different specificity — intended shadowing, shown as info).
+  public func autoActivationDiagnostic(for profileId: Profile.ID) -> ProfileActivationDiagnostic {
+    guard let rule = profiles.first(where: { $0.id == profileId })?.autoActivation
+    else { return ProfileActivationDiagnostic() }
+
+    var diagnostic = ProfileActivationDiagnostic()
+    let mySpecificity = rule.specificity
+    for other in profiles where other.id != profileId {
+      guard let otherRule = other.autoActivation, rule.overlaps(with: otherRule)
+      else { continue }
+      let otherSpecificity = otherRule.specificity
+      if otherSpecificity == mySpecificity {
+        diagnostic.ambiguousWith.append(other.name)
+      } else if otherSpecificity > mySpecificity {
+        diagnostic.shadowedBy.append(other.name)
+      } else {
+        diagnostic.shadows.append(other.name)
+      }
+    }
+    return diagnostic
+  }
+
   /// Index of the active profile in `profiles`, or nil when there are none.
   private var activeProfileIndex: Int? {
     if let id = activeProfileId, let idx = profiles.firstIndex(where: { $0.id == id }) {

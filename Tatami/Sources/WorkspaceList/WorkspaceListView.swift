@@ -122,6 +122,12 @@ struct WorkspaceListView: View {
         HStack {
           Label(profile.name, systemImage: "rectangle.stack")
           Spacer()
+          if store.config.autoActivationDiagnostic(for: profile.id).hasConflict {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+              .imageScale(.small)
+              .help("Auto-activation overlaps another profile at the same priority — order decides which one activates.")
+          }
           if profile.id == activeId {
             Image(systemName: "circle.fill")
               .foregroundStyle(.green)
