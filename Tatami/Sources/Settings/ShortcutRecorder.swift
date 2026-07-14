@@ -60,27 +60,22 @@ struct ShortcutRecorder: View {
 
 // MARK: - ComboCapsule
 
-/// A read-only capsule showing a derived shortcut combo (e.g. `⌃⌥D`), styled
-/// to match `ShortcutRecorder` / `KeyEquivalentRecorder` so derived bindings
-/// (activate / assign from a workspace key) sit visually alongside editable
-/// recorders.
+/// A read-only display of a derived shortcut combo (e.g. `⌃⌥D`). Deliberately
+/// *not* capsule/glass styled like `ShortcutRecorder` — it renders as plain
+/// secondary text (like a menu's shortcut hint) so it reads as a fixed value
+/// you can't edit here. The parts live elsewhere: the modifier in Workspace
+/// Keys, the key in the workspace's own settings; the recorder beside it
+/// overrides the whole thing.
 struct ComboCapsule: View {
   let text: String
   var dimmed = false
 
   var body: some View {
-    let label = Text(text.isEmpty ? "—" : text)
-      .font(.system(size: 12, weight: .semibold))
-      .foregroundStyle(text.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+    Text(text.isEmpty ? "—" : text)
+      .font(.system(size: 12, weight: .medium))
+      .foregroundStyle(.secondary)
       .frame(width: 96, height: 24)
-    Group {
-      if #available(macOS 26.0, *) {
-        label.glassEffect(.regular, in: Capsule())
-      } else {
-        label.background(.ultraThinMaterial, in: Capsule())
-      }
-    }
-    .opacity(dimmed ? 0.4 : 1)
+      .opacity(dimmed ? 0.5 : 1)
   }
 }
 
