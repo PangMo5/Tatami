@@ -6,6 +6,16 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.7.1 — 2026-07-14
+
+### Improvements
+- **Three-column profile sidebar.** Settings now show your profiles, then the selected profile's contents, then the detail — so you can inspect and edit **any** profile (its workspaces, layouts, shortcuts) without switching to it first. The running profile is still marked with a green dot, distinct from the one you're viewing. Activating a workspace from a non-active profile switches to that profile and lands on it in one step.
+- **Shared Apps live in the sidebar.** Shared apps join every workspace of every profile, so they moved out from under a single profile into an **Everywhere** section in the sidebar.
+- **Per-display switch HUD.** Switching a profile now shows, on each monitor, the workspace that lands there — instead of one HUD listing everything.
+
+### Fixes
+- **A workspace pinned to an unplugged display stays put.** Activating a workspace whose pinned monitor isn't currently connected, then switching profiles away and back, no longer reverts it to a different workspace — it's kept where you last had it (and still returns to its own monitor once that display is reconnected).
+
 ## 1.7.0 — 2026-07-14
 
 ### New
