@@ -140,6 +140,9 @@ struct WorkspaceListView: View {
           }
         }
       }
+      .onMove { source, destination in
+        store.send(.profilesReordered(source, destination))
+      }
       Button {
         store.send(.newProfileButtonTapped)
       } label: {

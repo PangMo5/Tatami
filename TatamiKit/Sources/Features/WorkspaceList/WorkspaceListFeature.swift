@@ -61,6 +61,7 @@ public struct WorkspaceListFeature {
     case newProfileButtonTapped
     case duplicateProfileTapped(Profile.ID)
     case deleteProfileRequested(Profile.ID)
+    case profilesReordered(IndexSet, Int)
     case detail(WorkspaceDetailFeature.Action)
     case shared(SharedAppsFeature.Action)
     case profileDetail(ProfileDetailFeature.Action)
@@ -216,6 +217,12 @@ public struct WorkspaceListFeature {
         let profile = Profile(name: "New Profile")
         state.$config.withLock { $0.profiles.append(profile) }
         return .send(.sidebarSelected(.profile(profile.id)))
+
+      case let .profilesReordered(source, destination):
+        // Order matters: `activeProfile` falls back to the first, and an
+        // auto-activation tie breaks toward the earlier profile.
+        state.$config.withLock { $0.profiles.move(fromOffsets: source, toOffset: destination) }
+        return .none
 
       // Profile detail bubbles its side-effecting ops up (switch → AppFeature,
       // delete → the confirm alert here, edits → hotkey rebind).
