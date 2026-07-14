@@ -42,6 +42,7 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 - Switch by hotkey or from the menu bar; switching re-tiles every display for the new profile
 - **Auto-activate** a profile by display setup — monitor count, or specific displays connected / disconnected — with a warning when two profiles' rules overlap at the same priority
 - Per-profile SF Symbol icon, shown in the sidebar, menu bar, and switch HUD
+- **Copy from** another profile or workspace with a reviewable, per-change diff — apps and settings, keep or skip each change (profiles stay independent)
 
 ### Borrow — compose two workspaces
 

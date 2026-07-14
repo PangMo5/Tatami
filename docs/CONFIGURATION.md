@@ -273,6 +273,11 @@ profile can **auto-activate** based on which monitors are connected. Which
 profile is currently active is session state — stored in `profile-session.json`
 next to `config.toml`, never written into `config.toml` itself.
 
+Profiles keep independent workspaces, so their apps and settings can drift
+apart. The app can reconcile them without hand-editing: **Copy from…** in a
+profile's or workspace's detail shows a reviewable diff of the apps and
+settings that differ and copies only the changes you keep checked.
+
 ```toml
 [[profiles]]
 id = "00000000-0000-0000-0000-000000000001"
