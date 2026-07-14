@@ -11,8 +11,6 @@ Tatami groups your apps into virtual workspaces you switch between with a
 keystroke or a trackpad swipe, and tiles their windows automatically with a
 yabai-style BSP engine — no SIP changes and no shell scripting required.
 
-> **Status:** In active development. Config format and shortcuts may still change.
-
 ## Demo
 
 <p align="center">

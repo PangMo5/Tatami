@@ -98,6 +98,13 @@
     });
     if (headings.length) document.getElementById("side").hidden = false;
 
+    // The markdown renders after load, so the browser's initial jump to a
+    // `#hash` found no target yet. Now that headings have ids, honor it.
+    if (location.hash) {
+      const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (target) target.scrollIntoView();
+    }
+
     // Scroll-spy: highlight the section currently in view.
     const links = Array.from(sideNav.querySelectorAll("a"));
     const byId = Object.fromEntries(links.map((a) => [a.dataset.target, a]));
