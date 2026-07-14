@@ -65,7 +65,10 @@ public struct AppFeature {
     case errorReportEvent(ErrorReportEvent)
     case errorReportsDismissed
     /// Switch to (activate) a profile — from the menu or a profile hotkey.
-    case activateProfile(Profile.ID)
+    /// Switch the active profile. `focus`, when set, is a workspace to land as
+    /// the focused one after the switch's per-display retile (used by the detail
+    /// Activate button on a non-active profile's workspace).
+    case activateProfile(Profile.ID, focus: Workspace.ID?)
     /// Deep-copy a profile (fresh ids + copied layouts) right after it.
     case duplicateProfile(Profile.ID)
   }
@@ -268,25 +271,26 @@ public struct AppFeature {
       case .hotKeys(.actionTriggered(let hotKeyAction)):
         return route(hotKeyAction, state: state)
 
-      case .activateProfile(let id):
+      case .activateProfile(let id, let focus):
         guard state.config.activeProfileId != id,
               let profile = state.config.profiles.first(where: { $0.id == id })
-        else { return .none }
+        else {
+          // Already the active profile — just focus the requested workspace, if any.
+          if let focus { return .send(.activation(.activate(workspaceId: focus, setFocus: true))) }
+          return .none
+        }
         state.$config.withLock { $0.activeProfileId = id }
-        // The new profile has different workspaces — drop any stale sidebar
-        // selection so the detail pane doesn't dangle on a workspace that isn't
-        // in this profile.
-        state.workspaceList.selection = nil
-        state.workspaceList.detail = nil
-        state.workspaceList.shared = nil
+        // The sidebar (col 1) is independent of the active profile, so switching
+        // which profile runs no longer disturbs what's being viewed/edited.
         let hud = state.config.settings.hud
         let name = profile.name
         let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
         return .merge(
           // Bindings change with the active profile's workspaces; re-register.
           .send(.hotKeys(.refreshBindings)),
-          // Retile every display for the new profile (all workspaces update).
-          .send(.activation(.reactivateActiveProfile)),
+          // Retile every display for the new profile (all workspaces update). When
+          // `focus` is set, the plan ends on that workspace so it lands active.
+          .send(.activation(.reactivateActiveProfile(focus: focus))),
           .run { [profileSessionStore, workspaceHUD] _ in
             profileSessionStore.saveActiveProfileId(id)
             if hud.shows(\.profileSwitch) {
@@ -321,7 +325,7 @@ public struct AppFeature {
 
       // Profile management (sidebar toolbar) routes its side-effecting ops here.
       case .workspaceList(.delegate(.activateProfile(let id))):
-        return .send(.activateProfile(id))
+        return .send(.activateProfile(id, focus: nil))
       case .workspaceList(.delegate(.profilesChanged)):
         return .send(.hotKeys(.refreshBindings))
 
@@ -329,9 +333,6 @@ public struct AppFeature {
       // run the remaining switch side effects (rebind hotkeys, persist, HUD).
       case .activation(.delegate(.profileAutoActivated(let id))):
         guard let profile = state.config.profiles.first(where: { $0.id == id }) else { return .none }
-        state.workspaceList.selection = nil
-        state.workspaceList.detail = nil
-        state.workspaceList.shared = nil
         let hud = state.config.settings.hud
         let name = profile.name
         let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
@@ -390,6 +391,20 @@ public struct AppFeature {
           ? .send(.workspaceList(.sidebarSelected(.shared)))
           : .send(.workspaceList(.detail(.scrollToApp(bundleId: bundleId))))
 
+      // The detail Activate button. Activation only runs on the active profile,
+      // so if the viewed workspace belongs to another profile, switch to that
+      // profile first, then activate the specific workspace with focus.
+      case .workspaceList(.detail(.activateTapped)):
+        guard let wsId = state.workspaceList.detail?.workspaceId else { return .none }
+        let owning = state.config.profileId(owning: wsId)
+        let activeId = state.config.activeProfileId ?? state.config.profiles.first?.id
+        if let owning, owning != activeId {
+          // Switch to the workspace's profile; the reactivate plan ends on this
+          // workspace so it lands active + focused (no race with the retile).
+          return .send(.activateProfile(owning, focus: wsId))
+        }
+        return .send(.activation(.activate(workspaceId: wsId, setFocus: true)))
+
       // A workspace's derived shortcut deep-links to the modifier scheme it
       // reads from: jump to the Settings tab and route it to Workspace Keys.
       case .workspaceList(.detail(.openWorkspaceKeysTapped)):
@@ -426,7 +441,7 @@ public struct AppFeature {
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
     case .activateProfile(let id):
-      return .send(.activateProfile(id))
+      return .send(.activateProfile(id, focus: nil))
     case .assignFocusedAppToRecentWorkspace:
       return .send(.activation(.assignFocusedAppToRecentWorkspace))
     case .assignFocusedAppToNextWorkspace:

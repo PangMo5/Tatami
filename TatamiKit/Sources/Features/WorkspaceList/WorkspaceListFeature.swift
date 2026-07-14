@@ -8,10 +8,12 @@ import Sharing
 /// `WorkspaceDetailFeature` or `SharedAppsFeature` child.
 @Reducer
 public struct WorkspaceListFeature {
-  /// What the sidebar can select: a profile (its settings), a regular
-  /// workspace, or the Shared pseudo-workspace.
+  /// What the *content* column (col 2) can select within the selected profile:
+  /// the profile's own settings, one of its workspaces, or the Shared apps
+  /// pseudo-workspace. The profile itself is picked in the sidebar (col 1) via
+  /// `selectedProfileId`.
   public enum SidebarItem: Equatable, Hashable, Sendable {
-    case profile(Profile.ID)
+    case profileSettings
     case workspace(Workspace.ID)
     case shared
   }
@@ -19,6 +21,11 @@ public struct WorkspaceListFeature {
   @ObservableState
   public struct State: Equatable {
     @Shared(.tatamiConfig) public var config = AppConfig()
+    /// The profile being viewed/edited (col 1) — independent of the *active*
+    /// (running) profile, so a non-active profile can be inspected and edited
+    /// without switching to it. nil falls back to the active/first profile.
+    public var selectedProfileId: Profile.ID?
+    /// The content-column (col 2) selection within the selected profile.
     public var selection: SidebarItem?
     public var isAddSheetPresented = false
     public var draftName = ""
@@ -30,8 +37,19 @@ public struct WorkspaceListFeature {
 
     public init() {}
 
+    /// The profile whose contents col 2 lists — the selected one, falling back
+    /// to the active/first when nothing is selected yet.
+    public var selectedProfileResolvedId: Profile.ID? {
+      selectedProfileId ?? config.activeProfileId ?? config.profiles.first?.id
+    }
+
+    public var selectedProfile: Profile? {
+      guard let id = selectedProfileResolvedId else { return nil }
+      return config.profiles.first { $0.id == id }
+    }
+
     public var workspaces: IdentifiedArrayOf<Workspace> {
-      config.activeProfile?.workspaces ?? []
+      selectedProfile?.workspaces ?? []
     }
 
     /// Regular workspaces — the "Workspaces" sidebar section.
@@ -57,7 +75,12 @@ public struct WorkspaceListFeature {
       after: Bool
     )
     case sidebarSelected(SidebarItem?)
-    // Profiles — a sidebar list; selecting one opens its detail settings.
+    /// First render: highlight the active profile in col 1 without opening its
+    /// settings (leaves the detail column empty until the user picks something).
+    case sidebarAppeared
+    // Profiles — the sidebar column (col 1); selecting one switches which
+    // profile col 2 lists, without activating it.
+    case profileSelected(Profile.ID?)
     case newProfileButtonTapped
     case duplicateProfileTapped(Profile.ID)
     case deleteProfileRequested(Profile.ID)
@@ -101,13 +124,14 @@ public struct WorkspaceListFeature {
         let trimmed = state.draftName.trimmingCharacters(in: .whitespacesAndNewlines)
         state.isAddSheetPresented = false
         state.draftName = ""
-        guard !trimmed.isEmpty else { return .none }
+        guard !trimmed.isEmpty, let profileId = state.selectedProfileResolvedId
+        else { return .none }
         // Default to static: pin new workspaces to the current display so
         // multi-monitor placement is predictable (workspace ↔ monitor). The
         // user can switch a workspace back to Dynamic in its Display picker.
         let workspace = Workspace(name: trimmed, displayHint: displays.current())
         state.$config.withLock { config in
-          config.mutateActiveProfile { $0.workspaces.append(workspace) }
+          config.mutateProfile(profileId) { $0.workspaces.append(workspace) }
         }
         return .send(.sidebarSelected(.workspace(workspace.id)))
 
@@ -138,7 +162,8 @@ public struct WorkspaceListFeature {
           state.detail = nil
         }
         state.$config.withLock { config in
-          config.mutateActiveProfile { profile in
+          guard let profileId = config.profileId(owning: id) else { return }
+          config.mutateProfile(profileId) { profile in
             profile.workspaces.remove(id: id)
           }
         }
@@ -147,16 +172,21 @@ public struct WorkspaceListFeature {
         return .run { [layoutStore] _ in layoutStore.clear(id) }
 
       case .alert(.presented(.confirmProfileDeletion(let id))):
-        // Drop the detail pane if it was showing the deleted profile.
-        if state.selection == .profile(id) {
-          state.selection = nil
-          state.profileDetail = nil
-        }
         // Clear the deleted profile's workspace layouts, then remove it. If it
         // was the active one, switch to the new first profile.
         let wsIds = state.config.profiles.first(where: { $0.id == id })?.workspaces.map(\.id) ?? []
         let wasActive = (state.config.activeProfileId ?? state.config.profiles.first?.id) == id
         state.$config.withLock { $0.profiles.removeAll { $0.id == id } }
+        // If the viewed profile was the one deleted, move the sidebar selection
+        // to the new first profile so col 2 / col 3 don't dangle.
+        if state.selectedProfileResolvedId == id || state.selectedProfileId == id {
+          let fallback = state.config.profiles.first?.id
+          state.selectedProfileId = fallback
+          state.selection = fallback == nil ? nil : .profileSettings
+          state.profileDetail = fallback.map { ProfileDetailFeature.State(profileId: $0) }
+          state.detail = nil
+          state.shared = nil
+        }
         let switchAway: Effect<Action> = wasActive
           ? (state.config.profiles.first.map { .send(.delegate(.activateProfile($0.id))) }
             ?? .send(.delegate(.profilesChanged)))
@@ -170,16 +200,30 @@ public struct WorkspaceListFeature {
         return .none
 
       case let .workspaceDropped(draggedId, kind, target, after):
+        let profileId = state.selectedProfileResolvedId
         state.$config.withLock { config in
-          config.placeWorkspace(draggedId, kind: kind, relativeTo: target, after: after)
+          config.placeWorkspace(draggedId, kind: kind, relativeTo: target, after: after, in: profileId)
         }
         return .none
+
+      case .sidebarAppeared:
+        if state.selectedProfileId == nil {
+          state.selectedProfileId = state.selectedProfileResolvedId
+        }
+        return .none
+
+      case .profileSelected(let id):
+        // Switching the viewed profile resets the content column to that
+        // profile's settings; it does *not* activate the profile.
+        state.selectedProfileId = id
+        return .send(.sidebarSelected(.profileSettings))
 
       case .sidebarSelected(let item):
         state.selection = item
         switch item {
-        case .profile(let id):
-          state.profileDetail = ProfileDetailFeature.State(profileId: id)
+        case .profileSettings:
+          state.profileDetail = state.selectedProfileResolvedId
+            .map { ProfileDetailFeature.State(profileId: $0) }
           state.detail = nil
           state.shared = nil
         case .workspace(let id):
@@ -216,7 +260,7 @@ public struct WorkspaceListFeature {
         // there. It doesn't become active until "Activate" in the detail.
         let profile = Profile(name: "New Profile")
         state.$config.withLock { $0.profiles.append(profile) }
-        return .send(.sidebarSelected(.profile(profile.id)))
+        return .send(.profileSelected(profile.id))
 
       case let .profilesReordered(source, destination):
         // Order matters: `activeProfile` falls back to the first, and an

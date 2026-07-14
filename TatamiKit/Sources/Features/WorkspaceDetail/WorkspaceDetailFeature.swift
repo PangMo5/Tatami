@@ -35,7 +35,7 @@ public struct WorkspaceDetailFeature {
     }
 
     public var workspace: Workspace? {
-      config.activeProfile?.workspaces[id: workspaceId]
+      config.workspace(id: workspaceId)
     }
 
     public var apps: [AppAssignment] {
@@ -91,6 +91,10 @@ public struct WorkspaceDetailFeature {
     /// Deep-link to Settings → Workspace Keys — the modifier scheme these
     /// derived shortcuts combine with. A pure signal AppFeature intercepts.
     case openWorkspaceKeysTapped
+    /// The toolbar Activate button. A pure signal AppFeature intercepts: it
+    /// switches to the workspace's profile first when that profile isn't the
+    /// active one (activation only runs on the active profile).
+    case activateTapped
     /// Pull a reviewed set of apps / settings from another profile's workspace
     /// into this one; the excluded sets carry what the user unchecked.
     case importWorkspace(
@@ -314,6 +318,9 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .openWorkspaceKeysTapped:
+        return .none
+
+      case .activateTapped:
         return .none
 
       case let .importWorkspace(sourceProfile, sourceWorkspace, excludingApps, excludingFields):

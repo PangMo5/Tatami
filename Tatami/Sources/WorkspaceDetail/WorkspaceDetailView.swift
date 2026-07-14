@@ -428,7 +428,7 @@ struct WorkspaceDetailView: View {
         ToolbarItem(placement: .primaryAction) {
           let active = isActive(workspace)
           Button {
-            activationStore.send(.activate(workspaceId: workspace.id, setFocus: true))
+            store.send(.activateTapped)
           } label: {
             Label(
               active ? "Active" : "Activate",

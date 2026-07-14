@@ -39,6 +39,10 @@ public struct WorkspaceActivationFeature {
     /// Reconnect restores to run one-at-a-time through the single (latest-wins)
     /// activation slot — dequeued as each activation completes.
     public var pendingDisplayRestores: [DisplayAssignment] = []
+    /// The workspace to focus once its restore lands — set by a focused
+    /// `reactivateActiveProfile` so the last plan entry activates with focus.
+    /// Cleared as soon as that restore is processed.
+    public var focusWorkspaceOnRestore: Workspace.ID?
     /// The display the user is currently acting on (cursor screen), refreshed
     /// before focus-sensitive ops so "the current workspace" resolves to the
     /// right monitor instead of an arbitrary one.
@@ -213,7 +217,11 @@ public struct WorkspaceActivationFeature {
     /// a manual profile switch fires no `displaysReconfigured`, so this re-runs
     /// the same per-display restore plan to retile all monitors for the new
     /// profile (apps show/hide/tile per its workspaces).
-    case reactivateActiveProfile
+    /// `focus`, when set, is a workspace forced to the end of the restore plan
+    /// (on its display) and activated with focus — so a profile switch that
+    /// targets a specific workspace lands on it after the per-display retile,
+    /// with no race against the restore cascade.
+    case reactivateActiveProfile(focus: Workspace.ID?)
     /// Startup permission gate: prompt for any missing permission, surfacing
     /// Accessibility + Screen Recording together when both are absent.
     case surfaceMissingPermissions
@@ -796,7 +804,7 @@ public struct WorkspaceActivationFeature {
         state.$config.withLock { $0.activeProfileId = id }
         return .none
 
-      case .reactivateActiveProfile:
+      case .reactivateActiveProfile(let focus):
         guard let profile = state.config.activeProfile else { return .none }
         let connected = displays.all()
         guard !connected.isEmpty else { return .send(.activateInitial) }
@@ -806,7 +814,8 @@ public struct WorkspaceActivationFeature {
         // their monitors, dynamics fill the rest (reuses the reconnect planner).
         state.activeWorkspacesByDisplay = [:]
         state.pendingDisplayRestores = []
-        let plan = Self.planDisplayRestore(
+        state.focusWorkspaceOnRestore = nil
+        var plan = Self.planDisplayRestore(
           connected: connected,
           newlyConnected: Set(connected),
           workspaces: profile.workspaces.elements,
@@ -814,12 +823,33 @@ public struct WorkspaceActivationFeature {
           history: state.displayWorkspaceHistory,
           workspaceMRU: state.workspaceMRU
         )
+        // A focused switch (detail Activate on a non-active profile) forces its
+        // workspace to the *end* of the plan — the cascade processes in order,
+        // so it lands last, and its restore sets focus. This makes the clicked
+        // workspace the final active one deterministically, without racing the
+        // per-display retile.
+        if let focus, profile.workspaces[id: focus] != nil {
+          if let idx = plan.firstIndex(where: { $0.workspace == focus }) {
+            plan.append(plan.remove(at: idx))
+          } else {
+            let hint = profile.workspaces[id: focus]?.displayHint
+            let targetDisplay = connected.first { hint?.matches($0) ?? false }
+              ?? plan.last?.display ?? connected[0]
+            plan.removeAll { $0.display == targetDisplay }
+            plan.append(DisplayAssignment(display: targetDisplay, workspace: focus))
+          }
+          state.focusWorkspaceOnRestore = focus
+        }
         debugLog.log(
           "Profile",
           "reactivate \(profile.name) plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })"
         )
-        // Empty profile (nothing pinnable) → nothing to tile; leave screens as-is.
-        guard !plan.isEmpty else { return .none }
+        // Empty profile (nothing pinnable) → nothing to tile. Still honor an
+        // explicit focus target so the Activate button isn't a no-op.
+        guard !plan.isEmpty else {
+          if let focus { return .send(.activate(workspaceId: focus, setFocus: true)) }
+          return .none
+        }
         state.pendingDisplayRestores = plan
         return .send(.processDisplayRestores)
 
@@ -837,7 +867,7 @@ public struct WorkspaceActivationFeature {
           debugLog.log("Profile", "startup auto-activate for displays=\(displays.all().map(\.name))")
           return .merge(
             .send(.delegate(.profileAutoActivated(matched))),
-            .send(.reactivateActiveProfile)
+            .send(.reactivateActiveProfile(focus: nil))
           )
         }
         // (connectedDisplays already seeded above so the first real reconfigure
@@ -900,9 +930,13 @@ public struct WorkspaceActivationFeature {
         )
 
       case .restoreDisplay(let workspaceId, let display):
+        // The focused-switch target (forced last in the plan) activates with
+        // focus so the profile switch lands on the clicked workspace.
+        let takesFocus = state.focusWorkspaceOnRestore == workspaceId
+        if takesFocus { state.focusWorkspaceOnRestore = nil }
         return performActivate(
           workspaceId: workspaceId,
-          setFocus: false,
+          setFocus: takesFocus,
           displayOverride: display,
           state: &state
         )

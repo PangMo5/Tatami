@@ -70,7 +70,7 @@ public struct WorkspaceLayoutFeature {
     }
 
     public var workspace: Workspace? {
-      config.activeProfile?.workspaces[id: workspaceId]
+      config.workspace(id: workspaceId)
     }
 
     /// Both async preview loads (snapshot + window info) done for this

@@ -131,6 +131,28 @@ extension AppConfig {
     return diagnostic
   }
 
+  /// The workspace with `id` in whichever profile owns it (workspace ids are
+  /// globally unique across profiles), or nil. Lets the detail/layout editors
+  /// resolve a workspace without knowing — or caring — which profile is active.
+  public func workspace(id: Workspace.ID) -> Workspace? {
+    for profile in profiles {
+      if let workspace = profile.workspaces[id: id] { return workspace }
+    }
+    return nil
+  }
+
+  /// The id of the profile that owns `workspaceId`, or nil.
+  public func profileId(owning workspaceId: Workspace.ID) -> Profile.ID? {
+    profiles.first { $0.workspaces[id: workspaceId] != nil }?.id
+  }
+
+  /// Mutate a specific profile by id (the 3-column sidebar edits the *selected*
+  /// profile, which need not be the active one).
+  public mutating func mutateProfile(_ id: Profile.ID, _ body: (inout Profile) -> Void) {
+    guard let idx = profiles.firstIndex(where: { $0.id == id }) else { return }
+    body(&profiles[idx])
+  }
+
   /// Index of the active profile in `profiles`, or nil when there are none.
   private var activeProfileIndex: Int? {
     if let id = activeProfileId, let idx = profiles.firstIndex(where: { $0.id == id }) {
@@ -250,15 +272,18 @@ extension AppConfig {
     }
   }
 
+  /// Mutate the workspace with `id` in whichever profile owns it — not just the
+  /// active one — so editing a non-active profile's workspace works. Ids are
+  /// globally unique, so this resolves to exactly one workspace.
   public mutating func mutateWorkspace(
     _ id: Workspace.ID,
     _ body: (inout Workspace) -> Void
   ) {
-    mutateActiveProfile { profile in
-      guard var workspace = profile.workspaces[id: id] else { return }
-      body(&workspace)
-      profile.workspaces[id: id] = workspace
-    }
+    guard let pIdx = profiles.firstIndex(where: { $0.workspaces[id: id] != nil }),
+          var workspace = profiles[pIdx].workspaces[id: id]
+    else { return }
+    body(&workspace)
+    profiles[pIdx].workspaces[id: id] = workspace
   }
 
   /// Place `draggedId` — the effect of a sidebar drag-and-drop that both
@@ -271,10 +296,13 @@ extension AppConfig {
     _ draggedId: Workspace.ID,
     kind: WorkspaceKind,
     relativeTo targetId: Workspace.ID?,
-    after: Bool
+    after: Bool,
+    in profileId: Profile.ID? = nil
   ) {
     guard draggedId != targetId else { return }
-    mutateActiveProfile { profile in
+    let target = profileId ?? activeProfileId ?? profiles.first?.id
+    guard let target else { return }
+    mutateProfile(target) { profile in
       guard var moved = profile.workspaces[id: draggedId] else { return }
       moved.kind = kind
       var rest = Array(profile.workspaces)

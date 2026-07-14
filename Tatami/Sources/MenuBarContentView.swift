@@ -149,7 +149,7 @@ struct MenuBarContentView: View {
             get: { profile.id == (config.activeProfileId ?? config.profiles.first?.id) },
             set: { on in
               guard on else { return }
-              store.send(.activateProfile(profile.id))
+              store.send(.activateProfile(profile.id, focus: nil))
             }
           )) {
             Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
