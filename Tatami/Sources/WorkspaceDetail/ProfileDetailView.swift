@@ -53,7 +53,12 @@ struct ProfileDetailView: View {
           .help(store.isActive ? "This profile is already active." : "Activate this profile.")
         }
       }
-      .task { store.send(.onAppear) }
+      // Keyed on the profile so it re-fetches the display list on every
+      // selection — a plain `.task` fires only on first appearance, so
+      // switching to another profile and back left the list empty (the detail
+      // pane view is reused, just re-scoped to a fresh state). Mirrors
+      // WorkspaceDetailView.
+      .task(id: store.profileId) { store.send(.onAppear) }
     } else {
       ContentUnavailableView(
         "Profile Unavailable",
