@@ -22,6 +22,17 @@ struct WorkspaceDetailView: View {
   /// lands on the right row.
   @State private var highlightedApp: String?
   private let highlightFlash: Duration = .seconds(1.6)
+  /// The workspace picked to copy from — drives the review sheet.
+  @State private var importSource: ImportSource?
+
+  /// A chosen source workspace for the "copy from" review sheet.
+  private struct ImportSource: Identifiable {
+    let profileId: Profile.ID
+    let workspaceId: Workspace.ID
+    let profileName: String
+    let workspaceName: String
+    var id: String { "\(profileId.uuidString):\(workspaceId.uuidString)" }
+  }
 
   /// True when *this* workspace is the currently-active one on any
   /// display. Drives the toolbar Activate button's disabled state.
@@ -83,6 +94,76 @@ struct WorkspaceDetailView: View {
         onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
       ) { onOverride($0) }
     }
+  }
+
+  // MARK: - Copy from another workspace
+
+  @ViewBuilder
+  private func copyFromSection(_ workspace: Workspace) -> some View {
+    let profiles = store.config.profiles
+    let hasSources = profiles.contains { p in p.workspaces.contains { $0.id != workspace.id } }
+    if hasSources {
+      Section {
+        Menu {
+          ForEach(profiles, id: \.id) { profile in
+            let sources = profile.workspaces.filter { $0.id != workspace.id }
+            if !sources.isEmpty {
+              Menu(profile.name) {
+                ForEach(sources, id: \.id) { ws in
+                  Button(ws.name) {
+                    importSource = ImportSource(
+                      profileId: profile.id, workspaceId: ws.id,
+                      profileName: profile.name, workspaceName: ws.name
+                    )
+                  }
+                }
+              }
+            }
+          }
+        } label: {
+          Label("Copy from another workspace…", systemImage: "square.on.square")
+        }
+      } header: {
+        Text("Copy")
+      } footer: {
+        Text("Pull another workspace's apps and settings into this one — you'll review and pick each change. The display pin is included, so uncheck it to keep this workspace's own.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  private func importGroups(_ source: ImportSource) -> [SyncChangeGroup] {
+    guard let sourceWs = store.config.profiles.first(where: { $0.id == source.profileId })?
+      .workspaces[id: source.workspaceId],
+      let target = store.workspace
+    else { return [] }
+    var groups: [SyncChangeGroup] = []
+    let appChanges = WorkspaceSync.appChanges(from: sourceWs.apps, to: target.apps)
+    if !appChanges.isEmpty {
+      groups.append(SyncChangeGroup(
+        id: "apps", title: "Apps", items: appChanges.map { SyncChangeItem($0, prefix: "") }
+      ))
+    }
+    let fieldChanges = WorkspaceSync.fieldChanges(from: sourceWs, to: target)
+    if !fieldChanges.isEmpty {
+      groups.append(SyncChangeGroup(
+        id: "settings", title: "Settings", items: fieldChanges.map { SyncChangeItem($0, prefix: "") }
+      ))
+    }
+    return groups
+  }
+
+  private func applyImport(_ source: ImportSource, excluding excluded: Set<String>) {
+    var excApps: Set<String> = []
+    var excFields: Set<String> = []
+    for id in excluded {
+      if id.hasPrefix("app:") { excApps.insert(String(id.dropFirst(4))) }
+      else if id.hasPrefix("field:") { excFields.insert(String(id.dropFirst(6))) }
+    }
+    store.send(.importWorkspace(
+      sourceProfile: source.profileId, sourceWorkspace: source.workspaceId,
+      excludingApps: excApps, excludingFields: excFields
+    ))
   }
 
   var body: some View {
@@ -338,6 +419,8 @@ struct WorkspaceDetailView: View {
             .pickerStyle(.menu)
           }
         }
+
+        copyFromSection(workspace)
       }
       .formStyle(.grouped)
       .navigationTitle(workspace.name)
@@ -362,6 +445,15 @@ struct WorkspaceDetailView: View {
           onSelect: { app in store.send(.appPickerAppSelected(app)) },
           onChooseFile: { store.send(.chooseAppFileTapped) },
           onCancel: { store.send(.appPickerDismissed) }
+        )
+      }
+      .sheet(item: $importSource) { source in
+        SyncPreviewSheet(
+          title: "Copy from “\(source.workspaceName)”",
+          message: "Copy each change from “\(source.workspaceName)” (\(source.profileName)) into this workspace. Uncheck anything you'd rather keep.",
+          applyTitle: "Copy",
+          groups: importGroups(source),
+          onApply: { excluded in applyImport(source, excluding: excluded) }
         )
       }
       .onChange(of: workspace.id, initial: true) { _, _ in nameDraft = workspace.name }

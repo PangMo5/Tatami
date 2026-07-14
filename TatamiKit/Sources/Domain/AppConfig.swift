@@ -174,6 +174,82 @@ extension AppConfig {
     return remap
   }
 
+  /// Names of workspaces in `targetId` that differ from the same-named
+  /// workspace in `sourceId` — by apps or by any field (display pin included).
+  /// Drift indicator for the profile-sync tool.
+  public func workspacesDiffering(
+    in targetId: Profile.ID, comparedTo sourceId: Profile.ID
+  ) -> [String] {
+    guard targetId != sourceId,
+          let target = profiles.first(where: { $0.id == targetId }),
+          let source = profiles.first(where: { $0.id == sourceId })
+    else { return [] }
+    var diverged: [String] = []
+    for ws in target.workspaces {
+      guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
+      let apps = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
+      let fields = WorkspaceSync.fieldChanges(from: match, to: ws)
+      if !apps.isEmpty || !fields.isEmpty { diverged.append(ws.name) }
+    }
+    return diverged
+  }
+
+  /// Copy a source profile's workspaces onto the target's, matched by name —
+  /// applying only the per-workspace app / field changes the user kept
+  /// (`excluded*ByWorkspace` map a workspace id to the app bundle ids / field
+  /// ids to skip). Nothing is hard-excluded, including the display pin: the
+  /// preview shows every difference and the user unchecks what to leave alone.
+  /// Profiles stay independent.
+  public mutating func applyProfileSync(
+    into targetId: Profile.ID,
+    from sourceId: Profile.ID,
+    excludedAppsByWorkspace: [Workspace.ID: Set<String>] = [:],
+    excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:]
+  ) {
+    guard targetId != sourceId,
+          let sourceIdx = profiles.firstIndex(where: { $0.id == sourceId }),
+          let targetIdx = profiles.firstIndex(where: { $0.id == targetId })
+    else { return }
+    let source = profiles[sourceIdx]
+    for ws in profiles[targetIdx].workspaces {
+      guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
+      let appChanges = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
+      let fieldChanges = WorkspaceSync.fieldChanges(from: match, to: ws)
+      guard !appChanges.isEmpty || !fieldChanges.isEmpty,
+            var updated = profiles[targetIdx].workspaces[id: ws.id]
+      else { continue }
+      updated.apps = WorkspaceSync.apply(
+        appChanges, to: updated.apps, excluding: excludedAppsByWorkspace[ws.id] ?? []
+      )
+      WorkspaceSync.apply(
+        fieldChanges, to: &updated, excluding: excludedFieldsByWorkspace[ws.id] ?? []
+      )
+      profiles[targetIdx].workspaces[id: ws.id] = updated
+    }
+  }
+
+  /// Copy a source profile's workspace onto the target workspace: apply the app
+  /// changes (by bundle id) and setting changes (by field id) the user kept,
+  /// never touching the target's display pin. `targetWsId` is resolved in
+  /// whichever profile owns it (workspace ids are unique).
+  public mutating func importWorkspace(
+    into targetWsId: Workspace.ID,
+    from sourceProfileId: Profile.ID,
+    sourceWorkspace sourceWsId: Workspace.ID,
+    excludingApps: Set<String> = [],
+    excludingFields: Set<String> = []
+  ) {
+    guard let sourceWs = profiles.first(where: { $0.id == sourceProfileId })?
+      .workspaces[id: sourceWsId]
+    else { return }
+    mutateWorkspace(targetWsId) { ws in
+      let appChanges = WorkspaceSync.appChanges(from: sourceWs.apps, to: ws.apps)
+      ws.apps = WorkspaceSync.apply(appChanges, to: ws.apps, excluding: excludingApps)
+      let fieldChanges = WorkspaceSync.fieldChanges(from: sourceWs, to: ws)
+      WorkspaceSync.apply(fieldChanges, to: &ws, excluding: excludingFields)
+    }
+  }
+
   public mutating func mutateWorkspace(
     _ id: Workspace.ID,
     _ body: (inout Workspace) -> Void

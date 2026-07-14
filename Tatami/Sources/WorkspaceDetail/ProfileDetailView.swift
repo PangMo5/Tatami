@@ -11,6 +11,7 @@ private enum DisplayReq: Hashable { case any, required, excluded }
 struct ProfileDetailView: View {
   @Bindable var store: StoreOf<ProfileDetailFeature>
   @State private var symbolPickerPresented = false
+  @State private var syncSource: Profile?
 
   var body: some View {
     if let profile = store.profile {
@@ -60,6 +61,7 @@ struct ProfileDetailView: View {
         }
 
         autoActivationSection(profile)
+        syncSection
       }
       .formStyle(.grouped)
       .navigationTitle(profile.name)
@@ -83,6 +85,15 @@ struct ProfileDetailView: View {
       // pane view is reused, just re-scoped to a fresh state). Mirrors
       // WorkspaceDetailView.
       .task(id: store.profileId) { store.send(.onAppear) }
+      .sheet(item: $syncSource) { source in
+        SyncPreviewSheet(
+          title: "Copy from “\(source.name)”",
+          message: "Copy each change from “\(source.name)” into this profile's matching workspaces (by name). Uncheck anything you'd rather keep.",
+          applyTitle: "Copy",
+          groups: profileSyncGroups(from: source),
+          onApply: { excluded in applyProfileSync(from: source, excluding: excluded) }
+        )
+      }
     } else {
       ContentUnavailableView(
         "Profile Unavailable",
@@ -90,6 +101,82 @@ struct ProfileDetailView: View {
         description: Text("This profile no longer exists.")
       )
     }
+  }
+
+  // MARK: - Sync apps from another profile
+
+  /// Profiles keep independent workspaces, so app assignments can drift between
+  /// them. This copies another profile's apps into the same-named workspaces
+  /// here, leaving each workspace's display / key / layout untouched.
+  @ViewBuilder
+  private var syncSection: some View {
+    let others = store.config.profiles.filter { $0.id != store.profileId }
+    if !others.isEmpty {
+      Section {
+        ForEach(others, id: \.id) { source in
+          syncRow(source)
+        }
+      } header: {
+        Text("Copy")
+      } footer: {
+        Text("Review another profile's differences and copy the ones you pick into this profile's matching workspaces (by name).")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func syncRow(_ source: Profile) -> some View {
+    let diverged = store.config.workspacesDiffering(in: store.profileId, comparedTo: source.id)
+    HStack {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(source.name)
+        Text(diverged.isEmpty
+          ? "No differences"
+          : "\(diverged.count) workspace\(diverged.count == 1 ? "" : "s") differ")
+          .font(.caption)
+          .foregroundStyle(diverged.isEmpty ? Color.secondary : Color.orange)
+      }
+      Spacer()
+      Button("Copy from…") { syncSource = source }
+        .disabled(diverged.isEmpty)
+    }
+  }
+
+  /// One group per this-profile workspace that has changes vs the same-named
+  /// source workspace; items are namespaced by workspace id so `onApply` can
+  /// map excluded ids back per workspace.
+  private func profileSyncGroups(from source: Profile) -> [SyncChangeGroup] {
+    guard let target = store.config.profiles.first(where: { $0.id == store.profileId }) else { return [] }
+    var groups: [SyncChangeGroup] = []
+    for ws in target.workspaces {
+      guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
+      let appChanges = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
+      let fieldChanges = WorkspaceSync.fieldChanges(from: match, to: ws)
+      guard !appChanges.isEmpty || !fieldChanges.isEmpty else { continue }
+      let prefix = "\(ws.id.uuidString):"
+      let items = appChanges.map { SyncChangeItem($0, prefix: prefix) }
+        + fieldChanges.map { SyncChangeItem($0, prefix: prefix) }
+      groups.append(SyncChangeGroup(
+        id: ws.id.uuidString, title: ws.name,
+        symbol: ws.symbolIconName ?? "square.stack.3d.up", items: items
+      ))
+    }
+    return groups
+  }
+
+  private func applyProfileSync(from source: Profile, excluding excluded: Set<String>) {
+    var excApps: [Workspace.ID: Set<String>] = [:]
+    var excFields: [Workspace.ID: Set<String>] = [:]
+    for id in excluded {
+      // "<wsUUID>:app:<bundleId>" or "<wsUUID>:field:<fieldId>"
+      let parts = id.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
+      guard parts.count == 3, let wsId = UUID(uuidString: String(parts[0])) else { continue }
+      let key = String(parts[2])
+      if parts[1] == "app" { excApps[wsId, default: []].insert(key) }
+      else if parts[1] == "field" { excFields[wsId, default: []].insert(key) }
+    }
+    store.send(.applyProfileSync(source: source.id, excludedApps: excApps, excludedFields: excFields))
   }
 
   // MARK: - Auto-activation editor

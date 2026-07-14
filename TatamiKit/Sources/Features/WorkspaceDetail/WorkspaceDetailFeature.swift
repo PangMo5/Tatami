@@ -91,6 +91,14 @@ public struct WorkspaceDetailFeature {
     /// Deep-link to Settings → Workspace Keys — the modifier scheme these
     /// derived shortcuts combine with. A pure signal AppFeature intercepts.
     case openWorkspaceKeysTapped
+    /// Pull a reviewed set of apps / settings from another profile's workspace
+    /// into this one; the excluded sets carry what the user unchecked.
+    case importWorkspace(
+      sourceProfile: Profile.ID,
+      sourceWorkspace: Workspace.ID,
+      excludingApps: Set<String>,
+      excludingFields: Set<String>
+    )
     case layout(WorkspaceLayoutFeature.Action)
     case alert(PresentationAction<Alert>)
 
@@ -306,6 +314,20 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .openWorkspaceKeysTapped:
+        return .none
+
+      case let .importWorkspace(sourceProfile, sourceWorkspace, excludingApps, excludingFields):
+        state.$config.withLock {
+          $0.importWorkspace(
+            into: state.workspaceId,
+            from: sourceProfile,
+            sourceWorkspace: sourceWorkspace,
+            excludingApps: excludingApps,
+            excludingFields: excludingFields
+          )
+        }
+        // AppFeature intercepts to rebind hotkeys (key may have changed) and
+        // re-tile if this is the active workspace (apps may have changed).
         return .none
       }
     }

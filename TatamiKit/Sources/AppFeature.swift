@@ -353,6 +353,16 @@ public struct AppFeature {
         else { return .none }
         return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
 
+      case .workspaceList(.detail(.importWorkspace)):
+        // An import can change the key equivalent (rebind) and the app set
+        // (re-tile if it's the active workspace).
+        var effects: [Effect<Action>] = [.send(.hotKeys(.refreshBindings))]
+        if let wsId = state.workspaceList.detail?.workspaceId,
+           state.activation.activeWorkspacesByDisplay.values.contains(wsId) {
+          effects.append(.send(.activation(.activate(workspaceId: wsId, setFocus: false))))
+        }
+        return .merge(effects)
+
       case .workspaceList(.shared(.appPickerAppSelected)),
            .workspaceList(.shared(.appRemoveRequested)),
            .workspaceList(.shared(.layoutChanged)):

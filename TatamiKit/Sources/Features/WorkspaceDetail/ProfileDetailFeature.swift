@@ -44,12 +44,20 @@ public struct ProfileDetailFeature {
     case shortcutRecordingChanged(Bool)
     case autoActivationChanged(ProfileActivation?)
     case activateTapped
+    /// Apply a reviewed sync from `source` into this profile — the excluded
+    /// maps carry the app bundle ids / field ids the user unchecked, per
+    /// target workspace.
+    case applyProfileSync(
+      source: Profile.ID,
+      excludedApps: [Workspace.ID: Set<String>],
+      excludedFields: [Workspace.ID: Set<String>]
+    )
     case binding(BindingAction<State>)
     case delegate(Delegate)
 
     public enum Delegate: Equatable {
       case activateProfile(Profile.ID)
-      /// A structural edit (name / shortcut / rule) — parent rebinds hotkeys.
+      /// A structural edit (name / shortcut / rule / app sync) — parent rebinds.
       case profilesChanged
     }
   }
@@ -100,6 +108,16 @@ public struct ProfileDetailFeature {
 
       case .activateTapped:
         return .send(.delegate(.activateProfile(state.profileId)))
+
+      case let .applyProfileSync(source, excludedApps, excludedFields):
+        state.$config.withLock {
+          $0.applyProfileSync(
+            into: state.profileId, from: source,
+            excludedAppsByWorkspace: excludedApps,
+            excludedFieldsByWorkspace: excludedFields
+          )
+        }
+        return .send(.delegate(.profilesChanged))
 
       case .binding, .delegate:
         return .none
