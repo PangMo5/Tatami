@@ -502,6 +502,7 @@ public struct WorkspaceActivationFeature {
         var autoSwitch: Effect<Action> = .none
         var restoreNewlyConnected = newlyConnected
         var restoreActive = state.activeWorkspacesByDisplay
+        var didAutoSwitch = false
         let currentActiveProfile = state.config.activeProfileId ?? state.config.profiles.first?.id
         if let matched = state.config.autoActiveProfile(connected: connected),
            matched != currentActiveProfile {
@@ -509,6 +510,7 @@ public struct WorkspaceActivationFeature {
           state.activeWorkspacesByDisplay = [:]
           restoreActive = [:]
           restoreNewlyConnected = connected
+          didAutoSwitch = true
           autoSwitch = .send(.delegate(.profileAutoActivated(matched)))
           debugLog.log(
             "Profile",
@@ -530,7 +532,15 @@ public struct WorkspaceActivationFeature {
           "restore plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })"
         )
         state.pendingDisplayRestores = plan
-        return .merge(autoSwitch, .send(.processDisplayRestores))
+        // An auto-switch is a profile change — announce it per display too.
+        let autoHUD = didAutoSwitch
+          ? profileSwitchHUDs(
+              profile: profile, plan: plan,
+              show: state.config.settings.hud.shows(\.profileSwitch),
+              durationMs: state.config.settings.hud.durationMs
+            )
+          : .none
+        return .merge(autoSwitch, autoHUD, .send(.processDisplayRestores))
 
       case .windowChanged(let event):
         switch event {
@@ -851,7 +861,12 @@ public struct WorkspaceActivationFeature {
           return .none
         }
         state.pendingDisplayRestores = plan
-        return .send(.processDisplayRestores)
+        let hudEffect = profileSwitchHUDs(
+          profile: profile, plan: plan,
+          show: state.config.settings.hud.shows(\.profileSwitch),
+          durationMs: state.config.settings.hud.durationMs
+        )
+        return .merge(hudEffect, .send(.processDisplayRestores))
 
       case .delegate:
         return .none
@@ -938,6 +953,9 @@ public struct WorkspaceActivationFeature {
           workspaceId: workspaceId,
           setFocus: takesFocus,
           displayOverride: display,
+          // The profile-switch HUD already announces this workspace as its
+          // subtitle; don't let the focused restore raise a second HUD over it.
+          suppressSwitchHUD: takesFocus,
           state: &state
         )
 
@@ -1461,7 +1479,8 @@ public struct WorkspaceActivationFeature {
                 vacated, reconnect: false, byId: byId,
                 workspaces: profile.workspaces.elements,
                 assigned: state.activeWorkspacesByDisplay,
-                history: state.displayWorkspaceHistory
+                history: state.displayWorkspaceHistory,
+                connected: state.connectedDisplays
               ).map { DisplayAssignment(display: vacated, workspace: $0) }
             }
           state.pendingDisplayRestores = fills

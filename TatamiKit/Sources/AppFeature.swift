@@ -273,7 +273,7 @@ public struct AppFeature {
 
       case .activateProfile(let id, let focus):
         guard state.config.activeProfileId != id,
-              let profile = state.config.profiles.first(where: { $0.id == id })
+              state.config.profiles.contains(where: { $0.id == id })
         else {
           // Already the active profile — just focus the requested workspace, if any.
           if let focus { return .send(.activation(.activate(workspaceId: focus, setFocus: true))) }
@@ -282,21 +282,15 @@ public struct AppFeature {
         state.$config.withLock { $0.activeProfileId = id }
         // The sidebar (col 1) is independent of the active profile, so switching
         // which profile runs no longer disturbs what's being viewed/edited.
-        let hud = state.config.settings.hud
-        let name = profile.name
-        let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
         return .merge(
           // Bindings change with the active profile's workspaces; re-register.
           .send(.hotKeys(.refreshBindings)),
           // Retile every display for the new profile (all workspaces update). When
           // `focus` is set, the plan ends on that workspace so it lands active.
+          // The per-display profile-switch HUD is shown from here (it knows the
+          // actual plan) so each monitor names the workspace that lands on it.
           .send(.activation(.reactivateActiveProfile(focus: focus))),
-          .run { [profileSessionStore, workspaceHUD] _ in
-            profileSessionStore.saveActiveProfileId(id)
-            if hud.shows(\.profileSwitch) {
-              await workspaceHUD.show(name, symbol, nil, hud.durationMs)
-            }
-          }
+          .run { [profileSessionStore] _ in profileSessionStore.saveActiveProfileId(id) }
         )
 
       case .duplicateProfile(let id):
@@ -332,18 +326,12 @@ public struct AppFeature {
       // A display rule auto-switched the profile: activation already retiled;
       // run the remaining switch side effects (rebind hotkeys, persist, HUD).
       case .activation(.delegate(.profileAutoActivated(let id))):
-        guard let profile = state.config.profiles.first(where: { $0.id == id }) else { return .none }
-        let hud = state.config.settings.hud
-        let name = profile.name
-        let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
+        guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
+        // The per-display HUD is shown from the activation reconfigure path
+        // (it has the plan); here we just persist + rebind.
         return .merge(
           .send(.hotKeys(.refreshBindings)),
-          .run { [profileSessionStore, workspaceHUD] _ in
-            profileSessionStore.saveActiveProfileId(id)
-            if hud.shows(\.profileSwitch) {
-              await workspaceHUD.show(name, symbol, nil, hud.durationMs)
-            }
-          }
+          .run { [profileSessionStore] _ in profileSessionStore.saveActiveProfileId(id) }
         )
 
       case .workspaceList(.detail(.layoutChanged)):
@@ -388,7 +376,7 @@ public struct AppFeature {
       // section (already the selected detail).
       case let .workspaceList(.detail(.layout(.delegate(.revealAppSettings(bundleId, isShared))))):
         return isShared
-          ? .send(.workspaceList(.sidebarSelected(.shared)))
+          ? .send(.workspaceList(.topSelected(.shared)))
           : .send(.workspaceList(.detail(.scrollToApp(bundleId: bundleId))))
 
       // The detail Activate button. Activation only runs on the active profile,

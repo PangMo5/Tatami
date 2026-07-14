@@ -8,23 +8,28 @@ import Sharing
 /// `WorkspaceDetailFeature` or `SharedAppsFeature` child.
 @Reducer
 public struct WorkspaceListFeature {
+  /// What the sidebar column (col 1) can select: a profile (whose contents fill
+  /// col 2), or the global Shared Apps entry (profile-independent, so it lives
+  /// in col 1 rather than under any one profile).
+  public enum SidebarTop: Equatable, Hashable, Sendable {
+    case profile(Profile.ID)
+    case shared
+  }
+
   /// What the *content* column (col 2) can select within the selected profile:
-  /// the profile's own settings, one of its workspaces, or the Shared apps
-  /// pseudo-workspace. The profile itself is picked in the sidebar (col 1) via
-  /// `selectedProfileId`.
+  /// the profile's own settings or one of its workspaces.
   public enum SidebarItem: Equatable, Hashable, Sendable {
     case profileSettings
     case workspace(Workspace.ID)
-    case shared
   }
 
   @ObservableState
   public struct State: Equatable {
     @Shared(.tatamiConfig) public var config = AppConfig()
-    /// The profile being viewed/edited (col 1) — independent of the *active*
-    /// (running) profile, so a non-active profile can be inspected and edited
-    /// without switching to it. nil falls back to the active/first profile.
-    public var selectedProfileId: Profile.ID?
+    /// The sidebar (col 1) selection — a profile being viewed/edited, or the
+    /// global Shared Apps. Independent of the *active* (running) profile, so a
+    /// non-active profile can be inspected and edited without switching to it.
+    public var topSelection: SidebarTop?
     /// The content-column (col 2) selection within the selected profile.
     public var selection: SidebarItem?
     public var isAddSheetPresented = false
@@ -36,6 +41,15 @@ public struct WorkspaceListFeature {
     @Presents public var alert: AlertState<Action.Alert>?
 
     public init() {}
+
+    /// The profile selected in col 1, or nil when Shared Apps (or nothing) is.
+    public var selectedProfileId: Profile.ID? {
+      if case .profile(let id) = topSelection { return id }
+      return nil
+    }
+
+    /// Whether col 1's global Shared Apps entry is selected.
+    public var isViewingShared: Bool { topSelection == .shared }
 
     /// The profile whose contents col 2 lists — the selected one, falling back
     /// to the active/first when nothing is selected yet.
@@ -78,9 +92,9 @@ public struct WorkspaceListFeature {
     /// First render: highlight the active profile in col 1 without opening its
     /// settings (leaves the detail column empty until the user picks something).
     case sidebarAppeared
-    // Profiles — the sidebar column (col 1); selecting one switches which
-    // profile col 2 lists, without activating it.
-    case profileSelected(Profile.ID?)
+    // The sidebar column (col 1): selecting a profile switches which profile
+    // col 2 lists (without activating it); selecting shared opens Shared Apps.
+    case topSelected(SidebarTop?)
     case newProfileButtonTapped
     case duplicateProfileTapped(Profile.ID)
     case deleteProfileRequested(Profile.ID)
@@ -179,9 +193,9 @@ public struct WorkspaceListFeature {
         state.$config.withLock { $0.profiles.removeAll { $0.id == id } }
         // If the viewed profile was the one deleted, move the sidebar selection
         // to the new first profile so col 2 / col 3 don't dangle.
-        if state.selectedProfileResolvedId == id || state.selectedProfileId == id {
+        if state.selectedProfileId == id || (state.topSelection == nil && wasActive) {
           let fallback = state.config.profiles.first?.id
-          state.selectedProfileId = fallback
+          state.topSelection = fallback.map { .profile($0) }
           state.selection = fallback == nil ? nil : .profileSettings
           state.profileDetail = fallback.map { ProfileDetailFeature.State(profileId: $0) }
           state.detail = nil
@@ -207,16 +221,33 @@ public struct WorkspaceListFeature {
         return .none
 
       case .sidebarAppeared:
-        if state.selectedProfileId == nil {
-          state.selectedProfileId = state.selectedProfileResolvedId
+        if state.topSelection == nil, let id = state.selectedProfileResolvedId {
+          state.topSelection = .profile(id)
         }
         return .none
 
-      case .profileSelected(let id):
-        // Switching the viewed profile resets the content column to that
-        // profile's settings; it does *not* activate the profile.
-        state.selectedProfileId = id
-        return .send(.sidebarSelected(.profileSettings))
+      case .topSelected(let top):
+        state.topSelection = top
+        switch top {
+        case .profile:
+          // Switching the viewed profile resets col 2 to that profile's
+          // settings; it does *not* activate the profile.
+          return .send(.sidebarSelected(.profileSettings))
+        case .shared:
+          // Shared Apps is global — open its editor in the detail column and
+          // clear the profile-scoped col 2 selection.
+          state.selection = nil
+          state.detail = nil
+          state.profileDetail = nil
+          state.shared = SharedAppsFeature.State()
+          return .none
+        case nil:
+          state.selection = nil
+          state.detail = nil
+          state.profileDetail = nil
+          state.shared = nil
+          return .none
+        }
 
       case .sidebarSelected(let item):
         state.selection = item
@@ -229,10 +260,6 @@ public struct WorkspaceListFeature {
         case .workspace(let id):
           state.detail = WorkspaceDetailFeature.State(workspaceId: id)
           state.shared = nil
-          state.profileDetail = nil
-        case .shared:
-          state.detail = nil
-          state.shared = SharedAppsFeature.State()
           state.profileDetail = nil
         case nil:
           state.detail = nil
@@ -260,7 +287,7 @@ public struct WorkspaceListFeature {
         // there. It doesn't become active until "Activate" in the detail.
         let profile = Profile(name: "New Profile")
         state.$config.withLock { $0.profiles.append(profile) }
-        return .send(.profileSelected(profile.id))
+        return .send(.topSelected(.profile(profile.id)))
 
       case let .profilesReordered(source, destination):
         // Order matters: `activeProfile` falls back to the first, and an

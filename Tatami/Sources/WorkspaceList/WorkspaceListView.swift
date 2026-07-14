@@ -43,11 +43,14 @@ struct WorkspaceListView: View {
 
   @ViewBuilder
   private var profilesColumn: some View {
-    List(selection: $store.selectedProfileId.sending(\.profileSelected)) {
+    List(selection: $store.topSelection.sending(\.topSelected)) {
       Section("Profiles") {
-        ForEach(store.config.profiles, id: \.id) { profile in
+        // `id: \.sidebarTop` (not Profile's own id): macOS only wires the
+        // selection gesture when the ForEach id type matches the List's
+        // selection type (SidebarTop) — as the shared row below does.
+        ForEach(store.config.profiles, id: \.sidebarTop) { profile in
           profileRow(profile)
-            .tag(profile.id as Profile.ID?)
+            .tag(profile.sidebarTop as WorkspaceListFeature.SidebarTop?)
             .contextMenu {
               Button("Duplicate") { store.send(.duplicateProfileTapped(profile.id)) }
               if store.config.profiles.count > 1 {
@@ -68,6 +71,14 @@ struct WorkspaceListView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+      }
+      // Shared apps join every workspace of every profile — profile-independent,
+      // so they live here in the sidebar rather than under any one profile.
+      Section("Everywhere") {
+        ForEach([WorkspaceListFeature.SidebarTop.shared], id: \.self) { item in
+          Label("Shared Apps", systemImage: "square.on.square")
+            .tag(item as WorkspaceListFeature.SidebarTop?)
+        }
       }
     }
     .listStyle(.sidebar)
@@ -101,11 +112,28 @@ struct WorkspaceListView: View {
 
   @ViewBuilder
   private var contentColumn: some View {
+    if store.isViewingShared {
+      // Shared Apps is a global editor shown in the detail column; col 2 has
+      // nothing profile-scoped to list.
+      ContentUnavailableView(
+        "Shared Apps",
+        systemImage: "square.on.square",
+        description: Text("These apps join every workspace in every profile. Edit them in the detail pane.")
+      )
+      .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
+      .navigationTitle("Everywhere")
+    } else {
+      profileContentList
+    }
+  }
+
+  @ViewBuilder
+  private var profileContentList: some View {
     List(selection: $store.selection.sending(\.sidebarSelected)) {
       // The profile's own settings (name, icon, auto-activation, copy) — the
       // reason a non-active profile can be inspected without switching to it.
       // Wrapped in a ForEach because macOS `List(selection:)` only makes
-      // ForEach-generated rows selectable (same as the shared row below).
+      // ForEach-generated rows selectable.
       Section {
         ForEach([WorkspaceListFeature.SidebarItem.profileSettings], id: \.self) { item in
           Label("Profile Settings", systemImage: "slider.horizontal.3")
@@ -148,15 +176,6 @@ struct WorkspaceListView: View {
             .dropDestination(for: String.self) { ids, _ in
               dropWorkspace(ids, kind: .scratchpad, relativeTo: nil, after: false)
             }
-        }
-      }
-      // The Shared pseudo-workspace: its apps live in every workspace of every
-      // profile (global). Wrapped in a ForEach because macOS `List(selection:)`
-      // only makes ForEach-generated rows selectable.
-      Section("Everywhere") {
-        ForEach([WorkspaceListFeature.SidebarItem.shared], id: \.self) { item in
-          Label("Shared Apps", systemImage: "square.on.square")
-            .tag(item as WorkspaceListFeature.SidebarItem?)
         }
       }
     }
@@ -353,6 +372,12 @@ private extension Workspace {
   /// Sidebar row identity — must be the List's selection type for macOS to make
   /// the row selectable (see the ForEach above).
   var sidebarItem: WorkspaceListFeature.SidebarItem { .workspace(id) }
+}
+
+private extension Profile {
+  /// Col 1 row identity — must match the sidebar List's selection type
+  /// (SidebarTop) for macOS to wire the row's selection gesture.
+  var sidebarTop: WorkspaceListFeature.SidebarTop { .profile(id) }
 }
 
 private struct AddWorkspaceForm: View {

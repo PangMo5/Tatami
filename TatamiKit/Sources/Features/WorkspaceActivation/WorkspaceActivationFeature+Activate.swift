@@ -22,6 +22,7 @@ extension WorkspaceActivationFeature {
     workspaceId: Workspace.ID,
     setFocus: Bool,
     displayOverride: DisplayName? = nil,
+    suppressSwitchHUD: Bool = false,
     state: inout State
   ) -> Effect<Action> {
     guard let profile = state.config.activeProfile,
@@ -159,7 +160,9 @@ extension WorkspaceActivationFeature {
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
     // Show the HUD on a normal switch, or whenever this switch returned a
     // borrow (so the dismissal is always announced — even mid-move).
-    let showHUD = setFocus && (
+    // A profile switch shows its own HUD (profile name + activated workspace),
+    // so the per-workspace switch HUD is suppressed here to avoid clobbering it.
+    let showHUD = setFocus && !suppressSwitchHUD && (
       state.config.settings.hud.shows(\.workspaceSwitch)
         || (dismissedBorrowName != nil && state.config.settings.hud.shows(\.borrow))
     )
@@ -209,7 +212,7 @@ extension WorkspaceActivationFeature {
     // where focus went. Separate panel (the controller tracks one per screen),
     // shown alongside the switch HUD on the new monitor.
     let crossMonitorHUD: Effect<Action> = {
-      guard crossMonitor,
+      guard crossMonitor, !suppressSwitchHUD,
             state.config.settings.hud.shows(\.workspaceSwitch),
             let oldDisplay, let targetDisplay
       else { return .none }
@@ -572,17 +575,25 @@ extension WorkspaceActivationFeature {
     workspaces: [Workspace],
     assigned: [DisplayName: Workspace.ID],
     history: [DisplayName: [Workspace.ID]],
-    workspaceMRU: [Workspace.ID] = []
+    workspaceMRU: [Workspace.ID] = [],
+    connected: Set<DisplayName> = []
   ) -> Workspace.ID? {
     func pinned(_ id: Workspace.ID) -> Bool { byId[id]?.displayHint?.matches(display) ?? false }
     func isDynamic(_ id: Workspace.ID) -> Bool { byId[id]?.isDynamic ?? false }
+    // A workspace pinned to a display that isn't currently connected has no home
+    // to return to — treat it like a free dynamic so it stays where the user
+    // last put it, rather than being evicted for the display's first pinned one.
+    func homelessPin(_ id: Workspace.ID) -> Bool {
+      guard let hint = byId[id]?.displayHint else { return false }
+      return !connected.contains { hint.matches($0) }
+    }
     func elsewhere(_ id: Workspace.ID) -> Bool {
       assigned.contains { $0.key != display && $0.value == id }
     }
     if reconnect {
-      // 1. last shown here — pinned here, or a free dynamic.
+      // 1. last shown here — pinned here, or a free / homeless-pinned dynamic.
       if let last = (history[display] ?? []).first(where: { byId[$0] != nil }),
-         pinned(last) || (isDynamic(last) && !elsewhere(last)) {
+         pinned(last) || ((isDynamic(last) || homelessPin(last)) && !elsewhere(last)) {
         return last
       }
       // 2. first pinned to this display.
@@ -612,6 +623,27 @@ extension WorkspaceActivationFeature {
   /// and fills each `newlyConnected` monitor per `chooseWorkspaceForDisplay`.
   /// When a pinned workspace is reclaimed from another display A, A is refilled
   /// by walking its history (recursively), skipping anything in use elsewhere.
+  /// Per-display profile-switch HUDs: on each monitor, the profile name (title)
+  /// + the workspace that lands there (subtitle). One HUD per display so a
+  /// multi-monitor switch reads correctly on each screen; the per-workspace
+  /// switch HUD is suppressed during the switch so these aren't clobbered.
+  func profileSwitchHUDs(
+    profile: Profile, plan: [DisplayAssignment], show: Bool, durationMs: Int
+  ) -> Effect<Action> {
+    guard show else { return .none }
+    let name = profile.name
+    let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
+    let entries = plan.compactMap { assignment in
+      profile.workspaces[id: assignment.workspace].map { (assignment.display, $0.name) }
+    }
+    guard !entries.isEmpty else { return .none }
+    return .run { [workspaceHUD] _ in
+      for (display, workspaceName) in entries {
+        await workspaceHUD.showOnDisplay(name, symbol, workspaceName, durationMs, display)
+      }
+    }
+  }
+
   static func planDisplayRestore(
     connected: [DisplayName],
     newlyConnected: Set<DisplayName>,
@@ -639,7 +671,7 @@ extension WorkspaceActivationFeature {
       guard let target = chooseWorkspaceForDisplay(
         display, reconnect: reconnect, byId: byId,
         workspaces: workspaces, assigned: assigned, history: history,
-        workspaceMRU: workspaceMRU
+        workspaceMRU: workspaceMRU, connected: Set(connected)
       ), byId[target] != nil
       else { return }
       if let other = displayShowing(target), other != display {
