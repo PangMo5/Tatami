@@ -120,7 +120,7 @@ struct WorkspaceListView: View {
       // the selection gesture — Profile's own UUID id wouldn't.
       ForEach(store.config.profiles, id: \.sidebarItem) { profile in
         HStack {
-          Label(profile.name, systemImage: "rectangle.stack")
+          Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
           Spacer()
           if store.config.autoActivationDiagnostic(for: profile.id).hasConflict {
             Image(systemName: "exclamationmark.triangle.fill")

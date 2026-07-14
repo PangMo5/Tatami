@@ -39,6 +39,7 @@ public struct ProfileDetailFeature {
   public enum Action: BindableAction {
     case onAppear
     case nameChanged(String)
+    case symbolIconChanged(String?)
     case shortcutChanged(HotKey?)
     case shortcutRecordingChanged(Bool)
     case autoActivationChanged(ProfileActivation?)
@@ -79,6 +80,12 @@ public struct ProfileDetailFeature {
         guard !trimmed.isEmpty else { return .none }
         mutate(state) { $0.name = trimmed }
         return .send(.delegate(.profilesChanged))
+
+      case .symbolIconChanged(let symbol):
+        // Cosmetic: the @Shared write re-renders the sidebar / menu bar; no
+        // hotkey rebind needed.
+        mutate(state) { $0.symbolIconName = symbol }
+        return .none
 
       case .shortcutChanged(let hotKey):
         mutate(state) { $0.shortcut = hotKey }

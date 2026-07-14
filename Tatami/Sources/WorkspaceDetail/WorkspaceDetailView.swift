@@ -404,7 +404,8 @@ struct WorkspaceDetailView: View {
 }
 
 /// Searchable SF Symbol picker backed by SFSafeSymbols' full catalog.
-private struct SymbolPicker: View {
+/// Shared with ProfileDetailView (same target), hence not file-private.
+struct SymbolPicker: View {
   let selected: String?
   let onSelect: (String?) -> Void
 

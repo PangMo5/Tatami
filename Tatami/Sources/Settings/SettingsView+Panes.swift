@@ -472,11 +472,28 @@ extension SettingsView {
 
   @ViewBuilder
   var appearancePane: some View {
-    Section("Menu Bar") {
+    Section {
+      Toggle(isOn: setting(\.menuBar.showWorkspaceIcon)) {
+        Text("Show workspace icon")
+        Text("Display the active workspace's icon in the menu bar.")
+      }
       Toggle(isOn: setting(\.menuBar.showWorkspaceName)) {
         Text("Show workspace name")
-        Text("Display the active workspace's name next to its icon in the menu bar.")
+        Text("Display the active workspace's name in the menu bar.")
       }
+      Toggle(isOn: setting(\.menuBar.showProfileIcon)) {
+        Text("Show profile icon")
+        Text("Display the active profile's icon — only when you have more than one profile.")
+      }
+      Toggle(isOn: setting(\.menuBar.showProfileName)) {
+        Text("Show profile name")
+        Text("Display the active profile's name — only when you have more than one profile.")
+      }
+    } header: {
+      Text("Menu Bar")
+    } footer: {
+      Text("What the menu bar item shows. With everything off it falls back to a single icon.")
+        .font(.caption).foregroundStyle(.secondary)
     }
 
     Section("Overlay") {

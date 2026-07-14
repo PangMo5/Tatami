@@ -10,11 +10,35 @@ private enum DisplayReq: Hashable { case any, required, excluded }
 /// rule, activate + delete. Shown in the detail pane like a workspace's detail.
 struct ProfileDetailView: View {
   @Bindable var store: StoreOf<ProfileDetailFeature>
+  @State private var symbolPickerPresented = false
 
   var body: some View {
     if let profile = store.profile {
       Form {
         Section {
+          // Icon — opens the SF Symbol grid on tap. Centered HStack (not
+          // LabeledContent) so the label aligns to the taller icon button.
+          HStack {
+            Text("Icon")
+            Spacer()
+            Button {
+              symbolPickerPresented = true
+            } label: {
+              Image(systemName: profile.symbolIconName ?? "rectangle.stack")
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .help("Choose an icon for this profile.")
+            .sheet(isPresented: $symbolPickerPresented) {
+              SymbolPicker(
+                selected: profile.symbolIconName,
+                onSelect: { store.send(.symbolIconChanged($0)) }
+              )
+            }
+          }
+
           TextField("Name", text: Binding(
             get: { profile.name },
             set: { store.send(.nameChanged($0)) }

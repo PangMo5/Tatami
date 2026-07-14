@@ -135,18 +135,37 @@ extension AppSettings {
 
 extension AppSettings {
   public struct MenuBar: Hashable, Sendable, Codable {
-    /// Show the active workspace's name next to the icon in the menu bar.
+    /// Show the active workspace's icon in the menu bar.
+    public var showWorkspaceIcon: Bool
+    /// Show the active workspace's name in the menu bar.
     public var showWorkspaceName: Bool
+    /// Show the active profile's icon (only when more than one profile exists).
+    public var showProfileIcon: Bool
+    /// Show the active profile's name (only when more than one profile exists).
+    public var showProfileName: Bool
 
-    public init(showWorkspaceName: Bool = true) {
+    public init(
+      showWorkspaceIcon: Bool = true,
+      showWorkspaceName: Bool = true,
+      showProfileIcon: Bool = true,
+      showProfileName: Bool = false
+    ) {
+      self.showWorkspaceIcon = showWorkspaceIcon
       self.showWorkspaceName = showWorkspaceName
+      self.showProfileIcon = showProfileIcon
+      self.showProfileName = showProfileName
     }
 
-    private enum CodingKeys: String, CodingKey { case showWorkspaceName }
+    private enum CodingKeys: String, CodingKey {
+      case showWorkspaceIcon, showWorkspaceName, showProfileIcon, showProfileName
+    }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
+      self.showWorkspaceIcon = c.decode(.showWorkspaceIcon, default: true)
       self.showWorkspaceName = c.decode(.showWorkspaceName, default: true)
+      self.showProfileIcon = c.decode(.showProfileIcon, default: true)
+      self.showProfileName = c.decode(.showProfileName, default: false)
     }
   }
 }

@@ -6,6 +6,9 @@ import IdentifiedCollections
 public struct Profile: Identifiable, Hashable, Sendable, Codable {
   public var id: UUID
   public var name: String
+  /// SF Symbol shown for the profile (sidebar, menu bar). Nil = the default
+  /// `rectangle.stack`.
+  public var symbolIconName: String?
   /// Optional global shortcut that activates this profile.
   public var shortcut: HotKey?
   /// Optional rule that auto-activates this profile when the connected displays
@@ -16,12 +19,14 @@ public struct Profile: Identifiable, Hashable, Sendable, Codable {
   public init(
     id: UUID = UUID(),
     name: String,
+    symbolIconName: String? = nil,
     shortcut: HotKey? = nil,
     autoActivation: ProfileActivation? = nil,
     workspaces: IdentifiedArrayOf<Workspace> = []
   ) {
     self.id = id
     self.name = name
+    self.symbolIconName = symbolIconName
     self.shortcut = shortcut
     self.autoActivation = autoActivation
     self.workspaces = workspaces

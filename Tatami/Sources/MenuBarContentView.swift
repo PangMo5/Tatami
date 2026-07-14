@@ -8,22 +8,70 @@ struct MenuBarLabel: View {
   @Bindable var store: StoreOf<AppFeature>
 
   var body: some View {
+    // MenuBarExtra only reliably renders a single icon + title from a SwiftUI
+    // label (extra `Image`s are dropped, and images inlined into a `Text`
+    // don't render at all). Rasterize the composed row to a *template*
+    // NSImage instead, which the menu bar then tints and highlights like any
+    // status item — so we can show any mix of profile / workspace icons+names.
+    Image(nsImage: renderedLabel)
+  }
+
+  @MainActor
+  private var renderedLabel: NSImage {
+    let renderer = ImageRenderer(content: labelContent)
+    renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+    guard let image = renderer.nsImage else { return NSImage() }
+    image.isTemplate = true
+    return image
+  }
+
+  @ViewBuilder
+  private var labelContent: some View {
     let config = store.workspaceList.config
+    let menuBar = config.settings.menuBar
     let activeId = store.activation.primaryActiveWorkspaceID
     let workspace = activeId.flatMap { config.activeProfile?.workspaces[id: $0] }
-    // macOS renders a Label as icon-only in the menu bar, so compose the
-    // icon and name explicitly to make the title show.
+    // Profile bits only make sense with more than one profile to distinguish.
+    let multiProfile = config.profiles.count > 1
+    let showProfileIcon = multiProfile && menuBar.showProfileIcon
+    let showProfileName = multiProfile && menuBar.showProfileName
+    let profileShown = showProfileIcon || showProfileName
+    let workspaceShown = menuBar.showWorkspaceIcon
+      || (menuBar.showWorkspaceName && workspace?.name != nil)
+    // Never render nothing — a blank menu bar item would be unclickable.
+    let empty = store.errorReports.isEmpty && !profileShown && !workspaceShown
+
     HStack(spacing: 4) {
-      // Persistent problem indicator — clears when the failure resolves
-      // (e.g. the config edit that fixes the parse) or is dismissed.
+      // Persistent problem indicator — clears when the failure resolves or is
+      // dismissed.
       if !store.errorReports.isEmpty {
         Image(systemName: "exclamationmark.triangle.fill")
       }
-      Image(systemName: workspace?.symbolIconName ?? "square.stack.3d.up.fill")
-      if config.settings.menuBar.showWorkspaceName, let name = workspace?.name {
+      if showProfileIcon {
+        Image(systemName: config.activeProfile?.symbolIconName ?? "rectangle.stack")
+      }
+      if showProfileName, let name = config.activeProfile?.name {
         Text(name)
       }
+      // Separate the profile group from the workspace group when both show.
+      if profileShown, workspaceShown {
+        RoundedRectangle(cornerRadius: 0.5)
+          .frame(width: 1, height: 11)
+          .opacity(0.35)
+          .padding(.horizontal, 1)
+      }
+      if menuBar.showWorkspaceIcon {
+        Image(systemName: workspace?.symbolIconName ?? "square.stack.3d.up.fill")
+      }
+      if menuBar.showWorkspaceName, let name = workspace?.name {
+        Text(name)
+      }
+      if empty {
+        Image(systemName: "square.stack.3d.up.fill")
+      }
     }
+    .font(.system(size: 13))
+    .foregroundStyle(.black)
   }
 }
 
@@ -104,7 +152,7 @@ struct MenuBarContentView: View {
               store.send(.activateProfile(profile.id))
             }
           )) {
-            Label(profile.name, systemImage: "rectangle.stack")
+            Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
           }
         }
       }
