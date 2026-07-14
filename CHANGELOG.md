@@ -6,6 +6,22 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.7.0 — 2026-07-14
+
+### New
+- **Profiles.** Group your workspaces into named profiles and switch the whole set at once — each profile has its own workspaces, app assignments, shortcuts, and SF Symbol icon (shown in the sidebar, menu bar, and switch HUD). Switch by hotkey or from the menu bar (with a HUD confirming it), reorder profiles by dragging, and every switch re-tiles all your displays for the new profile.
+- **Auto-activate a profile by display setup.** A profile can switch on automatically when your monitors match — by monitor count, or by specific displays being connected or unplugged. When two profiles could fire on the same setup, the ambiguity is flagged so it's clear which one wins (and why the other isn't activating).
+- **Copy between profiles and workspaces.** Profiles keep independent workspaces, so their apps and settings can drift apart. **Copy from…** — in a profile's or workspace's detail — shows a reviewable, per-change diff (app add / remove / layout / auto-open changes and every workspace setting) and copies only the changes you keep checked.
+
+### Improvements
+- **Customizable menu bar.** Pick what the menu-bar item shows under **Settings → Appearance → Menu Bar** — the active workspace's icon and name, and, when you have more than one profile, the active profile's icon and name.
+- **Settings reorganized.** Workspace key equivalents moved to their own **Workspace Keys** pane and trackpad gestures to a **Gestures** pane; window-cycling settings and shortcuts are grouped together; a workspace's derived shortcuts link straight to Workspace Keys; and those derived combos now render as plain read-only text so it's clear they're configured elsewhere.
+- **Friendlier defaults for new installs.** A brand-new config is seeded with a recommended set of shortcuts, and *follow app focus* (activating an app switches to the workspace that owns it) is on by default. Existing configs are left as-is.
+
+### Fixes
+- **Focusing a multi-membership app stays put.** If an app belongs to several workspaces, clicking it while you're already in one of them no longer jumps you to a different workspace.
+- **The main window comes to the front.** Opening Tatami's window no longer lets it sink behind other apps' windows.
+
 ## 1.6.1 — 2026-07-10
 
 ### Fixes

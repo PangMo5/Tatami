@@ -104,23 +104,10 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("What's New in Tatami \(version)")
           .font(.title.weight(.semibold))
-        Text("See and edit each workspace's tile layout right in its settings — live.")
+        Text("Group your workspaces into profiles and switch the whole set at once.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
-
-      // MARK: Breaking changes
-      VStack(alignment: .leading, spacing: 6) {
-        Label("Breaking Changes", systemImage: "exclamationmark.triangle.fill")
-          .font(.subheadline.weight(.semibold))
-        Text("The per-workspace \u{201C}session only\u{201D} tiling-memory option is gone — every workspace now keeps its layout across restarts. Configs that set it still load fine; the setting is simply ignored.")
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      .padding(12)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.12)))
 
       // MARK: Feature highlights
       VStack(alignment: .leading, spacing: 14) {
@@ -128,24 +115,24 @@ private struct WhatsNewView: View {
           .font(.headline)
 
         item(
-          icon: "rectangle.split.2x2",
-          title: "Layout preview & editor",
-          detail: "Every workspace's settings now open with a live graphic of its tiles. Drag a divider to resize, drag a tile onto another to move it (edge to split, center to swap), and rotate, mirror, balance, or flip a tile's orientation. Fullscreen windows sit in their own band you can drag in and out of. It works on **inactive** workspaces too — edits apply next time you switch to them."
-        )
-        item(
-          icon: "macwindow.on.rectangle",
-          title: "Same-app windows keep their spot",
-          detail: "Two windows of one app now hold distinct, arrangeable tiles (and remember which was fullscreen) instead of collapsing together. Layout memory is hardened too: one bad entry no longer resets everything, and older layouts migrate automatically."
+          icon: "rectangle.stack",
+          title: "Profiles",
+          detail: "Group your workspaces into named profiles and switch the whole set at once — each profile has its own workspaces, apps, shortcuts, and icon. Switch by hotkey or from the menu bar; every switch re-tiles all your displays."
         )
         item(
           icon: "display.2",
-          title: "Displays restore on reconnect",
-          detail: "Replug a monitor and the workspace that lived on it comes back — a pinned workspace reclaims its screen, otherwise the monitor restores its most-recent one. Moving a workspace between monitors also refills the one it left, and cross-display moves now size correctly."
+          title: "Auto-activate by display setup",
+          detail: "A profile can switch on automatically when your monitors match — by count, or by specific displays being connected or unplugged. Overlapping rules get flagged so it's clear which profile wins."
         )
         item(
-          icon: "line.3.horizontal",
-          title: "Reorder by dragging, confirm before deleting",
-          detail: "Drag workspaces and scratchpads to reorder them in the sidebar. Deleting a workspace or removing an app now asks first."
+          icon: "square.on.square",
+          title: "Copy between profiles & workspaces",
+          detail: "**Copy from…** shows a reviewable, per-change diff of the apps and settings that differ, and copies only the changes you keep checked — so profiles stay in step without hand-editing."
+        )
+        item(
+          icon: "menubar.rectangle",
+          title: "Customizable menu bar",
+          detail: "Choose what the menu-bar item shows in **Settings → Appearance** — the active workspace's icon and name, and the active profile's when you have more than one."
         )
       }
       .padding(.horizontal, 6)
