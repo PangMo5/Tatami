@@ -704,6 +704,10 @@ public struct WorkspaceActivationFeature {
           let key = await MainActor.run { snapshot.focusedWindowKey() }
           markerClient.setFocused(key)
         }
+        // Workspaces (on any display) already on screen — a focus within one of
+        // them shouldn't switch away.
+        let activeWorkspaceIds = Set(state.activeWorkspacesByDisplay.values)
+        let hostsApp: (Workspace) -> Bool = { $0.apps.contains { $0.bundleIdentifier == bundleId } }
         if !state.isActivating,
            // A borrow direction-pick is armed — a repeat app-activation must
            // not re-fire the jump (re-entering beginBorrowDirection cancels the
@@ -713,9 +717,14 @@ public struct WorkspaceActivationFeature {
            state.borrowCaptureTarget == nil,
            state.config.settings.switching.followAppFocus,
            !state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }),
-           let owner = state.config.activeProfile?.workspaces.first(where: {
-             $0.apps.contains { $0.bundleIdentifier == bundleId }
-           }),
+           // An app can belong to several workspaces. Prefer the one already on
+           // screen so focusing it there stays put; only fall back to another
+           // (and jump) when no active workspace hosts it. Without the first
+           // clause, a multi-membership app always jumped to its first-listed
+           // workspace (e.g. focus Ghostty in Notion bounced to Terminal).
+           let owner = state.config.activeProfile?.workspaces
+             .first(where: { activeWorkspaceIds.contains($0.id) && hostsApp($0) })
+             ?? state.config.activeProfile?.workspaces.first(where: hostsApp),
            // Suppress only when the owner is already on screen as part of a
            // composition (its host or a borrowed block) — focusing within a
            // borrow shouldn't switch away. An app from any *other* workspace
@@ -730,7 +739,8 @@ public struct WorkspaceActivationFeature {
            // the user back out of the fullscreen Space (symptom: enter fullscreen
            // of a workspace-B app from A → lands on Desktop + switches to B).
            !state.isInFullscreenSpace,
-           state.primaryActiveWorkspaceID != owner.id {
+           // Jump only when the owner isn't already on screen anywhere.
+           !activeWorkspaceIds.contains(owner.id) {
           // The one path that switches workspaces without a hotkey — when a
           // bounce-back is suspected, this line (or its absence) is the tell.
           debugLog.log(
