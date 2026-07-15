@@ -156,6 +156,32 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = fal
   }
 }
 
+/// Force an app to the front when we don't have a specific target window (a
+/// workspace switch whose focus target has no MRU / pinned window — e.g. first
+/// visit to a workspace). Resolves the app's main window (else its first) and
+/// routes through the same SLPS force-front path, so an accessory app actually
+/// transfers the frontmost application even on a secondary display. Falls back
+/// to a best-effort `activate()` only if no AX window can be resolved.
+@MainActor
+public func focusAppFront(pid: pid_t) {
+  let axApp = AXUIElementCreateApplication(pid)
+  var raw: CFTypeRef?
+  var element: AXUIElement?
+  if AXUIElementCopyAttributeValue(axApp, kAXMainWindowAttribute as CFString, &raw) == .success,
+     let value = raw, CFGetTypeID(value) == AXUIElementGetTypeID() {
+    element = (value as! AXUIElement)
+  } else if AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &raw) == .success,
+            let windows = raw as? [AXUIElement] {
+    element = windows.first
+  }
+  var wid: CGWindowID = 0
+  if let element, _AXUIElementGetWindow(element, &wid) == .success, wid != 0 {
+    focusWindow(pid: pid, windowID: wid, forceFront: true)
+  } else {
+    NSRunningApplication(processIdentifier: pid)?.activate()
+  }
+}
+
 /// How long a just-restored mirror gets to commit to the window server
 /// before the activation raises the target — roughly two display frames.
 /// Issuing both in the same runloop turn intermittently let the raise win

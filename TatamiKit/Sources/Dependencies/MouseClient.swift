@@ -46,7 +46,10 @@ extension MouseClient: DependencyKey {
       axLocation: {
         MainActor.assumeIsolated {
           let cocoa = NSEvent.mouseLocation
-          let primaryHeight = NSScreen.screens.first?.frame.height ?? cocoa.y
+          // Flip against the primary display (CGMainDisplayID), matching
+          // AXWindowGeometry.flip / the BSP frame space — `screens.first` (the
+          // origin screen) can differ and skew the flipped y.
+          let primaryHeight = DisplayResolver.primaryScreen()?.frame.height ?? cocoa.y
           return CGPoint(x: cocoa.x, y: primaryHeight - cocoa.y)
         }
       }

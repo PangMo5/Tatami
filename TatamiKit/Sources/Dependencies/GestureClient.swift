@@ -157,7 +157,15 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   }
 
   /// C-callback entry point. Re-enables the tap if the system disabled it,
-  /// otherwise hops to the main actor to fold the gesture event in.
+  /// otherwise folds the gesture event in — directly, on the caller's thread.
+  ///
+  /// The tap source is added to `CFRunLoopGetMain()` (see `start`), so this
+  /// callout already runs on the main thread and `ingest` (incl. AppKit's
+  /// `allTouches()`, which is main-only) is safe. We deliberately do NOT wrap
+  /// it in `MainActor.assumeIsolated`: evaluated 60–120×/sec under a fast swipe
+  /// that executor-identity check faulted (`swift_task_isCurrentExecutor`) on
+  /// macOS 26. The other CGEvent taps (BorrowChordClient/MirrorClickTap) also
+  /// handle events straight in the callout with no actor hop.
   fileprivate func consume(type: CGEventType, event: CGEvent) {
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
       debugLog.log("Gesture", "tap disabled by system (\(type.rawValue)) — re-enabling")
@@ -167,11 +175,9 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     guard type.rawValue == NSEvent.EventType.gesture.rawValue,
           let nsEvent = NSEvent(cgEvent: event)
     else { return }
-    let boxed = Unchecked(nsEvent)
-    MainActor.assumeIsolated { ingest(boxed.value) }
+    ingest(nsEvent)
   }
 
-  @MainActor
   private func ingest(_ event: NSEvent) {
     let touches = event.allTouches().filter {
       !$0.isResting && $0.phase != .stationary
@@ -207,7 +213,6 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
   /// Returns a direction only when every finger has moved the same way and
   /// the summed travel clears the threshold. A small per-finger floor
   /// rejects incidental jitter where one finger barely drifts.
-  @MainActor
   private func resolveDirection() -> SwipeDirection? {
     let displacements = travelByTouch.values.map(\.displacement)
     let perFingerFloor = threshold * 0.3
@@ -222,7 +227,6 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     return nil
   }
 
-  @MainActor
   private func reset() {
     // "Why didn't my swipe fire" tell: a gesture that tracked touches but
     // never fired logs what the recognizer saw — wrong finger count or a
@@ -238,12 +242,5 @@ private final class HorizontalSwipeRecognizer: @unchecked Sendable {
     }
     travelByTouch.removeAll(keepingCapacity: true)
     didFireForCurrentGesture = false
-  }
-
-  /// Ferries a non-Sendable `NSEvent` across the (already main-bound)
-  /// isolation hop from the C callback.
-  private struct Unchecked: @unchecked Sendable {
-    let value: NSEvent
-    init(_ value: NSEvent) { self.value = value }
   }
 }

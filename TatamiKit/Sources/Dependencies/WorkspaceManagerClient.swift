@@ -209,15 +209,25 @@ extension WorkspaceManagerClient: DependencyKey {
               "focus \(toFocus.bundleIdentifier ?? "?") "
                 + "(preferred=\(focusBundleId ?? "nil"))"
             )
-            // Raise the exact MRU window when it belongs to the focused
-            // app; otherwise fall back to the app's main window.
+            // Raise the exact MRU window when it belongs to the focused app;
+            // otherwise fall back to the app's main window. For the MRU case,
+            // force it to the front via SLPS: an accessory app's
+            // NSRunningApplication.activate() doesn't reliably transfer the
+            // frontmost application (especially for a window on a secondary
+            // display), which left a workspace switch focused on the wrong app.
             if let mruKey = request.windowKeyToFocus,
                mruKey.bundleId == toFocus.bundleIdentifier {
-              toFocus.raiseWindow(windowID: mruKey.windowID)
+              focusWindow(
+                pid: toFocus.processIdentifier, windowID: mruKey.windowID, forceFront: true
+              )
             } else {
-              toFocus.raiseMainWindow()
+              // No specific target window (no MRU / pin yet) — front the app's
+              // main window via SLPS too. Plain activate() didn't transfer the
+              // frontmost app on a secondary display, so a switch to e.g. a
+              // Figma workspace there left keyboard focus (and window cycling)
+              // on the previous display's workspace.
+              focusAppFront(pid: toFocus.processIdentifier)
             }
-            toFocus.activate()
           } else if request.setFocus {
             // Empty workspace — none of its apps are running, so nothing
             // above took focus. Hand it to Finder BEFORE the hide pass:

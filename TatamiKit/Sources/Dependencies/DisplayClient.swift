@@ -27,10 +27,20 @@ struct DisplayClient: Sendable {
 }
 
 /// Holds the screen-change observer so it can be removed from the stream's
-/// `@Sendable` termination handler. Only touched on the notification queue.
+/// `@Sendable` termination handler. Only touched on the notification queue
+/// (main), so `last` needs no extra synchronization.
 private final class ScreenObserver: @unchecked Sendable {
   var token: (any NSObjectProtocol)?
+  /// The last display list forwarded — used to coalesce the WindowServer's
+  /// bursts of identical `didChangeScreenParameters` pokes (observed ~100/sec
+  /// on a static config), which otherwise each drive a full reducer pass.
+  var last: [DisplayName]?
+  /// Trailing-debounce work item: a reconnect fires several distinct
+  /// intermediate configs in quick succession, so we wait for the set to settle
+  /// before forwarding the final one.
+  var pending: DispatchWorkItem?
   func remove() {
+    pending?.cancel()
     if let token { NotificationCenter.default.removeObserver(token) }
   }
 }
@@ -72,7 +82,24 @@ extension DisplayClient: DependencyKey {
           forName: NSApplication.didChangeScreenParametersNotification,
           object: nil,
           queue: .main
-        ) { _ in continuation.yield(currentDisplayNames()) }
+        ) { _ in
+          let names = currentDisplayNames()
+          // Drop pokes that don't change the set vs the last *forwarded* one —
+          // kills the ~100/sec identical-config storm outright (behavior-neutral,
+          // the reducer already short-circuits an unchanged set).
+          guard names != observer.last else { return }
+          // Genuine change: trailing-debounce so a reconnect's burst of distinct
+          // intermediate configs collapses to the final settled one before we
+          // forward it (only ~1 reducer pass per real reconfigure).
+          observer.pending?.cancel()
+          let work = DispatchWorkItem {
+            guard names != observer.last else { return }
+            observer.last = names
+            continuation.yield(names)
+          }
+          observer.pending = work
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
+        }
         continuation.onTermination = { _ in observer.remove() }
       }
     }

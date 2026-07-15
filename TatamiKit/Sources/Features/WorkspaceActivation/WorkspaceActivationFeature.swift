@@ -471,14 +471,17 @@ public struct WorkspaceActivationFeature {
 
       case .displaysReconfigured(let names):
         let connected = Set(names)
+        // Only a real connect/disconnect (the display *set* changed) triggers a
+        // re-tile; a bare resolution/arrangement tweak reshuffles nothing. Bail
+        // BEFORE any state mutation or logging — on an unchanged set every
+        // mutation below is a no-op anyway, and this stops a burst of identical
+        // reconfigure pokes from churning the reducer. (DisplayClient already
+        // coalesces duplicates; this is the reducer-side backstop.)
+        guard connected != state.connectedDisplays else { return .none }
         // Displays present now but not at the last reconfigure = freshly plugged
         // in. (Empty `connectedDisplays` is the pre-startup state; seed it in
         // `activateInitial` so a first *unplug* isn't mistaken for a plug-in.)
         let newlyConnected = Set(names.filter { !state.connectedDisplays.contains($0) })
-        // Only a real connect/disconnect (the display *set* changed) triggers a
-        // re-tile; a bare resolution/arrangement tweak doesn't reshuffle
-        // workspaces.
-        let setChanged = connected != state.connectedDisplays
         state.connectedDisplays = connected
         state.activeWorkspacesByDisplay = state.activeWorkspacesByDisplay
           .filter { connected.contains($0.key) }
@@ -494,14 +497,15 @@ public struct WorkspaceActivationFeature {
         if let focused = state.focusedDisplay, !connected.contains(focused) {
           state.focusedDisplay = nil
         }
-        debugLog.log(
-          "Display",
-          "reconfigured connected=\(names.map(\.name)) "
-            + "new=\(newlyConnected.map(\.name)) "
-            + "activeByDisplay=\(state.activeWorkspacesByDisplay.map { "\($0.key.name)→\($0.value)" }) "
-            + "focused=\(state.focusedDisplay?.name ?? "nil")"
-        )
-        guard setChanged else { return .none }
+        if debugLog.isEnabled() {
+          debugLog.log(
+            "Display",
+            "reconfigured connected=\(names.map(\.name)) "
+              + "new=\(newlyConnected.map(\.name)) "
+              + "activeByDisplay=\(state.activeWorkspacesByDisplay.map { "\($0.key.name)→\($0.value)" }) "
+              + "focused=\(state.focusedDisplay?.name ?? "nil")"
+          )
+        }
         // Auto-activation: if a profile's display rule now matches the connected
         // set (and isn't already active), switch to it and retile every display
         // for the new profile. Its workspace ids differ from the current
@@ -811,15 +815,14 @@ public struct WorkspaceActivationFeature {
         // debounce only exists to let a focus-driven off-screen guess
         // settle, which doesn't apply here.
         debugLog.log("SLS", "window destroyed wid=\(wid)")
-        // Genuine destroy (a real close — not a monitor-unplug off-screen, which
-        // fires no destroy): drop this window from any fullscreen-zoom set so a
-        // reopened window doesn't inherit the closed one's zoom. The sync prune
-        // deliberately keeps keys for transiently-absent windows; only a real
-        // destroy clears them.
-        for (wsId, zoom) in state.fullscreenZoomed where zoom.contains(where: { $0.windowID == wid }) {
-          let remaining = zoom.filter { $0.windowID != wid }
-          state.fullscreenZoomed[wsId] = remaining.isEmpty ? nil : remaining
-        }
+        // NOTE: we deliberately do NOT strip `wid` from `fullscreenZoomed` here.
+        // 804 also fires when the WindowServer merely recycles a surface (deep
+        // sleep / clamshell / display wake) for a window that isn't really
+        // closed — clearing zoom then, and letting the prune below persist the
+        // emptied set, was the deep-sleep zoom-loss. The sync path owns zoom
+        // lifecycle: it migrates a zoom key onto the app's replacement window by
+        // slot (718ec31), and a stale key never in the tree is harmless
+        // (`computeFrames` ignores it). Prune reclaims the lingering tile.
         return pruneOffscreenWindows(state: &state)
 
       case .pruneOffscreenWindows:
@@ -1642,11 +1645,16 @@ public struct WorkspaceActivationFeature {
       || comp.borrowed.contains(where: { $0.workspace == workspaceId }) {
       return applyComposition(display: display, state: state)
     }
-    guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+    guard state.config.activeProfile?.workspaces[id: workspaceId] != nil,
           let tree = state.tilingTrees[workspaceId]
     else { return .none }
     let settings = state.config.settings
-    let display = workspace.displayHint ?? displays.current()
+    // Resolve the display the workspace is actually *shown* on — via
+    // `activeWorkspacesByDisplay` first (the placement source of truth), not the
+    // cursor. A keyboard op / drag on a workspace shown on a non-cursor display
+    // must compute frames for THAT monitor. `tilingContext` falls through to the
+    // same `displayHint ?? current()` chain when the workspace isn't active.
+    let display = tilingContext(for: workspaceId, state: state).display
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     return applyLayout(
       tree: tree, workspaceId: workspaceId, settings: settings,

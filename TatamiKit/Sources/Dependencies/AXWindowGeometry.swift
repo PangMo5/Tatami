@@ -52,7 +52,10 @@ enum AXWindowGeometry {
 
   /// The flip is an involution — the same formula maps both directions.
   private static func flip(_ frame: CGRect) -> CGRect {
-    guard let primary = NSScreen.screens.first else { return frame }
+    // Anchor to the primary display (CGMainDisplayID), not `screens.first`
+    // (the origin-(0,0) screen) — the two can differ, which offset flipped
+    // geometry. `primaryScreen()` falls back to `screens.first` anyway.
+    guard let primary = DisplayResolver.primaryScreen() else { return frame }
     let totalHeight = primary.frame.height
     return CGRect(
       x: frame.origin.x,

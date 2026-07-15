@@ -369,8 +369,9 @@ extension WorkspaceActivationFeature {
             .workspaces[id: workspaceId],
           state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
     else { return .none }
-    // Recent on the workspace's display (falls back to any recent).
-    let display = workspace.displayHint ?? displays.current()
+    // Recent on the display the workspace is actually shown on (resolved via
+    // activeWorkspacesByDisplay first, not the cursor); falls back to any recent.
+    let display = tilingContext(for: workspaceId, state: state).display
     let recent = display.flatMap { state.previousWorkspacesByDisplay[$0] }
       ?? state.previousWorkspacesByDisplay.values.first
     guard let recent, recent != workspaceId else { return .none }
