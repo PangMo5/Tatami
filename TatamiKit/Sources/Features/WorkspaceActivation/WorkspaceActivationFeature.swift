@@ -184,12 +184,19 @@ public struct WorkspaceActivationFeature {
       return comp.host
     }
 
-    /// The workspace owning `key` within the focused display's composition:
-    /// a borrowed workspace if the key is in its tree, else the host. With no
-    /// composition active this returns the single active workspace, so every
-    /// non-composed path behaves byte-identically to before.
+    /// The workspace that owns `key` — the one whose live tree contains it.
+    /// Searched across EVERY active display, so a focused window on a secondary
+    /// display resolves to *its* workspace instead of falling back to the
+    /// primary display's active one (which made window cycling / directional
+    /// focus operate on the wrong monitor's workspace). A borrowed block's tree
+    /// isn't in `activeWorkspacesByDisplay`, so the composed fallback still
+    /// resolves it; single-display behavior is unchanged.
     func workspaceOwning(_ key: WindowKey) -> Workspace.ID? {
-      composedOwner(bundleId: key.bundleId, key: key)
+      for wsId in Set(activeWorkspacesByDisplay.values)
+      where tilingTrees[wsId]?.windows.contains(key) == true {
+        return wsId
+      }
+      return composedOwner(bundleId: key.bundleId, key: key)
     }
 
     /// The workspace the user is acting in: owner of the focused window,
@@ -630,11 +637,25 @@ public struct WorkspaceActivationFeature {
               state.mruWindows[wsId] = mru
             }
           }
+          // Mouse-follows-focus on a focus change we only *observed* (cmd+`,
+          // the app menu's window list, a click): warp to the newly focused
+          // tile. `skipIfCursorInside` leaves clicks alone (cursor already
+          // there) while still following a keyboard switch. Tatami's own focus
+          // ops warp themselves, and their post-warp cursor lands on the tile,
+          // so this observed pass then no-ops.
+          var followWarp: Effect<Action> = .none
+          if let key, let owner = state.workspaceOwning(key),
+             let tree = state.tilingTrees[owner], tree.windows.contains(key) {
+            followWarp = warpToWindow(
+              key, in: tree, workspaceId: owner, state: state, skipIfCursorInside: true
+            )
+          }
           // Forward the focus change to the marker controller so it
           // can render the dot only on the now-focused window.
           let markerClient = marker
           let focusedKey = key
           return .merge(
+            followWarp,
             debouncedSync(bundleId, delayMs: 0),
             // A hide-on-close window (KakaoTalk, Discord) fires no AX
             // destroy event; only the off-screen prune reclaims its

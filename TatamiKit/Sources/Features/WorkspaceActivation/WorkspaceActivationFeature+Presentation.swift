@@ -90,7 +90,8 @@ extension WorkspaceActivationFeature {
     _ key: WindowKey,
     in tree: BSPNode<WindowKey>,
     workspaceId: Workspace.ID,
-    state: State
+    state: State,
+    skipIfCursorInside: Bool = false
   ) -> Effect<Action> {
     guard state.config.settings.focus.mouseFollowsFocus else { return .none }
     let settings = state.config.settings
@@ -103,6 +104,12 @@ extension WorkspaceActivationFeature {
           fullscreenZoomed: zoomed, targetRect: rect
         )
         guard let r = frames[key] else { return nil }
+        // For focus changes we only observe (cmd+`, menu, click), skip the warp
+        // when the cursor is already on the target tile: a click put it there,
+        // so warping to the center would yank it off. A keyboard switch leaves
+        // the cursor elsewhere, so it still follows. (axLocation shares the BSP
+        // frame's coordinate space.)
+        if skipIfCursorInside, r.contains(mouse.axLocation()) { return nil }
         return CGPoint(x: r.midX, y: r.midY)
       }
       if let center { mouse.warp(center) }

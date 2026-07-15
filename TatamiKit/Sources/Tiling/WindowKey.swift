@@ -127,8 +127,12 @@ extension WindowKey {
 /// annotation — the OS already considers the click that produced the
 /// move event as user-driven. For activation-time focus that has to
 /// override existing layering, route through `SLSClient.focusWindow`.
+/// `forceFront` (deliberate switches: window cycling, directional focus,
+/// activation) makes the target the frontmost *application* via SLPS, so a
+/// cross-app switch actually moves keyboard focus. Focus-follows-mouse leaves
+/// it false — a gentle AX raise, since the pointer move is already user-driven.
 @MainActor
-public func focusWindow(pid: pid_t, windowID: CGWindowID) {
+public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = false) {
   // Let the floating overlay put its mirrors back up *before* the focus
   // moves, so a floating window never visibly drops behind the newly
   // focused tile (see MirrorWindowRegistry.setWillFocusHandler). When a
@@ -139,13 +143,16 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID) {
   // instant. The focus-follows-mouse throttle (50 ms) dwarfs the delay.
   let restoredMirrors = MirrorWindowRegistry.shared.notifyWillFocus(pid: pid)
   @Dependency(\.debugLog) var debugLog
-  debugLog.log("FocusDiag", "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors)")
+  debugLog.log(
+    "FocusDiag",
+    "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors) front=\(forceFront)"
+  )
   if restoredMirrors {
     DispatchQueue.main.asyncAfter(deadline: .now() + mirrorCommitBeat) {
-      MainActor.assumeIsolated { performFocus(pid: pid, windowID: windowID) }
+      MainActor.assumeIsolated { performFocus(pid: pid, windowID: windowID, forceFront: forceFront) }
     }
   } else {
-    performFocus(pid: pid, windowID: windowID)
+    performFocus(pid: pid, windowID: windowID, forceFront: forceFront)
   }
 }
 
@@ -156,8 +163,10 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID) {
 private let mirrorCommitBeat: TimeInterval = 0.03
 
 @MainActor
-private func performFocus(pid: pid_t, windowID: CGWindowID) {
-  if let app = NSRunningApplication(processIdentifier: pid) {
+private func performFocus(pid: pid_t, windowID: CGWindowID, forceFront: Bool = false) {
+  // Gentle path (focus-follows-mouse) activates up front, as before. The
+  // forceFront path defers to SLPS below, which transfers frontmost itself.
+  if !forceFront, let app = NSRunningApplication(processIdentifier: pid) {
     app.activate()
   }
   let axApp = AXUIElementCreateApplication(pid)
@@ -166,7 +175,11 @@ private func performFocus(pid: pid_t, windowID: CGWindowID) {
     axApp, kAXWindowsAttribute as CFString, &raw
   ) == .success,
     let windows = raw as? [AXUIElement]
-  else { return }
+  else {
+    // Window list unreadable — for a deliberate switch still bring the app up.
+    if forceFront { NSRunningApplication(processIdentifier: pid)?.activate() }
+    return
+  }
   for window in windows {
     var wid: CGWindowID = 0
     guard _AXUIElementGetWindow(window, &wid) == .success, wid == windowID else { continue }
@@ -174,7 +187,18 @@ private func performFocus(pid: pid_t, windowID: CGWindowID) {
     // window restores it. Auto-open is the only intended restore path.
     if axWindowIsMinimized(window) { break }
     AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
-    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    if forceFront {
+      // A deliberate switch must make `pid` the frontmost *application* so
+      // keyboard focus follows and the focus resolver (frontmost-app based)
+      // observes the change — otherwise cross-app window cycling stalls, the
+      // window raising but the front app never changing. NSRunningApplication
+      // .activate() from an accessory app can't do this reliably (esp. on a
+      // secondary display); SLPS can (and does the AX raise itself).
+      @Dependency(\.sls) var sls
+      sls.focusWindow(pid, windowID, window)
+    } else {
+      AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    }
     break
   }
 }

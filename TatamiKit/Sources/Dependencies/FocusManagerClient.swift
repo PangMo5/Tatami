@@ -25,11 +25,15 @@ extension FocusManagerClient: DependencyKey {
   static let liveValue: FocusManagerClient = {
     // The free function in WindowKey.swift (mirror-restore handshake) —
     // aliased outside the initializer call, where the `focusWindow:`
-    // endpoint would otherwise shadow it.
-    let raiseAndFocus: @MainActor (pid_t, CGWindowID) -> Void = focusWindow(pid:windowID:)
+    // endpoint would otherwise shadow it. `forceFront: true`: every caller
+    // here is a deliberate switch (cycle / directional / activation), which
+    // must transfer the frontmost application (focus-follows-mouse calls the
+    // free function directly with forceFront false).
+    let raiseAndFocus: @MainActor (pid_t, CGWindowID, Bool) -> Void =
+      focusWindow(pid:windowID:forceFront:)
     return FocusManagerClient(
       focusWindow: { key in
-        await MainActor.run { raiseAndFocus(key.pid, key.windowID) }
+        await MainActor.run { raiseAndFocus(key.pid, key.windowID, true) }
       }
     )
   }()

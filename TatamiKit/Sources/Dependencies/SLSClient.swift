@@ -47,11 +47,15 @@ struct SLSClient: Sendable {
   /// tokens.
   var windowList: @Sendable (_ space: UInt64) -> [CGWindowID] = { _ in [] }
 
-  /// Focus `windowID` belonging to `psn`. Reliable in apps where plain
-  /// `NSRunningApplication.activate` leaves the window behind Finder.
-  /// No hand-written default: Void endpoints get the macro's
-  /// unimplemented stub, so unstubbed test calls surface as failures.
-  var focusWindow: @Sendable (ProcessSerialNumber, CGWindowID, AXUIElement) -> Void
+  /// Force `windowID` (owned by `pid`) to the front: makes `pid` the frontmost
+  /// application via `_SLPSSetFrontProcessWithOptions` + a synthesized annotated
+  /// session event + an AX raise. Reliable where plain `NSRunningApplication
+  /// .activate` leaves the window behind (an accessory app can't transfer the
+  /// global frontmost app that way — especially for windows on a secondary
+  /// display), which is what stalled cross-app window cycling.
+  /// No hand-written default: Void endpoints get the macro's unimplemented
+  /// stub, so unstubbed test calls surface as failures.
+  var focusWindow: @Sendable (pid_t, CGWindowID, AXUIElement) -> Void
 
   /// Window-server "destroyed" events (SLS event 804). Fires even for apps
   /// that close a window by hiding it without any AX notification (e.g.
@@ -71,9 +75,8 @@ extension SLSClient: DependencyKey {
       spacesForWindow: { center.spaces(for: $0) },
       isActiveSpaceFullscreen: { center.isActiveSpaceFullscreen() },
       windowList: { center.windowList(on: $0) },
-      focusWindow: { psn, wid, ref in
-        var mutPSN = psn
-        center.focusWindow(psn: &mutPSN, windowID: wid, axRef: ref)
+      focusWindow: { pid, wid, ref in
+        center.focusWindow(pid: pid, windowID: wid, axRef: ref)
       },
       windowDestructionEvents: { center.windowDestructionEvents() },
       watchWindows: { center.watchWindows($0) }
@@ -117,6 +120,12 @@ private typealias SLSRequestNotificationsForWindowsFn =
   @convention(c) (Int32, UnsafePointer<UInt32>?, Int32) -> CGError
 private typealias SLSGetActiveSpaceFn = @convention(c) (Int32) -> UInt64
 private typealias SLSSpaceGetTypeFn = @convention(c) (Int32, UInt64) -> Int32
+/// Process Manager pid→PSN. Deprecated and *unavailable* in Swift, so we bind
+/// it by symbol like the SLS entry points; the dylib still exports it (yabai
+/// relies on the same call). `_SLPSSetFrontProcessWithOptions` needs a PSN and
+/// has no pid-based entry point.
+private typealias GetProcessForPIDFn =
+  @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
 
 /// `SLSSpaceGetType` value for a native macOS fullscreen Space. yabai uses
 /// the same number (`0` is a normal user Space, `2` is system).
@@ -146,6 +155,7 @@ private final class SLSCenter: @unchecked Sendable {
   private let symRequestNotifications: SLSRequestNotificationsForWindowsFn?
   private let symGetActiveSpace: SLSGetActiveSpaceFn?
   private let symSpaceGetType: SLSSpaceGetTypeFn?
+  private let symGetProcessForPID: GetProcessForPIDFn?
 
   private let destructionStream: AsyncStream<CGWindowID>
   /// Yielded from the WindowServer notify callback (main run loop). The
@@ -179,6 +189,10 @@ private final class SLSCenter: @unchecked Sendable {
       .map { unsafeBitCast($0, to: SLSGetActiveSpaceFn.self) }
     self.symSpaceGetType = h.flatMap { dlsym($0, "SLSSpaceGetType") }
       .map { unsafeBitCast($0, to: SLSSpaceGetTypeFn.self) }
+    // GetProcessForPID lives in ApplicationServices/CoreServices, not SkyLight;
+    // resolve it from the global symbol table (already loaded via AppKit).
+    self.symGetProcessForPID = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "GetProcessForPID")
+      .map { unsafeBitCast($0, to: GetProcessForPIDFn.self) }
     if let h, let connSym = dlsym(h, "SLSMainConnectionID") {
       let fn = unsafeBitCast(connSym, to: SLSMainConnectionIDFn.self)
       self.connectionID = fn()
@@ -234,15 +248,27 @@ private final class SLSCenter: @unchecked Sendable {
   /// inspect the payload (Slack, Mail, anything Electron) move focus
   /// to the right window instead of the app's last-used one.
   func focusWindow(
-    psn: UnsafeMutablePointer<ProcessSerialNumber>,
+    pid: pid_t,
     windowID: CGWindowID,
     axRef: AXUIElement
   ) {
+    // Derive the ProcessSerialNumber the SLPS calls require. GetProcessForPID
+    // is a deprecated Process Manager call, but it's still the only way to map
+    // a pid → PSN and every macOS tiling WM (yabai/AeroSpace) relies on it.
+    // DO NOT "modernize" it away — SLPS has no pid-based entry point, so
+    // dropping this silently breaks force-to-front focus.
+    var psn = ProcessSerialNumber()
+    guard let getPSN = symGetProcessForPID, getPSN(pid, &psn) == noErr else {
+      // No PSN (symbol gone or lookup failed) — fall back to a bare AX raise so
+      // focus at least moves visually.
+      AXUIElementPerformAction(axRef, kAXRaiseAction as CFString)
+      return
+    }
     if let setFront = symSetFrontProcess {
       // 0x200 = kCPSUserGenerated. The OS treats the activation as if
       // the user clicked, side-stepping the "respect existing layering"
       // heuristic that hides newly-activated apps behind Finder.
-      _ = setFront(psn, windowID, 0x200)
+      _ = setFront(&psn, windowID, 0x200)
     }
     if let postEvent = symPostEventRecord {
       // Annotated session event 0x10 — magic byte offsets are an
@@ -258,11 +284,11 @@ private final class SLSCenter: @unchecked Sendable {
       for i in 0..<0x10 { bytes[0x20 + i] = 0xff }
       bytes[0x08] = 0x01
       _ = bytes.withUnsafeMutableBufferPointer { buf in
-        postEvent(psn, buf.baseAddress!)
+        postEvent(&psn, buf.baseAddress!)
       }
       bytes[0x08] = 0x02
       _ = bytes.withUnsafeMutableBufferPointer { buf in
-        postEvent(psn, buf.baseAddress!)
+        postEvent(&psn, buf.baseAddress!)
       }
     }
     // AX raise on top. This is what makes the window come to the
