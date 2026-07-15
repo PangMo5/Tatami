@@ -6,6 +6,15 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.7.2 — 2026-07-15
+
+### Fixes
+- **Window cycling works across displays, and actually switches apps.** The window-cycle shortcut (alt/opt+tab by default, on since 1.7.0) could get stuck cycling between the same two windows, or operate on the wrong monitor's workspace. Focus now transfers the frontmost application via the window server (not just an Accessibility raise), so cycling between apps — and across displays — lands correctly.
+- **No more display-reconfigure churn.** A burst of identical screen-parameter notifications from the OS is now coalesced, so Tatami no longer spins re-evaluating an unchanged display setup.
+- **Fullscreen-zoom survives deep sleep / clamshell.** A zoomed window whose surface the system recycles on wake no longer loses its zoom.
+- **Trackpad-gesture crash fixed.** A fast multi-finger swipe no longer crashes the app.
+- **Keyboard tiling ops target the right monitor.** Resize / move / rotate / balance and drag edits on a workspace shown on a non-cursor display now compute against that display.
+
 ## 1.7.1 — 2026-07-14
 
 ### Improvements
