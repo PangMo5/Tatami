@@ -6,16 +6,16 @@ Tatami reads its configuration from:
 ~/.config/tatami/config.toml
 ```
 
-The path is XDG-aware — if `$XDG_CONFIG_HOME` is set, the file lives at
+The path is XDG-aware. If `$XDG_CONFIG_HOME` is set, the file lives at
 `$XDG_CONFIG_HOME/tatami/config.toml`. The file is created on first launch and
 written back whenever you change something in the app. Hand edits are picked up
 live, so you can keep it in your dotfiles and edit it in your editor.
 
 The file has three top-level parts:
 
-- `[settings.*]` — global preferences (below)
-- `[[sharedApps]]` — apps that are part of every workspace (tiled or floating)
-- `[[profiles]]` — workspaces and their app assignments
+- **`[settings.*]`:** Global preferences described below
+- **`[[sharedApps]]`:** Apps that are part of every workspace, tiled or floating
+- **`[[profiles]]`:** Workspaces and their app assignments
 
 ## Shortcut syntax
 
@@ -51,15 +51,15 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 
 ## `[settings.hud]`
 
-A brief on-screen overlay confirming actions. `enabled` is the master switch;
-the rest pick which actions show one.
+A brief on-screen overlay confirming actions. `enabled` is the master switch.
+The rest pick which actions show one.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | Master switch for every overlay. |
 | `workspaceSwitch` | bool | `true` | Workspace name when switching. |
 | `profileSwitch` | bool | `true` | Profile name when switching profiles (manual or auto). |
-| `floating` | bool | `true` | Float state changes — per-workspace and shared. |
+| `floating` | bool | `true` | Float state changes in both per-workspace and shared contexts. |
 | `appMembership` | bool | `true` | App added to / removed from a workspace or Shared Apps. |
 | `tilingPaused` | bool | `true` | Tiling paused / resumed. |
 | `fullscreen` | bool | `true` | Fullscreen zoom entered / exited. |
@@ -77,7 +77,7 @@ the rest pick which actions show one.
 | `splitType` | string | `"auto"` | Default split axis when a new window splits a tile: `auto` (aspect-based), `horizontal`, `vertical`. |
 | `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
 
-Workspaces always remember their layout — split axes and ratios are persisted
+Workspaces always remember their layout. Split axes and ratios are persisted
 to disk and restored on the next launch.
 
 ## `[settings.focus]`
@@ -99,8 +99,8 @@ to disk and restored on the next launch.
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when cycling next/previous. |
 | `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
 | `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
-| `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes (nothing tiled, no workspace-specific floating window), switch to the recent workspace. Shared apps don't count — they join every workspace anyway. |
-| `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app (one representative window per app); `true` visits every window, including multiple windows of the same app. |
+| `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific float, switch to the recent workspace. Shared apps do not count because they join every workspace. |
+| `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app (one representative window per app). `true` visits every window, including multiple windows of the same app. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
 
@@ -120,9 +120,9 @@ Small corner dots that identify zoomed, floating, and borrowed windows.
 | --- | --- | --- | --- |
 | `fullscreenEnabled` | bool | `true` | Dot on the workspace's fullscreen-zoomed window (shown while it's focused). |
 | `fullscreenColorHex` | string | `"#007AFF"` | Fullscreen dot color (`#RRGGBB`). |
-| `floatingEnabled` | bool | `true` | Dot on floating windows — always visible, so a mirror reads as floating at a glance. |
+| `floatingEnabled` | bool | `true` | Dot on floating windows, always visible so a mirror reads as floating at a glance. |
 | `floatingColorHex` | string | `"#FF9500"` | Floating dot color (`#RRGGBB`). |
-| `borrowEnabled` | bool | `true` | Badge each window of a borrowed block with the borrowed workspace's icon — always visible while the borrow is on screen. |
+| `borrowEnabled` | bool | `true` | Badge each borrowed window with its workspace icon while the borrow is on screen. |
 | `borrowColorHex` | string | `"#AF52DE"` | Borrow badge color (`#RRGGBB`). |
 | `size` | double | `14` | Dot diameter in points. The borrow badge is drawn larger so its glyph stays legible. |
 | `corner` | string | `"bottomTrailing"` | Window corner the dot anchors to: `topLeading`, `topTrailing`, `bottomLeading`, `bottomTrailing`. |
@@ -131,8 +131,8 @@ Small corner dots that identify zoomed, floating, and borrowed windows.
 ## `[settings.shortcuts]`
 
 Most values are skhd-style shortcut strings (see above). Omitting a key leaves
-that action unbound; a brand-new config (no `config.toml` yet) is seeded with a
-recommended starter set — see [Recommended defaults](#recommended-defaults) —
+that action unbound. A brand-new config (no `config.toml` yet) is seeded with a
+recommended starter set. See [Recommended defaults](#recommended-defaults).
 that you can freely re-record or clear. The exceptions are the three
 `*Modifiers` arrays below, which drive the per-workspace **key equivalent** model.
 
@@ -169,7 +169,7 @@ Any action above can be given an **explicit override** shortcut, which wins over
 the modifier + key combo:
 
 - Per workspace: `activateShortcut`, `assignAppShortcut`, `borrowShortcut` (see workspaces below).
-- Per nav target: `switchTo{Recent,Next,Previous}Workspace`, `assign{Recent,Next,Previous}Workspace`, `borrow{Recent,Next,Previous}Workspace` — all skhd strings.
+- **Per navigation target:** `switchTo{Recent,Next,Previous}Workspace`, `assign{Recent,Next,Previous}Workspace`, and `borrow{Recent,Next,Previous}Workspace`. All use skhd strings.
 
 Borrowing waits for a direction key (h/j/k/l or arrows) to place the workspace,
 unless a default edge is set (`settings.switching.borrowDefaultEdge` or the
@@ -190,8 +190,8 @@ restores the host to full screen.
 | `moveToNextWorkspace` / `moveToPreviousWorkspace` | Move the focused app to the next/previous workspace and follow it there |
 | `dismissBorrow` | Return the borrowed workspace and restore the host to full screen |
 | `focusNextDisplay` / `focusPreviousDisplay` | Focus the active workspace on the next/previous display (loops around) |
-| `toggleFloating` | Float the focused app in the active workspace (added here as floating if it wasn't assigned) — toggle again to re-tile |
-| `toggleSharedFloating` | Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet; toggling off flips it to shared *tiled* (membership stays; removing is `toggleAppInSharedApps`) |
+| `toggleFloating` | Float the focused app in the active workspace, adding it there if needed. Toggle again to re-tile. |
+| `toggleSharedFloating` | Float the focused app everywhere, adding it to Shared Apps if needed. Toggling off changes it to shared *tiled*. Use `toggleAppInSharedApps` to remove membership. |
 | `toggleFocusedAppInActiveWorkspace` | Add the focused window's app to the active workspace (or remove it if already a member) |
 | `toggleAppInSharedApps` | Add the focused app to Shared Apps (tiled into every workspace), or remove it if already shared |
 | `toggleSpaceActivated` | Pause/resume tiling |
@@ -199,7 +199,7 @@ restores the host to full screen.
 ### Recommended defaults
 
 A brand-new config (no `config.toml` yet) is seeded with a usable starter
-scheme so actions work out of the box. `⌃⌥` drives the window/tile operations;
+scheme so actions work out of the box. `⌃⌥` drives the window/tile operations.
 workspace **switch** moves to `⌃⌥⇧` and **assign** to `⌥⇧⌘`, so a workspace's
 one-key equivalent never collides with a `⌃⌥` focus key. Anything here can be
 re-recorded or cleared.
@@ -229,12 +229,12 @@ workspace's key equivalent and with the recent / next / previous keys.
 ## `[[sharedApps]]`
 
 Apps listed here are part of **every** workspace. Each carries a `layout`:
-`tiled` (the default — tiles into each workspace's layout), `floating` (untiled,
+`tiled` (the default, tiles into each workspace's layout), `floating` (untiled,
 kept **above the tiles everywhere** via a mirror), or `unmanaged` (left exactly
-where it is — still a member, but never tiled or mirrored). Each also has an
-optional `autoOpen` (bool, default `false`) that launches — or reopens — the app
+where it is while remaining a member, but is never tiled or mirrored). Each also has an
+optional `autoOpen` (bool, default `false`) that launches or reopens the app
 on workspace activation when it has no on-screen window, and an auto-written
-`iconPath` (string, machine-managed — you don't set it by hand).
+`iconPath` (string, machine-managed and not meant to be set by hand).
 
 ```toml
 [[sharedApps]]
@@ -250,14 +250,14 @@ layout = "tiled"         # tiled into every workspace's layout (default)
 [[sharedApps]]
 bundleIdentifier = "com.colliderli.iina"
 name = "IINA"
-layout = "unmanaged"     # left alone — a member, but never tiled or mirrored
+layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 ```
 
 Floating windows are kept on top without disabling SIP: Tatami mirrors them
 onto its own always-on-top panels via ScreenCaptureKit, which needs the
 **Screen Recording** permission (Settings → General → Permissions). The mirror
-hides — and the capture stops — whenever the floating app itself has focus.
-`unmanaged` apps need no such permission — the real window is never touched.
+hides and capture stops whenever the floating app itself has focus.
+`unmanaged` apps need no such permission because the real window is never touched.
 
 Editable in the app under **Workspaces → Shared Apps** (Tiled / Float / Ignore).
 
@@ -270,7 +270,7 @@ bool on any app or shared app also migrates (`true` → `floating`, else `tiled`
 A profile is a named bundle of workspaces. You can define several and switch
 between them (a switch re-tiles every display for the new profile), and a
 profile can **auto-activate** based on which monitors are connected. Which
-profile is currently active is session state — stored in `profile-session.json`
+profile is currently active is session state, stored in `profile-session.json`
 next to `config.toml`, never written into `config.toml` itself.
 
 Profiles keep independent workspaces, so their apps and settings can drift
@@ -286,7 +286,7 @@ symbolIconName = "rectangle.stack"     # optional: SF Symbol (sidebar / menu bar
 shortcut = "ctrl + alt + cmd - 1"      # optional: hotkey to switch to this profile
 
 # Optional: auto-activate this profile when the connected displays match. All
-# set conditions apply together (AND); omit the table for manual switching only.
+# set conditions apply together (AND). Omit the table for manual switching only.
 [profiles.autoActivation]
 displayCount = ">=2"                        # "==N" | ">=N" | "<=N"
 whenConnectedMatch = "contains"             # "contains" (present) | "exactly" (set ==)
@@ -318,17 +318,17 @@ Profile fields:
 | `name` | string | Display name. |
 | `symbolIconName` | string? | SF Symbol shown for the profile in the sidebar, menu bar, and switch HUD. Omit for the default `rectangle.stack`. |
 | `shortcut` | string? | skhd-style hotkey that switches to this profile. |
-| `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only; a present table with no conditions is a catch-all that matches any configuration. |
+| `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only. A present table with no conditions is a catch-all that matches any configuration. |
 
-`[profiles.autoActivation]` — all keys optional and AND-ed; when several
-profiles match, the most specific wins (`exactly` > `contains`, more conditions
-rank higher; ties go to the earlier profile):
+**`[profiles.autoActivation]`:** All keys are optional and combined with AND. When several
+profiles match, the most specific wins. `exactly` outranks `contains`, more
+conditions rank higher, and ties go to the earlier profile:
 
 | Key | Type | Description |
 | --- | --- | --- |
 | `displayCount` | string? | Connected-monitor count: `"==1"`, `">=2"`, `"<=1"`. |
 | `whenConnected` | string[]? | Displays that must be connected (`"<uuid>::<name>"` or `"<name>"`). |
-| `whenConnectedMatch` | string | `"contains"` (default — listed present, extras allowed) or `"exactly"` (connected set equals the list). |
+| `whenConnectedMatch` | string | `"contains"` by default, where listed displays must be present and extras are allowed, or `"exactly"`, where the connected set equals the list. |
 | `whenDisconnected` | string[]? | Displays that must be unplugged. |
 
 Workspace fields:
@@ -338,15 +338,15 @@ Workspace fields:
 | `id` | UUID | Stable identifier. |
 | `name` | string | Display name. |
 | `symbolIconName` | string? | SF Symbol used in the menu bar / sidebar. |
-| `kind` | string | `normal` (default) or `scratchpad`. A scratchpad is **borrow-only**: it's excluded from cycling and never activated on its own — you pull it in beside another workspace with a borrow, and all its apps auto-open when you do. |
+| `kind` | string | `normal` (default) or `scratchpad`. A scratchpad is **borrow-only**: it is excluded from cycling, never activates alone, and auto-opens its apps when borrowed beside another workspace. |
 | `keyEquivalent` | string? | One-character key for this workspace, held with the switch / assign / borrow modifiers (see `[settings.shortcuts]`). Omit to disable key-equivalent actions for it. |
 | `activateShortcut` | string? | Explicit override for the switch combo. |
 | `assignAppShortcut` | string? | Explicit override for the assign combo (add the focused app, keeping its other memberships, and switch here). |
 | `borrowShortcut` | string? | Explicit override for the borrow combo. |
 | `borrowEdge` | string? | Override the default borrow edge for this workspace: `top`, `bottom`, `left`, `right`. Omit to use `settings.switching.borrowDefaultEdge` (or the direction-pick when that's unset). |
 | `borrowFraction` | double? | Override the borrowed-block size for this workspace (0.1…0.9). Omit to use `settings.switching.borrowFraction`. |
-| `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation; omit for most-recently-used. |
-| `displayHint` | string? | Pin the workspace to a display — `"<uuid>::<name>"` or just `"<name>"`. Omit to follow apps dynamically. Falls back to the primary display when the pinned monitor is absent. |
+| `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation. Omit for most-recently-used. |
+| `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to follow apps dynamically. Falls back to the primary display when the pinned monitor is absent. |
 
 App assignment fields:
 
@@ -354,6 +354,6 @@ App assignment fields:
 | --- | --- | --- |
 | `bundleIdentifier` | string | The app's bundle ID. |
 | `name` | string | Display name. |
-| `autoOpen` | bool | Launch the app when the workspace activates — and reopen it on re-entry if its window was closed. |
-| `layout` | string | `tiled` (BSP layout), `floating` (untiled, mirrored above the tiles — see `[[sharedApps]]`), or `unmanaged` (left where it is; still a member, no tiling/mirror/Screen Recording). Migrated from the pre-1.4 `floating` bool. |
+| `autoOpen` | bool | Launch the app when the workspace activates and reopen it on re-entry if its window was closed. |
+| `layout` | string | `tiled` (BSP layout), `floating` (untiled and mirrored above the tiles, as described in `[[sharedApps]]`), or `unmanaged` (left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
 | `iconPath` | string? | Cached path to the app's icon, written automatically. You don't set this by hand. |

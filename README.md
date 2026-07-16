@@ -9,13 +9,13 @@ A macOS workspace manager with yabai-style window tiling.
 
 Tatami groups your apps into virtual workspaces you switch between with a
 keystroke or a trackpad swipe, and tiles their windows automatically with a
-yabai-style BSP engine — no SIP changes and no shell scripting required.
+yabai-style BSP engine. No SIP changes and no shell scripting required.
 
 ## Demo
 
 <p align="center">
   <a href="https://pangmo5.dev/Tatami#demo">
-    <img src="web/tatami-demo-poster.jpg" alt="Tatami demo — click to watch" width="760" />
+    <img src="web/tatami-demo-poster.jpg" alt="Tatami demo. Click to watch." width="760" />
   </a>
 </p>
 
@@ -25,71 +25,71 @@ yabai-style BSP engine — no SIP changes and no shell scripting required.
 
 ### Workspaces
 
-- Group apps into virtual workspaces with per-workspace app assignments
-- Switch by hotkey, trackpad swipe, or "recent workspace"
-- One **key equivalent** per workspace: hold the switch / assign / borrow modifier with it to switch to it, assign the focused app to it, or borrow it — the same keys drive the recent / next / previous targets, and any action takes an explicit override
-- Optional loop-around, skip-empty, and follow-app-focus behaviors
-- Auto-open assigned apps when a workspace activates — and reopen them on re-entry if their window was closed
-- Per-display workspaces — pin one to a display or follow apps dynamically; each display keeps its own active workspace, and you can cycle per-display or across every display
-- Jump focus between displays, or move the focused app to another workspace
-- Shared apps that join every workspace
+- **Virtual workspaces:** Group apps with per-workspace assignments.
+- **Flexible switching:** Use a hotkey, trackpad swipe, or recent-workspace action.
+- **One key per workspace:** Hold the switch, assign, or borrow modifier with a **key equivalent**. The same keys also drive recent, next, and previous targets, while any action can take an explicit override.
+- **Optional switching behaviors:** Enable loop-around, skip-empty, or follow-app-focus.
+- **Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
+- **Per-display workspaces:** Pin a workspace to a display or follow apps dynamically. Each display keeps its own active workspace, and cycling can stay local or span every display.
+- **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
+- **Shared apps:** Add apps that should join every workspace.
 
 ### Profiles
 
-- Group workspaces into **profiles** and switch the whole set at once — each profile has its own workspaces, app assignments, and shortcuts
-- Switch by hotkey or from the menu bar; switching re-tiles every display for the new profile
-- **Auto-activate** a profile by display setup — monitor count, or specific displays connected / disconnected — with a warning when two profiles' rules overlap at the same priority
-- Per-profile SF Symbol icon, shown in the sidebar, menu bar, and switch HUD
-- **Copy from** another profile or workspace with a reviewable, per-change diff — apps and settings, keep or skip each change (profiles stay independent)
+- **Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.
+- **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile.
+- **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
+- **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and switch HUD.
+- **Reviewable copying:** Use **Copy from** to compare another profile or workspace, then keep or skip each app and settings change.
 
-### Borrow — compose two workspaces
+### Borrow: compose two workspaces
 
-- **Pull another workspace in beside the current one**, docked to a screen edge (top / bottom / left / right) and tiled side by side — each keeps its own BSP layout, and windows can't cross the boundary
-- **Live and bidirectional**: the borrowed block is the real workspace, so edits there persist back to it
-- Press the borrow modifier + a workspace's key, then a direction (`h` / `j` / `k` / `l` or arrows) to place it — or set a default edge and size, globally or per workspace
-- **Directional focus crosses the boundary**; activating a borrowed workspace fully switches to it; re-borrowing re-docks; `esc` cancels the direction pick
-- Borrowed windows are badged with the borrowed workspace's icon so what's on loan is clear at a glance
-- **Scratchpad workspaces** are borrow-only — excluded from cycling, never activated on their own, and their apps auto-open when summoned
+- **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
+- **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
+- **Directional placement:** Press the borrow modifier with a workspace key, then use `h`, `j`, `k`, `l`, or an arrow. You can also set a default edge and size globally or per workspace.
+- **Cross-boundary focus:** Directional focus moves between blocks. Activating a borrowed workspace switches to it fully, re-borrowing re-docks it, and `esc` cancels placement.
+- **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
+- **Scratchpads:** Borrow-only workspaces stay out of cycling, never activate alone, and auto-open their apps when summoned.
 
 ### Window tiling (yabai-style BSP)
 
-- Automatic binary space partitioning that inserts at the shallowest tile
-- Directional focus, swap, and resize (vim-like `h` / `j` / `k` / `l`)
-- Zoom a window to fill the workspace; toggle split orientation
-- Rotate, mirror, and balance the layout tree
-- Drag a window to swap or re-insert it next to another — a live overlay previews where it'll land (center = swap, edges = insert that side); manual edge-resize syncs back into the tree
-- Configurable inner / outer gaps
+- **Automatic BSP layout:** Insert new windows at the shallowest tile.
+- **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
+- **Zoom and splits:** Fill the workspace with one window or toggle split orientation.
+- **Tree transforms:** Rotate, mirror, and balance the layout.
+- **Drag editing:** Swap or re-insert a window with a live placement preview. Manual edge resizing synchronizes back into the tree.
+- **Configurable spacing:** Set inner and outer gaps.
 
 ### Floating windows
 
-- Float an app in a single workspace, or add it to Shared Apps to float it everywhere — one toggle in the GUI, one hotkey anywhere
-- Floats stay above the tiles **without disabling SIP** — Tatami mirrors them onto its own always-on-top ScreenCaptureKit panels, and hands you the real window the moment you reach for it
-- Multiple floating windows stack by focus recency; needs the Screen Recording permission
-- Or set an app to **Ignore** (unmanaged) — it stays a workspace member (auto-open, focus, focus-follows-mouse, window cycling) but Tatami leaves its window exactly where it is: no tiling, no mirror, no Screen Recording
+- **Local or global floating:** Float an app in one workspace or add it to Shared Apps to float it everywhere.
+- **No SIP changes:** Tatami mirrors floats onto always-on-top ScreenCaptureKit panels, then hands you the real window when you interact with it.
+- **Predictable stacking:** Multiple floating windows stack by focus recency. This requires Screen Recording permission.
+- **Ignore mode:** Keep an app as a workspace member for auto-open, focus, focus-follows-mouse, and cycling while leaving its window untouched. Ignore mode needs no mirroring or Screen Recording.
 
 ### Focus & cursor
 
-- focus-follows-mouse and mouse-follows-focus (yabai-style)
-- Refocus the most recently used remaining window when the focused one closes
-- Optionally hide the cursor on a workspace switch
+- **Focus follows mouse:** Use yabai-style focus-follows-mouse and mouse-follows-focus.
+- **Close-window refocus:** Return to the most recently used remaining window.
+- **Cursor control:** Optionally hide the cursor during a workspace switch.
 
 ### Interface & config
 
-- Customizable menu bar item — toggle the active workspace's icon / name and (with more than one profile) the active profile's icon / name
-- On-screen HUD confirming switches, float toggles, membership changes, and more — each individually toggleable, with follow-up hints (e.g. the shortcut that fully removes a just-unfloated app)
-- Per-workspace SF Symbol icons
-- Native SwiftUI settings
-- skhd-style shortcut syntax (e.g. `ctrl + alt - h`)
-- Plain-TOML config at `~/.config/tatami/config.toml` (XDG-aware), hot-reloaded
-- CLI for scripting (`tatami activate <workspace>`, `tatami list-workspaces`, …)
-- Sparkle auto-updates
+- **Customizable menu bar:** Show the active workspace icon or name and, when relevant, the active profile icon or name.
+- **On-screen HUD:** Confirm switches, float toggles, membership changes, and follow-up shortcuts. Each notification is individually configurable.
+- **Workspace icons:** Choose a per-workspace SF Symbol.
+- **Native settings:** Configure Tatami in SwiftUI.
+- **skhd-style shortcuts:** For example, `ctrl + alt - h`.
+- **Plain TOML:** Edit `~/.config/tatami/config.toml` with XDG support and live reloads.
+- **Scriptable CLI:** Run commands such as `tatami activate <workspace>` and `tatami list-workspaces`.
+- **Automatic updates:** Receive releases through Sparkle.
 
 ## Requirements
 
 - macOS 14.0 or later
 - Accessibility permission
   (System Settings → Privacy & Security → Accessibility)
-- Screen Recording permission, only if you use floating windows — their
+- Screen Recording permission, only if you use floating windows. Their
   always-on-top mirrors are ScreenCaptureKit captures
   (System Settings → Privacy & Security → Screen Recording)
 
@@ -115,7 +115,7 @@ open Tatami.xcworkspace
 ## Command line
 
 Tatami ships a `tatami` CLI inside the app bundle. Install it from
-**Settings → General → Command Line → Install** — this symlinks `tatami` into
+**Settings → General → Command Line → Install**. This symlinks `tatami` into
 `/usr/local/bin` (you'll be asked for your password once). Then:
 
 ```sh
@@ -130,26 +130,26 @@ running. (Homebrew installs are detected automatically.)
 
 ## Configuration
 
-Settings live in `~/.config/tatami/config.toml`, grouped into tables —
+Settings live in `~/.config/tatami/config.toml`, grouped into tables such as
 `[settings.layout]`, `[settings.focus]`, `[settings.gestures]`,
 `[settings.shortcuts]`, and so on. Workspaces, their app assignments, and
 shared apps are stored in the same file. Edits made in the app or by hand are
 picked up live.
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference —
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference:
 every key, its default, and the shortcut syntax.
 
 ## Tech stack
 
-- **Tuist** — project generation
-- **The Composable Architecture (TCA)** — app architecture
-- **swift-sharing** — cross-feature state sharing
-- **swift-collections** — ordered sets/dictionaries and deques on the tiling hot paths
-- **swift-toml** — config persistence
-- **swift-yyjson** — fast JSON for the layout store and CLI protocol
-- **Magnet** — Carbon-based global hotkeys
-- **SFSafeSymbols** — type-safe SF Symbol catalog
-- **Sparkle** — app updates
+- **Tuist:** Project generation
+- **The Composable Architecture (TCA):** App architecture
+- **swift-sharing:** Cross-feature state sharing
+- **swift-collections:** Ordered sets, dictionaries, and deques on tiling hot paths
+- **swift-toml:** Config persistence
+- **swift-yyjson:** Fast JSON for the layout store and CLI protocol
+- **Magnet:** Carbon-based global hotkeys
+- **SFSafeSymbols:** Type-safe SF Symbol catalog
+- **Sparkle:** App updates
 
 ## Acknowledgements
 

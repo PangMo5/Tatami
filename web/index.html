@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tatami — macOS workspace manager with yabai-style window tiling</title>
-<meta name="description" content="Tatami is a macOS workspace manager with yabai-style BSP window tiling. Group apps into virtual workspaces and tile their windows automatically — no SIP changes, no shell scripting." />
+<title>Tatami: macOS workspace manager with yabai-style window tiling</title>
+<meta name="description" content="Tatami is a macOS workspace manager with yabai-style BSP window tiling. Group apps into virtual workspaces and tile their windows automatically, with no SIP changes or shell scripting." />
 <meta name="theme-color" content="#000000" />
 <link rel="icon" type="image/png" href="./icon.png" />
 <link rel="stylesheet" href="./style.css" />
@@ -92,12 +92,12 @@
   <div class="wrap">
     <p class="eyebrow">Virtual workspaces</p>
     <h2>A space for every task.</h2>
-    <p class="sub">Group your apps into workspaces and jump between them in a keystroke — each one brings exactly the windows you assigned it, on the display you want.</p>
+    <p class="sub">Group your apps into workspaces and jump between them in a keystroke. Each one brings exactly the windows you assigned it, on the display you want.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">🗂️</div>
         <h3>Switch your way</h3>
-        <p>Hotkeys, a trackpad swipe, a jump to the most recent — or let focus follow the app, so activating an app pulls up its workspace.</p>
+        <p>Use hotkeys, a trackpad swipe, or a jump to the most recent workspace. Focus can also follow the app, so activating an app pulls up its workspace.</p>
       </div>
       <div class="feature">
         <div class="ico">🖥️</div>
@@ -107,7 +107,7 @@
       <div class="feature">
         <div class="ico">🚀</div>
         <h3>Auto-open &amp; shared apps</h3>
-        <p>Assigned apps launch when their workspace activates — and reopen on re-entry. Shared apps join every workspace.</p>
+        <p>Assigned apps launch when their workspace activates and reopen on re-entry. Shared apps join every workspace.</p>
       </div>
     </div>
   </div>
@@ -117,7 +117,7 @@
   <div class="wrap">
     <p class="eyebrow">Profiles</p>
     <h2>Switch your whole setup at once.</h2>
-    <p class="sub">Group workspaces into profiles — one for the laptop, one for the desk — and switch the entire set with a keystroke. Every display re-tiles for the new profile.</p>
+    <p class="sub">Group workspaces into profiles, such as one for the laptop and one for the desk, then switch the entire set with a keystroke. Every display re-tiles for the new profile.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">🗄️</div>
@@ -127,12 +127,12 @@
       <div class="feature">
         <div class="ico">🔌</div>
         <h3>Auto-switch by display</h3>
-        <p>Activate a profile automatically when your monitors match — by count, or specific displays connected or unplugged. Overlapping rules get flagged.</p>
+        <p>Activate a profile automatically by monitor count or by specific displays being connected or unplugged. Overlapping rules get flagged.</p>
       </div>
       <div class="feature">
         <div class="ico">📋</div>
         <h3>Copy between profiles</h3>
-        <p>Copy apps and settings from one profile — or workspace — into another with a reviewable diff. Keep or skip each change; profiles stay independent.</p>
+        <p>Copy apps and settings from one profile or workspace into another with a reviewable diff. Keep or skip each change while profiles stay independent.</p>
       </div>
     </div>
   </div>
@@ -140,24 +140,24 @@
 
 <section class="section-gray" id="borrow">
   <div class="wrap">
-    <p class="eyebrow">New — borrow</p>
+    <p class="eyebrow">New: Borrow</p>
     <h2>Two workspaces, side by side.</h2>
-    <p class="sub">Need one workspace's window while you work in another? Borrow it in — docked to a screen edge and tiled next to the current one, each keeping its own layout.</p>
+    <p class="sub">Need one workspace's window while you work in another? Borrow it beside the current one, docked to a screen edge, with each block keeping its own layout.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">⊞</div>
         <h3>Docked &amp; tiled</h3>
-        <p>Pull a workspace to the top, bottom, left, or right. The two blocks tile beside each other, each with its own BSP layout — windows stay on their own side.</p>
+        <p>Pull a workspace to the top, bottom, left, or right. The two blocks tile beside each other with separate BSP layouts, and windows stay on their own side.</p>
       </div>
       <div class="feature">
         <div class="ico">↔️</div>
         <h3>Live, both ways</h3>
-        <p>The borrowed block <em>is</em> the real workspace, so edits there stick. Directional focus crosses the seam; activate it to switch over fully; re-borrow to re-dock.</p>
+        <p>The borrowed block <em>is</em> the real workspace, so edits there stick. Directional focus crosses the seam. Activate it to switch over fully, or re-borrow to re-dock.</p>
       </div>
       <div class="feature">
         <div class="ico">⌨️</div>
         <h3>A key and a direction</h3>
-        <p>Hold the borrow modifier with a workspace's key, then press a direction (<code>h</code> <code>j</code> <code>k</code> <code>l</code> or arrows) — or set a default edge and size. Scratchpad workspaces are borrow-only.</p>
+        <p>Hold the borrow modifier with a workspace's key, then press a direction (<code>h</code> <code>j</code> <code>k</code> <code>l</code> or arrows). You can also set a default edge and size. Scratchpad workspaces are borrow-only.</p>
       </div>
     </div>
   </div>
@@ -167,7 +167,7 @@
   <div class="wrap">
     <p class="eyebrow">Window tiling</p>
     <h2>Tiled automatically, controlled precisely.</h2>
-    <p class="sub">A binary-space-partitioning engine tiles each workspace's windows as you open them — all native, no shell scripting.</p>
+    <p class="sub">A binary-space-partitioning engine tiles each workspace's windows as you open them. It is fully native and needs no shell scripting.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">▦</div>
@@ -182,7 +182,7 @@
       <div class="feature">
         <div class="ico">🖱️</div>
         <h3>Drag to rearrange</h3>
-        <p>Drag a window onto another — a live overlay previews swap or insert before you drop. Resize an edge by hand and the layout remembers the ratio.</p>
+        <p>Drag a window onto another and a live overlay previews the swap or insertion before you drop. Resize an edge by hand and the layout remembers the ratio.</p>
       </div>
     </div>
   </div>
@@ -192,22 +192,22 @@
   <div class="wrap">
     <p class="eyebrow">Floating windows</p>
     <h2>Float anything above the tiles.</h2>
-    <p class="sub">Some windows belong on top — a video call, a simulator, a music player. Mark the app as floating and Tatami keeps its windows above the layout.</p>
+    <p class="sub">Some windows belong on top, including a video call, a simulator, or a music player. Mark the app as floating and Tatami keeps its windows above the layout.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">🪟</div>
         <h3>Per-workspace or shared</h3>
-        <p>Float an app in a single workspace, or add it to Shared Apps to float it everywhere — one toggle in the GUI, one hotkey anywhere.</p>
+        <p>Float an app in one workspace or add it to Shared Apps to float it everywhere. Use one toggle in the GUI or one hotkey anywhere.</p>
       </div>
       <div class="feature">
         <div class="ico">🎯</div>
         <h3>The real window, on demand</h3>
-        <p>Reach for a floating window and Tatami hands you the actual window — type, drag, and resize as usual. Focused floats stack on top, by recency.</p>
+        <p>Reach for a floating window and Tatami hands you the actual window. Type, drag, and resize as usual. Focused floats stack by recency.</p>
       </div>
       <div class="feature">
         <div class="ico">🛡️</div>
         <h3>No SIP, no hacks</h3>
-        <p>Built on ScreenCaptureKit mirrors with the Screen Recording permission — not injected window levels. System Integrity Protection stays on.</p>
+        <p>Built on ScreenCaptureKit mirrors with Screen Recording permission, not injected window levels. System Integrity Protection stays on.</p>
       </div>
     </div>
   </div>
@@ -237,7 +237,7 @@
       <a href="https://github.com/PangMo5/Tatami/blob/main/LICENSE">License</a>
     </div>
     <p>Tatami is open source under the GPL-3.0 license. Inspired by FlashSpace and yabai. Not affiliated with Apple Inc.</p>
-    <p class="footer-apps">Apps by <a href="https://pangmo5.dev/">PangMo5</a> — <a href="https://pangmo5.dev/SwiftyCrow/">SwiftyCrow</a> · <span class="cur" aria-current="page">Tatami</span> · <a href="https://pangmo5.dev/Amado/">Amado</a></p>
+    <p class="footer-apps">Apps by <a href="https://pangmo5.dev/">PangMo5</a>: <a href="https://pangmo5.dev/SwiftyCrow/">SwiftyCrow</a> · <span class="cur" aria-current="page">Tatami</span> · <a href="https://pangmo5.dev/Amado/">Amado</a></p>
   </div>
 </footer>
 
@@ -261,7 +261,7 @@
       // Bottom-right split in two, for the dwindle (spiral) layout.
       rbl: r(MX + G / 2, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
       rbr: r(MX + G / 2 + (RGT - MX - G / 2 - G) / 2 + G, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
-      // Free-floating window — portrait, like a phone simulator.
+      // Free-floating window - portrait, like a phone simulator.
       float: r(38, 17, 24, 62),
     };
 
@@ -282,7 +282,7 @@
     const WS = { 1: "Code", 2: "Design", 3: "Chat" };
 
     const stages = [
-      // Act 1 — Tatami tiles your windows as they open. Each new window splits
+      // Act 1 - Tatami tiles your windows as they open. Each new window splits
       // off the focused one, so the first window stays the largest (dwindle).
       { cap: "Open a window…", ws: 1, wins: { Terminal: { r: "full", f: 1 } } },
       { cap: "Open another and Tatami tiles it for you", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "right", f: 1 } } },
@@ -291,15 +291,15 @@
       // Swap: the focused window travels to another tile and grows into it.
       { cap: "Swap the focused window into a bigger tile", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
       { cap: "Zoom a window to fill the screen", ws: 1, wins: { Notes: { r: "full", f: 1 } } },
-      { cap: "Zoom off — the layout snaps right back", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
-      // Act 2 — floating: a new app opens floating above the tiles; the
+      { cap: "Zoom off. The layout snaps right back", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
+      // Act 2 - floating: a new app opens floating above the tiles; the
       // layout underneath doesn't move for it.
-      { cap: "Floating apps open above the tiles — no tile taken", ws: 1, wins: { Notes: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", f: 1, fl: 1 } } },
-      // Act 3 — workspaces, each with its own assigned apps and layout.
-      { cap: "Group apps into workspaces — switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" }, Simulator: { r: "float", fl: 1 } } },
+      { cap: "Floating apps open above the tiles without taking a tile", ws: 1, wins: { Notes: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", f: 1, fl: 1 } } },
+      // Act 3 - workspaces, each with its own assigned apps and layout.
+      { cap: "Group apps into workspaces. Switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" }, Simulator: { r: "float", fl: 1 } } },
       { cap: "Shared floating apps follow you to every workspace", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 }, Simulator: { r: "float", fl: 1 } } },
-      // Payoff — the workspace comes back exactly as it was left, float included.
-      { cap: "Switch back — everything is right where you left it", ws: 1, hud: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", fl: 1 } } },
+      // Payoff - the workspace comes back exactly as it was left, float included.
+      { cap: "Switch back. Everything is right where you left it", ws: 1, hud: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", fl: 1 } } },
     ];
 
     const pills = Array.from(document.querySelectorAll(".wspill"));
