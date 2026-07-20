@@ -271,8 +271,9 @@ jobs:
           DMG="$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg"
           # appcast.xml rides along as a release asset: it's the canonical
           # Sparkle feed for this version, and the site deploy re-publishes it
-          # from here — so a site deploy racing the release can never pin a
-          # stale feed (Pages deployments are deduped per commit SHA).
+          # from here. The independent site workflow skips release-preparation
+          # commits until this asset exists, avoiding same-SHA Pages deduplication
+          # against a site artifact that still contains the previous feed.
           APPCAST="$RUNNER_TEMP/release/appcast.xml"
           # Idempotent: if a re-run (recovering from a later-step failure) finds
           # the release already published, update it instead of erroring.
