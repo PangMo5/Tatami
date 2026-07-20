@@ -41,4 +41,13 @@ struct HotKeyTests {
   func rejectsUnknownKey() {
     #expect(HotKey(parsing: "cmd - boguskey") == nil)
   }
+
+  @Test
+  func reverseCycleBindingKeepsOnlyThePrimaryModifier() throws {
+    let reverse = try #require(HotKey(parsing: "alt + shift - tab"))
+    let shiftOnly = try #require(HotKey(parsing: "shift - tab"))
+
+    #expect(reverse.holdModifiers == .option)
+    #expect(shiftOnly.holdModifiers == .shift)
+  }
 }

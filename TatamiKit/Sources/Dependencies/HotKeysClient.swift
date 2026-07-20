@@ -1,5 +1,6 @@
 import Dependencies
 import DependenciesMacros
+import CoreGraphics
 import Foundation
 import Magnet
 
@@ -233,6 +234,38 @@ extension DependencyValues {
   var hotKeys: HotKeysClient {
     get { self[HotKeysClient.self] }
     set { self[HotKeysClient.self] = newValue }
+  }
+}
+
+// MARK: - ModifierKeysClient
+
+/// Reads the process-independent keyboard modifier state. Window cycling only
+/// polls this while a shortcut session is active, which gives us reliable
+/// modifier-release semantics without installing another permanent event tap.
+@DependencyClient
+struct ModifierKeysClient: Sendable {
+  var current: @Sendable () -> HotKeyModifiers = { [] }
+}
+
+extension ModifierKeysClient: DependencyKey {
+  static let liveValue = ModifierKeysClient {
+    let flags = CGEventSource.flagsState(.combinedSessionState)
+    var modifiers: HotKeyModifiers = []
+    if flags.contains(.maskCommand) { modifiers.insert(.command) }
+    if flags.contains(.maskShift) { modifiers.insert(.shift) }
+    if flags.contains(.maskAlternate) { modifiers.insert(.option) }
+    if flags.contains(.maskControl) { modifiers.insert(.control) }
+    return modifiers
+  }
+
+  static let testValue = ModifierKeysClient()
+  static let previewValue = testValue
+}
+
+extension DependencyValues {
+  var modifierKeys: ModifierKeysClient {
+    get { self[ModifierKeysClient.self] }
+    set { self[ModifierKeysClient.self] = newValue }
   }
 }
 

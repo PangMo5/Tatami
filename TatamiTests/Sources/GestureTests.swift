@@ -1,0 +1,76 @@
+import CoreGraphics
+import Foundation
+import Testing
+@testable import TatamiKit
+
+struct GestureTests {
+  @Test(arguments: [
+    ([CGVector(dx: -0.12, dy: 0.01), CGVector(dx: -0.13, dy: 0)], GestureDirection.left),
+    ([CGVector(dx: 0.12, dy: -0.01), CGVector(dx: 0.13, dy: 0)], .right),
+    ([CGVector(dx: 0.01, dy: 0.12), CGVector(dx: 0, dy: 0.13)], .up),
+    ([CGVector(dx: -0.01, dy: -0.12), CGVector(dx: 0, dy: -0.13)], .down),
+  ])
+  func `Dominant-axis swipe resolves in all four directions`(
+    displacements: [CGVector],
+    expected: GestureDirection,
+  ) {
+    #expect(
+      GestureDirection.resolve(displacements: displacements, threshold: 0.2) == expected
+    )
+  }
+
+  @Test
+  func `mixed finger directions do not fire`() {
+    let direction = GestureDirection.resolve(
+      displacements: [
+        CGVector(dx: 0.15, dy: 0),
+        CGVector(dx: -0.15, dy: 0),
+        CGVector(dx: 0.15, dy: 0),
+      ],
+      threshold: 0.2,
+    )
+    #expect(direction == nil)
+  }
+
+  @Test
+  func `gesture lookup uses finger count and direction`() {
+    let settings = AppSettings.Gestures(
+      threeFinger: .init(left: .nextWorkspace, up: .toggleFullscreen),
+      fourFinger: .init(right: .focusNextDisplay, down: .dismissBorrow),
+    )
+
+    #expect(settings.action(for: .init(fingerCount: 3, direction: .up)) == .toggleFullscreen)
+    #expect(settings.action(for: .init(fingerCount: 4, direction: .right)) == .focusNextDisplay)
+    #expect(settings.action(for: .init(fingerCount: 2, direction: .left)) == .none)
+  }
+
+  @Test
+  func `gesture picker categories do not duplicate fixed actions`() {
+    let categorized = GestureAction.Category.allCases.flatMap(\.actions)
+
+    #expect(categorized.count == Set(categorized).count)
+    for category in GestureAction.Category.allCases {
+      #expect(category.actions.allSatisfy { $0.category == category })
+    }
+  }
+
+  @Test
+  func `workspace and profile gesture actions preserve their hotkey targets`() {
+    let workspaceID = UUID()
+    let profileID = UUID()
+
+    #expect(
+      GestureAction.activateWorkspace(workspaceID).hotKeyAction
+        == .activateWorkspace(workspaceID)
+    )
+    #expect(
+      GestureAction.assignAppToWorkspace(workspaceID).hotKeyAction
+        == .assignFocusedAppToWorkspace(workspaceID)
+    )
+    #expect(
+      GestureAction.borrowWorkspace(workspaceID).hotKeyAction
+        == .borrowWorkspace(workspaceID)
+    )
+    #expect(GestureAction.activateProfile(profileID).hotKeyAction == .activateProfile(profileID))
+  }
+}

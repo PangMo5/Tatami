@@ -325,6 +325,7 @@ extension AppSettings {
     public init(
       enabled: Bool = true,
       workspaceSwitch: Bool = true,
+      windowCycle: Bool = true,
       profileSwitch: Bool = true,
       floating: Bool = true,
       appMembership: Bool = true,
@@ -336,6 +337,7 @@ extension AppSettings {
     ) {
       self.enabled = enabled
       self.workspaceSwitch = workspaceSwitch
+      self.windowCycle = windowCycle
       self.profileSwitch = profileSwitch
       self.floating = floating
       self.appMembership = appMembership
@@ -350,6 +352,7 @@ extension AppSettings {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       enabled = c.decode(.enabled, default: true)
       workspaceSwitch = c.decode(.workspaceSwitch, default: true)
+      windowCycle = c.decode(.windowCycle, default: true)
       profileSwitch = c.decode(.profileSwitch, default: true)
       floating = c.decode(.floating, default: true)
       appMembership = c.decode(.appMembership, default: true)
@@ -366,6 +369,8 @@ extension AppSettings {
     public var enabled: Bool
     /// Workspace name overlay when switching workspaces.
     public var workspaceSwitch: Bool
+    /// Native-style app/window switcher shown while cycling windows.
+    public var windowCycle: Bool
     /// Profile name overlay when switching profiles.
     public var profileSwitch: Bool
     /// Float state changes — per-workspace and shared.
@@ -396,6 +401,7 @@ extension AppSettings {
     private enum CodingKeys: String, CodingKey {
       case enabled
       case workspaceSwitch
+      case windowCycle
       case profileSwitch
       case floating
       case appMembership
@@ -629,8 +635,10 @@ extension AppSettings {
       skipEmpty: Bool = false,
       followAppFocus: Bool = true,
       cycleAcrossDisplays: Bool = false,
+      recentAcrossDisplays: Bool = false,
       switchToRecentWhenEmpty: Bool = false,
       cycleSameAppWindows: Bool = false,
+      toggleBorrowOnRepeat: Bool = true,
       borrowDefaultEdge: BorrowEdge? = nil,
       borrowFraction: Double = 0.4,
     ) {
@@ -638,8 +646,10 @@ extension AppSettings {
       self.skipEmpty = skipEmpty
       self.followAppFocus = followAppFocus
       self.cycleAcrossDisplays = cycleAcrossDisplays
+      self.recentAcrossDisplays = recentAcrossDisplays
       self.switchToRecentWhenEmpty = switchToRecentWhenEmpty
       self.cycleSameAppWindows = cycleSameAppWindows
+      self.toggleBorrowOnRepeat = toggleBorrowOnRepeat
       self.borrowDefaultEdge = borrowDefaultEdge
       self.borrowFraction = borrowFraction
     }
@@ -650,8 +660,10 @@ extension AppSettings {
       skipEmpty = c.decode(.skipEmpty, default: false)
       followAppFocus = c.decode(.followAppFocus, default: true)
       cycleAcrossDisplays = c.decode(.cycleAcrossDisplays, default: false)
+      recentAcrossDisplays = c.decode(.recentAcrossDisplays, default: false)
       switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
       cycleSameAppWindows = c.decode(.cycleSameAppWindows, default: false)
+      toggleBorrowOnRepeat = c.decode(.toggleBorrowOnRepeat, default: true)
       borrowDefaultEdge = c.decodeIfValid(.borrowDefaultEdge)
       borrowFraction = c.decode(.borrowFraction, default: 0.4)
     }
@@ -669,6 +681,9 @@ extension AppSettings {
     /// When `false` (default), cycling stays within the workspaces on the
     /// display under the cursor.
     public var cycleAcrossDisplays: Bool
+    /// Recent-workspace actions use global MRU across displays. Off by
+    /// default to preserve the existing per-display behavior.
+    public var recentAcrossDisplays: Bool
     /// When the active workspace's last window closes (nothing tiled and
     /// no workspace-specific floating window left), switch to the recent
     /// workspace. Shared apps don't count — they join every workspace, so
@@ -679,6 +694,9 @@ extension AppSettings {
     /// press lands on the next app. When `true`, it visits every window
     /// individually, including multiple windows of the same app.
     public var cycleSameAppWindows: Bool
+    /// Summoning the same workspace already borrowed on the interaction
+    /// display dismisses that borrow instead of re-docking it.
+    public var toggleBorrowOnRepeat: Bool
     /// Default edge a borrow docks to. `nil` → no default: a direction key is
     /// picked after the borrow combo. A per-workspace `borrowEdge` overrides.
     public var borrowDefaultEdge: BorrowEdge?
@@ -693,8 +711,10 @@ extension AppSettings {
       case skipEmpty
       case followAppFocus
       case cycleAcrossDisplays
+      case recentAcrossDisplays
       case switchToRecentWhenEmpty
       case cycleSameAppWindows
+      case toggleBorrowOnRepeat
       case borrowDefaultEdge
       case borrowFraction
     }
@@ -711,18 +731,30 @@ extension AppSettings {
 
     public init(
       enabled: Bool = false,
-      fingerCount: Int = 3,
+      threeFinger: GestureBindings = .workspaceSwitch,
+      fourFinger: GestureBindings = GestureBindings(),
       threshold: Double = 0.3,
     ) {
       self.enabled = enabled
-      self.fingerCount = fingerCount
+      self.threeFinger = threeFinger
+      self.fourFinger = fourFinger
       self.threshold = Self.roundedThreshold(threshold)
     }
 
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       enabled = c.decode(.enabled, default: false)
-      fingerCount = c.decode(.fingerCount, default: 3)
+      if c.contains(.threeFinger) || c.contains(.fourFinger) {
+        threeFinger = c.decode(.threeFinger, default: GestureBindings())
+        fourFinger = c.decode(.fourFinger, default: GestureBindings())
+      } else {
+        // Legacy configs selected one finger count and hard-wired horizontal
+        // swipes to workspace switching. Preserve that exact binding on the
+        // selected finger count; leave the other count unbound.
+        let legacyFingerCount = c.decode(.fingerCount, default: 3)
+        threeFinger = legacyFingerCount == 4 ? GestureBindings() : .workspaceSwitch
+        fourFinger = legacyFingerCount == 4 ? .workspaceSwitch : GestureBindings()
+      }
       if let value = try? c.decode(Double.self, forKey: .threshold) {
         threshold = Self.roundedThreshold(value)
       } else if let sensitivity = try? c.decode(Double.self, forKey: .sensitivity) {
@@ -737,10 +769,10 @@ extension AppSettings {
 
     // MARK: Public
 
-    /// Horizontal trackpad swipe switches workspaces.
+    /// Enable the gesture event tap and dispatch configured bindings.
     public var enabled: Bool
-    /// Number of fingers required for the swipe (3 or 4).
-    public var fingerCount: Int
+    public var threeFinger: GestureBindings
+    public var fourFinger: GestureBindings
     /// Accumulated normalized swipe distance required to trigger a switch
     /// (lower = more sensitive). Kept to two decimal places so the TOML
     /// stays clean — `0.3`, not float noise.
@@ -765,10 +797,23 @@ extension AppSettings {
       roundedThreshold(0.9 - 0.8 * sensitivity.clamped(to: 0 ... 1))
     }
 
+    public func action(
+      for gesture: TrackpadGesture
+    ) -> GestureAction {
+      let bindings: GestureBindings
+      switch gesture.fingerCount {
+      case 3: bindings = threeFinger
+      case 4: bindings = fourFinger
+      default: return .none
+      }
+      return bindings[gesture.direction]
+    }
+
     public func encode(to encoder: Encoder) throws {
       var c = encoder.container(keyedBy: CodingKeys.self)
       try c.encode(enabled, forKey: .enabled)
-      try c.encode(fingerCount, forKey: .fingerCount)
+      try c.encode(threeFinger, forKey: .threeFinger)
+      try c.encode(fourFinger, forKey: .fourFinger)
       try c.encode(Self.roundedThreshold(threshold), forKey: .threshold)
     }
 
@@ -776,11 +821,72 @@ extension AppSettings {
 
     private enum CodingKeys: String, CodingKey {
       case enabled
+      case threeFinger
+      case fourFinger
+      // Decode-only legacy key.
       case fingerCount
       case threshold
       case sensitivity
     }
 
+  }
+
+  public struct GestureBindings: Hashable, Sendable, Codable {
+    public init(
+      left: GestureAction = .none,
+      right: GestureAction = .none,
+      up: GestureAction = .none,
+      down: GestureAction = .none,
+    ) {
+      self.left = left
+      self.right = right
+      self.up = up
+      self.down = down
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      left = c.decode(.left, default: .none)
+      right = c.decode(.right, default: .none)
+      up = c.decode(.up, default: .none)
+      down = c.decode(.down, default: .none)
+    }
+
+    public var left: GestureAction
+    public var right: GestureAction
+    public var up: GestureAction
+    public var down: GestureAction
+
+    public subscript(direction: GestureDirection) -> GestureAction {
+      get {
+        switch direction {
+        case .left: left
+        case .right: right
+        case .up: up
+        case .down: down
+        }
+      }
+      set {
+        switch direction {
+        case .left: left = newValue
+        case .right: right = newValue
+        case .up: up = newValue
+        case .down: down = newValue
+        }
+      }
+    }
+
+    public static let workspaceSwitch = Self(
+      left: .nextWorkspace,
+      right: .previousWorkspace,
+    )
+
+    private enum CodingKeys: String, CodingKey {
+      case left
+      case right
+      case up
+      case down
+    }
   }
 }
 

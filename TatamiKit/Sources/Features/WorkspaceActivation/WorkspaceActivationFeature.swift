@@ -57,6 +57,19 @@ public struct WorkspaceActivationFeature {
       public var workspaceId: Workspace.ID
     }
 
+    /// A native-style keyboard window-cycle session. The focused window does
+    /// not move while the shortcut modifier is held; repeated presses only
+    /// advance `selected`, and releasing the modifier commits exactly once.
+    public struct WindowCycleSession: Equatable, Sendable {
+      public var workspaceId: Workspace.ID
+      public var windows: [WindowKey]
+      public var selected: WindowKey
+      public var byWindow: Bool
+      public var display: DisplayName?
+      public var holdModifiers: HotKeyModifiers
+      public var isHUDVisible: Bool
+    }
+
     /// What the in-flight manual drag will commit at mouse-up. One enum
     /// instead of three optionals: the commit outcomes are mutually
     /// exclusive, and the old triple admitted stale combinations (e.g. a
@@ -159,6 +172,7 @@ public struct WorkspaceActivationFeature {
     /// capturing. Set by the borrow combo; a direction keystroke commits the
     /// borrow at that edge without re-resolving its monitor mid-chord.
     public var borrowCapture: BorrowCapture?
+    public var windowCycleSession: WindowCycleSession?
 
     /// Warned about missing Screen Recording once already (per session) —
     /// floating windows silently lose their always-on-top mirrors without
@@ -440,6 +454,16 @@ public struct WorkspaceActivationFeature {
     /// off-screen / other-space / minimized windows are excluded.
     case cycleWindow(CycleDirection)
     case cycleWindowResolved(windowKey: WindowKey, direction: CycleDirection)
+    /// Keyboard-only entry path with Cmd-Tab semantics. Gesture/menu actions
+    /// continue through `cycleWindow` and commit immediately.
+    case cycleWindowShortcut(CycleDirection, holdModifiers: HotKeyModifiers)
+    case cycleWindowShortcutResolved(
+      windowKey: WindowKey,
+      direction: CycleDirection,
+      holdModifiers: HotKeyModifiers
+    )
+    case windowCycleHUDDelayElapsed
+    case windowCycleModifierReleased
     case bspSwap(BSPDirection)
     case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspToggleOrientation
@@ -502,6 +526,9 @@ public struct WorkspaceActivationFeature {
     // MARK: Public
 
     public enum Delegate: Equatable {
+      /// A gesture assigned an app into a workspace owned by another
+      /// profile. AppFeature owns the actual profile switch transaction.
+      case profileSwitchRequested(Profile.ID, focus: Workspace.ID?)
       /// A display rule matched and this feature already retiled for it —
       /// AppFeature runs the remaining switch side effects.
       case profileAutoActivated(Profile.ID)
@@ -1194,6 +1221,17 @@ public struct WorkspaceActivationFeature {
           let display = displays.current() ?? state.focusedDisplay
           ?? state.activeWorkspacesByDisplay.keys.first
         else { return .none }
+        // A repeated summon is a toggle by default. Resolve it before the
+        // direction picker so an "Ask" configuration can dismiss immediately
+        // instead of requiring a meaningless re-dock direction first.
+        if
+          state.config.settings.switching.toggleBorrowOnRepeat,
+          state.compositionsByDisplay[display]?.borrowed.contains(where: {
+            $0.workspace == workspaceId
+          }) == true
+        {
+          return dismissBorrow(display: display, state: &state)
+        }
         // Can't borrow the workspace that's already active on this display.
         if state.activeWorkspacesByDisplay[display] == workspaceId {
           debugLog.log("Borrow", "skip borrow of current workspace \(ws.name)")
@@ -1284,15 +1322,28 @@ public struct WorkspaceActivationFeature {
         return cycle(by: -1, state: &state)
 
       case .activateRecent:
-        // The recent workspace on the display the user is on (falls back to
-        // any recent for single-display / unknown focus).
-        let recent = state.focusedDisplay.flatMap { state.previousWorkspacesByDisplay[$0] }
-          ?? state.previousWorkspacesByDisplay.values.first
+        let switching = state.config.settings.switching
+        let recent = recentWorkspaceId(state: state, display: state.focusedDisplay)
         guard let recent else {
           debugLog.log("Activate", "recent: no previous workspace recorded")
           return .none
         }
-        return .send(.activate(workspaceId: recent, setFocus: true))
+        guard switching.recentAcrossDisplays else {
+          return .send(.activate(workspaceId: recent, setFocus: true))
+        }
+        // If the global recent workspace is already on another display, this
+        // is a focus transfer — keep it there. A plain dynamic activation would
+        // resolve through the cursor and pull the workspace onto this display.
+        state.pendingDisplayRestores = []
+        return .merge(
+          .cancel(id: CancelID.activationSettle),
+          performActivate(
+            workspaceId: recent,
+            setFocus: true,
+            displayOverride: state.displayShowing(recent),
+            state: &state,
+          ),
+        )
 
       case .focusAdjacentDisplay(let direction):
         let ordered = displays.all()
@@ -1446,6 +1497,10 @@ public struct WorkspaceActivationFeature {
             $0.assignApp(bundleId: bundleId, name: name, to: workspaceId)
           }
           state.tilingTrees[workspaceId] = nil
+          if let owner = state.config.profileId(owning: workspaceId),
+             owner != state.config.activeProfile?.id {
+            return .send(.delegate(.profileSwitchRequested(owner, focus: workspaceId)))
+          }
           // Switch to the target so the just-assigned app is visible there.
           return .send(.activate(workspaceId: workspaceId, setFocus: true))
         }
@@ -1474,86 +1529,103 @@ public struct WorkspaceActivationFeature {
         }
 
       case .cycleWindowResolved(let key, let direction):
-        guard
-          let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
-          let tree = state.tilingTrees[workspaceId]
-        else { return .none }
-        // Cycle within the focused block. Floating/unmanaged join only when
-        // uncomposed (their bundle sets resolve per active workspace, not per
-        // block); each window is its own key so same-app windows cycle.
-        var allWindows = tree.windows
-        let isComposed = state.displayShowing(workspaceId)
-          .flatMap { state.compositionsByDisplay[$0] } != nil
-        if !isComposed {
-          let floatingBundles = Self.floatingBundleIds(
-            state: state,
-            workspaceIDs: [workspaceId],
-          )
-          if !floatingBundles.isEmpty {
-            allWindows += windowSnapshot.cachedKeys(floatingBundles, false)
-          }
-          let unmanagedBundles = Self.unmanagedBundleIds(
-            state: state,
-            workspaceIDs: [workspaceId],
-          )
-          if !unmanagedBundles.isEmpty {
-            allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
-          }
-        }
-        // App-level cycling (the default) keeps one representative window per
-        // app, so a press lands on the next *app*; window-level cycling walks
-        // every window, including same-app ones.
-        let byWindow = state.config.settings.switching.cycleSameAppWindows
-        var ordered = allWindows
-        if !byWindow {
-          var seenApps = Set<String>()
-          ordered = allWindows.filter { seenApps.insert($0.bundleId).inserted }
-        }
-        guard ordered.count > 1 else { return .none }
-        let n = ordered.count
-        let step = direction == .next ? 1 : -1
-        let idx = byWindow
-          ? (ordered.firstIndex(of: key) ?? -1)
-          : (ordered.firstIndex { $0.bundleId == key.bundleId } ?? -1)
-        var target = ordered[((idx + step) % n + n) % n]
-        // App-level cycle lands on the target app's most-recently-focused
-        // window, not its first-in-tree representative — so returning to an app
-        // restores the window you last used there (e.g. Dia's personal window,
-        // not work). Falls back to the representative if the app has no MRU yet.
-        if !byWindow {
-          let mru = state.mruWindows[workspaceId] ?? []
-          let live = Set(allWindows)
-          if let recent = mru.first(where: { $0.bundleId == target.bundleId && live.contains($0) }) {
-            target = recent
-          }
-        }
-        guard target != key else { return .none }
-        debugLog.log(
-          "BSP",
-          "cycle \(direction) \(key.bundleId)#\(key.windowID) "
-            + "→ \(target.bundleId)#\(target.windowID)",
+        guard let cycle = windowCycle(
+          from: key,
+          direction: direction,
+          holdModifiers: [],
+          state: state
+        ) else { return .none }
+        return .merge(
+          commitWindowCycle(cycle, state: state),
+          state.config.settings.hud.shows(\.windowCycle)
+            ? showWindowCycleHUD(
+              cycle,
+              autoDismissAfterMs: state.config.settings.hud.durationMs
+            )
+            : .none,
         )
-        let cycleSettings = state.config.settings
-        let (cycleDisplay, cycleRect) = tilingContext(for: workspaceId, state: state)
-        let cycleWarp = cycleSettings.focus.mouseFollowsFocus
-        let cycleZoomed = state.fullscreenZoomed[workspaceId] ?? []
-        return .run { [mouse = mouse, focus = focusManager, target] _ in
-          await focus.focusWindow(target)
-          if cycleWarp {
-            let frames = await MainActor.run {
-              Self.computeFrames(
-                tree: tree,
-                settings: cycleSettings,
-                targetDisplay: cycleDisplay,
-                fullscreenZoomed: cycleZoomed,
-                targetRect: cycleRect,
-              )
-            }
-            if let rect = frames[target] {
-              mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
-            }
-          }
+
+      case .cycleWindowShortcut(let direction, let holdModifiers):
+        guard !holdModifiers.isEmpty else { return .send(.cycleWindow(direction)) }
+        if let current = state.windowCycleSession {
+          guard var next = windowCycle(
+            from: current.selected,
+            direction: direction,
+            holdModifiers: current.holdModifiers,
+            state: state
+          ) else { return .none }
+          next.isHUDVisible = current.isHUDVisible
+          state.windowCycleSession = next
+          return next.isHUDVisible
+            ? showWindowCycleHUD(next, autoDismissAfterMs: nil)
+            : .none
         }
+        return resolveFocusedWindowKey { key in
+          .cycleWindowShortcutResolved(
+            windowKey: key,
+            direction: direction,
+            holdModifiers: holdModifiers
+          )
+        }
+
+      case .cycleWindowShortcutResolved(let key, let direction, let holdModifiers):
+        // Two key presses can resolve their focused window concurrently. Once
+        // the first created the session, replay the later press against its
+        // logical selection instead of the still-physically-focused window.
+        if state.windowCycleSession != nil {
+          return .send(.cycleWindowShortcut(direction, holdModifiers: holdModifiers))
+        }
+        guard let cycle = windowCycle(
+          from: key,
+          direction: direction,
+          holdModifiers: holdModifiers,
+          state: state
+        ) else { return .none }
+        state.windowCycleSession = cycle
+
+        var effects: [Effect<Action>] = [
+          .run { [clock, modifierKeys, holdModifiers] send in
+            while modifierKeys.current().intersection(holdModifiers) == holdModifiers {
+              try await clock.sleep(for: .milliseconds(10))
+            }
+            await send(.windowCycleModifierReleased)
+          }
+          .cancellable(id: CancelID.windowCycleModifier, cancelInFlight: true)
+        ]
+        if state.config.settings.hud.shows(\.windowCycle) {
+          effects.append(
+            .run { [clock] send in
+              try await clock.sleep(for: .milliseconds(150))
+              await send(.windowCycleHUDDelayElapsed)
+            }
+            .cancellable(id: CancelID.windowCycleHUDDelay, cancelInFlight: true)
+          )
+        }
+        return .merge(effects)
+
+      case .windowCycleHUDDelayElapsed:
+        guard var cycle = state.windowCycleSession,
+              state.config.settings.hud.shows(\.windowCycle)
+        else { return .none }
+        cycle.isHUDVisible = true
+        state.windowCycleSession = cycle
+        return showWindowCycleHUD(cycle, autoDismissAfterMs: nil)
+
+      case .windowCycleModifierReleased:
+        guard let cycle = state.windowCycleSession else { return .none }
+        state.windowCycleSession = nil
+        return .merge(
+          .cancel(id: CancelID.windowCycleHUDDelay),
+          .cancel(id: CancelID.windowCycleModifier),
+          commitWindowCycle(cycle, state: state),
+          cycle.isHUDVisible
+            ? .run { [workspaceHUD, display = cycle.display] _ in
+              // `dismissWindowSwitcher` starts the existing 0.25-second fade;
+              // it does not hard-hide the panel on modifier release.
+              await workspaceHUD.dismissWindowSwitcher(display)
+            }
+            : .none,
+        )
 
       case .bspFocus(let direction):
         return resolveFocusedWindowKey { key in
@@ -1906,6 +1978,10 @@ public struct WorkspaceActivationFeature {
     /// a slow activation runs (an app being slow to launch, AX waits
     /// under load) is never swallowed.
     case activation
+    /// The delayed HUD reveal and modifier polling have distinct lifetimes:
+    /// a quick tap cancels the reveal, while the polling task owns the session.
+    case windowCycleHUDDelay
+    case windowCycleModifier
     /// Focus can move again while a cursor warp is waiting for the main actor.
     /// Only the newest focused window in a workspace may move the cursor.
     case warp(Workspace.ID)
@@ -1927,6 +2003,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.modifierKeys) var modifierKeys
   @Dependency(\.borrowChord) var borrowChord
   @Dependency(\.sls) var sls
 
@@ -2049,6 +2126,131 @@ public struct WorkspaceActivationFeature {
       true
     default:
       false
+    }
+  }
+
+  /// Resolve one logical step without moving focus. Both immediate gesture
+  /// cycling and held-modifier keyboard sessions share this ordering/MRU path,
+  /// so their app-level and window-level behavior cannot drift.
+  private func windowCycle(
+    from key: WindowKey,
+    direction: CycleDirection,
+    holdModifiers: HotKeyModifiers,
+    state: State,
+  ) -> State.WindowCycleSession? {
+    guard
+      let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
+      let tree = state.tilingTrees[workspaceId]
+    else { return nil }
+
+    // Cycle within the focused block. Floating/unmanaged join only when
+    // uncomposed (their bundle sets resolve per active workspace, not per
+    // block); each window is its own key so same-app windows cycle.
+    var allWindows = tree.windows
+    let isComposed = state.displayShowing(workspaceId)
+      .flatMap { state.compositionsByDisplay[$0] } != nil
+    if !isComposed {
+      let floatingBundles = Self.floatingBundleIds(
+        state: state,
+        workspaceIDs: [workspaceId],
+      )
+      if !floatingBundles.isEmpty {
+        allWindows += windowSnapshot.cachedKeys(floatingBundles, false)
+      }
+      let unmanagedBundles = Self.unmanagedBundleIds(
+        state: state,
+        workspaceIDs: [workspaceId],
+      )
+      if !unmanagedBundles.isEmpty {
+        allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
+      }
+    }
+
+    let byWindow = state.config.settings.switching.cycleSameAppWindows
+    var ordered = allWindows
+    if !byWindow {
+      var seenApps = Set<String>()
+      ordered = allWindows.filter { seenApps.insert($0.bundleId).inserted }
+    }
+    guard ordered.count > 1 else { return nil }
+
+    let count = ordered.count
+    let step = direction == .next ? 1 : -1
+    let index = byWindow
+      ? (ordered.firstIndex(of: key) ?? -1)
+      : (ordered.firstIndex { $0.bundleId == key.bundleId } ?? -1)
+    var target = ordered[((index + step) % count + count) % count]
+
+    // App-level cycle lands on that app's most-recently-focused window rather
+    // than whichever representative happened to appear first in the tree.
+    if !byWindow {
+      let mru = state.mruWindows[workspaceId] ?? []
+      let live = Set(allWindows)
+      if let recent = mru.first(where: {
+        $0.bundleId == target.bundleId && live.contains($0)
+      }) {
+        target = recent
+      }
+    }
+    guard target != key else { return nil }
+
+    debugLog.log(
+      "BSP",
+      "cycle \(direction) \(key.bundleId)#\(key.windowID) "
+        + "→ \(target.bundleId)#\(target.windowID)",
+    )
+    return State.WindowCycleSession(
+      workspaceId: workspaceId,
+      windows: ordered,
+      selected: target,
+      byWindow: byWindow,
+      display: tilingContext(for: workspaceId, state: state).display,
+      holdModifiers: holdModifiers,
+      isHUDVisible: false
+    )
+  }
+
+  private func commitWindowCycle(
+    _ cycle: State.WindowCycleSession,
+    state: State,
+  ) -> Effect<Action> {
+    guard let tree = state.tilingTrees[cycle.workspaceId] else { return .none }
+    let settings = state.config.settings
+    let target = cycle.selected
+    let shouldWarp = settings.focus.mouseFollowsFocus
+    let zoomed = state.fullscreenZoomed[cycle.workspaceId] ?? []
+    let targetRect = tilingContext(for: cycle.workspaceId, state: state).rect
+    return .run { [mouse, focusManager] _ in
+      await focusManager.focusWindow(target)
+      if shouldWarp {
+        let frames = await MainActor.run {
+          Self.computeFrames(
+            tree: tree,
+            settings: settings,
+            targetDisplay: cycle.display,
+            fullscreenZoomed: zoomed,
+            targetRect: targetRect,
+          )
+        }
+        if let rect = frames[target] {
+          mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
+        }
+      }
+    }
+  }
+
+  private func showWindowCycleHUD(
+    _ cycle: State.WindowCycleSession,
+    autoDismissAfterMs: Int?,
+  ) -> Effect<Action> {
+    .run { [workspaceHUD] _ in
+      await workspaceHUD.showWindowSwitcher(
+        cycle.windows,
+        cycle.selected,
+        cycle.byWindow,
+        autoDismissAfterMs,
+        cycle.display
+      )
     }
   }
 

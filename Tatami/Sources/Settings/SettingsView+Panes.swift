@@ -282,6 +282,10 @@ extension SettingsView {
         Text("Cycle across all displays")
         Text("Next/previous workspace cycles through every display's workspaces instead of just the one under the cursor.")
       }
+      Toggle(isOn: setting(\.switching.recentAcrossDisplays)) {
+        Text("Recent workspace crosses displays")
+        Text("Recent actions combine every display's workspace history into one global MRU. Off only uses the current display's recent workspace.")
+      }
       Toggle(isOn: setting(\.switching.switchToRecentWhenEmpty)) {
         Text("Back to recent when empty")
         Text("When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway.")
@@ -337,6 +341,10 @@ extension SettingsView {
     }
 
     Section("Borrow") {
+      Toggle(isOn: setting(\.switching.toggleBorrowOnRepeat)) {
+        Text("Dismiss when summoned again")
+        Text("Calling the same workspace already borrowed on this display returns it and restores the host workspace.")
+      }
       Picker(
         selection: Binding(
           get: { config.settings.switching.borrowDefaultEdge },
@@ -437,17 +445,9 @@ extension SettingsView {
   var gesturesPane: some View {
     Section("Trackpad") {
       Toggle(isOn: setting(\.gestures.enabled)) {
-        Text("Swipe to switch workspaces")
-        Text("Swipe left/right on the trackpad to move to the next/previous workspace.")
+        Text("Enable trackpad gestures")
+        Text("Run a Tatami action when a configured three- or four-finger swipe is recognized.")
       }
-      Picker(selection: setting(\.gestures.fingerCount)) {
-        Text("Three fingers").tag(3)
-        Text("Four fingers").tag(4)
-      } label: {
-        Text("Fingers")
-        Text("Number of fingers for the swipe gesture.")
-      }
-      .disabled(!config.settings.gestures.enabled)
 
       // `Gestures.sensitivity` owns the threshold ↔ sensitivity mapping
       // (inverse of the swipe distance: higher = shorter swipe). Debounced so
@@ -466,6 +466,20 @@ extension SettingsView {
       )
       .disabled(!config.settings.gestures.enabled)
     }
+
+    GestureBindingsSection(
+      title: "Three-Finger Swipes",
+      bindings: setting(\.gestures.threeFinger),
+      isEnabled: config.settings.gestures.enabled,
+      config: config
+    )
+
+    GestureBindingsSection(
+      title: "Four-Finger Swipes",
+      bindings: setting(\.gestures.fourFinger),
+      isEnabled: config.settings.gestures.enabled,
+      config: config
+    )
   }
 
   // MARK: - Appearance
@@ -505,6 +519,10 @@ extension SettingsView {
         Toggle(isOn: setting(\.hud.workspaceSwitch)) {
           Text("Workspace switch")
           Text("The workspace's name when you switch to it.")
+        }
+        Toggle(isOn: setting(\.hud.windowCycle)) {
+          Text("Window cycling")
+          Text("A centered app or window switcher while cycling with the configured shortcuts.")
         }
         Toggle(isOn: setting(\.hud.profileSwitch)) {
           Text("Profile switch")
@@ -785,6 +803,110 @@ extension SettingsView {
       }
     } else {
       recorder
+    }
+  }
+}
+
+private struct GestureBindingsSection: View {
+  let title: LocalizedStringResource
+  @Binding var bindings: AppSettings.GestureBindings
+  let isEnabled: Bool
+  let config: AppConfig
+
+  var body: some View {
+    Section(title) {
+      GestureBindingPicker(
+        direction: .left, selection: $bindings.left,
+        config: config
+      )
+      GestureBindingPicker(
+        direction: .right, selection: $bindings.right,
+        config: config
+      )
+      GestureBindingPicker(
+        direction: .up, selection: $bindings.up,
+        config: config
+      )
+      GestureBindingPicker(
+        direction: .down, selection: $bindings.down,
+        config: config
+      )
+    }
+    .disabled(!isEnabled)
+  }
+}
+
+private struct GestureBindingPicker: View {
+  let direction: GestureDirection
+  @Binding var selection: GestureAction
+  let config: AppConfig
+
+  var body: some View {
+    LabeledContent {
+      Menu {
+        ForEach(GestureAction.Category.allCases) { category in
+          if !category.actions.isEmpty {
+            Section(category.title) {
+              ForEach(category.actions) { action in
+                actionButton(action)
+              }
+            }
+          }
+        }
+        if !config.profiles.isEmpty {
+          Section("Profiles & Workspaces") {
+            ForEach(config.profiles) { profile in
+              Menu(profile.name) {
+                actionButton(.activateProfile(profile.id))
+                if !profile.workspaces.isEmpty {
+                  Divider()
+                  ForEach(profile.workspaces) { workspace in
+                    Menu(workspace.name) {
+                      actionButton(.activateWorkspace(workspace.id))
+                      actionButton(.assignAppToWorkspace(workspace.id))
+                      if profile.id == config.activeProfile?.id {
+                        actionButton(.borrowWorkspace(workspace.id))
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        if !selection.isAvailable(in: config) {
+          Section("Unavailable") {
+            actionButton(selection)
+          }
+        }
+      } label: {
+        Text(selection.title(in: config))
+      }
+      .menuStyle(.borderlessButton)
+      .fixedSize(horizontal: true, vertical: false)
+    } label: {
+      Label {
+        Text(direction.title)
+      } icon: {
+        Image(systemName: direction.symbolName)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func actionButton(_ action: GestureAction) -> some View {
+    Button {
+      selection = action
+    } label: {
+      if action == selection {
+        Label {
+          Text(action.title(in: config))
+        } icon: {
+          Image(systemName: "checkmark")
+        }
+      } else {
+        Text(action.title(in: config))
+      }
     }
   }
 }

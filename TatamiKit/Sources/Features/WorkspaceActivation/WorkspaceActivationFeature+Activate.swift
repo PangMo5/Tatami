@@ -985,8 +985,9 @@ extension WorkspaceActivationFeature {
   }
 
   /// Borrow `targetId` into the pointer display's host workspace, docked to
-  /// `edge`. Re-borrowing a target already borrowed there just re-docks it to
-  /// the new edge. Live: the borrowed block reuses the target's real tree, so
+  /// `edge`. Re-borrowing a target already borrowed there dismisses it when
+  /// `toggleBorrowOnRepeat` is on, otherwise it re-docks to the new edge. Live:
+  /// the borrowed block reuses the target's real tree, so
   /// edits persist to it. Only the borrowed workspace's *tiled* apps take part
   /// — its floating / unmanaged apps are ignored while borrowed.
   func performBorrow(
@@ -1004,12 +1005,16 @@ extension WorkspaceActivationFeature {
       hostId != targetId,
       let hostWs = profile.workspaces[id: hostId]
     else { return .none }
-    // Already borrowed here → re-dock to the new edge instead of toggling off
-    // (the apps are already visible, so just re-flush the composition).
+    // Already borrowed here → dismiss by default. Users who want repeated
+    // summons to move/refocus the block can turn the toggle behavior off.
     if
       let existing = state.compositionsByDisplay[display],
       let idx = existing.borrowed.firstIndex(where: { $0.workspace == targetId })
     {
+      if state.config.settings.switching.toggleBorrowOnRepeat {
+        debugLog.log("Borrow", "repeat summon \(target.name) → dismiss")
+        return dismissBorrow(display: display, state: &state)
+      }
       var comp = existing
       comp.borrowed[idx].edge = edge
       state.compositionsByDisplay[display] = comp
@@ -1131,11 +1136,26 @@ extension WorkspaceActivationFeature {
   /// End the borrow on `display`: drop the composition and re-activate the
   /// host alone, which hides the borrowed apps (no longer in keepVisible) and
   /// re-tiles the host to the full work area. Fire-and-forget.
-  /// The recent workspace on an explicit interaction display (then the focused
-  /// display, then any recent) — the target for recent activate / assign / borrow.
+  /// The recent target shared by switch / assign / borrow. The default is a
+  /// strict per-display history; global mode walks workspace MRU across every
+  /// display while excluding the workspace on the interaction display.
   func recentWorkspaceId(state: State, display: DisplayName? = nil) -> Workspace.ID? {
-    (display ?? state.focusedDisplay).flatMap { state.previousWorkspacesByDisplay[$0] }
-      ?? state.previousWorkspacesByDisplay.values.first
+    let interactionDisplay = display ?? state.focusedDisplay
+    guard let workspaces = state.config.activeProfile?.workspaces else { return nil }
+    let isEligible: (Workspace.ID) -> Bool = { id in
+      workspaces[id: id]?.kind == .normal
+    }
+    guard state.config.settings.switching.recentAcrossDisplays else {
+      if let interactionDisplay {
+        return state.previousWorkspacesByDisplay[interactionDisplay].flatMap {
+          isEligible($0) ? $0 : nil
+        }
+      }
+      return state.previousWorkspacesByDisplay.values.first(where: isEligible)
+    }
+    let current = interactionDisplay.flatMap { state.activeWorkspacesByDisplay[$0] }
+      ?? state.primaryActiveWorkspaceID
+    return state.workspaceMRU.first { $0 != current && isEligible($0) }
   }
 
   func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {

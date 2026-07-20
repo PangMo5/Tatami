@@ -18,6 +18,23 @@ public struct HotKey: Hashable, Sendable {
   }
 }
 
+/// The modifier portion of a registered global shortcut, expressed in the
+/// same Carbon bit domain as `HotKey.carbonModifiers`. Keeping this semantic
+/// type out of the reducer prevents raw integer masks from leaking into the
+/// window-switching session state.
+public struct HotKeyModifiers: OptionSet, Hashable, Sendable {
+  public let rawValue: Int
+
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+
+  public static let command = Self(rawValue: HotKey.cmd)
+  public static let shift = Self(rawValue: HotKey.shift)
+  public static let option = Self(rawValue: HotKey.option)
+  public static let control = Self(rawValue: HotKey.control)
+}
+
 extension HotKey {
   public init(_ keyCombo: KeyCombo) {
     self.init(
@@ -30,6 +47,16 @@ extension HotKey {
   /// stored codes don't form a valid combo (Magnet validates the pair).
   public var keyCombo: KeyCombo? {
     KeyCombo(QWERTYKeyCode: carbonKeyCode, carbonModifiers: carbonModifiers)
+  }
+
+  /// Modifiers that keep a native-style switcher session open. Shift is a
+  /// direction modifier for conventional reverse bindings such as
+  /// Option-Shift-Tab, so releasing Shift must not commit while Option is
+  /// still down. A Shift-only shortcut still uses Shift as its hold key.
+  public var holdModifiers: HotKeyModifiers {
+    let modifiers = HotKeyModifiers(rawValue: carbonModifiers)
+    let withoutShift = modifiers.subtracting(.shift)
+    return withoutShift.isEmpty ? modifiers : withoutShift
   }
 }
 

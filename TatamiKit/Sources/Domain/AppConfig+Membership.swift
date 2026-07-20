@@ -108,11 +108,9 @@ extension AppConfig {
   public mutating func assignApp(
     bundleId: String, name: String, to workspaceId: Workspace.ID
   ) {
-    mutateActiveProfile { profile in
-      guard let workspace = profile.workspaces[id: workspaceId],
-            !workspace.apps.contains(where: { $0.bundleIdentifier == bundleId })
-      else { return }
-      profile.workspaces[id: workspaceId]?.apps.append(
+    mutateWorkspace(workspaceId) { workspace in
+      guard !workspace.apps.contains(where: { $0.bundleIdentifier == bundleId }) else { return }
+      workspace.apps.append(
         AppAssignment(bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name)
       )
     }

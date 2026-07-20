@@ -20,6 +20,16 @@ struct WorkspaceHUDClient: Sendable {
     _ name: String, _ symbolIconName: String?, _ subtitle: String?,
     _ durationMs: Int, _ display: DisplayName?
   ) async -> Void
+  /// Native Cmd-Tab-style switcher for Tatami's app/window cycle. App-level
+  /// mode highlights by bundle id; window-level mode highlights the exact
+  /// `WindowKey`, so multiple windows from one app remain distinguishable.
+  var showWindowSwitcher: @Sendable (
+    _ windows: [WindowKey], _ selected: WindowKey, _ byWindow: Bool,
+    _ autoDismissAfterMs: Int?, _ display: DisplayName?
+  ) async -> Void
+  /// Commit a native-style switcher session: begin its fade immediately on
+  /// the display it occupied. Other HUD kinds on that screen are untouched.
+  var dismissWindowSwitcher: @Sendable (_ display: DisplayName?) async -> Void
   /// Fade out the current HUD immediately (e.g. cancelling borrow mode).
   var dismiss: @Sendable () async -> Void
 }
@@ -41,12 +51,28 @@ extension WorkspaceHUDClient: DependencyKey {
           durationMs: durationMs, display: display
         )
       },
+      showWindowSwitcher: { windows, selected, byWindow, autoDismissAfterMs, display in
+        await controller.showWindowSwitcher(
+          windows: windows,
+          selected: selected,
+          byWindow: byWindow,
+          autoDismissAfterMs: autoDismissAfterMs,
+          display: display
+        )
+      },
+      dismissWindowSwitcher: { display in
+        await controller.dismissWindowSwitcher(display: display)
+      },
       dismiss: { await controller.dismiss() }
     )
   }()
 
   static let testValue = WorkspaceHUDClient(
-    show: { _, _, _, _ in }, showOnDisplay: { _, _, _, _, _ in }, dismiss: {}
+    show: { _, _, _, _ in },
+    showOnDisplay: { _, _, _, _, _ in },
+    showWindowSwitcher: { _, _, _, _, _ in },
+    dismissWindowSwitcher: { _ in },
+    dismiss: {}
   )
   static let previewValue = testValue
 }
@@ -65,10 +91,20 @@ private final class WorkspaceHUDController {
   /// "focus moved" note on the one being left), so a single shared panel
   /// would clobber one of them.
   private struct Entry {
+    enum Kind {
+      case action
+      case windowSwitcher
+    }
+
     let panel: NSPanel
     var hideTask: Task<Void, Never>?
+    let kind: Kind
   }
   private var entries: [CGDirectDisplayID: Entry] = [:]
+  private var appMetadataByBundleID: [String: (name: String, icon: NSImage)] = [:]
+  private var windowTitlesByKey: [WindowKey: String] = [:]
+  private var resolvedWindowTitleKeys = Set<WindowKey>()
+  private var windowTitlesUpdatedAt = Date.distantPast
   private let debugLog: DebugLogClient
 
   init(debugLog: DebugLogClient) {
@@ -108,7 +144,71 @@ private final class WorkspaceHUDController {
       guard !Task.isCancelled else { return }
       self?.fadeOut(screenID)
     }
-    entries[screenID] = Entry(panel: panel, hideTask: hideTask)
+    entries[screenID] = Entry(panel: panel, hideTask: hideTask, kind: .action)
+  }
+
+  func showWindowSwitcher(
+    windows: [WindowKey],
+    selected: WindowKey,
+    byWindow: Bool,
+    autoDismissAfterMs: Int?,
+    display: DisplayName?
+  ) {
+    guard !windows.isEmpty,
+          let screen = resolveScreen(display),
+          let screenID = screen.displayID
+    else { return }
+    debugLog.log(
+      "HUDDiag",
+      "window switcher count=\(windows.count) byWindow=\(byWindow) "
+        + "selected=\(selected.bundleId)#\(selected.windowID) "
+        + "display=\(display?.name ?? "cursor")"
+    )
+    let panel: NSPanel
+    if let current = entries[screenID], current.kind == .windowSwitcher {
+      // Key repeat updates the existing visible switcher and replaces only its
+      // hide task. Creating and ordering a new panel for every repeat makes
+      // fast cycling feel laggy even when focus itself is instantaneous.
+      current.hideTask?.cancel()
+      panel = current.panel
+    } else {
+      entries[screenID]?.hideTask?.cancel()
+      entries[screenID]?.panel.orderOut(nil)
+      panel = makePanel()
+    }
+
+    let items = windowSwitcherItems(windows, byWindow: byWindow)
+    panel.contentView = NSHostingView(
+      rootView: WindowSwitcherHUDView(
+        items: items,
+        selected: selected,
+        byWindow: byWindow
+      )
+    )
+    layoutWindowSwitcher(panel, itemCount: items.count, byWindow: byWindow, on: screen)
+    panel.alphaValue = 1
+    panel.orderFrontRegardless()
+
+    let hideTask = autoDismissAfterMs.map { durationMs in
+      Task { [weak self] in
+        try? await Task.sleep(for: .milliseconds(max(300, durationMs)))
+        guard !Task.isCancelled else { return }
+        self?.fadeOut(screenID)
+      }
+    }
+    entries[screenID] = Entry(
+      panel: panel,
+      hideTask: hideTask,
+      kind: .windowSwitcher
+    )
+  }
+
+  func dismissWindowSwitcher(display: DisplayName?) {
+    guard
+      let screenID = resolveScreen(display)?.displayID,
+      entries[screenID]?.kind == .windowSwitcher
+    else { return }
+    fadeOut(screenID)
   }
 
   func dismiss() {
@@ -178,6 +278,95 @@ private final class WorkspaceHUDController {
     )
     panel.setFrameOrigin(origin)
   }
+
+  private func layoutWindowSwitcher(
+    _ panel: NSPanel,
+    itemCount: Int,
+    byWindow: Bool,
+    on screen: NSScreen
+  ) {
+    let visible = screen.visibleFrame
+    // Keep the panel exactly aligned with the SwiftUI strip: 80-point items,
+    // 8-point inter-item spacing, and 14-point padding on both sides. The old
+    // estimate added 8 points per item plus another 16, which accumulated as
+    // a conspicuous empty area on the trailing edge.
+    let idealWidth = CGFloat(itemCount) * 80
+      + CGFloat(max(0, itemCount - 1)) * 8
+      + 28
+    let size = NSSize(
+      width: min(idealWidth, max(1, visible.width - 96)),
+      height: byWindow ? 168 : 148
+    )
+    panel.setContentSize(size)
+    // Unlike Tatami's glanceable action HUD near the bottom, a switcher is a
+    // temporary selection surface and follows native Cmd-Tab at screen center.
+    panel.setFrameOrigin(
+      NSPoint(x: visible.midX - size.width / 2, y: visible.midY - size.height / 2)
+    )
+  }
+
+  private func windowSwitcherItems(
+    _ windows: [WindowKey],
+    byWindow: Bool
+  ) -> [WindowSwitcherItem] {
+    if byWindow {
+      let now = Date()
+      let hasNewWindow = windows.contains { !resolvedWindowTitleKeys.contains($0) }
+      if hasNewWindow || now.timeIntervalSince(windowTitlesUpdatedAt) >= 0.5 {
+        // Reuse one snapshot during rapid key repeat, but refresh on the next
+        // cycle sequence so document/tab title changes never stay stale for
+        // the lifetime of the process.
+        windowTitlesByKey = windowTitles(windows)
+        resolvedWindowTitleKeys = Set(windows)
+        windowTitlesUpdatedAt = now
+      }
+    }
+    return windows.map { key in
+      let appMetadata: (name: String, icon: NSImage)
+      if let cached = appMetadataByBundleID[key.bundleId] {
+        appMetadata = cached
+      } else {
+        let app = NSRunningApplication(processIdentifier: key.pid)
+        let name = app?.localizedName
+          ?? key.bundleId.split(separator: ".").last.map(String.init)
+          ?? key.bundleId
+        appMetadata = (
+          name,
+          app?.icon
+            ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: name)
+            ?? NSImage()
+        )
+        appMetadataByBundleID[key.bundleId] = appMetadata
+      }
+      return WindowSwitcherItem(
+        key: key,
+        appName: appMetadata.name,
+        windowTitle: windowTitlesByKey[key],
+        icon: appMetadata.icon
+      )
+    }
+  }
+
+  /// One WindowServer snapshot for the whole strip. This stays presentation-
+  /// only and avoids serial AX title calls on the latency-sensitive focus path.
+  private func windowTitles(_ windows: [WindowKey]) -> [WindowKey: String] {
+    let wanted = Dictionary(uniqueKeysWithValues: windows.map { ($0.windowID, $0) })
+    let info = CGWindowListCopyWindowInfo(
+      [.optionOnScreenOnly, .excludeDesktopElements],
+      kCGNullWindowID
+    ) as? [[String: Any]] ?? []
+    var result = [WindowKey: String]()
+    for entry in info {
+      guard
+        let id = entry[kCGWindowNumber as String] as? CGWindowID,
+        let key = wanted[id],
+        let title = entry[kCGWindowName as String] as? String,
+        !title.isEmpty
+      else { continue }
+      result[key] = title
+    }
+    return result
+  }
 }
 
 private struct WorkspaceHUDView: View {
@@ -214,5 +403,90 @@ private struct WorkspaceHUDView: View {
             .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         )
     }
+  }
+}
+
+private struct WindowSwitcherItem: Identifiable {
+  let key: WindowKey
+  let appName: String
+  let windowTitle: String?
+  let icon: NSImage
+
+  var id: WindowKey { key }
+}
+
+@MainActor
+private struct WindowSwitcherHUDView: View {
+  let items: [WindowSwitcherItem]
+  let selected: WindowKey
+  let byWindow: Bool
+
+  var body: some View {
+    let selectedItem = items.first {
+      byWindow ? $0.key == selected : $0.key.bundleId == selected.bundleId
+    }?.key
+    let content = ScrollViewReader { proxy in
+      ScrollView(.horizontal) {
+        HStack(spacing: 8) {
+          ForEach(items) { item in
+            WindowSwitcherItemView(
+              item: item,
+              isSelected: item.key == selectedItem,
+              showsWindowTitle: byWindow
+            )
+          }
+        }
+        .padding(14)
+      }
+      .scrollIndicators(.hidden)
+      .onAppear {
+        if let selectedItem { proxy.scrollTo(selectedItem, anchor: .center) }
+      }
+    }
+
+    if #available(macOS 26.0, *) {
+      content.glassEffect(.regular, in: .rect(cornerRadius: 26))
+    } else {
+      content
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .overlay(
+          RoundedRectangle(cornerRadius: 24)
+            .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+        )
+    }
+  }
+}
+
+@MainActor
+private struct WindowSwitcherItemView: View {
+  let item: WindowSwitcherItem
+  let isSelected: Bool
+  let showsWindowTitle: Bool
+
+  var body: some View {
+    VStack(spacing: 7) {
+      Image(nsImage: item.icon)
+        .resizable()
+        .scaledToFit()
+        .frame(width: 58, height: 58)
+      Text(item.appName)
+        .font(.caption.weight(.medium))
+        .lineLimit(1)
+      if showsWindowTitle {
+        Text(item.windowTitle ?? "Window")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+      }
+    }
+    .frame(width: 80, height: showsWindowTitle ? 126 : 106)
+    .background(
+      RoundedRectangle(cornerRadius: 14)
+        .fill(isSelected ? Color.accentColor.opacity(0.28) : .clear)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 14)
+        .strokeBorder(isSelected ? Color.accentColor.opacity(0.8) : .clear, lineWidth: 2)
+    )
   }
 }

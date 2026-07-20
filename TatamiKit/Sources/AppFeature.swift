@@ -51,7 +51,7 @@ public struct AppFeature {
     case tabSelected(AppTab)
     /// The Settings view routed to `pendingSettingsSection`; clear it.
     case settingsSectionConsumed
-    case swiped(SwipeDirection)
+    case gesturePerformed(TrackpadGesture)
     /// Global settings changed on disk (e.g. via the Settings tab) —
     /// reconfigure the launch-time integrations that don't re-read
     /// config on their own (focus-follows-mouse, gesture tap).
@@ -145,8 +145,8 @@ public struct AppFeature {
           // Always consume swipe events; the tap itself is toggled on/off
           // in `.settingsChanged`.
           .run { [client = gestures] send in
-            for await direction in client.events() {
-              await send(.swiped(direction))
+            for await gesture in client.events() {
+              await send(.gesturePerformed(gesture))
             }
           },
           // React to live settings edits (Settings tab writes the shared
@@ -253,7 +253,7 @@ public struct AppFeature {
           .run { [client = gestures] _ in
             await client.stop()
             if settings.gestures.enabled {
-              await client.start(settings.gestures.fingerCount, settings.gestures.threshold)
+              await client.start(settings.gestures.threshold)
             }
           },
           // Re-register hotkey handlers so a shortcut newly recorded in
@@ -262,13 +262,32 @@ public struct AppFeature {
           .send(.hotKeys(.refreshBindings))
         )
 
-      case .swiped(let direction):
-        // Right swipe → previous workspace, left swipe → next (natural
-        // trackpad direction: content follows fingers).
-        return .send(.activation(direction == .right ? .activatePrevious : .activateNext))
+      case .gesturePerformed(let gesture):
+        guard state.config.settings.gestures.enabled else { return .none }
+        let action = state.config.settings.gestures.action(for: gesture)
+        guard let hotKeyAction = action.hotKeyAction else { return .none }
+        debugLog.log(
+          "Gesture",
+          "dispatch fingers=\(gesture.fingerCount) direction=\(gesture.direction) "
+            + "action=\(action.id)"
+        )
+        return route(hotKeyAction, config: state.config)
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
-        return route(hotKeyAction)
+        let holdModifiers: HotKeyModifiers?
+        switch hotKeyAction {
+        case .cycleNextWindow:
+          holdModifiers = state.config.settings.shortcuts.cycleNextWindow?.holdModifiers
+        case .cyclePreviousWindow:
+          holdModifiers = state.config.settings.shortcuts.cyclePreviousWindow?.holdModifiers
+        default:
+          holdModifiers = nil
+        }
+        return route(
+          hotKeyAction,
+          config: state.config,
+          windowCycleHoldModifiers: holdModifiers
+        )
 
       case .activateProfile(let id, let focus):
         guard state.config.activeProfileId != id,
@@ -326,6 +345,9 @@ public struct AppFeature {
 
       // A display rule auto-switched the profile: activation already retiled;
       // run the remaining switch side effects (rebind hotkeys, persist, HUD).
+      case .activation(.delegate(.profileSwitchRequested(let id, let focus))):
+        return .send(.activateProfile(id, focus: focus))
+
       case .activation(.delegate(.profileAutoActivated(let id))):
         guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
         // The per-display HUD is shown from the activation reconfigure path
@@ -415,13 +437,24 @@ public struct AppFeature {
     }
   }
 
-  private func route(_ action: HotKeyAction) -> Effect<Action> {
+  private func route(
+    _ action: HotKeyAction,
+    config: AppConfig,
+    windowCycleHoldModifiers: HotKeyModifiers? = nil,
+  ) -> Effect<Action> {
     switch action {
     case .activateWorkspace(let id):
+      if let owner = config.profileId(owning: id), owner != config.activeProfile?.id {
+        return .send(.activateProfile(owner, focus: id))
+      }
       return .send(.activation(.activate(workspaceId: id, setFocus: true)))
     case .assignFocusedAppToWorkspace(let id):
       return .send(.activation(.membershipEdit(.assign(to: id))))
     case .borrowWorkspace(let id):
+      guard config.activeProfile?.workspaces[id: id] != nil else {
+        debugLog.log("Gesture", "borrow target belongs to an inactive profile — dropped")
+        return .none
+      }
       return .send(.activation(.beginBorrowDirection(workspaceId: id)))
     case .switchToNextWorkspace:
       return .send(.activation(.activateNext))
@@ -464,8 +497,18 @@ public struct AppFeature {
       return .send(.activation(.bspFocus(.south)))
 
     case .cycleNextWindow:
+      if let windowCycleHoldModifiers, !windowCycleHoldModifiers.isEmpty {
+        return .send(.activation(
+          .cycleWindowShortcut(.next, holdModifiers: windowCycleHoldModifiers)
+        ))
+      }
       return .send(.activation(.cycleWindow(.next)))
     case .cyclePreviousWindow:
+      if let windowCycleHoldModifiers, !windowCycleHoldModifiers.isEmpty {
+        return .send(.activation(
+          .cycleWindowShortcut(.previous, holdModifiers: windowCycleHoldModifiers)
+        ))
+      }
       return .send(.activation(.cycleWindow(.previous)))
 
     case .toggleFloating:
@@ -506,4 +549,50 @@ public struct AppFeature {
     }
   }
 
+}
+
+extension GestureAction {
+  var hotKeyAction: HotKeyAction? {
+    switch self {
+    case .none: nil
+    case .nextWorkspace: .switchToNextWorkspace
+    case .previousWorkspace: .switchToPreviousWorkspace
+    case .recentWorkspace: .switchToRecentWorkspace
+    case .moveAppToNextWorkspace: .moveFocusedAppToNextWorkspace
+    case .moveAppToPreviousWorkspace: .moveFocusedAppToPreviousWorkspace
+    case .assignAppToRecentWorkspace: .assignFocusedAppToRecentWorkspace
+    case .assignAppToNextWorkspace: .assignFocusedAppToNextWorkspace
+    case .assignAppToPreviousWorkspace: .assignFocusedAppToPreviousWorkspace
+    case .focusNextDisplay: .focusNextDisplay
+    case .focusPreviousDisplay: .focusPreviousDisplay
+    case .focusLeft: .focusLeft
+    case .focusRight: .focusRight
+    case .focusUp: .focusUp
+    case .focusDown: .focusDown
+    case .cycleNextWindow: .cycleNextWindow
+    case .cyclePreviousWindow: .cyclePreviousWindow
+    case .growWindow: .resizeGrow
+    case .shrinkWindow: .resizeShrink
+    case .swapLeft: .swapLeft
+    case .swapRight: .swapRight
+    case .swapUp: .swapUp
+    case .swapDown: .swapDown
+    case .toggleOrientation: .toggleOrientation
+    case .toggleFullscreen: .toggleFullscreen
+    case .balanceLayout: .balance
+    case .toggleFloating: .toggleFloating
+    case .toggleSharedFloating: .toggleSharedFloating
+    case .toggleTiling: .toggleSpaceActivated
+    case .toggleAppInWorkspace: .toggleFocusedAppInActiveWorkspace
+    case .toggleAppInSharedApps: .toggleAppInSharedApps
+    case .borrowRecentWorkspace: .borrowRecentWorkspace
+    case .borrowNextWorkspace: .borrowNextWorkspace
+    case .borrowPreviousWorkspace: .borrowPreviousWorkspace
+    case .dismissBorrow: .dismissBorrow
+    case .activateWorkspace(let id): .activateWorkspace(id)
+    case .assignAppToWorkspace(let id): .assignFocusedAppToWorkspace(id)
+    case .borrowWorkspace(let id): .borrowWorkspace(id)
+    case .activateProfile(let id): .activateProfile(id)
+    }
+  }
 }

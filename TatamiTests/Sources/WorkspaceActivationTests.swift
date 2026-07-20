@@ -128,6 +128,231 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `window cycle HUD follows app level cycle order`() async {
+    let appA1 = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appA2 = WindowKey(pid: 1, windowID: 102, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .branch(
+            BSPBranch(
+              split: .horizontal,
+              ratio: 0.5,
+              left: .leaf(appA1),
+              right: .leaf(appA2)
+            )
+          ),
+          right: .leaf(appB)
+        )
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudSelected = LockIsolated<WindowKey?>(nil)
+    let hudByWindow = LockIsolated<Bool?>(nil)
+    let hudDisplay = LockIsolated<DisplayName?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, selected, byWindow, _, display in
+        hudWindows.withValue { $0 = windows }
+        hudSelected.withValue { $0 = selected }
+        hudByWindow.withValue { $0 = byWindow }
+        hudDisplay.withValue { $0 = display }
+      }
+    }
+
+    await store.send(.cycleWindowResolved(windowKey: appA1, direction: .next))
+    await store.finish()
+
+    #expect(focused.value == appB)
+    #expect(hudWindows.value == [appA1, appB])
+    #expect(hudSelected.value == appB)
+    #expect(hudByWindow.value == false)
+    #expect(hudDisplay.value == Self.display)
+  }
+
+  @Test
+  func `window cycle HUD preserves individual same app windows in window mode`() async {
+    let appA1 = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appA2 = WindowKey(pid: 1, windowID: 102, bundleId: "app.a")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.switching.cycleSameAppWindows = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA1), right: .leaf(appA2))
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudByWindow = LockIsolated<Bool?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, byWindow, _, _ in
+        hudWindows.withValue { $0 = windows }
+        hudByWindow.withValue { $0 = byWindow }
+      }
+    }
+
+    await store.send(.cycleWindowResolved(windowKey: appA1, direction: .next))
+    await store.finish()
+
+    #expect(focused.value == appA2)
+    #expect(hudWindows.value == [appA1, appA2])
+    #expect(hudByWindow.value == true)
+  }
+
+  @Test
+  func `quick window cycle shortcut commits on modifier release without HUD`() async {
+    let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA), right: .leaf(appB))
+      )
+    }
+    let clock = TestClock()
+    let modifiers = LockIsolated<HotKeyModifiers>(.option)
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudShows = LockIsolated(0)
+    let hudDismisses = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.modifierKeys.current = { modifiers.value }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { _, _, _, _, _ in
+        hudShows.withValue { $0 += 1 }
+      }
+      $0.workspaceHUD.dismissWindowSwitcher = { _ in
+        hudDismisses.withValue { $0 += 1 }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowShortcutResolved(
+      windowKey: appA,
+      direction: .next,
+      holdModifiers: .option
+    ))
+    #expect(store.state.windowCycleSession?.selected == appB)
+    #expect(focused.value == nil)
+
+    modifiers.withValue { $0 = [] }
+    await clock.advance(by: .milliseconds(10))
+    await store.receive(\.windowCycleModifierReleased)
+    await store.finish()
+
+    #expect(store.state.windowCycleSession == nil)
+    #expect(focused.value == appB)
+    #expect(hudShows.value == 0)
+    #expect(hudDismisses.value == 0)
+  }
+
+  @Test
+  func `held window cycle shortcut reveals HUD and fades it when released`() async {
+    let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA), right: .leaf(appB))
+      )
+    }
+    let clock = TestClock()
+    let modifiers = LockIsolated<HotKeyModifiers>(.option)
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudAutoDismiss = LockIsolated<Int??>(nil)
+    let dismissedDisplay = LockIsolated<DisplayName??>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.modifierKeys.current = { modifiers.value }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { _, _, _, autoDismiss, _ in
+        hudAutoDismiss.withValue { $0 = .some(autoDismiss) }
+      }
+      $0.workspaceHUD.dismissWindowSwitcher = { display in
+        dismissedDisplay.withValue { $0 = .some(display) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowShortcutResolved(
+      windowKey: appA,
+      direction: .next,
+      holdModifiers: .option
+    ))
+    await clock.advance(by: .milliseconds(150))
+    await store.receive(\.windowCycleHUDDelayElapsed)
+    #expect(store.state.windowCycleSession?.isHUDVisible == true)
+    #expect(hudAutoDismiss.value == .some(nil))
+    #expect(focused.value == nil)
+
+    modifiers.withValue { $0 = [] }
+    await clock.advance(by: .milliseconds(10))
+    await store.receive(\.windowCycleModifierReleased)
+    await store.finish()
+
+    #expect(focused.value == appB)
+    #expect(dismissedDisplay.value == .some(Self.display))
+  }
+
+  @Test
+  func `assigning to another profile requests one profile switch transaction`() async {
+    let currentWorkspace = Workspace(name: "Current")
+    let targetWorkspace = Workspace(name: "Target")
+    let currentProfile = Profile(name: "Default", workspaces: [currentWorkspace])
+    let targetProfile = Profile(name: "Dual", workspaces: [targetWorkspace])
+    let state = WorkspaceActivationFeature.State()
+    state.$config.withLock {
+      $0.profiles = [currentProfile, targetProfile]
+      $0.activeProfileId = currentProfile.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.membershipEditResolved(
+      bundleId: "app.example",
+      name: "Example",
+      edit: .assign(to: targetWorkspace.id)
+    ))
+    await store.receive {
+      guard case .delegate(.profileSwitchRequested(let id, let focus)) = $0 else {
+        return false
+      }
+      return id == targetProfile.id && focus == targetWorkspace.id
+    }
+
+    #expect(
+      store.state.config.profiles
+        .first(where: { $0.id == targetProfile.id })?
+        .workspaces[id: targetWorkspace.id]?
+        .apps.contains(where: { $0.bundleIdentifier == "app.example" }) == true
+    )
+  }
+
+  @Test
   func `focus adjacent display keeps dynamic workspace on that display`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
@@ -164,6 +389,103 @@ struct WorkspaceActivationFeatureTests {
     #expect(requests.value.first?.targetDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
     #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
+  }
+
+  @Test
+  func `global recent focuses the workspace on its existing display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let wsA = Workspace(name: "A")
+    let wsB = Workspace(name: "B")
+    let state = Self.makeState(workspaces: [wsA, wsB]) {
+      $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = true }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: wsA.id, displayB: wsB.id]
+      $0.workspaceMRU = [wsA.id, UUID(), wsB.id]
+    }
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent)
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == wsB.id && display == displayB
+    }
+    await store.finish()
+
+    #expect(requests.value.last?.workspace.id == wsB.id)
+    #expect(requests.value.last?.targetDisplay == displayB)
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
+    #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
+  }
+
+  @Test
+  func `recent remains scoped to the focused display by default`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let current = Workspace(name: "Current")
+    let localRecent = Workspace(name: "Local Recent")
+    let otherDisplayRecent = Workspace(name: "Other Display Recent")
+    let state = Self.makeState(workspaces: [current, localRecent, otherDisplayRecent]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: current.id, displayB: otherDisplayRecent.id]
+      $0.previousWorkspacesByDisplay[displayA] = localRecent.id
+      $0.workspaceMRU = [current.id, otherDisplayRecent.id, localRecent.id]
+    }
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent)
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == localRecent.id && display == displayA
+    }
+    await store.finish()
+
+    #expect(requests.value.last?.workspace.id == localRecent.id)
+    #expect(requests.value.last?.targetDisplay == displayA)
+  }
+
+  @Test
+  func `per display recent does not fall back to another monitor`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let wsA = Workspace(name: "A")
+    let wsB = Workspace(name: "B")
+    let state = Self.makeState(workspaces: [wsA, wsB]) {
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: wsA.id, displayB: wsB.id]
+      $0.previousWorkspacesByDisplay[displayB] = wsA.id
+      $0.workspaceMRU = [wsA.id, wsB.id]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(.activateRecent)
   }
 
   @Test
@@ -800,6 +1122,45 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.compositionsByDisplay[displayB] == nil)
     #expect(requests.value.last?.targetDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == host.id)
+  }
+
+  @Test
+  func `summoning the same borrowed workspace dismisses it by default`() async {
+    let display = DisplayName("A")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)]
+      )
+    }
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { display }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.beginBorrowDirection(workspaceId: borrowed.id))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let owner) = $0 else { return false }
+      return workspaceId == host.id && owner == display
+    }
+    await store.finish()
+
+    #expect(store.state.compositionsByDisplay[display] == nil)
+    #expect(requests.value.last?.workspace.id == host.id)
+    #expect(requests.value.last?.targetDisplay == display)
   }
 
   @Test

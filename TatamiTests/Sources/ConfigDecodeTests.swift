@@ -1,4 +1,5 @@
 import Dependencies
+import Foundation
 import TOML
 import Testing
 @testable import TatamiKit
@@ -39,7 +40,66 @@ struct ConfigDecodeTests {
       try TOMLDecoder().decode(AppConfig.self, from: "")
     }
     #expect(config.settings.general.launchAtLogin == false)
+    #expect(config.settings.switching.recentAcrossDisplays == false)
+    #expect(config.settings.switching.toggleBorrowOnRepeat)
+    #expect(config.settings.hud.windowCycle)
     #expect(reported.value == 0)
+  }
+
+  @Test
+  func legacyGestureFingerCountMigratesToDirectionalBindings() throws {
+    let toml = """
+    [settings.gestures]
+    enabled = true
+    fingerCount = 4
+    threshold = 0.42
+    """
+    let config = try TOMLDecoder().decode(AppConfig.self, from: toml)
+    let gestures = config.settings.gestures
+
+    #expect(gestures.enabled)
+    #expect(gestures.threshold == 0.42)
+    #expect(gestures.threeFinger == AppSettings.GestureBindings())
+    #expect(gestures.fourFinger.left == .nextWorkspace)
+    #expect(gestures.fourFinger.right == .previousWorkspace)
+    #expect(gestures.fourFinger.up == .none)
+    #expect(gestures.fourFinger.down == .none)
+  }
+
+  @Test
+  func directionalGestureBindingsDecodeWithoutLegacyDefaults() throws {
+    let toml = """
+    [settings.gestures]
+    enabled = true
+
+    [settings.gestures.threeFinger]
+    up = "toggleFullscreen"
+
+    [settings.gestures.fourFinger]
+    down = "dismissBorrow"
+    """
+    let config = try TOMLDecoder().decode(AppConfig.self, from: toml)
+    let gestures = config.settings.gestures
+
+    #expect(gestures.threeFinger.up == .toggleFullscreen)
+    #expect(gestures.threeFinger.left == .none)
+    #expect(gestures.fourFinger.down == .dismissBorrow)
+  }
+
+  @Test
+  func workspaceSpecificGestureBindingUsesStableIDCoding() throws {
+    let id = try #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF"))
+    let toml = """
+    [settings.gestures.threeFinger]
+    up = "activateWorkspace:\(id.uuidString)"
+
+    [settings.gestures.fourFinger]
+    down = "borrowWorkspace:\(id.uuidString)"
+    """
+    let gestures = try TOMLDecoder().decode(AppConfig.self, from: toml).settings.gestures
+
+    #expect(gestures.threeFinger.up == .activateWorkspace(id))
+    #expect(gestures.fourFinger.down == .borrowWorkspace(id))
   }
 
   @Test
