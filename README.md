@@ -8,8 +8,9 @@
 A macOS workspace manager with yabai-style window tiling.
 
 Tatami groups your apps into virtual workspaces you switch between with a
-keystroke or a trackpad swipe, and tiles their windows automatically with a
-yabai-style BSP engine. No SIP changes and no shell scripting required.
+keystroke or a configurable trackpad gesture, and tiles their windows
+automatically with a yabai-style BSP engine. No SIP changes and no shell
+scripting required.
 
 ## Demo
 
@@ -26,11 +27,12 @@ yabai-style BSP engine. No SIP changes and no shell scripting required.
 ### Workspaces
 
 - **Virtual workspaces:** Group apps with per-workspace assignments.
-- **Flexible switching:** Use a hotkey, trackpad swipe, or recent-workspace action.
+- **Flexible switching:** Use a hotkey, trackpad gesture, or recent-workspace action.
+- **Configurable gestures:** Bind every direction of a three- or four-finger swipe to any shortcut action, including profile- and workspace-specific commands.
 - **One key per workspace:** Hold the switch, assign, or borrow modifier with a **key equivalent**. The same keys also drive recent, next, and previous targets, while any action can take an explicit override.
 - **Optional switching behaviors:** Enable loop-around, skip-empty, or follow-app-focus.
 - **Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
-- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active workspace, and cycling can stay local or span every display.
+- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace, while cycling and recent navigation can independently stay local or span every display.
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
 
@@ -47,7 +49,7 @@ yabai-style BSP engine. No SIP changes and no shell scripting required.
 - **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
 - **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
 - **Directional placement:** Press the borrow modifier with a workspace key, then use `h`, `j`, `k`, `l`, or an arrow. You can also set a default edge and size globally or per workspace.
-- **Cross-boundary focus:** Directional focus moves between blocks. Activating a borrowed workspace switches to it fully, re-borrowing re-docks it, and `esc` cancels placement.
+- **Cross-boundary focus:** Directional focus moves between blocks. Activating a borrowed workspace switches to it fully, summoning the same borrow again dismisses it by default, and `esc` cancels placement.
 - **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
 - **Scratchpads:** Borrow-only workspaces stay out of cycling, never activate alone, and auto-open their apps when summoned.
 
@@ -55,6 +57,7 @@ yabai-style BSP engine. No SIP changes and no shell scripting required.
 
 - **Automatic BSP layout:** Insert new windows at the shallowest tile.
 - **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
+- **Native-style window cycling:** Tap the window-cycle shortcut for an immediate switch, or hold its modifier to choose from a centered app or window HUD and commit on release.
 - **Zoom and splits:** Fill the workspace with one window or toggle split orientation.
 - **Tree transforms:** Rotate, mirror, and balance the layout.
 - **Drag editing:** Swap or re-insert a window with a live placement preview. Manual edge resizing synchronizes back into the tree.
@@ -76,7 +79,7 @@ yabai-style BSP engine. No SIP changes and no shell scripting required.
 ### Interface & config
 
 - **Customizable menu bar:** Show the active workspace icon or name and, when relevant, the active profile icon or name.
-- **On-screen HUD:** Confirm switches, float toggles, membership changes, and follow-up shortcuts. Each notification is individually configurable.
+- **On-screen HUD:** Confirm workspace and profile switches, cycle through apps or windows, and see float, membership, layout, and borrow actions. Each notification is individually configurable.
 - **Workspace icons:** Choose a per-workspace SF Symbol.
 - **Native settings:** Configure Tatami in SwiftUI.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.

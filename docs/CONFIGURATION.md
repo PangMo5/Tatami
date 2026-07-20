@@ -58,6 +58,7 @@ The rest pick which actions show one.
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | Master switch for every overlay. |
 | `workspaceSwitch` | bool | `true` | Workspace name when switching. |
+| `windowCycle` | bool | `true` | Centered app/window switcher while cycling with a held shortcut modifier. A quick press does not show it. |
 | `profileSwitch` | bool | `true` | Profile name when switching profiles (manual or auto). |
 | `floating` | bool | `true` | Float state changes in both per-workspace and shared contexts. |
 | `appMembership` | bool | `true` | App added to / removed from a workspace or Shared Apps. |
@@ -99,8 +100,10 @@ to disk and restored on the next launch.
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when cycling next/previous. |
 | `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
 | `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
+| `recentAcrossDisplays` | bool | `false` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific float, switch to the recent workspace. Shared apps do not count because they join every workspace. |
 | `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app (one representative window per app). `true` visits every window, including multiple windows of the same app. |
+| `toggleBorrowOnRepeat` | bool | `true` | Summoning a workspace already borrowed on the current display dismisses it and restores the host. `false` re-docks it instead. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
 
@@ -108,9 +111,52 @@ to disk and restored on the next launch.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `false` | Switch workspaces with a horizontal trackpad swipe. |
-| `fingerCount` | int | `3` | Number of fingers for the swipe (`3` or `4`). |
+| `enabled` | bool | `false` | Recognize configured three- and four-finger trackpad swipes. |
 | `threshold` | double | `0.3` | Swipe distance required to trigger a switch (lower = more sensitive). Kept to two decimal places. |
+| `threeFinger` | table | left → `nextWorkspace`, right → `previousWorkspace` | Actions for three-finger `left`, `right`, `up`, and `down` swipes. Missing directions are `none`. |
+| `fourFinger` | table | all directions → `none` | Actions for four-finger `left`, `right`, `up`, and `down` swipes. |
+
+Each direction stores one action string. The app's nested action menu is the
+easiest way to configure profile/workspace actions because it writes their
+stable UUIDs for you.
+
+```toml
+[settings.gestures]
+enabled = true
+threshold = 0.3
+
+[settings.gestures.threeFinger]
+left = "nextWorkspace"
+right = "previousWorkspace"
+up = "toggleFullscreen"
+down = "none"
+
+[settings.gestures.fourFinger]
+left = "focusPreviousDisplay"
+right = "focusNextDisplay"
+up = "activateProfile:00000000-0000-0000-0000-000000000001"
+down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
+```
+
+Available fixed action strings:
+
+- **Workspaces:** `nextWorkspace`, `previousWorkspace`, `recentWorkspace`, `moveAppToNextWorkspace`, `moveAppToPreviousWorkspace`, `assignAppToRecentWorkspace`, `assignAppToNextWorkspace`, `assignAppToPreviousWorkspace`
+- **Focus and displays:** `focusNextDisplay`, `focusPreviousDisplay`, `focusLeft`, `focusRight`, `focusUp`, `focusDown`
+- **Window cycling:** `cycleNextWindow`, `cyclePreviousWindow`
+- **Layout:** `growWindow`, `shrinkWindow`, `swapLeft`, `swapRight`, `swapUp`, `swapDown`, `toggleOrientation`, `toggleFullscreen`, `balanceLayout`
+- **Apps and tiling:** `toggleFloating`, `toggleSharedFloating`, `toggleTiling`, `toggleAppInWorkspace`, `toggleAppInSharedApps`
+- **Borrow:** `borrowRecentWorkspace`, `borrowNextWorkspace`, `borrowPreviousWorkspace`, `dismissBorrow`
+- **Unbound:** `none`
+
+Target-specific actions append a stable identifier:
+`activateWorkspace:<workspace UUID>`, `assignAppToWorkspace:<workspace UUID>`,
+`borrowWorkspace:<workspace UUID>`, or `activateProfile:<profile UUID>`.
+Borrowing a specific workspace is available while its profile is active;
+activating or assigning to a workspace can switch to its owning profile first.
+
+Legacy configurations with `fingerCount = 3` or `4` migrate automatically:
+left/right keep their previous next/previous-workspace behavior on that finger
+count, and the other directions and finger count remain unbound.
 
 ## `[settings.marker]`
 
@@ -133,7 +179,7 @@ Small corner dots that identify zoomed, floating, and borrowed windows.
 Most values are skhd-style shortcut strings (see above). Omitting a key leaves
 that action unbound. A brand-new config (no `config.toml` yet) is seeded with a
 recommended starter set. See [Recommended defaults](#recommended-defaults).
-that you can freely re-record or clear. The exceptions are the three
+You can freely re-record or clear every shortcut. The exceptions are the three
 `*Modifiers` arrays below, which drive the per-workspace **key equivalent** model.
 
 ### Workspace keys (switch / assign / borrow)

@@ -104,7 +104,7 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("What's New in Tatami \(version)")
           .font(.title.weight(.semibold))
-        Text("Group your workspaces into profiles and switch the whole set at once.")
+        Text("Cycle windows like Command-Tab and bind every swipe direction.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }
@@ -116,23 +116,23 @@ private struct WhatsNewView: View {
 
         item(
           icon: "rectangle.stack",
-          title: "Profiles",
-          detail: "Group your workspaces into named profiles and switch the whole set at once — each profile has its own workspaces, apps, shortcuts, and icon. Switch by hotkey or from the menu bar; every switch re-tiles all your displays."
+          title: "Native-style window switcher",
+          detail: "Tap next or previous window for an immediate switch, or hold the shortcut modifier to choose from a centered app or window strip. Focus commits when you release, then the HUD fades away."
+        )
+        item(
+          icon: "hand.draw",
+          title: "Gestures for every action",
+          detail: "Configure left, right, up, and down independently for both three and four fingers. Choose any shortcut command, including actions nested under a specific profile or workspace."
         )
         item(
           icon: "display.2",
-          title: "Auto-activate by display setup",
-          detail: "A profile can switch on automatically when your monitors match — by count, or by specific displays being connected or unplugged. Overlapping rules get flagged so it's clear which profile wins."
+          title: "Recent across displays",
+          detail: "Optionally use one recent-workspace history across every monitor. Tatami focuses a workspace where it already lives instead of pulling it onto a different display."
         )
         item(
-          icon: "square.on.square",
-          title: "Copy between profiles & workspaces",
-          detail: "**Copy from…** shows a reviewable, per-change diff of the apps and settings that differ, and copies only the changes you keep checked — so profiles stay in step without hand-editing."
-        )
-        item(
-          icon: "menubar.rectangle",
-          title: "Customizable menu bar",
-          detail: "Choose what the menu-bar item shows in **Settings → Appearance** — the active workspace's icon and name, and the active profile's when you have more than one."
+          icon: "rectangle.split.2x1",
+          title: "Borrow again to dismiss",
+          detail: "Summon the same workspace a second time to return it and restore the host workspace. This is on by default and can be changed in **Settings → Workspace Switching**."
         )
       }
       .padding(.horizontal, 6)

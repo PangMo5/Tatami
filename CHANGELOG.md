@@ -6,6 +6,19 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.8.0 (2026-07-20)
+
+### New
+- **Native-style window switcher:** The next / previous-window shortcuts now behave like macOS Command-Tab: a quick press switches without flashing a HUD, holding the shortcut shows a centered app or window strip that stays up while the modifier is down, and releasing the modifier commits focus before the HUD fades away. App-level cycling restores that app's most-recent window, while the existing every-window option keeps each same-app window separate.
+- **Fully configurable trackpad gestures:** Bind left, right, up, and down swipes independently for both three and four fingers to any Tatami shortcut action. The picker includes profile and workspace submenus for switching profiles, activating or assigning to a workspace, and borrowing from the active profile. Existing `fingerCount` configurations migrate to equivalent horizontal bindings automatically.
+
+### Improvements
+- **Optional global recent workspace:** Recent-workspace actions can now use one MRU history across every display, focusing a workspace where it already lives instead of pulling it onto the pointer display. The existing per-display behavior remains the default.
+- **Borrow again to dismiss:** Summoning a workspace that is already borrowed on the current display dismisses it and restores the host workspace by default. Turn the option off to keep re-docking the borrow instead.
+
+### Fixes
+- **Exact same-app window restoration:** Before leaving a workspace, Tatami reconciles the exact focused window against the visible layout. Returning now restores the window you actually used even when another window from the same app had the older MRU position or a focus notification was missed.
+
 ## 1.7.3 (2026-07-20)
 
 ### Improvements
