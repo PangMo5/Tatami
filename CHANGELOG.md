@@ -6,6 +6,19 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.7.3 (2026-07-20)
+
+### Improvements
+- **Dynamic workspaces follow the pointer:** Activating a dynamic workspace from a Tatami shortcut or an external launcher now opens it on the display under the mouse. Background reflows stay on the display that already owns the workspace instead of pulling it elsewhere.
+- **Pointer-scoped borrowing:** Borrow, recent / next / previous borrow, direction selection, and dismiss now consistently operate on the display under the mouse. Direction selection also remembers the display where it began.
+- **Lower workspace activation overhead:** Tatami skips redundant Accessibility frame writes, immediately drops cached windows when their process or window disappears, and cancels activation, focus, and mirror work that has already been superseded.
+
+### Fixes
+- **Cross-app focus-follows-mouse:** Moving focus between windows owned by different apps now transfers the frontmost application as well as raising the window, including when the windows are on different displays.
+- **Correct close refocus and cursor centering:** Closing the focused window now selects the intended most-recent window after the window list has settled and centers the cursor on its live frame.
+- **Stable multi-display lifecycle:** Window creation, destruction, synchronization, display reconnects, and background layout work now stay scoped to the owning display, preventing unrelated displays from stealing focus or changing workspace order.
+- **Stable workspace reopening:** Reopening a workspace after one of its windows was closed no longer briefly reserves space for the missing window or temporarily squeezes the remaining windows.
+
 ## 1.7.2 (2026-07-15)
 
 ### Fixes
