@@ -311,6 +311,51 @@ public struct WorkspaceActivationFeature {
       }
     }
 
+    /// Record exact focus in the owning workspace. Events permit registered
+    /// unsynced windows; activation reconciliation requires a visible tree leaf.
+    @discardableResult
+    mutating func recordFocusedWindow(
+      _ key: WindowKey,
+      requireVisibleTreeMembership: Bool = false,
+    ) -> Workspace.ID? {
+      let workspaceId: Workspace.ID?
+      if requireVisibleTreeMembership {
+        let visible = visibleWorkspaceIDs
+        workspaceId = config.activeProfile?.workspaces.lazy
+          .map(\.id)
+          .first {
+            visible.contains($0)
+              && tilingTrees[$0]?.windows.contains(key) == true
+          }
+      } else {
+        workspaceId = workspaceOwning(key)
+      }
+      guard let workspaceId else { return nil }
+
+      if let display = displayShowing(workspaceId) {
+        focusedDisplay = display
+      }
+      let treeWindows = tilingTrees[workspaceId]?.windows ?? []
+      let inTree = treeWindows.contains(key)
+      if inTree { insertionPoint[workspaceId] = key }
+
+      let workspaceApps = config.activeProfile?.workspaces[id: workspaceId]?.apps ?? []
+      guard
+        inTree
+        || (!requireVisibleTreeMembership
+          && workspaceApps.contains { $0.bundleIdentifier == key.bundleId })
+      else { return workspaceId }
+
+      var mru = mruWindows[workspaceId] ?? []
+      mru.removeAll { $0 == key }
+      mru.insert(key, at: 0)
+      // Preserve a newly-focused registered window until its first sync, while
+      // pruning every older entry that is no longer present in the live tree.
+      mru.removeAll { $0 != key && !treeWindows.contains($0) }
+      mruWindows[workspaceId] = mru
+      return workspaceId
+    }
+
   }
 
   public enum Action {
@@ -732,37 +777,7 @@ public struct WorkspaceActivationFeature {
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
           // didActivateApplication).
-          if let key, let wsId = state.workspaceOwning(key) {
-            // Keyboard/app focus, not the cursor, is authoritative once an
-            // exact managed window is known. This keeps subsequent hotkeys and
-            // MRU operations on the monitor that actually owns the window.
-            if let display = state.displayShowing(wsId) {
-              state.focusedDisplay = display
-            }
-            let treeWindows = state.tilingTrees[wsId]?.windows ?? []
-            let inTree = treeWindows.contains(key)
-            // insertionPoint is the *tile* anchor, so only tree windows.
-            if inTree { state.insertionPoint[wsId] = key }
-            // MRU also records a just-created window not yet synced into the
-            // tree (focus a brand-new window, open KakaoTalk, close it →
-            // focus should return to the new window, not the first leaf), as
-            // long as it belongs to this workspace. A shared-only floating or
-            // unmanaged window is deliberately excluded: it is visible across
-            // workspaces and must not replace each workspace's own restore
-            // target. Shared tiled windows are already admitted by `inTree`.
-            let wsApps = state.config.activeProfile?.workspaces[id: wsId]?.apps ?? []
-            let isMember = inTree
-              || wsApps.contains { $0.bundleIdentifier == bundleId }
-            if isMember {
-              var mru = state.mruWindows[wsId] ?? []
-              mru.removeAll { $0 == key }
-              mru.insert(key, at: 0)
-              // Prune closed windows, but keep the just-focused key even if
-              // it hasn't synced into the tree yet.
-              mru.removeAll { $0 != key && !treeWindows.contains($0) }
-              state.mruWindows[wsId] = mru
-            }
-          }
+          if let key { state.recordFocusedWindow(key) }
           // Mouse-follows-focus on a focus change we only *observed* (cmd+`,
           // the app menu's window list, a click): warp to the newly focused
           // tile. `skipIfCursorInside` leaves clicks alone (cursor already

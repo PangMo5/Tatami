@@ -592,6 +592,97 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `activation reconciles a missed same app focus before leaving`() async {
+    let personal = WindowKey(pid: 1, windowID: 101, bundleId: "company.browser")
+    let work = WindowKey(pid: 1, windowID: 102, bundleId: "company.browser")
+    let browser = Workspace(
+      name: "Browser",
+      apps: [AppAssignment(bundleIdentifier: personal.bundleId, name: "Browser")],
+    )
+    let other = Workspace(name: "Other")
+    let state = Self.makeState(workspaces: [browser, other]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = browser.id
+      $0.tilingTrees[browser.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(personal),
+          right: .leaf(work),
+        )
+      )
+      // The focus notification for Personal → Work was missed.
+      $0.mruWindows[browser.id] = [personal, work]
+    }
+    let liveFocus = LockIsolated<WindowKey?>(work)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.windowSnapshot.focusedWindowKey = { liveFocus.value }
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: other.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      return workspaceId == other.id
+    }
+    #expect(store.state.mruWindows[browser.id] == [work, personal])
+
+    liveFocus.withValue { $0 = nil }
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      return workspaceId == browser.id
+    }
+    await store.finish()
+
+    #expect(requests.value.last?.windowKeyToFocus == work)
+  }
+
+  @Test
+  func `activation focus snapshot requires exact visible tree membership`() async {
+    let remembered = WindowKey(pid: 1, windowID: 101, bundleId: "company.browser")
+    let hidden = WindowKey(pid: 1, windowID: 202, bundleId: "company.browser")
+    let browser = Workspace(
+      name: "Browser",
+      apps: [AppAssignment(bundleIdentifier: remembered.bundleId, name: "Browser")],
+    )
+    let other = Workspace(name: "Other")
+    let state = Self.makeState(workspaces: [browser, other]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = browser.id
+      $0.tilingTrees[browser.id] = .leaf(remembered)
+      $0.mruWindows[browser.id] = [remembered]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.windowSnapshot.focusedWindowKey = { hidden }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: other.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      return workspaceId == other.id
+    }
+    await store.finish()
+
+    #expect(store.state.mruWindows[browser.id] == [remembered])
+  }
+
+  @Test
   func `background activation keeps the focused window display when cursor is elsewhere`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")

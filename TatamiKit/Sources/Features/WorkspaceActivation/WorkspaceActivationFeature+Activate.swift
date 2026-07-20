@@ -258,6 +258,22 @@ extension WorkspaceActivationFeature {
         .send(.beginBorrowDirection(workspaceId: workspaceId)),
       )
     }
+    // AX focus notifications are best-effort. Reconcile exact visible-tree
+    // focus before show/hide starts so activation uses authoritative MRU state.
+    if
+      setFocus,
+      let focused = windowSnapshot.focusedWindowKey(),
+      let outgoing = state.recordFocusedWindow(
+        focused,
+        requireVisibleTreeMembership: true,
+      )
+    {
+      debugLog.log(
+        "FocusSnapshot",
+        "before activation workspaceId=\(outgoing) "
+          + "key=\(focused.bundleId)#\(focused.windowID)",
+      )
+    }
     // Latest-wins: a switch arriving mid-activation supersedes the
     // in-flight one (the effect below is `cancellable(cancelInFlight:)`)
     // instead of being dropped — dropping read as "the hotkey got
