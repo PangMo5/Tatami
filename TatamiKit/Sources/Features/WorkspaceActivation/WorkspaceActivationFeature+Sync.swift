@@ -319,22 +319,6 @@ extension WorkspaceActivationFeature {
 
   // MARK: Private
 
-  /// Bundle ids registered to any workspace anywhere in the config.
-  /// `syncAppWindows` uses this to decide whether a window belongs to
-  /// the active workspace's tree (registered here / unregistered
-  /// anywhere → transient) or to some other workspace (skip).
-  private static func everyAssignedBundleId(in config: AppConfig) -> Set<String> {
-    var out = Set<String>()
-    for profile in config.profiles {
-      for ws in profile.workspaces {
-        for app in ws.apps {
-          out.insert(app.bundleIdentifier)
-        }
-      }
-    }
-    return out
-  }
-
   private func syncAppWindows(
     bundleId: String,
     workspaceId: Workspace.ID,
@@ -360,7 +344,7 @@ extension WorkspaceActivationFeature {
     let sharedTiledSet = Set(
       state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
     )
-    let assignedAnywhere = Self.everyAssignedBundleId(in: state.config)
+    let managedInActiveProfile = state.managedBundleIds
     let existing = state.tilingTrees[workspaceId]
     let inTree = existing?.windows.contains { $0.bundleId == bundleId } ?? false
 
@@ -399,19 +383,22 @@ extension WorkspaceActivationFeature {
     //   * a shared tiled app → tiles into every workspace.
     //   * already in the tree (transient member from an earlier sync)
     //     → keep tiling so the window doesn't suddenly fall out.
-    //   * unregistered anywhere → transient: gets folded into the
+    //   * unregistered in the active profile / Shared Apps → transient:
+    //     gets folded into the
     //     active workspace's tree because the user just opened/raised
     //     it after activation. The next activation rebuilds the tree
     //     from the registered set alone, so the transient drops out
     //     automatically.
-    //   * registered in some *other* workspace → not tiled here;
+    //   * registered in some *other active-profile* workspace → not tiled here;
     //     followAppFocus (if enabled) jumps to its owning workspace
     //     instead.
-    let isUnregisteredAnywhere = !assignedAnywhere.contains(bundleId)
+    // Inactive profiles are independent configurations. An assignment there
+    // must not strand the app in the current profile with no eligible owner.
+    let isUnregisteredInActiveProfile = !managedInActiveProfile.contains(bundleId)
     let eligibleToAdd = registeredSet.contains(bundleId)
       || sharedTiledSet.contains(bundleId)
       || inTree
-      || isUnregisteredAnywhere
+      || isUnregisteredInActiveProfile
 
     let discovered = windowSnapshot.discoverKeys([bundleId], true)
     let targetDisplay = state.displayShowing(workspaceId)
@@ -462,7 +449,7 @@ extension WorkspaceActivationFeature {
       "Sync",
       "enter \(bundleId) ws=\(workspace.name) eligible=\(eligibleToAdd) "
         + "(registered=\(registeredSet.contains(bundleId)) "
-        + "inTree=\(inTree) unregistered=\(isUnregisteredAnywhere)) "
+        + "inTree=\(inTree) unregistered=\(isUnregisteredInActiveProfile)) "
         + "discovered=\(current.map { $0.windowID }) treeBefore=\(treeBefore)",
     )
 

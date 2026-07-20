@@ -746,6 +746,40 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `app assigned only in inactive profile tiles transiently`() async {
+    let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.inactive-profile")
+    let activeWorkspace = Workspace(name: "Active")
+    let inactiveWorkspace = Workspace(
+      name: "Inactive",
+      apps: [AppAssignment(bundleIdentifier: key.bundleId, name: "Inactive app")],
+    )
+    let inactiveProfile = Profile(
+      name: "Inactive",
+      workspaces: IdentifiedArray(uniqueElements: [inactiveWorkspace]),
+    )
+    let state = Self.makeState(workspaces: [activeWorkspace]) {
+      $0.$config.withLock {
+        $0.activeProfileId = $0.profiles.first?.id
+        $0.profiles.append(inactiveProfile)
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = activeWorkspace.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.discoverKeys = { _, _ in [key] }
+      $0.windowSnapshot.focusedWindowKey = { key }
+    }
+
+    await store.send(.syncAppWindows(bundleId: key.bundleId)) {
+      $0.insertionPoint[activeWorkspace.id] = key
+      $0.tilingTrees[activeWorkspace.id] = .leaf(key)
+    }
+    await store.finish()
+  }
+
+  @Test
   func `close sync retiles then focuses and warps to live center`() async {
     let closed = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
     let survivor = WindowKey(pid: 1, windowID: 102, bundleId: "app.one")
