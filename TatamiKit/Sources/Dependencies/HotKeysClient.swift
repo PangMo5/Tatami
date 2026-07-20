@@ -3,11 +3,13 @@ import DependenciesMacros
 import Foundation
 import Magnet
 
+// MARK: - HotKeyAction
+
 /// Every distinct keyboard-driven action Tatami can fire. The enum lives
 /// here (not in features) so `HotKeysClient` can stay generic over the
 /// command space — features just register bindings and react to events.
 public enum HotKeyAction: Sendable, Hashable {
-  // Workspace ops
+  /// Workspace ops
   case activateWorkspace(Workspace.ID)
   /// Assign the focused app to a specific workspace (duplicate assignment)
   /// and switch to it.
@@ -19,7 +21,7 @@ public enum HotKeyAction: Sendable, Hashable {
   case switchToPreviousWorkspace
   case switchToRecentWorkspace
 
-  // Profiles
+  /// Profiles
   /// Switch to (activate) a specific profile.
   case activateProfile(Profile.ID)
 
@@ -31,20 +33,30 @@ public enum HotKeyAction: Sendable, Hashable {
   case focusNextDisplay
   case focusPreviousDisplay
 
-  // Directional focus
-  case focusLeft, focusRight, focusUp, focusDown
+  /// Directional focus
+  case focusLeft
+  case focusRight
+  case focusUp
+  case focusDown
 
-  // Window cycling
-  case cycleNextWindow, cyclePreviousWindow
+  /// Window cycling
+  case cycleNextWindow
+  case cyclePreviousWindow
 
   // BSP operations
-  case resizeGrow, resizeShrink
-  case swapLeft, swapRight, swapUp, swapDown
-  case toggleOrientation, toggleFullscreen
+  case resizeGrow
+  case resizeShrink
+  case swapLeft
+  case swapRight
+  case swapUp
+  case swapDown
+  case toggleOrientation
+  case toggleFullscreen
   case balance
 
-  // Misc toggles
-  case toggleFloating, toggleSpaceActivated
+  /// Misc toggles
+  case toggleFloating
+  case toggleSpaceActivated
   /// Float toggle against Shared Apps instead of the active workspace:
   /// not shared yet → added as shared floating; already shared → flip
   /// `floating` only (membership stays).
@@ -65,55 +77,13 @@ public enum HotKeyAction: Sendable, Hashable {
   case borrowRecentWorkspace
   case borrowNextWorkspace
   case borrowPreviousWorkspace
-  /// Dismiss the active borrow on the focused display.
+  /// Dismiss the active borrow on the pointer display.
   case dismissBorrow
 }
 
 extension HotKeyAction {
-  /// Stable identifier for the Magnet hotkey registration — also the
-  /// debug-log tag for a fired action.
-  var nameKey: String {
-    switch self {
-    case .activateWorkspace(let id): "activate-\(id.uuidString)"
-    case .assignFocusedAppToWorkspace(let id): "assign-app-\(id.uuidString)"
-    case .borrowWorkspace(let id): "borrow-\(id.uuidString)"
-    case .switchToNextWorkspace: "next-workspace"
-    case .switchToPreviousWorkspace: "prev-workspace"
-    case .switchToRecentWorkspace: "recent-workspace"
-    case .activateProfile(let id): "activate-profile-\(id.uuidString)"
-    case .moveFocusedAppToNextWorkspace: "move-app-next-workspace"
-    case .moveFocusedAppToPreviousWorkspace: "move-app-prev-workspace"
-    case .focusNextDisplay: "focus-next-display"
-    case .focusPreviousDisplay: "focus-prev-display"
-    case .focusLeft: "focus-left"
-    case .focusRight: "focus-right"
-    case .focusUp: "focus-up"
-    case .focusDown: "focus-down"
-    case .cycleNextWindow: "cycle-next"
-    case .cyclePreviousWindow: "cycle-prev"
-    case .resizeGrow: "resize-grow"
-    case .resizeShrink: "resize-shrink"
-    case .swapLeft: "swap-left"
-    case .swapRight: "swap-right"
-    case .swapUp: "swap-up"
-    case .swapDown: "swap-down"
-    case .toggleOrientation: "toggle-orientation"
-    case .toggleFullscreen: "toggle-fullscreen"
-    case .balance: "balance"
-    case .toggleFloating: "toggle-floating"
-    case .toggleSharedFloating: "toggle-shared-floating"
-    case .toggleSpaceActivated: "toggle-space"
-    case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
-    case .toggleAppInSharedApps: "toggle-shared-membership"
-    case .assignFocusedAppToRecentWorkspace: "assign-app-recent-workspace"
-    case .assignFocusedAppToNextWorkspace: "assign-app-next-workspace"
-    case .assignFocusedAppToPreviousWorkspace: "assign-app-prev-workspace"
-    case .borrowRecentWorkspace: "borrow-recent-workspace"
-    case .borrowNextWorkspace: "borrow-next-workspace"
-    case .borrowPreviousWorkspace: "borrow-prev-workspace"
-    case .dismissBorrow: "dismiss-borrow"
-    }
-  }
+
+  // MARK: Public
 
   /// Human-readable title, shown in the recorder's "in use" conflict
   /// message. Workspace actions resolve the workspace's current name.
@@ -164,17 +134,63 @@ extension HotKeyAction {
     }
   }
 
+  // MARK: Internal
+
+  /// Stable identifier for the Magnet hotkey registration — also the
+  /// debug-log tag for a fired action.
+  var nameKey: String {
+    switch self {
+    case .activateWorkspace(let id): "activate-\(id.uuidString)"
+    case .assignFocusedAppToWorkspace(let id): "assign-app-\(id.uuidString)"
+    case .borrowWorkspace(let id): "borrow-\(id.uuidString)"
+    case .switchToNextWorkspace: "next-workspace"
+    case .switchToPreviousWorkspace: "prev-workspace"
+    case .switchToRecentWorkspace: "recent-workspace"
+    case .activateProfile(let id): "activate-profile-\(id.uuidString)"
+    case .moveFocusedAppToNextWorkspace: "move-app-next-workspace"
+    case .moveFocusedAppToPreviousWorkspace: "move-app-prev-workspace"
+    case .focusNextDisplay: "focus-next-display"
+    case .focusPreviousDisplay: "focus-prev-display"
+    case .focusLeft: "focus-left"
+    case .focusRight: "focus-right"
+    case .focusUp: "focus-up"
+    case .focusDown: "focus-down"
+    case .cycleNextWindow: "cycle-next"
+    case .cyclePreviousWindow: "cycle-prev"
+    case .resizeGrow: "resize-grow"
+    case .resizeShrink: "resize-shrink"
+    case .swapLeft: "swap-left"
+    case .swapRight: "swap-right"
+    case .swapUp: "swap-up"
+    case .swapDown: "swap-down"
+    case .toggleOrientation: "toggle-orientation"
+    case .toggleFullscreen: "toggle-fullscreen"
+    case .balance: "balance"
+    case .toggleFloating: "toggle-floating"
+    case .toggleSharedFloating: "toggle-shared-floating"
+    case .toggleSpaceActivated: "toggle-space"
+    case .toggleFocusedAppInActiveWorkspace: "toggle-focused-app-membership"
+    case .toggleAppInSharedApps: "toggle-shared-membership"
+    case .assignFocusedAppToRecentWorkspace: "assign-app-recent-workspace"
+    case .assignFocusedAppToNextWorkspace: "assign-app-next-workspace"
+    case .assignFocusedAppToPreviousWorkspace: "assign-app-prev-workspace"
+    case .borrowRecentWorkspace: "borrow-recent-workspace"
+    case .borrowNextWorkspace: "borrow-next-workspace"
+    case .borrowPreviousWorkspace: "borrow-prev-workspace"
+    case .dismissBorrow: "dismiss-borrow"
+    }
+  }
+
 }
+
+// MARK: - HotKeyBinding
 
 public struct HotKeyBinding: Sendable, Hashable {
   var action: HotKeyAction
   var hotKey: HotKey
-
-  init(action: HotKeyAction, hotKey: HotKey) {
-    self.action = action
-    self.hotKey = hotKey
-  }
 }
+
+// MARK: - HotKeysClient
 
 /// Side-effect surface for registering global keyboard shortcuts.
 @DependencyClient
@@ -188,6 +204,8 @@ struct HotKeysClient: Sendable {
   var setRecording: @Sendable (Bool) async -> Void
 }
 
+// MARK: DependencyKey
+
 extension HotKeysClient: DependencyKey {
   static let liveValue: HotKeysClient = {
     let center = HotKeysCenter()
@@ -198,14 +216,14 @@ extension HotKeysClient: DependencyKey {
       events: { center.events },
       setRecording: { recording in
         await MainActor.run { center.setRecording(recording) }
-      }
+      },
     )
   }()
 
   static let testValue = HotKeysClient(
     register: { _ in },
     events: { AsyncStream { _ in } },
-    setRecording: { _ in }
+    setRecording: { _ in },
   )
 
   static let previewValue = testValue
@@ -218,6 +236,8 @@ extension DependencyValues {
   }
 }
 
+// MARK: - HotKeysCenter
+
 /// Bridges Magnet's `HotKeyCenter` (a main-actor global) to the action
 /// stream: every `register` clears the previous set and (re)registers the
 /// current bindings, each firing its `HotKeyAction` into `events`. Magnet
@@ -226,25 +246,18 @@ extension DependencyValues {
 /// which the previous KeyboardShortcuts-based path couldn't guarantee in
 /// this menu-bar (LSUIElement) app.
 private final class HotKeysCenter: @unchecked Sendable {
-  @Dependency(\.debugLog) private var debugLog
 
-  let events: AsyncStream<HotKeyAction>
-  private let continuation: AsyncStream<HotKeyAction>.Continuation
-  /// Magnet identifiers currently registered (so the next `register`
-  /// unregisters exactly what it put up, not the whole process's hotkeys).
-  private var registeredIdentifiers: [String] = []
-  /// Latest bindings, kept so recording can suspend the live hotkeys and
-  /// restore exactly these when it ends — and so a config edit that lands
-  /// mid-recording isn't lost (it updates this, applied on resume).
-  private var lastBindings: [HotKeyBinding] = []
-  /// While a recorder is capturing, no global hotkey is registered.
-  private var isRecording = false
+  // MARK: Lifecycle
 
   init() {
     var c: AsyncStream<HotKeyAction>.Continuation!
-    self.events = AsyncStream { c = $0 }
-    self.continuation = c
+    events = AsyncStream { c = $0 }
+    continuation = c
   }
+
+  // MARK: Internal
+
+  let events: AsyncStream<HotKeyAction>
 
   @MainActor
   func register(_ bindings: [HotKeyBinding]) {
@@ -274,12 +287,27 @@ private final class HotKeysCenter: @unchecked Sendable {
     }
   }
 
+  // MARK: Private
+
+  @Dependency(\.debugLog) private var debugLog
+
+  private let continuation: AsyncStream<HotKeyAction>.Continuation
+  /// Magnet identifiers currently registered (so the next `register`
+  /// unregisters exactly what it put up, not the whole process's hotkeys).
+  private var registeredIdentifiers = [String]()
+  /// Latest bindings, kept so recording can suspend the live hotkeys and
+  /// restore exactly these when it ends — and so a config edit that lands
+  /// mid-recording isn't lost (it updates this, applied on resume).
+  private var lastBindings = [HotKeyBinding]()
+  /// While a recorder is capturing, no global hotkey is registered.
+  private var isRecording = false
+
   @MainActor
   private func apply(_ bindings: [HotKeyBinding]) {
     for identifier in registeredIdentifiers {
       HotKeyCenter.shared.unregisterHotKey(with: identifier)
     }
-    var next: [String] = []
+    var next = [String]()
     for binding in bindings {
       // A stored combo Magnet rejects (no valid KeyCombo) is skipped — the
       // recorder won't produce one, but a hand-edited config might.
@@ -303,4 +331,5 @@ private final class HotKeysCenter: @unchecked Sendable {
     registeredIdentifiers = next
     debugLog.log("HotKey", "registered \(next.count) bindings")
   }
+
 }

@@ -30,7 +30,7 @@ yabai-style BSP engine. No SIP changes and no shell scripting required.
 - **One key per workspace:** Hold the switch, assign, or borrow modifier with a **key equivalent**. The same keys also drive recent, next, and previous targets, while any action can take an explicit override.
 - **Optional switching behaviors:** Enable loop-around, skip-empty, or follow-app-focus.
 - **Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
-- **Per-display workspaces:** Pin a workspace to a display or follow apps dynamically. Each display keeps its own active workspace, and cycling can stay local or span every display.
+- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active workspace, and cycling can stay local or span every display.
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
 

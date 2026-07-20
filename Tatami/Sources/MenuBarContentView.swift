@@ -2,9 +2,14 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
+// MARK: - MenuBarLabel
+
 /// Menu bar status item label: shows the active workspace's name + icon
 /// so the bar reflects where you are, not just a static app glyph.
 struct MenuBarLabel: View {
+
+  // MARK: Internal
+
   @Bindable var store: StoreOf<AppFeature>
 
   var body: some View {
@@ -15,6 +20,8 @@ struct MenuBarLabel: View {
     // status item — so we can show any mix of profile / workspace icons+names.
     Image(nsImage: renderedLabel)
   }
+
+  // MARK: Private
 
   @MainActor
   private var renderedLabel: NSImage {
@@ -73,11 +80,16 @@ struct MenuBarLabel: View {
     .font(.system(size: 13))
     .foregroundStyle(.black)
   }
+
 }
 
+// MARK: - MenuBarContentView
+
 struct MenuBarContentView: View {
+
+  // MARK: Internal
+
   @Bindable var store: StoreOf<AppFeature>
-  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
     let config = store.workspaceList.config
@@ -115,7 +127,7 @@ struct MenuBarContentView: View {
               set: { newValue in
                 guard newValue else { return }
                 store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
-              }
+              },
             )) {
               Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.dashed")
             }
@@ -123,7 +135,7 @@ struct MenuBarContentView: View {
         }
       }
       // Scratchpads are borrow-only — they never become "active", so a plain
-      // button (clicking borrows onto the focused display) reads truer than a
+      // button (clicking borrows onto the pointer display) reads truer than a
       // Toggle, and the dedicated section header is what marks them.
       if !scratchpads.isEmpty {
         Section("Scratchpads") {
@@ -150,7 +162,7 @@ struct MenuBarContentView: View {
             set: { on in
               guard on else { return }
               store.send(.activateProfile(profile.id, focus: nil))
-            }
+            },
           )) {
             Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
           }
@@ -178,4 +190,9 @@ struct MenuBarContentView: View {
     }
     .keyboardShortcut("q")
   }
+
+  // MARK: Private
+
+  @Environment(\.openWindow) private var openWindow
+
 }

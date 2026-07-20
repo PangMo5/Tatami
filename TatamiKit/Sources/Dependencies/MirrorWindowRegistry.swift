@@ -33,11 +33,6 @@ final class MirrorWindowRegistry: Sendable {
     entries.withLock { $0[windowID] = target }
   }
 
-  /// The real window mirrored by panel `windowID`, if any.
-  func target(forMirror windowID: CGWindowID) -> Target? {
-    entries.withLock { $0[windowID] }
-  }
-
   /// Snapshot of every registered mirror → target mapping. The FFM
   /// hit-test walks the full on-screen window list per fire; one lock
   /// acquisition for the snapshot beats one per window entry.

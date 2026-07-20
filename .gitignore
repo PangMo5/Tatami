@@ -10,6 +10,7 @@ graph.png
 xcuserdata/
 *.hmap
 DerivedData/
+.build-benchmark/
 
 # SwiftPM build cache (under Tuist/)
 .build/

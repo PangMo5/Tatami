@@ -4,59 +4,124 @@ import Foundation
 import OrderedCollections
 
 extension WorkspaceActivationFeature {
-  /// Re-tile the active workspace's current windows WITHOUT touching
-  /// app visibility. Used on resume so tiling catches up to whatever
-  /// changed while paused.
-  func reflowActiveWorkspace(state: inout State) -> Effect<Action> {
-    guard !state.isTilingPaused,
-          let workspaceId = state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId]
-    else { return .none }
 
-    let settings = state.config.settings
-    // The host block's geometry — sub-rect when composed, else full work area.
-    let (_, workArea) = tilingContext(for: workspaceId, state: state)
-    let registered = workspace.apps.map(\.bundleIdentifier)
-    let existing = state.tilingTrees[workspaceId]
-    // On resume from pause we keep any transient (unregistered-anywhere)
-    // members the user may have folded in before pausing. Without the
-    // existing tree's bundle ids we'd discover only the registered apps
-    // and the transient tiles would drop out silently.
-    let existingBundles = existing?.windows.map(\.bundleId) ?? []
-    let discoverBundles = Array(OrderedSet(registered + existingBundles))
+  // MARK: Internal
 
-    let targets = windowSnapshot.discoverKeys(discoverBundles, true)
-
-    let merged = Self.mergeTree(
-      existing: existing,
-      target: targets,
-      focused: { windowSnapshot.focusedWindowKey() },
-      insertionPoint: state.insertionPoint[workspaceId],
-      workArea: workArea,
-      settings: settings
-    )
-    let axis = settings.layout.autoBalance
-    let balanced = axis == .none ? merged : merged?.balanced(axis: axis)
-    state.tilingTrees[workspaceId] = balanced
-    guard let tree = balanced else { return .none }
-    if state.insertionPoint[workspaceId] == nil {
-      state.insertionPoint[workspaceId] = tree.windows.first
+  /// Keep one physical window in one visible workspace. Shared tiled apps may
+  /// have windows on several monitors; their live frame decides which display's
+  /// tree owns each window. Non-shared keys already owned by another visible
+  /// display stay there instead of being duplicated into a second tree.
+  static func scopedWindowKeys(
+    _ keys: [WindowKey],
+    sharedTiledBundleIds: Set<String>,
+    existingTargetKeys: Set<WindowKey>,
+    protectedKeys: Set<WindowKey>,
+    partitionSharedWindows: Bool,
+    targetWorkArea: CGRect,
+    windowFrame: (WindowKey) -> CGRect?,
+  ) -> [WindowKey] {
+    keys.filter { key in
+      if partitionSharedWindows, sharedTiledBundleIds.contains(key.bundleId) {
+        guard let frame = windowFrame(key) else {
+          return existingTargetKeys.contains(key)
+        }
+        return targetWorkArea.contains(CGPoint(x: frame.midX, y: frame.midY))
+      }
+      return !protectedKeys.contains(key)
     }
-    let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    let observeIds = Array(OrderedSet(tree.windows.map(\.bundleId)))
+  }
 
-    return .merge(
-      flushLayout(workspaceId: workspaceId, state: state),
-      .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
-      persist(tree, fullscreenZoomed: zoomed, for: workspace)
-    )
+  /// Incremental merge. Removes vanished windows (sibling promotes),
+  /// inserts new windows at the insertion point. Fresh trees (no
+  /// existing) build via `BSPNode.build` (which uses the shallowest-
+  /// leaf rule for each new window).
+  ///
+  /// `focused` is a closure because resolving it costs a live AX round
+  /// trip to the frontmost app — which can block for hundreds of ms on a
+  /// busy Electron app right after it was raised. It's only consulted
+  /// when there are new windows to anchor, so the common steady-state
+  /// merge never pays for it.
+  static func mergeTree(
+    existing: BSPNode<WindowKey>?,
+    target: [WindowKey],
+    focused: () -> WindowKey?,
+    insertionPoint: WindowKey?,
+    workArea: CGRect,
+    settings: AppSettings,
+  ) -> BSPNode<WindowKey>? {
+    guard !target.isEmpty else { return nil }
+    let targetSet = Set(target)
+    var tree = existing
+
+    if var current = tree {
+      let stale = current.windows.filter { !targetSet.contains($0) }
+      for id in stale {
+        if let next = current.removing(id) {
+          current = next
+        } else {
+          tree = nil
+          break
+        }
+      }
+      if tree != nil { tree = current }
+    }
+
+    // `tree.windows` is a full recursive tree walk that allocates a fresh
+    // array; hoist it into a Set once instead of rebuilding + linear-scanning
+    // it per target window (the per-element `contains` made this O(N²)).
+    let existing = Set(tree?.windows ?? [])
+    let newOnes = target.filter { !existing.contains($0) }
+    guard !newOnes.isEmpty else { return tree }
+
+    let viewSplit = settings.layout.splitType.bspSplitAxis()
+    let placement = settings.layout.windowPlacement.bspChild
+
+    if tree == nil {
+      // Initial tree — each insert picks the shallowest leaf, which
+      // `inserting(...)` does when no anchor is supplied.
+      var t: BSPNode<WindowKey>? = nil
+      for key in newOnes {
+        if let cur = t {
+          t = cur.inserting(
+            key,
+            near: nil,
+            in: workArea,
+            viewSplitType: viewSplit,
+            globalPlacement: placement,
+          )
+        } else {
+          t = .leaf(key)
+        }
+      }
+      return t
+    }
+
+    let focusedKey = focused()
+    for id in newOnes {
+      let anchor: WindowKey? = {
+        if let insertionPoint, tree?.windows.contains(insertionPoint) == true {
+          return insertionPoint
+        }
+        if let focusedKey, tree?.windows.contains(focusedKey) == true {
+          return focusedKey
+        }
+        return nil
+      }()
+      tree = tree?.inserting(
+        id,
+        near: anchor,
+        in: workArea,
+        viewSplitType: viewSplit,
+        globalPlacement: placement,
+      ) ?? .leaf(id)
+    }
+    return tree
   }
 
   func debouncedSync(_ bundleId: String, delayMs: Int) -> Effect<Action> {
     .run { [clock] send in
       if delayMs > 0 {
-        try? await clock.sleep(for: .milliseconds(delayMs))
+        try await clock.sleep(for: .milliseconds(delayMs))
       }
       await send(.syncAppWindows(bundleId: bundleId))
     }
@@ -68,7 +133,7 @@ extension WorkspaceActivationFeature {
   /// settle before snapshotting the on-screen set.
   func debouncedPrune() -> Effect<Action> {
     .run { [clock] send in
-      try? await clock.sleep(for: .milliseconds(120))
+      try await clock.sleep(for: .milliseconds(120))
       await send(.pruneOffscreenWindows)
     }
     .cancellable(id: CancelID.prune, cancelInFlight: true)
@@ -99,15 +164,186 @@ extension WorkspaceActivationFeature {
       debugLog.log("Sync", "skip \(bundleId): activation in flight")
       return .none
     }
-    // Route to the block that owns this app: the borrowed workspace when it
-    // registered the app, else the host (= active workspace when uncomposed).
-    guard let workspaceId = state.composedOwner(bundleId: bundleId, key: nil),
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId]
-    else {
+    // Bundle-only AX create/destroy notifications do not identify a window or
+    // display. Reconcile every visible owner so a shared/multi-member app split
+    // across monitors cannot leave a stale window in the background tree.
+    let workspaceIds = state.workspacesForSync(bundleId: bundleId)
+    guard !workspaceIds.isEmpty else {
       debugLog.log("Sync", "skip \(bundleId): no active workspace")
       return .none
     }
+    var effects = [Effect<Action>]()
+    for workspaceId in workspaceIds {
+      effects.append(syncAppWindows(
+        bundleId: bundleId,
+        workspaceId: workspaceId,
+        state: &state,
+      ))
+    }
+    return .merge(effects)
+  }
+
+  /// Drop active-workspace tree windows that have left the screen without an
+  /// AX destroy event. Electron apps like Discord `hide()` their window on
+  /// close instead of destroying it, so no `kAXUIElementDestroyedNotification`
+  /// fires and the slot lingers; the on-screen window list is the only signal.
+  /// Re-tiles the survivors and, when focus was stranded, pulls it to one.
+  func pruneOffscreenWindows(state: inout State) -> Effect<Action> {
+    guard !state.isTilingPaused, !state.isActivating else { return .none }
+    // In a native fullscreen Space the Desktop's windows are all off-screen, so
+    // the on-screen list reports them "gone". Pruning then would empty the tree
+    // and bounce the user out of fullscreen — stay put until they return (the
+    // space-change reconcile catches up on exit).
+    if state.isInFullscreenSpace {
+      debugLog.log("Prune", "skip: native fullscreen space")
+      return .none
+    }
+
+    // WindowServer destruction is global. Pruning only the cursor display left
+    // dead slots resident on background monitors until the user switched back.
+    let targetIds = Array(state.visibleWorkspaceIDs)
+    guard !targetIds.isEmpty else { return .none }
+
+    let onScreen = windowSnapshot.onScreenWindowIDs()
+    let settings = state.config.settings
+    let axis = settings.layout.autoBalance
+    // Read focus lazily — only when a prune actually happens (the read is an
+    // AX round trip to the frontmost app, and prune runs after every
+    // activation).
+    var focusedRead = false
+    var focused: WindowKey?
+
+    var prunedAny = false
+    var effects = [Effect<Action>]()
+    var postLayoutFocusEffects = [Effect<Action>]()
+    var layoutRootsByDisplay = [DisplayName: Workspace.ID]()
+    var displaylessLayoutRoots = Set<Workspace.ID>()
+    for workspaceId in targetIds {
+      guard
+        let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+        let tree = state.tilingTrees[workspaceId]
+      else { continue }
+      let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
+      guard !gone.isEmpty else { continue }
+      windowSnapshot.invalidateWindowIDs(Set(gone.map(\.windowID)))
+      if !focusedRead { focused = windowSnapshot.focusedWindowKey()
+        focusedRead = true
+      }
+
+      var pruned: BSPNode<WindowKey>? = tree
+      for key in gone { pruned = pruned?.removing(key) }
+      let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
+      state.tilingTrees[workspaceId] = balanced
+      let newWindows = Set(balanced?.windows ?? [])
+      state.removeFromWindowMRU(Set(gone), workspaceId: workspaceId)
+      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+      prunedAny = true
+      if let display = state.displayShowing(workspaceId) {
+        layoutRootsByDisplay[display] = state.activeWorkspacesByDisplay[display] ?? workspaceId
+      } else {
+        displaylessLayoutRoots.insert(workspaceId)
+      }
+
+      debugLog.log(
+        "Prune",
+        "ws=\(workspace.name) removed=\(gone.map { $0.windowID }) "
+          + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])",
+      )
+
+      var postLayoutFocusEffect = Effect<Action>.none
+      var willRefocus = false
+      if
+        settings.focus.refocusOnClose, !newWindows.isEmpty,
+        focused == nil || !newWindows.contains(focused!)
+      {
+        // A background monitor losing a window must never steal keyboard focus.
+        // Refocus when that exact focused window disappeared, or when AX has no
+        // focus during a close on the reducer's currently focused display.
+        let mayRefocus = focused.map(gone.contains) == true
+          || (focused == nil && state.displayShowing(workspaceId) == state.focusedDisplay)
+        if mayRefocus {
+          let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
+            ?? balanced?.windows.first
+          if let target {
+            willRefocus = true
+            postLayoutFocusEffect = settleFocusAfterLayout(
+              target,
+              workspaceId: workspaceId,
+              shouldFocus: true,
+              state: &state,
+            )
+          }
+        }
+      }
+      if !willRefocus, let focused, newWindows.contains(focused) {
+        postLayoutFocusEffect = settleFocusAfterLayout(
+          focused,
+          workspaceId: workspaceId,
+          shouldFocus: false,
+          state: &state,
+        )
+      }
+
+      effects.append(
+        persist(balanced, fullscreenZoomed: zoomed, for: workspace)
+      )
+      postLayoutFocusEffects.append(postLayoutFocusEffect)
+      // Pruning only runs when windows actually left the screen.
+      effects.append(handleEmptied(workspaceId: workspaceId, state: state))
+    }
+
+    guard prunedAny else { return .none }
+    // One writer per affected display. Composition roots flush every block in
+    // one frame application. Focus/cursor settlement observes all applied
+    // layouts, including when several monitors lost windows in the same event.
+    let layoutEffects = layoutRootsByDisplay.values.map {
+      flushLayout(workspaceId: $0, state: state)
+    } + displaylessLayoutRoots.map {
+      flushLayout(workspaceId: $0, state: state)
+    }
+    effects.append(.concatenate(.merge(layoutEffects), .merge(postLayoutFocusEffects)))
+    effects.append(refreshMarkers(state: state))
+    return .merge(effects)
+  }
+
+  /// Re-apply the dragged window's owning tree frames (no tree change), snapping
+  /// it back to its slot when the drag committed nothing. Ownership, rather
+  /// than focused/cursor display, keeps a background-monitor drag local.
+  func retile(windowKey: WindowKey, state: State) -> Effect<Action> {
+    guard
+      let workspaceId = state.workspaceOwning(windowKey),
+      state.tilingTrees[workspaceId] != nil
+    else { return .none }
+    return flushLayout(workspaceId: workspaceId, state: state)
+  }
+
+  // MARK: Private
+
+  /// Bundle ids registered to any workspace anywhere in the config.
+  /// `syncAppWindows` uses this to decide whether a window belongs to
+  /// the active workspace's tree (registered here / unregistered
+  /// anywhere → transient) or to some other workspace (skip).
+  private static func everyAssignedBundleId(in config: AppConfig) -> Set<String> {
+    var out = Set<String>()
+    for profile in config.profiles {
+      for ws in profile.workspaces {
+        for app in ws.apps {
+          out.insert(app.bundleIdentifier)
+        }
+      }
+    }
+    return out
+  }
+
+  private func syncAppWindows(
+    bundleId: String,
+    workspaceId: Workspace.ID,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard
+      let workspace = state.config.activeProfile?
+        .workspaces[id: workspaceId]
+    else { return .none }
 
     let settings = state.config.settings
     let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
@@ -155,7 +391,7 @@ extension WorkspaceActivationFeature {
         : Effect<Action>.none
       return .merge(
         refreshFloatingPresentation(state: state),
-        emptySwitch
+        emptySwitch,
       )
     }
     // Eligibility:
@@ -177,7 +413,30 @@ extension WorkspaceActivationFeature {
       || inTree
       || isUnregisteredAnywhere
 
-    let current = windowSnapshot.discoverKeys([bundleId], true)
+    let discovered = windowSnapshot.discoverKeys([bundleId], true)
+    let targetDisplay = state.displayShowing(workspaceId)
+    var protectedKeys = Set<WindowKey>()
+    if let targetDisplay {
+      for otherId in state.visibleWorkspaceIDs where otherId != workspaceId {
+        guard
+          let otherDisplay = state.displayShowing(otherId),
+          !otherDisplay.matches(targetDisplay)
+        else { continue }
+        protectedKeys.formUnion(state.tilingTrees[otherId]?.windows ?? [])
+      }
+    }
+    let existingTargetKeys = Set(existing?.windows ?? [])
+    let targetWorkArea = displays.workArea(targetDisplay)
+    let current = Self.scopedWindowKeys(
+      discovered,
+      sharedTiledBundleIds: sharedTiledSet,
+      existingTargetKeys: existingTargetKeys,
+      protectedKeys: protectedKeys,
+      partitionSharedWindows: state.connectedDisplays.count > 1
+        || state.activeWorkspacesByDisplay.count > 1,
+      targetWorkArea: targetWorkArea,
+      windowFrame: { windowSnapshot.windowFrame($0) },
+    )
     // The block's geometry — composition sub-rect when this is a borrowed/host
     // block, else the workspace's full work area. New windows insert into it.
     let (_, workArea) = tilingContext(for: workspaceId, state: state)
@@ -204,7 +463,7 @@ extension WorkspaceActivationFeature {
       "enter \(bundleId) ws=\(workspace.name) eligible=\(eligibleToAdd) "
         + "(registered=\(registeredSet.contains(bundleId)) "
         + "inTree=\(inTree) unregistered=\(isUnregisteredAnywhere)) "
-        + "discovered=\(current.map { $0.windowID }) treeBefore=\(treeBefore)"
+        + "discovered=\(current.map { $0.windowID }) treeBefore=\(treeBefore)",
     )
 
     var tree = existing
@@ -237,7 +496,7 @@ extension WorkspaceActivationFeature {
           near: resolved,
           in: workArea,
           viewSplitType: viewSplit,
-          globalPlacement: placement
+          globalPlacement: placement,
         )
         anchor = key
         state.insertionPoint[workspaceId] = key
@@ -248,7 +507,9 @@ extension WorkspaceActivationFeature {
     let balanced = axis == .none ? tree : tree?.balanced(axis: axis)
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
+    let removedKeys = oldWindows.subtracting(newWindows)
     state.tilingTrees[workspaceId] = balanced
+    state.removeFromWindowMRU(removedKeys, workspaceId: workspaceId)
 
     // A native-tab switch (Ghostty, Terminal) retires the active tab's
     // CGWindowID and surfaces a new one for the same app — so a fullscreen-zoom
@@ -275,11 +536,11 @@ extension WorkspaceActivationFeature {
     }
 
     let added = newWindows.subtracting(oldWindows).map { $0.windowID }
-    let removed = oldWindows.subtracting(newWindows).map { $0.windowID }
+    let removed = removedKeys.map { $0.windowID }
     debugLog.log(
       "Sync",
       "result \(bundleId): added=\(added) removed=\(removed) "
-        + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
+        + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])",
     )
 
     // Shared apps included so floating ones get window events too (they're
@@ -292,7 +553,6 @@ extension WorkspaceActivationFeature {
     let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
       await observer.observe(observeIds)
     }
-    let markerRefresh = refreshMarkers(state: state)
     // Only a sync that actually removed windows can have emptied the
     // workspace — launch/no-op syncs must never bounce the user off a
     // deliberately empty one.
@@ -300,29 +560,38 @@ extension WorkspaceActivationFeature {
       ? Effect<Action>.none
       : handleEmptied(workspaceId: workspaceId, state: state)
 
-    guard oldWindows != newWindows, let final = balanced else {
+    let treeChanged = oldWindows != newWindows
+    let markerRefresh = treeChanged ? refreshMarkers(state: state) : .none
+    guard treeChanged, let final = balanced else {
       return .merge(observeEffect, markerRefresh, emptySwitch)
     }
 
     // When a window closed and focus would otherwise be stranded on a
     // now-windowless app (the frontmost window is no longer part of this
     // workspace), pull focus to a remaining window so typing has a home.
-    // Gated on `focused ∉ newWindows` so closing a *background* window while
-    // a tiled window keeps focus never steals it.
-    let refocusEffect: Effect<Action> = {
-      guard settings.focus.refocusOnClose,
-            !removed.isEmpty,
-            focused == nil || !newWindows.contains(focused!)
-      else { return .none }
+    // Gated on the removed key actually owning focus (or AX temporarily having
+    // no focus on this display), so a background monitor never steals it.
+    var postLayoutFocusEffect = Effect<Action>.none
+    var willRefocus = false
+    let mayRefocus = focused.map(removedKeys.contains) == true
+      || (focused == nil && state.displayShowing(workspaceId) == state.focusedDisplay)
+    if
+      settings.focus.refocusOnClose,
+      !removed.isEmpty,
+      mayRefocus
+    {
       let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
         ?? final.windows.first
-      guard let target else { return .none }
-      // Refocus-on-close moves focus programmatically — carry the cursor too.
-      return .merge(
-        .run { [focus = focusManager] _ in await focus.focusWindow(target) },
-        warpToWindow(target, in: final, workspaceId: workspaceId, state: state)
-      )
-    }()
+      if let target {
+        willRefocus = true
+        postLayoutFocusEffect = settleFocusAfterLayout(
+          target,
+          workspaceId: workspaceId,
+          shouldFocus: true,
+          state: &state,
+        )
+      }
+    }
 
     // Mouse-follows-focus when focus moved without the mouse: a *newly opened*
     // window the OS focused, or a *close* that shifted focus to a surviving tile
@@ -330,22 +599,29 @@ extension WorkspaceActivationFeature {
     // own). Warp to the tile's new center either way — on a close the surviving
     // tile expands over where the cursor sat, so "cursor already inside" is not
     // a reason to skip. Ordinary click-focus doesn't reach here (no tree edit).
-    let warpEffect: Effect<Action> = {
-      guard let focused, newWindows.contains(focused),
-            newWindows.subtracting(oldWindows).contains(focused) || !removed.isEmpty
-      else { return .none }
-      return warpToWindow(focused, in: final, workspaceId: workspaceId, state: state)
-    }()
+    if
+      !willRefocus, let focused, newWindows.contains(focused),
+      newWindows.subtracting(oldWindows).contains(focused) || !removed.isEmpty
+    {
+      postLayoutFocusEffect = settleFocusAfterLayout(
+        focused,
+        workspaceId: workspaceId,
+        shouldFocus: false,
+        state: &state,
+      )
+    }
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    return .merge(
+    let layoutThenFocus = Effect<Action>.concatenate(
       flushLayout(workspaceId: workspaceId, state: state),
+      postLayoutFocusEffect,
+    )
+    return .merge(
+      layoutThenFocus,
       observeEffect,
       persist(final, fullscreenZoomed: zoomed, for: workspace),
       markerRefresh,
-      refocusEffect,
-      warpEffect,
-      emptySwitch
+      emptySwitch,
     )
   }
 
@@ -360,14 +636,15 @@ extension WorkspaceActivationFeature {
   /// bounces you out.
   private func switchToRecentIfEmpty(
     state: State,
-    workspaceId: Workspace.ID
+    workspaceId: Workspace.ID,
   ) -> Effect<Action> {
-    guard state.config.settings.switching.switchToRecentWhenEmpty,
-          !state.isActivating,
-          state.primaryActiveWorkspaceID == workspaceId,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
-          state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
+    guard
+      state.config.settings.switching.switchToRecentWhenEmpty,
+      !state.isActivating,
+      state.primaryActiveWorkspaceID == workspaceId,
+      let workspace = state.config.activeProfile?
+        .workspaces[id: workspaceId],
+      state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
     else { return .none }
     // Recent on the display the workspace is actually shown on (resolved via
     // activeWorkspacesByDisplay first, not the cursor); falls back to any recent.
@@ -393,7 +670,7 @@ extension WorkspaceActivationFeature {
     guard !hasOnScreen else {
       debugLog.log(
         "Sync",
-        "ws=\(workspace.name) tree empty but member apps still on screen — not switching"
+        "ws=\(workspace.name) tree empty but member apps still on screen — not switching",
       )
       return .none
     }
@@ -422,13 +699,15 @@ extension WorkspaceActivationFeature {
   /// a native-tab window-id swap) doesn't collapse the composition.
   private func collapseIfBorrowedEmpty(
     borrowedId: Workspace.ID,
-    state: State
+    state: State,
   ) -> Effect<Action> {
     guard !state.isActivating else { return .none }
     for (display, comp) in state.compositionsByDisplay
-    where comp.borrowed.contains(where: { $0.workspace == borrowedId }) {
-      guard state.tilingTrees[borrowedId]?.windows.isEmpty ?? true,
-            let borrowedWs = state.config.activeProfile?.workspaces[id: borrowedId]
+      where comp.borrowed.contains(where: { $0.workspace == borrowedId })
+    {
+      guard
+        state.tilingTrees[borrowedId]?.windows.isEmpty ?? true,
+        let borrowedWs = state.config.activeProfile?.workspaces[id: borrowedId]
       else { return .none }
       let onScreenIds = borrowedWs.apps.filter { $0.layout != .floating }.map(\.bundleIdentifier)
       let hasOnScreen = !onScreenIds.isEmpty
@@ -443,203 +722,4 @@ extension WorkspaceActivationFeature {
     return .none
   }
 
-  /// Bundle ids registered to any workspace anywhere in the config.
-  /// `syncAppWindows` uses this to decide whether a window belongs to
-  /// the active workspace's tree (registered here / unregistered
-  /// anywhere → transient) or to some other workspace (skip).
-  private static func everyAssignedBundleId(in config: AppConfig) -> Set<String> {
-    var out: Set<String> = []
-    for profile in config.profiles {
-      for ws in profile.workspaces {
-        for app in ws.apps {
-          out.insert(app.bundleIdentifier)
-        }
-      }
-    }
-    return out
-  }
-
-  /// Incremental merge. Removes vanished windows (sibling promotes),
-  /// inserts new windows at the insertion point. Fresh trees (no
-  /// existing) build via `BSPNode.build` (which uses the shallowest-
-  /// leaf rule for each new window).
-  ///
-  /// `focused` is a closure because resolving it costs a live AX round
-  /// trip to the frontmost app — which can block for hundreds of ms on a
-  /// busy Electron app right after it was raised. It's only consulted
-  /// when there are new windows to anchor, so the common steady-state
-  /// merge never pays for it.
-  static func mergeTree(
-    existing: BSPNode<WindowKey>?,
-    target: [WindowKey],
-    focused: () -> WindowKey?,
-    insertionPoint: WindowKey?,
-    workArea: CGRect,
-    settings: AppSettings
-  ) -> BSPNode<WindowKey>? {
-    guard !target.isEmpty else { return nil }
-    let targetSet = Set(target)
-    var tree = existing
-
-    if var current = tree {
-      let stale = current.windows.filter { !targetSet.contains($0) }
-      for id in stale {
-        if let next = current.removing(id) {
-          current = next
-        } else {
-          tree = nil
-          break
-        }
-      }
-      if tree != nil { tree = current }
-    }
-
-    // `tree.windows` is a full recursive tree walk that allocates a fresh
-    // array; hoist it into a Set once instead of rebuilding + linear-scanning
-    // it per target window (the per-element `contains` made this O(N²)).
-    let existing = Set(tree?.windows ?? [])
-    let newOnes = target.filter { !existing.contains($0) }
-    guard !newOnes.isEmpty else { return tree }
-
-    let viewSplit = settings.layout.splitType.bspSplitAxis()
-    let placement = settings.layout.windowPlacement.bspChild
-
-    if tree == nil {
-      // Initial tree — each insert picks the shallowest leaf, which
-      // `inserting(...)` does when no anchor is supplied.
-      var t: BSPNode<WindowKey>? = nil
-      for key in newOnes {
-        if let cur = t {
-          t = cur.inserting(
-            key, near: nil, in: workArea,
-            viewSplitType: viewSplit, globalPlacement: placement
-          )
-        } else {
-          t = .leaf(key)
-        }
-      }
-      return t
-    }
-
-    let focusedKey = focused()
-    for id in newOnes {
-      let anchor: WindowKey? = {
-        if let insertionPoint, tree?.windows.contains(insertionPoint) == true {
-          return insertionPoint
-        }
-        if let focusedKey, tree?.windows.contains(focusedKey) == true {
-          return focusedKey
-        }
-        return nil
-      }()
-      tree = tree?.inserting(
-        id, near: anchor, in: workArea,
-        viewSplitType: viewSplit, globalPlacement: placement
-      ) ?? .leaf(id)
-    }
-    return tree
-  }
-
-  /// Re-apply the active workspace's current tree frames (no tree change) —
-  /// snaps a dragged window back to its slot when the drag committed nothing.
-  /// Drop active-workspace tree windows that have left the screen without an
-  /// AX destroy event. Electron apps like Discord `hide()` their window on
-  /// close instead of destroying it, so no `kAXUIElementDestroyedNotification`
-  /// fires and the slot lingers; the on-screen window list is the only signal.
-  /// Re-tiles the survivors and, when focus was stranded, pulls it to one.
-  func pruneOffscreenWindows(state: inout State) -> Effect<Action> {
-    guard !state.isTilingPaused, !state.isActivating,
-          let hostId = state.primaryActiveWorkspaceID
-    else { return .none }
-    // In a native fullscreen Space the Desktop's windows are all off-screen, so
-    // the on-screen list reports them "gone". Pruning then would empty the tree
-    // and bounce the user out of fullscreen — stay put until they return (the
-    // space-change reconcile catches up on exit).
-    if state.isInFullscreenSpace {
-      debugLog.log("Prune", "skip: native fullscreen space")
-      return .none
-    }
-
-    // Windows can vanish in the host or in a borrowed block on the focused
-    // display — prune both trees, then flush the composition once.
-    var targetIds = [hostId]
-    if let display = state.focusedDisplay,
-       let comp = state.compositionsByDisplay[display] {
-      targetIds += comp.borrowed.map(\.workspace).filter { $0 != hostId }
-    }
-    let soleTarget = targetIds.count == 1
-
-    let onScreen = windowSnapshot.onScreenWindowIDs()
-    let settings = state.config.settings
-    let axis = settings.layout.autoBalance
-    // Read focus lazily — only when a prune actually happens (the read is an
-    // AX round trip to the frontmost app, and prune runs after every
-    // activation).
-    var focusedRead = false
-    var focused: WindowKey?
-
-    var prunedAny = false
-    var effects: [Effect<Action>] = []
-    for workspaceId in targetIds {
-      guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
-            let tree = state.tilingTrees[workspaceId]
-      else { continue }
-      let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
-      guard !gone.isEmpty else { continue }
-      if !focusedRead { focused = windowSnapshot.focusedWindowKey(); focusedRead = true }
-
-      var pruned: BSPNode<WindowKey>? = tree
-      for key in gone { pruned = pruned?.removing(key) }
-      let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
-      state.tilingTrees[workspaceId] = balanced
-      let newWindows = Set(balanced?.windows ?? [])
-      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-      prunedAny = true
-
-      debugLog.log(
-        "Prune",
-        "ws=\(workspace.name) removed=\(gone.map { $0.windowID }) "
-          + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])"
-      )
-
-      let refocusEffect: Effect<Action> = {
-        guard settings.focus.refocusOnClose, !newWindows.isEmpty,
-              focused == nil || !newWindows.contains(focused!)
-        else { return .none }
-        // With two blocks live, only the block whose own focused window was
-        // pruned refocuses — pruning a sibling must not steal focus from it.
-        if !soleTarget {
-          guard let focused, gone.contains(focused) else { return .none }
-        }
-        let target = state.mruWindows[workspaceId]?.first { newWindows.contains($0) }
-          ?? balanced?.windows.first
-        guard let target, let final = balanced else { return .none }
-        // Refocus-on-close moves focus programmatically — carry the cursor too.
-        return .merge(
-          .run { [focus = focusManager] _ in await focus.focusWindow(target) },
-          warpToWindow(target, in: final, workspaceId: workspaceId, state: state)
-        )
-      }()
-
-      effects.append(
-        persist(balanced, fullscreenZoomed: zoomed, for: workspace)
-      )
-      effects.append(refocusEffect)
-      // Pruning only runs when windows actually left the screen.
-      effects.append(handleEmptied(workspaceId: workspaceId, state: state))
-    }
-
-    guard prunedAny else { return .none }
-    // One composition-aware flush re-lays every block from the updated trees.
-    effects.append(flushLayout(workspaceId: hostId, state: state))
-    effects.append(refreshMarkers(state: state))
-    return .merge(effects)
-  }
-
-  func retileActive(state: State) -> Effect<Action> {
-    guard let workspaceId = state.primaryActiveWorkspaceID,
-          state.tilingTrees[workspaceId] != nil
-    else { return .none }
-    return flushLayout(workspaceId: workspaceId, state: state)
-  }
 }

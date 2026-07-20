@@ -4,14 +4,23 @@ import Foundation
 import OrderedCollections
 
 extension WorkspaceActivationFeature {
-  // MARK: - Window marker / floating presentation
+
+  // MARK: Internal
 
   /// The active workspace's floating apps + shared floating apps — the
   /// set whose live windows get mirror panels and marker dots.
   static func floatingBundleIds(state: State) -> [String] {
-    let perWorkspace = state.primaryActiveWorkspaceID
-      .flatMap { id in state.config.activeProfile?.workspaces[id: id] }
-      .map { $0.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier) } ?? []
+    floatingBundleIds(state: state, workspaceIDs: state.visibleWorkspaceIDs)
+  }
+
+  static func floatingBundleIds(
+    state: State,
+    workspaceIDs: Set<Workspace.ID>,
+  ) -> [String] {
+    let perWorkspace = workspaceIDs.flatMap { id in
+      state.config.activeProfile?.workspaces[id: id]?
+        .apps.filter { $0.layout == .floating }.map(\.bundleIdentifier) ?? []
+    }
     let shared = state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
     return Array(OrderedSet(perWorkspace + shared))
   }
@@ -21,9 +30,17 @@ extension WorkspaceActivationFeature {
   /// window-cycle targets and (via the discovery cache) FFM hit-test
   /// windows.
   static func unmanagedBundleIds(state: State) -> [String] {
-    let perWorkspace = state.primaryActiveWorkspaceID
-      .flatMap { id in state.config.activeProfile?.workspaces[id: id] }
-      .map { $0.apps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier) } ?? []
+    unmanagedBundleIds(state: state, workspaceIDs: state.visibleWorkspaceIDs)
+  }
+
+  static func unmanagedBundleIds(
+    state: State,
+    workspaceIDs: Set<Workspace.ID>,
+  ) -> [String] {
+    let perWorkspace = workspaceIDs.flatMap { id in
+      state.config.activeProfile?.workspaces[id: id]?
+        .apps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier) ?? []
+    }
     let shared = state.config.sharedApps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier)
     return Array(OrderedSet(perWorkspace + shared))
   }
@@ -36,9 +53,9 @@ extension WorkspaceActivationFeature {
     fullscreenZoomed: Set<WindowKey>,
     floatingKeys: [WindowKey],
     borrowed: [WindowKey: String],
-    cfg: AppSettings.Marker
+    cfg: AppSettings.Marker,
   ) -> [WindowKey: MarkerTarget] {
-    var targets: [WindowKey: MarkerTarget] = [:]
+    var targets = [WindowKey: MarkerTarget]()
     for key in fullscreenZoomed {
       targets[key] = MarkerTarget(colorHex: cfg.fullscreenColorHex)
     }
@@ -59,7 +76,7 @@ extension WorkspaceActivationFeature {
   /// off or nothing is borrowed.
   static func borrowMarkerTargets(state: State) -> [WindowKey: String] {
     guard state.config.settings.marker.borrowEnabled else { return [:] }
-    var out: [WindowKey: String] = [:]
+    var out = [WindowKey: String]()
     for comp in state.compositionsByDisplay.values {
       for slot in comp.borrowed {
         guard let ws = state.config.activeProfile?.workspaces[id: slot.workspace]
@@ -73,15 +90,6 @@ extension WorkspaceActivationFeature {
     return out
   }
 
-  /// The fullscreen-zoom marker keys for the active workspace (empty when
-  /// the category is disabled) — the marker inputs that need no discovery.
-  private static func fullscreenMarkerKeys(state: State) -> Set<WindowKey> {
-    guard state.config.settings.marker.fullscreenEnabled,
-          let workspaceId = state.primaryActiveWorkspaceID
-    else { return [] }
-    return state.fullscreenZoomed[workspaceId] ?? []
-  }
-
   /// Warp the cursor to the center of `key`'s tile when mouse-follows-focus is
   /// on. No-op when the setting is off or `key` has no frame. The shared body
   /// behind every "focus moved → follow it" path that isn't a hotkey (new
@@ -91,17 +99,21 @@ extension WorkspaceActivationFeature {
     in tree: BSPNode<WindowKey>,
     workspaceId: Workspace.ID,
     state: State,
-    skipIfCursorInside: Bool = false
+    skipIfCursorInside: Bool = false,
+    clearsPendingCenter: Bool = false,
   ) -> Effect<Action> {
     guard state.config.settings.focus.mouseFollowsFocus else { return .none }
     let settings = state.config.settings
     let (display, rect) = tilingContext(for: workspaceId, state: state)
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    return .run { [mouse] _ in
+    return .run { [mouse] send in
       let center = await MainActor.run { () -> CGPoint? in
         let frames = Self.computeFrames(
-          tree: tree, settings: settings, targetDisplay: display,
-          fullscreenZoomed: zoomed, targetRect: rect
+          tree: tree,
+          settings: settings,
+          targetDisplay: display,
+          fullscreenZoomed: zoomed,
+          targetRect: rect,
         )
         guard let r = frames[key] else { return nil }
         // For focus changes we only observe (cmd+`, menu, click), skip the warp
@@ -112,8 +124,75 @@ extension WorkspaceActivationFeature {
         if skipIfCursorInside, r.contains(mouse.axLocation()) { return nil }
         return CGPoint(x: r.midX, y: r.midY)
       }
+      guard !Task.isCancelled else { return }
       if let center { mouse.warp(center) }
+      if clearsPendingCenter {
+        await send(.cursorWarpFinished(workspaceId: workspaceId, target: key))
+      }
     }
+    .cancellable(id: CancelID.warp(workspaceId), cancelInFlight: true)
+  }
+
+  /// Start an unconditional center warp whose policy survives an AX focus echo.
+  /// The pending target keeps observed focus notifications from replacing this
+  /// requested warp before it clears the obligation.
+  func requiredCenterWarpToWindow(
+    _ key: WindowKey,
+    in tree: BSPNode<WindowKey>,
+    workspaceId: Workspace.ID,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard state.config.settings.focus.mouseFollowsFocus else { return .none }
+    state.pendingCenterWarps[workspaceId] = key
+    return warpToWindow(
+      key,
+      in: tree,
+      workspaceId: workspaceId,
+      state: state,
+      clearsPendingCenter: true,
+    )
+  }
+
+  /// Complete a close-driven focus transition after the new layout is on
+  /// screen. Reading the live AX frame here is intentional: the target tile's
+  /// pre-layout BSP frame is stale until `flushLayout` has finished applying
+  /// the survivor's expanded frame.
+  func settleFocusAfterLayout(
+    _ key: WindowKey,
+    workspaceId: Workspace.ID,
+    shouldFocus: Bool,
+    state: inout State,
+  ) -> Effect<Action> {
+    let shouldWarp = state.config.settings.focus.mouseFollowsFocus
+    guard shouldFocus || shouldWarp else { return .none }
+    if shouldWarp { state.pendingCenterWarps[workspaceId] = key }
+
+    return .run {
+      [focus = focusManager, snapshot = windowSnapshot, mouse, debugLog] send in
+      if shouldFocus { await focus.focusWindow(key) }
+      guard !Task.isCancelled else { return }
+
+      if shouldWarp {
+        let frame = await MainActor.run { snapshot.windowFrame(key) }
+        guard !Task.isCancelled else { return }
+        if let frame {
+          let center = CGPoint(x: frame.midX, y: frame.midY)
+          debugLog.log(
+            "Focus",
+            "post-layout center \(key.bundleId)#\(key.windowID) "
+              + "frame=\(frame) center=\(center)",
+          )
+          mouse.warp(center)
+        } else {
+          debugLog.log(
+            "Focus",
+            "post-layout frame unavailable \(key.bundleId)#\(key.windowID)",
+          )
+        }
+        await send(.cursorWarpFinished(workspaceId: workspaceId, target: key))
+      }
+    }
+    .cancellable(id: CancelID.warp(workspaceId), cancelInFlight: true)
   }
 
   /// Show a HUD message when its category (and the master switch) is
@@ -124,34 +203,48 @@ extension WorkspaceActivationFeature {
     _ category: KeyPath<AppSettings.HUD, Bool>,
     _ title: String,
     _ icon: String?,
-    subtitle: String? = nil
+    subtitle: String? = nil,
   ) -> Effect<Action> {
     guard state.config.settings.hud.shows(category) else { return .none }
     let durationMs = state.config.settings.hud.durationMs
     return .run { [hud = workspaceHUD] _ in await hud.show(title, icon, subtitle, durationMs) }
   }
 
-  /// Re-resolve floating windows and push fresh marker targets. The AX
-  /// discovery happens *inside* the effect — running it synchronously
-  /// while building the effect blocked every reduction that refreshed
-  /// markers (i.e. nearly every window event) on a full AX enumeration.
-  func refreshMarkers(state: State) -> Effect<Action> {
+  /// Push marker targets from the warm floating-window cache. Floating-window
+  /// events refresh that cache through `refreshFloatingPresentation`; marker-
+  /// only changes must not enumerate every floating app again.
+  func refreshMarkers(
+    state: State,
+    resolvedFloatingKeys: [WindowKey]? = nil,
+  ) -> Effect<Action> {
     let cfg = state.config.settings.marker
     let zoomedKeys = Self.fullscreenMarkerKeys(state: state)
     let floatingIds = cfg.floatingEnabled ? Self.floatingBundleIds(state: state) : []
     let borrowed = Self.borrowMarkerTargets(state: state)
     return .run { [marker, snapshot = windowSnapshot] _ in
-      let floatingKeys: [WindowKey] = floatingIds.isEmpty
-        ? []
-        : await MainActor.run { snapshot.discoverKeys(floatingIds, false) }
-      marker.setTargets(
+      guard !Task.isCancelled else { return }
+      let floatingKeys: [WindowKey] =
+        if let resolvedFloatingKeys {
+          resolvedFloatingKeys
+        } else {
+          floatingIds.isEmpty
+            ? []
+            : await MainActor.run { snapshot.cachedKeys(floatingIds, false) }
+        }
+      guard !Task.isCancelled else { return }
+      await marker.setTargets(
         Self.markerTargets(
-          fullscreenZoomed: zoomedKeys, floatingKeys: floatingKeys,
-          borrowed: borrowed, cfg: cfg
+          fullscreenZoomed: zoomedKeys,
+          floatingKeys: floatingKeys,
+          borrowed: borrowed,
+          cfg: cfg,
         ),
-        cfg.size, cfg.corner, cfg.hideOnHover
+        cfg.size,
+        cfg.corner,
+        cfg.hideOnHover,
       )
     }
+    .cancellable(id: CancelID.markerRefresh, cancelInFlight: true)
   }
 
   /// One floating-window discovery feeding both presentation consumers —
@@ -160,22 +253,24 @@ extension WorkspaceActivationFeature {
   /// whenever a floating app's windows change.
   func refreshFloatingPresentation(state: State) -> Effect<Action> {
     let bundleIds = Self.floatingBundleIds(state: state)
-    let cfg = state.config.settings.marker
-    let zoomedKeys = Self.fullscreenMarkerKeys(state: state)
-    let borrowed = Self.borrowMarkerTargets(state: state)
-    let overlay = floatingOverlay
-    return .run { [marker, snapshot = windowSnapshot] _ in
+    return .run { [snapshot = windowSnapshot] send in
+      guard !Task.isCancelled else { return }
       let keys = await MainActor.run { snapshot.discoverKeys(bundleIds, false) }
-      overlay.setFloating(Set(keys))
-      marker.setTargets(
-        Self.markerTargets(
-          fullscreenZoomed: zoomedKeys,
-          floatingKeys: cfg.floatingEnabled ? keys : [],
-          borrowed: borrowed,
-          cfg: cfg
-        ),
-        cfg.size, cfg.corner, cfg.hideOnHover
-      )
+      guard !Task.isCancelled else { return }
+      await send(.floatingPresentationResolved(keys))
+    }
+    .cancellable(id: CancelID.floatingDiscovery, cancelInFlight: true)
+  }
+
+  // MARK: Private
+
+  /// The fullscreen-zoom marker keys for the active workspace (empty when
+  /// the category is disabled) — the marker inputs that need no discovery.
+  private static func fullscreenMarkerKeys(state: State) -> Set<WindowKey> {
+    guard state.config.settings.marker.fullscreenEnabled else { return [] }
+    return state.visibleWorkspaceIDs.reduce(into: Set<WindowKey>()) { keys, workspaceId in
+      keys.formUnion(state.fullscreenZoomed[workspaceId] ?? [])
     }
   }
+
 }

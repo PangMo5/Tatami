@@ -4,6 +4,8 @@ import SFSafeSymbols
 import SwiftUI
 import TatamiKit
 
+// MARK: - ActivationSlice
+
 /// The sibling activation store's per-workspace slice, mirrored into the layout
 /// reducer. Equatable so `.onChange` only fires on real changes.
 private struct ActivationSlice: Equatable {
@@ -12,18 +14,354 @@ private struct ActivationSlice: Equatable {
   var isActive: Bool
 }
 
+// MARK: - WorkspaceDetailView
+
 struct WorkspaceDetailView: View {
+
+  // MARK: Internal
+
   @Bindable var store: StoreOf<WorkspaceDetailFeature>
+
   let activationStore: StoreOf<WorkspaceActivationFeature>
-  @State private var nameDraft: String = ""
-  @FocusState private var nameFieldFocused: Bool
-  @State private var symbolPickerPresented = false
-  /// App row briefly tinted after a "Configure in Apps" jump, so the user's eye
-  /// lands on the right row.
-  @State private var highlightedApp: String?
-  private let highlightFlash: Duration = .seconds(1.6)
-  /// The workspace picked to copy from — drives the review sheet.
-  @State private var importSource: ImportSource?
+
+  var body: some View {
+    if let workspace = store.workspace {
+      ScrollViewReader { proxy in
+        Form {
+          Section {
+            WorkspaceLayoutPreview(store: store.scope(state: \.layout, action: \.layout))
+          } header: {
+            Text("Layout")
+          }
+
+          Section("Workspace") {
+            // Icon picker — opens the SF Symbol grid on tap. Plain HStack with
+            // center alignment so the label sits vertically centered against
+            // the icon (LabeledContent aligns to the text baseline, which
+            // floats the label above taller controls).
+            HStack {
+              Text("Icon")
+              Spacer()
+              Button {
+                symbolPickerPresented = true
+              } label: {
+                Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
+                  .font(.title2)
+                  .foregroundStyle(.tint)
+                  .frame(width: 28, height: 28)
+              }
+              .buttonStyle(.plain)
+              .help("Choose an icon for this workspace.")
+              .sheet(isPresented: $symbolPickerPresented) {
+                SymbolPicker(
+                  selected: workspace.symbolIconName,
+                  onSelect: { store.send(.symbolIconChanged($0)) },
+                )
+              }
+            }
+
+            // Name — separate row, commits on blur or Return.
+            HStack {
+              Text("Name")
+              Spacer(minLength: 16)
+              TextField("", text: $nameDraft)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 360)
+                .focused($nameFieldFocused)
+                .onSubmit { store.send(.nameSubmitted(nameDraft)) }
+                .onChange(of: nameFieldFocused) { _, focused in
+                  if !focused { store.send(.nameSubmitted(nameDraft)) }
+                }
+            }
+
+            // Key equivalent — the workspace's single key. Combined with the
+            // switch / assign / borrow modifiers below for those actions.
+            VStack(alignment: .leading, spacing: 4) {
+              HStack(spacing: 10) {
+                Text("Key equivalent")
+                Spacer(minLength: 12)
+                KeyEquivalentRecorder(
+                  key: workspace.keyEquivalent,
+                  modifierSymbols: "",
+                  conflict: { keyEquivalentConflict($0) },
+                  onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
+                ) { store.send(.keyEquivalentChanged($0)) }
+              }
+              Text(
+                "One key for this workspace — hold it with the switch / assign / borrow modifier (Settings → Workspace Keys) to run each action."
+              )
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // Kind — normal vs scratchpad.
+            Picker(
+              selection: Binding(
+                get: { workspace.kind },
+                set: { store.send(.kindChanged($0)) },
+              )
+            ) {
+              ForEach(WorkspaceKind.allCases, id: \.self) { kind in
+                Text(kind.displayName).tag(kind)
+              }
+            } label: {
+              Text("Kind")
+              Text(workspace.kind == .scratchpad
+                ? "Borrow-only: excluded from cycling and never activated on its own — pull it in beside another workspace with a borrow."
+                :
+                "A normal workspace you switch to and cycle through. Borrow mode summons it by this key (h/j/k/l steer direction, so a workspace keyed to one isn't borrow-summonable).")
+            }
+            .pickerStyle(.menu)
+          }
+
+          Section {
+            ForEach(store.apps) { assignment in
+              AppRow(
+                assignment: assignment,
+                autoOpenBinding: Binding(
+                  get: { assignment.autoOpen },
+                  set: { value in
+                    store.send(
+                      .autoOpenToggled(bundleIdentifier: assignment.bundleIdentifier, isOn: value)
+                    )
+                  },
+                ),
+                layoutBinding: Binding(
+                  get: { assignment.layout },
+                  set: { value in
+                    store.send(
+                      .layoutChanged(bundleIdentifier: assignment.bundleIdentifier, layout: value)
+                    )
+                  },
+                ),
+                showLayoutOptions: workspace.kind != .scratchpad,
+                onRemove: {
+                  store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
+                },
+              )
+              .id("app-\(assignment.bundleIdentifier)")
+              .listRowBackground(
+                highlightedApp == assignment.bundleIdentifier
+                  ? Color.accentColor.opacity(0.18)
+                  : nil
+              )
+            }
+          } header: {
+            HStack {
+              Text("Apps")
+              Spacer()
+              Button {
+                store.send(.addAppButtonTapped)
+              } label: {
+                Label("Add", systemImage: "plus.circle")
+                  .labelStyle(.iconOnly)
+              }
+              .buttonStyle(.borderless)
+            }
+          } footer: {
+            if store.apps.isEmpty {
+              Text("No apps yet. Tap + to assign one.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+
+          Section {
+            // Each action derives from the workspace key (its modifier in
+            // Settings → Workspace Keys); the recorder beside it overrides that.
+            // Activate / Assign are meaningless for a borrow-only scratchpad.
+            if workspace.kind != .scratchpad {
+              derivedShortcutRow(
+                "Activate",
+                modifiers: store.config.settings.shortcuts.keyEquivalentModifiers,
+                key: workspace.keyEquivalent,
+                override: workspace.activateShortcut,
+                conflict: { store.state.activateShortcutConflict(for: $0) },
+                onOverride: { store.send(.activateShortcutChanged($0)) },
+              )
+              derivedShortcutRow(
+                "Assign focused app here",
+                modifiers: store.config.settings.shortcuts.assignModifiers,
+                key: workspace.keyEquivalent,
+                override: workspace.assignAppShortcut,
+                conflict: { store.state.assignShortcutConflict(for: $0) },
+                onOverride: { store.send(.assignAppShortcutChanged($0)) },
+              )
+            }
+            derivedShortcutRow(
+              "Borrow",
+              modifiers: store.config.settings.shortcuts.borrowModifiers,
+              key: workspace.keyEquivalent,
+              override: workspace.borrowShortcut,
+              conflict: { store.state.borrowShortcutConflict(for: $0) },
+              onOverride: { store.send(.borrowShortcutChanged($0)) },
+            )
+          } header: {
+            HStack {
+              Text("Shortcuts")
+              Spacer()
+              Button {
+                store.send(.openWorkspaceKeysTapped)
+              } label: {
+                Label("Workspace Keys", systemImage: "keyboard")
+                  .font(.caption)
+              }
+              .buttonStyle(.borderless)
+              .help("Edit the switch / assign / borrow modifiers these combine with, in Settings → Workspace Keys.")
+            }
+          } footer: {
+            Text(
+              "Each uses its modifier (Settings → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          }
+
+          Section("Borrow Placement") {
+            let globalEdge = store.config.settings.switching.borrowDefaultEdge
+            let globalEdgeLabel = globalEdge?.rawValue.capitalized ?? "Ask"
+            let globalFraction = store.config.settings.switching.borrowFraction
+            Picker(
+              selection: Binding(
+                get: { workspace.borrowEdge },
+                set: { store.send(.borrowEdgeChanged($0)) },
+              )
+            ) {
+              Text("Use Global (\(globalEdgeLabel))").tag(BorrowEdge?.none)
+              Divider()
+              ForEach(BorrowEdge.allCases, id: \.self) { edge in
+                Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+              }
+            } label: {
+              Text("Direction")
+              Text("Where this workspace docks when borrowed. Change the global default in Settings.")
+            }
+            .pickerStyle(.menu)
+            Picker(
+              selection: Binding(
+                get: { workspace.borrowFraction },
+                set: { store.send(.borrowFractionChanged($0)) },
+              )
+            ) {
+              Text("Use Global (\(Int((globalFraction * 100).rounded()))%)").tag(Double?.none)
+              Divider()
+              ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
+                Text("\(Int((f * 100).rounded()))%").tag(Double?.some(f))
+              }
+            } label: {
+              Text("Size")
+              Text("This workspace's share of the screen when borrowed.")
+            }
+            .pickerStyle(.menu)
+          }
+
+          if workspace.kind != .scratchpad {
+            DisplayPickerSection(
+              availableDisplays: store.availableDisplays,
+              selectedHint: workspace.displayHint,
+              onSelect: { store.send(.displayHintChanged($0)) },
+            )
+          }
+
+          if workspace.kind != .scratchpad {
+            Section("On Activation") {
+              Picker(
+                selection: Binding(
+                  get: { workspace.appToFocusBundleId },
+                  set: { store.send(.appToFocusChanged($0)) },
+                )
+              ) {
+                Text("Most recently used").tag(String?.none)
+                ForEach(workspace.apps, id: \.bundleIdentifier) { app in
+                  Text(app.name).tag(String?.some(app.bundleIdentifier))
+                }
+              } label: {
+                Text("Focus app")
+                Text("Which assigned app gets focus when this workspace activates.")
+              }
+              .pickerStyle(.menu)
+            }
+          }
+
+          copyFromSection(workspace)
+        }
+        .formStyle(.grouped)
+        .navigationTitle(workspace.name)
+        .toolbar {
+          ToolbarItem(placement: .primaryAction) {
+            let active = isActive(workspace)
+            Button {
+              store.send(.activateTapped)
+            } label: {
+              Label(
+                active ? "Active" : "Activate",
+                systemImage: active ? "checkmark.circle.fill" : "play.fill",
+              )
+            }
+            .disabled(active || activationStore.isActivating)
+            .help(active ? "This workspace is already active." : "Activate this workspace.")
+          }
+        }
+        .sheet(isPresented: $store.isAppPickerPresented) {
+          AppPickerSheet(
+            apps: store.availableRunningApps,
+            onSelect: { app in store.send(.appPickerAppSelected(app)) },
+            onChooseFile: { store.send(.chooseAppFileTapped) },
+            onCancel: { store.send(.appPickerDismissed) },
+          )
+        }
+        .sheet(item: $importSource) { source in
+          SyncPreviewSheet(
+            title: "Copy from “\(source.workspaceName)”",
+            message: "Copy each change from “\(source.workspaceName)” (\(source.profileName)) into this workspace. Uncheck anything you'd rather keep.",
+            applyTitle: "Copy",
+            groups: importGroups(source),
+            onApply: { excluded in applyImport(source, excluding: excluded) },
+          )
+        }
+        .onChange(of: workspace.id, initial: true) { _, _ in nameDraft = workspace.name }
+        // Keyed on the workspace so re-running per selection re-fetches the
+        // display list (a plain `.task` only fires on first appearance, which
+        // left later workspaces' pickers showing just their own pinned display).
+        .task(id: workspace.id) { store.send(.onAppear) }
+        // Mirror the sibling activation store's slice for this workspace into the
+        // layout reducer (it can't read the activation subtree directly). The
+        // Equatable gate fires only on real changes to this workspace's tree /
+        // zoom / active state.
+        .onChange(of: activationSlice(workspace.id), initial: true) { _, slice in
+          store.send(.layout(.activationObserved(
+            liveTree: slice.liveTree,
+            liveZoomed: slice.liveZoomed,
+            isActive: slice.isActive,
+          )))
+        }
+        // Refresh the pinned-display picker when monitors are plugged/unplugged.
+        .onReceive(
+          NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+        ) { _ in store.send(.refreshDisplays) }
+        .alert($store.scope(state: \.alert, action: \.alert))
+        // A "Configure in Apps" jump: scroll the Apps section to the row and
+        // flash it. Keyed on the request token so repeat jumps refire.
+        .task(id: store.appScrollRequest?.token) {
+          guard let request = store.appScrollRequest else { return }
+          withAnimation { proxy.scrollTo("app-\(request.bundleId)", anchor: .center) }
+          withAnimation { highlightedApp = request.bundleId }
+          try? await Task.sleep(for: highlightFlash)
+          guard !Task.isCancelled else { return }
+          withAnimation { highlightedApp = nil }
+        }
+      } // ScrollViewReader
+    } else {
+      ContentUnavailableView(
+        "Workspace Unavailable",
+        systemImage: "exclamationmark.triangle",
+        description: Text("This workspace no longer exists."),
+      )
+    }
+  }
+
+  // MARK: Private
 
   /// A chosen source workspace for the "copy from" review sheet.
   private struct ImportSource: Identifiable {
@@ -31,8 +369,22 @@ struct WorkspaceDetailView: View {
     let workspaceId: Workspace.ID
     let profileName: String
     let workspaceName: String
-    var id: String { "\(profileId.uuidString):\(workspaceId.uuidString)" }
+
+    var id: String {
+      "\(profileId.uuidString):\(workspaceId.uuidString)"
+    }
   }
+
+  @State private var nameDraft = ""
+  @State private var symbolPickerPresented = false
+  /// App row briefly tinted after a "Configure in Apps" jump, so the user's eye
+  /// lands on the right row.
+  @State private var highlightedApp: String?
+  /// The workspace picked to copy from — drives the review sheet.
+  @State private var importSource: ImportSource?
+  @FocusState private var nameFieldFocused: Bool
+
+  private let highlightFlash = Duration.seconds(1.6)
 
   /// True when *this* workspace is the currently-active one on any
   /// display. Drives the toolbar Activate button's disabled state.
@@ -44,7 +396,7 @@ struct WorkspaceDetailView: View {
     ActivationSlice(
       liveTree: activationStore.tilingTrees[id],
       liveZoomed: activationStore.fullscreenZoomed[id] ?? [],
-      isActive: activationStore.activeWorkspacesByDisplay.values.contains(id)
+      isActive: activationStore.activeWorkspacesByDisplay.values.contains(id),
     )
   }
 
@@ -59,25 +411,27 @@ struct WorkspaceDetailView: View {
       let mods = HotKey.carbonModifiers(from: tokens)
       return mods == 0 ? nil : HotKey(carbonKeyCode: code, carbonModifiers: mods)
     }
-    if let hk = combo(s.keyEquivalentModifiers),
-       let owner = store.state.activateShortcutConflict(for: hk) { return owner }
-    if let hk = combo(s.assignModifiers),
-       let owner = store.state.assignShortcutConflict(for: hk) { return owner }
-    if let hk = combo(s.borrowModifiers),
-       let owner = store.state.borrowShortcutConflict(for: hk) { return owner }
+    if
+      let hk = combo(s.keyEquivalentModifiers),
+      let owner = store.state.activateShortcutConflict(for: hk) { return owner }
+    if
+      let hk = combo(s.assignModifiers),
+      let owner = store.state.assignShortcutConflict(for: hk) { return owner }
+    if
+      let hk = combo(s.borrowModifiers),
+      let owner = store.state.borrowShortcutConflict(for: hk) { return owner }
     return nil
   }
 
   /// A shortcut row whose default is "modifier + the workspace key equivalent"
   /// (shown read-only in a capsule) with an explicit-shortcut override beside.
-  @ViewBuilder
   private func derivedShortcutRow(
     _ title: String,
     modifiers: [String],
     key: String?,
     override: HotKey?,
     conflict: @escaping (HotKey) -> String?,
-    onOverride: @escaping (HotKey?) -> Void
+    onOverride: @escaping (HotKey?) -> Void,
   ) -> some View {
     HStack(spacing: 10) {
       Text(title)
@@ -91,12 +445,10 @@ struct WorkspaceDetailView: View {
       ShortcutRecorder(
         hotKey: override,
         conflict: conflict,
-        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
       ) { onOverride($0) }
     }
   }
-
-  // MARK: - Copy from another workspace
 
   @ViewBuilder
   private func copyFromSection(_ workspace: Workspace) -> some View {
@@ -112,8 +464,10 @@ struct WorkspaceDetailView: View {
                 ForEach(sources, id: \.id) { ws in
                   Button(ws.name) {
                     importSource = ImportSource(
-                      profileId: profile.id, workspaceId: ws.id,
-                      profileName: profile.name, workspaceName: ws.name
+                      profileId: profile.id,
+                      workspaceId: ws.id,
+                      profileName: profile.name,
+                      workspaceName: ws.name,
                     )
                   }
                 }
@@ -126,404 +480,77 @@ struct WorkspaceDetailView: View {
       } header: {
         Text("Copy")
       } footer: {
-        Text("Pull another workspace's apps and settings into this one — you'll review and pick each change. The display pin is included, so uncheck it to keep this workspace's own.")
-          .font(.caption).foregroundStyle(.secondary)
+        Text(
+          "Pull another workspace's apps and settings into this one — you'll review and pick each change. The display pin is included, so uncheck it to keep this workspace's own."
+        )
+        .font(.caption).foregroundStyle(.secondary)
       }
     }
   }
 
   private func importGroups(_ source: ImportSource) -> [SyncChangeGroup] {
-    guard let sourceWs = store.config.profiles.first(where: { $0.id == source.profileId })?
-      .workspaces[id: source.workspaceId],
+    guard
+      let sourceWs = store.config.profiles.first(where: { $0.id == source.profileId })?
+        .workspaces[id: source.workspaceId],
       let target = store.workspace
     else { return [] }
-    var groups: [SyncChangeGroup] = []
+    var groups = [SyncChangeGroup]()
     let appChanges = WorkspaceSync.appChanges(from: sourceWs.apps, to: target.apps)
     if !appChanges.isEmpty {
       groups.append(SyncChangeGroup(
-        id: "apps", title: "Apps", items: appChanges.map { SyncChangeItem($0, prefix: "") }
+        id: "apps",
+        title: "Apps",
+        items: appChanges.map { SyncChangeItem($0, prefix: "") },
       ))
     }
     let fieldChanges = WorkspaceSync.fieldChanges(from: sourceWs, to: target)
     if !fieldChanges.isEmpty {
       groups.append(SyncChangeGroup(
-        id: "settings", title: "Settings", items: fieldChanges.map { SyncChangeItem($0, prefix: "") }
+        id: "settings",
+        title: "Settings",
+        items: fieldChanges.map { SyncChangeItem($0, prefix: "") },
       ))
     }
     return groups
   }
 
   private func applyImport(_ source: ImportSource, excluding excluded: Set<String>) {
-    var excApps: Set<String> = []
-    var excFields: Set<String> = []
+    var excApps = Set<String>()
+    var excFields = Set<String>()
     for id in excluded {
       if id.hasPrefix("app:") { excApps.insert(String(id.dropFirst(4))) }
       else if id.hasPrefix("field:") { excFields.insert(String(id.dropFirst(6))) }
     }
     store.send(.importWorkspace(
-      sourceProfile: source.profileId, sourceWorkspace: source.workspaceId,
-      excludingApps: excApps, excludingFields: excFields
+      sourceProfile: source.profileId,
+      sourceWorkspace: source.workspaceId,
+      excludingApps: excApps,
+      excludingFields: excFields,
     ))
   }
 
-  var body: some View {
-    if let workspace = store.workspace {
-      ScrollViewReader { proxy in
-      Form {
-        Section {
-          WorkspaceLayoutPreview(store: store.scope(state: \.layout, action: \.layout))
-        } header: {
-          Text("Layout")
-        }
-
-        Section("Workspace") {
-          // Icon picker — opens the SF Symbol grid on tap. Plain HStack with
-          // center alignment so the label sits vertically centered against
-          // the icon (LabeledContent aligns to the text baseline, which
-          // floats the label above taller controls).
-          HStack {
-            Text("Icon")
-            Spacer()
-            Button {
-              symbolPickerPresented = true
-            } label: {
-              Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
-                .font(.title2)
-                .foregroundStyle(.tint)
-                .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.plain)
-            .help("Choose an icon for this workspace.")
-            .sheet(isPresented: $symbolPickerPresented) {
-              SymbolPicker(
-                selected: workspace.symbolIconName,
-                onSelect: { store.send(.symbolIconChanged($0)) }
-              )
-            }
-          }
-
-          // Name — separate row, commits on blur or Return.
-          HStack {
-            Text("Name")
-            Spacer(minLength: 16)
-            TextField("", text: $nameDraft)
-              .textFieldStyle(.roundedBorder)
-              .frame(maxWidth: 360)
-              .focused($nameFieldFocused)
-              .onSubmit { store.send(.nameSubmitted(nameDraft)) }
-              .onChange(of: nameFieldFocused) { _, focused in
-                if !focused { store.send(.nameSubmitted(nameDraft)) }
-              }
-          }
-
-          // Key equivalent — the workspace's single key. Combined with the
-          // switch / assign / borrow modifiers below for those actions.
-          VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 10) {
-              Text("Key equivalent")
-              Spacer(minLength: 12)
-              KeyEquivalentRecorder(
-                key: workspace.keyEquivalent,
-                modifierSymbols: "",
-                conflict: { keyEquivalentConflict($0) },
-                onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
-              ) { store.send(.keyEquivalentChanged($0)) }
-            }
-            Text("One key for this workspace — hold it with the switch / assign / borrow modifier (Settings → Workspace Keys) to run each action.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, alignment: .leading)
-          }
-
-          // Kind — normal vs scratchpad.
-          Picker(
-            selection: Binding(
-              get: { workspace.kind },
-              set: { store.send(.kindChanged($0)) }
-            )
-          ) {
-            ForEach(WorkspaceKind.allCases, id: \.self) { kind in
-              Text(kind.displayName).tag(kind)
-            }
-          } label: {
-            Text("Kind")
-            Text(workspace.kind == .scratchpad
-              ? "Borrow-only: excluded from cycling and never activated on its own — pull it in beside another workspace with a borrow."
-              : "A normal workspace you switch to and cycle through. Borrow mode summons it by this key (h/j/k/l steer direction, so a workspace keyed to one isn't borrow-summonable).")
-          }
-          .pickerStyle(.menu)
-        }
-
-        Section {
-          ForEach(store.apps) { assignment in
-            AppRow(
-              assignment: assignment,
-              autoOpenBinding: Binding(
-                get: { assignment.autoOpen },
-                set: { value in
-                  store.send(
-                    .autoOpenToggled(bundleIdentifier: assignment.bundleIdentifier, isOn: value)
-                  )
-                }
-              ),
-              layoutBinding: Binding(
-                get: { assignment.layout },
-                set: { value in
-                  store.send(
-                    .layoutChanged(bundleIdentifier: assignment.bundleIdentifier, layout: value)
-                  )
-                }
-              ),
-              showLayoutOptions: workspace.kind != .scratchpad,
-              onRemove: {
-                store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
-              }
-            )
-            .id("app-\(assignment.bundleIdentifier)")
-            .listRowBackground(
-              highlightedApp == assignment.bundleIdentifier
-                ? Color.accentColor.opacity(0.18) : nil
-            )
-          }
-        } header: {
-          HStack {
-            Text("Apps")
-            Spacer()
-            Button {
-              store.send(.addAppButtonTapped)
-            } label: {
-              Label("Add", systemImage: "plus.circle")
-                .labelStyle(.iconOnly)
-            }
-            .buttonStyle(.borderless)
-          }
-        } footer: {
-          if store.apps.isEmpty {
-            Text("No apps yet. Tap + to assign one.")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-        }
-
-        Section {
-          // Each action derives from the workspace key (its modifier in
-          // Settings → Workspace Keys); the recorder beside it overrides that.
-          // Activate / Assign are meaningless for a borrow-only scratchpad.
-          if workspace.kind != .scratchpad {
-            derivedShortcutRow(
-              "Activate",
-              modifiers: store.config.settings.shortcuts.keyEquivalentModifiers,
-              key: workspace.keyEquivalent,
-              override: workspace.activateShortcut,
-              conflict: { store.state.activateShortcutConflict(for: $0) },
-              onOverride: { store.send(.activateShortcutChanged($0)) }
-            )
-            derivedShortcutRow(
-              "Assign focused app here",
-              modifiers: store.config.settings.shortcuts.assignModifiers,
-              key: workspace.keyEquivalent,
-              override: workspace.assignAppShortcut,
-              conflict: { store.state.assignShortcutConflict(for: $0) },
-              onOverride: { store.send(.assignAppShortcutChanged($0)) }
-            )
-          }
-          derivedShortcutRow(
-            "Borrow",
-            modifiers: store.config.settings.shortcuts.borrowModifiers,
-            key: workspace.keyEquivalent,
-            override: workspace.borrowShortcut,
-            conflict: { store.state.borrowShortcutConflict(for: $0) },
-            onOverride: { store.send(.borrowShortcutChanged($0)) }
-          )
-        } header: {
-          HStack {
-            Text("Shortcuts")
-            Spacer()
-            Button {
-              store.send(.openWorkspaceKeysTapped)
-            } label: {
-              Label("Workspace Keys", systemImage: "keyboard")
-                .font(.caption)
-            }
-            .buttonStyle(.borderless)
-            .help("Edit the switch / assign / borrow modifiers these combine with, in Settings → Workspace Keys.")
-          }
-        } footer: {
-          Text("Each uses its modifier (Settings → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-
-        Section("Borrow Placement") {
-          let globalEdge = store.config.settings.switching.borrowDefaultEdge
-          let globalEdgeLabel = globalEdge?.rawValue.capitalized ?? "Ask"
-          let globalFraction = store.config.settings.switching.borrowFraction
-          Picker(
-            selection: Binding(
-              get: { workspace.borrowEdge },
-              set: { store.send(.borrowEdgeChanged($0)) }
-            )
-          ) {
-            Text("Use Global (\(globalEdgeLabel))").tag(BorrowEdge?.none)
-            Divider()
-            ForEach(BorrowEdge.allCases, id: \.self) { edge in
-              Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
-            }
-          } label: {
-            Text("Direction")
-            Text("Where this workspace docks when borrowed. Change the global default in Settings.")
-          }
-          .pickerStyle(.menu)
-          Picker(
-            selection: Binding(
-              get: { workspace.borrowFraction },
-              set: { store.send(.borrowFractionChanged($0)) }
-            )
-          ) {
-            Text("Use Global (\(Int((globalFraction * 100).rounded()))%)").tag(Double?.none)
-            Divider()
-            ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
-              Text("\(Int((f * 100).rounded()))%").tag(Double?.some(f))
-            }
-          } label: {
-            Text("Size")
-            Text("This workspace's share of the screen when borrowed.")
-          }
-          .pickerStyle(.menu)
-        }
-
-        if workspace.kind != .scratchpad {
-          DisplayPickerSection(
-            availableDisplays: store.availableDisplays,
-            selectedHint: workspace.displayHint,
-            onSelect: { store.send(.displayHintChanged($0)) }
-          )
-        }
-
-        if workspace.kind != .scratchpad {
-          Section("On Activation") {
-            Picker(
-              selection: Binding(
-                get: { workspace.appToFocusBundleId },
-                set: { store.send(.appToFocusChanged($0)) }
-              )
-            ) {
-              Text("Most recently used").tag(String?.none)
-              ForEach(workspace.apps, id: \.bundleIdentifier) { app in
-                Text(app.name).tag(String?.some(app.bundleIdentifier))
-              }
-            } label: {
-              Text("Focus app")
-              Text("Which assigned app gets focus when this workspace activates.")
-            }
-            .pickerStyle(.menu)
-          }
-        }
-
-        copyFromSection(workspace)
-      }
-      .formStyle(.grouped)
-      .navigationTitle(workspace.name)
-      .toolbar {
-        ToolbarItem(placement: .primaryAction) {
-          let active = isActive(workspace)
-          Button {
-            store.send(.activateTapped)
-          } label: {
-            Label(
-              active ? "Active" : "Activate",
-              systemImage: active ? "checkmark.circle.fill" : "play.fill"
-            )
-          }
-          .disabled(active || activationStore.isActivating)
-          .help(active ? "This workspace is already active." : "Activate this workspace.")
-        }
-      }
-      .sheet(isPresented: $store.isAppPickerPresented) {
-        AppPickerSheet(
-          apps: store.availableRunningApps,
-          onSelect: { app in store.send(.appPickerAppSelected(app)) },
-          onChooseFile: { store.send(.chooseAppFileTapped) },
-          onCancel: { store.send(.appPickerDismissed) }
-        )
-      }
-      .sheet(item: $importSource) { source in
-        SyncPreviewSheet(
-          title: "Copy from “\(source.workspaceName)”",
-          message: "Copy each change from “\(source.workspaceName)” (\(source.profileName)) into this workspace. Uncheck anything you'd rather keep.",
-          applyTitle: "Copy",
-          groups: importGroups(source),
-          onApply: { excluded in applyImport(source, excluding: excluded) }
-        )
-      }
-      .onChange(of: workspace.id, initial: true) { _, _ in nameDraft = workspace.name }
-      // Keyed on the workspace so re-running per selection re-fetches the
-      // display list (a plain `.task` only fires on first appearance, which
-      // left later workspaces' pickers showing just their own pinned display).
-      .task(id: workspace.id) { store.send(.onAppear) }
-      // Mirror the sibling activation store's slice for this workspace into the
-      // layout reducer (it can't read the activation subtree directly). The
-      // Equatable gate fires only on real changes to this workspace's tree /
-      // zoom / active state.
-      .onChange(of: activationSlice(workspace.id), initial: true) { _, slice in
-        store.send(.layout(.activationObserved(
-          liveTree: slice.liveTree, liveZoomed: slice.liveZoomed, isActive: slice.isActive
-        )))
-      }
-      // Refresh the pinned-display picker when monitors are plugged/unplugged.
-      .onReceive(
-        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
-      ) { _ in store.send(.refreshDisplays) }
-      .alert($store.scope(state: \.alert, action: \.alert))
-      // A "Configure in Apps" jump: scroll the Apps section to the row and
-      // flash it. Keyed on the request token so repeat jumps refire.
-      .task(id: store.appScrollRequest?.token) {
-        guard let request = store.appScrollRequest else { return }
-        withAnimation { proxy.scrollTo("app-\(request.bundleId)", anchor: .center) }
-        withAnimation { highlightedApp = request.bundleId }
-        try? await Task.sleep(for: highlightFlash)
-        withAnimation { highlightedApp = nil }
-      }
-      } // ScrollViewReader
-    } else {
-      ContentUnavailableView(
-        "Workspace Unavailable",
-        systemImage: "exclamationmark.triangle",
-        description: Text("This workspace no longer exists.")
-      )
-    }
-  }
 }
+
+// MARK: - SymbolPicker
 
 /// Searchable SF Symbol picker backed by SFSafeSymbols' full catalog.
 /// Shared with ProfileDetailView (same target), hence not file-private.
 struct SymbolPicker: View {
+
+  // MARK: Internal
+
   let selected: String?
   let onSelect: (String?) -> Void
-
-  @Environment(\.dismiss) private var dismiss
-  @State private var query = ""
-
-  // Full catalog, sorted once. Some entries require a newer OS than the
-  // deployment target and just render blank — harmless for a picker.
-  private static let allNames: [String] =
-    SFSymbol.allSymbols.map(\.rawValue).sorted()
-
-  private var filtered: [String] {
-    let trimmed = query.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else { return Self.allNames }
-    return Self.allNames.filter { $0.localizedCaseInsensitiveContains(trimmed) }
-  }
-
-  private let columns = [GridItem(.adaptive(minimum: 40), spacing: 8)]
 
   var body: some View {
     VStack(spacing: 0) {
       HStack {
         Text("Choose Icon").font(.headline)
         Spacer()
-        Button("Reset") { onSelect(nil); dismiss() }
-          .buttonStyle(.borderless)
+        Button("Reset") { onSelect(nil)
+          dismiss()
+        }
+        .buttonStyle(.borderless)
         Button("Done") { dismiss() }
           .keyboardShortcut(.defaultAction)
       }
@@ -561,9 +588,33 @@ struct SymbolPicker: View {
     }
     .frame(width: 420, height: 460)
   }
+
+  // MARK: Private
+
+  /// Full catalog, sorted once. Some entries require a newer OS than the
+  /// deployment target and just render blank — harmless for a picker.
+  private static let allNames: [String] =
+    SFSymbol.allSymbols.map(\.rawValue).sorted()
+
+  @Environment(\.dismiss) private var dismiss
+  @State private var query = ""
+
+  private let columns = [GridItem(.adaptive(minimum: 40), spacing: 8)]
+
+  private var filtered: [String] {
+    let trimmed = query.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return Self.allNames }
+    return Self.allNames.filter { $0.localizedCaseInsensitiveContains(trimmed) }
+  }
+
 }
 
+// MARK: - DisplayPickerSection
+
 private struct DisplayPickerSection: View {
+
+  // MARK: Internal
+
   // Plain values passed by the parent (which is `@Bindable` and observes the
   // store), so this section reliably re-renders when the display list loads.
   let availableDisplays: [DisplayName]
@@ -573,7 +624,7 @@ private struct DisplayPickerSection: View {
   var body: some View {
     Section {
       Picker("Pinned display", selection: binding) {
-        Text("Dynamic (follow apps)").tag(DisplayName?.none)
+        Text("Dynamic (follows mouse)").tag(DisplayName?.none)
         ForEach(pickerItems, id: \.self) { display in
           Text(display.name).tag(DisplayName?.some(display))
         }
@@ -582,11 +633,15 @@ private struct DisplayPickerSection: View {
     } header: {
       Text("Display")
     } footer: {
-      Text("Pin this workspace to always open on one display. Dynamic instead follows your apps — it opens on whichever display you're using.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      Text(
+        "Pin this workspace to always open on one display. Dynamic follows the mouse, opening on the display under the pointer."
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
     }
   }
+
+  // MARK: Private
 
   /// Connected displays, plus the pinned display itself when it's currently
   /// disconnected — so the picker can still show the existing selection.
@@ -606,10 +661,13 @@ private struct DisplayPickerSection: View {
         // legacy / name-only hint still highlights the right display.
         return pickerItems.first { $0.matches(hint) } ?? hint
       },
-      set: { onSelect($0) }
+      set: { onSelect($0) },
     )
   }
+
 }
+
+// MARK: - AppRow
 
 private struct AppRow: View {
   let assignment: AppAssignment
@@ -617,7 +675,7 @@ private struct AppRow: View {
   let layoutBinding: Binding<LayoutMode>
   /// Layout + auto-open are meaningless for a borrow-only scratchpad (only
   /// tiled apps take part when borrowed, and it never activates), so hide them.
-  var showLayoutOptions: Bool = true
+  var showLayoutOptions = true
   let onRemove: () -> Void
 
   var body: some View {
@@ -641,7 +699,9 @@ private struct AppRow: View {
         .labelsHidden()
         .pickerStyle(.segmented)
         .fixedSize()
-        .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
+        .help(
+          "Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording."
+        )
         HStack(spacing: 6) {
           Text("Auto-open")
             .font(.caption)
@@ -661,8 +721,13 @@ private struct AppRow: View {
   }
 }
 
-// Shared with SharedAppsView (same target), hence not file-private.
+// MARK: - AppIcon
+
+/// Shared with SharedAppsView (same target), hence not file-private.
 struct AppIcon: View {
+
+  // MARK: Internal
+
   let bundleIdentifier: String
   let iconPath: String?
 
@@ -676,6 +741,8 @@ struct AppIcon: View {
         .foregroundStyle(.secondary)
     }
   }
+
+  // MARK: Private
 
   /// Decoding an icon from disk (`NSImage(contentsOfFile:)`) or resolving it
   /// via `NSWorkspace` ran on every `body` pass — in the app lists each row
@@ -697,26 +764,21 @@ struct AppIcon: View {
     if let image { cache.setObject(image, forKey: key) }
     return image
   }
+
 }
 
-// Shared with SharedAppsView (same target), hence not file-private.
+// MARK: - AppPickerSheet
+
+/// Shared with SharedAppsView (same target), hence not file-private.
 struct AppPickerSheet: View {
+
+  // MARK: Internal
+
   let apps: [MacApp]
   let onSelect: (MacApp) -> Void
   /// Pick an app from disk instead of the running list.
   let onChooseFile: () -> Void
   let onCancel: () -> Void
-
-  @State private var query = ""
-
-  private var filtered: [MacApp] {
-    let trimmed = query.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else { return apps }
-    return apps.filter {
-      $0.name.localizedCaseInsensitiveContains(trimmed)
-        || $0.bundleIdentifier.localizedCaseInsensitiveContains(trimmed)
-    }
-  }
 
   var body: some View {
     NavigationStack {
@@ -770,4 +832,18 @@ struct AppPickerSheet: View {
     }
     .frame(width: 420, height: 480)
   }
+
+  // MARK: Private
+
+  @State private var query = ""
+
+  private var filtered: [MacApp] {
+    let trimmed = query.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return apps }
+    return apps.filter {
+      $0.name.localizedCaseInsensitiveContains(trimmed)
+        || $0.bundleIdentifier.localizedCaseInsensitiveContains(trimmed)
+    }
+  }
+
 }

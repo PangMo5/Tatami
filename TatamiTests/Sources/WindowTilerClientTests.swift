@@ -1,0 +1,30 @@
+import CoreGraphics
+import Testing
+@testable import TatamiKit
+
+struct WindowTilerClientTests {
+  @Test
+  func `fresh window server frames skip only current targets`() {
+    let current = WindowKey(pid: 1, windowID: 10, bundleId: "app.current")
+    let withinTolerance = WindowKey(pid: 2, windowID: 20, bundleId: "app.tolerance")
+    let drifted = WindowKey(pid: 3, windowID: 30, bundleId: "app.drifted")
+    let offscreen = WindowKey(pid: 4, windowID: 40, bundleId: "app.offscreen")
+    let target = CGRect(x: 8, y: 41, width: 800, height: 600)
+
+    let pending = WindowTilerClient.framesNeedingApply(
+      targets: [
+        current: target,
+        withinTolerance: target,
+        drifted: target,
+        offscreen: target,
+      ],
+      visibleFrames: [
+        current.windowID: target,
+        withinTolerance.windowID: target.offsetBy(dx: 0.5, dy: -0.5),
+        drifted.windowID: target.offsetBy(dx: 3, dy: 0),
+      ],
+    )
+
+    #expect(pending == [drifted: target, offscreen: target])
+  }
+}

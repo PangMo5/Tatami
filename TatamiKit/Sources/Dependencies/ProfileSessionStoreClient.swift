@@ -12,7 +12,7 @@ import OSLog
 @DependencyClient
 struct ProfileSessionStoreClient: Sendable {
   var loadActiveProfileId: @Sendable () async -> UUID?
-  var saveActiveProfileId: @Sendable (UUID?) -> Void
+  var saveActiveProfileId: @Sendable (UUID?) async -> Void
 }
 
 extension ProfileSessionStoreClient: DependencyKey {
@@ -20,7 +20,7 @@ extension ProfileSessionStoreClient: DependencyKey {
     let store = ProfileSessionStore()
     return ProfileSessionStoreClient(
       loadActiveProfileId: { await store.load() },
-      saveActiveProfileId: { id in Task { await store.save(id) } }
+      saveActiveProfileId: { id in await store.save(id) }
     )
   }()
 

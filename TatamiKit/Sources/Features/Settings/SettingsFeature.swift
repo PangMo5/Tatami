@@ -127,8 +127,7 @@ public struct SettingsFeature {
         return .run { [accessibility] _ in await accessibility.relaunch() }
 
       case .checkForUpdatesTapped:
-        updater.checkForUpdates()
-        return .none
+        return .run { [updater] _ in await updater.checkForUpdates() }
 
       case .shortcutRecordingChanged(let recording):
         return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }

@@ -25,11 +25,6 @@ struct DebugLogClient: Sendable {
   /// (string interpolation per mouse-move, per-window reject arrays in
   /// discovery) — check this before assembling anything expensive.
   var isEnabled: @Sendable () -> Bool = { false }
-  /// Where the file lives on disk. Exposed so the Settings UI can
-  /// surface its path / a "Reveal in Finder" button.
-  var fileURL: @Sendable () -> URL = {
-    ConfigLocation.directory.appendingPathComponent("tatami.log", isDirectory: false)
-  }
 }
 
 extension DebugLogClient: DependencyKey {
@@ -38,16 +33,14 @@ extension DebugLogClient: DependencyKey {
     return DebugLogClient(
       setEnabled: { writer.setEnabled($0) },
       log: { writer.log(category: $0, message: $1) },
-      isEnabled: { writer.isEnabled },
-      fileURL: { writer.fileURL }
+      isEnabled: { writer.isEnabled }
     )
   }()
 
   static let testValue = DebugLogClient(
     setEnabled: { _ in },
     log: { _, _ in },
-    isEnabled: { false },
-    fileURL: { URL(fileURLWithPath: "/dev/null") }
+    isEnabled: { false }
   )
 
   static let previewValue = testValue

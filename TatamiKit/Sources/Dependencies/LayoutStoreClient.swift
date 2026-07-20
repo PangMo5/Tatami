@@ -12,9 +12,9 @@ import YYJSON
 /// and re-hydrate it against live windows on the next activation.
 @DependencyClient
 struct LayoutStoreClient: Sendable {
-  var save: @Sendable (UUID, LayoutSnapshot) -> Void
+  var save: @Sendable (UUID, LayoutSnapshot) async -> Void
   var load: @Sendable (UUID) async -> LayoutSnapshot?
-  var clear: @Sendable (UUID) -> Void
+  var clear: @Sendable (UUID) async -> Void
 }
 
 /// On-disk shape of one workspace's tiling memory. Stores the BSP layout keyed
@@ -124,23 +124,17 @@ private struct ResilientSnapshotMap: Decodable {
 extension LayoutStoreClient: DependencyKey {
   static let liveValue: LayoutStoreClient = {
     let store = LayoutStore()
-    // Mutations flow through one FIFO stream consumed by the actor.
-    // Spawning a `Task` per call gave the writes no ordering guarantee —
-    // a drag-end save racing a retile save could persist the older tree
-    // last; `yield` preserves call order.
-    let (mutations, continuation) = AsyncStream<LayoutStore.Mutation>.makeStream()
-    Task { for await mutation in mutations { await store.apply(mutation) } }
     return LayoutStoreClient(
-      save: { id, snapshot in continuation.yield(.save(id, snapshot)) },
+      save: { id, snapshot in await store.save(workspaceId: id, snapshot: snapshot) },
       load: { id in await store.load(workspaceId: id) },
-      clear: { id in continuation.yield(.clear(id)) }
+      clear: { id in await store.clear(workspaceId: id) },
     )
   }()
 
   static let testValue = LayoutStoreClient(
     save: { _, _ in },
     load: { _ in nil },
-    clear: { _ in }
+    clear: { _ in },
   )
   static let previewValue = testValue
 }
@@ -152,33 +146,26 @@ extension DependencyValues {
   }
 }
 
+// MARK: - LayoutStore
+
 /// Single JSON file (`layouts.json`) next to `config.toml`, holding a
 /// `[workspaceUUID: LayoutSnapshot]` map. The actor's serial executor
 /// is the only writer/reader, so concurrent activations can't race on
 /// the file. The whole map is small (one snapshot per workspace) so a
 /// full rewrite per save is fine.
 private actor LayoutStore {
-  enum Mutation {
-    case save(UUID, LayoutSnapshot)
-    case clear(UUID)
-  }
-
   private let fileURL = ConfigLocation.directory
     .appendingPathComponent("layouts.json", isDirectory: false)
   /// In-memory source of truth, read from disk once; saves write through.
   /// Re-reading + re-decoding the whole file before every save was pure
-  /// disk churn (one full decode per committed resize/drag/BSP op).
+  /// disk churn (one full decode per committed resize/drag/BSP operation).
   private var cachedMap: [String: LayoutSnapshot]?
 
-  func apply(_ mutation: Mutation) {
-    switch mutation {
-    case .save(let id, let snapshot): save(workspaceId: id, snapshot: snapshot)
-    case .clear(let id): clear(workspaceId: id)
-    }
-  }
+  // MARK: Internal
 
   func save(workspaceId: UUID, snapshot: LayoutSnapshot) {
     var map = loadedMap()
+    guard map[workspaceId.uuidString] != snapshot else { return }
     map[workspaceId.uuidString] = snapshot
     cachedMap = map
     writeMap(map)

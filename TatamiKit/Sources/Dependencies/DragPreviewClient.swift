@@ -17,19 +17,17 @@ public enum DropZone: Sendable, Hashable {
 @DependencyClient
 struct DragPreviewClient: Sendable {
   /// Highlight `zone` of `targetRect` (AX top-left, primary-anchored coords).
-  var show: @Sendable (_ targetRect: CGRect, _ zone: DropZone) -> Void
+  var show: @MainActor @Sendable (_ targetRect: CGRect, _ zone: DropZone) -> Void
   /// Remove the overlay.
-  var hide: @Sendable () -> Void
+  var hide: @MainActor @Sendable () -> Void
 }
 
 extension DragPreviewClient: DependencyKey {
   static let liveValue: DragPreviewClient = MainActor.assumeIsolated {
     let controller = DragPreviewController()
     return DragPreviewClient(
-      show: { rect, zone in
-        Task { @MainActor in controller.show(targetRect: rect, zone: zone) }
-      },
-      hide: { Task { @MainActor in controller.hide() } }
+      show: { rect, zone in controller.show(targetRect: rect, zone: zone) },
+      hide: { controller.hide() }
     )
   }
 

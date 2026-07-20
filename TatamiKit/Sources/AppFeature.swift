@@ -163,7 +163,7 @@ public struct AppFeature {
           // its auto-check preference + interval in sync with settings.
           .run { [updater, sharedConfig] _ in
             for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
-              updater.configure(
+              await updater.configure(
                 automaticallyChecks: general.checkForUpdatesAutomatically,
                 interval: general.checkInterval.seconds
               )
@@ -202,8 +202,7 @@ public struct AppFeature {
         .cancellable(id: CancelID.startupSubscriptions, cancelInFlight: true)
 
       case .checkForUpdatesTapped:
-        updater.checkForUpdates()
-        return .none
+        return .run { [updater] _ in await updater.checkForUpdates() }
 
       case .errorReportEvent(.reported(let report)):
         // Skip redundant state churn + a duplicate HUD when an identical
@@ -249,7 +248,7 @@ public struct AppFeature {
           // Mirror hover-handover follows the same setting: with FFM off,
           // hovering a floating mirror must not move focus.
           .run { [client = floatingOverlay] _ in
-            client.setHoverActivation(settings.focus.focusFollowsMouse)
+            await client.setHoverActivation(settings.focus.focusFollowsMouse)
           },
           .run { [client = gestures] _ in
             await client.stop()
@@ -269,7 +268,7 @@ public struct AppFeature {
         return .send(.activation(direction == .right ? .activatePrevious : .activateNext))
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
-        return route(hotKeyAction, state: state)
+        return route(hotKeyAction)
 
       case .activateProfile(let id, let focus):
         guard state.config.activeProfileId != id,
@@ -290,7 +289,7 @@ public struct AppFeature {
           // The per-display profile-switch HUD is shown from here (it knows the
           // actual plan) so each monitor names the workspace that lands on it.
           .send(.activation(.reactivateActiveProfile(focus: focus))),
-          .run { [profileSessionStore] _ in profileSessionStore.saveActiveProfileId(id) }
+          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) }
         )
 
       case .duplicateProfile(let id):
@@ -302,7 +301,9 @@ public struct AppFeature {
           // clone opens looking identical (layouts are keyed by workspace id).
           .run { [layoutStore] _ in
             for (old, new) in remap {
-              if let snapshot = await layoutStore.load(old) { layoutStore.save(new, snapshot) }
+              if let snapshot = await layoutStore.load(old) {
+                await layoutStore.save(new, snapshot)
+              }
             }
           }
         )
@@ -331,7 +332,7 @@ public struct AppFeature {
         // (it has the plan); here we just persist + rebind.
         return .merge(
           .send(.hotKeys(.refreshBindings)),
-          .run { [profileSessionStore] _ in profileSessionStore.saveActiveProfileId(id) }
+          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) }
         )
 
       case .workspaceList(.detail(.layoutChanged)):
@@ -414,7 +415,7 @@ public struct AppFeature {
     }
   }
 
-  private func route(_ action: HotKeyAction, state: State) -> Effect<Action> {
+  private func route(_ action: HotKeyAction) -> Effect<Action> {
     switch action {
     case .activateWorkspace(let id):
       return .send(.activation(.activate(workspaceId: id, setFocus: true)))

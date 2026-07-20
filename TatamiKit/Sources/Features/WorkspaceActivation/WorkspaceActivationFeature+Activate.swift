@@ -1,38 +1,243 @@
-import AppKit
-import ApplicationServices
 import ComposableArchitecture
 import Foundation
 import OrderedCollections
 
+// MARK: - DisplayAssignment
+
 /// A workspace to (re)activate on a specific display — the unit of a
 /// display-reconnect restore plan (and its pending queue).
 public struct DisplayAssignment: Equatable, Sendable {
-  public var display: DisplayName
-  public var workspace: Workspace.ID
   public init(display: DisplayName, workspace: Workspace.ID) {
     self.display = display
     self.workspace = workspace
   }
+
+  public var display: DisplayName
+  public var workspace: Workspace.ID
 }
 
 extension WorkspaceActivationFeature {
-  // MARK: - Activation
+  /// Map persisted fullscreen-zoom slots back onto live windows via the same
+  /// windowID-rank assignment `hydrate` uses (`slotToKey` over `keys`), so a
+  /// specific same-app window resolves to the exact slot it was zoomed in — not
+  /// just "some window of that app". Slots whose window isn't in the laid-out
+  /// tree are dropped, so the layout degrades gracefully when an app has fewer
+  /// windows than at save time.
+  static func resolveFullscreenZoom(
+    slots: [SlotID],
+    keys: [WindowKey],
+    among windows: [WindowKey],
+  ) -> Set<WindowKey> {
+    let keyForSlot = slotToKey(keys)
+    let present = Set(windows)
+    return Set(slots.compactMap { keyForSlot[$0] }.filter { present.contains($0) })
+  }
+
+  /// Pick the workspace to put on `display`, or nil to leave it be. Pure.
+  ///
+  /// - `reconnect` (a monitor just plugged in):
+  ///     1. the last workspace shown here, if it's pinned here, or it's dynamic
+  ///        and not currently in use on another display;
+  ///     2. else the first workspace statically pinned to this display;
+  ///     3. else a dynamic workspace not in use on another display — the most
+  ///        recently used one (`workspaceMRU`), falling back to the first.
+  /// - vacated (a dynamic workspace just left this display): walk the display's
+  ///   MRU history newest→oldest and take the first workspace that belongs here
+  ///   (dynamic, or pinned to this display) and isn't already in use elsewhere —
+  ///   so the monitor falls back to what the user last had on it.
+  static func chooseWorkspaceForDisplay(
+    _ display: DisplayName,
+    reconnect: Bool,
+    byId: [Workspace.ID: Workspace],
+    workspaces: [Workspace],
+    assigned: [DisplayName: Workspace.ID],
+    history: [DisplayName: [Workspace.ID]],
+    workspaceMRU: [Workspace.ID] = [],
+    connected: Set<DisplayName> = [],
+  ) -> Workspace.ID? {
+    func pinned(_ id: Workspace.ID) -> Bool {
+      byId[id]?.displayHint?.matches(display) ?? false
+    }
+    func isDynamic(_ id: Workspace.ID) -> Bool {
+      byId[id]?.isDynamic ?? false
+    }
+    /// A workspace pinned to a display that isn't currently connected has no home
+    /// to return to — treat it like a free dynamic so it stays where the user
+    /// last put it, rather than being evicted for the display's first pinned one.
+    func homelessPin(_ id: Workspace.ID) -> Bool {
+      guard let hint = byId[id]?.displayHint else { return false }
+      return !connected.contains { hint.matches($0) }
+    }
+    func elsewhere(_ id: Workspace.ID) -> Bool {
+      assigned.contains { $0.key != display && $0.value == id }
+    }
+    if reconnect {
+      // 1. last shown here — pinned here, or a free / homeless-pinned dynamic.
+      if
+        let last = (history[display] ?? []).first(where: { byId[$0] != nil }),
+        pinned(last) || ((isDynamic(last) || homelessPin(last)) && !elsewhere(last))
+      {
+        return last
+      }
+      // 2. first pinned to this display.
+      if
+        let firstPinned = workspaces.first(where: {
+          $0.kind != .scratchpad && ($0.displayHint?.matches(display) ?? false)
+        })
+      {
+        return firstPinned.id
+      }
+      // 3. a free dynamic: most-recently-used, else the first.
+      if
+        let recentDynamic = workspaceMRU.first(where: {
+          byId[$0] != nil && isDynamic($0) && !elsewhere($0)
+        })
+      {
+        return recentDynamic
+      }
+      return workspaces.first { $0.kind != .scratchpad && $0.isDynamic && !elsewhere($0.id) }?.id
+    }
+    return (history[display] ?? []).first {
+      byId[$0] != nil && !elsewhere($0) && (isDynamic($0) || pinned($0))
+    }
+  }
+
+  static func planDisplayRestore(
+    connected: [DisplayName],
+    newlyConnected: Set<DisplayName>,
+    workspaces: [Workspace],
+    active: [DisplayName: Workspace.ID],
+    history: [DisplayName: [Workspace.ID]],
+    workspaceMRU: [Workspace.ID] = [],
+  ) -> [DisplayAssignment] {
+    var byId = [Workspace.ID: Workspace]()
+    for w in workspaces where w.kind != .scratchpad { byId[w.id] = w }
+
+    // Live simulation of which workspace sits on each display as the plan grows.
+    var assigned = active
+    var visited = Set<DisplayName>()
+
+    func displayShowing(_ id: Workspace.ID) -> DisplayName? {
+      assigned.first { $0.value == id }?.key
+    }
+    func pinned(_ id: Workspace.ID, to display: DisplayName) -> Bool {
+      byId[id]?.displayHint?.matches(display) ?? false
+    }
+
+    func fill(_ display: DisplayName, reconnect: Bool) {
+      guard visited.insert(display).inserted else { return }
+      guard
+        let target = chooseWorkspaceForDisplay(
+          display,
+          reconnect: reconnect,
+          byId: byId,
+          workspaces: workspaces,
+          assigned: assigned,
+          history: history,
+          workspaceMRU: workspaceMRU,
+          connected: Set(connected),
+        ), byId[target] != nil
+      else { return }
+      if let other = displayShowing(target), other != display {
+        // Already up on another display — only pull it over if it's pinned here.
+        guard pinned(target, to: display) else { return }
+        assigned[other] = nil
+        assigned[display] = target
+        fill(other, reconnect: false)
+      } else {
+        assigned[display] = target
+      }
+    }
+
+    for display in connected where newlyConnected.contains(display) {
+      fill(display, reconnect: true)
+    }
+    // Re-assert every connected display's (possibly reclaimed/filled) workspace.
+    return connected.compactMap { display in
+      assigned[display].map { DisplayAssignment(display: display, workspace: $0) }
+    }
+  }
+
+  /// Lay the tree out, trimming fullscreen-zoomed windows so the rest
+  /// of the tree shapes around as if they weren't present. Parent-zoom
+  /// is handled inside `tree.frames(...)` directly.
+  @MainActor
+  static func computeFrames(
+    tree: BSPNode<WindowKey>?,
+    settings: AppSettings,
+    targetDisplay: DisplayName?,
+    fullscreenZoomed: Set<WindowKey> = [],
+    targetRect: CGRect? = nil,
+  ) -> [WindowKey: CGRect] {
+    guard let tree else { return [:] }
+    // `targetRect` (a composition sub-rect) is already inset; only the
+    // full-display path applies the outer gap.
+    let workArea = targetRect ?? ScreenGeometry.workArea(for: targetDisplay).insetBy(
+      dx: CGFloat(settings.layout.gapOuter),
+      dy: CGFloat(settings.layout.gapOuter),
+    )
+    let gap = CGFloat(settings.layout.gapInner)
+    let activeZoom = fullscreenZoomed.filter { tree.pathTo(window: $0) != nil }
+    if !activeZoom.isEmpty {
+      var trimmed: BSPNode<WindowKey>? = tree
+      for key in activeZoom { trimmed = trimmed?.removing(key) }
+      var frames = trimmed?.frames(in: workArea, gap: gap) ?? [:]
+      for key in activeZoom { frames[key] = workArea }
+      return frames
+    }
+    return tree.frames(in: workArea, gap: gap)
+  }
+
+  /// Split a work area into (host, borrowed) sub-rects for a borrow docked
+  /// to `edge`; the borrowed block sits on that edge with `fraction` share.
+  static func subRects(
+    workArea: CGRect,
+    edge: BorrowEdge,
+    fraction: CGFloat,
+    gap: CGFloat,
+  ) -> (host: CGRect, borrowed: CGRect) {
+    let axis: BSPNode<WindowKey>.SplitAxis =
+      (edge == .left || edge == .right) ? .vertical : .horizontal
+    switch edge {
+    case .left,
+         .top:
+      let (b, h) = axis.subdivide(workArea, ratio: fraction, gap: gap)
+      return (host: h, borrowed: b)
+
+    case .right,
+         .bottom:
+      let (h, b) = axis.subdivide(workArea, ratio: 1 - fraction, gap: gap)
+      return (host: h, borrowed: b)
+    }
+  }
+
+  /// SF Symbol for a borrow docked to `edge` — a filled half-rectangle on the
+  /// side the borrowed block sits.
+  static func borrowEdgeIcon(_ edge: BorrowEdge) -> String {
+    switch edge {
+    case .left: "rectangle.lefthalf.inset.filled"
+    case .right: "rectangle.righthalf.inset.filled"
+    case .top: "rectangle.tophalf.inset.filled"
+    case .bottom: "rectangle.bottomhalf.inset.filled"
+    }
+  }
 
   func performActivate(
     workspaceId: Workspace.ID,
     setFocus: Bool,
     displayOverride: DisplayName? = nil,
     suppressSwitchHUD: Bool = false,
-    state: inout State
+    state: inout State,
   ) -> Effect<Action> {
-    guard let profile = state.config.activeProfile,
-          let workspace = profile.workspaces[id: workspaceId]
+    guard
+      let profile = state.config.activeProfile,
+      let workspace = profile.workspaces[id: workspaceId]
     else { return .none }
     // (Switching to a borrowed workspace fully activates it — the composition
     // is dropped as the display re-tiles. Moving focus *into* a borrowed block
     // without switching is the directional-focus path, not activation.)
     // A scratchpad is borrow-only: there's no "switch to" it. Redirect a
-    // standalone activate into a borrow on the focused display's host
+    // standalone activate into a borrow on the pointer display's host
     // (re-docks if it's already borrowed there).
     if workspace.kind == .scratchpad {
       debugLog.log("Activate", "scratchpad \(workspace.name) → borrow")
@@ -50,7 +255,7 @@ extension WorkspaceActivationFeature {
       // the window never floats unplaced, then open the picker to re-steer it.
       return .merge(
         performBorrow(targetId: workspaceId, edge: .right, state: &state),
-        .send(.beginBorrowDirection(workspaceId: workspaceId))
+        .send(.beginBorrowDirection(workspaceId: workspaceId)),
       )
     }
     // Latest-wins: a switch arriving mid-activation supersedes the
@@ -69,14 +274,25 @@ extension WorkspaceActivationFeature {
     debugLog.log(
       "Activate",
       "start workspace=\(workspace.name) setFocus=\(setFocus) "
-        + "paused=\(isPaused) registeredApps=\(workspace.apps.map(\.bundleIdentifier))"
+        + "paused=\(isPaused) registeredApps=\(workspace.apps.map(\.bundleIdentifier))",
     )
 
     // Resolve the pinned display to where it actually tiles: the connected
     // screen (UUID → name match), else the primary display as fallback.
     // Learn the UUID for a name-only hint so future matching is UUID-stable.
     let targetDisplay: DisplayName?
-    if let hint = workspace.displayHint {
+    if let displayOverride {
+      targetDisplay = displayOverride
+      if
+        let hint = workspace.displayHint,
+        hint.matches(displayOverride),
+        hint.uuid != displayOverride.uuid
+      {
+        state.$config.withLock { config in
+          config.mutateWorkspace(workspaceId) { $0.displayHint = displayOverride }
+        }
+      }
+    } else if let hint = workspace.displayHint {
       let connected = displays.connected(hint)
       if let connected, hint.uuid != connected.uuid {
         state.$config.withLock { config in
@@ -85,9 +301,16 @@ extension WorkspaceActivationFeature {
       }
       targetDisplay = connected ?? displays.primary() ?? hint
     } else {
-      // Dynamic workspace: normally the cursor's display, but a reconnect
-      // restore pins it to the specific monitor being refilled.
-      targetDisplay = displayOverride ?? displays.current()
+      // A deliberate dynamic activation follows the mouse. Background reflows
+      // keep the workspace on its actual display (or the keyboard-focused one
+      // before it has an owner) so a config/layout sync cannot move it merely
+      // because the pointer happens to be on another monitor.
+      targetDisplay =
+        if setFocus {
+          displays.current() ?? state.focusedDisplay
+        } else {
+          state.displayShowing(workspaceId) ?? state.focusedDisplay ?? displays.current()
+        }
     }
     // The switch HUD shows on the display focus lands on; on a cross-monitor
     // switch a second HUD on the monitor being left says where focus went, so
@@ -96,6 +319,9 @@ extension WorkspaceActivationFeature {
     let crossMonitor = setFocus
       && oldDisplay != nil && targetDisplay != nil
       && !oldDisplay!.matches(targetDisplay!)
+    if setFocus, let targetDisplay {
+      state.focusedDisplay = targetDisplay
+    }
     // Re-tiling this display to `workspace` dismisses any live composition on
     // it — a borrow is transient and vanishes when its host re-tiles. Capture
     // the dropped borrow's name so the switch HUD can announce it; skip the
@@ -120,6 +346,17 @@ extension WorkspaceActivationFeature {
       }
       state.compositionsByDisplay[targetDisplay] = nil
     }
+    var displacedCompositionHosts = [Workspace.ID]()
+    for (sourceDisplay, composition) in Array(state.compositionsByDisplay)
+      where composition.host == workspaceId
+      || composition.borrowed.contains(where: { $0.workspace == workspaceId })
+    {
+      guard targetDisplay?.matches(sourceDisplay) != true else { continue }
+      state.compositionsByDisplay[sourceDisplay] = nil
+      if composition.host != workspaceId {
+        displacedCompositionHosts.append(composition.host)
+      }
+    }
     // "Most recently used" (no pinned focus app): restore the exact window the
     // user last had focused in this workspace. On a plain switch the target must
     // be a window that survives the switch's hide pass — a registered or shared
@@ -142,11 +379,14 @@ extension WorkspaceActivationFeature {
     let mruWindow = restoringHost
       ? mruCandidates.first
       : mruCandidates.first(where: isWorkspaceMember)
+    let expectedFocusBundleId = workspace.appToFocusBundleId
+      ?? mruWindow?.bundleId
+      ?? workspace.apps.last?.bundleIdentifier
     debugLog.log(
       "FocusTarget",
       "ws=\(workspace.name) pin=\(workspace.appToFocusBundleId ?? "nil(MRU)") "
         + "mru=\(state.mruWindows[workspaceId]?.map { "\($0.bundleId)#\($0.windowID)" } ?? []) "
-        + "pick=\(mruWindow.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil")"
+        + "pick=\(mruWindow.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil")",
     )
     let request = ActivationRequest(
       workspace: workspace,
@@ -155,7 +395,7 @@ extension WorkspaceActivationFeature {
       setFocus: setFocus,
       mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus,
       windowKeyToFocus: mruWindow,
-      managedBundleIds: restoringHost ? state.managedBundleIds : []
+      managedBundleIds: restoringHost ? state.managedBundleIds : [],
     )
     let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
     // Show the HUD on a normal switch, or whenever this switch returned a
@@ -192,7 +432,43 @@ extension WorkspaceActivationFeature {
       workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
         + state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
     ))
+    // Floating overlays and markers are process-global presentation surfaces.
+    // Replacing one display must retain the other displays' visible members;
+    // using only the target workspace here tore their mirrors/markers down.
+    var presentationWorkspaceIDs = state.visibleWorkspaceIDs
+    if
+      let targetDisplay,
+      let outgoing = state.activeWorkspacesByDisplay[targetDisplay]
+    {
+      presentationWorkspaceIDs.remove(outgoing)
+    }
+    presentationWorkspaceIDs.insert(workspace.id)
+    let presentationFloatingBundleIds = Self.floatingBundleIds(
+      state: state,
+      workspaceIDs: presentationWorkspaceIDs,
+    )
+    let otherFullscreenZoomed = presentationWorkspaceIDs
+      .subtracting([workspace.id])
+      .reduce(into: Set<WindowKey>()) { keys, workspaceId in
+        keys.formUnion(state.fullscreenZoomed[workspaceId] ?? [])
+      }
     let sessionTree = state.tilingTrees[workspace.id]
+    let sharedTiledBundleIds = Set(
+      state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+    )
+    let partitionsSharedWindows = state.connectedDisplays.count > 1
+      || state.activeWorkspacesByDisplay.count > 1
+    var protectedWindowKeys = Set<WindowKey>()
+    if let targetDisplay {
+      for otherId in state.visibleWorkspaceIDs where otherId != workspace.id {
+        guard
+          let otherDisplay = state.displayShowing(otherId),
+          !otherDisplay.matches(targetDisplay)
+        else { continue }
+        protectedWindowKeys.formUnion(state.tilingTrees[otherId]?.windows ?? [])
+      }
+    }
+    let existingTargetKeys = Set(sessionTree?.windows ?? [])
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
     // Borrow markers live across displays; this display's composition was just
@@ -212,25 +488,34 @@ extension WorkspaceActivationFeature {
     // where focus went. Separate panel (the controller tracks one per screen),
     // shown alongside the switch HUD on the new monitor.
     let crossMonitorHUD: Effect<Action> = {
-      guard crossMonitor, !suppressSwitchHUD,
-            state.config.settings.hud.shows(\.workspaceSwitch),
-            let oldDisplay, let targetDisplay
+      guard
+        crossMonitor, !suppressSwitchHUD,
+        state.config.settings.hud.shows(\.workspaceSwitch),
+        let oldDisplay, let targetDisplay
       else { return .none }
       let targetName = targetDisplay.name
       return .run { [workspaceHUD] _ in
         await workspaceHUD.showOnDisplay(
-          "Focus moved", "arrow.right.to.line", "to \(targetName)", hudDurationMs, oldDisplay
+          "Focus moved",
+          "arrow.right.to.line",
+          "to \(targetName)",
+          hudDurationMs,
+          oldDisplay,
         )
       }
     }()
+    let displacedCompositionReflow = Effect<Action>.merge(
+      displacedCompositionHosts.map { flushLayout(workspaceId: $0, state: state) }
+    )
 
     // Floating windows need Screen Recording for their mirrors. Don't fail
     // silently ("floating just doesn't stay on top"): surface the system
     // prompt and a HUD pointing at the Settings row, once per session.
-    var screenRecordingWarning: Effect<Action> = .none
-    if !floatingBundleIds.isEmpty,
-       !screenRecording.isGranted(),
-       !state.didWarnMissingScreenRecording
+    var screenRecordingWarning = Effect<Action>.none
+    if
+      !floatingBundleIds.isEmpty,
+      !screenRecording.isGranted(),
+      !state.didWarnMissingScreenRecording
     {
       state.didWarnMissingScreenRecording = true
       screenRecordingWarning = .merge(
@@ -240,8 +525,8 @@ extension WorkspaceActivationFeature {
           \.floating,
           "Screen Recording Needed",
           "exclamationmark.triangle.fill",
-          subtitle: "Floating windows can't stay above the tiles without it — grant in Settings → General → Permissions, then relaunch"
-        )
+          subtitle: "Floating windows can't stay above the tiles without it — grant in Settings → General → Permissions, then relaunch",
+        ),
       )
     }
 
@@ -251,7 +536,7 @@ extension WorkspaceActivationFeature {
     // future activations and syncs for the rest of the session. Cancelled
     // by `activationCompleted` on the normal path.
     let watchdog = Effect<Action>.run { [clock] send in
-      try? await clock.sleep(for: .seconds(10))
+      try await clock.sleep(for: .seconds(10))
       await send(.activationTimedOut)
     }
     .cancellable(id: CancelID.activationWatchdog, cancelInFlight: true)
@@ -260,200 +545,250 @@ extension WorkspaceActivationFeature {
     // hotkey press. Under system load the default priority leaves our
     // main-actor hops queued behind everything else — exactly when the
     // switch already crawls on slow AX replies.
-    return .merge(screenRecordingWarning, watchdog, crossMonitorHUD, .run(priority: .high) { [
-      mgr = workspaceManager,
-      tiler = windowTiler,
-      store = layoutStore,
-      hud = workspaceHUD,
-      mouse = mouse,
-      overlay = floatingOverlay,
-      marker = marker,
-      snapshot = windowSnapshot,
-      displays = displays,
-      debugLog = debugLog,
-      focus = focusManager
-    ] send in
-      // Wall-clock per phase — AX round trips block on *other* apps' run
-      // loops, so when a switch crawls under load this names the phase
-      // (and thus the app set) that ate the time.
-      let timer = ContinuousClock()
-      var phaseStart = timer.now
-      var phases: [(String, Duration)] = []
-      func mark(_ name: String) {
-        let now = timer.now
-        phases.append((name, now - phaseStart))
-        phaseStart = now
-      }
-      if showHUD {
-        await hud.showOnDisplay(hudName, hudIcon, hudSubtitle, hudDurationMs, hudDisplay)
-      }
-      // Tear down the outgoing workspace's mirrors in the same beat as the
-      // hide pass — leaving them to the post-tile `setFloating` made the
-      // floating windows visibly outlive the windows they mirror.
-      overlay.retainOnly(Set(floatingBundleIds))
-      await mgr.activate(request)
-      mark("showHide")
-      // Superseded by a newer switch: stop before the tile pass. `send`
-      // on a cancelled effect is already a no-op, but the AX work below
-      // is not — without these checks a superseded activation would keep
-      // writing the *old* workspace's frames interleaved with the new
-      // activation's main-actor hops.
-      guard !Task.isCancelled else { return }
-      if !isPaused {
-        // Layouts always persist now — restore the saved template whenever
-        // there's no in-memory tree yet (fresh launch / first activation).
-        let persistedSnapshot: LayoutSnapshot? =
-          sessionTree == nil ? await store.load(workspaceId) : nil
-        // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
-        // AX round trips — AX scans block on each target app's run loop
-        // (measured 50 ms–1.2 s per switch), which is what made switching
-        // crawl under system load. Misses scan one bundle per main-actor
-        // hop so a busy app can't hold the main thread through its
-        // neighbors' turns. `activationCompleted` schedules the
-        // revalidation sweep that repairs any staleness.
-        var discovered: [WindowKey] = []
-        for bundleId in bundleIds {
-          guard !Task.isCancelled else { return }
-          discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
-        }
-        let keys = discovered
-        mark("discover")
-        let (tree, frames, restoredZoom) = await MainActor.run {
-          () -> (BSPNode<WindowKey>?, [WindowKey: CGRect], Set<WindowKey>) in
-          let workArea = displays.workArea(targetDisplay).insetBy(
-            dx: CGFloat(settings.layout.gapOuter),
-            dy: CGFloat(settings.layout.gapOuter)
-          )
-          var base = sessionTree
-          var persistedZoomSlots: [SlotID] = []
-          if let snapshot = persistedSnapshot {
-            base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
-            persistedZoomSlots = snapshot.fullscreenZoomedSlots
+    return .concatenate(
+      // Every frame writer targeting this display shares one cancellation
+      // domain. An activation is the authoritative writer, so retire an
+      // in-flight tree/composition flush before its show/hide + tile pass.
+      .cancel(id: CancelID.layout(targetDisplay)),
+      .merge(
+        screenRecordingWarning,
+        watchdog,
+        crossMonitorHUD,
+        displacedCompositionReflow,
+        .run(priority: .high) { [
+          mgr = workspaceManager,
+          tiler = windowTiler,
+          store = layoutStore,
+          hud = workspaceHUD,
+          mouse = mouse,
+          overlay = floatingOverlay,
+          marker = marker,
+          snapshot = windowSnapshot,
+          displays = displays,
+          debugLog = debugLog,
+          focus = focusManager,
+        ] send in
+          // Wall-clock per phase — AX round trips block on *other* apps' run
+          // loops, so when a switch crawls under load this names the phase
+          // (and thus the app set) that ate the time.
+          let timer = ContinuousClock()
+          var phaseStart = timer.now
+          var phases = [(String, Duration)]()
+          func mark(_ name: String) {
+            let now = timer.now
+            phases.append((name, now - phaseStart))
+            phaseStart = now
           }
-          let merged = Self.mergeTree(
-            existing: base,
-            target: keys,
-            focused: { snapshot.focusedWindowKey() },
-            insertionPoint: insertionPoint,
-            workArea: workArea,
-            settings: settings
-          )
-          let axis = settings.layout.autoBalance
-          let tree = axis == .none ? merged : merged?.balanced(axis: axis)
-          let resolvedZoom: Set<WindowKey> = {
-            if !zoomed.isEmpty { return zoomed }
-            guard let tree else { return [] }
-            return Self.resolveFullscreenZoom(
-              slots: persistedZoomSlots, keys: keys, among: tree.windows
-            )
-          }()
-          let frames = Self.computeFrames(
-            tree: tree,
-            settings: settings,
-            targetDisplay: targetDisplay,
-            fullscreenZoomed: resolvedZoom
-          )
-          return (tree, frames, resolvedZoom)
-        }
-        mark("layout")
-        await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
-        if !restoredZoom.isEmpty, zoomed.isEmpty {
-          await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
-        }
-        if let tree {
-          let slots = slotAssignment(tree.windows)
-          store.save(
-            workspaceId,
-            LayoutSnapshot(
-              tree: tree.mapWindows { slots[$0]! },
-              fullscreenZoomedSlots: restoredZoom
-                .compactMap { slots[$0] }
-                .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) }
-            )
-          )
-        }
-        guard !Task.isCancelled else { return }
-        if !frames.isEmpty {
-          await tiler.apply(
-            FrameApplication(windowFrames: frames, targetDisplay: targetDisplay)
-          )
-        }
-        mark("apply")
-        // Mirror floating windows onto always-on-top panels (the Topit /
-        // Floaty technique): a foreign window's level can't be raised without
-        // SIP, so instead of trying we paint a live mirror above the tiles.
-        // Passing the resolved set (possibly empty) also tears down mirrors
-        // for apps that were just un-floated or belong to another workspace.
-        // Same cache-first, per-bundle main-actor hops as the tile
-        // discovery above.
-        var floatingDiscovered: Set<WindowKey> = []
-        for bundleId in floatingBundleIds {
-          guard !Task.isCancelled else { return }
-          floatingDiscovered.formUnion(
-            await MainActor.run { snapshot.cachedKeys([bundleId], false) }
-          )
-        }
-        let floatingKeys = floatingDiscovered
-        mark("float")
-        overlay.setFloating(floatingKeys)
-        // Markers ride the same discovery — `activationCompleted` used to
-        // re-run a full AX scan for the floating keys this pass just
-        // resolved.
-        let markerCfg = settings.marker
-        marker.setTargets(
-          Self.markerTargets(
-            fullscreenZoomed: markerCfg.fullscreenEnabled ? restoredZoom : [],
-            floatingKeys: markerCfg.floatingEnabled ? Array(floatingKeys) : [],
-            borrowed: borrowedMarkers,
-            cfg: markerCfg
-          ),
-          markerCfg.size, markerCfg.corner, markerCfg.hideOnHover
-        )
-        if warpMouse {
-          let warp = await MainActor.run { () -> (key: WindowKey, rect: CGRect, live: WindowKey?)? in
-            // Warp to the window this activation deliberately focused (the MRU
-            // target), not a live `focusedWindowKey()` read. That read races
-            // the async app activation and can return a *different* frontmost
-            // window (e.g. Siri keeping front while ChatGPT is the target),
-            // sending the cursor to the wrong tile — where focus-follows-mouse
-            // then grabs focus to it. Fall back to the live read only when this
-            // workspace has no MRU target (a pinned-app or empty workspace).
-            let live = snapshot.focusedWindowKey()
-            let key = mruWindow ?? live
-            guard let key, let rect = frames[key] else { return nil }
-            return (key, rect, live)
+          if showHUD {
+            await hud.showOnDisplay(hudName, hudIcon, hudSubtitle, hudDurationMs, hudDisplay)
           }
-          if let warp {
-            let center = CGPoint(x: warp.rect.midX, y: warp.rect.midY)
-            debugLog.log(
-              "Warp",
-              "activate target=\(warp.key.bundleId)#\(warp.key.windowID) "
-                + "live=\(warp.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil") "
-                + "→ (\(Int(center.x)),\(Int(center.y)))"
-            )
-            // The deliberate activation focus can be stolen mid-switch — an app
-            // like Siri grabs frontmost as it unhides — leaving the keyboard
-            // focus on the wrong tile while the cursor warps to the intended
-            // one, so directional focus then anchors on the wrong window. When
-            // the live frontmost differs from the window we're warping to,
-            // re-assert the intended focus now that the layout has settled.
-            if warp.live != warp.key {
-              await focus.focusWindow(warp.key)
+          guard !Task.isCancelled else { return }
+          // Tear down the outgoing workspace's mirrors in the same beat as the
+          // hide pass — leaving them to the post-tile `setFloating` made the
+          // floating windows visibly outlive the windows they mirror.
+          await overlay.retainOnly(Set(presentationFloatingBundleIds))
+          guard !Task.isCancelled else { return }
+          await mgr.activate(request)
+          mark("showHide")
+          // Superseded by a newer switch: stop before the tile pass. `send`
+          // on a cancelled effect is already a no-op, but the AX work below
+          // is not — without these checks a superseded activation would keep
+          // writing the *old* workspace's frames interleaved with the new
+          // activation's main-actor hops.
+          guard !Task.isCancelled else { return }
+          if !isPaused {
+            // Layouts always persist now — restore the saved template whenever
+            // there's no in-memory tree yet (fresh launch / first activation).
+            let persistedSnapshot: LayoutSnapshot? =
+              sessionTree == nil ? await store.load(workspaceId) : nil
+            guard !Task.isCancelled else { return }
+            // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
+            // AX round trips — AX scans block on each target app's run loop
+            // (measured 50 ms–1.2 s per switch), which is what made switching
+            // crawl under system load. Misses scan one bundle per main-actor
+            // hop so a busy app can't hold the main thread through its
+            // neighbors' turns. `activationCompleted` schedules the
+            // revalidation sweep that repairs any staleness.
+            var discovered = [WindowKey]()
+            for bundleId in bundleIds {
+              guard !Task.isCancelled else { return }
+              discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
             }
-            mouse.warp(center)
+            let keys = await MainActor.run {
+              Self.scopedWindowKeys(
+                discovered,
+                sharedTiledBundleIds: sharedTiledBundleIds,
+                existingTargetKeys: existingTargetKeys,
+                protectedKeys: protectedWindowKeys,
+                partitionSharedWindows: partitionsSharedWindows,
+                targetWorkArea: displays.workArea(targetDisplay),
+                windowFrame: { snapshot.windowFrame($0) },
+              )
+            }
+            mark("discover")
+            let (tree, frames, restoredZoom) = await MainActor.run {
+              () -> (BSPNode<WindowKey>?, [WindowKey: CGRect], Set<WindowKey>) in
+              let workArea = displays.workArea(targetDisplay).insetBy(
+                dx: CGFloat(settings.layout.gapOuter),
+                dy: CGFloat(settings.layout.gapOuter),
+              )
+              var base = sessionTree
+              var persistedZoomSlots = [SlotID]()
+              if let snapshot = persistedSnapshot {
+                base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
+                persistedZoomSlots = snapshot.fullscreenZoomedSlots
+              }
+              let merged = Self.mergeTree(
+                existing: base,
+                target: keys,
+                focused: { snapshot.focusedWindowKey() },
+                insertionPoint: insertionPoint,
+                workArea: workArea,
+                settings: settings,
+              )
+              let axis = settings.layout.autoBalance
+              let tree = axis == .none ? merged : merged?.balanced(axis: axis)
+              let resolvedZoom: Set<WindowKey> = {
+                if !zoomed.isEmpty { return zoomed }
+                guard let tree else { return [] }
+                return Self.resolveFullscreenZoom(
+                  slots: persistedZoomSlots,
+                  keys: keys,
+                  among: tree.windows,
+                )
+              }()
+              let frames = Self.computeFrames(
+                tree: tree,
+                settings: settings,
+                targetDisplay: targetDisplay,
+                fullscreenZoomed: resolvedZoom,
+              )
+              return (tree, frames, resolvedZoom)
+            }
+            mark("layout")
+            // Cancellation can arrive while the main actor computes a large tree.
+            // Do not publish or persist a superseded workspace's layout snapshot.
+            guard !Task.isCancelled else { return }
+            await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
+            if !restoredZoom.isEmpty, zoomed.isEmpty {
+              await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
+            }
+            guard !Task.isCancelled else { return }
+            if let tree {
+              let slots = slotAssignment(tree.windows)
+              await store.save(
+                workspaceId,
+                LayoutSnapshot(
+                  tree: tree.mapWindows { slots[$0]! },
+                  fullscreenZoomedSlots: restoredZoom
+                    .compactMap { slots[$0] }
+                    .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) },
+                ),
+              )
+            }
+            guard !Task.isCancelled else { return }
+            if !frames.isEmpty {
+              await tiler.apply(FrameApplication(windowFrames: frames))
+            }
+            mark("apply")
+            guard !Task.isCancelled else { return }
+            // Mirror floating windows onto always-on-top panels (the Topit /
+            // Floaty technique): a foreign window's level can't be raised without
+            // SIP, so instead of trying we paint a live mirror above the tiles.
+            // Passing the resolved set (possibly empty) also tears down mirrors
+            // for apps that were just un-floated or belong to another workspace.
+            // Same cache-first, per-bundle main-actor hops as the tile
+            // discovery above.
+            var floatingDiscovered = Set<WindowKey>()
+            for bundleId in presentationFloatingBundleIds {
+              guard !Task.isCancelled else { return }
+              floatingDiscovered.formUnion(
+                await MainActor.run { snapshot.cachedKeys([bundleId], false) }
+              )
+            }
+            let floatingKeys = floatingDiscovered
+            mark("float")
+            guard !Task.isCancelled else { return }
+            await overlay.setFloating(floatingKeys)
+            guard !Task.isCancelled else { return }
+            // Markers ride the same discovery — `activationCompleted` used to
+            // re-run a full AX scan for the floating keys this pass just
+            // resolved.
+            let markerCfg = settings.marker
+            await marker.setTargets(
+              Self.markerTargets(
+                fullscreenZoomed: markerCfg.fullscreenEnabled
+                  ? restoredZoom.union(otherFullscreenZoomed)
+                  : [],
+                floatingKeys: markerCfg.floatingEnabled ? Array(floatingKeys) : [],
+                borrowed: borrowedMarkers,
+                cfg: markerCfg,
+              ),
+              markerCfg.size,
+              markerCfg.corner,
+              markerCfg.hideOnHover,
+            )
+            guard !Task.isCancelled else { return }
+            if warpMouse {
+              let warp = await MainActor.run { () -> (key: WindowKey, rect: CGRect, live: WindowKey?)? in
+                // Warp to the window this activation deliberately focused (the MRU
+                // target), not a live `focusedWindowKey()` read. That read races
+                // the async app activation and can return a *different* frontmost
+                // window (e.g. Siri keeping front while ChatGPT is the target),
+                // sending the cursor to the wrong tile — where focus-follows-mouse
+                // then grabs focus to it. Fall back to the live read only when this
+                // workspace has no MRU target (a pinned-app or empty workspace).
+                let live = snapshot.focusedWindowKey()
+                if
+                  let mruWindow,
+                  let rect = frames[mruWindow] ?? snapshot.windowFrame(mruWindow)
+                {
+                  return (mruWindow, rect, live)
+                }
+                // A stale MRU id is allowed to fall back to the app's live main
+                // window (the focus manager does the same). Gate by the expected
+                // bundle so a lagging frontmost read can never warp into the
+                // outgoing workspace. AX geometry also lets MFF follow an owned
+                // floating/unmanaged restore target, which has no tiled frame.
+                guard
+                  let live,
+                  live.bundleId == expectedFocusBundleId,
+                  let rect = frames[live] ?? snapshot.windowFrame(live)
+                else { return nil }
+                return (live, rect, live)
+              }
+              guard !Task.isCancelled else { return }
+              if let warp {
+                let center = CGPoint(x: warp.rect.midX, y: warp.rect.midY)
+                debugLog.log(
+                  "Warp",
+                  "activate target=\(warp.key.bundleId)#\(warp.key.windowID) "
+                    + "live=\(warp.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil") "
+                    + "→ (\(Int(center.x)),\(Int(center.y)))",
+                )
+                // The deliberate activation focus can be stolen mid-switch — an app
+                // like Siri grabs frontmost as it unhides — leaving the keyboard
+                // focus on the wrong tile while the cursor warps to the intended
+                // one, so directional focus then anchors on the wrong window. When
+                // the live frontmost differs from the window we're warping to,
+                // re-assert the intended focus now that the layout has settled.
+                if warp.live != warp.key {
+                  await focus.focusWindow(warp.key)
+                }
+                mouse.warp(center)
+              }
+            }
           }
+          debugLog.log(
+            "Activate",
+            "phases " + phases.map { "\($0.0)=\(ms($0.1))ms" }.joined(separator: " "),
+          )
+          await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
         }
-      }
-      debugLog.log(
-        "Activate",
-        "phases " + phases.map { "\($0.0)=\(ms($0.1))ms" }.joined(separator: " ")
-      )
-      await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
-    }
-    .cancellable(id: CancelID.activation, cancelInFlight: true))
+        .cancellable(id: CancelID.activation, cancelInFlight: true),
+      ),
+    )
   }
-
-  // MARK: - Cycle
 
   func cycle(by direction: Int, state: inout State) -> Effect<Action> {
     let anchor = state.activatingWorkspaceID ?? state.primaryActiveWorkspaceID
@@ -464,13 +799,13 @@ extension WorkspaceActivationFeature {
     guard let id = adjacentWorkspaceId(by: direction, state: state) else {
       debugLog.log(
         "Activate",
-        "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)): no eligible target"
+        "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)): no eligible target",
       )
       return .none
     }
     debugLog.log(
       "Activate",
-      "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)) → \(name(id))"
+      "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)) → \(name(id))",
     )
     return .send(.activate(workspaceId: id, setFocus: true))
   }
@@ -479,39 +814,49 @@ extension WorkspaceActivationFeature {
   /// `loop` / `skipEmpty` switching preferences. Shared by cycling and by
   /// "move focused app to next/previous workspace". Returns `nil` when there
   /// is no eligible target (e.g. at an end with looping off).
-  func adjacentWorkspaceId(by direction: Int, state: State) -> Workspace.ID? {
+  func adjacentWorkspaceId(
+    by direction: Int,
+    state: State,
+    display: DisplayName? = nil,
+  ) -> Workspace.ID? {
     // Scratchpads are borrow-only — never a cycle destination.
-    guard let all = state.config.activeProfile?.workspaces
-            .filter({ $0.kind != .scratchpad }),
-          !all.isEmpty
+    guard
+      let all = state.config.activeProfile?.workspaces
+        .filter({ $0.kind != .scratchpad }),
+      !all.isEmpty
     else { return nil }
     let settings = state.config.settings
     // Scope the cycle. `cycleAcrossDisplays` → every workspace. Otherwise stay
     // on the cursor's display: pinned workspaces by their display, dynamic
     // (unpinned) ones by the display they were last activated on (never-active
     // ones are included so they stay reachable).
-    let workspaces: IdentifiedArrayOf<Workspace>
-    if !settings.switching.cycleAcrossDisplays, let focused = state.focusedDisplay {
-      workspaces = all.filter { ws in
-        if let hint = ws.displayHint {
-          // A pinned workspace belongs to the display it actually tiles on —
-          // the connected screen, or the primary as fallback — so one pinned
-          // to a *disconnected* display stays reachable on the primary.
-          return displays.resolveOrPrimary(hint)?.matches(focused) ?? true
+    let workspaces: IdentifiedArrayOf<Workspace> =
+      if
+        !settings.switching.cycleAcrossDisplays,
+        let focused = display ?? state.focusedDisplay
+      {
+        all.filter { ws in
+          if let hint = ws.displayHint {
+            // A pinned workspace belongs to the display it actually tiles on —
+            // the connected screen, or the primary as fallback — so one pinned
+            // to a *disconnected* display stays reachable on the primary.
+            return displays.resolveOrPrimary(hint)?.matches(focused) ?? true
+          }
+          // Dynamic: the monitor it was last on (or include if never activated).
+          if let last = state.lastActiveDisplay[ws.id] { return last.matches(focused) }
+          return true
         }
-        // Dynamic: the monitor it was last on (or include if never activated).
-        if let last = state.lastActiveDisplay[ws.id] { return last.matches(focused) }
-        return true
+      } else {
+        all
       }
-    } else {
-      workspaces = all
-    }
     guard !workspaces.isEmpty else { return nil }
     // Anchor at the in-flight activation's target when there is one, else
     // the active workspace on the focused display. `primaryActive` only
     // updates on completion, so without the in-flight anchor every press
     // during a slow switch re-resolved to the same target.
-    let currentID = state.activatingWorkspaceID ?? state.primaryActiveWorkspaceID
+    let currentID = state.activatingWorkspaceID
+      ?? (display ?? state.focusedDisplay).flatMap { state.activeWorkspacesByDisplay[$0] }
+      ?? state.primaryActiveWorkspaceID
     let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
 
@@ -540,81 +885,6 @@ extension WorkspaceActivationFeature {
     return nil
   }
 
-  /// Map persisted fullscreen-zoom slots back onto live windows via the same
-  /// windowID-rank assignment `hydrate` uses (`slotToKey` over `keys`), so a
-  /// specific same-app window resolves to the exact slot it was zoomed in — not
-  /// just "some window of that app". Slots whose window isn't in the laid-out
-  /// tree are dropped, so the layout degrades gracefully when an app has fewer
-  /// windows than at save time.
-  static func resolveFullscreenZoom(
-    slots: [SlotID],
-    keys: [WindowKey],
-    among windows: [WindowKey]
-  ) -> Set<WindowKey> {
-    let keyForSlot = slotToKey(keys)
-    let present = Set(windows)
-    return Set(slots.compactMap { keyForSlot[$0] }.filter { present.contains($0) })
-  }
-
-  /// Pick the workspace to put on `display`, or nil to leave it be. Pure.
-  ///
-  /// - `reconnect` (a monitor just plugged in):
-  ///     1. the last workspace shown here, if it's pinned here, or it's dynamic
-  ///        and not currently in use on another display;
-  ///     2. else the first workspace statically pinned to this display;
-  ///     3. else a dynamic workspace not in use on another display — the most
-  ///        recently used one (`workspaceMRU`), falling back to the first.
-  /// - vacated (a dynamic workspace just left this display): walk the display's
-  ///   MRU history newest→oldest and take the first workspace that belongs here
-  ///   (dynamic, or pinned to this display) and isn't already in use elsewhere —
-  ///   so the monitor falls back to what the user last had on it.
-  static func chooseWorkspaceForDisplay(
-    _ display: DisplayName,
-    reconnect: Bool,
-    byId: [Workspace.ID: Workspace],
-    workspaces: [Workspace],
-    assigned: [DisplayName: Workspace.ID],
-    history: [DisplayName: [Workspace.ID]],
-    workspaceMRU: [Workspace.ID] = [],
-    connected: Set<DisplayName> = []
-  ) -> Workspace.ID? {
-    func pinned(_ id: Workspace.ID) -> Bool { byId[id]?.displayHint?.matches(display) ?? false }
-    func isDynamic(_ id: Workspace.ID) -> Bool { byId[id]?.isDynamic ?? false }
-    // A workspace pinned to a display that isn't currently connected has no home
-    // to return to — treat it like a free dynamic so it stays where the user
-    // last put it, rather than being evicted for the display's first pinned one.
-    func homelessPin(_ id: Workspace.ID) -> Bool {
-      guard let hint = byId[id]?.displayHint else { return false }
-      return !connected.contains { hint.matches($0) }
-    }
-    func elsewhere(_ id: Workspace.ID) -> Bool {
-      assigned.contains { $0.key != display && $0.value == id }
-    }
-    if reconnect {
-      // 1. last shown here — pinned here, or a free / homeless-pinned dynamic.
-      if let last = (history[display] ?? []).first(where: { byId[$0] != nil }),
-         pinned(last) || ((isDynamic(last) || homelessPin(last)) && !elsewhere(last)) {
-        return last
-      }
-      // 2. first pinned to this display.
-      if let firstPinned = workspaces.first(where: {
-        $0.kind != .scratchpad && ($0.displayHint?.matches(display) ?? false)
-      }) {
-        return firstPinned.id
-      }
-      // 3. a free dynamic: most-recently-used, else the first.
-      if let recentDynamic = workspaceMRU.first(where: {
-        byId[$0] != nil && isDynamic($0) && !elsewhere($0)
-      }) {
-        return recentDynamic
-      }
-      return workspaces.first { $0.kind != .scratchpad && $0.isDynamic && !elsewhere($0.id) }?.id
-    }
-    return (history[display] ?? []).first {
-      byId[$0] != nil && !elsewhere($0) && (isDynamic($0) || pinned($0))
-    }
-  }
-
   /// The full set of (display → workspace) activations to run when the display
   /// configuration changes. Pure so the rules + reclaim recursion are testable.
   ///
@@ -628,7 +898,10 @@ extension WorkspaceActivationFeature {
   /// multi-monitor switch reads correctly on each screen; the per-workspace
   /// switch HUD is suppressed during the switch so these aren't clobbered.
   func profileSwitchHUDs(
-    profile: Profile, plan: [DisplayAssignment], show: Bool, durationMs: Int
+    profile: Profile,
+    plan: [DisplayAssignment],
+    show: Bool,
+    durationMs: Int,
   ) -> Effect<Action> {
     guard show else { return .none }
     let name = profile.name
@@ -644,115 +917,16 @@ extension WorkspaceActivationFeature {
     }
   }
 
-  static func planDisplayRestore(
-    connected: [DisplayName],
-    newlyConnected: Set<DisplayName>,
-    workspaces: [Workspace],
-    active: [DisplayName: Workspace.ID],
-    history: [DisplayName: [Workspace.ID]],
-    workspaceMRU: [Workspace.ID] = []
-  ) -> [DisplayAssignment] {
-    var byId: [Workspace.ID: Workspace] = [:]
-    for w in workspaces where w.kind != .scratchpad { byId[w.id] = w }
-
-    // Live simulation of which workspace sits on each display as the plan grows.
-    var assigned = active
-    var visited: Set<DisplayName> = []
-
-    func displayShowing(_ id: Workspace.ID) -> DisplayName? {
-      assigned.first { $0.value == id }?.key
-    }
-    func pinned(_ id: Workspace.ID, to display: DisplayName) -> Bool {
-      byId[id]?.displayHint?.matches(display) ?? false
-    }
-
-    func fill(_ display: DisplayName, reconnect: Bool) {
-      guard visited.insert(display).inserted else { return }
-      guard let target = chooseWorkspaceForDisplay(
-        display, reconnect: reconnect, byId: byId,
-        workspaces: workspaces, assigned: assigned, history: history,
-        workspaceMRU: workspaceMRU, connected: Set(connected)
-      ), byId[target] != nil
-      else { return }
-      if let other = displayShowing(target), other != display {
-        // Already up on another display — only pull it over if it's pinned here.
-        guard pinned(target, to: display) else { return }
-        assigned[other] = nil
-        assigned[display] = target
-        fill(other, reconnect: false)
-      } else {
-        assigned[display] = target
-      }
-    }
-
-    for display in connected where newlyConnected.contains(display) {
-      fill(display, reconnect: true)
-    }
-    // Re-assert every connected display's (possibly reclaimed/filled) workspace.
-    return connected.compactMap { display in
-      assigned[display].map { DisplayAssignment(display: display, workspace: $0) }
-    }
-  }
-
-  /// Lay the tree out, trimming fullscreen-zoomed windows so the rest
-  /// of the tree shapes around as if they weren't present. Parent-zoom
-  /// is handled inside `tree.frames(...)` directly.
-  @MainActor
-  static func computeFrames(
-    tree: BSPNode<WindowKey>?,
-    settings: AppSettings,
-    targetDisplay: DisplayName?,
-    fullscreenZoomed: Set<WindowKey> = [],
-    targetRect: CGRect? = nil
-  ) -> [WindowKey: CGRect] {
-    guard let tree else { return [:] }
-    // `targetRect` (a composition sub-rect) is already inset; only the
-    // full-display path applies the outer gap.
-    let workArea = targetRect ?? ScreenGeometry.workArea(for: targetDisplay).insetBy(
-      dx: CGFloat(settings.layout.gapOuter),
-      dy: CGFloat(settings.layout.gapOuter)
-    )
-    let gap = CGFloat(settings.layout.gapInner)
-    let activeZoom = fullscreenZoomed.filter { tree.pathTo(window: $0) != nil }
-    if !activeZoom.isEmpty {
-      var trimmed: BSPNode<WindowKey>? = tree
-      for key in activeZoom { trimmed = trimmed?.removing(key) }
-      var frames = trimmed?.frames(in: workArea, gap: gap) ?? [:]
-      for key in activeZoom { frames[key] = workArea }
-      return frames
-    }
-    return tree.frames(in: workArea, gap: gap)
-  }
-
-  /// Split a work area into (host, borrowed) sub-rects for a borrow docked
-  /// to `edge`; the borrowed block sits on that edge with `fraction` share.
-  static func subRects(
-    workArea: CGRect,
-    edge: BorrowEdge,
-    fraction: CGFloat,
-    gap: CGFloat
-  ) -> (host: CGRect, borrowed: CGRect) {
-    let axis: BSPNode<WindowKey>.SplitAxis =
-      (edge == .left || edge == .right) ? .vertical : .horizontal
-    switch edge {
-    case .left, .top:
-      let (b, h) = axis.subdivide(workArea, ratio: fraction, gap: gap)
-      return (host: h, borrowed: b)
-    case .right, .bottom:
-      let (h, b) = axis.subdivide(workArea, ratio: 1 - fraction, gap: gap)
-      return (host: h, borrowed: b)
-    }
-  }
-
   /// Flush the display's composition (host + borrowed blocks) in one apply:
   /// each workspace's tree laid into its sub-rect, frames merged, applied
   /// together. No-op when the display has no active composition.
   func applyComposition(display: DisplayName?, state: State) -> Effect<Action> {
     let settings = state.config.settings
-    guard let display,
-          let comp = state.compositionsByDisplay[display],
-          let slot = comp.borrowed.first,
-          let hostTree = state.tilingTrees[comp.host]
+    guard
+      let display,
+      let comp = state.compositionsByDisplay[display],
+      let slot = comp.borrowed.first,
+      let hostTree = state.tilingTrees[comp.host]
     else { return .none }
     let borrowedTree = state.tilingTrees[slot.workspace]
     let hostZoom = state.fullscreenZoomed[comp.host] ?? []
@@ -763,29 +937,38 @@ extension WorkspaceActivationFeature {
       let merged: [WindowKey: CGRect] = await MainActor.run {
         let workArea = displays.workArea(display).insetBy(
           dx: CGFloat(settings.layout.gapOuter),
-          dy: CGFloat(settings.layout.gapOuter)
+          dy: CGFloat(settings.layout.gapOuter),
         )
         let gap = CGFloat(settings.layout.gapInner)
         let (hostRect, borrowedRect) = Self.subRects(
-          workArea: workArea, edge: edge, fraction: fraction, gap: gap
+          workArea: workArea,
+          edge: edge,
+          fraction: fraction,
+          gap: gap,
         )
         let hf = Self.computeFrames(
-          tree: hostTree, settings: settings, targetDisplay: display,
-          fullscreenZoomed: hostZoom, targetRect: hostRect
+          tree: hostTree,
+          settings: settings,
+          targetDisplay: display,
+          fullscreenZoomed: hostZoom,
+          targetRect: hostRect,
         )
         let bf = Self.computeFrames(
-          tree: borrowedTree, settings: settings, targetDisplay: display,
-          fullscreenZoomed: borrowedZoom, targetRect: borrowedRect
+          tree: borrowedTree,
+          settings: settings,
+          targetDisplay: display,
+          fullscreenZoomed: borrowedZoom,
+          targetRect: borrowedRect,
         )
         return hf.merging(bf) { current, _ in current }
       }
-      guard !merged.isEmpty else { return }
-      await tiler.apply(FrameApplication(windowFrames: merged, targetDisplay: display))
+      guard !Task.isCancelled, !merged.isEmpty else { return }
+      await tiler.apply(FrameApplication(windowFrames: merged))
     }
-    .cancellable(id: CancelID.applyComposition(display), cancelInFlight: true)
+    .cancellable(id: CancelID.layout(display), cancelInFlight: true)
   }
 
-  /// Borrow `targetId` into the focused display's host workspace, docked to
+  /// Borrow `targetId` into the pointer display's host workspace, docked to
   /// `edge`. Re-borrowing a target already borrowed there just re-docks it to
   /// the new edge. Live: the borrowed block reuses the target's real tree, so
   /// edits persist to it. Only the borrowed workspace's *tiled* apps take part
@@ -793,19 +976,24 @@ extension WorkspaceActivationFeature {
   func performBorrow(
     targetId: Workspace.ID,
     edge: BorrowEdge,
-    state: inout State
+    displayOverride: DisplayName? = nil,
+    state: inout State,
   ) -> Effect<Action> {
-    guard let profile = state.config.activeProfile,
-          let target = profile.workspaces[id: targetId],
-          let display = state.focusedDisplay ?? state.activeWorkspacesByDisplay.keys.first,
-          let hostId = state.activeWorkspacesByDisplay[display],
-          hostId != targetId,
-          let hostWs = profile.workspaces[id: hostId]
+    guard
+      let profile = state.config.activeProfile,
+      let target = profile.workspaces[id: targetId],
+      let display = displayOverride ?? displays.current() ?? state.focusedDisplay
+      ?? state.activeWorkspacesByDisplay.keys.first,
+      let hostId = state.activeWorkspacesByDisplay[display],
+      hostId != targetId,
+      let hostWs = profile.workspaces[id: hostId]
     else { return .none }
     // Already borrowed here → re-dock to the new edge instead of toggling off
     // (the apps are already visible, so just re-flush the composition).
-    if let existing = state.compositionsByDisplay[display],
-       let idx = existing.borrowed.firstIndex(where: { $0.workspace == targetId }) {
+    if
+      let existing = state.compositionsByDisplay[display],
+      let idx = existing.borrowed.firstIndex(where: { $0.workspace == targetId })
+    {
       var comp = existing
       comp.borrowed[idx].edge = edge
       state.compositionsByDisplay[display] = comp
@@ -813,7 +1001,27 @@ extension WorkspaceActivationFeature {
       // Re-summoning an already-docked block re-lands focus on it too.
       return .merge(
         applyComposition(display: display, state: state),
-        focusBorrowedBlock(workspaceId: targetId, state: state)
+        focusBorrowedBlock(workspaceId: targetId, state: &state),
+      )
+    }
+    // One workspace/tree can have one physical display owner. Borrowing a
+    // workspace already visible on another monitor would make two layout
+    // writers fight over the same WindowKeys. Keep that monitor intact and
+    // report the conflict instead of silently duplicating it.
+    if
+      let sourceDisplay = state.displayShowing(targetId),
+      !sourceDisplay.matches(display)
+    {
+      debugLog.log(
+        "Borrow",
+        "skip \(target.name): already visible on \(sourceDisplay.name)",
+      )
+      return hudEffect(
+        state,
+        \.borrow,
+        "Already visible",
+        "rectangle.on.rectangle.slash",
+        subtitle: "\(target.name) is on \(sourceDisplay.name)",
       )
     }
     let fraction = target.borrowFraction ?? state.config.settings.switching.borrowFraction
@@ -825,24 +1033,31 @@ extension WorkspaceActivationFeature {
     let tiledBorrowed = target.apps.filter { $0.layout == .tiled }
     let tiledBorrowedBundleIds = tiledBorrowed.map(\.bundleIdentifier)
     let borrowedApps: [AppAssignment] = target.kind == .scratchpad
-      ? tiledBorrowed.map { var a = $0; a.autoOpen = true; return a }
+      ? tiledBorrowed.map { var a = $0
+        a.autoOpen = true
+        return a
+      }
       : tiledBorrowed
     let request = ActivationRequest(
-      workspace: hostWs, sharedApps: state.config.sharedApps,
-      targetDisplay: display, setFocus: false, borrowedApps: borrowedApps,
-      managedBundleIds: state.managedBundleIds
+      workspace: hostWs,
+      sharedApps: state.config.sharedApps,
+      targetDisplay: display,
+      setFocus: false,
+      borrowedApps: borrowedApps,
+      managedBundleIds: state.managedBundleIds,
     )
     let settings = state.config.settings
     let existingBorrowedTree = state.tilingTrees[targetId]
     debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge)")
     let hud = hudEffect(
-      state, \.borrow,
+      state,
+      \.borrow,
       "Borrowed \(target.name)",
-      Self.borrowEdgeIcon(edge)
+      Self.borrowEdgeIcon(edge),
     )
     let render = Effect<Action>.run { [mgr = workspaceManager, snapshot = windowSnapshot, displays] send in
       await mgr.activate(request)
-      var discovered: [WindowKey] = []
+      var discovered = [WindowKey]()
       for bundleId in tiledBorrowedBundleIds {
         discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
       }
@@ -850,12 +1065,15 @@ extension WorkspaceActivationFeature {
       let tree = await MainActor.run { () -> BSPNode<WindowKey>? in
         let workArea = displays.workArea(display).insetBy(
           dx: CGFloat(settings.layout.gapOuter),
-          dy: CGFloat(settings.layout.gapOuter)
+          dy: CGFloat(settings.layout.gapOuter),
         )
         return Self.mergeTree(
-          existing: existingBorrowedTree, target: keys,
+          existing: existingBorrowedTree,
+          target: keys,
           focused: { snapshot.focusedWindowKey() },
-          insertionPoint: nil, workArea: workArea, settings: settings
+          insertionPoint: nil,
+          workArea: workArea,
+          settings: settings,
         )
       }
       await send(.tilingTreeUpdated(workspaceId: targetId, tree: tree))
@@ -877,7 +1095,7 @@ extension WorkspaceActivationFeature {
   /// workspace creates no window, so it never warped. This makes both
   /// consistent. No-op while the borrowed tree is still empty (a cold-launching
   /// app); the new-window sync warps once its window appears, as before.
-  func focusBorrowedBlock(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
+  func focusBorrowedBlock(workspaceId: Workspace.ID, state: inout State) -> Effect<Action> {
     guard let tree = state.tilingTrees[workspaceId] else { return .none }
     let target = (state.mruWindows[workspaceId] ?? [])
       .first { tree.windows.contains($0) } ?? tree.windows.first
@@ -885,50 +1103,50 @@ extension WorkspaceActivationFeature {
     debugLog.log("Borrow", "focus borrowed block → \(target.bundleId)#\(target.windowID)")
     return .merge(
       .run { [focus = focusManager] _ in await focus.focusWindow(target) },
-      warpToWindow(target, in: tree, workspaceId: workspaceId, state: state)
+      requiredCenterWarpToWindow(
+        target,
+        in: tree,
+        workspaceId: workspaceId,
+        state: &state,
+      ),
     )
-  }
-
-  /// SF Symbol for a borrow docked to `edge` — a filled half-rectangle on the
-  /// side the borrowed block sits.
-  static func borrowEdgeIcon(_ edge: BorrowEdge) -> String {
-    switch edge {
-    case .left: "rectangle.lefthalf.inset.filled"
-    case .right: "rectangle.righthalf.inset.filled"
-    case .top: "rectangle.tophalf.inset.filled"
-    case .bottom: "rectangle.bottomhalf.inset.filled"
-    }
   }
 
   /// End the borrow on `display`: drop the composition and re-activate the
   /// host alone, which hides the borrowed apps (no longer in keepVisible) and
   /// re-tiles the host to the full work area. Fire-and-forget.
-  /// The recent workspace on the focused display (falls back to any recent) —
-  /// the target for recent-workspace activate / assign / borrow.
-  func recentWorkspaceId(state: State) -> Workspace.ID? {
-    state.focusedDisplay.flatMap { state.previousWorkspacesByDisplay[$0] }
+  /// The recent workspace on an explicit interaction display (then the focused
+  /// display, then any recent) — the target for recent activate / assign / borrow.
+  func recentWorkspaceId(state: State, display: DisplayName? = nil) -> Workspace.ID? {
+    (display ?? state.focusedDisplay).flatMap { state.previousWorkspacesByDisplay[$0] }
       ?? state.previousWorkspacesByDisplay.values.first
   }
 
   func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
-    // A hotkey passes nil → resolve the focused display (then any composed one).
-    let display = display ?? state.focusedDisplay
+    // A hotkey passes nil → resolve the pointer display. Internal collapse
+    // actions pass their exact owner so a background monitor stays isolated.
+    let display = display ?? displays.current() ?? state.focusedDisplay
       ?? state.compositionsByDisplay.keys.first
     guard let display, let comp = state.compositionsByDisplay[display] else { return .none }
     debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
-    // Re-activate the host: performActivate drops the composition, tiles the
-    // host full-screen, and its switch HUD announces the returned borrow in its
-    // subtitle.
-    return .send(.activate(workspaceId: comp.host, setFocus: true))
+    // Re-activate the host on the composition's own display. A plain
+    // `.activate` re-resolves a dynamic host from interaction focus/cursor and
+    // could pull a background-display composition onto the wrong monitor.
+    return performActivate(
+      workspaceId: comp.host,
+      setFocus: true,
+      displayOverride: display,
+      state: &state,
+    )
   }
 
   /// Disarm the borrow direction pick: clear the target, remove the tap, and
   /// cancel the auto-timeout.
   func endBorrowCapture(state: inout State) -> Effect<Action> {
-    state.borrowCaptureTarget = nil
+    state.borrowCapture = nil
     return .merge(
       .run { [borrowChord] _ in await borrowChord.setArmed(false) },
-      .cancel(id: CancelID.borrowChordTimeout)
+      .cancel(id: CancelID.borrowChordTimeout),
     )
   }
 
@@ -936,7 +1154,7 @@ extension WorkspaceActivationFeature {
   /// half-finished borrow can't keep the key tap swallowing keystrokes.
   func borrowChordTimeout() -> Effect<Action> {
     .run { [clock] send in
-      try? await clock.sleep(for: .seconds(5))
+      try await clock.sleep(for: .seconds(5))
       await send(.borrowChordKey(.cancel))
     }
     .cancellable(id: CancelID.borrowChordTimeout, cancelInFlight: true)
@@ -945,14 +1163,18 @@ extension WorkspaceActivationFeature {
   /// HUD hint while a borrow direction pick is armed: which workspace, and
   /// that a direction key places it.
   func borrowChordHint(state: State) -> Effect<Action> {
-    guard state.config.settings.hud.shows(\.borrow),
-          let target = state.borrowCaptureTarget,
-          let name = state.config.activeProfile?.workspaces[id: target]?.name
+    guard
+      state.config.settings.hud.shows(\.borrow),
+      let capture = state.borrowCapture,
+      let name = state.config.activeProfile?.workspaces[id: capture.workspaceId]?.name
     else { return .none }
     let durationMs = max(state.config.settings.hud.durationMs, 4000)
     return .run { [workspaceHUD] _ in
       await workspaceHUD.show(
-        "Borrow \(name)", "rectangle.split.2x1", "press a direction · h j k l / arrows · esc", durationMs
+        "Borrow \(name)",
+        "rectangle.split.2x1",
+        "press a direction · h j k l / arrows · esc",
+        durationMs,
       )
     }
   }
@@ -967,20 +1189,20 @@ extension WorkspaceActivationFeature {
     currentTree: BSPNode<WindowKey>,
     currentRect: CGRect,
     direction: BSPDirection,
-    state: State
+    state: State,
   ) -> (target: WindowKey, display: DisplayName?, tree: BSPNode<WindowKey>, rect: CGRect, zoomed: Set<WindowKey>)? {
-    guard let display = state.focusedDisplay,
-          let comp = state.compositionsByDisplay[display],
-          let slot = comp.borrowed.first
+    guard
+      let display = state.displayShowing(currentId),
+      let comp = state.compositionsByDisplay[display],
+      let slot = comp.borrowed.first
     else { return nil }
-    let dirEdge: BorrowEdge = {
+    let dirEdge: BorrowEdge =
       switch direction {
       case .east: .right
       case .west: .left
       case .north: .top
       case .south: .bottom
       }
-    }()
     // Host crosses toward the borrowed dock; borrowed crosses back (opposite).
     let siblingId: Workspace.ID
     if currentId == comp.host {
@@ -1015,13 +1237,18 @@ extension WorkspaceActivationFeature {
   /// focus-relative BSP op resolves geometry, so composed and uncomposed
   /// paths can't drift.
   func tilingContext(for workspaceId: Workspace.ID, state: State) -> (display: DisplayName?, rect: CGRect) {
-    if let display = state.focusedDisplay,
-       let comp = state.compositionsByDisplay[display],
-       let slot = comp.borrowed.first {
+    if
+      let display = state.displayShowing(workspaceId),
+      let comp = state.compositionsByDisplay[display],
+      let slot = comp.borrowed.first
+    {
       let workArea = tilingWorkArea(for: display, settings: state.config.settings)
       let gap = CGFloat(state.config.settings.layout.gapInner)
       let (hostRect, borrowedRect) = Self.subRects(
-        workArea: workArea, edge: slot.edge, fraction: slot.fraction, gap: gap
+        workArea: workArea,
+        edge: slot.edge,
+        fraction: slot.fraction,
+        gap: gap,
       )
       if workspaceId == comp.host { return (display, hostRect) }
       if workspaceId == slot.workspace { return (display, borrowedRect) }
@@ -1034,7 +1261,7 @@ extension WorkspaceActivationFeature {
     // cross-display tiling bug). `activeWorkspacesByDisplay` is the source of
     // truth for placement; fall back to the hint (fresh pinned activation) then
     // the cursor (fresh dynamic activation).
-    let display = state.activeWorkspacesByDisplay.first { $0.value == workspaceId }?.key
+    let display = state.displayShowing(workspaceId)
       ?? state.config.activeProfile?.workspaces[id: workspaceId]?.displayHint
       ?? displays.current()
     return (display, tilingWorkArea(for: display, settings: state.config.settings))
@@ -1047,40 +1274,15 @@ private func ms(_ duration: Duration) -> Int64 {
     + duration.components.attoseconds / 1_000_000_000_000_000
 }
 
-/// Live AX read of the frontmost app's focused window. Reducers go
-/// through `WindowSnapshotClient.focusedWindowKey` instead, which wraps
-/// this in its live value.
-@MainActor
-func liveFocusedWindowKey() -> WindowKey? {
-  guard let app = NSWorkspace.shared.frontmostApplication,
-        let bundleId = app.bundleIdentifier
-  else { return nil }
-  let axApp = AXUIElementCreateApplication(app.processIdentifier)
-  var raw: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(
-    axApp,
-    kAXFocusedWindowAttribute as CFString,
-    &raw
-  ) == .success,
-    let value = raw,
-    CFGetTypeID(value) == AXUIElementGetTypeID()
-  else { return nil }
-  return WindowKey(
-    axWindow: value as! AXUIElement,
-    pid: app.processIdentifier,
-    bundleId: bundleId
-  )
-}
-
 extension SplitTypePreference {
   /// Translate the user-facing preference to the internal split axis
   /// used by `BSPNode.inserting(...)`. `.auto` returns nil so the
   /// aspect-ratio heuristic kicks in.
   func bspSplitAxis() -> BSPNode<WindowKey>.SplitAxis? {
     switch self {
-    case .auto: return nil
-    case .horizontal: return .horizontal
-    case .vertical: return .vertical
+    case .auto: nil
+    case .horizontal: .horizontal
+    case .vertical: .vertical
     }
   }
 }

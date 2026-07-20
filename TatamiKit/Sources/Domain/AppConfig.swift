@@ -59,7 +59,7 @@ public struct AppConfig: Hashable, Sendable, Codable {
     } else if c.contains(.floatingApps) {
       // One-time migration: old floating apps were "untiled + everywhere",
       // which is exactly a shared floating app.
-      self.sharedApps = try c.decode([FloatingApp].self, forKey: .floatingApps).map {
+      self.sharedApps = try c.decode([LegacyFloatingApp].self, forKey: .floatingApps).map {
         SharedApp(bundleIdentifier: $0.bundleIdentifier, name: $0.name,
                   iconPath: $0.iconPath, layout: .floating)
       }

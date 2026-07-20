@@ -351,7 +351,7 @@ public struct WorkspaceLayoutFeature {
     )
     state.layoutSnapshot = snapshot
     return .merge(
-      .run { [layoutStore] _ in layoutStore.save(id, snapshot) },
+      .run { [layoutStore] _ in await layoutStore.save(id, snapshot) },
       .send(.delegate(.residentLayoutInvalidated(workspaceId: id)))
     )
   }
@@ -380,7 +380,7 @@ public struct WorkspaceLayoutFeature {
     let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedSlots: sortedZoom)
     state.layoutSnapshot = snapshot
     return .merge(
-      .run { [layoutStore] _ in layoutStore.save(id, snapshot) },
+      .run { [layoutStore] _ in await layoutStore.save(id, snapshot) },
       .send(.delegate(.residentLayoutInvalidated(workspaceId: id)))
     )
   }

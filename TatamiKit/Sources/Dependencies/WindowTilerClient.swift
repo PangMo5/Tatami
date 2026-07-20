@@ -17,22 +17,21 @@ struct WindowTilerClient: Sendable {
   var apply: @Sendable (FrameApplication) async -> Void
 }
 
+// MARK: - FrameApplication
+
 struct FrameApplication: Sendable, Hashable {
   var windowFrames: [WindowKey: CGRect]
-  var targetDisplay: DisplayName?
-
-  init(
-    windowFrames: [WindowKey: CGRect],
-    targetDisplay: DisplayName?
-  ) {
-    self.windowFrames = windowFrames
-    self.targetDisplay = targetDisplay
-  }
 }
 
+// MARK: - WindowTilerClient + DependencyKey
+
 extension WindowTilerClient: DependencyKey {
+
+  // MARK: Internal
+
   static let liveValue = WindowTilerClient { request in
     guard !request.windowFrames.isEmpty else { return }
+    guard !Task.isCancelled else { return }
     // Non-prompting check: prompting here would re-pop the system dialog on
     // every tile pass while ungranted. The single startup prompt + the
     // Settings → General → Permissions UI own the prompting.
@@ -48,11 +47,26 @@ extension WindowTilerClient: DependencyKey {
       debugLog.log("Tiler", "apply skipped: accessibility not granted")
       return
     }
+    guard !Task.isCancelled else { return }
+    // A fresh WindowServer snapshot is cheap compared with AX and avoids the
+    // unreliable *cached*-frame shortcut: only windows visibly at their target
+    // right now are skipped. Off-screen / mid-unhide windows still take the AX
+    // path, preserving convergence after a workspace switch.
+    let pendingFrames = framesNeedingApply(
+      targets: request.windowFrames,
+      visibleFrames: currentOnScreenFrames(),
+    )
+    guard !pendingFrames.isEmpty else {
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log("Tiler", "apply skipped: all \(request.windowFrames.count) frames current")
+      return
+    }
+    guard !Task.isCancelled else { return }
     // Group frames by pid so we can toggle EnhancedUserInterface
     // once per app instead of once per window. Ordered: apps apply in
     // first-seen order, so passes are reproducible run to run (and the
     // Tiler log reads the same way every switch).
-    let grouped = OrderedDictionary(grouping: request.windowFrames, by: { $0.key.pid })
+    let grouped = OrderedDictionary(grouping: pendingFrames, by: { $0.key.pid })
     // Hop to the main actor once per app, not once for the whole pass.
     // Every AX write blocks on the target app's run loop (up to the 1 s
     // cap), so a single block would hold the main thread for the *sum*
@@ -69,10 +83,56 @@ extension WindowTilerClient: DependencyKey {
   static let testValue = WindowTilerClient(apply: { _ in })
   static let previewValue = testValue
 
+  /// Keep only targets whose fresh WindowServer geometry is absent or drifted.
+  /// Internal for deterministic unit tests; the live path supplies one snapshot
+  /// per tile pass, never an event-lagged cache.
+  static func framesNeedingApply(
+    targets: [WindowKey: CGRect],
+    visibleFrames: [CGWindowID: CGRect],
+    tolerance: CGFloat = 1,
+  ) -> [WindowKey: CGRect] {
+    var pending = [WindowKey: CGRect]()
+    pending.reserveCapacity(targets.count)
+    for (key, target) in targets {
+      guard
+        let current = visibleFrames[key.windowID],
+        abs(current.minX - target.minX) <= tolerance,
+        abs(current.minY - target.minY) <= tolerance,
+        abs(current.width - target.width) <= tolerance,
+        abs(current.height - target.height) <= tolerance
+      else {
+        pending[key] = target
+        continue
+      }
+    }
+    return pending
+  }
+
+  // MARK: Private
+
+  private static func currentOnScreenFrames() -> [CGWindowID: CGRect] {
+    let raw = CGWindowListCopyWindowInfo(
+      [.optionOnScreenOnly, .excludeDesktopElements],
+      kCGNullWindowID,
+    ) as? [[String: Any]] ?? []
+    var frames = [CGWindowID: CGRect]()
+    frames.reserveCapacity(raw.count)
+    for entry in raw {
+      guard
+        let windowID = entry[kCGWindowNumber as String] as? CGWindowID,
+        let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
+        let x = bounds["X"], let y = bounds["Y"],
+        let width = bounds["Width"], let height = bounds["Height"]
+      else { continue }
+      frames[windowID] = CGRect(x: x, y: y, width: width, height: height)
+    }
+    return frames
+  }
+
   @MainActor
   private static func applyForApp(
     pid: pid_t,
-    entries: [(key: WindowKey, value: CGRect)]
+    entries: [(key: WindowKey, value: CGRect)],
   ) {
     @Dependency(\.debugLog) var debugLog
     let logging = debugLog.isEnabled()

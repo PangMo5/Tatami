@@ -140,14 +140,6 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
     ) { [weak self] _ in
       self?.broadcast(.activeSpaceChanged)
     }
-    // `didHide` — no broadcast: the reducer would churn the BSP, and hiding an
-    // app activates whatever's behind it, so `didActivate` already covers the
-    // "window set changed" case for consumers. Kept as a hook point.
-    nc.addObserver(
-      forName: NSWorkspace.didHideApplicationNotification,
-      object: nil,
-      queue: .main
-    ) { _ in /* no-op for now */ }
     // After wake the window list may have re-laid out (macOS sometimes
     // moves windows across Spaces during sleep). Reconcile.
     nc.addObserver(

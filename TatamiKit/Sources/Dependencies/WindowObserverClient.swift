@@ -298,9 +298,9 @@ private final class ObservedApp {
       let r = AXObserverAddNotification(observer, appElement, name, info)
       // `notificationAlreadyRegistered` is fine — that just means a
       // previous attempt already got this one through.
-      if r != .success && r.rawValue != Int32(-25208) /* AlreadyRegistered */ {
+      if r != .success, r != .notificationAlreadyRegistered {
         allOK = false
-        if r.rawValue == -25204 /* CannotComplete */ {
+        if r == .cannotComplete {
           needsAXRetry = true
         }
         debugLog.log(
@@ -324,7 +324,7 @@ private final class ObservedApp {
     let id = Unmanaged.passUnretained(self).toOpaque()
     retryTask = Task { @MainActor [weak self] in
       try? await Task.sleep(for: .milliseconds(200))
-      guard let self else { return }
+      guard !Task.isCancelled, let self else { return }
       debugLog.log(
         "Observer",
         "ax retry pid=\(self.pid) bundle=\(self.bundleId) remaining=\(attemptsRemaining)"
@@ -422,8 +422,8 @@ private final class ObservedApp {
         // Electron app can answer CannotComplete (-25204) here too, and
         // macOS never re-attempts on its own — without the flag the
         // window's destroy/resize/move events were permanently missing.
-        if r != .success, r.rawValue != Int32(-25208) /* AlreadyRegistered */ {
-          if r.rawValue == -25204 /* CannotComplete */ {
+        if r != .success, r != .notificationAlreadyRegistered {
+          if r == .cannotComplete {
             needsAXRetry = true
           }
           debugLog.log(
@@ -456,7 +456,7 @@ private func axObserverCallback(
     let element = boxed.value
     @Dependency(\.debugLog) var debugLog
     switch name {
-    case kAXWindowCreatedNotification as String:
+    case AXNotificationName.windowCreated:
       app.refreshWindowSubscriptions()
       // A brand-new window can answer CannotComplete just like a
       // brand-new app — re-run the retry loop so its destroy/resize
@@ -471,7 +471,7 @@ private func axObserverCallback(
         "windowCreated pid=\(app.pid) bundle=\(app.bundleId) elementWid=\(wid)"
       )
       app.continuation.yield(.windowCreated(bundleId: app.bundleId))
-    case kAXUIElementDestroyedNotification as String:
+    case AXNotificationName.elementDestroyed:
       var wid: CGWindowID = 0
       _ = _AXUIElementGetWindow(element, &wid)
       debugLog.log(
@@ -479,7 +479,7 @@ private func axObserverCallback(
         "windowDestroyed pid=\(app.pid) bundle=\(app.bundleId) elementWid=\(wid)"
       )
       app.continuation.yield(.windowDestroyed(bundleId: app.bundleId))
-    case kAXWindowResizedNotification as String:
+    case AXNotificationName.windowResized:
       // Only treat a resize as user-driven when the left mouse button
       // is held — otherwise this alert is the echo of our own tiling
       // writes (swap / warp / zoom / retile). The reducer applies an
@@ -491,15 +491,15 @@ private func axObserverCallback(
       {
         app.continuation.yield(.windowResized(key: key, frame: frame))
       }
-    case kAXWindowMovedNotification as String:
+    case AXNotificationName.windowMoved:
       if isLeftMouseDown(),
          let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
          let frame = AXWindowGeometry.frame(of: element)
       {
         app.continuation.yield(.windowMoved(key: key, frame: frame))
       }
-    case kAXFocusedWindowChangedNotification as String,
-         kAXMainWindowChangedNotification as String:
+    case AXNotificationName.focusedWindowChanged,
+         AXNotificationName.mainWindowChanged:
       // `element` is the newly focused/main window. No mouse gate —
       // these are state-only (no AX writes), so they can't feed back
       // into a tiling loop. Emit even when the `WindowKey` bridge fails
@@ -515,8 +515,8 @@ private func axObserverCallback(
         "windowFocused pid=\(app.pid) bundle=\(app.bundleId) key=\(key?.windowID.description ?? "nil")"
       )
       app.continuation.yield(.windowFocused(bundleId: app.bundleId, key: key))
-    case kAXWindowMiniaturizedNotification as String,
-         kAXWindowDeminiaturizedNotification as String:
+    case AXNotificationName.windowMiniaturized,
+         AXNotificationName.windowDeminiaturized:
       // Treat both as a reason to reconcile — minimized windows drop
       // out of `discoverWindowKeys` (subrole filter), restored ones
       // need to come back into the tree.
@@ -525,11 +525,11 @@ private func axObserverCallback(
         "miniaturizeChange pid=\(app.pid) bundle=\(app.bundleId) name=\(name)"
       )
       app.continuation.yield(.windowCreated(bundleId: app.bundleId))
-    case kAXMenuOpenedNotification as String:
+    case AXNotificationName.menuOpened:
       app.isMenuOpen = true
-    case kAXMenuClosedNotification as String:
+    case AXNotificationName.menuClosed:
       app.isMenuOpen = false
-    case kAXTitleChangedNotification as String:
+    case AXNotificationName.titleChanged:
       // Cosmetic for tiling; forwarded so the layout preview can refresh
       // titles live. The activation reducer ignores it.
       app.continuation.yield(.windowTitleChanged(bundleId: app.bundleId))
@@ -537,6 +537,24 @@ private func axObserverCallback(
       break
     }
   }
+}
+
+/// `AXObserver` delivers notification names as `CFString`. Converting the
+/// constants once keeps the switch an ordinary `String` value comparison;
+/// writing `case constant as String` is parsed as a cast pattern and emits an
+/// "'as' test is always true" warning for every case.
+private enum AXNotificationName {
+  static let windowCreated = kAXWindowCreatedNotification as String
+  static let elementDestroyed = kAXUIElementDestroyedNotification as String
+  static let windowResized = kAXWindowResizedNotification as String
+  static let windowMoved = kAXWindowMovedNotification as String
+  static let focusedWindowChanged = kAXFocusedWindowChangedNotification as String
+  static let mainWindowChanged = kAXMainWindowChangedNotification as String
+  static let windowMiniaturized = kAXWindowMiniaturizedNotification as String
+  static let windowDeminiaturized = kAXWindowDeminiaturizedNotification as String
+  static let menuOpened = kAXMenuOpenedNotification as String
+  static let menuClosed = kAXMenuClosedNotification as String
+  static let titleChanged = kAXTitleChangedNotification as String
 }
 
 /// True while the primary (left) mouse button is held — i.e. the user
@@ -554,5 +572,3 @@ private func isLeftMouseDown() -> Bool {
 private struct UnsafeAXElement: @unchecked Sendable {
   let value: AXUIElement
 }
-
-

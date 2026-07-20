@@ -13,6 +13,24 @@ private struct FullscreenItem: Identifiable, Equatable {
   var id: Int { index }
 }
 
+private struct LayoutDropOverlay: View {
+  var targetRect: CGRect
+  var zoneRect: CGRect
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 5)
+        .strokeBorder(Color.accentColor, lineWidth: 2)
+        .frame(width: targetRect.width, height: targetRect.height)
+        .position(x: targetRect.midX, y: targetRect.midY)
+      RoundedRectangle(cornerRadius: 4)
+        .fill(Color.accentColor.opacity(0.35))
+        .frame(width: zoneRect.width, height: zoneRect.height)
+        .position(x: zoneRect.midX, y: zoneRect.midY)
+    }
+  }
+}
+
 // MARK: - Preview view
 
 /// Graphical layout preview + editor at the top of a workspace's detail. A pure
@@ -243,8 +261,9 @@ struct WorkspaceLayoutPreview: View {
         ForEach(regions.dividers) { divider in
           dividerHandle(divider)
         }
-        if let overlay = dropOverlay(leaves: regions.tiles) {
-          overlay.allowsHitTesting(false)
+        if let rects = dropOverlayRects(leaves: regions.tiles) {
+          LayoutDropOverlay(targetRect: rects.target, zoneRect: rects.zone)
+            .allowsHitTesting(false)
         }
         if let drag = tileDrag, let source = regions.tiles.first(where: { $0.path == drag.source }) {
           dragGhost(bundleId: source.representative ?? "", label: labels.tiles[drag.source] ?? "", at: drag.location)
@@ -544,24 +563,12 @@ struct WorkspaceLayoutPreview: View {
     return (target.path, zone)
   }
 
-  private func dropOverlay(leaves: [RenderLeaf]) -> AnyView? {
+  private func dropOverlayRects(leaves: [RenderLeaf]) -> (target: CGRect, zone: CGRect)? {
     guard let drag = tileDrag,
           let drop = dropTarget(leaves: leaves, source: drag.source, at: drag.location),
           let target = leaves.first(where: { $0.path == drop.path })
     else { return nil }
-    let zoneRect = zoneRect(in: target.rect, zone: drop.zone)
-    return AnyView(
-      ZStack {
-        RoundedRectangle(cornerRadius: 5)
-          .strokeBorder(Color.accentColor, lineWidth: 2)
-          .frame(width: target.rect.width, height: target.rect.height)
-          .position(x: target.rect.midX, y: target.rect.midY)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.accentColor.opacity(0.35))
-          .frame(width: zoneRect.width, height: zoneRect.height)
-          .position(x: zoneRect.midX, y: zoneRect.midY)
-      }
-    )
+    return (target.rect, zoneRect(in: target.rect, zone: drop.zone))
   }
 
   private func zoneRect(in rect: CGRect, zone: DropZone) -> CGRect {

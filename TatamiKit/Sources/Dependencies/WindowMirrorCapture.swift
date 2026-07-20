@@ -71,7 +71,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       guard generation == startedGeneration else {
         // A stop won the race while `startCapture` was in flight — the
         // mirror is no longer wanted; don't publish the stream.
-        stream.stopCapture { _ in }
+        try? await stream.stopCapture()
         return
       }
       self.stream = stream
@@ -127,7 +127,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
       guard generation == startedGeneration else {
-        stream.stopCapture { _ in }
+        try? await stream.stopCapture()
         flushPendingFirstFrame()
         return
       }

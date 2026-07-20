@@ -4,6 +4,8 @@ import CoreGraphics
 import Dependencies
 import Foundation
 
+// MARK: - WindowKey
+
 /// Stable, hashable identifier for a single macOS window.
 ///
 /// Composed of the owning process pid and the system-wide
@@ -11,9 +13,8 @@ import Foundation
 /// the user closes it, the same id never recurs, so it's safe to use
 /// as the BSP tree leaf key.
 public struct WindowKey: Hashable, Sendable, Codable {
-  public var pid: pid_t
-  public var windowID: CGWindowID
-  public var bundleId: String
+
+  // MARK: Lifecycle
 
   public init(pid: pid_t, windowID: CGWindowID, bundleId: String) {
     self.pid = pid
@@ -21,13 +22,19 @@ public struct WindowKey: Hashable, Sendable, Codable {
     self.bundleId = bundleId
   }
 
-  // Identity is `(pid, windowID)` — both are fixed for the window's lifetime
-  // and the pair never recurs. `bundleId` is a non-identifying payload
-  // (functionally determined by the window), so excluding it from equality
-  // and hashing keeps every Set / dictionary / BSP-leaf-key semantics
-  // identical while dropping per-key String hashing from every tree walk,
-  // frames lookup, and membership pass.
-  public static func == (lhs: WindowKey, rhs: WindowKey) -> Bool {
+  // MARK: Public
+
+  public var pid: pid_t
+  public var windowID: CGWindowID
+  public var bundleId: String
+
+  /// Identity is `(pid, windowID)` — both are fixed for the window's lifetime
+  /// and the pair never recurs. `bundleId` is a non-identifying payload
+  /// (functionally determined by the window), so excluding it from equality
+  /// and hashing keeps every Set / dictionary / BSP-leaf-key semantics
+  /// identical while dropping per-key String hashing from every tree walk,
+  /// frames lookup, and membership pass.
+  public static func ==(lhs: WindowKey, rhs: WindowKey) -> Bool {
     lhs.pid == rhs.pid && lhs.windowID == rhs.windowID
   }
 
@@ -35,7 +42,10 @@ public struct WindowKey: Hashable, Sendable, Codable {
     hasher.combine(pid)
     hasher.combine(windowID)
   }
+
 }
+
+// MARK: - SlotID
 
 /// Occurrence-stable slot identity for a persisted layout leaf.
 ///
@@ -47,22 +57,22 @@ public struct WindowKey: Hashable, Sendable, Codable {
 /// same-app leaves persists which occurrence sits where. Across a full restart
 /// windowIDs are reassigned, so the mapping is best-effort then.
 public struct SlotID: Hashable, Sendable, Codable {
-  public var bundleId: String
-  public var occurrence: Int
-
   public init(bundleId: String, occurrence: Int) {
     self.bundleId = bundleId
     self.occurrence = occurrence
   }
+
+  public var bundleId: String
+  public var occurrence: Int
 }
 
 /// Assign each live window its `SlotID` — occurrence = windowID-ascending rank
 /// within its bundle. The Accessibility window order is unstable (and can drop
 /// fullscreen windows), so windowID is the deterministic anchor.
 public func slotAssignment(_ keys: [WindowKey]) -> [WindowKey: SlotID] {
-  var byBundle: [String: [WindowKey]] = [:]
+  var byBundle = [String: [WindowKey]]()
   for key in keys { byBundle[key.bundleId, default: []].append(key) }
-  var out: [WindowKey: SlotID] = [:]
+  var out = [WindowKey: SlotID]()
   for (bundleId, group) in byBundle {
     for (idx, key) in group.sorted(by: { $0.windowID < $1.windowID }).enumerated() {
       out[key] = SlotID(bundleId: bundleId, occurrence: idx)
@@ -73,7 +83,7 @@ public func slotAssignment(_ keys: [WindowKey]) -> [WindowKey: SlotID] {
 
 /// Inverse of `slotAssignment` — the live window for each slot.
 public func slotToKey(_ keys: [WindowKey]) -> [SlotID: WindowKey] {
-  var out: [SlotID: WindowKey] = [:]
+  var out = [SlotID: WindowKey]()
   for (key, slot) in slotAssignment(keys) { out[slot] = key }
   return out
 }
@@ -86,27 +96,8 @@ public func slotToKey(_ keys: [WindowKey]) -> [SlotID: WindowKey] {
 @_silgen_name("_AXUIElementGetWindow")
 func _AXUIElementGetWindow(
   _ element: AXUIElement,
-  _ identifier: UnsafeMutablePointer<CGWindowID>
+  _ identifier: UnsafeMutablePointer<CGWindowID>,
 ) -> AXError
-
-/// Standard-window check combined with movability + resizability. Only
-/// true if the AX element claims standard subrole AND its position/size
-/// attributes are settable. Non-tileable utility windows fail one of
-/// these.
-@MainActor
-func isStandardTileable(window: AXUIElement) -> Bool {
-  var subroleRaw: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(
-    window, kAXSubroleAttribute as CFString, &subroleRaw
-  ) == .success,
-        (subroleRaw as? String) == kAXStandardWindowSubrole as String
-  else { return false }
-  var movable: DarwinBoolean = false
-  var resizable: DarwinBoolean = false
-  AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable)
-  AXUIElementIsAttributeSettable(window, kAXSizeAttribute as CFString, &resizable)
-  return movable.boolValue && resizable.boolValue
-}
 
 extension WindowKey {
   /// Resolve a window's `WindowKey` from its `AXUIElement`. Fails if
@@ -122,15 +113,12 @@ extension WindowKey {
   }
 }
 
-/// Raise + focus a specific window using public AX only. Used by
-/// focus-follows-mouse where we don't need the full SLPS event
-/// annotation — the OS already considers the click that produced the
-/// move event as user-driven. For activation-time focus that has to
-/// override existing layering, route through `SLSClient.focusWindow`.
+/// Raise + focus a specific window. The gentle path uses public AX; the
+/// force-front path routes through `SLSClient.focusWindow`.
 /// `forceFront` (deliberate switches: window cycling, directional focus,
 /// activation) makes the target the frontmost *application* via SLPS, so a
-/// cross-app switch actually moves keyboard focus. Focus-follows-mouse leaves
-/// it false — a gentle AX raise, since the pointer move is already user-driven.
+/// cross-app switch actually moves keyboard focus. Focus-follows-mouse selects
+/// between these paths by comparing the current and target processes below.
 @MainActor
 public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = false) {
   // Let the floating overlay put its mirrors back up *before* the focus
@@ -145,7 +133,7 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = fal
   @Dependency(\.debugLog) var debugLog
   debugLog.log(
     "FocusDiag",
-    "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors) front=\(forceFront)"
+    "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors) front=\(forceFront)",
   )
   if restoredMirrors {
     DispatchQueue.main.asyncAfter(deadline: .now() + mirrorCommitBeat) {
@@ -154,6 +142,34 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = fal
   } else {
     performFocus(pid: pid, windowID: windowID, forceFront: forceFront)
   }
+}
+
+/// Focus policy for a hover target. AX raise is sufficient within one app, but
+/// a different app must become the WindowServer front process; otherwise the
+/// window can raise visually while keyboard focus stays in the old app. Treat
+/// an unknown frontmost process as a required transfer too.
+func focusFollowsMouseNeedsFrontmostTransfer(
+  frontmostPID: pid_t?,
+  targetPID: pid_t,
+) -> Bool {
+  frontmostPID != targetPID
+}
+
+/// Focus a hover target using the least forceful path that satisfies FFM's
+/// contract. Same-app window changes remain a plain AX raise; cross-app changes
+/// use the same synthesized user-generated SLS focus as other reliable window
+/// switches, including on a secondary display.
+@MainActor
+func focusWindowFollowingMouse(pid: pid_t, windowID: CGWindowID) {
+  let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+  focusWindow(
+    pid: pid,
+    windowID: windowID,
+    forceFront: focusFollowsMouseNeedsFrontmostTransfer(
+      frontmostPID: frontmostPID,
+      targetPID: pid,
+    ),
+  )
 }
 
 /// Force an app to the front when we don't have a specific target window (a
@@ -166,20 +182,33 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = fal
 public func focusAppFront(pid: pid_t) {
   let axApp = AXUIElementCreateApplication(pid)
   var raw: CFTypeRef?
-  var element: AXUIElement?
-  if AXUIElementCopyAttributeValue(axApp, kAXMainWindowAttribute as CFString, &raw) == .success,
-     let value = raw, CFGetTypeID(value) == AXUIElementGetTypeID() {
-    element = (value as! AXUIElement)
-  } else if AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &raw) == .success,
-            let windows = raw as? [AXUIElement] {
-    element = windows.first
+  var candidates = [AXUIElement]()
+  if
+    AXUIElementCopyAttributeValue(axApp, kAXMainWindowAttribute as CFString, &raw) == .success,
+    let value = raw, CFGetTypeID(value) == AXUIElementGetTypeID()
+  {
+    candidates.append(value as! AXUIElement)
   }
-  var wid: CGWindowID = 0
-  if let element, _AXUIElementGetWindow(element, &wid) == .success, wid != 0 {
-    focusWindow(pid: pid, windowID: wid, forceFront: true)
-  } else {
-    NSRunningApplication(processIdentifier: pid)?.activate()
+  if
+    AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &raw) == .success,
+    let windows = raw as? [AXUIElement]
+  {
+    candidates.append(contentsOf: windows)
   }
+  for element in candidates where !axWindowIsMinimized(element) {
+    var wid: CGWindowID = 0
+    guard _AXUIElementGetWindow(element, &wid) == .success, wid != 0 else { continue }
+    // Resolve once and disallow another fallback from this best-effort path,
+    // avoiding recursion if the AX window list changes between the reads.
+    performFocus(
+      pid: pid,
+      windowID: wid,
+      forceFront: true,
+      fallbackToAppFront: false,
+    )
+    return
+  }
+  NSRunningApplication(processIdentifier: pid)?.activate()
 }
 
 /// How long a just-restored mirror gets to commit to the window server
@@ -189,17 +218,25 @@ public func focusAppFront(pid: pid_t) {
 private let mirrorCommitBeat: TimeInterval = 0.03
 
 @MainActor
-private func performFocus(pid: pid_t, windowID: CGWindowID, forceFront: Bool = false) {
-  // Gentle path (focus-follows-mouse) activates up front, as before. The
-  // forceFront path defers to SLPS below, which transfers frontmost itself.
+private func performFocus(
+  pid: pid_t,
+  windowID: CGWindowID,
+  forceFront: Bool = false,
+  fallbackToAppFront: Bool = true,
+) {
+  // Gentle same-app focus activates up front. Cross-app FFM and deliberate
+  // switches defer to SLPS below, which transfers frontmost itself.
   if !forceFront, let app = NSRunningApplication(processIdentifier: pid) {
     app.activate()
   }
   let axApp = AXUIElementCreateApplication(pid)
   var raw: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(
-    axApp, kAXWindowsAttribute as CFString, &raw
-  ) == .success,
+  guard
+    AXUIElementCopyAttributeValue(
+      axApp,
+      kAXWindowsAttribute as CFString,
+      &raw,
+    ) == .success,
     let windows = raw as? [AXUIElement]
   else {
     // Window list unreadable — for a deliberate switch still bring the app up.
@@ -211,7 +248,7 @@ private func performFocus(pid: pid_t, windowID: CGWindowID, forceFront: Bool = f
     guard _AXUIElementGetWindow(window, &wid) == .success, wid == windowID else { continue }
     // Never de-minimize a window the user minimized: raising a minimized
     // window restores it. Auto-open is the only intended restore path.
-    if axWindowIsMinimized(window) { break }
+    if axWindowIsMinimized(window) { return }
     AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
     if forceFront {
       // A deliberate switch must make `pid` the frontmost *application* so
@@ -225,16 +262,24 @@ private func performFocus(pid: pid_t, windowID: CGWindowID, forceFront: Bool = f
     } else {
       AXUIElementPerformAction(window, kAXRaiseAction as CFString)
     }
-    break
+    return
   }
+  // An MRU key can go stale between the reducer's last sync and activation.
+  // Deliberate focus then fronts the app's current main/first non-minimized
+  // window instead of silently leaving keyboard focus in the old workspace.
+  if forceFront, fallbackToAppFront { focusAppFront(pid: pid) }
 }
 
 /// Whether an AX window element is minimized. Missing/unreadable attribute
 /// reads as not-minimized (raise proceeds) — the conservative default.
 func axWindowIsMinimized(_ window: AXUIElement) -> Bool {
   var raw: CFTypeRef?
-  guard AXUIElementCopyAttributeValue(
-    window, kAXMinimizedAttribute as CFString, &raw
-  ) == .success, let value = raw as? Bool else { return false }
+  guard
+    AXUIElementCopyAttributeValue(
+      window,
+      kAXMinimizedAttribute as CFString,
+      &raw,
+    ) == .success, let value = raw as? Bool
+  else { return false }
   return value
 }

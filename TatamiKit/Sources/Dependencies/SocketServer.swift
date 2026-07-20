@@ -18,7 +18,6 @@ import YYJSON
 struct SocketServerClient: Sendable {
   /// Start the listener at `path`. Idempotent — calling twice does nothing.
   var start: @Sendable (_ path: String) async throws -> Void
-  var stop: @Sendable () async -> Void
   var requests: @Sendable () -> AsyncStream<Incoming> = { AsyncStream { _ in } }
 
   /// A pending CLI request along with a one-shot reply continuation.
@@ -42,14 +41,12 @@ extension SocketServerClient: DependencyKey {
     let server = SocketServer()
     return SocketServerClient(
       start: { path in try await server.start(path: path) },
-      stop: { await server.stop() },
       requests: { server.stream }
     )
   }()
 
   static let testValue = SocketServerClient(
     start: { _ in },
-    stop: {},
     requests: { AsyncStream { _ in } }
   )
 
@@ -68,8 +65,7 @@ private actor SocketServer {
 
   let stream: AsyncStream<SocketServerClient.Incoming>
   private let continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
-  private var listenFD: Int32 = -1
-  private var isRunning = false
+  private var listenFD: OwnedFileDescriptor?
 
   init() {
     var continuation: AsyncStream<SocketServerClient.Incoming>.Continuation!
@@ -78,15 +74,15 @@ private actor SocketServer {
   }
 
   func start(path: String) throws {
-    guard !isRunning else { return }
-    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard fd >= 0 else { throw SocketError.create(errno) }
+    guard listenFD == nil else { return }
+    let rawFD = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard rawFD >= 0 else { throw SocketError.create(errno) }
+    let descriptor = OwnedFileDescriptor(rawValue: rawFD)
 
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
     let pathBytes = Array(path.utf8)
     guard pathBytes.count < MemoryLayout.size(ofValue: addr.sun_path) else {
-      Darwin.close(fd)
       throw SocketError.pathTooLong
     }
     withUnsafeMutablePointer(to: &addr.sun_path) { pathPtr in
@@ -102,26 +98,23 @@ private actor SocketServer {
 
     let bindResult = withUnsafePointer(to: &addr) { ptr -> Int32 in
       ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockAddr in
-        Darwin.bind(fd, sockAddr, socklen_t(MemoryLayout<sockaddr_un>.size))
+        Darwin.bind(rawFD, sockAddr, socklen_t(MemoryLayout<sockaddr_un>.size))
       }
     }
     guard bindResult == 0 else {
       let saved = errno
-      Darwin.close(fd)
       throw SocketError.bind(saved)
     }
 
-    guard Darwin.listen(fd, 5) == 0 else {
+    guard Darwin.listen(rawFD, 5) == 0 else {
       let saved = errno
-      Darwin.close(fd)
       throw SocketError.listen(saved)
     }
 
-    listenFD = fd
-    isRunning = true
+    listenFD = consume descriptor
     debugLog.log("App", "dev CLI socket listening at \(path)")
 
-    let listenFD = fd
+    let listenFD = rawFD
     let continuation = continuation
     // POSIX `accept`/`read` are blocking syscalls and must NOT run on the
     // Swift cooperative thread pool: a parked pool thread starves every
@@ -146,22 +139,6 @@ private actor SocketServer {
     acceptThread.start()
   }
 
-  func stop() {
-    guard isRunning else { return }
-    // `shutdown` reliably wakes the thread blocked in `accept` (a bare
-    // `close` is not guaranteed to on macOS, and the fd number could be
-    // reused by an unrelated descriptor while the loop still holds it).
-    Darwin.shutdown(listenFD, SHUT_RDWR)
-    Darwin.close(listenFD)
-    listenFD = -1
-    isRunning = false
-    // The stream deliberately stays open: it is handed out once
-    // (`requests`) and consumed for the process lifetime, so finishing it
-    // here would make every request after a stop→start silently die in a
-    // finished continuation.
-    debugLog.log("App", "dev CLI socket stopped")
-  }
-
   private static func acceptLoop(
     listenFD: Int32,
     continuation: AsyncStream<SocketServerClient.Incoming>.Continuation,
@@ -184,12 +161,12 @@ private actor SocketServer {
     clientFD: Int32,
     continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
   ) {
-    defer { Darwin.close(clientFD) }
-    guard let line = readLine(fd: clientFD), !line.isEmpty else { return }
+    let descriptor = OwnedFileDescriptor(rawValue: clientFD)
+    guard let line = readLine(fd: descriptor.rawValue), !line.isEmpty else { return }
     guard let data = line.data(using: .utf8),
           let request = try? YYJSONDecoder().decode(CLIMessage.Request.self, from: data)
     else {
-      writeResponse(fd: clientFD, response: .failure("Invalid request format"))
+      writeResponse(fd: descriptor.rawValue, response: .failure("Invalid request format"))
       return
     }
 
@@ -206,10 +183,10 @@ private actor SocketServer {
     continuation.yield(incoming)
 
     if replied.wait(timeout: .now() + 5) == .timedOut {
-      writeResponse(fd: clientFD, response: .failure("Timeout"))
+      writeResponse(fd: descriptor.rawValue, response: .failure("Timeout"))
       return
     }
-    writeResponse(fd: clientFD, response: responseBox.value ?? .failure("Timeout"))
+    writeResponse(fd: descriptor.rawValue, response: responseBox.value ?? .failure("Timeout"))
   }
 
   private static func readLine(fd: Int32) -> String? {
@@ -244,6 +221,17 @@ private actor SocketServer {
         }
       }
     }
+  }
+}
+
+/// Sole owner of a POSIX file descriptor. Moving this value transfers close
+/// responsibility; it cannot be copied into two owners that both close the
+/// same descriptor. Scope exit also closes every early-return/error path.
+private struct OwnedFileDescriptor: ~Copyable {
+  let rawValue: Int32
+
+  deinit {
+    Darwin.close(rawValue)
   }
 }
 

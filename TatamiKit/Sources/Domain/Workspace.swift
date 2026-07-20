@@ -1,6 +1,8 @@
 import CoreGraphics
 import Foundation
 
+// MARK: - WorkspaceKind
+
 /// Normal vs scratchpad. A scratchpad is borrow-only: excluded from cycling
 /// and standalone activation, it only appears when summoned into another
 /// workspace's composition.
@@ -16,12 +18,49 @@ public enum WorkspaceKind: String, Hashable, Sendable, Codable, CaseIterable {
   }
 }
 
+// MARK: - Workspace
+
 /// One unit of "what's visible right now": a named set of app assignments,
 /// pinned to a display (or floating across displays in `dynamic` mode).
 public struct Workspace: Identifiable, Hashable, Sendable, Codable {
+
+  // MARK: Lifecycle
+
+  public init(
+    id: UUID = UUID(),
+    name: String,
+    displayHint: DisplayName? = nil,
+    activateShortcut: HotKey? = nil,
+    assignAppShortcut: HotKey? = nil,
+    symbolIconName: String? = nil,
+    appToFocusBundleId: String? = nil,
+    kind: WorkspaceKind = .normal,
+    keyEquivalent: String? = nil,
+    borrowShortcut: HotKey? = nil,
+    borrowEdge: BorrowEdge? = nil,
+    borrowFraction: Double? = nil,
+    apps: [AppAssignment] = [],
+  ) {
+    self.id = id
+    self.name = name
+    self.displayHint = displayHint
+    self.activateShortcut = activateShortcut
+    self.assignAppShortcut = assignAppShortcut
+    self.symbolIconName = symbolIconName
+    self.appToFocusBundleId = appToFocusBundleId
+    self.kind = kind
+    self.keyEquivalent = keyEquivalent
+    self.borrowShortcut = borrowShortcut
+    self.borrowEdge = borrowEdge
+    self.borrowFraction = borrowFraction
+    self.apps = apps
+  }
+
+  // MARK: Public
+
   public var id: UUID
   public var name: String
-  /// Static-mode display assignment. `nil` means dynamic (follow apps).
+  /// Static-mode display assignment. `nil` means dynamic (follow mouse).
   public var displayHint: DisplayName?
   /// Hotkey that activates this workspace.
   public var activateShortcut: HotKey?
@@ -53,48 +92,11 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   public var borrowFraction: Double?
   public var apps: [AppAssignment]
 
-  public init(
-    id: UUID = UUID(),
-    name: String,
-    displayHint: DisplayName? = nil,
-    activateShortcut: HotKey? = nil,
-    assignAppShortcut: HotKey? = nil,
-    symbolIconName: String? = nil,
-    appToFocusBundleId: String? = nil,
-    kind: WorkspaceKind = .normal,
-    keyEquivalent: String? = nil,
-    borrowShortcut: HotKey? = nil,
-    borrowEdge: BorrowEdge? = nil,
-    borrowFraction: Double? = nil,
-    apps: [AppAssignment] = []
-  ) {
-    self.id = id
-    self.name = name
-    self.displayHint = displayHint
-    self.activateShortcut = activateShortcut
-    self.assignAppShortcut = assignAppShortcut
-    self.symbolIconName = symbolIconName
-    self.appToFocusBundleId = appToFocusBundleId
-    self.kind = kind
-    self.keyEquivalent = keyEquivalent
-    self.borrowShortcut = borrowShortcut
-    self.borrowEdge = borrowEdge
-    self.borrowFraction = borrowFraction
-    self.apps = apps
-  }
 }
 
 extension Workspace {
-  private enum CodingKeys: String, CodingKey {
-    case id, name, displayHint, activateShortcut, assignAppShortcut
-    case symbolIconName, appToFocusBundleId
-    case kind
-    case keyEquivalent
-    case borrowShortcut
-    case borrowEdge
-    case borrowFraction
-    case apps
-  }
+
+  // MARK: Lifecycle
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -112,17 +114,41 @@ extension Workspace {
     borrowFraction = try container.decodeIfPresent(Double.self, forKey: .borrowFraction)
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
   }
+
+  // MARK: Private
+
+  private enum CodingKeys: String, CodingKey {
+    case id
+    case name
+    case displayHint
+    case activateShortcut
+    case assignAppShortcut
+    case symbolIconName
+    case appToFocusBundleId
+    case kind
+    case keyEquivalent
+    case borrowShortcut
+    case borrowEdge
+    case borrowFraction
+    case apps
+  }
+
 }
 
 extension Workspace {
-  public var isDynamic: Bool { displayHint == nil }
+  public var isDynamic: Bool {
+    displayHint == nil
+  }
 }
 
-// MARK: - Composition (borrowing workspaces into one screen)
+// MARK: - BorrowEdge
 
 /// Which screen edge a borrowed workspace block docks to.
 public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
-  case top, bottom, left, right
+  case top
+  case bottom
+  case left
+  case right
 
   /// The opposing edge — the host block sits opposite the borrowed dock.
   public var opposite: BorrowEdge {
@@ -135,35 +161,39 @@ public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
   }
 }
 
+// MARK: - BorrowedSlot
+
 /// One borrowed workspace docked into a host's composition. A borrow is always
 /// transient — it's dropped when the host re-tiles (a switch or focus change).
 /// Edits in the borrowed block still persist to that workspace (the borrow is
 /// live); only the on-screen presence is temporary.
 public struct BorrowedSlot: Hashable, Sendable, Codable {
-  public var workspace: Workspace.ID
-  public var edge: BorrowEdge
-  /// The borrowed block's share of the split axis (0…1).
-  public var fraction: CGFloat
-
   public init(
     workspace: Workspace.ID,
     edge: BorrowEdge,
-    fraction: CGFloat = 0.4
+    fraction: CGFloat = 0.4,
   ) {
     self.workspace = workspace
     self.edge = edge
     self.fraction = fraction
   }
+
+  public var workspace: Workspace.ID
+  public var edge: BorrowEdge
+  /// The borrowed block's share of the split axis (0…1).
+  public var fraction: CGFloat
 }
+
+// MARK: - Composition
 
 /// What one display shows: a host workspace plus borrowed blocks. Absent for
 /// a display → it shows its host alone (default, pre-feature behavior).
 public struct Composition: Hashable, Sendable, Codable {
-  public var host: Workspace.ID
-  public var borrowed: [BorrowedSlot]
-
   public init(host: Workspace.ID, borrowed: [BorrowedSlot] = []) {
     self.host = host
     self.borrowed = borrowed
   }
+
+  public var host: Workspace.ID
+  public var borrowed: [BorrowedSlot]
 }

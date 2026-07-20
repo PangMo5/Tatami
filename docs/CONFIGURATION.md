@@ -346,7 +346,7 @@ Workspace fields:
 | `borrowEdge` | string? | Override the default borrow edge for this workspace: `top`, `bottom`, `left`, `right`. Omit to use `settings.switching.borrowDefaultEdge` (or the direction-pick when that's unset). |
 | `borrowFraction` | double? | Override the borrowed-block size for this workspace (0.1…0.9). Omit to use `settings.switching.borrowFraction`. |
 | `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation. Omit for most-recently-used. |
-| `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to follow apps dynamically. Falls back to the primary display when the pinned monitor is absent. |
+| `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to open the workspace on the display under the mouse. Falls back to the primary display when the pinned monitor is absent. |
 
 App assignment fields:
 

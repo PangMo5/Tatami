@@ -183,7 +183,7 @@ public struct WorkspaceListFeature {
         }
         // Drop the saved layout too, so layouts.json doesn't accumulate orphaned
         // entries (the delete confirmation promises the layout is removed).
-        return .run { [layoutStore] _ in layoutStore.clear(id) }
+        return .run { [layoutStore] _ in await layoutStore.clear(id) }
 
       case .alert(.presented(.confirmProfileDeletion(let id))):
         // Clear the deleted profile's workspace layouts, then remove it. If it
@@ -206,7 +206,9 @@ public struct WorkspaceListFeature {
             ?? .send(.delegate(.profilesChanged)))
           : .send(.delegate(.profilesChanged))
         return .merge(
-          .run { [layoutStore] _ in for wsId in wsIds { layoutStore.clear(wsId) } },
+          .run { [layoutStore] _ in
+            for wsId in wsIds { await layoutStore.clear(wsId) }
+          },
           switchAway
         )
 
@@ -277,7 +279,9 @@ public struct WorkspaceListFeature {
           // clone opens identical (layouts are keyed by workspace id).
           .run { [layoutStore] _ in
             for (old, new) in remap {
-              if let snapshot = await layoutStore.load(old) { layoutStore.save(new, snapshot) }
+              if let snapshot = await layoutStore.load(old) {
+                await layoutStore.save(new, snapshot)
+              }
             }
           }
         )

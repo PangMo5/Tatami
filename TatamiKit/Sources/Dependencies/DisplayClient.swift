@@ -3,6 +3,8 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 
+// MARK: - DisplayClient
+
 /// Read-only view of the connected macOS displays. Tatami identifies
 /// displays by their localized name so reconnecting the same monitor
 /// keeps workspace assignments stable across `CGDirectDisplayID` resets.
@@ -26,28 +28,52 @@ struct DisplayClient: Sendable {
   var changes: @Sendable () -> AsyncStream<[DisplayName]> = { .finished }
 }
 
+// MARK: - ScreenObserver
+
 /// Holds the screen-change observer so it can be removed from the stream's
 /// `@Sendable` termination handler. Only touched on the notification queue
 /// (main), so `last` needs no extra synchronization.
 private final class ScreenObserver: @unchecked Sendable {
   var token: (any NSObjectProtocol)?
-  /// The last display list forwarded — used to coalesce the WindowServer's
-  /// bursts of identical `didChangeScreenParameters` pokes (observed ~100/sec
-  /// on a static config), which otherwise each drive a full reducer pass.
-  var last: [DisplayName]?
+  /// The last complete display geometry forwarded. Comparing names alone
+  /// discarded resolution, arrangement, menu-bar, and Dock changes even though
+  /// every one of those changes the AX work area that layouts target.
+  var last: [ScreenConfiguration]?
   /// Trailing-debounce work item: a reconnect fires several distinct
   /// intermediate configs in quick succession, so we wait for the set to settle
   /// before forwarding the final one.
   var pending: DispatchWorkItem?
+
   func remove() {
     pending?.cancel()
     if let token { NotificationCenter.default.removeObserver(token) }
   }
 }
 
-private func currentDisplayNames() -> [DisplayName] {
-  NSScreen.screens.compactMap(\.displayName)
+// MARK: - ScreenConfiguration
+
+private struct ScreenConfiguration: Equatable, Sendable {
+  var name: DisplayName
+  var frame: CGRect
+  var visibleFrame: CGRect
 }
+
+private func currentScreenConfiguration() -> [ScreenConfiguration] {
+  NSScreen.screens.compactMap { screen in
+    screen.displayName.map {
+      ScreenConfiguration(name: $0, frame: screen.frame, visibleFrame: screen.visibleFrame)
+    }
+  }
+  .sorted {
+    ($0.frame.minX, $0.frame.minY) < ($1.frame.minX, $1.frame.minY)
+  }
+}
+
+private func currentDisplayNames() -> [DisplayName] {
+  currentScreenConfiguration().map(\.name)
+}
+
+// MARK: - DisplayClient + DependencyKey
 
 extension DisplayClient: DependencyKey {
   static let liveValue = DisplayClient(
@@ -78,31 +104,31 @@ extension DisplayClient: DependencyKey {
     changes: {
       AsyncStream { continuation in
         let observer = ScreenObserver()
+        observer.last = currentScreenConfiguration()
         observer.token = NotificationCenter.default.addObserver(
           forName: NSApplication.didChangeScreenParametersNotification,
           object: nil,
-          queue: .main
+          queue: .main,
         ) { _ in
-          let names = currentDisplayNames()
-          // Drop pokes that don't change the set vs the last *forwarded* one —
-          // kills the ~100/sec identical-config storm outright (behavior-neutral,
-          // the reducer already short-circuits an unchanged set).
-          guard names != observer.last else { return }
+          let configuration = currentScreenConfiguration()
+          // Drop only truly identical pokes. Same displays with different
+          // geometry are meaningful and must reach the reducer for a reflow.
+          guard configuration != observer.last else { return }
           // Genuine change: trailing-debounce so a reconnect's burst of distinct
           // intermediate configs collapses to the final settled one before we
           // forward it (only ~1 reducer pass per real reconfigure).
           observer.pending?.cancel()
           let work = DispatchWorkItem {
-            guard names != observer.last else { return }
-            observer.last = names
-            continuation.yield(names)
+            guard configuration != observer.last else { return }
+            observer.last = configuration
+            continuation.yield(configuration.map(\.name))
           }
           observer.pending = work
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
         }
         continuation.onTermination = { _ in observer.remove() }
       }
-    }
+    },
   )
 
   static let testValue = DisplayClient(
@@ -112,7 +138,7 @@ extension DisplayClient: DependencyKey {
     connected: { $0 },
     primary: { DisplayName("Test Display") },
     resolveOrPrimary: { $0 },
-    changes: { .finished }
+    changes: { .finished },
   )
 
   static let previewValue = DisplayClient(
@@ -122,7 +148,7 @@ extension DisplayClient: DependencyKey {
     connected: { $0 },
     primary: { DisplayName("Built-in Retina Display") },
     resolveOrPrimary: { $0 },
-    changes: { .finished }
+    changes: { .finished },
   )
 }
 

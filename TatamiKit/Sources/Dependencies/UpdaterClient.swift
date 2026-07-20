@@ -8,9 +8,12 @@ import Sparkle
 @DependencyClient
 struct UpdaterClient: Sendable {
   /// Triggers a user-initiated update check.
-  var checkForUpdates: @Sendable () -> Void
+  var checkForUpdates: @MainActor @Sendable () -> Void
   /// Applies the scheduled-check preferences to the underlying updater.
-  var configure: @Sendable (_ automaticallyChecks: Bool, _ interval: TimeInterval) -> Void
+  var configure: @MainActor @Sendable (
+    _ automaticallyChecks: Bool,
+    _ interval: TimeInterval
+  ) -> Void
 }
 
 extension UpdaterClient: DependencyKey {
@@ -22,14 +25,10 @@ extension UpdaterClient: DependencyKey {
     )
     let updater = controller.updater
     return UpdaterClient(
-      checkForUpdates: {
-        Task { @MainActor in updater.checkForUpdates() }
-      },
+      checkForUpdates: { updater.checkForUpdates() },
       configure: { automaticallyChecks, interval in
-        Task { @MainActor in
-          updater.automaticallyChecksForUpdates = automaticallyChecks
-          updater.updateCheckInterval = interval
-        }
+        updater.automaticallyChecksForUpdates = automaticallyChecks
+        updater.updateCheckInterval = interval
       }
     )
   }

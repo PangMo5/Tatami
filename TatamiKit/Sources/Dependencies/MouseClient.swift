@@ -10,16 +10,11 @@ import Foundation
 struct MouseClient: Sendable {
   /// Move the cursor to a screen coordinate.
   var warp: @Sendable (CGPoint) -> Void
-  /// Hide the cursor immediately (reference-counted at the OS level —
-  /// each call must be paired with `show`).
-  var hide: @Sendable () -> Void
-  /// Force the cursor visible immediately.
-  var show: @Sendable () -> Void
   /// Hide the cursor and bring it back the next time the user moves
   /// the mouse. Used by activation when `mouseHidesOnFocus` is on so
   /// the cursor doesn't get in the way of the focused tile right after
   /// a workspace switch.
-  var hideUntilMouseMoves: @Sendable () -> Void
+  var hideUntilMouseMoves: @MainActor @Sendable () -> Void
   /// Cursor position in AX coordinates (top-left origin, anchored to the
   /// primary screen — the space `ScreenGeometry.workArea` and the BSP
   /// frames use). Call on the main actor.
@@ -34,15 +29,7 @@ extension MouseClient: DependencyKey {
         CGWarpMouseCursorPosition(point)
         CGAssociateMouseAndMouseCursorPosition(1)
       },
-      hide: {
-        CGDisplayHideCursor(CGMainDisplayID())
-      },
-      show: {
-        CGDisplayShowCursor(CGMainDisplayID())
-      },
-      hideUntilMouseMoves: {
-        Task { @MainActor in controller.hideUntilMouseMoves() }
-      },
+      hideUntilMouseMoves: { controller.hideUntilMouseMoves() },
       axLocation: {
         MainActor.assumeIsolated {
           let cocoa = NSEvent.mouseLocation
@@ -58,8 +45,6 @@ extension MouseClient: DependencyKey {
 
   static let testValue = MouseClient(
     warp: { _ in },
-    hide: {},
-    show: {},
     hideUntilMouseMoves: {},
     axLocation: { .zero }
   )

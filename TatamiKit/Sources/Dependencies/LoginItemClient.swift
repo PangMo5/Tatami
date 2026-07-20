@@ -9,8 +9,6 @@ import ServiceManagement
 struct LoginItemClient: Sendable {
   /// Register (true) or unregister (false) the app as a login item.
   var setEnabled: @Sendable (Bool) -> Void
-  /// Whether the app is currently registered as a login item.
-  var isEnabled: @Sendable () -> Bool = { false }
 }
 
 extension LoginItemClient: DependencyKey {
@@ -36,14 +34,12 @@ extension LoginItemClient: DependencyKey {
           ErrorReportClient.describe(error)
         )
       }
-    },
-    isEnabled: { SMAppService.mainApp.status == .enabled }
+    }
   )
 
   /// Tests must not touch the real `SMAppService` registration.
   static let testValue = LoginItemClient(
-    setEnabled: { _ in },
-    isEnabled: { false }
+    setEnabled: { _ in }
   )
   static let previewValue = testValue
 }

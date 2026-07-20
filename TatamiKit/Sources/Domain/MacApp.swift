@@ -3,7 +3,7 @@ import Foundation
 /// Lightweight reference to a macOS application identified by its bundle ID.
 ///
 /// `MacApp` is intentionally a value type with no persistence semantics; it
-/// is embedded as columns inside `AppAssignment` and `FloatingApp` rows.
+/// is embedded as columns inside `AppAssignment` and `SharedApp` rows.
 public struct MacApp: Hashable, Sendable, Codable {
   /// Reverse-DNS bundle identifier, e.g. `com.apple.Safari`.
   public var bundleIdentifier: String

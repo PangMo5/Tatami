@@ -6,15 +6,130 @@ import ScreenCaptureKit
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "FloatingOverlay")
 
+// MARK: - FloatingOverlayController
+
 @MainActor
 final class FloatingOverlayController {
+
+  // MARK: Lifecycle
+
+  init(debugLog: DebugLogClient) {
+    self.debugLog = debugLog
+    clickTap = MirrorClickTap { [weak self] in
+      Task { @MainActor [weak self] in self?.handleOutsideClick() }
+    }
+  }
+
+  // MARK: Internal
+
+  /// Hover-handover gate, mirrored from the focus-follows-mouse setting
+  /// (`setHoverActivation`). With FFM off, hovering a mirror must not move
+  /// focus — only the already-focused app's mirror hands back on hover
+  /// (no focus change involved); other mirrors hand over on click.
+  var hoverActivates = true
+
+  func setFloating(_ windows: Set<WindowKey>) {
+    let changed = desired != windows
+    if !changed {
+      if addTask != nil || windows.allSatisfy({ panels[$0] != nil }) { return }
+    } else {
+      desired = windows
+      // A replacement set supersedes expensive ScreenCaptureKit discovery
+      // even when it is empty or every new window already has a panel.
+      addGeneration += 1
+      addTask?.cancel()
+      addTask = nil
+    }
+    for key in panels.keys where !windows.contains(key) {
+      removeWindow(key)
+    }
+    let toAdd = windows.filter { panels[$0] == nil }
+    if !toAdd.isEmpty {
+      if !changed { addGeneration += 1 }
+      let generation = addGeneration
+      addTask = Task { @MainActor [weak self] in
+        guard let self else { return }
+        await addMirrors(for: toAdd)
+        guard addGeneration == generation else { return }
+        addTask = nil
+      }
+    }
+    syncFrames()
+    // Retained panels may have been created by the task we just cancelled.
+    // Keep their global lifecycle hooks valid; a fresh add task owns hooks for
+    // panels that do not exist yet.
+    if !panels.isEmpty {
+      ensureActivationObserver()
+      clickTap?.setEnabled(true)
+    }
+  }
+
+  /// Drop every mirror whose app isn't floating in the incoming workspace.
+  func retainOnly(_ bundleIds: Set<String>) {
+    let retained = desired.filter { bundleIds.contains($0.bundleId) }
+    if retained != desired {
+      desired = retained
+      addGeneration += 1
+      addTask?.cancel()
+      addTask = nil
+    }
+    for key in panels.keys where !bundleIds.contains(key.bundleId) {
+      removeWindow(key)
+    }
+  }
+
+  /// Tatami is about to move focus to `pid`'s window (`focusWindow` hook).
+  /// Restore the mirrors that need to be up *now*, before the activation,
+  /// so they're already painted when the floating window drops behind the
+  /// new focus — the didActivate notification alone arrives one beat too
+  /// late. Returns whether any mirror was actually restored: the caller
+  /// then delays the activation a beat so the restore commits first.
+  func handleWillFocus(_ pid: pid_t) -> Bool {
+    noteFocus(pid)
+    let targetIsFloating = panels.keys.contains { $0.pid == pid }
+    var needsCommit = false
+    for key in Array(panels.keys) where key.pid != pid {
+      // Same dead-window rule as didActivate.
+      guard windowExists(key) else {
+        removeWindow(key)
+        continue
+      }
+      // Same occlusion rule as didActivate: when focus moves to a float,
+      // an unoccluded sibling float keeps showing its real window — no
+      // mirror needed.
+      if targetIsFloating, isVisuallyOnTop(key) {
+        suppressMirror(key)
+        continue
+      }
+      // "Needs a commit beat" = this turn is flipping the panel visible.
+      // Checking `suppressed` here is NOT equivalent: the cursor-exit
+      // restore un-suppresses first and then waits for a fresh frame with
+      // the panel still transparent — exactly the window in which the
+      // focus change races us.
+      if let panel = panels[key], panel.alphaValue < 1 { needsCommit = true }
+      restoreMirror(key)
+      showPanel(key)
+    }
+    applyStackOrder(liftDemoted: !targetIsFloating)
+    return needsCommit
+  }
+
+  // MARK: Fileprivate
+
+  fileprivate func handleGeometryChange(windowID: CGWindowID) {
+    guard let key = panels.keys.first(where: { $0.windowID == windowID }) else { return }
+    refresh(key)
+  }
+
+  // MARK: Private
+
   /// The only time-based values in the overlay — everything else is
   /// event- or verification-driven.
   private enum Timing {
     /// One display frame between raise-verification checks. Not a poll:
     /// the z-order has no change notification, so this is the finest
     /// granularity at which "did the raise composite?" can be observed.
-    static let verifyStep: Duration = .milliseconds(16)
+    static let verifyStep = Duration.milliseconds(16)
     /// Give up verifying after ~640 ms and keep the mirror up (truthful
     /// fallback) instead of exposing whatever sits behind it.
     static let verifyMaxSteps = 40
@@ -23,37 +138,42 @@ final class FloatingOverlayController {
     static let hideFade: TimeInterval = 0.08
   }
 
-  private var panels: [WindowKey: NSPanel] = [:]
-  private var captures: [WindowKey: WindowMirrorCapture] = [:]
+  private var panels = [WindowKey: NSPanel]()
+  private var captures = [WindowKey: WindowMirrorCapture]()
   /// The set the reducer currently wants mirrored, updated synchronously
   /// by `setFloating` / `retainOnly` so `addMirrors` can re-validate each
   /// key after its `SCShareableContent` await gap. Without this, a key
   /// un-floated mid-await had no panel yet (removal no-oped) and came back
   /// as a ghost mirror with a live stream.
-  private var desired: Set<WindowKey> = []
+  private var desired = Set<WindowKey>()
+  /// `SCShareableContent.current` is comparatively expensive. Rapid workspace
+  /// switches replace one missing-mirror request with the newest desired set
+  /// instead of letting several captures enumerate shareable content in parallel.
+  private var addTask: Task<Void, Never>?
+  private var addGeneration = 0
   /// Resolved `AXUIElement` per mirrored window — used to read the live
   /// frame and to raise the real window on interaction. AX calls are
   /// synchronous cross-process IPC and must stay on the main thread, so we
   /// resolve each window's element once and reuse it.
-  private var axWindowCache: [WindowKey: AXUIElement] = [:]
+  private var axWindowCache = [WindowKey: AXUIElement]()
   /// One `AXObserver` per owning pid for `kAXWindowMoved` / `kAXWindowResized`
   /// so mirrors follow their window event-driven, with no polling timer.
-  private var axObservers: [pid_t: AXObserver] = [:]
-  private var subscribed: Set<WindowKey> = []
-  private var lastFrame: [WindowKey: NSRect] = [:]
+  private var axObservers = [pid_t: AXObserver]()
+  private var subscribed = Set<WindowKey>()
+  private var lastFrame = [WindowKey: NSRect]()
   /// Mirrors currently hidden (click-through, stream stopped): the
   /// focused floating app's own windows, plus — while a float holds
   /// focus — sibling floats whose real window isn't covered by any tile,
   /// which therefore show themselves and need no mirror.
-  private var suppressed: Set<WindowKey> = []
+  private var suppressed = Set<WindowKey>()
   /// Sibling mirrors dropped to `.normal` level just below the focused
   /// float's real window (tile-occluded siblings that must keep their
   /// mirror while a float holds focus). Demotion happens only *after*
   /// the focused window's raise is verified — ordering a panel against
   /// an unverified raise was the source of the old demotion blinks.
-  private var demoted: Set<WindowKey> = []
+  private var demoted = Set<WindowKey>()
   /// In-flight fade-out task per window.
-  private var hideTasks: [WindowKey: Task<Void, Never>] = [:]
+  private var hideTasks = [WindowKey: Task<Void, Never>]()
   /// `NSWorkspace.didActivateApplicationNotification` subscription — the
   /// single signal that flips mirrors between shown and suppressed.
   private var appActivationObserver: NSObjectProtocol?
@@ -73,43 +193,9 @@ final class FloatingOverlayController {
   /// and the didActivate notification arrives after the z-order already
   /// changed (the intermittent "floating dips behind, then pops back up").
   private var clickTap: MirrorClickTap?
-  /// Hover-handover gate, mirrored from the focus-follows-mouse setting
-  /// (`setHoverActivation`). With FFM off, hovering a mirror must not move
-  /// focus — only the already-focused app's mirror hands back on hover
-  /// (no focus change involved); other mirrors hand over on click.
-  var hoverActivates = true
   private let debugLog: DebugLogClient
 
-  init(debugLog: DebugLogClient) {
-    self.debugLog = debugLog
-    clickTap = MirrorClickTap { [weak self] in
-      Task { @MainActor [weak self] in self?.handleOutsideClick() }
-    }
-  }
-
   private var maxFPS: Int { NSScreen.main?.maximumFramesPerSecond ?? 60 }
-
-  // MARK: - Lifecycle
-
-  func setFloating(_ windows: Set<WindowKey>) {
-    desired = windows
-    for key in panels.keys where !windows.contains(key) {
-      removeWindow(key)
-    }
-    let toAdd = windows.filter { panels[$0] == nil }
-    if !toAdd.isEmpty {
-      Task { await addMirrors(for: toAdd) }
-    }
-    syncFrames()
-  }
-
-  /// Drop every mirror whose app isn't floating in the incoming workspace.
-  func retainOnly(_ bundleIds: Set<String>) {
-    desired = desired.filter { bundleIds.contains($0.bundleId) }
-    for key in panels.keys where !bundleIds.contains(key.bundleId) {
-      removeWindow(key)
-    }
-  }
 
   private func addMirrors(for keys: Set<WindowKey>) async {
     let content: SCShareableContent
@@ -118,23 +204,26 @@ final class FloatingOverlayController {
       content = try await SCShareableContent.current
       reporter.resolve("Floating")
     } catch {
+      guard !Task.isCancelled else { return }
       logger.error(
         "SCShareableContent failed (screen-recording permission?): \(error.localizedDescription, privacy: .public)"
       )
       reporter.report(
         "Floating",
         "Floating mirrors unavailable — Screen Recording permission?",
-        ErrorReportClient.describe(error)
+        ErrorReportClient.describe(error),
       )
       return
     }
-    var byID: [CGWindowID: SCWindow] = [:]
+    guard !Task.isCancelled else { return }
+    var byID = [CGWindowID: SCWindow]()
     for window in content.windows { byID[window.windowID] = window }
 
     for key in keys {
       // Re-check across the await gap: "already added" via `panels`, and
       // "no longer wanted" via `desired` (a `setFloating`/`retainOnly`
       // that ran mid-await couldn't remove a panel that didn't exist yet).
+      guard !Task.isCancelled else { return }
       guard desired.contains(key), panels[key] == nil else { continue }
       guard let scWindow = byID[key.windowID] else {
         debugLog.log(
@@ -145,9 +234,19 @@ final class FloatingOverlayController {
       }
       let capture = WindowMirrorCapture()
       let panel = makePanel(for: key, capture: capture)
+      await capture.start(window: scWindow, maxFPS: maxFPS)
+      // Commit the panel only after capture startup succeeds and this request
+      // is still current. Publishing it before the await let a replacement
+      // set observe a half-created panel, cancel its owner, and then skip
+      // creating a replacement because `panels[key]` was already non-nil.
+      guard !Task.isCancelled, desired.contains(key), panels[key] == nil else {
+        capture.stop()
+        panel.orderOut(nil)
+        if Task.isCancelled { return }
+        continue
+      }
       captures[key] = capture
       panels[key] = panel
-      await capture.start(window: scWindow, maxFPS: maxFPS)
       debugLog.log("Mirror", "created \(key.bundleId)#\(key.windowID)")
       // The mirrored app may already be frontmost (e.g. the user floated
       // the focused window) — start suppressed so the mirror doesn't cover
@@ -156,6 +255,7 @@ final class FloatingOverlayController {
         suppressMirror(key)
       }
     }
+    guard !Task.isCancelled else { return }
     ensureActivationObserver()
     clickTap?.setEnabled(!panels.isEmpty)
     syncFrames()
@@ -345,42 +445,6 @@ final class FloatingOverlayController {
       suppressMirror(key)
     }
     applyStackOrder(liftDemoted: !targetIsFloating)
-  }
-
-  /// Tatami is about to move focus to `pid`'s window (`focusWindow` hook).
-  /// Restore the mirrors that need to be up *now*, before the activation,
-  /// so they're already painted when the floating window drops behind the
-  /// new focus — the didActivate notification alone arrives one beat too
-  /// late. Returns whether any mirror was actually restored: the caller
-  /// then delays the activation a beat so the restore commits first.
-  func handleWillFocus(_ pid: pid_t) -> Bool {
-    noteFocus(pid)
-    let targetIsFloating = panels.keys.contains { $0.pid == pid }
-    var needsCommit = false
-    for key in Array(panels.keys) where key.pid != pid {
-      // Same dead-window rule as didActivate.
-      guard windowExists(key) else {
-        removeWindow(key)
-        continue
-      }
-      // Same occlusion rule as didActivate: when focus moves to a float,
-      // an unoccluded sibling float keeps showing its real window — no
-      // mirror needed.
-      if targetIsFloating, isVisuallyOnTop(key) {
-        suppressMirror(key)
-        continue
-      }
-      // "Needs a commit beat" = this turn is flipping the panel visible.
-      // Checking `suppressed` here is NOT equivalent: the cursor-exit
-      // restore un-suppresses first and then waits for a fresh frame with
-      // the panel still transparent — exactly the window in which the
-      // focus change races us.
-      if let panel = panels[key], panel.alphaValue < 1 { needsCommit = true }
-      restoreMirror(key)
-      showPanel(key)
-    }
-    applyStackOrder(liftDemoted: !targetIsFloating)
-    return needsCommit
   }
 
   /// pid of the floating app that currently holds focus, if any. Gates
@@ -788,11 +852,6 @@ final class FloatingOverlayController {
       mirror: CGWindowID(panel.windowNumber),
       target: .init(pid: key.pid, windowID: key.windowID)
     )
-  }
-
-  fileprivate func handleGeometryChange(windowID: CGWindowID) {
-    guard let key = panels.keys.first(where: { $0.windowID == windowID }) else { return }
-    refresh(key)
   }
 
   // MARK: - AX subscriptions

@@ -5,6 +5,8 @@ import DependenciesMacros
 import Foundation
 import OSLog
 
+// MARK: - FocusFollowsMouseClient
+
 /// Mouse-driven focus: while enabled, the app under the cursor becomes
 /// frontmost. A configurable modifier temporarily suspends the
 /// behavior.
@@ -14,29 +16,34 @@ struct FocusFollowsMouseClient: Sendable {
   var configure: @Sendable (FocusFollowsMouseConfig) async -> Void
 }
 
-struct FocusFollowsMouseConfig: Sendable, Hashable {
-  var enabled: Bool
-  var disableModifier: FocusFollowsMouseModifier
-  /// Skip windows that fill the whole display (full-screen / maximized).
-  var ignoreFullscreen: Bool
+// MARK: - FocusFollowsMouseConfig
 
+struct FocusFollowsMouseConfig: Sendable, Hashable {
   init(
     enabled: Bool,
     disableModifier: FocusFollowsMouseModifier,
-    ignoreFullscreen: Bool = true
+    ignoreFullscreen: Bool = true,
   ) {
     self.enabled = enabled
     self.disableModifier = disableModifier
     self.ignoreFullscreen = ignoreFullscreen
   }
+
+  var enabled: Bool
+  var disableModifier: FocusFollowsMouseModifier
+  /// Skip windows that fill the whole display (full-screen / maximized).
+  var ignoreFullscreen: Bool
 }
+
+// MARK: - FocusFollowsMouseClient + DependencyKey
 
 extension FocusFollowsMouseClient: DependencyKey {
   static let liveValue: FocusFollowsMouseClient = {
     @Dependency(\.debugLog) var debugLog
     @Dependency(\.managedWindows) var managedWindows
     let controller = LiveFocusFollowsMouseController(
-      debugLog: debugLog, managedWindows: managedWindows
+      debugLog: debugLog,
+      managedWindows: managedWindows,
     )
     return FocusFollowsMouseClient { config in
       await controller.configure(config)
@@ -54,6 +61,8 @@ extension DependencyValues {
   }
 }
 
+// MARK: - LiveFocusFollowsMouseController
+
 /// Owns the system-wide event tap + throttle state for the lifetime
 /// of the process. Reconfiguring tears the tap down and reinstalls it;
 /// disabling stops it. We use a `CGEventTap` (session-level, listen-
@@ -62,23 +71,15 @@ extension DependencyValues {
 /// monitors miss events whenever the active drag target owns the
 /// mouse-tracking session.
 private final class LiveFocusFollowsMouseController: @unchecked Sendable {
-  private var eventTap: CFMachPort?
-  private var runLoopSource: CFRunLoopSource?
-  fileprivate var config = FocusFollowsMouseConfig(enabled: false, disableModifier: .option)
-  fileprivate var lastFireAt = Date.distantPast
-  fileprivate let throttleInterval: TimeInterval = 0.05
-  fileprivate var lastFocusedWindowID: CGWindowID = 0
-  /// The in-flight focus hop. A newer fire cancels it so only the latest
-  /// cursor target is applied — touched only on the event-tap thread, like
-  /// the rest of this controller's lock-free state.
-  private var focusTask: Task<Void, Never>?
-  fileprivate let debugLog: DebugLogClient
-  private let managedWindows: ManagedWindowsClient
+
+  // MARK: Lifecycle
 
   init(debugLog: DebugLogClient, managedWindows: ManagedWindowsClient) {
     self.debugLog = debugLog
     self.managedWindows = managedWindows
   }
+
+  // MARK: Internal
 
   func configure(_ next: FocusFollowsMouseConfig) async {
     // Tap install/teardown runs on the shared event-tap thread so the tap
@@ -90,67 +91,13 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
   }
 
-  /// Runs on the event-tap thread (via `configure` / the tap callback).
-  private func installOrTearDown(_ next: FocusFollowsMouseConfig) {
-    config = next
-    if next.enabled, eventTap == nil {
-      install()
-    } else if !next.enabled, eventTap != nil {
-      teardown()
-    }
-  }
+  // MARK: Fileprivate
 
-  private func install() {
-    // Listen for mouseMoved + the two tap-disabled signals so we can
-    // re-enable if the system hangs the tap.
-    let mask =
-      (1 << CGEventType.mouseMoved.rawValue) |
-      (1 << CGEventType.tapDisabledByTimeout.rawValue) |
-      (1 << CGEventType.tapDisabledByUserInput.rawValue)
-    let info = Unmanaged.passUnretained(self).toOpaque()
-    // `.defaultTap`, not `.listenOnly`: TCC gates active taps on
-    // Accessibility but listen-only taps on Input Monitoring — every
-    // listen-only tapCreate (even mouse-only, even with Accessibility
-    // granted) pops the "receive keystrokes from any application"
-    // warning and lists the app under Privacy → Input Monitoring. The
-    // callback passes events through unmodified.
-    guard let tap = CGEvent.tapCreate(
-      tap: .cgSessionEventTap,
-      place: .headInsertEventTap,
-      options: .defaultTap,
-      eventsOfInterest: CGEventMask(mask),
-      callback: focusFollowsMouseCallback,
-      userInfo: info
-    ) else {
-      logger.error("CGEvent.tapCreate failed — check Accessibility permission")
-      debugLog.log("FocusDiag", "ffm tap create FAILED (accessibility?)")
-      return
-    }
-    guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
-      logger.error("focus-follows-mouse: failed to create run loop source")
-      debugLog.log("FocusDiag", "ffm tap: run loop source FAILED")
-      return
-    }
-    EventTapThread.shared.addSource(source)
-    CGEvent.tapEnable(tap: tap, enable: true)
-    eventTap = tap
-    runLoopSource = source
-    debugLog.log("FocusDiag", "ffm tap installed")
-  }
-
-  private func teardown() {
-    if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
-    if let src = runLoopSource {
-      EventTapThread.shared.removeSource(src)
-    }
-    eventTap = nil
-    runLoopSource = nil
-    // Drop any pending focus hop so a move captured just before disable
-    // can't move focus after FFM was turned off.
-    focusTask?.cancel()
-    focusTask = nil
-    debugLog.log("FocusDiag", "ffm tap removed")
-  }
+  fileprivate var config = FocusFollowsMouseConfig(enabled: false, disableModifier: .option)
+  fileprivate var lastFireAt = Date.distantPast
+  fileprivate let throttleInterval: TimeInterval = 0.05
+  fileprivate var lastFocusedWindowID: CGWindowID = 0
+  fileprivate let debugLog: DebugLogClient
 
   /// Macros / heavy work in some apps can starve the tap; macOS responds
   /// by sending a `tapDisabledByTimeout` event and turning the tap off.
@@ -182,13 +129,15 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     if debugLog.isEnabled() {
       debugLog.log(
         "FocusDiag",
-        "ffm fire pid=\(info.pid) wid=\(info.windowID) at=(\(Int(location.x)),\(Int(location.y)))"
+        "ffm fire pid=\(info.pid) wid=\(info.windowID) at=(\(Int(location.x)),\(Int(location.y)))",
       )
     }
 
-    // Raise the specific window under the cursor so focus lands on the
-    // right one even within the same app (shared helper in WindowKey).
-    // `focusWindow` is `@MainActor` (AppKit activate + AX raise), so hop.
+    // Focus the specific window under the cursor so same-app movement lands on
+    // the right window and cross-app movement transfers the frontmost process.
+    // The latter needs the SLS user-generated focus path: plain
+    // `NSRunningApplication.activate()` can leave keyboard focus in the old app,
+    // especially with a secondary display connected.
     let pid = info.pid
     let windowID = info.windowID
     // Coalesce: cancel any still-pending hop so a burst of moves under
@@ -198,24 +147,98 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     focusTask?.cancel()
     focusTask = Task { @MainActor in
       guard !Task.isCancelled else { return }
-      focusWindow(pid: pid, windowID: windowID)
+      focusWindowFollowingMouse(pid: pid, windowID: windowID)
     }
+  }
+
+  // MARK: Private
+
+  private var eventTap: CFMachPort?
+  private var runLoopSource: CFRunLoopSource?
+  /// The in-flight focus hop. A newer fire cancels it so only the latest
+  /// cursor target is applied — touched only on the event-tap thread, like
+  /// the rest of this controller's lock-free state.
+  private var focusTask: Task<Void, Never>?
+  private let managedWindows: ManagedWindowsClient
+
+  /// Runs on the event-tap thread (via `configure` / the tap callback).
+  private func installOrTearDown(_ next: FocusFollowsMouseConfig) {
+    config = next
+    if next.enabled, eventTap == nil {
+      install()
+    } else if !next.enabled, eventTap != nil {
+      teardown()
+    }
+  }
+
+  private func install() {
+    // Listen for mouseMoved + the two tap-disabled signals so we can
+    // re-enable if the system hangs the tap.
+    let mask =
+      (1 << CGEventType.mouseMoved.rawValue) |
+      (1 << CGEventType.tapDisabledByTimeout.rawValue) |
+      (1 << CGEventType.tapDisabledByUserInput.rawValue)
+    let info = Unmanaged.passUnretained(self).toOpaque()
+    // `.defaultTap`, not `.listenOnly`: TCC gates active taps on
+    // Accessibility but listen-only taps on Input Monitoring — every
+    // listen-only tapCreate (even mouse-only, even with Accessibility
+    // granted) pops the "receive keystrokes from any application"
+    // warning and lists the app under Privacy → Input Monitoring. The
+    // callback passes events through unmodified.
+    guard
+      let tap = CGEvent.tapCreate(
+        tap: .cgSessionEventTap,
+        place: .headInsertEventTap,
+        options: .defaultTap,
+        eventsOfInterest: CGEventMask(mask),
+        callback: focusFollowsMouseCallback,
+        userInfo: info,
+      )
+    else {
+      logger.error("CGEvent.tapCreate failed — check Accessibility permission")
+      debugLog.log("FocusDiag", "ffm tap create FAILED (accessibility?)")
+      return
+    }
+    guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+      logger.error("focus-follows-mouse: failed to create run loop source")
+      debugLog.log("FocusDiag", "ffm tap: run loop source FAILED")
+      return
+    }
+    EventTapThread.shared.addSource(source)
+    CGEvent.tapEnable(tap: tap, enable: true)
+    eventTap = tap
+    runLoopSource = source
+    debugLog.log("FocusDiag", "ffm tap installed")
+  }
+
+  private func teardown() {
+    if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
+    if let src = runLoopSource {
+      EventTapThread.shared.removeSource(src)
+    }
+    eventTap = nil
+    runLoopSource = nil
+    // Drop any pending focus hop so a move captured just before disable
+    // can't move focus after FFM was turned off.
+    focusTask?.cancel()
+    focusTask = nil
+    debugLog.log("FocusDiag", "ffm tap removed")
   }
 
   private func modifiersIndicateDisable(_ flags: CGEventFlags) -> Bool {
     switch config.disableModifier {
-    case .none: return false
-    case .option: return flags.contains(.maskAlternate)
-    case .command: return flags.contains(.maskCommand)
-    case .control: return flags.contains(.maskControl)
-    case .shift: return flags.contains(.maskShift)
+    case .none: false
+    case .option: flags.contains(.maskAlternate)
+    case .command: flags.contains(.maskCommand)
+    case .control: flags.contains(.maskControl)
+    case .shift: flags.contains(.maskShift)
     }
   }
 
   private func topmostWindow(at point: CGPoint) -> (pid: pid_t, windowID: CGWindowID, bounds: CGRect)? {
     let raw = CGWindowListCopyWindowInfo(
       [.optionOnScreenOnly, .excludeDesktopElements],
-      kCGNullWindowID
+      kCGNullWindowID,
     ) as? [[String: Any]] ?? []
     // One lock acquisition for the mirror snapshot instead of one per entry.
     let mirrorTargets = MirrorWindowRegistry.shared.allTargets()
@@ -224,14 +247,15 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // fire (up to 20 Hz during mouse motion) was pure allocation churn.
     // Only the bounds of the layer-0 windows *in front of* the hit are
     // kept, for the full-screen gap guard below.
-    var frontBounds: [CGRect] = []
+    var frontBounds = [CGRect]()
     var candidate: (pid: pid_t, windowID: CGWindowID, bounds: CGRect)?
     for entry in raw {
-      guard let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
-            let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID,
-            let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
-            let x = boundsDict["X"], let y = boundsDict["Y"],
-            let w = boundsDict["Width"], let h = boundsDict["Height"]
+      guard
+        let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
+        let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID,
+        let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
+        let x = boundsDict["X"], let y = boundsDict["Y"],
+        let w = boundsDict["Width"], let h = boundsDict["Height"]
       else { continue }
       let bounds = CGRect(x: x, y: y, width: w, height: h)
       // A visible floating-mirror panel stands in for the window it
@@ -244,7 +268,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
           if debugLog.isEnabled() {
             debugLog.log(
               "FocusDiag",
-              "ffm mirror-redirect panel=\(windowNumber) alpha=\(alpha) -> pid=\(target.pid) wid=\(target.windowID)"
+              "ffm mirror-redirect panel=\(windowNumber) alpha=\(alpha) -> pid=\(target.pid) wid=\(target.windowID)",
             )
           }
           candidate = (target.pid, target.windowID, bounds)
@@ -308,16 +332,17 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return nil }
     return ids.lazy.map(CGDisplayBounds).first { $0.contains(point) }
   }
+
 }
 
 /// CGEventTap C callback. Hops onto the controller via the retained-
 /// unmanaged pointer in `userInfo`. Observes only — returns the event
 /// unmodified.
 private func focusFollowsMouseCallback(
-  proxy: CGEventTapProxy,
+  proxy _: CGEventTapProxy,
   type: CGEventType,
   event: CGEvent,
-  refcon: UnsafeMutableRawPointer?
+  refcon: UnsafeMutableRawPointer?,
 ) -> Unmanaged<CGEvent>? {
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let controller = Unmanaged<LiveFocusFollowsMouseController>
@@ -332,8 +357,11 @@ private func focusFollowsMouseCallback(
     let location = event.location
     let flags = event.flags
     controller.handle(location: location, flags: flags)
-  case .tapDisabledByTimeout, .tapDisabledByUserInput:
+
+  case .tapDisabledByTimeout,
+       .tapDisabledByUserInput:
     controller.reEnableTap()
+
   default:
     break
   }

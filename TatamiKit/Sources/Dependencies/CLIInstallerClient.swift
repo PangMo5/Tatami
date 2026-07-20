@@ -13,22 +13,19 @@ public struct CLIStatus: Equatable, Sendable {
   public var isBundled: Bool
   public var symlinkPath: String
   public var homebrewPath: String
-  var bundledPath: String
 
   init(
     isInstalled: Bool = false,
     viaHomebrew: Bool = false,
     isBundled: Bool = false,
     symlinkPath: String = "/usr/local/bin/tatami",
-    homebrewPath: String = "/opt/homebrew/bin/tatami",
-    bundledPath: String = ""
+    homebrewPath: String = "/opt/homebrew/bin/tatami"
   ) {
     self.isInstalled = isInstalled
     self.viaHomebrew = viaHomebrew
     self.isBundled = isBundled
     self.symlinkPath = symlinkPath
     self.homebrewPath = homebrewPath
-    self.bundledPath = bundledPath
   }
 }
 
@@ -61,8 +58,7 @@ extension CLIInstallerClient: DependencyKey {
           viaHomebrew: viaHomebrew,
           isBundled: fm.isExecutableFile(atPath: bundledPath),
           symlinkPath: symlinkPath,
-          homebrewPath: homebrewPath,
-          bundledPath: bundledPath
+          homebrewPath: homebrewPath
         )
       },
       install: {

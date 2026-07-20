@@ -28,7 +28,7 @@ struct MarkerTarget: Sendable, Equatable {
 @DependencyClient
 struct MarkerClient: Sendable {
   /// Replace the set of marked windows. Pass `[:]` to clear all.
-  var setTargets: @Sendable (
+  var setTargets: @MainActor @Sendable (
     _ targets: [WindowKey: MarkerTarget],
     _ size: Double,
     _ corner: MarkerCorner,
@@ -39,7 +39,7 @@ struct MarkerClient: Sendable {
   /// observer's `windowFocused` events + the workspace app-activation
   /// flow — cheaper and more responsive than polling AX every 50 ms.
   /// Pass `nil` to clear (no focused window).
-  var setFocused: @Sendable (_ key: WindowKey?) -> Void
+  var setFocused: @MainActor @Sendable (_ key: WindowKey?) -> Void
 }
 
 extension MarkerClient: DependencyKey {
@@ -47,13 +47,9 @@ extension MarkerClient: DependencyKey {
     let controller = MarkerController()
     return MarkerClient(
       setTargets: { targets, size, corner, hideOnHover in
-        Task { @MainActor in
-          controller.setTargets(targets, size: size, corner: corner, hideOnHover: hideOnHover)
-        }
+        controller.setTargets(targets, size: size, corner: corner, hideOnHover: hideOnHover)
       },
-      setFocused: { key in
-        Task { @MainActor in controller.setFocused(key) }
-      }
+      setFocused: { key in controller.setFocused(key) },
     )
   }
 
@@ -127,6 +123,22 @@ private final class MarkerController {
     corner: MarkerCorner,
     hideOnHover: Bool
   ) {
+    let next = Configuration(
+      targets: targets,
+      size: size,
+      corner: corner,
+      hideOnHover: hideOnHover,
+    )
+    // Geometry notifications keep successfully-positioned markers current.
+    // Replaying an identical target snapshot would only re-read every AX frame.
+    // Missing frames are allowed to retry because their last placement failed.
+    if
+      configuration == next,
+      targets.keys.allSatisfy({ lastFrame[$0] != nil })
+    {
+      return
+    }
+    configuration = next
     self.hideOnHover = hideOnHover
     if self.corner != corner {
       self.corner = corner
@@ -163,12 +175,30 @@ private final class MarkerController {
   func setFocused(_ key: WindowKey?) {
     let next: (pid: pid_t, windowID: CGWindowID)? = key.map { ($0.pid, $0.windowID) }
     if let new = next, let old = focused, new == old { return }
-    if next == nil && focused == nil { return }
+    if next == nil, focused == nil { return }
     focused = next
     syncFrames()
   }
 
-  // MARK: - Sync (one-shot; no timer)
+  // MARK: Fileprivate
+
+  /// `kAXWindowMoved` / `kAXWindowResized` arrived for `windowID` (delivered
+  /// on the main run loop). Reposition just that dot.
+  fileprivate func handleGeometryChange(windowID: CGWindowID) {
+    guard let key = panels.keys.first(where: { $0.windowID == windowID }) else { return }
+    refresh(key, cursor: NSEvent.mouseLocation)
+  }
+
+  // MARK: Private
+
+  private struct Configuration: Equatable {
+    var targets: [WindowKey: MarkerTarget]
+    var size: Double
+    var corner: MarkerCorner
+    var hideOnHover: Bool
+  }
+
+  private var configuration: Configuration?
 
   /// Full pass: resolve elements, (re)subscribe AX geometry notifications,
   /// then position every dot and update its visibility. Called only on
@@ -192,6 +222,10 @@ private final class MarkerController {
     guard let style = styles[key], let panel = panels[key] else { return }
     guard let windowFrame = frame(for: key) else {
       if panel.alphaValue > 0.01 { panel.alphaValue = 0 }
+      // A failed read invalidates the cached placement. Otherwise an
+      // identical subsequent `setTargets` sees a non-nil lastFrame and returns
+      // early forever, leaving the marker hidden even after AX recovers.
+      lastFrame.removeValue(forKey: key)
       return
     }
     let cocoa = AXWindowGeometry.flipToCocoa(dotRect(in: windowFrame, size: CGFloat(style.size), corner: corner))
@@ -235,13 +269,6 @@ private final class MarkerController {
         panel.animator().alphaValue = target
       }
     }
-  }
-
-  /// `kAXWindowMoved` / `kAXWindowResized` arrived for `windowID` (delivered
-  /// on the main run loop). Reposition just that dot.
-  fileprivate func handleGeometryChange(windowID: CGWindowID) {
-    guard let key = panels.keys.first(where: { $0.windowID == windowID }) else { return }
-    refresh(key, cursor: NSEvent.mouseLocation)
   }
 
   // MARK: - AX geometry subscriptions

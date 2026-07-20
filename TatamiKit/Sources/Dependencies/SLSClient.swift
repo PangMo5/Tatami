@@ -10,8 +10,6 @@ import OSLog
 /// Bridge to the private SkyLight (SLS) framework. Surfaces the
 /// minimum subset Tatami needs:
 ///
-///   * `mainConnectionID()` — the per-process connection id required
-///     for every other SLS call.
 ///   * `spacesForWindow(_:)` — sticky detection. A window that lives in
 ///     more than one Space is pinned to "all desktops" and must not be
 ///     tiled.
@@ -27,11 +25,6 @@ import OSLog
 /// can swap them in tests.
 @DependencyClient
 struct SLSClient: Sendable {
-  /// The current process's connection id (`SLSMainConnectionID`).
-  /// Returns 0 when the framework couldn't be opened — every other call
-  /// then becomes a noop.
-  var mainConnectionID: @Sendable () -> Int32 = { 0 }
-
   /// Spaces that contain `windowID`. A sticky window appears in more
   /// than one Space; we use that to keep them out of the BSP tree.
   var spacesForWindow: @Sendable (CGWindowID) -> [UInt64] = { _ in [] }
@@ -71,7 +64,6 @@ extension SLSClient: DependencyKey {
   static let liveValue: SLSClient = {
     let center = SLSCenter()
     return SLSClient(
-      mainConnectionID: { center.connectionID },
       spacesForWindow: { center.spaces(for: $0) },
       isActiveSpaceFullscreen: { center.isActiveSpaceFullscreen() },
       windowList: { center.windowList(on: $0) },
