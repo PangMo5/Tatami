@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.8.1 (2026-07-20)
+
+### Fixes
+- **Cross-profile transient app tiling:** Apps assigned only to an inactive profile now tile normally when opened in the current profile, instead of being treated as owned by an unreachable workspace.
+
 ## 1.8.0 (2026-07-20)
 
 ### New
