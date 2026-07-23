@@ -48,6 +48,34 @@ struct GestureRoutingTests {
     }
   }
 
+  @Test
+  func onboardingRoutesTheRealRecognizerIntoTheSafePreview() async {
+    let first = Workspace(name: "Focus")
+    let second = Workspace(name: "Browse")
+    let profile = Profile(name: "Default", workspaces: [first, second])
+    var state = AppFeature.State()
+    state.onboarding.isPresented = true
+    state.onboarding.draft = AppConfig(
+      profiles: [profile],
+      settings: AppSettings(gestures: .init(enabled: true)),
+      activeProfileId: profile.id,
+    )
+    state.onboarding.demoActiveWorkspaceID = first.id
+    let gesture = TrackpadGesture(fingerCount: 3, direction: .right)
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.gesturePerformed(gesture))
+    await store.receive(\.onboarding.demoGesturePerformed)
+
+    #expect(store.state.onboarding.demoLastGesture == gesture)
+    #expect(store.state.onboarding.demoActiveWorkspaceID == second.id)
+  }
+
 }
 
 @MainActor

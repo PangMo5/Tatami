@@ -540,6 +540,32 @@ extension BSPNode {
     }
   }
 
+  /// Apply Tatami's directional swap contract: exchange with a geometric
+  /// neighbour when one exists; at an outer edge, rotate/reorder the focused
+  /// window's parent split toward the requested direction instead. The live
+  /// reducer and safe previews share this entry point so edge warps cannot
+  /// drift into a preview-only swap rule.
+  public func applyingDirectionalSwap(
+    window: WindowID,
+    direction: BSPDirection,
+    in workArea: CGRect,
+    gap: CGFloat,
+    focusOrder: [WindowID] = []
+  ) -> BSPNode {
+    if
+      let target = directionalNeighbor(
+        of: window,
+        direction: direction,
+        in: workArea,
+        gap: gap,
+        focusOrder: focusOrder,
+      )
+    {
+      return swapping(window, target)
+    }
+    return warping(window, direction: direction)
+  }
+
   /// Flip the parent split axis of `window`. No-op if `window` is at
   /// the root.
   public func togglingSplit(at window: WindowID) -> BSPNode {
@@ -575,6 +601,19 @@ extension BSPNode {
       let newRatio = max(0.1, min(0.9, b.ratio + signedDelta))
       return .branch(b.with(ratio: newRatio))
     }
+  }
+
+  /// Grow or shrink the focused window along the axis implied by a compass
+  /// direction. Positive deltas always grow the focused side; negative deltas
+  /// shrink it, regardless of which child owns the window.
+  public func resizing(
+    window: WindowID,
+    direction: BSPDirection,
+    delta: CGFloat
+  ) -> BSPNode {
+    let axis: SplitAxis =
+      (direction == .east || direction == .west) ? .vertical : .horizontal
+    return resizing(window: window, axis: axis, delta: delta)
   }
 
   /// Update the split ratio at `path`. Clamps to `[0.1, 0.9]`. No-op if

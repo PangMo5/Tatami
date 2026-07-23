@@ -4,6 +4,7 @@ import TatamiKit
 
 struct AppRootView: View {
   @Bindable var store: StoreOf<AppFeature>
+  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
     TabView(selection: Binding(
@@ -19,7 +20,10 @@ struct AppRootView: View {
 
       SettingsView(
         pendingSection: store.pendingSettingsSection,
-        onSectionConsumed: { store.send(.settingsSectionConsumed) }
+        onSectionConsumed: { store.send(.settingsSectionConsumed) },
+        onStartOnboarding: {
+          store.send(.onboarding(.startRequested(config: store.config)))
+        }
       )
       .tabItem { Label("Settings", systemImage: "gearshape") }
       .tag(AppTab.settings)
@@ -29,5 +33,11 @@ struct AppRootView: View {
         .tag(AppTab.about)
     }
     .task { store.send(.task) }
+    .onChange(of: store.onboarding.presentationRequest) { _, request in
+      if request > 0 {
+        openWindow(id: "onboarding")
+        NSApp.activate(ignoringOtherApps: true)
+      }
+    }
   }
 }

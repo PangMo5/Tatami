@@ -104,7 +104,7 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 4) {
         Text("What's New in Tatami \(version)")
           .font(.title.weight(.semibold))
-        Text("Cycle windows like Command-Tab and bind every swipe direction.")
+        Text("Cycle the active Tatami workspace instead of the global Command-Tab app list, and bind every swipe direction.")
           .font(.subheadline)
           .foregroundStyle(.secondary)
       }

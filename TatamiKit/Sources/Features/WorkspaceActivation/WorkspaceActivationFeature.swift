@@ -2322,21 +2322,15 @@ public struct WorkspaceActivationFeature {
 
     switch op {
     case .swap(let direction):
-      if
-        let target = tree.directionalNeighbor(
-          of: windowKey,
-          direction: direction,
-          in: workArea,
-          gap: gap,
-          focusOrder: tree.windows,
-        )
-      {
-        tree = tree.swapping(windowKey, target)
-      } else {
-        let warped = tree.warping(windowKey, direction: direction)
-        guard warped != tree else { return .none }
-        tree = warped
-      }
+      let updated = tree.applyingDirectionalSwap(
+        window: windowKey,
+        direction: direction,
+        in: workArea,
+        gap: gap,
+        focusOrder: tree.windows,
+      )
+      guard updated != tree else { return .none }
+      tree = updated
       warpFocused = true
 
     case .resize(let direction, let delta):
@@ -2346,9 +2340,7 @@ public struct WorkspaceActivationFeature {
       // always grows the focused window — including when it sits on the
       // east/south edge. (The previous fence-based path returned nil at the
       // edge, which made grow/shrink a no-op for edge windows.)
-      let axis: BSPNode<WindowKey>.SplitAxis =
-        (direction == .east || direction == .west) ? .vertical : .horizontal
-      tree = tree.resizing(window: windowKey, axis: axis, delta: delta)
+      tree = tree.resizing(window: windowKey, direction: direction, delta: delta)
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)

@@ -84,6 +84,30 @@ struct BSPTreeTests {
   }
 
   @Test
+  func directionalSwapUsesANeighborThenWarpsAtTheOuterEdge() {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.build([1, 2], in: display)!
+
+    let swapped = tree.applyingDirectionalSwap(
+      window: 1,
+      direction: .east,
+      in: display,
+      gap: 0,
+    )
+    #expect(swapped == tree.swapping(1, 2))
+
+    let warped = tree.applyingDirectionalSwap(
+      window: 1,
+      direction: .south,
+      in: display,
+      gap: 0,
+    )
+    let frames = warped.frames(in: display, gap: 0)
+    #expect(frames[2] == CGRect(x: 0, y: 0, width: 1000, height: 300))
+    #expect(frames[1] == CGRect(x: 0, y: 300, width: 1000, height: 300))
+  }
+
+  @Test
   func togglingSplitFlipsParentAxis() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2], in: display)!
@@ -102,6 +126,16 @@ struct BSPTreeTests {
     let frames = grown.frames(in: display, gap: 0)
     #expect(frames[1] == CGRect(x: 0, y: 0, width: 700, height: 600))
     #expect(frames[2] == CGRect(x: 700, y: 0, width: 300, height: 600))
+  }
+
+  @Test
+  func directionalResizeAlwaysGrowsTheFocusedSide() {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.build([1, 2], in: display)!
+    let grown = tree.resizing(window: 2, direction: .east, delta: 0.2)
+    let frames = grown.frames(in: display, gap: 0)
+    #expect(frames[1]?.width == 300)
+    #expect(frames[2]?.width == 700)
   }
 
   @Test

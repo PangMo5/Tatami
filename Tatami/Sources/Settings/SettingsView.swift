@@ -15,6 +15,7 @@ struct SettingsView: View {
   /// via `onSectionConsumed`.
   var pendingSection: SettingsSection? = nil
   var onSectionConsumed: () -> Void = {}
+  var onStartOnboarding: () -> Void = {}
 
   @Shared(.tatamiConfig) var config = AppConfig()
   // Not `private`: the pane bodies live in SettingsView+Panes.swift, a
@@ -126,4 +127,3 @@ struct SettingsView: View {
     )
   }
 }
-

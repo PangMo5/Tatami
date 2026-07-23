@@ -3,12 +3,16 @@ import Foundation
 import Perception
 import Sharing
 
+// MARK: - AppTab
+
 /// A top-level tab in the main window.
 public enum AppTab: String, Equatable, Sendable {
   case workspaces
   case settings
   case about
 }
+
+// MARK: - SettingsSection
 
 /// A deep-link target inside the Settings tab (a specific pane). Set on
 /// `AppFeature.State` to route the Settings tab to a pane, then cleared once
@@ -17,32 +21,52 @@ public enum SettingsSection: String, Equatable, Sendable {
   case workspaceKeys
 }
 
+// MARK: - AppFeature
+
 /// Top-level reducer. Composes the feature reducers that make up the
 /// Tatami app and routes global hotkey events to the right child.
 @Reducer
 public struct AppFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
+
+    // MARK: Lifecycle
+
+    public init() { }
+
+    // MARK: Public
+
     @Shared(.tatamiConfig) public var config = AppConfig()
     public var workspaceList = WorkspaceListFeature.State()
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
     public var cli = CLIServerFeature.State()
+    public var onboarding = OnboardingFeature.State()
     /// The selected top-level tab. Driven by the TabView and set
     /// programmatically for deep-links (e.g. jump to a Settings pane).
-    public var selectedTab: AppTab = .workspaces
+    public var selectedTab = AppTab.workspaces
     /// A pending Settings deep-link: the Settings view routes to this pane on
     /// appearance, then clears it via `.settingsSectionConsumed`.
     public var pendingSettingsSection: SettingsSection?
     /// Standing internal failures (config parse errors, invalid shortcuts,
     /// I/O failures) surfaced via the menu bar until resolved or dismissed.
     public var errorReports: IdentifiedArrayOf<ErrorReport> = []
+
+    // MARK: Internal
+
     /// `.task` is driven by the main window's `.task` modifier, which
     /// re-fires every time the window is closed and reopened. Startup
     /// must run once per process: the subscriptions below consume
     /// process-singleton `AsyncStream`s that support a single consumer.
     var didStartUp = false
-    public init() {}
+
   }
 
   public enum Action {
@@ -60,6 +84,7 @@ public struct AppFeature {
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
     case cli(CLIServerFeature.Action)
+    case onboarding(OnboardingFeature.Action)
     case checkForUpdatesTapped
     /// An internal failure was reported or resolved (ErrorReportClient).
     case errorReportEvent(ErrorReportEvent)
@@ -72,24 +97,6 @@ public struct AppFeature {
     /// Deep-copy a profile (fresh ids + copied layouts) right after it.
     case duplicateProfile(Profile.ID)
   }
-
-  @Dependency(\.focusFollowsMouse) var focusFollowsMouse
-  @Dependency(\.floatingOverlay) var floatingOverlay
-  @Dependency(\.gestures) var gestures
-  @Dependency(\.updater) var updater
-  @Dependency(\.loginItem) var loginItem
-  @Dependency(\.whatsNew) var whatsNew
-  @Dependency(\.debugLog) var debugLog
-  @Dependency(\.errorReporter) var errorReporter
-  @Dependency(\.workspaceHUD) var workspaceHUD
-  @Dependency(\.layoutStore) var layoutStore
-  @Dependency(\.profileSessionStore) var profileSessionStore
-
-  /// Identifies the app-lifetime subscription bundle so a duplicate
-  /// `.task` (defensive; see `didStartUp`) replaces rather than doubles it.
-  private enum CancelID { case startupSubscriptions }
-
-  public init() {}
 
   public var body: some ReducerOf<Self> {
     Scope(state: \.workspaceList, action: \.workspaceList) {
@@ -104,6 +111,9 @@ public struct AppFeature {
     Scope(state: \.cli, action: \.cli) {
       CLIServerFeature()
     }
+    Scope(state: \.onboarding, action: \.onboarding) {
+      OnboardingFeature()
+    }
     Reduce { state, action in
       switch action {
       case .task:
@@ -116,11 +126,18 @@ public struct AppFeature {
         let hasExistingConfig =
           !(state.config.activeProfile?.workspaces.isEmpty ?? true)
             || !state.config.sharedApps.isEmpty
+        let permissionPrompt: Effect<Action> = hasExistingConfig
+          ? .send(.activation(.surfaceMissingPermissions))
+          : .none
         // Normalize the config on disk: re-save so any legacy carbon
         // hotkey tables migrate to the skhd-style string form.
         state.$config.withLock { $0 = $0 }
         return .merge(
           .run { [whatsNew] _ in await whatsNew.showIfNeeded(hasExistingConfig) },
+          .send(.onboarding(.appStarted(
+            config: state.config,
+            hasExistingConfig: hasExistingConfig,
+          ))),
           .send(.hotKeys(.onAppear)),
           .send(.cli(.start)),
           .send(.activation(.startObservingWindowEvents)),
@@ -139,9 +156,9 @@ public struct AppFeature {
           .run { _ in
             await MainActor.run { boundGlobalAXMessagingTimeout() }
           },
-          // Permission prompting lives in the activation feature (next to the
-          // floating Screen-Recording warning); startup just triggers it.
-          .send(.activation(.surfaceMissingPermissions)),
+          // Guided Setup owns first-run permission education. Existing users
+          // keep the established launch-time warning if a grant goes missing.
+          permissionPrompt,
           // Always consume swipe events; the tap itself is toggled on/off
           // in `.settingsChanged`.
           .run { [client = gestures] send in
@@ -165,7 +182,7 @@ public struct AppFeature {
             for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
               await updater.configure(
                 automaticallyChecks: general.checkForUpdatesAutomatically,
-                interval: general.checkInterval.seconds
+                interval: general.checkInterval.seconds,
               )
             }
           },
@@ -197,7 +214,7 @@ public struct AppFeature {
             for await event in errorReporter.events() {
               await send(.errorReportEvent(event))
             }
-          }
+          },
         )
         .cancellable(id: CancelID.startupSubscriptions, cancelInFlight: true)
 
@@ -216,7 +233,10 @@ public struct AppFeature {
         let duration = max(state.config.settings.hud.durationMs * 2, 2400)
         return .run { [workspaceHUD] _ in
           await workspaceHUD.show(
-            report.message, "exclamationmark.triangle.fill", report.detail, duration
+            report.message,
+            "exclamationmark.triangle.fill",
+            report.detail,
+            duration,
           )
         }
 
@@ -227,7 +247,10 @@ public struct AppFeature {
         let duration = max(state.config.settings.hud.durationMs, 900)
         return .run { [workspaceHUD] _ in
           await workspaceHUD.show(
-            "\(domain) issue resolved", "checkmark.circle", nil, duration
+            "\(domain) issue resolved",
+            "checkmark.circle",
+            nil,
+            duration,
           )
         }
 
@@ -239,7 +262,7 @@ public struct AppFeature {
         let ffm = FocusFollowsMouseConfig(
           enabled: settings.focus.focusFollowsMouse,
           disableModifier: settings.focus.focusFollowsMouseDisableHotkey,
-          ignoreFullscreen: settings.focus.focusFollowsMouseIgnoreFullscreen
+          ignoreFullscreen: settings.focus.focusFollowsMouseIgnoreFullscreen,
         )
         return .merge(
           .run { [client = focusFollowsMouse] _ in
@@ -259,39 +282,53 @@ public struct AppFeature {
           // Re-register hotkey handlers so a shortcut newly recorded in
           // the Settings tab actually fires: the config is the source of
           // truth, and this re-derives the Magnet bindings from it.
-          .send(.hotKeys(.refreshBindings))
+          .send(.hotKeys(.refreshBindings)),
         )
 
       case .gesturePerformed(let gesture):
+        if
+          state.onboarding.isPresented,
+          state.onboarding.draft.settings.gestures.enabled
+        {
+          return .send(.onboarding(.demoGesturePerformed(gesture)))
+        }
         guard state.config.settings.gestures.enabled else { return .none }
         let action = state.config.settings.gestures.action(for: gesture)
         guard let hotKeyAction = action.hotKeyAction else { return .none }
         debugLog.log(
           "Gesture",
           "dispatch fingers=\(gesture.fingerCount) direction=\(gesture.direction) "
-            + "action=\(action.id)"
+            + "action=\(action.id)",
         )
         return route(hotKeyAction, config: state.config)
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
-        let holdModifiers: HotKeyModifiers?
-        switch hotKeyAction {
-        case .cycleNextWindow:
-          holdModifiers = state.config.settings.shortcuts.cycleNextWindow?.holdModifiers
-        case .cyclePreviousWindow:
-          holdModifiers = state.config.settings.shortcuts.cyclePreviousWindow?.holdModifiers
-        default:
-          holdModifiers = nil
+        if state.onboarding.isPresented {
+          return .send(.onboarding(.demoShortcutPerformed(hotKeyAction)))
         }
+        let holdModifiers: HotKeyModifiers? =
+          switch hotKeyAction {
+          case .cycleNextWindow:
+            state.config.settings.shortcuts.cycleNextWindow?.holdModifiers
+          case .cyclePreviousWindow:
+            state.config.settings.shortcuts.cyclePreviousWindow?.holdModifiers
+          default:
+            nil
+          }
         return route(
           hotKeyAction,
           config: state.config,
-          windowCycleHoldModifiers: holdModifiers
+          windowCycleHoldModifiers: holdModifiers,
         )
 
+      case .activation(.borrowChordKey(let key)):
+        guard state.onboarding.isPresented else { return .none }
+        return .send(.onboarding(.demoBorrowChordKey(key)))
+
       case .activateProfile(let id, let focus):
-        guard state.config.activeProfileId != id,
-              state.config.profiles.contains(where: { $0.id == id })
+        guard
+          state.config.activeProfileId != id,
+          state.config.profiles.contains(where: { $0.id == id })
         else {
           // Already the active profile — just focus the requested workspace, if any.
           if let focus { return .send(.activation(.activate(workspaceId: focus, setFocus: true))) }
@@ -308,7 +345,7 @@ public struct AppFeature {
           // The per-display profile-switch HUD is shown from here (it knows the
           // actual plan) so each monitor names the workspace that lands on it.
           .send(.activation(.reactivateActiveProfile(focus: focus))),
-          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) }
+          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
         )
 
       case .duplicateProfile(let id):
@@ -324,8 +361,61 @@ public struct AppFeature {
                 await layoutStore.save(new, snapshot)
               }
             }
-          }
+          },
         )
+
+      case .onboarding(.delegate(.applyRequested(let baseline, let draft, let activate))):
+        guard state.config == baseline else {
+          return .send(.onboarding(.configurationConflictDetected(state.config)))
+        }
+        state.$config.withLock { $0 = draft }
+        var effects: [Effect<Action>] = [
+          .send(.hotKeys(.refreshBindings)),
+          .send(.onboarding(.configurationApplied)),
+          .run { [profileSessionStore] _ in
+            await profileSessionStore.saveActiveProfileId(draft.activeProfileId)
+          },
+        ]
+        if
+          activate,
+          let workspace = draft.activeProfile?.workspaces.first(where: { $0.kind == .normal })
+        {
+          effects.append(
+            .send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+          )
+        }
+        return .merge(effects)
+
+      case .onboarding(.delegate(.gesturePreviewChanged(let enabled, let threshold))):
+        return .run { [gestures] _ in
+          await gestures.stop()
+          if enabled { await gestures.start(threshold) }
+        }
+
+      case .onboarding(.delegate(.gesturePreviewEnded)):
+        let settings = state.config.settings.gestures
+        return .run { [gestures] _ in
+          await gestures.stop()
+          if settings.enabled { await gestures.start(settings.threshold) }
+        }
+
+      case .onboarding(.delegate(.borrowChordPreviewChanged(let armed))):
+        return .run { [borrowChord] _ in
+          await borrowChord.setArmed(armed)
+        }
+
+      case .onboarding(.delegate(.shortcutPreviewChanged(let draft))):
+        return .run { [hotKeys] _ in
+          await hotKeys.register(draft.hotKeyBindings)
+        }
+
+      case .onboarding(.delegate(.shortcutPreviewEnded)):
+        return .send(.hotKeys(.refreshBindings))
+
+      case .onboarding(.delegate(.shortcutRecordingChanged(let recording))):
+        return .run { [hotKeys] _ in
+          await hotKeys.setRecording(recording)
+        }
 
       case .cli(.delegate(.activateRequested(let workspaceId))):
         // The CLI drives the same activation pipeline as hotkeys.
@@ -340,6 +430,7 @@ public struct AppFeature {
       // Profile management (sidebar toolbar) routes its side-effecting ops here.
       case .workspaceList(.delegate(.activateProfile(let id))):
         return .send(.activateProfile(id, focus: nil))
+
       case .workspaceList(.delegate(.profilesChanged)):
         return .send(.hotKeys(.refreshBindings))
 
@@ -354,14 +445,15 @@ public struct AppFeature {
         // (it has the plan); here we just persist + rebind.
         return .merge(
           .send(.hotKeys(.refreshBindings)),
-          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) }
+          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
         )
 
       case .workspaceList(.detail(.layoutChanged)):
         // Re-tile now if the edited workspace is the active one, so the window
         // drops out of (or back into) the layout immediately.
-        guard let wsId = state.workspaceList.detail?.workspaceId,
-              state.activation.activeWorkspacesByDisplay.values.contains(wsId)
+        guard
+          let wsId = state.workspaceList.detail?.workspaceId,
+          state.activation.activeWorkspacesByDisplay.values.contains(wsId)
         else { return .none }
         return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
 
@@ -369,8 +461,10 @@ public struct AppFeature {
         // An import can change the key equivalent (rebind) and the app set
         // (re-tile if it's the active workspace).
         var effects: [Effect<Action>] = [.send(.hotKeys(.refreshBindings))]
-        if let wsId = state.workspaceList.detail?.workspaceId,
-           state.activation.activeWorkspacesByDisplay.values.contains(wsId) {
+        if
+          let wsId = state.workspaceList.detail?.workspaceId,
+          state.activation.activeWorkspacesByDisplay.values.contains(wsId)
+        {
           effects.append(.send(.activation(.activate(workspaceId: wsId, setFocus: false))))
         }
         return .merge(effects)
@@ -385,19 +479,19 @@ public struct AppFeature {
 
       // Layout-preview edits to the *active* workspace: the layout reducer can't
       // reach the activation sibling, so it delegates and we forward here.
-      case let .workspaceList(.detail(.layout(.delegate(.activeLayoutEdited(workspaceId, op))))):
+      case .workspaceList(.detail(.layout(.delegate(.activeLayoutEdited(let workspaceId, let op))))):
         return .send(.activation(.layoutEdited(workspaceId: workspaceId, op: op)))
 
-      case let .workspaceList(.detail(.layout(.delegate(.activeFullscreenToggled(windowKey))))):
+      case .workspaceList(.detail(.layout(.delegate(.activeFullscreenToggled(let windowKey))))):
         return .send(.activation(.bspOpResolved(windowKey: windowKey, op: .toggleZoomFullscreen)))
 
-      case let .workspaceList(.detail(.layout(.delegate(.residentLayoutInvalidated(workspaceId))))):
+      case .workspaceList(.detail(.layout(.delegate(.residentLayoutInvalidated(let workspaceId))))):
         return .send(.activation(.invalidateResidentLayout(workspaceId: workspaceId)))
 
       // "Configure" on a non-tiled chip: send the user to where the app is
       // set up — the Shared Apps sidebar section, or this workspace's Apps
       // section (already the selected detail).
-      case let .workspaceList(.detail(.layout(.delegate(.revealAppSettings(bundleId, isShared))))):
+      case .workspaceList(.detail(.layout(.delegate(.revealAppSettings(let bundleId, let isShared))))):
         return isShared
           ? .send(.workspaceList(.topSelected(.shared)))
           : .send(.workspaceList(.detail(.scrollToApp(bundleId: bundleId))))
@@ -437,6 +531,28 @@ public struct AppFeature {
     }
   }
 
+  // MARK: Internal
+
+  @Dependency(\.focusFollowsMouse) var focusFollowsMouse
+  @Dependency(\.floatingOverlay) var floatingOverlay
+  @Dependency(\.borrowChord) var borrowChord
+  @Dependency(\.gestures) var gestures
+  @Dependency(\.updater) var updater
+  @Dependency(\.loginItem) var loginItem
+  @Dependency(\.whatsNew) var whatsNew
+  @Dependency(\.debugLog) var debugLog
+  @Dependency(\.errorReporter) var errorReporter
+  @Dependency(\.workspaceHUD) var workspaceHUD
+  @Dependency(\.layoutStore) var layoutStore
+  @Dependency(\.hotKeys) var hotKeys
+  @Dependency(\.profileSessionStore) var profileSessionStore
+
+  // MARK: Private
+
+  /// Identifies the app-lifetime subscription bundle so a duplicate
+  /// `.task` (defensive; see `didStartUp`) replaces rather than doubles it.
+  private enum CancelID { case startupSubscriptions }
+
   private func route(
     _ action: HotKeyAction,
     config: AppConfig,
@@ -448,51 +564,71 @@ public struct AppFeature {
         return .send(.activateProfile(owner, focus: id))
       }
       return .send(.activation(.activate(workspaceId: id, setFocus: true)))
+
     case .assignFocusedAppToWorkspace(let id):
       return .send(.activation(.membershipEdit(.assign(to: id))))
+
     case .borrowWorkspace(let id):
       guard config.activeProfile?.workspaces[id: id] != nil else {
         debugLog.log("Gesture", "borrow target belongs to an inactive profile — dropped")
         return .none
       }
       return .send(.activation(.beginBorrowDirection(workspaceId: id)))
+
     case .switchToNextWorkspace:
       return .send(.activation(.activateNext))
+
     case .switchToPreviousWorkspace:
       return .send(.activation(.activatePrevious))
+
     case .switchToRecentWorkspace:
       return .send(.activation(.activateRecent))
+
     case .activateProfile(let id):
       return .send(.activateProfile(id, focus: nil))
+
     case .assignFocusedAppToRecentWorkspace:
       return .send(.activation(.assignFocusedAppToRecentWorkspace))
+
     case .assignFocusedAppToNextWorkspace:
       return .send(.activation(.assignFocusedAppToAdjacentWorkspace(direction: 1)))
+
     case .assignFocusedAppToPreviousWorkspace:
       return .send(.activation(.assignFocusedAppToAdjacentWorkspace(direction: -1)))
+
     case .borrowRecentWorkspace:
       return .send(.activation(.borrowRecentWorkspace))
+
     case .borrowNextWorkspace:
       return .send(.activation(.borrowAdjacentWorkspace(direction: 1)))
+
     case .borrowPreviousWorkspace:
       return .send(.activation(.borrowAdjacentWorkspace(direction: -1)))
+
     case .dismissBorrow:
       return .send(.activation(.dismissBorrow(display: nil)))
+
     case .moveFocusedAppToNextWorkspace:
       return .send(.activation(.moveFocusedAppToAdjacent(direction: 1)))
+
     case .moveFocusedAppToPreviousWorkspace:
       return .send(.activation(.moveFocusedAppToAdjacent(direction: -1)))
+
     case .focusNextDisplay:
       return .send(.activation(.focusAdjacentDisplay(direction: 1)))
+
     case .focusPreviousDisplay:
       return .send(.activation(.focusAdjacentDisplay(direction: -1)))
 
     case .focusLeft:
       return .send(.activation(.bspFocus(.west)))
+
     case .focusRight:
       return .send(.activation(.bspFocus(.east)))
+
     case .focusUp:
       return .send(.activation(.bspFocus(.north)))
+
     case .focusDown:
       return .send(.activation(.bspFocus(.south)))
 
@@ -503,6 +639,7 @@ public struct AppFeature {
         ))
       }
       return .send(.activation(.cycleWindow(.next)))
+
     case .cyclePreviousWindow:
       if let windowCycleHoldModifiers, !windowCycleHoldModifiers.isEmpty {
         return .send(.activation(
@@ -513,27 +650,37 @@ public struct AppFeature {
 
     case .toggleFloating:
       return .send(.activation(.membershipEdit(.toggleFloating)))
+
     case .toggleSharedFloating:
       return .send(.activation(.membershipEdit(.toggleSharedFloating)))
+
     case .toggleSpaceActivated:
       return .send(.activation(.togglePaused))
+
     case .toggleFocusedAppInActiveWorkspace:
       return .send(.activation(.membershipEdit(.toggleInActiveWorkspace)))
+
     case .toggleAppInSharedApps:
       return .send(.activation(.membershipEdit(.toggleShared)))
 
     case .resizeGrow:
       return .send(.activation(.bspResize(direction: .east, delta: 0.05)))
+
     case .resizeShrink:
       return .send(.activation(.bspResize(direction: .east, delta: -0.05)))
+
     case .swapLeft:
       return .send(.activation(.bspSwap(.west)))
+
     case .swapRight:
       return .send(.activation(.bspSwap(.east)))
+
     case .swapUp:
       return .send(.activation(.bspSwap(.north)))
+
     case .swapDown:
       return .send(.activation(.bspSwap(.south)))
+
     case .toggleOrientation:
       return .send(.activation(.bspToggleOrientation))
 
@@ -544,6 +691,7 @@ public struct AppFeature {
       // single-tile parent-zoom — `BSPNode.togglingParentZoom` — with
       // no binding surface yet.)
       return .send(.activation(.bspToggleZoomFullscreen))
+
     case .balance:
       return .send(.activation(.bspBalance))
     }

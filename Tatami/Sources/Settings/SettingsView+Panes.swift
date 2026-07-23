@@ -17,6 +17,19 @@ extension SettingsView {
       }
     }
 
+    Section("Guided Setup") {
+      HStack {
+        VStack(alignment: .leading, spacing: 3) {
+          Text("Review Tatami's Core Workflow")
+          Text("Practice with this Mac's apps and displays, then apply any changes together.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Button("Run Guided Setup…", action: onStartOnboarding)
+      }
+    }
+
     Section("Permissions") {
       HStack {
         Image(systemName: store.hasAXPermission ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -219,8 +232,8 @@ extension SettingsView {
   var focusMousePane: some View {
     Section("Focus") {
       Toggle(isOn: setting(\.focus.mouseFollowsFocus)) {
-        Text("Mouse follows focus")
-        Text("Move the cursor to the focused window when you switch workspaces.")
+        Text("Mouse follows focus (MFF)")
+        Text("Keep the pointer attached to the focused managed window. It moves to that window's center after Tatami focus/cycle and workspace changes, focus changes caused by open/close, or a Swap that relocates the focused tile. Clicking a window preserves the click position.")
       }
       Toggle(isOn: setting(\.focus.mouseHidesOnFocus)) {
         Text("Hide cursor on focus")
@@ -232,10 +245,10 @@ extension SettingsView {
       }
     }
 
-    Section("Focus Follows Mouse") {
+    Section("Focus Follows Mouse (FFM)") {
       Toggle(isOn: setting(\.focus.focusFollowsMouse)) {
-        Text("Focus follows mouse")
-        Text("Focus whatever window sits under the cursor as it moves.")
+        Text("Focus follows mouse (FFM)")
+        Text("When the pointer moves over a managed window, give that window keyboard focus.")
       }
       Toggle(isOn: setting(\.focus.focusFollowsMouseIgnoreFullscreen)) {
         Text("Ignore full-screen windows")
@@ -295,15 +308,15 @@ extension SettingsView {
     Section("Window Cycling") {
       Toggle(isOn: setting(\.switching.cycleSameAppWindows)) {
         Text("Cycle through every window")
-        Text("Step through each window individually, including multiple windows of the same app, instead of cycling app-by-app.")
+        Text("Step through each window individually, including multiple windows of the same app. Off cycles app-by-app inside the active Tatami workspace.")
       }
       shortcut(
         "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
-        description: "Move focus to the next window in the active workspace. With “Cycle through every window” off, it steps app-by-app, landing on each app's most recently used window."
+        description: "Move focus to the next managed window in the active Tatami workspace. Unlike ⌘Tab, it does not search every running app; unlike ⌘`, it can cross between apps that share this workspace. With “Cycle through every window” off, it steps app-by-app and lands on each app's most recently used window."
       )
       shortcut(
         "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
-        description: "Move focus to the previous window in the active workspace. With “Cycle through every window” off, it steps app-by-app, landing on each app's most recently used window."
+        description: "Move focus to the previous managed window in the active Tatami workspace. Unlike ⌘Tab, it does not search every running app; unlike ⌘`, it can cross between apps that share this workspace. With “Cycle through every window” off, it steps app-by-app and lands on each app's most recently used window."
       )
     }
 
