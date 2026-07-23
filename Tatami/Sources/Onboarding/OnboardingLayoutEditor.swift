@@ -6,6 +6,42 @@ import TatamiKit
 
 struct OnboardingLayoutEditor: View {
 
+  // MARK: Lifecycle
+
+  init(
+    tree: BSPNode<SlotID>?,
+    apps: [SlotID: MacApp],
+    selectedSlot: SlotID?,
+    fullscreenSlot: SlotID?,
+    innerGap: Int,
+    outerGap: Int,
+    specialMode: LayoutMode?,
+    allowsEditing: Bool,
+    height: CGFloat = 300,
+    pointerLocation: OnboardingDemoPoint? = nil,
+    tracksPointerPosition: Bool = false,
+    onTileTapped: @escaping (SlotID) -> Void,
+    onTileHovered: @escaping (SlotID, OnboardingDemoPoint) -> Void = { _, _ in },
+    onTileMoved: @escaping ([BSPSide], [BSPSide], DropZone) -> Void,
+    onDividerResized: @escaping ([BSPSide], CGFloat) -> Void,
+  ) {
+    self.tree = tree
+    self.apps = apps
+    self.selectedSlot = selectedSlot
+    self.fullscreenSlot = fullscreenSlot
+    self.innerGap = innerGap
+    self.outerGap = outerGap
+    self.specialMode = specialMode
+    self.allowsEditing = allowsEditing
+    self.height = height
+    self.pointerLocation = pointerLocation
+    self.tracksPointerPosition = tracksPointerPosition
+    self.onTileTapped = onTileTapped
+    self.onTileHovered = onTileHovered
+    self.onTileMoved = onTileMoved
+    self.onDividerResized = onDividerResized
+  }
+
   // MARK: Internal
 
   let tree: BSPNode<SlotID>?
@@ -16,7 +52,11 @@ struct OnboardingLayoutEditor: View {
   let outerGap: Int
   let specialMode: LayoutMode?
   let allowsEditing: Bool
+  let height: CGFloat
+  let pointerLocation: OnboardingDemoPoint?
+  let tracksPointerPosition: Bool
   let onTileTapped: (SlotID) -> Void
+  let onTileHovered: (SlotID, OnboardingDemoPoint) -> Void
   let onTileMoved: ([BSPSide], [BSPSide], DropZone) -> Void
   let onDividerResized: ([BSPSide], CGFloat) -> Void
 
@@ -38,6 +78,9 @@ struct OnboardingLayoutEditor: View {
       } ?? baseTree
       let regions = renderedTree?.leafRegions(in: tileBounds, gap: CGFloat(innerGap)) ?? []
       let dividers = renderedTree?.branchRegions(in: tileBounds, gap: CGFloat(innerGap)) ?? []
+      let displayedPointerLocation = tracksPointerPosition
+        ? livePointerLocation ?? pointerLocation
+        : pointerLocation
 
       ZStack(alignment: .topLeading) {
         RoundedRectangle(cornerRadius: 14)
@@ -46,9 +89,14 @@ struct OnboardingLayoutEditor: View {
           .strokeBorder(Color.primary.opacity(0.08))
 
         if let fullscreenSlot, let app = apps[fullscreenSlot] {
-          tile(app: app, slot: fullscreenSlot, selected: true)
-            .frame(width: contentBounds.width, height: contentBounds.height)
-            .position(x: contentBounds.midX, y: contentBounds.midY)
+          Button {
+            onTileTapped(fullscreenSlot)
+          } label: {
+            tile(app: app, slot: fullscreenSlot, selected: true)
+          }
+          .buttonStyle(.plain)
+          .frame(width: contentBounds.width, height: contentBounds.height)
+          .position(x: contentBounds.midX, y: contentBounds.midY)
         } else {
           ForEach(regions, id: \.path) { region in
             if let slot = region.leaf.topWindow, let app = apps[slot] {
@@ -83,27 +131,77 @@ struct OnboardingLayoutEditor: View {
 
           if specialMode == .floating, let primarySlot, let app = apps[primarySlot] {
             floatingCard(app: app, in: contentBounds)
+              .contentShape(.rect)
+              .onTapGesture { onTileTapped(primarySlot) }
           }
 
           if specialMode == .unmanaged, let primarySlot, let app = apps[primarySlot] {
             unmanagedBand(app: app, in: contentBounds, height: unmanagedBandHeight)
+              .contentShape(.rect)
+              .onTapGesture { onTileTapped(primarySlot) }
           }
+        }
+
+        if let displayedPointerLocation {
+          Image(systemName: "cursorarrow")
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.75), radius: 2, y: 1)
+            .position(
+              x: bounds.minX + CGFloat(displayedPointerLocation.x) * bounds.width,
+              y: bounds.minY + CGFloat(displayedPointerLocation.y) * bounds.height,
+            )
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
       }
       .compositingGroup()
       .clipShape(.rect(cornerRadius: 14))
-      .coordinateSpace(name: coordinateSpace)
+      .coordinateSpace(.named(coordinateSpace))
+      .onContinuousHover(coordinateSpace: .named(coordinateSpace)) { phase in
+        switch phase {
+        case .active(let location):
+          let normalizedLocation = OnboardingDemoPoint(
+            x: location.x / max(bounds.width, 1),
+            y: location.y / max(bounds.height, 1),
+          )
+          if tracksPointerPosition, livePointerLocation != normalizedLocation {
+            livePointerLocation = normalizedLocation
+          }
+          let slot = slot(
+            at: location,
+            contentBounds: contentBounds,
+            regions: regions,
+            primarySlot: primarySlot,
+            fullscreenSlot: fullscreenSlot,
+            unmanagedBandHeight: unmanagedBandHeight,
+          )
+          guard slot != lastHoveredSlot else { return }
+          lastHoveredSlot = slot
+          guard let slot else { return }
+          onTileHovered(slot, normalizedLocation)
+
+        case .ended:
+          lastHoveredSlot = nil
+        }
+      }
     }
-    .frame(height: 300)
+    .frame(height: height)
     .animation(.spring(response: 0.32, dampingFraction: 0.86), value: tree)
     .animation(.spring(response: 0.32, dampingFraction: 0.86), value: fullscreenSlot)
     .animation(.spring(response: 0.32, dampingFraction: 0.86), value: specialMode)
+    .onChange(of: pointerLocation) { _, newValue in
+      guard tracksPointerPosition, livePointerLocation != newValue else { return }
+      livePointerLocation = newValue
+    }
   }
 
   // MARK: Private
 
   @State private var pendingRatio: (path: [BSPSide], ratio: CGFloat)?
   @State private var tileDrag: (source: [BSPSide], location: CGPoint)?
+  @State private var lastHoveredSlot: SlotID?
+  @State private var livePointerLocation: OnboardingDemoPoint?
 
   private let coordinateSpace = "onboarding-layout-canvas"
 
@@ -134,6 +232,47 @@ struct OnboardingLayoutEditor: View {
     .position(x: region.rect.midX, y: region.rect.midY)
     .opacity(isDragging ? 0.28 : 1)
     .simultaneousGesture(tileDragGesture(region: region, allRegions: allRegions))
+  }
+
+  private func slot(
+    at location: CGPoint,
+    contentBounds: CGRect,
+    regions: [BSPNode<SlotID>.LeafRegion],
+    primarySlot: SlotID?,
+    fullscreenSlot: SlotID?,
+    unmanagedBandHeight: CGFloat,
+  ) -> SlotID? {
+    if let fullscreenSlot, contentBounds.contains(location) {
+      return fullscreenSlot
+    }
+    if specialMode == .floating, let primarySlot {
+      let width = contentBounds.width * 0.34
+      let height = contentBounds.height * 0.42
+      let center = CGPoint(
+        x: contentBounds.maxX - contentBounds.width * 0.19,
+        y: contentBounds.minY + contentBounds.height * 0.25,
+      )
+      let frame = CGRect(
+        x: center.x - width / 2,
+        y: center.y - height / 2,
+        width: width,
+        height: height,
+      )
+      if frame.contains(location) { return primarySlot }
+    }
+    if
+      specialMode == .unmanaged,
+      let primarySlot,
+      CGRect(
+        x: contentBounds.minX,
+        y: contentBounds.maxY - unmanagedBandHeight,
+        width: contentBounds.width,
+        height: unmanagedBandHeight,
+      ).contains(location)
+    {
+      return primarySlot
+    }
+    return regions.first(where: { $0.rect.contains(location) })?.leaf.topWindow
   }
 
   private func tile(app: MacApp, slot: SlotID, selected: Bool) -> some View {

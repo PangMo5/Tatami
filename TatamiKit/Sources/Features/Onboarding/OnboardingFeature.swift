@@ -12,6 +12,7 @@ public enum OnboardingStep: String, CaseIterable, Codable, Hashable, Identifiabl
   case tiling
   case borrow
   case floating
+  case focusAndCycling
   case finish
 
   // MARK: Public
@@ -29,6 +30,7 @@ public enum OnboardingStep: String, CaseIterable, Codable, Hashable, Identifiabl
     case .tiling: "Tiling"
     case .borrow: "Borrow"
     case .floating: "Float & Ignore"
+    case .focusAndCycling: "Focus & Cycling"
     case .finish: "Finish"
     }
   }
@@ -42,6 +44,7 @@ public enum OnboardingStep: String, CaseIterable, Codable, Hashable, Identifiabl
     case .tiling: "rectangle.split.2x2"
     case .borrow: "rectangle.righthalf.inset.filled"
     case .floating: "rectangle.on.rectangle"
+    case .focusAndCycling: "cursorarrow.motionlines"
     case .finish: "checkmark.circle"
     }
   }
@@ -57,8 +60,10 @@ public enum OnboardingPractice: String, Codable, Hashable, Sendable {
   case floating
   case focus
   case fullscreen
+  case focusFollowsMouse
   case gesture
   case ignore
+  case mouseFollowsFocus
   case orientation
   case resize
   case swap
@@ -114,6 +119,25 @@ public enum OnboardingDemoCommand: Hashable, Sendable {
   case orientation
   case resize(delta: CGFloat)
   case swap(BSPDirection)
+}
+
+// MARK: - OnboardingDemoPoint
+
+public struct OnboardingDemoPoint: Codable, Equatable, Sendable {
+  public init(x: Double, y: Double) {
+    self.x = x
+    self.y = y
+  }
+
+  public var x: Double
+  public var y: Double
+}
+
+// MARK: - OnboardingDemoBlock
+
+public enum OnboardingDemoBlock: String, Codable, Equatable, Sendable {
+  case host
+  case borrowed
 }
 
 // MARK: - OnboardingMode
@@ -294,6 +318,10 @@ public struct OnboardingFeature {
     public var demoBorrowPendingWorkspaceID: Workspace.ID?
     public var demoBorrowWorkspaceID: Workspace.ID?
     public var demoBorrowed = false
+    public var demoBorrowLayoutTree: BSPNode<SlotID>?
+    public var demoBorrowSelectedSlot: SlotID?
+    public var demoBorrowFullscreenSlot: SlotID?
+    public var demoFocusedBlock = OnboardingDemoBlock.host
     public var demoFullscreenSlot: SlotID?
     public var demoLastGesture: TrackpadGesture?
     public var demoLastShortcut: HotKeyAction?
@@ -301,7 +329,10 @@ public struct OnboardingFeature {
     public var demoLayoutTree: BSPNode<SlotID>?
     public var demoPreviousWorkspaceID: Workspace.ID?
     public var demoGestureWindowIndex = 0
+    public var demoPointerLocation: OnboardingDemoPoint?
+    public var demoPointerBlock = OnboardingDemoBlock.host
     public var demoSelectedSlot: SlotID?
+    public var demoWindowMRU = [Workspace.ID: [SlotID]]()
     public var dismissalRequest = 0
     public var displays = [DisplayName]()
     public var draft = AppConfig()
@@ -394,6 +425,14 @@ public struct OnboardingFeature {
       let byID = Dictionary(uniqueKeysWithValues: allKnownApps
         .map { ($0.bundleIdentifier, $0) })
       return Dictionary(uniqueKeysWithValues: (demoLayoutTree?.windows ?? []).compactMap { slot in
+        byID[slot.bundleId].map { (slot, $0) }
+      })
+    }
+
+    public var demoBorrowAppBySlot: [SlotID: MacApp] {
+      let byID = Dictionary(uniqueKeysWithValues: allKnownApps
+        .map { ($0.bundleIdentifier, $0) })
+      return Dictionary(uniqueKeysWithValues: (demoBorrowLayoutTree?.windows ?? []).compactMap { slot in
         byID[slot.bundleId].map { (slot, $0) }
       })
     }
@@ -537,9 +576,10 @@ public struct OnboardingFeature {
     case demoGestureEnabledChanged(Bool)
     case demoGesturePerformed(TrackpadGesture)
     case demoLayoutModeChanged(LayoutMode)
+    case demoPointerHovered(OnboardingDemoBlock, SlotID, OnboardingDemoPoint)
     case demoShortcutPerformed(HotKeyAction)
     case demoTileMoved(source: [BSPSide], target: [BSPSide], zone: DropZone)
-    case demoTileTapped(SlotID)
+    case demoTileTapped(OnboardingDemoBlock, SlotID)
     case demoBorrowButtonTapped
     case demoBorrowCancelButtonTapped
     case demoBorrowChordKey(BorrowChordKey)
@@ -619,9 +659,12 @@ public struct OnboardingFeature {
           matchingProgress?.demoLayoutTree,
           workspaceID: state.demoActiveWorkspaceID,
           config: state.draft,
-          includesAllAssignments: state.step == .floating,
+          includesAllAssignments: state.step == .floating || state.step == .focusAndCycling,
         )
         state.demoSelectedSlot = state.demoLayoutTree?.windows.first
+        syncDemoBorrowLayout(state: &state)
+        state.demoFocusedBlock = state.demoBorrowed ? .borrowed : .host
+        state.demoPointerBlock = state.demoFocusedBlock
         state.displays = preparation.displays
         state.furthestStepIndex = matchingProgress?.furthestStepIndex ?? 0
         state.contextStyle = matchingProgress?.contextStyle ?? .focused
@@ -945,10 +988,16 @@ public struct OnboardingFeature {
         state.demoGestureWindowIndex = 0
         if state.demoBorrowWorkspaceID == id {
           state.demoBorrowWorkspaceID = preferredBorrowWorkspaceID(state: state)
-          state.demoBorrowed = false
+          dismissDemoBorrow(state: &state)
+          syncDemoBorrowLayout(state: &state)
         }
         state.demoBorrowPendingWorkspaceID = nil
         syncDemoLayout(state: &state)
+        state.demoFocusedBlock = .host
+        if let selected = state.demoSelectedSlot {
+          focusDemoWindow(selected, in: .host, state: &state)
+        }
+        followDemoFocusIfEnabled(state: &state)
         return persistAndSyncBorrowChord(state)
 
       case .demoBorrowWorkspaceTapped(let id):
@@ -957,9 +1006,11 @@ public struct OnboardingFeature {
           id != state.demoActiveWorkspaceID
         else { return .none }
         state.demoBorrowWorkspaceID = id
-        state.demoBorrowed = false
-        state.demoBorrowEdge = nil
-        state.demoBorrowPendingWorkspaceID = nil
+        state.demoBorrowLayoutTree = nil
+        state.demoBorrowSelectedSlot = nil
+        state.demoBorrowFullscreenSlot = nil
+        dismissDemoBorrow(state: &state)
+        syncDemoBorrowLayout(state: &state)
         return persistAndSyncBorrowChord(state)
 
       case .demoGestureEnabledChanged(let enabled):
@@ -988,11 +1039,19 @@ public struct OnboardingFeature {
           state.practices.insert(.workspaceSwitch)
 
         case .cycleNextWindow:
-          cycleGestureWindow(offset: 1, state: &state)
+          if state.step.index >= OnboardingStep.tiling.index {
+            _ = applyDemoCommand(.cycle(.next), state: &state)
+          } else {
+            cycleGestureWindow(offset: 1, state: &state)
+          }
           state.practices.insert(.windowGesture)
 
         case .cyclePreviousWindow:
-          cycleGestureWindow(offset: -1, state: &state)
+          if state.step.index >= OnboardingStep.tiling.index {
+            _ = applyDemoCommand(.cycle(.previous), state: &state)
+          } else {
+            cycleGestureWindow(offset: -1, state: &state)
+          }
           state.practices.insert(.windowGesture)
 
         default:
@@ -1033,11 +1092,29 @@ public struct OnboardingFeature {
         setDemoLayoutMode(mode, state: &state)
         return persist(state)
 
-      case .demoTileTapped(let slot):
-        guard state.demoLayoutTree?.windows.contains(slot) == true else { return .none }
-        state.demoSelectedSlot = slot
-        syncDemoLayoutMode(state: &state)
+      case .demoTileTapped(let block, let slot):
+        guard demoTree(for: block, state: state)?.windows.contains(slot) == true else {
+          return .none
+        }
+        focusDemoWindow(slot, in: block, state: &state)
+        state.demoPointerBlock = block
+        state.demoPointerLocation = demoPointerTarget(for: slot, in: block, state: state)
         state.practices.insert(.focus)
+        return persist(state)
+
+      case .demoPointerHovered(let block, let slot, let location):
+        guard demoTree(for: block, state: state)?.windows.contains(slot) == true else {
+          return .none
+        }
+        state.demoPointerBlock = block
+        state.demoPointerLocation = location
+        guard
+          state.draft.settings.focus.focusFollowsMouse,
+          state.demoFocusedBlock != block || demoSelection(in: block, state: state) != slot
+        else { return .none }
+        focusDemoWindow(slot, in: block, state: &state)
+        state.practices.insert(.focusFollowsMouse)
+        state.demoActionResult = "FFM focused \(demoAppName(for: slot, in: block, state: state))"
         return persist(state)
 
       case .demoDividerResized(let path, let ratio):
@@ -1170,15 +1247,23 @@ public struct OnboardingFeature {
         state.demoPreviousWorkspaceID = nil
         state.demoBorrowWorkspaceID = preferredBorrowWorkspaceID(state: state)
         state.demoBorrowed = false
+        state.demoBorrowLayoutTree = nil
+        state.demoBorrowSelectedSlot = nil
+        state.demoBorrowFullscreenSlot = nil
         state.demoBorrowEdge = nil
         state.demoBorrowPendingWorkspaceID = nil
+        state.demoFocusedBlock = .host
         state.demoFullscreenSlot = nil
         state.demoLastGesture = nil
         state.demoLastShortcut = nil
         state.demoActionResult = nil
         state.demoLayoutMode = .tiled
+        state.demoPointerBlock = .host
+        state.demoPointerLocation = nil
+        state.demoWindowMRU = [:]
         state.demoGestureWindowIndex = 0
         syncDemoLayout(state: &state)
+        syncDemoBorrowLayout(state: &state)
         state.aiRecommendation = nil
         state.aiRecommendationError = nil
         state.configurationConflict = false
@@ -1524,7 +1609,7 @@ public struct OnboardingFeature {
       state.demoLayoutTree,
       workspaceID: state.demoActiveWorkspaceID,
       config: state.draft,
-      includesAllAssignments: state.step == .floating,
+      includesAllAssignments: state.step == .floating || state.step == .focusAndCycling,
     )
     if
       let selected = state.demoSelectedSlot,
@@ -1541,6 +1626,146 @@ public struct OnboardingFeature {
       state.demoFullscreenSlot = nil
     }
     syncDemoLayoutMode(state: &state)
+  }
+
+  private func syncDemoBorrowLayout(state: inout State) {
+    state.demoBorrowLayoutTree = restoredDemoLayoutTree(
+      state.demoBorrowLayoutTree,
+      workspaceID: state.demoBorrowWorkspaceID,
+      config: state.draft,
+      includesAllAssignments: true,
+    )
+    if
+      let selected = state.demoBorrowSelectedSlot,
+      state.demoBorrowLayoutTree?.windows.contains(selected) == true
+    {
+      // Preserve the visitor's focused tile while its app set is unchanged.
+    } else {
+      state.demoBorrowSelectedSlot = state.demoBorrowLayoutTree?.windows.first
+    }
+    if
+      let fullscreen = state.demoBorrowFullscreenSlot,
+      state.demoBorrowLayoutTree?.windows.contains(fullscreen) != true
+    {
+      state.demoBorrowFullscreenSlot = nil
+    }
+  }
+
+  private func demoTree(
+    for block: OnboardingDemoBlock,
+    state: State,
+  ) -> BSPNode<SlotID>? {
+    switch block {
+    case .host:
+      state.demoLayoutTree
+    case .borrowed:
+      state.demoBorrowed ? state.demoBorrowLayoutTree : nil
+    }
+  }
+
+  private func demoSelection(
+    in block: OnboardingDemoBlock,
+    state: State,
+  ) -> SlotID? {
+    switch block {
+    case .host:
+      state.demoSelectedSlot
+    case .borrowed:
+      state.demoBorrowSelectedSlot
+    }
+  }
+
+  private func setDemoSelection(
+    _ slot: SlotID,
+    in block: OnboardingDemoBlock,
+    state: inout State,
+  ) {
+    switch block {
+    case .host:
+      state.demoSelectedSlot = slot
+      syncDemoLayoutMode(state: &state)
+
+    case .borrowed:
+      state.demoBorrowSelectedSlot = slot
+    }
+  }
+
+  private func focusDemoWindow(
+    _ slot: SlotID,
+    in block: OnboardingDemoBlock,
+    state: inout State,
+  ) {
+    setDemoSelection(slot, in: block, state: &state)
+    state.demoFocusedBlock = block
+    guard let workspaceID = demoWorkspaceID(for: block, state: state) else { return }
+    var recent = state.demoWindowMRU[workspaceID] ?? []
+    recent.removeAll { $0 == slot }
+    recent.insert(slot, at: 0)
+    let live = Set(demoTree(for: block, state: state)?.windows ?? [])
+    state.demoWindowMRU[workspaceID] = recent.filter { live.contains($0) }
+  }
+
+  private func demoWorkspaceID(
+    for block: OnboardingDemoBlock,
+    state: State,
+  ) -> Workspace.ID? {
+    switch block {
+    case .host:
+      state.demoActiveWorkspaceID
+    case .borrowed:
+      state.demoBorrowWorkspaceID
+    }
+  }
+
+  private func setDemoTree(
+    _ tree: BSPNode<SlotID>,
+    in block: OnboardingDemoBlock,
+    state: inout State,
+  ) {
+    switch block {
+    case .host:
+      state.demoLayoutTree = tree
+    case .borrowed:
+      state.demoBorrowLayoutTree = tree
+    }
+  }
+
+  private func demoFullscreenSlot(
+    in block: OnboardingDemoBlock,
+    state: State,
+  ) -> SlotID? {
+    switch block {
+    case .host:
+      state.demoFullscreenSlot
+    case .borrowed:
+      state.demoBorrowFullscreenSlot
+    }
+  }
+
+  private func setDemoFullscreenSlot(
+    _ slot: SlotID?,
+    in block: OnboardingDemoBlock,
+    state: inout State,
+  ) {
+    switch block {
+    case .host:
+      state.demoFullscreenSlot = slot
+    case .borrowed:
+      state.demoBorrowFullscreenSlot = slot
+    }
+  }
+
+  private func demoAppName(
+    for slot: SlotID,
+    in block: OnboardingDemoBlock,
+    state: State,
+  ) -> String {
+    switch block {
+    case .host:
+      state.demoAppBySlot[slot]?.name ?? "the hovered window"
+    case .borrowed:
+      state.demoBorrowAppBySlot[slot]?.name ?? "the hovered window"
+    }
   }
 
   private func syncDemoLayoutMode(state: inout State) {
@@ -1586,13 +1811,13 @@ public struct OnboardingFeature {
     state.demoActionResult = nil
     state.demoBorrowPendingWorkspaceID = nil
     if
-      step == .switching || step == .borrow,
+      step == .switching || step == .borrow || step == .focusAndCycling,
       state.activeDemoWorkspace?.kind != .normal
     {
       state.demoActiveWorkspaceID = state.normalWorkspaces.first?.id
     }
     if
-      step == .tiling,
+      step == .tiling || step == .focusAndCycling,
       state.activeDemoApps.count < 2,
       let practiceWorkspace = state.normalWorkspaces.max(by: {
         state.apps(in: $0.id).count < state.apps(in: $1.id).count
@@ -1606,8 +1831,16 @@ public struct OnboardingFeature {
     if state.demoBorrowWorkspaceID == state.demoActiveWorkspaceID {
       state.demoBorrowWorkspaceID = preferredBorrowWorkspaceID(state: state)
     }
-    if step == .tiling || step == .floating || step == .switching {
+    if step == .tiling || step == .floating || step == .switching || step == .focusAndCycling {
       syncDemoLayout(state: &state)
+    }
+    if step == .focusAndCycling {
+      syncDemoBorrowLayout(state: &state)
+      let block = state.demoBorrowed ? state.demoFocusedBlock : .host
+      if let slot = demoSelection(in: block, state: state) {
+        state.demoPointerBlock = block
+        state.demoPointerLocation = demoPointerTarget(for: slot, in: block, state: state)
+      }
     }
   }
 
@@ -1751,8 +1984,7 @@ public struct OnboardingFeature {
           state.demoActionResult = "Nothing is borrowed on this display"
           return true
         }
-        state.demoBorrowed = false
-        state.demoBorrowEdge = nil
+        dismissDemoBorrow(state: &state)
         state.practices.insert(.borrowDismiss)
         state.demoActionResult = "Borrow dismissed · host restored"
         return true
@@ -1791,17 +2023,26 @@ public struct OnboardingFeature {
     _ command: OnboardingDemoCommand,
     state: inout State,
   ) -> Bool {
-    guard let tree = state.demoLayoutTree, !tree.windows.isEmpty else { return false }
+    let block = state.demoBorrowed ? state.demoFocusedBlock : .host
+    guard let tree = demoTree(for: block, state: state), !tree.windows.isEmpty else {
+      return false
+    }
     let slots = tree.windows
-    let selected = state.demoSelectedSlot.flatMap { slots.contains($0) ? $0 : nil } ?? slots[0]
+    let selected = demoSelection(in: block, state: state)
+      .flatMap { slots.contains($0) ? $0 : nil } ?? slots[0]
     switch command {
     case .balance:
-      state.demoLayoutTree = tree.applying(.balance)
+      setDemoTree(tree.applying(.balance), in: block, state: &state)
       state.practices.insert(.balance)
       state.demoActionResult = "Balanced every split on both axes"
 
     case .cycle(let direction):
-      let candidates = cycleCandidates(tree: tree, byWindow: state.draft.settings.switching.cycleSameAppWindows)
+      let candidates = cycleCandidates(
+        tree: tree,
+        byWindow: state.draft.settings.switching.cycleSameAppWindows,
+        block: block,
+        state: state,
+      )
       guard candidates.count > 1 else {
         state.demoActionResult = "Cycle needs at least two apps or windows"
         return true
@@ -1813,8 +2054,8 @@ public struct OnboardingFeature {
       }) ?? -1
       let step = direction == .next ? 1 : -1
       let next = ((currentIndex + step) % candidates.count + candidates.count) % candidates.count
-      state.demoSelectedSlot = candidates[next]
-      syncDemoLayoutMode(state: &state)
+      focusDemoWindow(candidates[next], in: block, state: &state)
+      followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.cycle)
       state.demoActionResult = direction == .next ? "Cycled to the next window" : "Cycled to the previous window"
 
@@ -1828,18 +2069,40 @@ public struct OnboardingFeature {
           focusOrder: slots,
         )
       else {
+        if
+          let crossBlock = crossDemoBlockFocus(
+            from: selected,
+            in: block,
+            direction: direction,
+            state: state,
+          )
+        {
+          focusDemoWindow(crossBlock.slot, in: crossBlock.block, state: &state)
+          followDemoFocusIfEnabled(state: &state)
+          state.practices.insert(.focus)
+          let appName = demoAppName(
+            for: crossBlock.slot,
+            in: crossBlock.block,
+            state: state,
+          )
+          state.demoActionResult = "Focused across the Borrow boundary to \(appName)"
+          return true
+        }
         state.demoActionResult = "No window lies \(direction.displayName.lowercased()) of the focused tile"
         return true
       }
-      state.demoSelectedSlot = target
-      syncDemoLayoutMode(state: &state)
+      focusDemoWindow(target, in: block, state: &state)
+      followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.focus)
       state.demoActionResult = "Focused the \(direction.displayName.lowercased()) neighbour"
 
     case .fullscreen:
-      state.demoFullscreenSlot = state.demoFullscreenSlot == selected ? nil : selected
+      let fullscreen = demoFullscreenSlot(in: block, state: state)
+      setDemoFullscreenSlot(fullscreen == selected ? nil : selected, in: block, state: &state)
       state.practices.insert(.fullscreen)
-      state.demoActionResult = state.demoFullscreenSlot == nil ? "Restored the split tree" : "Zoomed the focused window"
+      state.demoActionResult = demoFullscreenSlot(in: block, state: state) == nil
+        ? "Restored the split tree"
+        : "Zoomed the focused window"
 
     case .orientation:
       let updated = tree.togglingSplit(at: selected)
@@ -1847,7 +2110,7 @@ public struct OnboardingFeature {
         state.demoActionResult = "A single root tile has no parent split to flip"
         return true
       }
-      state.demoLayoutTree = updated
+      setDemoTree(updated, in: block, state: &state)
       state.practices.insert(.orientation)
       state.demoActionResult = "Flipped the focused tile's parent split"
 
@@ -1857,7 +2120,7 @@ public struct OnboardingFeature {
         state.demoActionResult = "No vertical split owns the focused tile"
         return true
       }
-      state.demoLayoutTree = updated
+      setDemoTree(updated, in: block, state: &state)
       state.practices.insert(.resize)
       state.demoActionResult = delta > 0 ? "Grew the focused window by one step" : "Shrank the focused window by one step"
 
@@ -1882,8 +2145,9 @@ public struct OnboardingFeature {
           : "No neighbour there · the parent split already points \(direction.displayName.lowercased())"
         return true
       }
-      state.demoLayoutTree = updated
-      state.demoSelectedSlot = selected
+      setDemoTree(updated, in: block, state: &state)
+      setDemoSelection(selected, in: block, state: &state)
+      followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.swap)
       state.demoActionResult = hadNeighbor
         ? "Swapped with the \(direction.displayName.lowercased()) neighbour"
@@ -1916,10 +2180,132 @@ public struct OnboardingFeature {
   private func cycleCandidates(
     tree: BSPNode<SlotID>,
     byWindow: Bool,
+    block: OnboardingDemoBlock,
+    state: State,
   ) -> [SlotID] {
     guard !byWindow else { return tree.windows }
     var seen = Set<String>()
-    return tree.windows.filter { seen.insert($0.bundleId).inserted }
+    let representatives = tree.windows.filter { seen.insert($0.bundleId).inserted }
+    guard let workspaceID = demoWorkspaceID(for: block, state: state) else {
+      return representatives
+    }
+    let recent = state.demoWindowMRU[workspaceID] ?? []
+    return representatives.map { representative in
+      recent.first(where: {
+        $0.bundleId == representative.bundleId && tree.windows.contains($0)
+      }) ?? representative
+    }
+  }
+
+  private func crossDemoBlockFocus(
+    from slot: SlotID,
+    in block: OnboardingDemoBlock,
+    direction: BSPDirection,
+    state: State,
+  ) -> (block: OnboardingDemoBlock, slot: SlotID)? {
+    guard state.demoBorrowed else { return nil }
+    let directionEdge: BorrowEdge =
+      switch direction {
+      case .east: .right
+      case .west: .left
+      case .north: .top
+      case .south: .bottom
+      }
+    let targetBlock: OnboardingDemoBlock
+    switch block {
+    case .host:
+      guard directionEdge == state.demoEffectiveBorrowEdge else { return nil }
+      targetBlock = .borrowed
+
+    case .borrowed:
+      guard directionEdge == state.demoEffectiveBorrowEdge.opposite else { return nil }
+      targetBlock = .host
+    }
+    guard
+      let sourceTree = demoTree(for: block, state: state),
+      let targetTree = demoTree(for: targetBlock, state: state),
+      !targetTree.windows.isEmpty
+    else { return nil }
+
+    let frames = demoBorrowedFrames(state: state)
+    let sourceRect = block == .host ? frames.host : frames.visitor
+    let targetRect = targetBlock == .host ? frames.host : frames.visitor
+    let gap = CGFloat(state.draft.settings.layout.gapInner)
+    let sourceCenter = sourceTree.frames(in: sourceRect, gap: gap)[slot]
+      .map { CGPoint(x: $0.midX, y: $0.midY) }
+      ?? CGPoint(x: sourceRect.midX, y: sourceRect.midY)
+    let target = targetTree.frames(in: targetRect, gap: gap).min {
+      hypot($0.value.midX - sourceCenter.x, $0.value.midY - sourceCenter.y)
+        < hypot($1.value.midX - sourceCenter.x, $1.value.midY - sourceCenter.y)
+    }?.key
+    return target.map { (targetBlock, $0) }
+  }
+
+  private func demoBorrowedFrames(
+    state: State
+  ) -> (host: CGRect, visitor: CGRect) {
+    let bounds = Self.demoWorkArea
+    let gap = CGFloat(state.draft.settings.layout.gapInner)
+    let fraction = CGFloat(min(0.7, max(0.3, state.demoEffectiveBorrowFraction)))
+    switch state.demoEffectiveBorrowEdge {
+    case .left:
+      let visitorWidth = (bounds.width - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX + visitorWidth + gap,
+          y: bounds.minY,
+          width: bounds.width - visitorWidth - gap,
+          height: bounds.height,
+        ),
+        CGRect(x: bounds.minX, y: bounds.minY, width: visitorWidth, height: bounds.height),
+      )
+
+    case .right:
+      let visitorWidth = (bounds.width - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX,
+          y: bounds.minY,
+          width: bounds.width - visitorWidth - gap,
+          height: bounds.height,
+        ),
+        CGRect(
+          x: bounds.maxX - visitorWidth,
+          y: bounds.minY,
+          width: visitorWidth,
+          height: bounds.height,
+        ),
+      )
+
+    case .top:
+      let visitorHeight = (bounds.height - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX,
+          y: bounds.minY + visitorHeight + gap,
+          width: bounds.width,
+          height: bounds.height - visitorHeight - gap,
+        ),
+        CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: visitorHeight),
+      )
+
+    case .bottom:
+      let visitorHeight = (bounds.height - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX,
+          y: bounds.minY,
+          width: bounds.width,
+          height: bounds.height - visitorHeight - gap,
+        ),
+        CGRect(
+          x: bounds.minX,
+          y: bounds.maxY - visitorHeight,
+          width: bounds.width,
+          height: visitorHeight,
+        ),
+      )
+    }
   }
 
   private func cycleGestureWindow(offset: Int, state: inout State) {
@@ -1951,9 +2337,7 @@ public struct OnboardingFeature {
       repeatsActiveBorrow,
       state.draft.settings.switching.toggleBorrowOnRepeat
     {
-      state.demoBorrowed = false
-      state.demoBorrowEdge = nil
-      state.demoBorrowPendingWorkspaceID = nil
+      dismissDemoBorrow(state: &state)
       state.practices.insert(.borrowDismiss)
       state.demoActionResult = "Repeated summon dismissed \(workspace.name)"
       return true
@@ -1980,8 +2364,33 @@ public struct OnboardingFeature {
     state.demoBorrowPendingWorkspaceID = nil
     state.demoBorrowEdge = edge
     state.demoBorrowed = true
+    syncDemoBorrowLayout(state: &state)
+    if
+      let tree = state.demoBorrowLayoutTree,
+      let selected = (state.demoWindowMRU[workspaceID] ?? [])
+        .first(where: { tree.windows.contains($0) }) ?? state.demoBorrowSelectedSlot
+    {
+      focusDemoWindow(selected, in: .borrowed, state: &state)
+      followDemoFocusIfEnabled(state: &state)
+      if !state.draft.settings.focus.mouseFollowsFocus {
+        state.demoPointerBlock = .host
+      }
+    }
     state.practices.insert(.borrow)
     state.demoActionResult = "Borrowed \(workspace.name) on the \(edge.rawValue)"
+  }
+
+  private func dismissDemoBorrow(state: inout State) {
+    state.demoBorrowed = false
+    state.demoBorrowEdge = nil
+    state.demoBorrowPendingWorkspaceID = nil
+    state.demoFocusedBlock = .host
+    if state.draft.settings.focus.mouseFollowsFocus {
+      followDemoFocusIfEnabled(state: &state)
+    } else if state.demoPointerBlock == .borrowed {
+      state.demoPointerBlock = .host
+      state.demoPointerLocation = nil
+    }
   }
 
   private func toggleDemoFloating(state: inout State) {
@@ -2051,7 +2460,70 @@ public struct OnboardingFeature {
     state.demoFullscreenSlot = nil
     state.demoActionResult = "Activated \(state.workspaceName(workspaceID))"
     syncDemoLayout(state: &state)
+    state.demoFocusedBlock = .host
+    if let selected = state.demoSelectedSlot {
+      focusDemoWindow(selected, in: .host, state: &state)
+    }
+    followDemoFocusIfEnabled(state: &state)
     return true
+  }
+
+  private func followDemoFocusIfEnabled(state: inout State) {
+    let block = state.demoBorrowed ? state.demoFocusedBlock : .host
+    guard
+      state.step.index >= OnboardingStep.focusAndCycling.index,
+      state.draft.settings.focus.mouseFollowsFocus,
+      let selected = demoSelection(in: block, state: state),
+      let target = demoPointerTarget(for: selected, in: block, state: state)
+    else { return }
+    state.demoPointerBlock = block
+    state.demoPointerLocation = target
+    state.practices.insert(.mouseFollowsFocus)
+  }
+
+  private func demoPointerTarget(
+    for slot: SlotID,
+    in block: OnboardingDemoBlock,
+    state: State,
+  ) -> OnboardingDemoPoint? {
+    guard let tree = demoTree(for: block, state: state) else { return nil }
+    if demoFullscreenSlot(in: block, state: state) == slot {
+      return OnboardingDemoPoint(x: 0.5, y: 0.5)
+    }
+    if block == .host, state.demoPrimarySlot == slot {
+      switch state.demoLayoutMode {
+      case .floating:
+        return OnboardingDemoPoint(x: 0.81, y: 0.25)
+      case .unmanaged:
+        return OnboardingDemoPoint(x: 0.5, y: 0.9)
+      case .tiled:
+        break
+      }
+    }
+
+    let outerGap = CGFloat(state.draft.settings.layout.gapOuter)
+    let contentBounds = Self.demoWorkArea.insetBy(dx: outerGap, dy: outerGap)
+    let layoutTree =
+      if
+        block == .host,
+        let primarySlot = state.demoPrimarySlot,
+        state.demoLayoutMode != .tiled
+      {
+        tree.removing(primarySlot)
+      } else {
+        tree
+      }
+    guard
+      let region = layoutTree?.leafRegions(
+        in: contentBounds,
+        gap: CGFloat(state.draft.settings.layout.gapInner),
+      )
+      .first(where: { $0.leaf.topWindow == slot })
+    else { return nil }
+    return OnboardingDemoPoint(
+      x: region.rect.midX / Self.demoWorkArea.width,
+      y: region.rect.midY / Self.demoWorkArea.height,
+    )
   }
 
   private func adjacentDemoWorkspaceID(

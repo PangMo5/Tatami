@@ -6,6 +6,24 @@ import Testing
 @MainActor
 struct OnboardingFeatureTests {
   @Test
+  func `focus and cycling is the cumulative step after floating`() {
+    #expect(OnboardingStep.allCases == [
+      .welcome,
+      .environment,
+      .workspaces,
+      .switching,
+      .tiling,
+      .borrow,
+      .floating,
+      .focusAndCycling,
+      .finish,
+    ])
+    #expect(OnboardingStep.floating.next == .focusAndCycling)
+    #expect(OnboardingStep.focusAndCycling.previous == .floating)
+    #expect(OnboardingStep.focusAndCycling.next == .finish)
+  }
+
+  @Test
   func `setup validation rejects duplicate workspace keys`() {
     var state = OnboardingFeature.State()
     state.draft = AppConfig(profiles: [
@@ -420,6 +438,226 @@ struct OnboardingFeatureTests {
   }
 
   @Test
+  func `window gesture controls the shared layout in the cumulative lab`() async throws {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let browser = MacApp(bundleIdentifier: "browser", name: "Browser")
+    let workspace = Workspace(name: "Build", apps: [
+      AppAssignment(editor),
+      AppAssignment(browser),
+    ])
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.draft.settings.gestures = AppSettings.Gestures(
+      enabled: true,
+      threeFinger: .init(
+        left: .cyclePreviousWindow,
+        right: .cycleNextWindow,
+      ),
+      fourFinger: .workspaceSwitch,
+    )
+    state.runningApps = [editor, browser]
+    state.demoActiveWorkspaceID = workspace.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier, browser.bundleIdentifier]
+    )
+    state.demoSelectedSlot = state.demoLayoutTree?.windows.first
+    state.step = .focusAndCycling
+    let expected = try #require(state.demoLayoutTree?.windows.last)
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoGesturePerformed(TrackpadGesture(fingerCount: 3, direction: .right)))
+
+    #expect(store.state.demoSelectedSlot == expected)
+    #expect(store.state.demoGestureWindowIndex == 0)
+    #expect(store.state.practices.contains(.cycle))
+    #expect(store.state.practices.contains(.windowGesture))
+  }
+
+  @Test
+  func `MFF and FFM share focus state with the cumulative layout`() async throws {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let browser = MacApp(bundleIdentifier: "browser", name: "Browser")
+    let workspace = Workspace(name: "Build", apps: [
+      AppAssignment(editor),
+      AppAssignment(browser),
+    ])
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.draft.settings.focus.mouseFollowsFocus = true
+    state.draft.settings.focus.focusFollowsMouse = true
+    state.runningApps = [editor, browser]
+    state.demoActiveWorkspaceID = workspace.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier, browser.bundleIdentifier]
+    )
+    let slots = try #require(state.demoLayoutTree?.windows)
+    state.demoSelectedSlot = slots[0]
+    state.demoPointerLocation = OnboardingDemoPoint(x: 0.1, y: 0.1)
+    state.step = .focusAndCycling
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoCommandTapped(.cycle(.next)))
+
+    #expect(store.state.demoSelectedSlot == slots[1])
+    #expect(store.state.demoPointerLocation != OnboardingDemoPoint(x: 0.1, y: 0.1))
+    #expect(store.state.practices.contains(.mouseFollowsFocus))
+
+    let hoverPoint = OnboardingDemoPoint(x: 0.25, y: 0.5)
+    await store.send(.demoPointerHovered(.host, slots[0], hoverPoint))
+
+    #expect(store.state.demoSelectedSlot == slots[0])
+    #expect(store.state.demoPointerLocation == hoverPoint)
+    #expect(store.state.practices.contains(.focusFollowsMouse))
+  }
+
+  @Test
+  func `borrow focuses its MRU window and MFF follows into the borrowed block`() async {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let chat = MacApp(bundleIdentifier: "chat", name: "Chat")
+    let host = Workspace(name: "Build", apps: [AppAssignment(editor)])
+    let scratchpad = Workspace(
+      name: "Team Chat",
+      kind: .scratchpad,
+      borrowEdge: .right,
+      apps: [AppAssignment(chat)],
+    )
+    let profile = Profile(name: "Default", workspaces: [host, scratchpad])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.draft.settings.focus.mouseFollowsFocus = true
+    state.runningApps = [editor, chat]
+    state.demoActiveWorkspaceID = host.id
+    state.demoBorrowWorkspaceID = scratchpad.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier]
+    )
+    state.demoSelectedSlot = state.demoLayoutTree?.windows.first
+    state.step = .focusAndCycling
+    let expected = SlotID(bundleId: chat.bundleIdentifier, occurrence: 0)
+    state.demoWindowMRU[scratchpad.id] = [expected]
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoShortcutPerformed(.borrowWorkspace(scratchpad.id)))
+
+    #expect(store.state.demoBorrowed)
+    #expect(store.state.demoFocusedBlock == .borrowed)
+    #expect(store.state.demoBorrowSelectedSlot == expected)
+    #expect(store.state.demoPointerBlock == .borrowed)
+    #expect(store.state.demoPointerLocation != nil)
+    #expect(store.state.demoWindowMRU[scratchpad.id]?.first == expected)
+    #expect(store.state.practices.contains(.mouseFollowsFocus))
+  }
+
+  @Test
+  func `FFM and directional focus cross the host Borrow boundary`() async throws {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let chat = MacApp(bundleIdentifier: "chat", name: "Chat")
+    let host = Workspace(name: "Build", apps: [AppAssignment(editor)])
+    let scratchpad = Workspace(
+      name: "Team Chat",
+      kind: .scratchpad,
+      borrowEdge: .right,
+      apps: [AppAssignment(chat)],
+    )
+    let profile = Profile(name: "Default", workspaces: [host, scratchpad])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.draft.settings.focus.mouseFollowsFocus = true
+    state.draft.settings.focus.focusFollowsMouse = true
+    state.runningApps = [editor, chat]
+    state.demoActiveWorkspaceID = host.id
+    state.demoBorrowWorkspaceID = scratchpad.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier]
+    )
+    let hostSlot = try #require(state.demoLayoutTree?.windows.first)
+    state.demoSelectedSlot = hostSlot
+    state.demoBorrowed = true
+    state.demoBorrowEdge = .right
+    state.demoBorrowLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [chat.bundleIdentifier]
+    )
+    let borrowedSlot = try #require(state.demoBorrowLayoutTree?.windows.first)
+    state.demoBorrowSelectedSlot = borrowedSlot
+    state.demoFocusedBlock = .host
+    state.step = .focusAndCycling
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoCommandTapped(.focus(.east)))
+
+    #expect(store.state.demoFocusedBlock == .borrowed)
+    #expect(store.state.demoBorrowSelectedSlot == borrowedSlot)
+    #expect(store.state.demoPointerBlock == .borrowed)
+
+    let hostPoint = OnboardingDemoPoint(x: 0.4, y: 0.5)
+    await store.send(.demoPointerHovered(.host, hostSlot, hostPoint))
+
+    #expect(store.state.demoFocusedBlock == .host)
+    #expect(store.state.demoSelectedSlot == hostSlot)
+    #expect(store.state.demoPointerBlock == .host)
+    #expect(store.state.demoPointerLocation == hostPoint)
+    #expect(store.state.demoWindowMRU[host.id]?.first == hostSlot)
+  }
+
+  @Test
+  func `app-level cycle recalls the app MRU window`() async throws {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let browser = MacApp(bundleIdentifier: "browser", name: "Browser")
+    let workspace = Workspace(name: "Build", apps: [
+      AppAssignment(editor),
+      AppAssignment(browser),
+    ])
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.draft.settings.switching.cycleSameAppWindows = false
+    state.demoActiveWorkspaceID = workspace.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier, editor.bundleIdentifier, browser.bundleIdentifier]
+    )
+    let editorMRU = SlotID(bundleId: editor.bundleIdentifier, occurrence: 1)
+    let browserSlot = try #require(state.demoLayoutTree?.windows.first {
+      $0.bundleId == browser.bundleIdentifier
+    })
+    state.demoSelectedSlot = browserSlot
+    state.demoWindowMRU[workspace.id] = [editorMRU, browserSlot]
+    state.step = .focusAndCycling
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoCommandTapped(.cycle(.next)))
+
+    #expect(store.state.demoSelectedSlot == editorMRU)
+    #expect(store.state.demoWindowMRU[workspace.id]?.first == editorMRU)
+  }
+
+  @Test
   func `tiling preview applies the same BSP edit operations as workspace layouts`() async throws {
     let original = try #require(BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: ["a", "b", "c"]))
     let source = try #require(original.pathTo(window: SlotID(bundleId: "a", occurrence: 0)))
@@ -554,6 +792,13 @@ struct OnboardingFeatureTests {
       "browser",
       "terminal",
     ])
+
+    await store.send(.stepSelected(.focusAndCycling))
+    #expect(Set(store.state.demoLayoutTree?.windows.map(\.bundleId) ?? []) == [
+      "editor",
+      "browser",
+      "terminal",
+    ])
   }
 
   @Test
@@ -632,6 +877,17 @@ struct OnboardingFeatureTests {
     #expect(store.state.practices.contains(.ignore))
     await store.send(.demoLayoutModeChanged(.tiled))
     #expect(store.state.practices.contains(.tiledHandling))
+
+    await store.send(.stepSelected(.focusAndCycling))
+    #expect(store.state.demoBorrowed)
+    let selectionBeforeCycle = try #require(store.state.demoSelectedSlot)
+    await store.send(.demoTileTapped(.host, selectionBeforeCycle))
+    #expect(store.state.demoFocusedBlock == .host)
+    await store.send(.demoShortcutPerformed(.cycleNextWindow))
+    #expect(store.state.demoSelectedSlot != selectionBeforeCycle)
+    #expect(store.state.demoLastShortcut == .cycleNextWindow)
+    await store.send(.demoShortcutPerformed(.toggleOrientation))
+    #expect(store.state.practices.contains(.orientation))
   }
 
   @Test

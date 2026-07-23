@@ -209,6 +209,8 @@ private struct OnboardingStepContent: View {
       OnboardingBorrowStep(store: store)
     case .floating:
       OnboardingFloatingStep(store: store)
+    case .focusAndCycling:
+      OnboardingFocusCyclingStep(store: store)
     case .finish:
       OnboardingFinishStep(store: store)
     }
@@ -754,23 +756,6 @@ private struct OnboardingSwitchingStep: View {
       }
 
       OnboardingSection(
-        title: "Window cycling stays inside one Tatami workspace",
-        subtitle: "Tatami, ⌘Tab, and ⌘` all change focus, but they search three different sets of windows.",
-      ) {
-        VStack(alignment: .leading, spacing: 13) {
-          OnboardingWindowCyclingComparison(
-            tatamiShortcut: store.state.shortcut(for: .cycleNextWindow)?.symbols ?? "Not set"
-          )
-          Divider()
-          OnboardingSettingToggle(
-            title: "Cycle through every window",
-            detail: "On makes every managed window a stop, including multiple windows from one app. Off cycles app-by-app and recalls each app's most recently used window.",
-            isOn: $store.draft.settings.switching.cycleSameAppWindows,
-          )
-        }
-      }
-
-      OnboardingSection(
         title: "Learn switching in a virtual display",
         subtitle: "Nothing outside Guided Setup moves. Watch one window change first, then replace the whole workspace.",
       ) {
@@ -794,30 +779,6 @@ private struct OnboardingSwitchingStep: View {
             workspaceGestureCompleted: store.practices.contains(.workspaceGesture),
             onWorkspaceTapped: { store.send(.demoWorkspaceTapped($0)) },
             onSimulate: { store.send(.demoGesturePerformed($0)) },
-          )
-        }
-      }
-
-      OnboardingSection(
-        title: "Focus & pointer lab",
-        subtitle: "The names tell you which side leads. Both options are independent, and this safe preview never moves your real pointer.",
-      ) {
-        VStack(alignment: .leading, spacing: 14) {
-          HStack(alignment: .top, spacing: 18) {
-            OnboardingSettingToggle(
-              title: "Mouse follows focus (MFF)",
-              detail: "Keep the pointer attached to the focused managed window. Focus and cycle move it to the new window; Swap carries it with the same window to its new tile.",
-              isOn: $store.draft.settings.focus.mouseFollowsFocus,
-            )
-            OnboardingSettingToggle(
-              title: "Focus follows mouse (FFM)",
-              detail: "Move the pointer over a managed window first; Tatami then gives that window keyboard focus.",
-              isOn: $store.draft.settings.focus.focusFollowsMouse,
-            )
-          }
-          OnboardingFocusPointerPractice(
-            mouseFollowsFocus: store.draft.settings.focus.mouseFollowsFocus,
-            focusFollowsMouse: store.draft.settings.focus.focusFollowsMouse,
           )
         }
       }
@@ -957,7 +918,7 @@ private struct OnboardingTilingStep: View {
                 outerGap: store.draft.settings.layout.gapOuter,
                 specialMode: nil,
                 allowsEditing: true,
-                onTileTapped: { store.send(.demoTileTapped($0)) },
+                onTileTapped: { store.send(.demoTileTapped(.host, $0)) },
                 onTileMoved: { source, target, zone in
                   store.send(.demoTileMoved(source: source, target: target, zone: zone))
                 },
@@ -1388,7 +1349,7 @@ private struct OnboardingFloatingStep: View {
               "App to configure",
               selection: Binding(
                 get: { store.demoPrimarySlot },
-                set: { if let slot = $0 { store.send(.demoTileTapped(slot)) } },
+                set: { if let slot = $0 { store.send(.demoTileTapped(.host, slot)) } },
               ),
             ) {
               ForEach(store.demoLayoutTree?.windows ?? [], id: \.self) { slot in
@@ -1410,7 +1371,7 @@ private struct OnboardingFloatingStep: View {
                 outerGap: store.draft.settings.layout.gapOuter,
                 specialMode: store.demoLayoutMode,
                 allowsEditing: false,
-                onTileTapped: { store.send(.demoTileTapped($0)) },
+                onTileTapped: { store.send(.demoTileTapped(.host, $0)) },
                 onTileMoved: { _, _, _ in },
                 onDividerResized: { _, _ in },
               )
@@ -1526,6 +1487,381 @@ private struct OnboardingFloatingStep: View {
       "Tiled lets Tatami place the window, Floating creates an always-on-top mirror, and Ignore preserves the app's own geometry.",
       true,
     )
+  }
+
+}
+
+// MARK: - OnboardingFocusCyclingStep
+
+private struct OnboardingFocusCyclingStep: View {
+
+  // MARK: Internal
+
+  @Bindable var store: StoreOf<OnboardingFeature>
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 24) {
+      OnboardingSection(
+        title: "Window cycling stays inside one Tatami workspace",
+        subtitle: "Tatami, ⌘Tab, and ⌘` all change focus, but they search three different sets of windows.",
+      ) {
+        VStack(alignment: .leading, spacing: 13) {
+          OnboardingWindowCyclingComparison(
+            tatamiShortcut: store.state.shortcut(for: .cycleNextWindow)?.symbols ?? "Not set"
+          )
+          Divider()
+          OnboardingSettingToggle(
+            title: "Cycle through every window",
+            detail: "On makes every managed window a stop, including multiple windows from one app. Off cycles app-by-app and recalls each app's most recently used window.",
+            isOn: $store.draft.settings.switching.cycleSameAppWindows,
+          )
+        }
+      }
+
+      OnboardingSection(
+        title: "Focus and pointer on your finished layout",
+        subtitle: "This final lab reuses your draft workspace. Every shortcut and gesture introduced earlier still controls the same virtual display.",
+      ) {
+        VStack(alignment: .leading, spacing: 16) {
+          HStack(alignment: .top, spacing: 18) {
+            OnboardingSettingToggle(
+              title: "Mouse follows focus (MFF)",
+              detail: "When Tatami changes the focused managed window, the pointer follows it—even across the host and a borrowed block. Focus and Cycle move it to the new window; Swap keeps it attached to that same window in its new tile.",
+              isOn: $store.draft.settings.focus.mouseFollowsFocus,
+            )
+            OnboardingSettingToggle(
+              title: "Focus follows mouse (FFM)",
+              detail: "When the pointer enters any managed preview window, including a borrowed one, Tatami gives it keyboard focus. Pointer movement leads; focus follows afterward.",
+              isOn: $store.draft.settings.focus.focusFollowsMouse,
+            )
+          }
+
+          OnboardingWorkspaceContextPicker(
+            workspaces: store.workspaceAppGroups,
+            selectedID: store.demoActiveWorkspaceID,
+            onSelect: { store.send(.demoWorkspaceSelectionChanged($0)) },
+          )
+
+          if store.demoLayoutTree == nil {
+            OnboardingInlineNotice(
+              icon: "rectangle.3.group.bubble.left.fill",
+              title: "Assign an app to a normal workspace first",
+              detail: "This lab uses the layout and window handling you configured in the earlier steps.",
+              tint: .orange,
+              buttonTitle: nil,
+              action: { },
+            )
+          } else {
+            if (store.demoLayoutTree?.windows.count ?? 0) < 2 {
+              OnboardingInlineNotice(
+                icon: "rectangle.split.2x1",
+                title: "A second app makes focus and cycling visible",
+                detail: "The controls remain available with one app, but MFF, FFM, Cycle, and directional focus are easiest to understand with at least two managed windows.",
+                tint: .orange,
+                buttonTitle: nil,
+                action: { },
+              )
+            }
+
+            OnboardingDemoMonitor(
+              title: store.activeDemoWorkspace?.name ?? "Focus & Cycling Lab",
+              status: monitorStatus,
+              hud: store.demoActionResult,
+            ) {
+              OnboardingCumulativeLayoutStage(store: store)
+            }
+
+            if store.demoBorrowPendingWorkspaceID != nil {
+              HStack(spacing: 8) {
+                Label("Choose where the borrowed workspace should dock", systemImage: "rectangle.split.2x1")
+                  .font(.caption.weight(.semibold))
+                Spacer()
+                borrowDirectionButton("Left", symbol: "arrow.left", edge: .left)
+                borrowDirectionButton("Bottom", symbol: "arrow.down", edge: .bottom)
+                borrowDirectionButton("Top", symbol: "arrow.up", edge: .top)
+                borrowDirectionButton("Right", symbol: "arrow.right", edge: .right)
+                Button("Cancel") { store.send(.demoBorrowCancelButtonTapped) }
+                  .controlSize(.small)
+              }
+              .padding(10)
+              .background(Color.accentColor.opacity(0.07), in: .rect(cornerRadius: 10))
+            }
+
+            OnboardingLessonPrompt(
+              step: focusLesson.step,
+              title: focusLesson.title,
+              detail: focusLesson.detail,
+              completed: focusLesson.completed,
+            )
+
+            OnboardingDemoControlPanel(
+              title: "Everything learned so far",
+              detail: "Use these buttons or press the real shortcuts and trackpad gestures you configured. Borrow focuses the visiting block; directional Focus can cross its shared edge, while Cycle and tiling commands stay inside the currently focused block.",
+            ) {
+              VStack(spacing: 12) {
+                HStack(spacing: 8) {
+                  Button {
+                    store.send(.demoShortcutPerformed(.switchToPreviousWorkspace))
+                  } label: {
+                    Label("Previous workspace", systemImage: "chevron.backward.2")
+                  }
+                  Button {
+                    store.send(.demoShortcutPerformed(.switchToNextWorkspace))
+                  } label: {
+                    Label("Next workspace", systemImage: "chevron.forward.2")
+                  }
+                  Button {
+                    if store.demoBorrowed {
+                      store.send(.demoShortcutPerformed(.dismissBorrow))
+                    } else {
+                      store.send(.demoBorrowButtonTapped)
+                    }
+                  } label: {
+                    Label(
+                      store.demoBorrowed ? "Dismiss Borrow" : "Borrow",
+                      systemImage: store.demoBorrowed ? "rectangle" : "rectangle.righthalf.inset.filled",
+                    )
+                  }
+                  .disabled(!store.demoBorrowed && store.demoBorrowWorkspace == nil)
+                  Button {
+                    store.send(.demoShortcutPerformed(.toggleFloating))
+                  } label: {
+                    Label("Toggle Floating", systemImage: "rectangle.on.rectangle")
+                  }
+                  Spacer()
+                }
+                Divider()
+                OnboardingLayoutToolbar { store.send(.demoCommandTapped($0)) }
+              }
+            }
+          }
+        }
+      }
+
+      OnboardingRecommendationCallout(
+        "MFF and FFM are independent. Start with both Off if you want explicit keyboard and pointer control; enable only the direction of automation that feels natural after trying it here."
+      )
+    }
+  }
+
+  // MARK: Private
+
+  private var monitorStatus: String {
+    let borrow = store.demoBorrowed
+      ? "Borrowed \(store.demoBorrowWorkspace?.name ?? "workspace")"
+      : store.demoLayoutMode.rawValue.capitalized
+    return "MFF \(store.draft.settings.focus.mouseFollowsFocus ? "On" : "Off") · FFM \(store.draft.settings.focus.focusFollowsMouse ? "On" : "Off") · \(borrow)"
+  }
+
+  private var focusLesson: (step: String, title: String, detail: String, completed: Bool) {
+    if !store.practices.contains(.mouseFollowsFocus) {
+      return (
+        "Step 1 of 2",
+        "Let the pointer follow a Tatami focus change",
+        store.draft.settings.focus.mouseFollowsFocus
+          ? "Use Cycle, directional Focus, or Swap. Borrow a workspace too: its MRU window receives focus, and the virtual pointer follows across the block boundary."
+          :
+          "Turn MFF On, then use Cycle, directional Focus, or Swap. With MFF Off, keyboard focus can change while the virtual pointer deliberately stays behind.",
+        false,
+      )
+    }
+    if !store.practices.contains(.focusFollowsMouse) {
+      return (
+        "Step 2 of 2",
+        "Let keyboard focus follow the pointer",
+        store.draft.settings.focus.focusFollowsMouse
+          ? "Move your real pointer over another host or borrowed window. Its focus ring follows without a click, and that window becomes the block's new MRU target."
+          :
+          "Turn FFM On, then move your real pointer over another preview window. With FFM Off, hovering does not change keyboard focus.",
+        false,
+      )
+    }
+    return (
+      "Complete",
+      "You separated MFF from FFM",
+      "MFF starts from a Tatami focus change and moves the pointer. FFM starts from pointer movement and changes keyboard focus. Every earlier command remains available in this same lab.",
+      true,
+    )
+  }
+
+  private func borrowDirectionButton(
+    _ title: String,
+    symbol: String,
+    edge: BorrowEdge,
+  ) -> some View {
+    Button {
+      store.send(.demoBorrowDirectionTapped(edge))
+    } label: {
+      Label(title, systemImage: symbol)
+    }
+    .controlSize(.small)
+  }
+
+}
+
+// MARK: - OnboardingCumulativeLayoutStage
+
+private struct OnboardingCumulativeLayoutStage: View {
+
+  // MARK: Internal
+
+  let store: StoreOf<OnboardingFeature>
+
+  var body: some View {
+    GeometryReader { geometry in
+      let bounds = CGRect(origin: .zero, size: geometry.size)
+      if store.demoBorrowed, let borrowed = borrowedFrames(in: bounds) {
+        layoutEditor(
+          tree: store.demoLayoutTree,
+          apps: store.demoAppBySlot,
+          frame: borrowed.host,
+          selectedSlot: store.demoFocusedBlock == .host ? store.demoSelectedSlot : nil,
+          fullscreenSlot: store.demoFullscreenSlot,
+          specialMode: store.demoLayoutMode,
+          pointerLocation: store.demoPointerBlock == .host ? store.demoPointerLocation : nil,
+          block: .host,
+        )
+        layoutEditor(
+          tree: store.demoBorrowLayoutTree,
+          apps: store.demoBorrowAppBySlot,
+          frame: borrowed.visitor,
+          selectedSlot: store.demoFocusedBlock == .borrowed ? store.demoBorrowSelectedSlot : nil,
+          fullscreenSlot: store.demoBorrowFullscreenSlot,
+          specialMode: nil,
+          pointerLocation: store.demoPointerBlock == .borrowed ? store.demoPointerLocation : nil,
+          block: .borrowed,
+        )
+      } else {
+        layoutEditor(
+          tree: store.demoLayoutTree,
+          apps: store.demoAppBySlot,
+          frame: bounds,
+          selectedSlot: store.demoSelectedSlot,
+          fullscreenSlot: store.demoFullscreenSlot,
+          specialMode: store.demoLayoutMode,
+          pointerLocation: store.demoPointerLocation,
+          block: .host,
+        )
+      }
+    }
+    .frame(height: 330)
+  }
+
+  // MARK: Private
+
+  private func layoutEditor(
+    tree: BSPNode<SlotID>?,
+    apps: [SlotID: MacApp],
+    frame: CGRect,
+    selectedSlot: SlotID?,
+    fullscreenSlot: SlotID?,
+    specialMode: LayoutMode?,
+    pointerLocation: OnboardingDemoPoint?,
+    block: OnboardingDemoBlock,
+  ) -> some View {
+    let isHost = block == .host
+    return OnboardingLayoutEditor(
+      tree: tree,
+      apps: apps,
+      selectedSlot: selectedSlot,
+      fullscreenSlot: fullscreenSlot,
+      innerGap: store.draft.settings.layout.gapInner,
+      outerGap: store.draft.settings.layout.gapOuter,
+      specialMode: specialMode,
+      allowsEditing: isHost,
+      height: frame.height,
+      pointerLocation: pointerLocation,
+      tracksPointerPosition: true,
+      onTileTapped: { store.send(.demoTileTapped(block, $0)) },
+      onTileHovered: { slot, location in
+        store.send(.demoPointerHovered(block, slot, location))
+      },
+      onTileMoved: { source, target, zone in
+        if isHost {
+          store.send(.demoTileMoved(source: source, target: target, zone: zone))
+        }
+      },
+      onDividerResized: { path, ratio in
+        if isHost { store.send(.demoDividerResized(path, ratio)) }
+      },
+    )
+    .frame(width: frame.width, height: frame.height)
+    .position(x: frame.midX, y: frame.midY)
+    .overlay(alignment: .topLeading) {
+      Text(isHost
+        ? (store.activeDemoWorkspace?.name ?? "Host")
+        : (store.demoBorrowWorkspace?.name ?? "Borrowed"))
+        .font(.caption2.weight(.bold))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial, in: .capsule)
+        .padding(8)
+        .allowsHitTesting(false)
+    }
+  }
+
+  private func borrowedFrames(in bounds: CGRect) -> (host: CGRect, visitor: CGRect)? {
+    let gap = CGFloat(store.draft.settings.layout.gapInner)
+    let fraction = CGFloat(min(0.7, max(0.3, store.demoEffectiveBorrowFraction)))
+    switch store.demoEffectiveBorrowEdge {
+    case .left:
+      let visitorWidth = (bounds.width - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX + visitorWidth + gap,
+          y: bounds.minY,
+          width: bounds.width - visitorWidth - gap,
+          height: bounds.height,
+        ),
+        CGRect(x: bounds.minX, y: bounds.minY, width: visitorWidth, height: bounds.height),
+      )
+
+    case .right:
+      let visitorWidth = (bounds.width - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX,
+          y: bounds.minY,
+          width: bounds.width - visitorWidth - gap,
+          height: bounds.height,
+        ),
+        CGRect(
+          x: bounds.maxX - visitorWidth,
+          y: bounds.minY,
+          width: visitorWidth,
+          height: bounds.height,
+        ),
+      )
+
+    case .top:
+      let visitorHeight = (bounds.height - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX,
+          y: bounds.minY + visitorHeight + gap,
+          width: bounds.width,
+          height: bounds.height - visitorHeight - gap,
+        ),
+        CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: visitorHeight),
+      )
+
+    case .bottom:
+      let visitorHeight = (bounds.height - gap) * fraction
+      return (
+        CGRect(
+          x: bounds.minX,
+          y: bounds.minY,
+          width: bounds.width,
+          height: bounds.height - visitorHeight - gap,
+        ),
+        CGRect(
+          x: bounds.minX,
+          y: bounds.maxY - visitorHeight,
+          width: bounds.width,
+          height: visitorHeight,
+        ),
+      )
+    }
   }
 
 }
@@ -1693,6 +2029,7 @@ extension OnboardingStep {
     case .tiling: "Shape the split-tree layout Tatami remembers for each workspace."
     case .borrow: "Bring one context beside another without mixing layouts."
     case .floating: "Choose what Tatami tiles, floats, or leaves untouched."
+    case .focusAndCycling: "Compare focus models and rehearse the complete setup in one virtual display."
     case .finish: "Review the draft and apply everything at once."
     }
   }
