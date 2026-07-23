@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.9.1 (2026-07-23)
+
+### Fixes
+- **Borrow layout after notification activation:** Clicking a notification for an app already visible in Borrow no longer lets the app restore a shorter saved frame and leave empty space below it. Tatami reasserts the complete borrowed block after the focused window settles.
+
 ## 1.9.0 (2026-07-23)
 
 ### New
