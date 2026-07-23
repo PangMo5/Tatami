@@ -1034,6 +1034,53 @@ extension WorkspaceActivationFeature {
     .cancellable(id: CancelID.layout(display), cancelInFlight: true)
   }
 
+  /// Re-apply a borrowed block after one of its windows becomes focused.
+  /// Notification clicks and app-owned window selectors can make an already
+  /// tiled window restore its saved frame after the immediate AX focus event.
+  /// Membership is unchanged, so the ordinary sync is intentionally a no-op;
+  /// this one bounded convergence pass restores the composition instead.
+  func settleBorrowedPresentationAfterFocus(
+    bundleId: String,
+    state: State,
+  ) -> Effect<Action> {
+    let sharedTiled = state.config.sharedApps.contains {
+      $0.bundleIdentifier == bundleId && $0.layout == .tiled
+    }
+    let targets = state.compositionsByDisplay.compactMap { display, composition
+      -> (DisplayName, Workspace.ID)? in
+      guard
+        let slot = composition.borrowed.first,
+        state.tilingTrees[slot.workspace]?.windows.contains(where: {
+          $0.bundleId == bundleId
+        }) == true
+        || sharedTiled
+        || state.config.activeProfile?.workspaces[id: slot.workspace]?
+        .apps.contains(where: {
+          $0.bundleIdentifier == bundleId && $0.layout == .tiled
+        }) == true
+      else { return nil }
+      return (display, slot.workspace)
+    }
+    guard !targets.isEmpty else { return .none }
+    return .merge(
+      targets.map { display, workspaceId in
+        .run { [clock] send in
+          try await clock.sleep(for: .milliseconds(250))
+          await send(
+            .borrowedPresentationSettled(
+              display: display,
+              workspaceId: workspaceId,
+            )
+          )
+        }
+        .cancellable(
+          id: CancelID.borrowedPresentationSettle(display),
+          cancelInFlight: true,
+        )
+      }
+    )
+  }
+
   /// Borrow `targetId` into the pointer display's host workspace, docked to
   /// `edge`. Re-borrowing a target already borrowed there dismisses it when
   /// `toggleBorrowOnRepeat` is on, otherwise it re-docks to the new edge. Live:
@@ -1221,7 +1268,7 @@ extension WorkspaceActivationFeature {
     // `.activate` re-resolves a dynamic host from interaction focus/cursor and
     // could pull a background-display composition onto the wrong monitor.
     return .merge(
-      .cancel(id: CancelID.borrowActivationSettle(display)),
+      .cancel(id: CancelID.borrowedPresentationSettle(display)),
       performActivate(
         workspaceId: comp.host,
         setFocus: true,

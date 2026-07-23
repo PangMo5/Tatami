@@ -1652,7 +1652,7 @@ struct WorkspaceActivationFeatureTests {
     // pass repairs the composition, then re-centers MFF on the live full frame.
     await clock.advance(by: .milliseconds(250))
     await store.receive {
-      guard case .borrowActivationSettled(let owner, let workspaceId) = $0 else {
+      guard case .borrowedPresentationSettled(let owner, let workspaceId) = $0 else {
         return false
       }
       return owner == display && workspaceId == borrowed.id
@@ -1671,6 +1671,74 @@ struct WorkspaceActivationFeatureTests {
     #expect(
       order.value
         == ["layout", "focus", "frame", "warp", "frame", "layout", "frame", "warp"]
+    )
+    #expect(store.state.compositionsByDisplay[display]?.host == host.id)
+  }
+
+  @Test
+  func `notification activation reflows an unchanged borrowed tree`() async {
+    let display = Self.display
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Borrowed",
+      kind: .scratchpad,
+      apps: [AppAssignment(bundleIdentifier: borrowedWindow.bundleId, name: "Borrowed")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.switching.followAppFocus = true
+      }
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
+      )
+    }
+    let clock = TestClock()
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.discoverKeys = { bundleIds, _ in
+        bundleIds.contains(borrowedWindow.bundleId) ? [borrowedWindow] : []
+      }
+      $0.windowSnapshot.focusedWindowKey = { borrowedWindow }
+      $0.windowSnapshot.onScreenWindowIDs = {
+        [hostWindow.windowID, borrowedWindow.windowID]
+      }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+    }
+    store.exhaustivity = .off
+
+    // Clicking a notification activates an already-managed window without
+    // changing tree membership. KakaoTalk can then restore its saved half frame,
+    // so the delayed presentation settlement must re-assert the composition.
+    await store.send(.appActivated(bundleId: borrowedWindow.bundleId))
+    await clock.advance(by: .milliseconds(250))
+    await store.receive {
+      guard case .borrowedPresentationSettled(let owner, let workspaceId) = $0 else {
+        return false
+      }
+      return owner == display && workspaceId == borrowed.id
+    }
+    await store.finish()
+
+    #expect(applications.value.count == 1)
+    #expect(
+      applications.value[0].windowFrames[borrowedWindow]
+        == CGRect(x: 600, y: 0, width: 400, height: 800)
     )
     #expect(store.state.compositionsByDisplay[display]?.host == host.id)
   }

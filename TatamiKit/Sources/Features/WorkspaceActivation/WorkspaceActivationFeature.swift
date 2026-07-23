@@ -532,10 +532,10 @@ public struct WorkspaceActivationFeature {
     /// Verify once after unhide settles; the tiler only writes windows whose
     /// fresh WindowServer frame actually drifted from the target.
     case activationSettled(workspaceId: Workspace.ID)
-    /// Borrow can reveal an already-running scratchpad whose app restores its
-    /// own saved frame after the first composition apply. Verify the visible
-    /// composition once after that reveal transaction settles.
-    case borrowActivationSettled(display: DisplayName, workspaceId: Workspace.ID)
+    /// A borrowed app can restore its own saved frame after being revealed or
+    /// activated from outside Tatami (for example, through a notification).
+    /// Verify the visible composition once that presentation settles.
+    case borrowedPresentationSettled(display: DisplayName, workspaceId: Workspace.ID)
     /// `performActivate` did not report completion within the watchdog
     /// window — release the `isActivating` gate so one wedged activation
     /// (an app stuck past every AX timeout) can't refuse all future
@@ -866,6 +866,10 @@ public struct WorkspaceActivationFeature {
             // close keeps that app frontmost — the next focus change is
             // then the only trigger left.
             debouncedPrune(),
+            settleBorrowedPresentationAfterFocus(
+              bundleId: bundleId,
+              state: state,
+            ),
             .run { _ in await markerClient.setFocused(focusedKey) },
           )
 
@@ -1406,14 +1410,14 @@ public struct WorkspaceActivationFeature {
               // verification, not a permanent observer or retry loop.
               try await clock.sleep(for: .milliseconds(250))
               await send(
-                .borrowActivationSettled(
+                .borrowedPresentationSettled(
                   display: display,
                   workspaceId: workspaceId,
                 )
               )
             }
             .cancellable(
-              id: CancelID.borrowActivationSettle(display),
+              id: CancelID.borrowedPresentationSettle(display),
               cancelInFlight: true,
             ),
           ),
@@ -2066,7 +2070,7 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         return flushLayout(workspaceId: id, state: state)
 
-      case .borrowActivationSettled(let display, let workspaceId):
+      case .borrowedPresentationSettled(let display, let workspaceId):
         guard
           !state.isActivating,
           !state.isTilingPaused,
@@ -2075,7 +2079,7 @@ public struct WorkspaceActivationFeature {
           let composition = state.compositionsByDisplay[display],
           composition.borrowed.contains(where: { $0.workspace == workspaceId })
         else { return .none }
-        debugLog.log("Borrow", "activation settled \(workspaceId) on \(display.name)")
+        debugLog.log("Borrow", "presentation settled \(workspaceId) on \(display.name)")
         return applyComposition(
           display: display,
           repairFocusAfterLayout: workspaceId,
@@ -2142,9 +2146,9 @@ public struct WorkspaceActivationFeature {
     case activationWatchdog
     /// Latest activation owns the delayed frame-convergence verification.
     case activationSettle
-    /// One revealed Borrow composition gets one delayed convergence check per
-    /// display. Re-borrowing replaces the stale check.
-    case borrowActivationSettle(DisplayName)
+    /// Each visible Borrow composition gets one delayed convergence check per
+    /// display. A newer reveal or focus replaces the stale check.
+    case borrowedPresentationSettle(DisplayName)
     /// Latest-wins workspace switching: a new activation cancels the
     /// in-flight one instead of being dropped, so a hotkey pressed while
     /// a slow activation runs (an app being slow to launch, AX waits
