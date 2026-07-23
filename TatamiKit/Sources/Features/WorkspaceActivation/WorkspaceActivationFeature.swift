@@ -375,6 +375,11 @@ public struct WorkspaceActivationFeature {
   public enum Action {
     case startObservingWindowEvents
     case windowServerWindowDestroyed(CGWindowID)
+    /// WindowServer can report a destroyed surface while the owning app is
+    /// still finishing its close transaction. Reconcile membership again,
+    /// then reflow the affected visible workspace so an app-side frame reset
+    /// cannot leave the surviving tile at its former split size.
+    case windowServerCloseSettled(workspaceIds: [Workspace.ID])
     /// Connected displays changed — drop active/recent state for displays
     /// that are gone so multi-monitor tracking doesn't hold stale entries.
     case displaysReconfigured([DisplayName])
@@ -438,6 +443,13 @@ public struct WorkspaceActivationFeature {
     /// is in state — the deliberate-summon focus an unhide-only borrow can't
     /// provide on its own.
     case focusBorrowedBlock(workspaceId: Workspace.ID)
+    /// Complete a layout-dependent focus/pointer transition only after the
+    /// latest display-scoped frame writer has finished.
+    case settleFocusAfterLayout(
+      windowKey: WindowKey,
+      workspaceId: Workspace.ID,
+      shouldFocus: Bool,
+    )
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
     /// connected display, looping around.
     case focusAdjacentDisplay(direction: Int)
@@ -520,6 +532,10 @@ public struct WorkspaceActivationFeature {
     /// Verify once after unhide settles; the tiler only writes windows whose
     /// fresh WindowServer frame actually drifted from the target.
     case activationSettled(workspaceId: Workspace.ID)
+    /// Borrow can reveal an already-running scratchpad whose app restores its
+    /// own saved frame after the first composition apply. Verify the visible
+    /// composition once after that reveal transaction settles.
+    case borrowActivationSettled(display: DisplayName, workspaceId: Workspace.ID)
     /// `performActivate` did not report completion within the watchdog
     /// window — release the `isActivating` gate so one wedged activation
     /// (an app stuck past every AX timeout) can't refuse all future
@@ -1012,9 +1028,10 @@ public struct WorkspaceActivationFeature {
 
       case .windowServerWindowDestroyed(let wid):
         // A window vanished at the WindowServer level (incl. hide-on-close
-        // with no AX event). This is authoritative, so prune now — the
-        // debounce only exists to let a focus-driven off-screen guess
-        // settle, which doesn't apply here.
+        // with no AX event). Reconcile immediately. Some apps finish their
+        // own close transaction after accepting our survivor resize and write
+        // the old split-sized frame back; one frame later, reconcile and
+        // reflow the affected workspace again to converge on the BSP frame.
         debugLog.log("SLS", "window destroyed wid=\(wid)")
         // NOTE: we deliberately do NOT strip `wid` from `fullscreenZoomed` here.
         // 804 also fires when the WindowServer merely recycles a surface (deep
@@ -1024,8 +1041,60 @@ public struct WorkspaceActivationFeature {
         // lifecycle: it migrates a zoom key onto the app's replacement window by
         // slot (718ec31), and a stale key never in the tree is harmless
         // (`computeFrames` ignores it). Prune reclaims the lingering tile.
+        let affectedWorkspaceIds = state.tilingTrees.compactMap { workspaceId, tree in
+          tree.windows.contains(where: { $0.windowID == wid }) ? workspaceId : nil
+        }
+        .sorted { $0.uuidString < $1.uuidString }
         windowSnapshot.invalidateWindowIDs([wid])
-        return pruneOffscreenWindows(state: &state)
+        return .concatenate(
+          pruneOffscreenWindows(state: &state),
+          affectedWorkspaceIds.isEmpty
+            ? .none
+            : .run { [clock] send in
+              try await clock.sleep(for: .milliseconds(24))
+              await send(.windowServerCloseSettled(workspaceIds: affectedWorkspaceIds))
+            },
+        )
+
+      case .windowServerCloseSettled(let workspaceIds):
+        guard !state.isTilingPaused, !state.isInFullscreenSpace, case .idle = state.drag
+        else { return .none }
+        // The second membership read handles a destruction notification that
+        // beat WindowServer's on-screen snapshot. The following reflow is
+        // intentional even when membership was already correct: the tiler
+        // reads fresh CG geometry and emits no AX writes when the first pass
+        // stuck, but repairs apps that restored their old split frame.
+        let prune = pruneOffscreenWindows(state: &state)
+        let visibleIds = workspaceIds.filter {
+          state.tilingTrees[$0] != nil && state.displayShowing($0) != nil
+        }
+        guard !visibleIds.isEmpty else { return prune }
+        debugLog.log(
+          "SLS",
+          "close settled → reflow workspaces=\(visibleIds)",
+        )
+        let focused = windowSnapshot.focusedWindowKey()
+        return .concatenate(
+          prune,
+          .merge(
+            visibleIds.map { workspaceId in
+              let followUp = focused.flatMap { key in
+                state.tilingTrees[workspaceId]?.windows.contains(key) == true
+                  ? PostLayoutFocus(
+                    windowKey: key,
+                    workspaceId: workspaceId,
+                    shouldFocus: false,
+                  )
+                  : nil
+              }
+              return flushLayout(
+                workspaceId: workspaceId,
+                state: state,
+                followUp: followUp,
+              )
+            }
+          ),
+        )
 
       case .pruneOffscreenWindows:
         return pruneOffscreenWindows(state: &state)
@@ -1319,17 +1388,48 @@ public struct WorkspaceActivationFeature {
         )
 
       case .flushCompositionAndFocus(let display, let workspaceId):
+        let layoutAndFocus = applyComposition(
+          display: display,
+          focusAfterLayout: workspaceId,
+          state: state,
+        )
+        guard let display, state.tilingTrees[workspaceId] != nil else {
+          return .merge(layoutAndFocus, refreshMarkers(state: state))
+        }
         return .merge(
-          applyComposition(
-            display: display,
-            focusAfterLayout: workspaceId,
-            state: state,
+          .concatenate(
+            layoutAndFocus,
+            .run { [clock] send in
+              // AppKit apps can restore their remembered frame a few run-loop
+              // turns after an already-running scratchpad is unhidden. This is
+              // the Borrow equivalent of `activationSettled`: a single bounded
+              // verification, not a permanent observer or retry loop.
+              try await clock.sleep(for: .milliseconds(250))
+              await send(
+                .borrowActivationSettled(
+                  display: display,
+                  workspaceId: workspaceId,
+                )
+              )
+            }
+            .cancellable(
+              id: CancelID.borrowActivationSettle(display),
+              cancelInFlight: true,
+            ),
           ),
           refreshMarkers(state: state),
         )
 
       case .focusBorrowedBlock(let workspaceId):
         return focusBorrowedBlock(workspaceId: workspaceId, state: &state)
+
+      case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus):
+        return settleFocusAfterLayout(
+          key,
+          workspaceId: workspaceId,
+          shouldFocus: shouldFocus,
+          state: &state,
+        )
 
       case .activateNext:
         return cycle(by: 1, state: &state)
@@ -1966,6 +2066,22 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         return flushLayout(workspaceId: id, state: state)
 
+      case .borrowActivationSettled(let display, let workspaceId):
+        guard
+          !state.isActivating,
+          !state.isTilingPaused,
+          !state.isInFullscreenSpace,
+          case .idle = state.drag,
+          let composition = state.compositionsByDisplay[display],
+          composition.borrowed.contains(where: { $0.workspace == workspaceId })
+        else { return .none }
+        debugLog.log("Borrow", "activation settled \(workspaceId) on \(display.name)")
+        return applyComposition(
+          display: display,
+          repairFocusAfterLayout: workspaceId,
+          state: state,
+        )
+
       case .activationTimedOut:
         guard state.isActivating else { return .none }
         state.isActivating = false
@@ -1986,6 +2102,12 @@ public struct WorkspaceActivationFeature {
   }
 
   // MARK: Internal
+
+  struct PostLayoutFocus: Sendable {
+    var windowKey: WindowKey
+    var workspaceId: Workspace.ID
+    var shouldFocus: Bool
+  }
 
   /// Cancellation identifiers for debounced window-event handling.
   enum CancelID: Hashable {
@@ -2020,6 +2142,9 @@ public struct WorkspaceActivationFeature {
     case activationWatchdog
     /// Latest activation owns the delayed frame-convergence verification.
     case activationSettle
+    /// One revealed Borrow composition gets one delayed convergence check per
+    /// display. Re-borrowing replaces the stale check.
+    case borrowActivationSettle(DisplayName)
     /// Latest-wins workspace switching: a new activation cancels the
     /// in-flight one instead of being dropped, so a hotkey pressed while
     /// a slow activation runs (an app being slow to launch, AX waits
@@ -2074,8 +2199,10 @@ public struct WorkspaceActivationFeature {
     settings: AppSettings,
     display: DisplayName?,
     fullscreenZoomed: Set<WindowKey>,
+    forceAllFrames: Bool = false,
+    followUp: PostLayoutFocus? = nil,
   ) -> Effect<Action> {
-    .run { [tiler = windowTiler] _ in
+    .run { [tiler = windowTiler] send in
       let frames = await MainActor.run {
         Self.computeFrames(
           tree: tree,
@@ -2085,7 +2212,19 @@ public struct WorkspaceActivationFeature {
         )
       }
       guard !Task.isCancelled, !frames.isEmpty else { return }
-      await tiler.apply(FrameApplication(windowFrames: frames))
+      await tiler.apply(
+        FrameApplication(windowFrames: frames, forceAllFrames: forceAllFrames)
+      )
+      guard !Task.isCancelled else { return }
+      if let followUp {
+        await send(
+          .settleFocusAfterLayout(
+            windowKey: followUp.windowKey,
+            workspaceId: followUp.workspaceId,
+            shouldFocus: followUp.shouldFocus,
+          )
+        )
+      }
     }
     .cancellable(id: CancelID.layout(display), cancelInFlight: true)
   }
@@ -2096,12 +2235,22 @@ public struct WorkspaceActivationFeature {
   /// single-tree apply can't clobber the sibling block; otherwise it tiles
   /// into its own work area. The mutated tree must already be written to
   /// `state.tilingTrees[workspaceId]`.
-  func flushLayout(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
+  func flushLayout(
+    workspaceId: Workspace.ID,
+    state: State,
+    forceAllFrames: Bool = false,
+    followUp: PostLayoutFocus? = nil,
+  ) -> Effect<Action> {
     for (display, comp) in state.compositionsByDisplay
       where comp.host == workspaceId
       || comp.borrowed.contains(where: { $0.workspace == workspaceId })
     {
-      return applyComposition(display: display, state: state)
+      return applyComposition(
+        display: display,
+        forceAllFrames: forceAllFrames,
+        followUp: followUp,
+        state: state,
+      )
     }
     guard
       state.config.activeProfile?.workspaces[id: workspaceId] != nil,
@@ -2121,6 +2270,8 @@ public struct WorkspaceActivationFeature {
       settings: settings,
       display: display,
       fullscreenZoomed: zoomed,
+      forceAllFrames: forceAllFrames,
+      followUp: followUp,
     )
   }
 
@@ -2197,7 +2348,6 @@ public struct WorkspaceActivationFeature {
       [$0.host] + $0.borrowed.map(\.workspace)
     } ?? [workspaceId]
     var allWindows = workspaceIds.flatMap { state.tilingTrees[$0]?.windows ?? [] }
-    guard !allWindows.isEmpty else { return nil }
 
     // Floating/unmanaged join only when uncomposed. A borrowed workspace's
     // non-tiled assignments are intentionally not part of the borrowed block.
@@ -2218,6 +2368,7 @@ public struct WorkspaceActivationFeature {
         allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
       }
     }
+    guard !allWindows.isEmpty else { return nil }
 
     let byWindow = state.config.settings.switching.cycleSameAppWindows
     var ordered = allWindows
@@ -2271,25 +2422,38 @@ public struct WorkspaceActivationFeature {
     _ cycle: State.WindowCycleSession,
     state: State,
   ) -> Effect<Action> {
-    guard let tree = state.tilingTrees[cycle.workspaceId] else { return .none }
     let settings = state.config.settings
     let target = cycle.selected
     let shouldWarp = settings.focus.mouseFollowsFocus
+    let tree = state.tilingTrees[cycle.workspaceId]
     let zoomed = state.fullscreenZoomed[cycle.workspaceId] ?? []
     let targetRect = tilingContext(for: cycle.workspaceId, state: state).rect
-    return .run { [mouse, focusManager] _ in
+    return .run { [mouse, focusManager, windowSnapshot] _ in
       await focusManager.focusWindow(target)
       if shouldWarp {
-        let frames = await MainActor.run {
-          Self.computeFrames(
-            tree: tree,
-            settings: settings,
-            targetDisplay: cycle.display,
-            fullscreenZoomed: zoomed,
-            targetRect: targetRect,
-          )
+        let tiledFrame = await MainActor.run {
+          tree.flatMap {
+            Self.computeFrames(
+              tree: $0,
+              settings: settings,
+              targetDisplay: cycle.display,
+              fullscreenZoomed: zoomed,
+              targetRect: targetRect,
+            )[target]
+          }
         }
-        if let rect = frames[target] {
+        // Floating, Shared floating, and Ignore-mode windows intentionally
+        // live outside the BSP tree. Once focus has handed back the real
+        // window, read its current AX frame so MFF follows cycling there too.
+        let targetFrame: CGRect? =
+          if let tiledFrame {
+            tiledFrame
+          } else {
+            await MainActor.run {
+              windowSnapshot.windowFrame(target)
+            }
+          }
+        if let rect = targetFrame {
           mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
         }
       }
@@ -2453,14 +2617,27 @@ public struct WorkspaceActivationFeature {
 
     state.tilingTrees[workspaceId] = tree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    let followUp = warpFocused
+      ? PostLayoutFocus(
+        windowKey: windowKey,
+        workspaceId: workspaceId,
+        shouldFocus: false,
+      )
+      : nil
 
     return .merge(
-      flushLayout(workspaceId: workspaceId, state: state),
+      // A rapid sequence of tree edits can cancel an older same-app AX batch
+      // only after that batch has already written one or more windows. Force
+      // the newest complete frame set so it cannot inherit a mixed geometry,
+      // and trigger MFF only after those writes finish.
+      flushLayout(
+        workspaceId: workspaceId,
+        state: state,
+        forceAllFrames: true,
+        followUp: followUp,
+      ),
       persist(tree, fullscreenZoomed: zoomed, for: workspace),
       refreshMarkers(state: state),
-      warpFocused
-        ? warpToWindow(windowKey, in: tree, workspaceId: workspaceId, state: state)
-        : .none,
       hud,
     )
   }

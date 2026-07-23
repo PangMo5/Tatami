@@ -3,8 +3,10 @@ import ApplicationServices
 import Dependencies
 import DependenciesMacros
 import Foundation
-import OSLog
 import OrderedCollections
+import OSLog
+
+// MARK: - WindowTilerClient
 
 /// Applies a precomputed set of `(WindowKey → frame)` assignments via
 /// Accessibility. BSP tree math lives in the reducer; this dependency
@@ -21,6 +23,10 @@ struct WindowTilerClient: Sendable {
 
 struct FrameApplication: Sendable, Hashable {
   var windowFrames: [WindowKey: CGRect]
+  /// User-driven BSP mutations need the newest complete frame set to win even
+  /// when an older same-app AX batch was already executing when cancelled.
+  /// Ordinary activation/layout passes keep the fresh-geometry skip fast path.
+  var forceAllFrames = false
 }
 
 // MARK: - WindowTilerClient + DependencyKey
@@ -28,6 +34,14 @@ struct FrameApplication: Sendable, Hashable {
 extension WindowTilerClient: DependencyKey {
 
   // MARK: Internal
+
+  enum FrameWritePlan: Equatable {
+    case none
+    case resizeOnly
+    case moveOnly
+    case moveAndResizeOnce
+    case moveAndResizeTwice
+  }
 
   static let liveValue = WindowTilerClient { request in
     guard !request.windowFrames.isEmpty else { return }
@@ -56,6 +70,7 @@ extension WindowTilerClient: DependencyKey {
     let pendingFrames = framesNeedingApply(
       targets: request.windowFrames,
       visibleFrames: visibleFrames,
+      forceAllFrames: request.forceAllFrames,
     )
     guard !pendingFrames.isEmpty else {
       @Dependency(\.debugLog) var debugLog
@@ -82,6 +97,7 @@ extension WindowTilerClient: DependencyKey {
           pid: pid,
           entries: entries,
           visibleFrames: visibleFrames,
+          forceAllFrames: request.forceAllFrames,
         )
       }
     }
@@ -89,14 +105,6 @@ extension WindowTilerClient: DependencyKey {
 
   static let testValue = WindowTilerClient(apply: { _ in })
   static let previewValue = testValue
-
-  enum FrameWritePlan: Equatable {
-    case none
-    case resizeOnly
-    case moveOnly
-    case moveAndResizeOnce
-    case moveAndResizeTwice
-  }
 
   /// Select the smallest AX mutation that can converge the current frame.
   ///
@@ -114,10 +122,10 @@ extension WindowTilerClient: DependencyKey {
 
     let originIsCurrent =
       abs(current.minX - target.minX) <= tolerance
-      && abs(current.minY - target.minY) <= tolerance
+        && abs(current.minY - target.minY) <= tolerance
     let sizeIsCurrent =
       abs(current.width - target.width) <= tolerance
-      && abs(current.height - target.height) <= tolerance
+        && abs(current.height - target.height) <= tolerance
 
     switch (originIsCurrent, sizeIsCurrent) {
     case (true, true):
@@ -138,15 +146,19 @@ extension WindowTilerClient: DependencyKey {
     targets: [WindowKey: CGRect],
     visibleFrames: [CGWindowID: CGRect],
     tolerance: CGFloat = 1,
+    forceAllFrames: Bool = false,
   ) -> [WindowKey: CGRect] {
+    if forceAllFrames { return targets }
     var pending = [WindowKey: CGRect]()
     pending.reserveCapacity(targets.count)
     for (key, target) in targets {
-      if frameWritePlan(
-        current: visibleFrames[key.windowID],
-        target: target,
-        tolerance: tolerance,
-      ) != .none {
+      if
+        frameWritePlan(
+          current: visibleFrames[key.windowID],
+          target: target,
+          tolerance: tolerance,
+        ) != .none
+      {
         pending[key] = target
       }
     }
@@ -179,6 +191,7 @@ extension WindowTilerClient: DependencyKey {
     pid: pid_t,
     entries: [(key: WindowKey, value: CGRect)],
     visibleFrames: [CGWindowID: CGRect],
+    forceAllFrames: Bool,
   ) {
     @Dependency(\.debugLog) var debugLog
     let logging = debugLog.isEnabled()
@@ -190,11 +203,12 @@ extension WindowTilerClient: DependencyKey {
 
     // Discover every window once + map CGWindowID → AXUIElement.
     var raw: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(
-      axApp,
-      kAXWindowsAttribute as CFString,
-      &raw
-    ) == .success,
+    guard
+      AXUIElementCopyAttributeValue(
+        axApp,
+        kAXWindowsAttribute as CFString,
+        &raw,
+      ) == .success,
       let windows = raw as? [AXUIElement]
     else {
       // The whole app's frames silently don't land when this fails (busy
@@ -203,7 +217,7 @@ extension WindowTilerClient: DependencyKey {
       return
     }
 
-    var lookup: [CGWindowID: AXUIElement] = [:]
+    var lookup = [CGWindowID: AXUIElement]()
     for window in windows {
       var wid: CGWindowID = 0
       if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
@@ -220,8 +234,9 @@ extension WindowTilerClient: DependencyKey {
     let enhanced = "AXEnhancedUserInterface" as CFString
     var enhancedWasOn = false
     var enhancedRaw: CFTypeRef?
-    if AXUIElementCopyAttributeValue(axApp, enhanced, &enhancedRaw) == .success,
-       let value = enhancedRaw as? Bool
+    if
+      AXUIElementCopyAttributeValue(axApp, enhanced, &enhancedRaw) == .success,
+      let value = enhancedRaw as? Bool
     {
       enhancedWasOn = value
     }
@@ -235,19 +250,20 @@ extension WindowTilerClient: DependencyKey {
     }
 
     for (key, frame) in entries {
+      guard !Task.isCancelled else { return }
       guard let window = lookup[key.windowID] else {
         debugLog.log("Tiler", "apply \(key.bundleId)#\(key.windowID) → missing-window")
         continue
       }
       let outcome = applyFrame(
         frame,
-        currentFrame: visibleFrames[key.windowID],
+        currentFrame: forceAllFrames ? nil : visibleFrames[key.windowID],
         to: window,
       )
       if logging {
         debugLog.log(
           "Tiler",
-          "apply \(key.bundleId)#\(key.windowID) → \(frame) = \(outcome)"
+          "apply \(key.bundleId)#\(key.windowID) → \(frame) = \(outcome)",
         )
       }
     }
@@ -339,11 +355,12 @@ extension WindowTilerClient: DependencyKey {
     let result = AXUIElementCopyAttributeValue(
       window,
       "AXFullScreen" as CFString,
-      &raw
+      &raw,
     )
     guard result == .success, let value = raw as? Bool else { return false }
     return value
   }
+
 }
 
 extension DependencyValues {
@@ -353,6 +370,8 @@ extension DependencyValues {
   }
 }
 
+// MARK: - ScreenGeometry
+
 /// Resolve the AX work area of the named screen (or the main screen
 /// if `name` is nil). Top-origin, anchored to the primary screen —
 /// same convention as `kAXPositionAttribute`.
@@ -361,8 +380,10 @@ enum ScreenGeometry {
   static func workArea(for name: DisplayName?) -> CGRect {
     // Resolve UUID → name → primary; the primary display also anchors the
     // AX (top-left) coordinate flip.
-    guard let screen = DisplayResolver.screenOrPrimary(for: name),
-          let primary = DisplayResolver.primaryScreen() else { return .zero }
+    guard
+      let screen = DisplayResolver.screenOrPrimary(for: name),
+      let primary = DisplayResolver.primaryScreen()
+    else { return .zero }
     let primaryHeight = primary.frame.height
     let v = screen.visibleFrame
     let axY = primaryHeight - v.origin.y - v.height
@@ -399,9 +420,11 @@ func isAccessibilityTrusted() -> Bool {
   AXIsProcessTrusted()
 }
 
+// MARK: - WindowDiscovery
+
 /// Result of an AX window-discovery pass.
 struct WindowDiscovery: Sendable {
-  var keys: [WindowKey] = []
+  var keys = [WindowKey]()
   /// Bundles where an AX read failed outright (messaging timeout — a
   /// busy, hung, or dying app): "couldn't ask", as opposed to "asked and
   /// there were no windows". Their keys are *omitted* from `keys`;
@@ -409,7 +432,7 @@ struct WindowDiscovery: Sendable {
   /// treating the app as windowless — otherwise one slow app under
   /// system load reads as "all windows closed" and gets dropped from
   /// trees, mirrors, and markers.
-  var unreachable: Set<String> = []
+  var unreachable = Set<String>()
   /// Windows AX enumerated this pass but rejected *only* because their
   /// subrole momentarily read as non-standard (e.g. `AXDialog`). macOS
   /// flaps a window's subrole transiently — Activity Monitor's own main
@@ -418,7 +441,7 @@ struct WindowDiscovery: Sendable {
   /// of one flap. Its `WindowKey` is absent from `keys` (it failed the
   /// standard-subrole gate), so consumers preserve the last-known key for
   /// these ids, exactly as they do for `unreachable` bundles.
-  var retained: Set<CGWindowID> = []
+  var retained = Set<CGWindowID>()
 }
 
 /// All visible, regular, tile-able windows that belong to the given
@@ -440,7 +463,7 @@ struct WindowDiscovery: Sendable {
 func discoverWindowKeys(
   forBundleIds bundleIds: [String],
   sls: SLSClient,
-  requireResizable: Bool = true
+  requireResizable: Bool = true,
 ) -> WindowDiscovery {
   guard !bundleIds.isEmpty else { return WindowDiscovery() }
   @Dependency(\.debugLog) var debugLog
@@ -455,15 +478,16 @@ func discoverWindowKeys(
   // Ordered so multi-process apps (Neovide) scan in a stable pid order.
   var pidsByBundle: OrderedDictionary<String, [pid_t]> = [:]
   for app in NSWorkspace.shared.runningApplications
-  where !app.isTerminated && app.activationPolicy == .regular {
+    where !app.isTerminated && app.activationPolicy == .regular
+  {
     if let bid = app.bundleIdentifier {
       pidsByBundle[bid, default: []].append(app.processIdentifier)
     }
   }
 
-  var result: [WindowKey] = []
-  var unreachable: Set<String> = []
-  var retainedIDs: Set<CGWindowID> = []
+  var result = [WindowKey]()
+  var unreachable = Set<String>()
+  var retainedIDs = Set<CGWindowID>()
   let attrs = [
     kAXMinimizedAttribute,
     kAXSubroleAttribute,
@@ -483,7 +507,7 @@ func discoverWindowKeys(
       let windowsError = AXUIElementCopyAttributeValue(
         axApp,
         kAXWindowsAttribute as CFString,
-        &raw
+        &raw,
       )
       guard windowsError == .success, let windows = raw as? [AXUIElement] else {
         // `.noValue` / `.attributeUnsupported` are real answers ("no
@@ -494,12 +518,12 @@ func discoverWindowKeys(
         }
         debugLog.log(
           "Tiler",
-          "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute err=\(windowsError.rawValue)"
+          "discover \(bundleId) pid=\(pid): AX kAXWindowsAttribute err=\(windowsError.rawValue)",
         )
         continue
       }
       let before = result.count
-      var rejected: [String] = []
+      var rejected = [String]()
       func reject(_ widProbe: CGWindowID, _ reason: @autoclosure () -> String) {
         if logging { rejected.append("\(widProbe):\(reason())") }
       }
@@ -510,7 +534,10 @@ func discoverWindowKeys(
         var minimized = false
         var subrole: String?
         let attrsError = AXUIElementCopyMultipleAttributeValues(
-          window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
+          window,
+          attrs,
+          AXCopyMultipleAttributeOptions(),
+          &valuesRef,
         )
         // An app that stops replying mid-enumeration would make every
         // remaining window wait out the full timeout too — mark it
@@ -543,10 +570,14 @@ func discoverWindowKeys(
         var movable: DarwinBoolean = false
         var resizable: DarwinBoolean = false
         let movError = AXUIElementIsAttributeSettable(
-          window, kAXPositionAttribute as CFString, &movable
+          window,
+          kAXPositionAttribute as CFString,
+          &movable,
         )
         let resError = AXUIElementIsAttributeSettable(
-          window, kAXSizeAttribute as CFString, &resizable
+          window,
+          kAXSizeAttribute as CFString,
+          &resizable,
         )
         if movError == .cannotComplete || resError == .cannotComplete {
           unreachable.insert(bundleId)
@@ -573,7 +604,7 @@ func discoverWindowKeys(
         let kept = result[before...].map { $0.windowID }
         debugLog.log(
           "Tiler",
-          "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)"
+          "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)",
         )
       }
     }

@@ -939,6 +939,9 @@ extension WorkspaceActivationFeature {
   func applyComposition(
     display: DisplayName?,
     focusAfterLayout workspaceId: Workspace.ID? = nil,
+    repairFocusAfterLayout repairWorkspaceId: Workspace.ID? = nil,
+    forceAllFrames: Bool = false,
+    followUp: PostLayoutFocus? = nil,
     state: State,
   ) -> Effect<Action> {
     let settings = state.config.settings
@@ -953,7 +956,7 @@ extension WorkspaceActivationFeature {
     let borrowedZoom = state.fullscreenZoomed[slot.workspace] ?? []
     let edge = slot.edge
     let fraction = slot.fraction
-    return .run { [tiler = windowTiler, displays] send in
+    return .run { [tiler = windowTiler, displays, snapshot = windowSnapshot] send in
       let merged: [WindowKey: CGRect] = await MainActor.run {
         let workArea = displays.workArea(display).insetBy(
           dx: CGFloat(settings.layout.gapOuter),
@@ -983,10 +986,49 @@ extension WorkspaceActivationFeature {
         return hf.merging(bf) { current, _ in current }
       }
       guard !Task.isCancelled, !merged.isEmpty else { return }
-      await tiler.apply(FrameApplication(windowFrames: merged))
+      let repairFocus: PostLayoutFocus? = await MainActor.run {
+        guard
+          settings.focus.mouseFollowsFocus,
+          let repairWorkspaceId,
+          let focused = snapshot.focusedWindowKey(),
+          repairWorkspaceId == slot.workspace,
+          borrowedTree?.windows.contains(focused) == true,
+          let targetFrame = merged[focused],
+          WindowTilerClient.frameWritePlan(
+            current: snapshot.windowFrame(focused),
+            target: targetFrame,
+          ) != .none
+        else { return nil }
+        return PostLayoutFocus(
+          windowKey: focused,
+          workspaceId: repairWorkspaceId,
+          shouldFocus: false,
+        )
+      }
+      await tiler.apply(
+        FrameApplication(windowFrames: merged, forceAllFrames: forceAllFrames)
+      )
       guard !Task.isCancelled else { return }
       if let workspaceId {
         await send(.focusBorrowedBlock(workspaceId: workspaceId))
+      }
+      if let followUp {
+        await send(
+          .settleFocusAfterLayout(
+            windowKey: followUp.windowKey,
+            workspaceId: followUp.workspaceId,
+            shouldFocus: followUp.shouldFocus,
+          )
+        )
+      }
+      if let repairFocus {
+        await send(
+          .settleFocusAfterLayout(
+            windowKey: repairFocus.windowKey,
+            workspaceId: repairFocus.workspaceId,
+            shouldFocus: repairFocus.shouldFocus,
+          )
+        )
       }
     }
     .cancellable(id: CancelID.layout(display), cancelInFlight: true)
@@ -1132,14 +1174,14 @@ extension WorkspaceActivationFeature {
       .first { tree.windows.contains($0) } ?? tree.windows.first
     guard let target else { return .none }
     debugLog.log("Borrow", "focus borrowed block → \(target.bundleId)#\(target.windowID)")
-    return .merge(
-      .run { [focus = focusManager] _ in await focus.focusWindow(target) },
-      requiredCenterWarpToWindow(
-        target,
-        in: tree,
-        workspaceId: workspaceId,
-        state: &state,
-      ),
+    // Keep the two main-thread AX operations ordered. Merging focus and warp
+    // let app activation win the race after the pointer had already moved,
+    // producing a focused Borrow block with the cursor left on its host.
+    return settleFocusAfterLayout(
+      target,
+      workspaceId: workspaceId,
+      shouldFocus: true,
+      state: &state,
     )
   }
 
@@ -1178,11 +1220,14 @@ extension WorkspaceActivationFeature {
     // Re-activate the host on the composition's own display. A plain
     // `.activate` re-resolves a dynamic host from interaction focus/cursor and
     // could pull a background-display composition onto the wrong monitor.
-    return performActivate(
-      workspaceId: comp.host,
-      setFocus: true,
-      displayOverride: display,
-      state: &state,
+    return .merge(
+      .cancel(id: CancelID.borrowActivationSettle(display)),
+      performActivate(
+        workspaceId: comp.host,
+        setFocus: true,
+        displayOverride: display,
+        state: &state,
+      ),
     )
   }
 

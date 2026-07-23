@@ -188,6 +188,12 @@ extension WorkspaceActivationFeature {
             "Focus",
             "post-layout frame unavailable \(key.bundleId)#\(key.windowID)",
           )
+          // A WindowServer destroy can race a Borrow summon: the cached tree
+          // still names the retired surface, so app-level focus succeeds while
+          // there is no live frame to warp into. Reconcile that app now; the
+          // sync either selects its replacement window or empties/dismisses the
+          // borrowed block instead of silently leaving pointer and focus split.
+          await send(.syncAppWindows(bundleId: key.bundleId))
         }
         await send(.cursorWarpFinished(workspaceId: workspaceId, target: key))
       }

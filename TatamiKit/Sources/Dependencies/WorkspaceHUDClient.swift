@@ -572,7 +572,7 @@ private final class WorkspaceHUDController {
     entry.presentation.setPresented(false)
     entry.dismissTask = Task { @MainActor [weak self, weak entry] in
       do {
-        let delayMs = entry?.kind == .windowSwitcher ? 260 : 320
+        let delayMs = entry?.kind == .windowSwitcher ? 180 : 320
         try await Task.sleep(for: .milliseconds(delayMs))
       } catch {
         return
@@ -968,10 +968,7 @@ private struct WorkspaceHUDView: View {
     .padding(HUDLayout.shadowPadding)
     .frame(width: HUDLayout.actionPanelSize.width, height: HUDLayout.actionPanelSize.height)
     .modifier(
-      HUDPresentationModifier(
-        isPresented: presentation.isPresented,
-        isWindowSwitcher: false,
-      )
+      ActionHUDPresentationModifier(isPresented: presentation.isPresented)
     )
     .accessibilityElement(children: .combine)
   }
@@ -982,14 +979,13 @@ private struct WorkspaceHUDView: View {
 
 }
 
-// MARK: - HUDPresentationModifier
+// MARK: - ActionHUDPresentationModifier
 
-private struct HUDPresentationModifier: ViewModifier {
+private struct ActionHUDPresentationModifier: ViewModifier {
 
   // MARK: Internal
 
   let isPresented: Bool
-  let isWindowSwitcher: Bool
 
   func body(content: Content) -> some View {
     content
@@ -1004,9 +1000,32 @@ private struct HUDPresentationModifier: ViewModifier {
         reduceMotion
           ? nil
           : .spring(
-            response: isWindowSwitcher ? 0.22 : 0.28,
+            response: 0.28,
             dampingFraction: 0.78,
           ),
+        value: isPresented,
+      )
+  }
+
+  // MARK: Private
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+}
+
+// MARK: - WindowSwitcherPresentationModifier
+
+private struct WindowSwitcherPresentationModifier: ViewModifier {
+
+  // MARK: Internal
+
+  let isPresented: Bool
+
+  func body(content: Content) -> some View {
+    content
+      .opacity(isPresented ? 1 : 0)
+      .animation(
+        reduceMotion ? nil : .easeInOut(duration: 0.14),
         value: isPresented,
       )
   }
@@ -1119,10 +1138,7 @@ private struct WindowSwitcherHUDView: View {
     .shadow(color: .black.opacity(0.28), radius: 14, y: 7)
     .padding(HUDLayout.shadowPadding)
     .modifier(
-      HUDPresentationModifier(
-        isPresented: presentation.isPresented,
-        isWindowSwitcher: true,
-      )
+      WindowSwitcherPresentationModifier(isPresented: presentation.isPresented)
     )
   }
 }

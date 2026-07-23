@@ -65,5 +65,23 @@ struct WindowTilerClientTests {
     )
 
     #expect(pending == [drifted: target, offscreen: target])
+
+    let forced = WindowTilerClient.framesNeedingApply(
+      targets: [
+        current: target,
+        withinTolerance: target,
+        drifted: target,
+        offscreen: target,
+      ],
+      visibleFrames: [
+        current.windowID: target,
+        withinTolerance.windowID: target,
+        drifted.windowID: target,
+        offscreen.windowID: target,
+      ],
+      forceAllFrames: true,
+    )
+
+    #expect(Set(forced.keys) == [current, withinTolerance, drifted, offscreen])
   }
 }

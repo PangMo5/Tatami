@@ -214,6 +214,60 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `window cycle MFF follows a shared floating window using its live frame`() async {
+    let tiled = WindowKey(pid: 1, windowID: 101, bundleId: "app.tiled")
+    let floating = WindowKey(pid: 2, windowID: 201, bundleId: "app.floating")
+    let floatingFrame = CGRect(x: 120, y: 240, width: 600, height: 400)
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.focus.mouseFollowsFocus = true
+        $0.sharedApps = [
+          SharedApp(
+            bundleIdentifier: floating.bundleId,
+            name: "Floating",
+            layout: .floating,
+          )
+        ]
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(tiled)
+    }
+    let order = LockIsolated<[String]>([])
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.cachedKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [floating.bundleId])
+        #expect(requireResizable == false)
+        return [floating]
+      }
+      $0.windowSnapshot.windowFrame = { key in
+        #expect(key == floating)
+        order.withValue { $0.append("frame") }
+        return floatingFrame
+      }
+      $0.focusManager.focusWindow = { key in
+        #expect(key == floating)
+        order.withValue { $0.append("focus") }
+      }
+      $0.mouse.warp = { point in
+        order.withValue { $0.append("warp") }
+        warped.withValue { $0.append(point) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(windowKey: tiled, direction: .next))
+    await store.finish()
+
+    #expect(order.value == ["focus", "frame", "warp"])
+    #expect(warped.value == [CGPoint(x: floatingFrame.midX, y: floatingFrame.midY)])
+  }
+
+  @Test
   func `app cycle includes the borrowed block`() async {
     let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
     let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
@@ -1152,6 +1206,98 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.pendingCenterWarps[ws.id] == nil)
   }
 
+  @Test(arguments: [true, false])
+  func `window server close settlement reflows either borrowed sibling to the full block`(
+    closedComesFirst: Bool
+  ) async {
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let closed = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let survivor = WindowKey(pid: 2, windowID: 202, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Borrowed",
+      apps: [AppAssignment(bundleIdentifier: closed.bundleId, name: "Borrowed")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.focus.mouseFollowsFocus = true
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .branch(
+        BSPBranch(
+          split: .horizontal,
+          ratio: 0.5,
+          left: .leaf(closedComesFirst ? closed : survivor),
+          right: .leaf(closedComesFirst ? survivor : closed),
+        )
+      )
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
+      )
+    }
+    let clock = TestClock()
+    let snapshotCount = LockIsolated(0)
+    let frameReadCount = LockIsolated(0)
+    let applied = LockIsolated<[FrameApplication]>([])
+    let warped = LockIsolated<[CGPoint]>([])
+    let staleHalfFrame = CGRect(x: 600, y: 0, width: 400, height: 400)
+    let settledFullFrame = CGRect(x: 600, y: 0, width: 400, height: 800)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.onScreenWindowIDs = {
+        snapshotCount.withValue { count in
+          defer { count += 1 }
+          return count == 0
+            ? [hostWindow.windowID, closed.windowID, survivor.windowID]
+            : [hostWindow.windowID, survivor.windowID]
+        }
+      }
+      $0.windowSnapshot.focusedWindowKey = { survivor }
+      $0.windowSnapshot.windowFrame = { key in
+        #expect(key == survivor)
+        return frameReadCount.withValue { count in
+          defer { count += 1 }
+          return count == 0 ? staleHalfFrame : settledFullFrame
+        }
+      }
+      $0.windowTiler.apply = { request in
+        applied.withValue { $0.append(request) }
+      }
+      $0.mouse.warp = { point in
+        warped.withValue { $0.append(point) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowServerWindowDestroyed(closed.windowID))
+    #expect(Set(store.state.tilingTrees[borrowed.id]?.windows ?? []) == [closed, survivor])
+    #expect(applied.value.isEmpty)
+
+    await clock.advance(by: .milliseconds(24))
+    await store.receive {
+      guard case .windowServerCloseSettled(let workspaceIds) = $0 else { return false }
+      return workspaceIds == [borrowed.id]
+    }
+    await store.finish()
+
+    #expect(store.state.tilingTrees[borrowed.id]?.windows == [survivor])
+    #expect(applied.value.count == 2)
+    #expect(
+      applied.value.last?.windowFrames[survivor]
+        == settledFullFrame
+    )
+    #expect(warped.value.last == CGPoint(x: settledFullFrame.midX, y: settledFullFrame.midY))
+  }
+
   @Test
   func `focused window moves display ownership to its actual workspace`() async {
     let displayA = DisplayName("A")
@@ -1447,33 +1593,166 @@ struct WorkspaceActivationFeatureTests {
       apps: [AppAssignment(bundleIdentifier: borrowedWindow.bundleId, name: "Borrowed")],
     )
     let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.focus.mouseFollowsFocus = true
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.switching.borrowFraction = 0.4
+      }
       $0.focusedDisplay = display
       $0.activeWorkspacesByDisplay[display] = host.id
       $0.tilingTrees[host.id] = .leaf(hostWindow)
     }
+    let clock = TestClock()
+    let borrowedFrame = CGRect(x: 600, y: 0, width: 400, height: 800)
+    let restoredFrame = CGRect(x: 600, y: 0, width: 400, height: 400)
     let order = LockIsolated<[String]>([])
+    let frameReads = LockIsolated(0)
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
+      $0.continuousClock = clock
       $0.displays.current = { display }
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1000, height: 800) }
       $0.workspaceManager.activate = { _ in }
       $0.windowSnapshot.cachedKeys = { bundleIDs, _ in
         bundleIDs.contains(borrowedWindow.bundleId) ? [borrowedWindow] : []
       }
+      $0.windowSnapshot.focusedWindowKey = { borrowedWindow }
+      $0.windowSnapshot.windowFrame = { key in
+        #expect(key == borrowedWindow)
+        order.withValue { $0.append("frame") }
+        return frameReads.withValue { reads in
+          defer { reads += 1 }
+          return reads == 1 ? restoredFrame : borrowedFrame
+        }
+      }
       $0.windowTiler.apply = { _ in
         order.withValue { $0.append("layout") }
       }
-      $0.focusManager.focusWindow = { _ in
+      $0.focusManager.focusWindow = { key in
+        #expect(key == borrowedWindow)
         order.withValue { $0.append("focus") }
+      }
+      $0.mouse.warp = { point in
+        #expect(point == CGPoint(x: borrowedFrame.midX, y: borrowedFrame.midY))
+        order.withValue { $0.append("warp") }
       }
     }
     store.exhaustivity = .off
 
     await store.send(.borrow(workspaceId: borrowed.id, edge: .right))
+    await store.receive {
+      guard case .cursorWarpFinished(let workspaceId, let target) = $0 else { return false }
+      return workspaceId == borrowed.id && target == borrowedWindow
+    }
+
+    // KakaoTalk-like behavior: after the initial Borrow layout/focus, the app
+    // restores a stale half-height frame. The bounded activation settlement
+    // pass repairs the composition, then re-centers MFF on the live full frame.
+    await clock.advance(by: .milliseconds(250))
+    await store.receive {
+      guard case .borrowActivationSettled(let owner, let workspaceId) = $0 else {
+        return false
+      }
+      return owner == display && workspaceId == borrowed.id
+    }
+    await store.receive {
+      guard case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus) = $0
+      else { return false }
+      return key == borrowedWindow && workspaceId == borrowed.id && !shouldFocus
+    }
+    await store.receive {
+      guard case .cursorWarpFinished(let workspaceId, let target) = $0 else { return false }
+      return workspaceId == borrowed.id && target == borrowedWindow
+    }
     await store.finish()
 
-    #expect(order.value == ["layout", "focus"])
+    #expect(
+      order.value
+        == ["layout", "focus", "frame", "warp", "frame", "layout", "frame", "warp"]
+    )
     #expect(store.state.compositionsByDisplay[display]?.host == host.id)
+  }
+
+  @Test
+  func `borrowed swap commits the newest complete composition before MFF`() async {
+    let display = Self.display
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let left = WindowKey(pid: 2, windowID: 201, bundleId: "app.terminal")
+    let right = WindowKey(pid: 2, windowID: 202, bundleId: "app.terminal")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Terminal",
+      apps: [AppAssignment(bundleIdentifier: left.bundleId, name: "Terminal")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.focus.mouseFollowsFocus = true
+      }
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(left),
+          right: .leaf(right),
+        )
+      )
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
+      )
+    }
+    let liveFrame = CGRect(x: 800, y: 0, width: 200, height: 800)
+    let order = LockIsolated<[String]>([])
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowTiler.apply = { request in
+        order.withValue { $0.append("layout") }
+        applications.withValue { $0.append(request) }
+      }
+      $0.windowSnapshot.windowFrame = { key in
+        #expect(key == left)
+        order.withValue { $0.append("frame") }
+        return liveFrame
+      }
+      $0.mouse.warp = { point in
+        #expect(point == CGPoint(x: liveFrame.midX, y: liveFrame.midY))
+        order.withValue { $0.append("warp") }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      WorkspaceActivationFeature.Action.bspOpResolved(
+        windowKey: left,
+        op: .swap(.east),
+      )
+    )
+    await store.receive {
+      guard case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus) = $0
+      else { return false }
+      return key == left && workspaceId == borrowed.id && !shouldFocus
+    }
+    await store.receive {
+      guard case .cursorWarpFinished(let workspaceId, let target) = $0 else { return false }
+      return workspaceId == borrowed.id && target == left
+    }
+    await store.finish()
+
+    #expect(order.value == ["layout", "frame", "warp"])
+    #expect(applications.value.count == 1)
+    #expect(applications.value[0].forceAllFrames)
+    #expect(Set(applications.value[0].windowFrames.keys) == [hostWindow, left, right])
   }
 
   @Test
@@ -1508,9 +1787,11 @@ struct WorkspaceActivationFeatureTests {
     }
     let applied = LockIsolated<[Set<WindowKey>]>([])
     let focused = LockIsolated<[WindowKey]>([])
+    let clock = TestClock()
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
+      $0.continuousClock = clock
       $0.windowSnapshot.onScreenWindowIDs = { [focusedA.windowID, survivorB.windowID] }
       $0.windowSnapshot.focusedWindowKey = { focusedA }
       $0.windowTiler.apply = { request in
@@ -1521,11 +1802,16 @@ struct WorkspaceActivationFeatureTests {
     store.exhaustivity = .off
 
     await store.send(.windowServerWindowDestroyed(closedB.windowID))
+    await clock.advance(by: .milliseconds(24))
+    await store.receive {
+      guard case .windowServerCloseSettled(let workspaceIds) = $0 else { return false }
+      return workspaceIds == [wsB.id]
+    }
     await store.finish()
 
     #expect(store.state.tilingTrees[wsA.id]?.windows == [focusedA])
     #expect(store.state.tilingTrees[wsB.id]?.windows == [survivorB])
-    #expect(applied.value == [[survivorB]])
+    #expect(applied.value == [[survivorB], [survivorB]])
     #expect(focused.value.isEmpty)
     #expect(store.state.focusedDisplay == displayA)
   }
