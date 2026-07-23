@@ -49,6 +49,7 @@ struct ActivationRequest: Sendable, Hashable {
     windowKeyToFocus: WindowKey? = nil,
     borrowedApps: [AppAssignment] = [],
     managedBundleIds: Set<String> = [],
+    knownWindows: Set<WindowKey> = [],
   ) {
     self.workspace = workspace
     self.sharedApps = sharedApps
@@ -58,6 +59,7 @@ struct ActivationRequest: Sendable, Hashable {
     self.windowKeyToFocus = windowKeyToFocus
     self.borrowedApps = borrowedApps
     self.managedBundleIds = managedBundleIds
+    self.knownWindows = knownWindows
   }
 
   // MARK: Internal
@@ -85,6 +87,11 @@ struct ActivationRequest: Sendable, Hashable {
   /// (borrow in / release); a plain switch passes an empty set → legacy "hide
   /// every non-kept app".
   var managedBundleIds = Set<String>()
+  /// Windows already tracked by the reducer. A hidden app's windows disappear
+  /// from an on-screen WindowServer snapshot, but an exact match in an all-
+  /// windows snapshot means `unhide()` is sufficient — replaying Dock-style
+  /// reopen at the same time can destroy/recreate the existing window.
+  var knownWindows = Set<WindowKey>()
 
 }
 
@@ -133,16 +140,16 @@ extension WorkspaceManagerClient: DependencyKey {
             workspaceBundleIds.contains($0.bundleIdentifier ?? "")
           }
 
-          // 0. Auto-open: (re)open assigned apps flagged autoOpen that have no
-          //    visible window — whether fully quit or just running with their
-          //    window closed (Electron apps that hide on close, etc.). Opening
-          //    the app URL launches it, or replays a Dock-style "reopen" that
-          //    brings the window back. They join the layout via the
-          //    window-created observer. Apps that already have a window on
-          //    screen are left alone.
-          // One WindowServer snapshot serves both the auto-open check here
-          // and the multi-display hide scoping below — under system load a
-          // second round trip is not free.
+          // 0. Auto-open: (re)open assigned apps that have neither a visible
+          //    window nor a known hidden window. A hidden app drops out of an
+          //    on-screen-only snapshot; treating that as "windowless" replays
+          //    Dock-style reopen and `unhide()` together, which can make apps
+          //    such as KakaoTalk destroy/recreate an otherwise reusable window.
+          //
+          // Keep the usual activation path on the small on-screen snapshot.
+          // Only a Borrow carrying known WindowIDs pays for the all-windows
+          // lookup needed to verify hidden windows. This avoids adding the
+          // substantially larger snapshot to every ordinary workspace switch.
           let onScreenWindows = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID,
@@ -150,13 +157,41 @@ extension WorkspaceManagerClient: DependencyKey {
           let onScreenOwnerPids = Set(
             onScreenWindows.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t }
           )
+          let existingWindowIDs: Set<CGWindowID> =
+            if request.knownWindows.isEmpty {
+              []
+            } else {
+              Set(
+                (CGWindowListCopyWindowInfo(
+                  [.optionAll, .excludeDesktopElements],
+                  kCGNullWindowID,
+                ) as? [[String: Any]] ?? [])
+                  .compactMap { $0[kCGWindowNumber as String] as? CGWindowID }
+              )
+            }
           let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
           func autoOpenIfNeeded(_ bundleId: String) {
             let instances = runningByBundle[bundleId] ?? []
             let hasVisibleWindow = instances.contains {
               onScreenOwnerPids.contains($0.processIdentifier)
             }
-            if hasVisibleWindow { return }
+            let hasHiddenKnownWindow = instances.contains { instance in
+              instance.isHidden
+                && request.knownWindows.contains {
+                  $0.pid == instance.processIdentifier
+                    && $0.bundleId == bundleId
+                    && existingWindowIDs.contains($0.windowID)
+                }
+            }
+            if !shouldAutoOpen(
+              hasVisibleWindow: hasVisibleWindow,
+              hasHiddenKnownWindow: hasHiddenKnownWindow,
+            ) {
+              if hasHiddenKnownWindow {
+                debugLog.log("Manager", "unhide known window \(bundleId) — skip reopen")
+              }
+              return
+            }
             guard
               let url = NSWorkspace.shared
                 .urlForApplication(withBundleIdentifier: bundleId)
@@ -328,6 +363,13 @@ extension WorkspaceManagerClient: DependencyKey {
         }
       }
     )
+  }
+
+  static func shouldAutoOpen(
+    hasVisibleWindow: Bool,
+    hasHiddenKnownWindow: Bool,
+  ) -> Bool {
+    !hasVisibleWindow && !hasHiddenKnownWindow
   }
 
   /// PIDs whose on-screen, layer-0 windows live exclusively on the named

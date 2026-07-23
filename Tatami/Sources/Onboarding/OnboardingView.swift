@@ -1502,8 +1502,8 @@ private struct OnboardingFocusCyclingStep: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 24) {
       OnboardingSection(
-        title: "Window cycling stays inside one Tatami workspace",
-        subtitle: "Tatami, ⌘Tab, and ⌘` all change focus, but they search three different sets of windows.",
+        title: "Window cycling stays inside the visible Tatami context",
+        subtitle: "A borrowed block joins its host's cycle until dismissed. Tatami, ⌘Tab, and ⌘` still search three different sets of windows.",
       ) {
         VStack(alignment: .leading, spacing: 13) {
           OnboardingWindowCyclingComparison(

@@ -936,7 +936,11 @@ extension WorkspaceActivationFeature {
   /// Flush the display's composition (host + borrowed blocks) in one apply:
   /// each workspace's tree laid into its sub-rect, frames merged, applied
   /// together. No-op when the display has no active composition.
-  func applyComposition(display: DisplayName?, state: State) -> Effect<Action> {
+  func applyComposition(
+    display: DisplayName?,
+    focusAfterLayout workspaceId: Workspace.ID? = nil,
+    state: State,
+  ) -> Effect<Action> {
     let settings = state.config.settings
     guard
       let display,
@@ -949,7 +953,7 @@ extension WorkspaceActivationFeature {
     let borrowedZoom = state.fullscreenZoomed[slot.workspace] ?? []
     let edge = slot.edge
     let fraction = slot.fraction
-    return .run { [tiler = windowTiler, displays] _ in
+    return .run { [tiler = windowTiler, displays] send in
       let merged: [WindowKey: CGRect] = await MainActor.run {
         let workArea = displays.workArea(display).insetBy(
           dx: CGFloat(settings.layout.gapOuter),
@@ -980,6 +984,10 @@ extension WorkspaceActivationFeature {
       }
       guard !Task.isCancelled, !merged.isEmpty else { return }
       await tiler.apply(FrameApplication(windowFrames: merged))
+      guard !Task.isCancelled else { return }
+      if let workspaceId {
+        await send(.focusBorrowedBlock(workspaceId: workspaceId))
+      }
     }
     .cancellable(id: CancelID.layout(display), cancelInFlight: true)
   }
@@ -1059,6 +1067,7 @@ extension WorkspaceActivationFeature {
         return a
       }
       : tiledBorrowed
+    let existingBorrowedTree = state.tilingTrees[targetId]
     let request = ActivationRequest(
       workspace: hostWs,
       sharedApps: state.config.sharedApps,
@@ -1066,9 +1075,9 @@ extension WorkspaceActivationFeature {
       setFocus: false,
       borrowedApps: borrowedApps,
       managedBundleIds: state.managedBundleIds,
+      knownWindows: Set(existingBorrowedTree?.windows ?? []),
     )
     let settings = state.config.settings
-    let existingBorrowedTree = state.tilingTrees[targetId]
     debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge)")
     let hud = hudEffect(
       state,
@@ -1098,10 +1107,11 @@ extension WorkspaceActivationFeature {
         )
       }
       await send(.tilingTreeUpdated(workspaceId: targetId, tree: tree))
-      await send(.flushComposition(display: display))
-      // The borrowed tree is now in state — land focus + cursor on it (a borrow
-      // only unhides its apps, so nothing else moves focus off the host).
-      await send(.focusBorrowedBlock(workspaceId: targetId))
+      // The borrowed tree is now in state. Apply every host/borrow AX frame
+      // first, then land focus + cursor on the completed block. Previously the
+      // layout and focus effects raced on the main actor, which made the
+      // summon visibly hitch and could wake an overlapping floating mirror.
+      await send(.flushCompositionAndFocus(display: display, workspaceId: targetId))
     }
     return .merge(render, hud)
   }

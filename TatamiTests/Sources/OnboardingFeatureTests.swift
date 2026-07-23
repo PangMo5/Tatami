@@ -566,6 +566,53 @@ struct OnboardingFeatureTests {
   }
 
   @Test
+  func `cycling crosses between the host and borrowed block`() async throws {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let chat = MacApp(bundleIdentifier: "chat", name: "Chat")
+    let host = Workspace(name: "Build", apps: [AppAssignment(editor)])
+    let scratchpad = Workspace(
+      name: "Team Chat",
+      kind: .scratchpad,
+      borrowEdge: .right,
+      apps: [AppAssignment(chat)],
+    )
+    let profile = Profile(name: "Default", workspaces: [host, scratchpad])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.runningApps = [editor, chat]
+    state.demoActiveWorkspaceID = host.id
+    state.demoBorrowWorkspaceID = scratchpad.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier]
+    )
+    let hostSlot = try #require(state.demoLayoutTree?.windows.first)
+    state.demoSelectedSlot = hostSlot
+    state.demoBorrowed = true
+    state.demoBorrowEdge = .right
+    state.demoBorrowLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [chat.bundleIdentifier]
+    )
+    let borrowedSlot = try #require(state.demoBorrowLayoutTree?.windows.first)
+    state.demoBorrowSelectedSlot = borrowedSlot
+    state.demoFocusedBlock = .host
+    state.step = .focusAndCycling
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoCommandTapped(.cycle(.next)))
+    #expect(store.state.demoFocusedBlock == .borrowed)
+    #expect(store.state.demoBorrowSelectedSlot == borrowedSlot)
+
+    await store.send(.demoCommandTapped(.cycle(.next)))
+    #expect(store.state.demoFocusedBlock == .host)
+    #expect(store.state.demoSelectedSlot == hostSlot)
+  }
+
+  @Test
   func `FFM and directional focus cross the host Borrow boundary`() async throws {
     let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
     let chat = MacApp(bundleIdentifier: "chat", name: "Chat")

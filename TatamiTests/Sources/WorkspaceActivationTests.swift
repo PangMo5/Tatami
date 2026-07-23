@@ -145,10 +145,10 @@ struct WorkspaceActivationFeatureTests {
               split: .horizontal,
               ratio: 0.5,
               left: .leaf(appA1),
-              right: .leaf(appA2)
+              right: .leaf(appA2),
             )
           ),
-          right: .leaf(appB)
+          right: .leaf(appB),
         )
       )
     }
@@ -214,6 +214,77 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `app cycle includes the borrowed block`() async {
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)],
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _ in
+        hudWindows.withValue { $0 = windows }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(windowKey: hostWindow, direction: .next))
+    await store.finish()
+
+    #expect(focused.value == borrowedWindow)
+    #expect(hudWindows.value == [hostWindow, borrowedWindow])
+  }
+
+  @Test
+  func `window cycle preserves borrowed windows from the same app`() async {
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.shared")
+    let borrowedWindow = WindowKey(pid: 1, windowID: 102, bundleId: "app.shared")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock { $0.settings.switching.cycleSameAppWindows = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)],
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _ in
+        hudWindows.withValue { $0 = windows }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(windowKey: hostWindow, direction: .next))
+    await store.finish()
+
+    #expect(focused.value == borrowedWindow)
+    #expect(hudWindows.value == [hostWindow, borrowedWindow])
+  }
+
+  @Test
   func `quick window cycle shortcut commits on modifier release without HUD`() async {
     let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
     let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
@@ -248,7 +319,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.cycleWindowShortcutResolved(
       windowKey: appA,
       direction: .next,
-      holdModifiers: .option
+      holdModifiers: .option,
     ))
     #expect(store.state.windowCycleSession?.selected == appB)
     #expect(focused.value == nil)
@@ -299,7 +370,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.cycleWindowShortcutResolved(
       windowKey: appA,
       direction: .next,
-      holdModifiers: .option
+      holdModifiers: .option,
     ))
     await clock.advance(by: .milliseconds(150))
     await store.receive(\.windowCycleHUDDelayElapsed)
@@ -314,6 +385,173 @@ struct WorkspaceActivationFeatureTests {
 
     #expect(focused.value == appB)
     #expect(dismissedDisplay.value == .some(Self.display))
+  }
+
+  @Test
+  func `window cycle HUD arrow moves logical selection without committing`() async {
+    let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let appC = WindowKey(pid: 3, windowID: 301, bundleId: "app.c")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(appA),
+          right: .branch(
+            BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appB), right: .leaf(appC))
+          ),
+        )
+      )
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspace.id,
+        windows: [appA, appB, appC],
+        selected: appB,
+        byWindow: false,
+        display: Self.display,
+        holdModifiers: .command,
+        isHUDVisible: true,
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudSelected = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { _, selected, _, _, _ in
+        hudSelected.withValue { $0 = selected }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowCycleHUDInteraction(.move(.next)))
+    await store.finish()
+
+    #expect(store.state.windowCycleSession?.selected == appC)
+    #expect(hudSelected.value == appC)
+    #expect(focused.value == nil)
+  }
+
+  @Test
+  func `window cycle HUD enter commits current selection once`() async {
+    let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA), right: .leaf(appB))
+      )
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspace.id,
+        windows: [appA, appB],
+        selected: appB,
+        byWindow: false,
+        display: Self.display,
+        holdModifiers: .command,
+        isHUDVisible: true,
+      )
+    }
+    let focused = LockIsolated<[WindowKey]>([])
+    let hudDismisses = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0.append(key) } }
+      $0.workspaceHUD.dismissWindowSwitcher = { _ in
+        hudDismisses.withValue { $0 += 1 }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowCycleHUDInteraction(.commitSelected))
+    await store.finish()
+
+    #expect(store.state.windowCycleSession == nil)
+    #expect(focused.value == [appB])
+    #expect(hudDismisses.value == 1)
+  }
+
+  @Test
+  func `window cycle HUD click commits the clicked item`() async {
+    let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA), right: .leaf(appB))
+      )
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspace.id,
+        windows: [appA, appB],
+        selected: appB,
+        byWindow: false,
+        display: Self.display,
+        holdModifiers: .command,
+        isHUDVisible: true,
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowCycleHUDInteraction(.commit(appA)))
+    await store.finish()
+
+    #expect(store.state.windowCycleSession == nil)
+    #expect(focused.value == appA)
+  }
+
+  @Test
+  func `window cycle HUD escape dismisses without committing`() async {
+    let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA), right: .leaf(appB))
+      )
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspace.id,
+        windows: [appA, appB],
+        selected: appB,
+        byWindow: false,
+        display: Self.display,
+        holdModifiers: .command,
+        isHUDVisible: true,
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudDismisses = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.dismissWindowSwitcher = { _ in
+        hudDismisses.withValue { $0 += 1 }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowCycleHUDInteraction(.cancel))
+    await store.finish()
+
+    #expect(store.state.windowCycleSession == nil)
+    #expect(focused.value == nil)
+    #expect(hudDismisses.value == 1)
   }
 
   @Test
@@ -335,7 +573,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.membershipEditResolved(
       bundleId: "app.example",
       name: "Example",
-      edit: .assign(to: targetWorkspace.id)
+      edit: .assign(to: targetWorkspace.id),
     ))
     await store.receive {
       guard case .delegate(.profileSwitchRequested(let id, let focus)) = $0 else {
@@ -1169,7 +1407,7 @@ struct WorkspaceActivationFeatureTests {
       $0.activeWorkspacesByDisplay[display] = host.id
       $0.compositionsByDisplay[display] = Composition(
         host: host.id,
-        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)]
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
       )
     }
     let requests = LockIsolated<[ActivationRequest]>([])
@@ -1195,6 +1433,47 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.compositionsByDisplay[display] == nil)
     #expect(requests.value.last?.workspace.id == host.id)
     #expect(requests.value.last?.targetDisplay == display)
+  }
+
+  @Test
+  func `borrow finishes composition layout before focusing its block`() async {
+    let display = Self.display
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Borrowed",
+      kind: .scratchpad,
+      apps: [AppAssignment(bundleIdentifier: borrowedWindow.bundleId, name: "Borrowed")],
+    )
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+    }
+    let order = LockIsolated<[String]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { display }
+      $0.workspaceManager.activate = { _ in }
+      $0.windowSnapshot.cachedKeys = { bundleIDs, _ in
+        bundleIDs.contains(borrowedWindow.bundleId) ? [borrowedWindow] : []
+      }
+      $0.windowTiler.apply = { _ in
+        order.withValue { $0.append("layout") }
+      }
+      $0.focusManager.focusWindow = { _ in
+        order.withValue { $0.append("focus") }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.borrow(workspaceId: borrowed.id, edge: .right))
+    await store.finish()
+
+    #expect(order.value == ["layout", "focus"])
+    #expect(store.state.compositionsByDisplay[display]?.host == host.id)
   }
 
   @Test

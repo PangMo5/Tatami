@@ -166,6 +166,13 @@ public struct AppFeature {
               await send(.gesturePerformed(gesture))
             }
           },
+          // The HUD captures navigation without becoming the active app.
+          // Selection and commit still run through the activation reducer.
+          .run { [workspaceHUD] send in
+            for await interaction in workspaceHUD.windowSwitcherEvents() {
+              await send(.activation(.windowCycleHUDInteraction(interaction)))
+            }
+          },
           // React to live settings edits (Settings tab writes the shared
           // config) so launch-time integrations reconfigure immediately.
           // `Perceptions` is Perception's back-port of Swift's

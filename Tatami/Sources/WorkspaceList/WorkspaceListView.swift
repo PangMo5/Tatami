@@ -227,18 +227,10 @@ struct WorkspaceListView: View {
     HStack(spacing: 6) {
       Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
       Spacer()
-      if let host = borrowedHostName(for: workspace) {
-        Image(systemName: "rectangle.righthalf.inset.filled")
-          .foregroundStyle(.tint)
-          .imageScale(.small)
-          .help("Borrowed into \(host)")
-      }
-      if let display = activeDisplay(for: workspace) {
-        Image(systemName: "circle.fill")
-          .foregroundStyle(dotColor(for: display))
-          .imageScale(.small)
-          .help("Active on \(display.name)")
-      }
+      WorkspaceRuntimeStatusView(
+        workspaceID: workspace.id,
+        activationStore: activationStore,
+      )
     }
     .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
     .contextMenu {
@@ -341,17 +333,47 @@ struct WorkspaceListView: View {
     return true
   }
 
-  /// The display this workspace is currently active on, if any.
-  private func activeDisplay(for workspace: Workspace) -> DisplayName? {
-    activationStore.activeWorkspacesByDisplay.first { $0.value == workspace.id }?.key
+}
+
+/// Keeps fast-changing runtime badges in their own observation boundary so a
+/// Borrow toggle does not invalidate the entire three-column settings view.
+private struct WorkspaceRuntimeStatusView: View {
+  let workspaceID: Workspace.ID
+  let activationStore: StoreOf<WorkspaceActivationFeature>
+
+  var body: some View {
+    let hostName = borrowedHostName
+    HStack(spacing: 6) {
+      // Keep this slot alive while Borrow appears/disappears. Stable row
+      // geometry prevents every following List row from being laid out again.
+      Image(systemName: "rectangle.righthalf.inset.filled")
+        .foregroundStyle(.tint)
+        .imageScale(.small)
+        .frame(width: 12)
+        .opacity(hostName == nil ? 0 : 1)
+        .accessibilityHidden(hostName == nil)
+        .help(hostName.map { "Borrowed into \($0)" } ?? "")
+
+      if let display = activeDisplay {
+        Image(systemName: "circle.fill")
+          .foregroundStyle(dotColor(for: display))
+          .imageScale(.small)
+          .help("Active on \(display.name)")
+      }
+    }
   }
 
-  /// The host workspace's name when `workspace` is currently borrowed into a
-  /// live composition, else nil.
-  private func borrowedHostName(for workspace: Workspace) -> String? {
-    for (_, comp) in activationStore.compositionsByDisplay
-    where comp.borrowed.contains(where: { $0.workspace == workspace.id }) {
-      return activationStore.config.activeProfile?.workspaces[id: comp.host]?.name
+  /// The display this workspace is currently active on, if any.
+  private var activeDisplay: DisplayName? {
+    activationStore.activeWorkspacesByDisplay.first { $0.value == workspaceID }?.key
+  }
+
+  /// The host workspace's name when this workspace is currently borrowed into
+  /// a live composition, else nil.
+  private var borrowedHostName: String? {
+    for (_, composition) in activationStore.compositionsByDisplay
+    where composition.borrowed.contains(where: { $0.workspace == workspaceID }) {
+      return activationStore.config.activeProfile?.workspaces[id: composition.host]?.name
         ?? "another workspace"
     }
     return nil

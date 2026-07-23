@@ -1527,7 +1527,7 @@ struct OnboardingWindowCyclingComparison: View {
       comparisonCard(
         shortcut: tatamiShortcut,
         title: "Tatami cycling",
-        detail: "Searches managed apps or windows only inside the active workspace. It can move between apps without replacing the task context.",
+        detail: "Searches managed apps or windows inside the active workspace and any borrowed block. It moves across the visible context without replacing it.",
         tint: .accentColor,
       )
       comparisonCard(

@@ -4,6 +4,45 @@ import Testing
 
 struct WindowTilerClientTests {
   @Test
+  func `frame writes use the smallest safe AX mutation`() {
+    let current = CGRect(x: 8, y: 41, width: 800, height: 600)
+
+    #expect(
+      WindowTilerClient.frameWritePlan(current: current, target: current) == .none
+    )
+    #expect(
+      WindowTilerClient.frameWritePlan(
+        current: current,
+        target: CGRect(x: 8, y: 41, width: 600, height: 600),
+      ) == .resizeOnly
+    )
+    #expect(
+      WindowTilerClient.frameWritePlan(
+        current: current,
+        target: CGRect(x: 400, y: 41, width: 800, height: 600),
+      ) == .moveOnly
+    )
+    #expect(
+      WindowTilerClient.frameWritePlan(
+        current: current,
+        target: CGRect(x: 400, y: 41, width: 600, height: 600),
+        crossesDisplays: false,
+      ) == .moveAndResizeOnce
+    )
+    #expect(
+      WindowTilerClient.frameWritePlan(
+        current: current,
+        target: CGRect(x: 400, y: 41, width: 600, height: 600),
+        crossesDisplays: true,
+      ) == .moveAndResizeTwice
+    )
+    #expect(
+      WindowTilerClient.frameWritePlan(current: nil, target: current)
+        == .moveAndResizeTwice
+    )
+  }
+
+  @Test
   func `fresh window server frames skip only current targets`() {
     let current = WindowKey(pid: 1, windowID: 10, bundleId: "app.current")
     let withinTolerance = WindowKey(pid: 2, windowID: 20, bundleId: "app.tolerance")

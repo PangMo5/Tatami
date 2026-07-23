@@ -430,6 +430,10 @@ public struct WorkspaceActivationFeature {
     case borrowChordKey(BorrowChordKey)
     /// Internal: re-flush a display's composition after its trees change.
     case flushComposition(display: DisplayName?)
+    /// A fresh Borrow must finish its AX frame writes before focus/MFF moves
+    /// into that block. Running both concurrently makes app activation,
+    /// tiling, and floating-mirror hover fight over the same main-thread beat.
+    case flushCompositionAndFocus(display: DisplayName?, workspaceId: Workspace.ID)
     /// Internal: land focus + cursor on a freshly-borrowed block once its tree
     /// is in state — the deliberate-summon focus an unhide-only borrow can't
     /// provide on its own.
@@ -449,9 +453,10 @@ public struct WorkspaceActivationFeature {
     case togglePaused
     case bspFocus(BSPDirection)
     case bspFocusResolved(windowKey: WindowKey, direction: BSPDirection)
-    /// Cycle focus through every visible window in the active workspace
-    /// (tiled + floating) — same-app windows cycle individually, and
-    /// off-screen / other-space / minimized windows are excluded.
+    /// Cycle focus through every visible window in the active composition
+    /// (host + borrowed block; otherwise the active workspace). Same-app
+    /// windows cycle individually, and off-screen / other-space / minimized
+    /// windows are excluded.
     case cycleWindow(CycleDirection)
     case cycleWindowResolved(windowKey: WindowKey, direction: CycleDirection)
     /// Keyboard-only entry path with Cmd-Tab semantics. Gesture/menu actions
@@ -460,10 +465,11 @@ public struct WorkspaceActivationFeature {
     case cycleWindowShortcutResolved(
       windowKey: WindowKey,
       direction: CycleDirection,
-      holdModifiers: HotKeyModifiers
+      holdModifiers: HotKeyModifiers,
     )
     case windowCycleHUDDelayElapsed
     case windowCycleModifierReleased
+    case windowCycleHUDInteraction(WindowSwitcherInteraction)
     case bspSwap(BSPDirection)
     case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspToggleOrientation
@@ -1312,6 +1318,16 @@ public struct WorkspaceActivationFeature {
           refreshMarkers(state: state),
         )
 
+      case .flushCompositionAndFocus(let display, let workspaceId):
+        return .merge(
+          applyComposition(
+            display: display,
+            focusAfterLayout: workspaceId,
+            state: state,
+          ),
+          refreshMarkers(state: state),
+        )
+
       case .focusBorrowedBlock(let workspaceId):
         return focusBorrowedBlock(workspaceId: workspaceId, state: &state)
 
@@ -1497,8 +1513,10 @@ public struct WorkspaceActivationFeature {
             $0.assignApp(bundleId: bundleId, name: name, to: workspaceId)
           }
           state.tilingTrees[workspaceId] = nil
-          if let owner = state.config.profileId(owning: workspaceId),
-             owner != state.config.activeProfile?.id {
+          if
+            let owner = state.config.profileId(owning: workspaceId),
+            owner != state.config.activeProfile?.id
+          {
             return .send(.delegate(.profileSwitchRequested(owner, focus: workspaceId)))
           }
           // Switch to the target so the just-assigned app is visible there.
@@ -1529,18 +1547,20 @@ public struct WorkspaceActivationFeature {
         }
 
       case .cycleWindowResolved(let key, let direction):
-        guard let cycle = windowCycle(
-          from: key,
-          direction: direction,
-          holdModifiers: [],
-          state: state
-        ) else { return .none }
+        guard
+          let cycle = windowCycle(
+            from: key,
+            direction: direction,
+            holdModifiers: [],
+            state: state,
+          )
+        else { return .none }
         return .merge(
           commitWindowCycle(cycle, state: state),
           state.config.settings.hud.shows(\.windowCycle)
             ? showWindowCycleHUD(
               cycle,
-              autoDismissAfterMs: state.config.settings.hud.durationMs
+              autoDismissAfterMs: state.config.settings.hud.durationMs,
             )
             : .none,
         )
@@ -1548,12 +1568,14 @@ public struct WorkspaceActivationFeature {
       case .cycleWindowShortcut(let direction, let holdModifiers):
         guard !holdModifiers.isEmpty else { return .send(.cycleWindow(direction)) }
         if let current = state.windowCycleSession {
-          guard var next = windowCycle(
-            from: current.selected,
-            direction: direction,
-            holdModifiers: current.holdModifiers,
-            state: state
-          ) else { return .none }
+          guard
+            var next = windowCycle(
+              from: current.selected,
+              direction: direction,
+              holdModifiers: current.holdModifiers,
+              state: state,
+            )
+          else { return .none }
           next.isHUDVisible = current.isHUDVisible
           state.windowCycleSession = next
           return next.isHUDVisible
@@ -1564,7 +1586,7 @@ public struct WorkspaceActivationFeature {
           .cycleWindowShortcutResolved(
             windowKey: key,
             direction: direction,
-            holdModifiers: holdModifiers
+            holdModifiers: holdModifiers,
           )
         }
 
@@ -1575,12 +1597,14 @@ public struct WorkspaceActivationFeature {
         if state.windowCycleSession != nil {
           return .send(.cycleWindowShortcut(direction, holdModifiers: holdModifiers))
         }
-        guard let cycle = windowCycle(
-          from: key,
-          direction: direction,
-          holdModifiers: holdModifiers,
-          state: state
-        ) else { return .none }
+        guard
+          let cycle = windowCycle(
+            from: key,
+            direction: direction,
+            holdModifiers: holdModifiers,
+            state: state,
+          )
+        else { return .none }
         state.windowCycleSession = cycle
 
         var effects: [Effect<Action>] = [
@@ -1604,8 +1628,9 @@ public struct WorkspaceActivationFeature {
         return .merge(effects)
 
       case .windowCycleHUDDelayElapsed:
-        guard var cycle = state.windowCycleSession,
-              state.config.settings.hud.shows(\.windowCycle)
+        guard
+          var cycle = state.windowCycleSession,
+          state.config.settings.hud.shows(\.windowCycle)
         else { return .none }
         cycle.isHUDVisible = true
         state.windowCycleSession = cycle
@@ -1613,19 +1638,41 @@ public struct WorkspaceActivationFeature {
 
       case .windowCycleModifierReleased:
         guard let cycle = state.windowCycleSession else { return .none }
-        state.windowCycleSession = nil
-        return .merge(
-          .cancel(id: CancelID.windowCycleHUDDelay),
-          .cancel(id: CancelID.windowCycleModifier),
-          commitWindowCycle(cycle, state: state),
-          cycle.isHUDVisible
-            ? .run { [workspaceHUD, display = cycle.display] _ in
-              // `dismissWindowSwitcher` starts the existing 0.25-second fade;
-              // it does not hard-hide the panel on modifier release.
-              await workspaceHUD.dismissWindowSwitcher(display)
-            }
-            : .none,
-        )
+        return finishWindowCycle(cycle, commit: true, state: &state)
+
+      case .windowCycleHUDInteraction(.move(let direction)):
+        guard
+          let current = state.windowCycleSession,
+          var next = windowCycle(
+            from: current.selected,
+            direction: direction,
+            holdModifiers: current.holdModifiers,
+            state: state,
+          )
+        else { return .none }
+        next.isHUDVisible = true
+        state.windowCycleSession = next
+        return showWindowCycleHUD(next, autoDismissAfterMs: nil)
+
+      case .windowCycleHUDInteraction(.commitSelected):
+        guard let cycle = state.windowCycleSession else { return .none }
+        return finishWindowCycle(cycle, commit: true, state: &state)
+
+      case .windowCycleHUDInteraction(.commit(let selected)):
+        guard
+          var cycle = state.windowCycleSession,
+          cycle.windows.contains(selected)
+        else { return .none }
+        cycle.selected = selected
+        // A pointer click can jump directly across a host/Borrow boundary.
+        // Commit/warp must then use the clicked window's tree, not whichever
+        // block owned the keyboard selection before the click.
+        cycle.workspaceId = state.workspaceOwning(selected) ?? cycle.workspaceId
+        return finishWindowCycle(cycle, commit: true, state: &state)
+
+      case .windowCycleHUDInteraction(.cancel):
+        guard let cycle = state.windowCycleSession else { return .none }
+        return finishWindowCycle(cycle, commit: false, state: &state)
 
       case .bspFocus(let direction):
         return resolveFocusedWindowKey { key in
@@ -2138,17 +2185,23 @@ public struct WorkspaceActivationFeature {
     holdModifiers: HotKeyModifiers,
     state: State,
   ) -> State.WindowCycleSession? {
-    guard
-      let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
-      let tree = state.tilingTrees[workspaceId]
+    guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID
     else { return nil }
 
-    // Cycle within the focused block. Floating/unmanaged join only when
-    // uncomposed (their bundle sets resolve per active workspace, not per
-    // block); each window is its own key so same-app windows cycle.
-    var allWindows = tree.windows
-    let isComposed = state.displayShowing(workspaceId)
-      .flatMap { state.compositionsByDisplay[$0] } != nil
+    // Borrow is one visible task surface, so cycling spans every tiled tree in
+    // that display's composition. Keep the host first for deterministic HUD
+    // order; the current key still determines the next/previous wrap point.
+    let display = state.displayShowing(workspaceId)
+    let composition = display.flatMap { state.compositionsByDisplay[$0] }
+    let workspaceIds = composition.map {
+      [$0.host] + $0.borrowed.map(\.workspace)
+    } ?? [workspaceId]
+    var allWindows = workspaceIds.flatMap { state.tilingTrees[$0]?.windows ?? [] }
+    guard !allWindows.isEmpty else { return nil }
+
+    // Floating/unmanaged join only when uncomposed. A borrowed workspace's
+    // non-tiled assignments are intentionally not part of the borrowed block.
+    let isComposed = composition != nil
     if !isComposed {
       let floatingBundles = Self.floatingBundleIds(
         state: state,
@@ -2184,11 +2237,14 @@ public struct WorkspaceActivationFeature {
     // App-level cycle lands on that app's most-recently-focused window rather
     // than whichever representative happened to appear first in the tree.
     if !byWindow {
-      let mru = state.mruWindows[workspaceId] ?? []
+      let targetOwner = state.workspaceOwning(target) ?? workspaceId
+      let mru = state.mruWindows[targetOwner] ?? []
       let live = Set(allWindows)
-      if let recent = mru.first(where: {
-        $0.bundleId == target.bundleId && live.contains($0)
-      }) {
+      if
+        let recent = mru.first(where: {
+          $0.bundleId == target.bundleId && live.contains($0)
+        })
+      {
         target = recent
       }
     }
@@ -2199,14 +2255,15 @@ public struct WorkspaceActivationFeature {
       "cycle \(direction) \(key.bundleId)#\(key.windowID) "
         + "→ \(target.bundleId)#\(target.windowID)",
     )
+    let targetWorkspaceId = state.workspaceOwning(target) ?? workspaceId
     return State.WindowCycleSession(
-      workspaceId: workspaceId,
+      workspaceId: targetWorkspaceId,
       windows: ordered,
       selected: target,
       byWindow: byWindow,
-      display: tilingContext(for: workspaceId, state: state).display,
+      display: display ?? tilingContext(for: targetWorkspaceId, state: state).display,
       holdModifiers: holdModifiers,
-      isHUDVisible: false
+      isHUDVisible: false,
     )
   }
 
@@ -2239,6 +2296,29 @@ public struct WorkspaceActivationFeature {
     }
   }
 
+  private func finishWindowCycle(
+    _ cycle: State.WindowCycleSession,
+    commit: Bool,
+    state: inout State,
+  ) -> Effect<Action> {
+    state.windowCycleSession = nil
+    var effects: [Effect<Action>] = [
+      .cancel(id: CancelID.windowCycleHUDDelay),
+      .cancel(id: CancelID.windowCycleModifier),
+    ]
+    if commit {
+      effects.append(commitWindowCycle(cycle, state: state))
+    }
+    if cycle.isHUDVisible {
+      effects.append(
+        .run { [workspaceHUD, display = cycle.display] _ in
+          await workspaceHUD.dismissWindowSwitcher(display)
+        }
+      )
+    }
+    return .merge(effects)
+  }
+
   private func showWindowCycleHUD(
     _ cycle: State.WindowCycleSession,
     autoDismissAfterMs: Int?,
@@ -2249,7 +2329,7 @@ public struct WorkspaceActivationFeature {
         cycle.selected,
         cycle.byWindow,
         autoDismissAfterMs,
-        cycle.display
+        cycle.display,
       )
     }
   }

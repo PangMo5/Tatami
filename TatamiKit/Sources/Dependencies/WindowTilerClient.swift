@@ -52,9 +52,10 @@ extension WindowTilerClient: DependencyKey {
     // unreliable *cached*-frame shortcut: only windows visibly at their target
     // right now are skipped. Off-screen / mid-unhide windows still take the AX
     // path, preserving convergence after a workspace switch.
+    let visibleFrames = currentOnScreenFrames()
     let pendingFrames = framesNeedingApply(
       targets: request.windowFrames,
-      visibleFrames: currentOnScreenFrames(),
+      visibleFrames: visibleFrames,
     )
     guard !pendingFrames.isEmpty else {
       @Dependency(\.debugLog) var debugLog
@@ -76,12 +77,59 @@ extension WindowTilerClient: DependencyKey {
     // would keep writing stale frames between the newer pass's hops.
     for (pid, entries) in grouped {
       guard !Task.isCancelled else { return }
-      await MainActor.run { applyForApp(pid: pid, entries: entries) }
+      await MainActor.run {
+        applyForApp(
+          pid: pid,
+          entries: entries,
+          visibleFrames: visibleFrames,
+        )
+      }
     }
   }
 
   static let testValue = WindowTilerClient(apply: { _ in })
   static let previewValue = testValue
+
+  enum FrameWritePlan: Equatable {
+    case none
+    case resizeOnly
+    case moveOnly
+    case moveAndResizeOnce
+    case moveAndResizeTwice
+  }
+
+  /// Select the smallest AX mutation that can converge the current frame.
+  ///
+  /// A resize at the same origin never crosses displays, and a pure move
+  /// cannot be clamped to a different size. Only a simultaneous move and
+  /// resize (or an off-screen window without fresh geometry) needs the
+  /// repeated position/size pass used for cross-display convergence.
+  static func frameWritePlan(
+    current: CGRect?,
+    target: CGRect,
+    crossesDisplays: Bool? = nil,
+    tolerance: CGFloat = 1,
+  ) -> FrameWritePlan {
+    guard let current else { return .moveAndResizeTwice }
+
+    let originIsCurrent =
+      abs(current.minX - target.minX) <= tolerance
+      && abs(current.minY - target.minY) <= tolerance
+    let sizeIsCurrent =
+      abs(current.width - target.width) <= tolerance
+      && abs(current.height - target.height) <= tolerance
+
+    switch (originIsCurrent, sizeIsCurrent) {
+    case (true, true):
+      return .none
+    case (true, false):
+      return .resizeOnly
+    case (false, true):
+      return .moveOnly
+    case (false, false):
+      return crossesDisplays == false ? .moveAndResizeOnce : .moveAndResizeTwice
+    }
+  }
 
   /// Keep only targets whose fresh WindowServer geometry is absent or drifted.
   /// Internal for deterministic unit tests; the live path supplies one snapshot
@@ -94,15 +142,12 @@ extension WindowTilerClient: DependencyKey {
     var pending = [WindowKey: CGRect]()
     pending.reserveCapacity(targets.count)
     for (key, target) in targets {
-      guard
-        let current = visibleFrames[key.windowID],
-        abs(current.minX - target.minX) <= tolerance,
-        abs(current.minY - target.minY) <= tolerance,
-        abs(current.width - target.width) <= tolerance,
-        abs(current.height - target.height) <= tolerance
-      else {
+      if frameWritePlan(
+        current: visibleFrames[key.windowID],
+        target: target,
+        tolerance: tolerance,
+      ) != .none {
         pending[key] = target
-        continue
       }
     }
     return pending
@@ -133,6 +178,7 @@ extension WindowTilerClient: DependencyKey {
   private static func applyForApp(
     pid: pid_t,
     entries: [(key: WindowKey, value: CGRect)],
+    visibleFrames: [CGWindowID: CGRect],
   ) {
     @Dependency(\.debugLog) var debugLog
     let logging = debugLog.isEnabled()
@@ -193,7 +239,11 @@ extension WindowTilerClient: DependencyKey {
         debugLog.log("Tiler", "apply \(key.bundleId)#\(key.windowID) → missing-window")
         continue
       }
-      let outcome = applyFrame(frame, to: window)
+      let outcome = applyFrame(
+        frame,
+        currentFrame: visibleFrames[key.windowID],
+        to: window,
+      )
       if logging {
         debugLog.log(
           "Tiler",
@@ -204,7 +254,11 @@ extension WindowTilerClient: DependencyKey {
   }
 
   @MainActor
-  private static func applyFrame(_ frame: CGRect, to window: AXUIElement) -> String {
+  private static func applyFrame(
+    _ frame: CGRect,
+    currentFrame: CGRect?,
+    to window: AXUIElement,
+  ) -> String {
     // A native-fullscreen window is not ours to lay out. The old behavior
     // forced it out of fullscreen (`AXFullScreen = false`) before writing the
     // tiled frame — so the space-change reconcile that fires the instant the
@@ -212,12 +266,6 @@ extension WindowTilerClient: DependencyKey {
     // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
     if isFullScreen(window) { return "skipped-fullscreen" }
 
-    // Apply position + size TWICE. Moving a window to a larger display, macOS
-    // clamps the size to the window's *current* (smaller) display before the
-    // position write lands it on the new one — so a single pos→size pass leaves
-    // it short (the cross-display gap / wrong ratio). The second pass runs with
-    // the window already on the target display, where the size isn't clamped.
-    // (yabai does the same repeated set for cross-display moves.)
     func setPosition() -> AXError {
       var position = CGPoint(x: frame.minX, y: frame.minY)
       guard let value = AXValueCreate(.cgPoint, &position) else { return .success }
@@ -229,13 +277,60 @@ extension WindowTilerClient: DependencyKey {
       return AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
     }
 
-    _ = setPosition()
-    _ = setSize()
-    let posError = setPosition()
-    let sizeError = setSize()
+    let crossesDisplays = currentFrame.flatMap {
+      displayID(containing: CGPoint(x: $0.midX, y: $0.midY))
+    }.flatMap { currentDisplay in
+      displayID(containing: CGPoint(x: frame.midX, y: frame.midY))
+        .map { $0 != currentDisplay }
+    }
 
-    if posError == .success, sizeError == .success { return "ok" }
-    return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
+    switch frameWritePlan(
+      current: currentFrame,
+      target: frame,
+      crossesDisplays: crossesDisplays,
+    ) {
+    case .none:
+      return "skipped-current"
+
+    case .resizeOnly:
+      let sizeError = setSize()
+      return sizeError == .success ? "ok" : "size=\(sizeError.rawValue)"
+
+    case .moveOnly:
+      let posError = setPosition()
+      return posError == .success ? "ok" : "pos=\(posError.rawValue)"
+
+    case .moveAndResizeOnce:
+      // Same-display geometry has no old-display clamp. Resize first so the
+      // final position write restores the exact origin if the target app
+      // adjusts its frame while honoring min/max-size constraints.
+      let sizeError = setSize()
+      let posError = setPosition()
+      if posError == .success, sizeError == .success { return "ok" }
+      return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
+
+    case .moveAndResizeTwice:
+      // Moving a window to a larger display can clamp its size to the current
+      // display before the position write lands. Repeat the pair only for this
+      // path; the second pass now runs against the target display.
+      // (yabai uses the same repeated set for cross-display convergence.)
+      _ = setPosition()
+      _ = setSize()
+      let posError = setPosition()
+      let sizeError = setSize()
+      if posError == .success, sizeError == .success { return "ok" }
+      return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
+    }
+  }
+
+  private static func displayID(containing point: CGPoint) -> CGDirectDisplayID? {
+    var displayID: CGDirectDisplayID = 0
+    var count: UInt32 = 0
+    guard
+      CGGetDisplaysWithPoint(point, 1, &displayID, &count) == .success,
+      count > 0
+    else { return nil }
+    return displayID
   }
 
   @MainActor

@@ -49,9 +49,15 @@ struct TatamiApp: App {
 @MainActor
 private final class WindowActivationCoordinator {
   private var visibleWindowIDs = Set<String>()
+  private var menuBarActivity: NSObjectProtocol?
+
+  init() {
+    beginMenuBarActivity()
+  }
 
   func appeared(_ id: String) {
     visibleWindowIDs.insert(id)
+    endMenuBarActivity()
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
   }
@@ -60,7 +66,27 @@ private final class WindowActivationCoordinator {
     visibleWindowIDs.remove(id)
     if visibleWindowIDs.isEmpty {
       NSApp.setActivationPolicy(.accessory)
+      beginMenuBarActivity()
     }
+  }
+
+  /// An LSUIElement app with no visible window is otherwise a strong App Nap
+  /// candidate. Tatami is still an interactive window manager in that state:
+  /// global hotkeys and gestures are user-requested work that must begin
+  /// promptly. Keep only the menu-bar-only lifetime classified as
+  /// user-initiated, while allowing the Mac itself to idle-sleep normally.
+  private func beginMenuBarActivity() {
+    guard menuBarActivity == nil else { return }
+    menuBarActivity = ProcessInfo.processInfo.beginActivity(
+      options: .userInitiatedAllowingIdleSystemSleep,
+      reason: "Tatami is waiting for interactive window-management commands"
+    )
+  }
+
+  private func endMenuBarActivity() {
+    guard let menuBarActivity else { return }
+    ProcessInfo.processInfo.endActivity(menuBarActivity)
+    self.menuBarActivity = nil
   }
 }
 

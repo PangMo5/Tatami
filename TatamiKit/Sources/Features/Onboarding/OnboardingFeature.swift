@@ -2038,9 +2038,8 @@ public struct OnboardingFeature {
 
     case .cycle(let direction):
       let candidates = cycleCandidates(
-        tree: tree,
         byWindow: state.draft.settings.switching.cycleSameAppWindows,
-        block: block,
+        focusedBlock: block,
         state: state,
       )
       guard candidates.count > 1 else {
@@ -2048,13 +2047,15 @@ public struct OnboardingFeature {
         return true
       }
       let currentIndex = candidates.firstIndex(where: {
-        state.draft.settings.switching.cycleSameAppWindows
-          ? $0 == selected
-          : $0.bundleId == selected.bundleId
+        $0.block == block
+          && (state.draft.settings.switching.cycleSameAppWindows
+            ? $0.slot == selected
+            : $0.slot.bundleId == selected.bundleId)
       }) ?? -1
       let step = direction == .next ? 1 : -1
       let next = ((currentIndex + step) % candidates.count + candidates.count) % candidates.count
-      focusDemoWindow(candidates[next], in: block, state: &state)
+      let target = candidates[next]
+      focusDemoWindow(target.slot, in: target.block, state: &state)
       followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.cycle)
       state.demoActionResult = direction == .next ? "Cycled to the next window" : "Cycled to the previous window"
@@ -2178,22 +2179,31 @@ public struct OnboardingFeature {
   }
 
   private func cycleCandidates(
-    tree: BSPNode<SlotID>,
     byWindow: Bool,
-    block: OnboardingDemoBlock,
+    focusedBlock: OnboardingDemoBlock,
     state: State,
-  ) -> [SlotID] {
-    guard !byWindow else { return tree.windows }
-    var seen = Set<String>()
-    let representatives = tree.windows.filter { seen.insert($0.bundleId).inserted }
-    guard let workspaceID = demoWorkspaceID(for: block, state: state) else {
-      return representatives
+  ) -> [(block: OnboardingDemoBlock, slot: SlotID)] {
+    let blocks: [OnboardingDemoBlock] = state.demoBorrowed
+      ? [.host, .borrowed]
+      : [focusedBlock]
+    let windows = blocks.flatMap { block in
+      (demoTree(for: block, state: state)?.windows ?? []).map {
+        (block: block, slot: $0)
+      }
     }
-    let recent = state.demoWindowMRU[workspaceID] ?? []
+    guard !byWindow else { return windows }
+    var seen = Set<String>()
+    let representatives = windows.filter { seen.insert($0.slot.bundleId).inserted }
     return representatives.map { representative in
-      recent.first(where: {
-        $0.bundleId == representative.bundleId && tree.windows.contains($0)
-      }) ?? representative
+      guard
+        let workspaceID = demoWorkspaceID(for: representative.block, state: state),
+        let tree = demoTree(for: representative.block, state: state)
+      else { return representative }
+      let recent = state.demoWindowMRU[workspaceID] ?? []
+      let slot = recent.first(where: {
+        $0.bundleId == representative.slot.bundleId && tree.windows.contains($0)
+      }) ?? representative.slot
+      return (block: representative.block, slot: slot)
     }
   }
 
