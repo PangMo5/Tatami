@@ -949,7 +949,7 @@ private struct OnboardingTilingStep: View {
           shortcutRow("Focus right", "Move selection to another tile", .focusRight)
           shortcutRow(
             "Cycle next",
-            "Walk through managed windows in this workspace—not the global ⌘Tab list or only one app like ⌘`",
+            "Walk through this Tatami context—not the global ⌘Tab list or only one app like ⌘`",
             .cycleNextWindow,
           )
           shortcutRow(
@@ -1026,7 +1026,7 @@ private struct OnboardingTilingStep: View {
       (
         .cycle,
         "Cycle windows in this workspace",
-        "Cycle walks through managed windows in this workspace. Unlike ⌘Tab it does not search every running app, and unlike ⌘` it can cross between apps in the same context.",
+        "Cycle walks through apps or windows in this Tatami context. Unlike ⌘Tab it does not search every running app, and unlike ⌘` it can cross between apps in the same context.",
       ),
       (
         .swap,
@@ -1512,7 +1512,7 @@ private struct OnboardingFocusCyclingStep: View {
           Divider()
           OnboardingSettingToggle(
             title: "Cycle through every window",
-            detail: "On makes every managed window a stop, including multiple windows from one app. Off cycles app-by-app and recalls each app's most recently used window.",
+            detail: "On makes every context window a stop, including multiple windows from one app. Off cycles app-by-app and recalls each app's most recently used window.",
             isOn: $store.draft.settings.switching.cycleSameAppWindows,
           )
         }

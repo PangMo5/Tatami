@@ -1399,7 +1399,7 @@ struct OnboardingCommandReference: View {
           CommandItem(
             id: "cycle-window",
             title: "Cycle Next / Previous window",
-            detail: "Step through managed windows or apps inside the active workspace—not the global ⌘Tab list or one app's ⌘` list.",
+            detail: "Step through the visible Tatami context—not the global ⌘Tab list or one app's ⌘` list.",
             practice: "Gesture + Tiling",
             actions: [.cycleNextWindow, .cyclePreviousWindow],
           ),
@@ -1527,7 +1527,7 @@ struct OnboardingWindowCyclingComparison: View {
       comparisonCard(
         shortcut: tatamiShortcut,
         title: "Tatami cycling",
-        detail: "Searches managed apps or windows inside the active workspace and any borrowed block. It moves across the visible context without replacing it.",
+        detail: "Searches the active Tatami context instead of every running app. Its Floating and Ignore-mode members participate, and a borrowed tiled block joins the host until dismissed.",
         tint: .accentColor,
       )
       comparisonCard(

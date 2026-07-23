@@ -49,7 +49,7 @@ scripting required.
 - **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
 - **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
 - **Directional placement:** Press the borrow modifier with a workspace key, then use `h`, `j`, `k`, `l`, or an arrow. You can also set a default edge and size globally or per workspace.
-- **Cross-boundary focus:** Directional focus moves between blocks. Activating a borrowed workspace switches to it fully, summoning the same borrow again dismisses it by default, and `esc` cancels placement.
+- **Cross-boundary focus and cycling:** Directional focus and MFF move between blocks. Host and borrowed tiled windows share one app / window cycle until the borrow is dismissed. Activating a borrowed workspace switches to it fully, summoning the same borrow again dismisses it by default, and `esc` cancels placement.
 - **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
 - **Scratchpads:** Borrow-only workspaces stay out of cycling, never activate alone, and auto-open their apps when summoned.
 
@@ -57,7 +57,7 @@ scripting required.
 
 - **Automatic BSP layout:** Insert new windows at the shallowest tile.
 - **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
-- **Native-style window cycling:** Tap the window-cycle shortcut for an immediate switch, or hold its modifier to choose from a centered app or window HUD and commit on release.
+- **Interactive window cycling:** Tap the window-cycle shortcut for an immediate switch, or hold its modifier for a compact app / window HUD. Navigate with the shortcut or arrow keys, commit with Return, modifier release, or a click, and cancel with Escape.
 - **Zoom and splits:** Fill the workspace with one window or toggle split orientation.
 - **Tree transforms:** Rotate, mirror, and balance the layout.
 - **Drag editing:** Swap or re-insert a window with a live placement preview. Manual edge resizing synchronizes back into the tree.
@@ -72,20 +72,28 @@ scripting required.
 
 ### Focus & cursor
 
-- **Focus follows mouse:** Use yabai-style focus-follows-mouse and mouse-follows-focus.
+- **Two explicit focus models:** Focus-follows-mouse gives the window under the pointer keyboard focus. Mouse-follows-focus moves the pointer after Tatami changes windows, including cycling to Floating, Shared Floating, or Ignore-mode windows.
 - **Close-window refocus:** Return to the most recently used remaining window.
 - **Cursor control:** Optionally hide the cursor during a workspace switch.
 
 ### Interface & config
 
 - **Customizable menu bar:** Show the active workspace icon or name and, when relevant, the active profile icon or name.
-- **On-screen HUD:** Confirm workspace and profile switches, cycle through apps or windows, and see float, membership, layout, and borrow actions. Each notification is individually configurable.
+- **Adaptive on-screen HUD:** Compact spring feedback confirms workspace, profile, float, membership, layout, and Borrow actions. The app / window switcher is keyboard- and pointer-interactive, distinguishes selection from hover, and sizes itself to its items.
 - **Workspace icons:** Choose a per-workspace SF Symbol.
 - **Native settings:** Configure Tatami in SwiftUI.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.
 - **Plain TOML:** Edit `~/.config/tatami/config.toml` with XDG support and live reloads.
 - **Scriptable CLI:** Run commands such as `tatami activate <workspace>` and `tatami list-workspaces`.
 - **Automatic updates:** Receive releases through Sparkle.
+
+### Guided setup
+
+- **Learn by doing:** First launch walks through Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Float / Ignore, MFF / FFM, and app / window cycling in a safe virtual display.
+- **Built from this Mac:** Start from running-app metadata and connected-display geometry, then organize apps around repeatable work rather than generic categories. No screen contents are captured.
+- **Optional AI planning:** Review a task-oriented proposal from ChatGPT, Claude, Gemini, another AI, or the on-device Apple Intelligence model on supported Macs. AI output remains a proposal until you apply it.
+- **One cumulative practice surface:** Real shortcuts and trackpad gestures control the preview, and every command learned earlier remains available in later lessons.
+- **Draft first:** Guided Setup does not move real windows or write `config.toml` until **Apply Setup**. Reopen it any time from **Settings → General**.
 
 ## Requirements
 

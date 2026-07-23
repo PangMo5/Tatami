@@ -11,6 +11,11 @@ The path is XDG-aware. If `$XDG_CONFIG_HOME` is set, the file lives at
 written back whenever you change something in the app. Hand edits are picked up
 live, so you can keep it in your dotfiles and edit it in your editor.
 
+Prefer a guided start? Tatami's first launch opens **Guided Setup**, which
+builds a draft from app metadata and connected displays and teaches each major
+feature in a safe virtual display. It writes this file only when you choose
+**Apply Setup**. Run it again from **Settings → General → Run Guided Setup**.
+
 The file has three top-level parts:
 
 - **`[settings.*]`:** Global preferences described below
@@ -58,7 +63,7 @@ The rest pick which actions show one.
 | --- | --- | --- | --- |
 | `enabled` | bool | `true` | Master switch for every overlay. |
 | `workspaceSwitch` | bool | `true` | Workspace name when switching. |
-| `windowCycle` | bool | `true` | Centered app/window switcher while cycling with a held shortcut modifier. A quick press does not show it. |
+| `windowCycle` | bool | `true` | Compact app/window switcher while cycling with a held shortcut modifier. Continue with the shortcut or arrow keys; commit with Return, modifier release, or a click; cancel with Escape. A quick press does not show it. |
 | `profileSwitch` | bool | `true` | Profile name when switching profiles (manual or auto). |
 | `floating` | bool | `true` | Float state changes in both per-workspace and shared contexts. |
 | `appMembership` | bool | `true` | App added to / removed from a workspace or Shared Apps. |
@@ -85,7 +90,7 @@ to disk and restored on the next launch.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `mouseFollowsFocus` | bool | `false` | Warp the cursor to the focused window's tiled position. |
+| `mouseFollowsFocus` | bool | `false` | Move the cursor to the window Tatami focuses. Directional focus, app/window cycling, workspace changes, close refocus, and Swap carry it to the new position; Floating and Ignore-mode cycle targets use their live window frame. Clicking a window preserves the click position. |
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
 | `refocusOnClose` | bool | `true` | When the focused window closes and focus would be stranded on a now-windowless app, move focus to the most recently used remaining window in the workspace (falling back through recency). |
@@ -102,7 +107,7 @@ to disk and restored on the next launch.
 | `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
 | `recentAcrossDisplays` | bool | `false` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific float, switch to the recent workspace. Shared apps do not count because they join every workspace. |
-| `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app (one representative window per app). `true` visits every window, including multiple windows of the same app. |
+| `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app and recalls each app's most-recent window. `true` visits every window, including multiple windows of the same app. The active workspace's tiled, Floating, and Ignore-mode windows participate; while Borrow is active, the host and borrowed tiled blocks form one cycle. |
 | `toggleBorrowOnRepeat` | bool | `true` | Summoning a workspace already borrowed on the current display dismisses it and restores the host. `false` re-docks it instead. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
@@ -232,7 +237,7 @@ restores the host to full screen.
 | `toggleOrientation` | Toggle the focused split's orientation |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
 | `balance` | Re-equalize every split so siblings share their space evenly |
-| `cycleNextWindow` / `cyclePreviousWindow` | Cycle focus across the workspace's windows |
+| `cycleNextWindow` / `cyclePreviousWindow` | Cycle apps or windows inside the visible Tatami context. Unlike Command-Tab, this excludes unrelated running apps; unlike Command-backtick, it can cross between apps. |
 | `moveToNextWorkspace` / `moveToPreviousWorkspace` | Move the focused app to the next/previous workspace and follow it there |
 | `dismissBorrow` | Return the borrowed workspace and restore the host to full screen |
 | `focusNextDisplay` / `focusPreviousDisplay` | Focus the active workspace on the next/previous display (loops around) |

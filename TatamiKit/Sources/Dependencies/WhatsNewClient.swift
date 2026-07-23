@@ -3,10 +3,11 @@ import Dependencies
 import DependenciesMacros
 import SwiftUI
 
-/// One-time "What's New" window shown on the first launch after an
-/// update. Two sections: changes that touch existing setups (config
-/// migrations, new permissions) get a highlighted box up top; feature
-/// highlights follow, with the full bundled changelog one click away.
+// MARK: - WhatsNewClient
+
+/// One-time "What's New" window shown on the first launch after an update.
+/// Keeps the release's main feature highlights scannable, with the full
+/// bundled changelog one click away.
 ///
 /// Gated on the bundle version vs the last version that showed notes
 /// (UserDefaults, app-local state — deliberately not in the dotfiles
@@ -19,6 +20,8 @@ struct WhatsNewClient: Sendable {
   /// a fresh install (record only).
   var showIfNeeded: @Sendable (_ hasExistingConfig: Bool) async -> Void
 }
+
+// MARK: DependencyKey
 
 extension WhatsNewClient: DependencyKey {
   static let liveValue: WhatsNewClient = {
@@ -39,15 +42,12 @@ extension DependencyValues {
   }
 }
 
+// MARK: - WhatsNewController
+
 @MainActor
 private final class WhatsNewController {
-  private static let lastShownKey = "whatsNew.lastShownVersion"
 
-  /// "1.3.1" → "1.3" — the granularity at which What's New content exists.
-  private func majorMinor(_ version: String) -> String {
-    version.split(separator: ".").prefix(2).joined(separator: ".")
-  }
-  private var window: NSWindow?
+  // MARK: Internal
 
   func showIfNeeded(hasExistingConfig: Bool) {
     let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -65,7 +65,7 @@ private final class WhatsNewController {
       contentRect: .zero,
       styleMask: [.titled, .closable, .fullSizeContentView],
       backing: .buffered,
-      defer: false
+      defer: false,
     )
     window.titlebarAppearsTransparent = true
     window.titleVisibility = .hidden
@@ -77,7 +77,7 @@ private final class WhatsNewController {
         onDone: { [weak self] in
           self?.window?.close()
           self?.window = nil
-        }
+        },
       )
     )
     window.setContentSize(NSSize(width: 540, height: 600))
@@ -87,55 +87,70 @@ private final class WhatsNewController {
     NSApp.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
   }
+
+  // MARK: Private
+
+  private static let lastShownKey = "whatsNew.lastShownVersion"
+
+  private var window: NSWindow?
+
+  /// "1.3.1" → "1.3" — the granularity at which What's New content exists.
+  private func majorMinor(_ version: String) -> String {
+    version.split(separator: ".").prefix(2).joined(separator: ".")
+  }
+
 }
+
+// MARK: - WhatsNewView
 
 /// Notes for the *current* release — update alongside each version whose
 /// changes deserve a first-launch heads-up.
 private struct WhatsNewView: View {
+
+  // MARK: Internal
+
   let version: String
   let onDone: () -> Void
-
-  @State private var showChangelog = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
-      VStack(alignment: .leading, spacing: 4) {
-        Text("What's New in Tatami \(version)")
-          .font(.title.weight(.semibold))
-        Text("Cycle the active Tatami workspace instead of the global Command-Tab app list, and bind every swipe direction.")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-      }
+          VStack(alignment: .leading, spacing: 4) {
+            Text("What's New in Tatami \(version)")
+              .font(.title.weight(.semibold))
+            Text("Build your setup by using it, then move through the visible context with a faster, interactive HUD.")
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+          }
 
-      // MARK: Feature highlights
-      VStack(alignment: .leading, spacing: 14) {
-        Label("New", systemImage: "sparkles")
-          .font(.headline)
+          // MARK: Feature highlights
+          VStack(alignment: .leading, spacing: 14) {
+            Label("New", systemImage: "sparkles")
+              .font(.headline)
 
-        item(
-          icon: "rectangle.stack",
-          title: "Native-style window switcher",
-          detail: "Tap next or previous window for an immediate switch, or hold the shortcut modifier to choose from a centered app or window strip. Focus commits when you release, then the HUD fades away."
-        )
-        item(
-          icon: "hand.draw",
-          title: "Gestures for every action",
-          detail: "Configure left, right, up, and down independently for both three and four fingers. Choose any shortcut command, including actions nested under a specific profile or workspace."
-        )
-        item(
-          icon: "display.2",
-          title: "Recent across displays",
-          detail: "Optionally use one recent-workspace history across every monitor. Tatami focuses a workspace where it already lives instead of pulling it onto a different display."
-        )
-        item(
-          icon: "rectangle.split.2x1",
-          title: "Borrow again to dismiss",
-          detail: "Summon the same workspace a second time to return it and restore the host workspace. This is on by default and can be changed in **Settings → Workspace Switching**."
-        )
-      }
-      .padding(.horizontal, 6)
+            item(
+              icon: "list.bullet.rectangle",
+              title: "Guided Setup, built around this Mac",
+              detail: "First launch or **Settings → General → Run Guided Setup** turns your app metadata and displays into a draft. Learn every major feature in order on a safe virtual display; real windows and `config.toml` stay untouched until you apply.",
+            )
+            item(
+              icon: "wand.and.stars",
+              title: "Design the draft with your AI",
+              detail: "Describe your role and typical week, then review a proposal from ChatGPT, Claude, Gemini, another AI, or the on-device Apple Intelligence model on supported Macs. Tatami sends no screen contents and never applies a recommendation without review.",
+            )
+            item(
+              icon: "rectangle.stack",
+              title: "A compact, interactive switcher",
+              detail: "Hold the cycle shortcut, then use the shortcut again, arrow keys, Return, Escape, modifier release, or the pointer. The switcher fades in and out, keyboard selection and hover stay distinct, and quick presses still switch immediately without showing the HUD.",
+            )
+            item(
+              icon: "rectangle.split.2x1",
+              title: "Borrow-aware focus and cycling",
+              detail: "Host and borrowed tiled windows share one cycle until dismissed, with app and window MRU preserved. MFF also follows cycle targets outside the BSP tree, including Floating, Shared Floating, and Ignore-mode windows.",
+            )
+          }
+          .padding(.horizontal, 6)
         }
       }
 
@@ -153,6 +168,10 @@ private struct WhatsNewView: View {
     }
   }
 
+  // MARK: Private
+
+  @State private var showChangelog = false
+
   private func item(icon: String, title: String, detail: String) -> some View {
     HStack(alignment: .top, spacing: 12) {
       Image(systemName: icon)
@@ -169,4 +188,5 @@ private struct WhatsNewView: View {
       }
     }
   }
+
 }

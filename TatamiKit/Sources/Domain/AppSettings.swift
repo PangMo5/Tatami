@@ -369,7 +369,7 @@ extension AppSettings {
     public var enabled: Bool
     /// Workspace name overlay when switching workspaces.
     public var workspaceSwitch: Bool
-    /// Native-style app/window switcher shown while cycling windows.
+    /// Compact interactive app/window switcher shown while cycling windows.
     public var windowCycle: Bool
     /// Profile name overlay when switching profiles.
     public var profileSwitch: Bool
@@ -832,6 +832,9 @@ extension AppSettings {
   }
 
   public struct GestureBindings: Hashable, Sendable, Codable {
+
+    // MARK: Lifecycle
+
     public init(
       left: GestureAction = .none,
       right: GestureAction = .none,
@@ -851,6 +854,13 @@ extension AppSettings {
       up = c.decode(.up, default: .none)
       down = c.decode(.down, default: .none)
     }
+
+    // MARK: Public
+
+    public static let workspaceSwitch = Self(
+      left: .nextWorkspace,
+      right: .previousWorkspace,
+    )
 
     public var left: GestureAction
     public var right: GestureAction
@@ -876,10 +886,7 @@ extension AppSettings {
       }
     }
 
-    public static let workspaceSwitch = Self(
-      left: .nextWorkspace,
-      right: .previousWorkspace,
-    )
+    // MARK: Private
 
     private enum CodingKeys: String, CodingKey {
       case left
@@ -887,6 +894,7 @@ extension AppSettings {
       case up
       case down
     }
+
   }
 }
 

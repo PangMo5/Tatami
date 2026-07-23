@@ -6,8 +6,6 @@ import TatamiKit
 /// `SettingsView.swift` so the shell (sidebar + helpers) and the form content
 /// stay separately navigable.
 extension SettingsView {
-  // MARK: - General
-
   @ViewBuilder
   var generalPane: some View {
     Section("General") {
@@ -116,9 +114,11 @@ extension SettingsView {
             .disabled(!store.cli.isBundled)
         }
       }
-      Text("Symlinks `tatami` into /usr/local/bin so you can script Tatami from the terminal — e.g. `tatami activate <workspace>`, `tatami list-workspaces`.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      Text(
+        "Symlinks `tatami` into /usr/local/bin so you can script Tatami from the terminal — e.g. `tatami activate <workspace>`, `tatami list-workspaces`."
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
     }
 
     Section("Debug") {
@@ -140,8 +140,6 @@ extension SettingsView {
       }
     }
   }
-
-  // MARK: - Tiling
 
   @ViewBuilder
   var tilingPane: some View {
@@ -178,14 +176,14 @@ extension SettingsView {
         range: 0 ... 100,
         detail: "Space between adjacent tiled windows.",
         label: { "Inner gap: \($0) px" },
-        commit: { v in $config.withLock { $0.settings.layout.gapInner = v } }
+        commit: { v in $config.withLock { $0.settings.layout.gapInner = v } },
       )
       DebouncedStepper(
         external: config.settings.layout.gapOuter,
         range: 0 ... 100,
         detail: "Space between the tiles and the screen edge.",
         label: { "Outer gap: \($0) px" },
-        commit: { v in $config.withLock { $0.settings.layout.gapOuter = v } }
+        commit: { v in $config.withLock { $0.settings.layout.gapOuter = v } },
       )
     }
 
@@ -197,43 +195,55 @@ extension SettingsView {
       shortcut("Grow", .resizeGrow, \.resizeGrow)
       shortcut("Shrink", .resizeShrink, \.resizeShrink)
       shortcut(
-        "Toggle orientation", .toggleOrientation, \.toggleOrientation,
-        description: "Flip the split between the focused window and its neighbour (side-by-side ↔ stacked)."
+        "Toggle orientation",
+        .toggleOrientation,
+        \.toggleOrientation,
+        description: "Flip the split between the focused window and its neighbour (side-by-side ↔ stacked).",
       )
       shortcut(
-        "Toggle fullscreen", .toggleFullscreen, \.toggleFullscreen,
-        description: "Zoom the focused window to fill the workspace. Tatami can keep several windows zoomed at once."
+        "Toggle fullscreen",
+        .toggleFullscreen,
+        \.toggleFullscreen,
+        description: "Zoom the focused window to fill the workspace. Tatami can keep several windows zoomed at once.",
       )
       shortcut(
-        "Balance", .balance, \.balance,
-        description: "Reset every split in the layout to equal sizes."
+        "Balance",
+        .balance,
+        \.balance,
+        description: "Reset every split in the layout to equal sizes.",
       )
     }
 
     Section("Toggles") {
       shortcut(
-        "Toggle floating", .toggleFloating, \.toggleFloating,
-        description: "Float the focused app in the active workspace (added here as floating if it wasn't assigned); toggle again to re-tile it."
+        "Toggle floating",
+        .toggleFloating,
+        \.toggleFloating,
+        description: "Float the focused app in the active workspace (added here as floating if it wasn't assigned); toggle again to re-tile it.",
       )
       shortcut(
-        "Toggle shared floating", .toggleSharedFloating, \.toggleSharedFloating,
-        description: "Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet. Toggling off flips it to shared tiled; leaving Shared Apps is the membership toggle in Workspaces."
+        "Toggle shared floating",
+        .toggleSharedFloating,
+        \.toggleSharedFloating,
+        description: "Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet. Toggling off flips it to shared tiled; leaving Shared Apps is the membership toggle in Workspaces.",
       )
       shortcut(
-        "Toggle tiling (pause)", .toggleSpaceActivated, \.toggleSpaceActivated,
-        description: "Pause or resume tiling for the active workspace. While paused, windows keep their current frames."
+        "Toggle tiling (pause)",
+        .toggleSpaceActivated,
+        \.toggleSpaceActivated,
+        description: "Pause or resume tiling for the active workspace. While paused, windows keep their current frames.",
       )
     }
   }
-
-  // MARK: - Focus & Mouse
 
   @ViewBuilder
   var focusMousePane: some View {
     Section("Focus") {
       Toggle(isOn: setting(\.focus.mouseFollowsFocus)) {
         Text("Mouse follows focus (MFF)")
-        Text("Keep the pointer attached to the focused managed window. It moves to that window's center after Tatami focus/cycle and workspace changes, focus changes caused by open/close, or a Swap that relocates the focused tile. Clicking a window preserves the click position.")
+        Text(
+          "Keep the pointer attached to the window Tatami focuses. It moves after directional focus, app/window cycling, workspace changes, open/close refocus, or a Swap that relocates the focused tile. Floating and Ignore-mode cycle targets use their live window frame. Clicking a window preserves the click position."
+        )
       }
       Toggle(isOn: setting(\.focus.mouseHidesOnFocus)) {
         Text("Hide cursor on focus")
@@ -241,7 +251,9 @@ extension SettingsView {
       }
       Toggle(isOn: setting(\.focus.refocusOnClose)) {
         Text("Refocus when a window closes")
-        Text("Move focus to a remaining window in the workspace when the focused one closes — so closing a chat window hands focus back to your editor instead of stranding it.")
+        Text(
+          "Move focus to a remaining window in the workspace when the focused one closes — so closing a chat window hands focus back to your editor instead of stranding it."
+        )
       }
     }
 
@@ -274,8 +286,6 @@ extension SettingsView {
     }
   }
 
-  // MARK: - Workspaces
-
   @ViewBuilder
   var workspacesPane: some View {
     Section("Workspace Switching") {
@@ -297,59 +307,75 @@ extension SettingsView {
       }
       Toggle(isOn: setting(\.switching.recentAcrossDisplays)) {
         Text("Recent workspace crosses displays")
-        Text("Recent actions combine every display's workspace history into one global MRU. Off only uses the current display's recent workspace.")
+        Text(
+          "Recent actions combine every display's workspace history into one global MRU. Off only uses the current display's recent workspace."
+        )
       }
       Toggle(isOn: setting(\.switching.switchToRecentWhenEmpty)) {
         Text("Back to recent when empty")
-        Text("When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway.")
+        Text(
+          "When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway."
+        )
       }
     }
 
     Section("Window Cycling") {
       Toggle(isOn: setting(\.switching.cycleSameAppWindows)) {
         Text("Cycle through every window")
-        Text("Step through each window individually, including multiple windows of the same app. Off cycles app-by-app inside the active Tatami workspace.")
+        Text(
+          "Step through each window individually, including multiple windows of the same app. Off cycles app-by-app and recalls each app's most-recent window inside the visible Tatami context."
+        )
       }
       shortcut(
-        "Cycle next window", .cycleNextWindow, \.cycleNextWindow,
-        description: "Move focus to the next managed window in the active Tatami workspace. Unlike ⌘Tab, it does not search every running app; unlike ⌘`, it can cross between apps that share this workspace. With “Cycle through every window” off, it steps app-by-app and lands on each app's most recently used window."
+        "Cycle next window",
+        .cycleNextWindow,
+        \.cycleNextWindow,
+        description: "Move focus to the next app or window in the visible Tatami context, including Floating and Ignore-mode members. A borrowed tiled block joins its host's cycle until dismissed. Unlike ⌘Tab, unrelated running apps stay out; unlike ⌘`, Tatami can cross between apps. With “Cycle through every window” off, it steps app-by-app and recalls each app's most-recent window.",
       )
       shortcut(
-        "Cycle previous window", .cyclePreviousWindow, \.cyclePreviousWindow,
-        description: "Move focus to the previous managed window in the active Tatami workspace. Unlike ⌘Tab, it does not search every running app; unlike ⌘`, it can cross between apps that share this workspace. With “Cycle through every window” off, it steps app-by-app and lands on each app's most recently used window."
+        "Cycle previous window",
+        .cyclePreviousWindow,
+        \.cyclePreviousWindow,
+        description: "Move focus to the previous app or window in the visible Tatami context, including Floating and Ignore-mode members. A borrowed tiled block joins its host's cycle until dismissed. Unlike ⌘Tab, unrelated running apps stay out; unlike ⌘`, Tatami can cross between apps. With “Cycle through every window” off, it steps app-by-app and recalls each app's most-recent window.",
       )
     }
 
     Section("Move App & Displays") {
       shortcut(
-        "Move app to next workspace", .moveFocusedAppToNextWorkspace, \.moveToNextWorkspace,
-        description: "Move the focused app to the next workspace and follow it there."
+        "Move app to next workspace",
+        .moveFocusedAppToNextWorkspace,
+        \.moveToNextWorkspace,
+        description: "Move the focused app to the next workspace and follow it there.",
       )
       shortcut(
         "Move app to previous workspace",
         .moveFocusedAppToPreviousWorkspace,
         \.moveToPreviousWorkspace,
-        description: "Move the focused app to the previous workspace and follow it there."
+        description: "Move the focused app to the previous workspace and follow it there.",
       )
       shortcut(
-        "Focus next display", .focusNextDisplay, \.focusNextDisplay,
-        description: "Focus the active workspace on the next display (loops around)."
+        "Focus next display",
+        .focusNextDisplay,
+        \.focusNextDisplay,
+        description: "Focus the active workspace on the next display (loops around).",
       )
       shortcut(
-        "Focus previous display", .focusPreviousDisplay, \.focusPreviousDisplay,
-        description: "Focus the active workspace on the previous display (loops around)."
+        "Focus previous display",
+        .focusPreviousDisplay,
+        \.focusPreviousDisplay,
+        description: "Focus the active workspace on the previous display (loops around).",
       )
       shortcut(
         "Toggle app in workspace",
         .toggleFocusedAppInActiveWorkspace,
         \.toggleFocusedAppInActiveWorkspace,
-        description: "Add the focused app to the active workspace, or remove it if it's already assigned."
+        description: "Add the focused app to the active workspace, or remove it if it's already assigned.",
       )
       shortcut(
         "Toggle app in Shared Apps",
         .toggleAppInSharedApps,
         \.toggleAppInSharedApps,
-        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared."
+        description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared.",
       )
     }
 
@@ -361,7 +387,7 @@ extension SettingsView {
       Picker(
         selection: Binding(
           get: { config.settings.switching.borrowDefaultEdge },
-          set: { e in $config.withLock { $0.settings.switching.borrowDefaultEdge = e } }
+          set: { e in $config.withLock { $0.settings.switching.borrowDefaultEdge = e } },
         )
       ) {
         Text("Ask (pick a direction)").tag(BorrowEdge?.none)
@@ -371,13 +397,15 @@ extension SettingsView {
         }
       } label: {
         Text("Default direction")
-        Text("Where a borrow docks. “Ask” means press a direction (h/j/k/l or arrows) after the borrow combo. A workspace can override this.")
+        Text(
+          "Where a borrow docks. “Ask” means press a direction (h/j/k/l or arrows) after the borrow combo. A workspace can override this."
+        )
       }
       .pickerStyle(.menu)
       Picker(
         selection: Binding(
           get: { config.settings.switching.borrowFraction },
-          set: { f in $config.withLock { $0.settings.switching.borrowFraction = f } }
+          set: { f in $config.withLock { $0.settings.switching.borrowFraction = f } },
         )
       ) {
         ForEach([0.3, 0.4, 0.5, 0.6, 0.7], id: \.self) { f in
@@ -389,29 +417,31 @@ extension SettingsView {
       }
       .pickerStyle(.menu)
       shortcut(
-        "Dismiss borrow", .dismissBorrow, \.dismissBorrow,
-        description: "Return the borrowed workspace and restore the current one to full screen."
+        "Dismiss borrow",
+        .dismissBorrow,
+        \.dismissBorrow,
+        description: "Return the borrowed workspace and restore the current one to full screen.",
       )
     }
-
   }
-
-  // MARK: - Workspace Keys
 
   @ViewBuilder
   var workspaceKeysPane: some View {
     Section {
       modifierToggleRow(
-        "Switch modifier", \.keyEquivalentModifiers,
-        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the built-in targets below cover recent / next / previous. Clear it to disable key-equivalent switching."
+        "Switch modifier",
+        \.keyEquivalentModifiers,
+        description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the built-in targets below cover recent / next / previous. Clear it to disable key-equivalent switching.",
       )
       modifierToggleRow(
-        "Assign modifier", \.assignModifiers,
-        description: "Held with a workspace's key equivalent to assign the focused app to it."
+        "Assign modifier",
+        \.assignModifiers,
+        description: "Held with a workspace's key equivalent to assign the focused app to it.",
       )
       modifierToggleRow(
-        "Borrow modifier", \.borrowModifiers,
-        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
+        "Borrow modifier",
+        \.borrowModifiers,
+        description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it.",
       )
     } header: {
       Text("Modifiers")
@@ -423,36 +453,48 @@ extension SettingsView {
 
     Section {
       navTarget(
-        "Recent workspace", description: "The previously active workspace.",
+        "Recent workspace",
+        description: "The previously active workspace.",
         key: \.recentWorkspaceKey,
-        switchAction: .switchToRecentWorkspace, switchOverride: \.switchToRecentWorkspace,
-        assignAction: .assignFocusedAppToRecentWorkspace, assignOverride: \.assignRecentWorkspace,
-        borrowAction: .borrowRecentWorkspace, borrowOverride: \.borrowRecentWorkspace
+        switchAction: .switchToRecentWorkspace,
+        switchOverride: \.switchToRecentWorkspace,
+        assignAction: .assignFocusedAppToRecentWorkspace,
+        assignOverride: \.assignRecentWorkspace,
+        borrowAction: .borrowRecentWorkspace,
+        borrowOverride: \.borrowRecentWorkspace,
       )
       navTarget(
-        "Next workspace", description: "The next workspace in the cycle.",
+        "Next workspace",
+        description: "The next workspace in the cycle.",
         key: \.nextWorkspaceKey,
-        switchAction: .switchToNextWorkspace, switchOverride: \.switchToNextWorkspace,
-        assignAction: .assignFocusedAppToNextWorkspace, assignOverride: \.assignNextWorkspace,
-        borrowAction: .borrowNextWorkspace, borrowOverride: \.borrowNextWorkspace
+        switchAction: .switchToNextWorkspace,
+        switchOverride: \.switchToNextWorkspace,
+        assignAction: .assignFocusedAppToNextWorkspace,
+        assignOverride: \.assignNextWorkspace,
+        borrowAction: .borrowNextWorkspace,
+        borrowOverride: \.borrowNextWorkspace,
       )
       navTarget(
-        "Previous workspace", description: "The previous workspace in the cycle.",
+        "Previous workspace",
+        description: "The previous workspace in the cycle.",
         key: \.previousWorkspaceKey,
-        switchAction: .switchToPreviousWorkspace, switchOverride: \.switchToPreviousWorkspace,
-        assignAction: .assignFocusedAppToPreviousWorkspace, assignOverride: \.assignPreviousWorkspace,
-        borrowAction: .borrowPreviousWorkspace, borrowOverride: \.borrowPreviousWorkspace
+        switchAction: .switchToPreviousWorkspace,
+        switchOverride: \.switchToPreviousWorkspace,
+        assignAction: .assignFocusedAppToPreviousWorkspace,
+        assignOverride: \.assignPreviousWorkspace,
+        borrowAction: .borrowPreviousWorkspace,
+        borrowOverride: \.borrowPreviousWorkspace,
       )
     } header: {
       Text("Built-in Targets")
     } footer: {
-      Text("Recent / next / previous behave like workspaces: one key each, combined with the modifiers above. Record an explicit shortcut to override any of them.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      Text(
+        "Recent / next / previous behave like workspaces: one key each, combined with the modifiers above. Record an explicit shortcut to override any of them."
+      )
+      .font(.caption)
+      .foregroundStyle(.secondary)
     }
   }
-
-  // MARK: - Gestures
 
   @ViewBuilder
   var gesturesPane: some View {
@@ -475,7 +517,7 @@ extension SettingsView {
         maxLabel: "High",
         detail: "How far you must swipe to switch — higher sensitivity needs a shorter swipe.",
         readout: { "\(Int(($0 * 100).rounded()))%" },
-        commit: { setting(\.gestures.sensitivity).wrappedValue = $0 }
+        commit: { setting(\.gestures.sensitivity).wrappedValue = $0 },
       )
       .disabled(!config.settings.gestures.enabled)
     }
@@ -484,18 +526,16 @@ extension SettingsView {
       title: "Three-Finger Swipes",
       bindings: setting(\.gestures.threeFinger),
       isEnabled: config.settings.gestures.enabled,
-      config: config
+      config: config,
     )
 
     GestureBindingsSection(
       title: "Four-Finger Swipes",
       bindings: setting(\.gestures.fourFinger),
       isEnabled: config.settings.gestures.enabled,
-      config: config
+      config: config,
     )
   }
-
-  // MARK: - Appearance
 
   @ViewBuilder
   var appearancePane: some View {
@@ -535,7 +575,9 @@ extension SettingsView {
         }
         Toggle(isOn: setting(\.hud.windowCycle)) {
           Text("Window cycling")
-          Text("A centered app or window switcher while cycling with the configured shortcuts.")
+          Text(
+            "A compact app or window switcher while cycling. Use the shortcut or arrow keys, Return, Escape, modifier release, or the pointer."
+          )
         }
         Toggle(isOn: setting(\.hud.profileSwitch)) {
           Text("Profile switch")
@@ -571,7 +613,7 @@ extension SettingsView {
           step: 100,
           detail: "How long the overlay stays up. HUDs with a follow-up hint stay twice as long.",
           label: { "Duration: \($0) ms" },
-          commit: { v in $config.withLock { $0.settings.hud.durationMs = v } }
+          commit: { v in $config.withLock { $0.settings.hud.durationMs = v } },
         )
       }
       .disabled(!config.settings.hud.enabled)
@@ -586,7 +628,7 @@ extension SettingsView {
       ColorPicker(
         "Fullscreen color",
         selection: borderColorBinding(\.marker.fullscreenColorHex),
-        supportsOpacity: false
+        supportsOpacity: false,
       )
       .disabled(!config.settings.marker.fullscreenEnabled)
 
@@ -597,7 +639,7 @@ extension SettingsView {
       ColorPicker(
         "Floating color",
         selection: borderColorBinding(\.marker.floatingColorHex),
-        supportsOpacity: false
+        supportsOpacity: false,
       )
       .disabled(!config.settings.marker.floatingEnabled)
 
@@ -608,7 +650,7 @@ extension SettingsView {
       ColorPicker(
         "Borrow color",
         selection: borderColorBinding(\.marker.borrowColorHex),
-        supportsOpacity: false
+        supportsOpacity: false,
       )
       .disabled(!config.settings.marker.borrowEnabled)
 
@@ -616,7 +658,7 @@ extension SettingsView {
         external: config.settings.marker.size,
         range: 8 ... 28,
         label: { "Dot size: \(Int($0)) pt" },
-        commit: { v in $config.withLock { $0.settings.marker.size = v } }
+        commit: { v in $config.withLock { $0.settings.marker.size = v } },
       )
 
       Picker(selection: setting(\.marker.corner)) {
@@ -656,9 +698,12 @@ extension SettingsView {
     _ title: String,
     description: String,
     key keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
-    switchAction: HotKeyAction, switchOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
-    assignAction: HotKeyAction, assignOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
-    borrowAction: HotKeyAction, borrowOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>
+    switchAction: HotKeyAction,
+    switchOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    assignAction: HotKeyAction,
+    assignOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
+    borrowAction: HotKeyAction,
+    borrowOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
   ) -> some View {
     let shortcuts = config.settings.shortcuts
     VStack(alignment: .leading, spacing: 6) {
@@ -673,7 +718,7 @@ extension SettingsView {
           key: shortcuts[keyPath: keyKP],
           modifierSymbols: "",
           conflict: { keyEquivalentConflict($0, switch: switchAction, assign: assignAction, borrow: borrowAction) },
-          onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+          onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
         ) { newKey in $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = newKey } }
       }
       navDerivedRow("Switch", \.keyEquivalentModifiers, keyKP, switchOverride, switchAction)
@@ -690,7 +735,7 @@ extension SettingsView {
     _ modifiersKP: WritableKeyPath<AppSettings.Shortcuts, [String]>,
     _ keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
     _ overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
-    _ action: HotKeyAction
+    _ action: HotKeyAction,
   ) -> some View {
     let shortcuts = config.settings.shortcuts
     let mods = HotKey.modifierSymbols(from: shortcuts[keyPath: modifiersKP])
@@ -707,7 +752,7 @@ extension SettingsView {
       ShortcutRecorder(
         hotKey: shortcuts[keyPath: overrideKP],
         conflict: { config.shortcutConflict(for: $0, excluding: action) },
-        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
       ) { hotKey in $config.withLock { $0.settings.shortcuts[keyPath: overrideKP] = hotKey } }
       Spacer()
     }
@@ -722,7 +767,7 @@ extension SettingsView {
     _ char: String,
     switch switchAction: HotKeyAction,
     assign assignAction: HotKeyAction,
-    borrow borrowAction: HotKeyAction
+    borrow borrowAction: HotKeyAction,
   ) -> String? {
     guard let code = HotKey.keyCode(forName: char) else { return nil }
     let s = config.settings.shortcuts
@@ -730,7 +775,8 @@ extension SettingsView {
       let mods = HotKey.carbonModifiers(from: tokens)
       guard mods != 0 else { return nil }
       return config.shortcutConflict(
-        for: HotKey(carbonKeyCode: code, carbonModifiers: mods), excluding: exclude
+        for: HotKey(carbonKeyCode: code, carbonModifiers: mods),
+        excluding: exclude,
       )
     }
     return check(s.keyEquivalentModifiers, switchAction)
@@ -740,11 +786,10 @@ extension SettingsView {
 
   /// A labeled row of modifier toggle buttons (⌃⌥⇧⌘) editing one modifier
   /// list (e.g. switch vs assign).
-  @ViewBuilder
   func modifierToggleRow(
     _ title: String,
     _ keyPath: WritableKeyPath<AppSettings.Shortcuts, [String]>,
-    description: String
+    description: String,
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack {
@@ -764,11 +809,10 @@ extension SettingsView {
 
   /// One compact toggle button for a modifier token (e.g. `"ctrl"`),
   /// reflecting / editing membership in the given modifier list.
-  @ViewBuilder
   func modifierToggle(
     _ symbol: String,
     _ token: String,
-    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, [String]>
+    _ keyPath: WritableKeyPath<AppSettings.Shortcuts, [String]>,
   ) -> some View {
     Toggle(symbol, isOn: Binding(
       get: { config.settings.shortcuts[keyPath: keyPath].contains(token) },
@@ -778,7 +822,7 @@ extension SettingsView {
           if on { mods.append(token) }
           c.settings.shortcuts[keyPath: keyPath] = mods
         }
-      }
+      },
     ))
     .toggleStyle(.button)
   }
@@ -788,7 +832,7 @@ extension SettingsView {
     _ title: String,
     _ action: HotKeyAction,
     _ keyPath: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
-    description: String? = nil
+    description: String? = nil,
   ) -> some View {
     // Plain centered HStack rather than LabeledContent: the latter aligns
     // its label to the text baseline, which floats the title above the
@@ -799,7 +843,7 @@ extension SettingsView {
       ShortcutRecorder(
         hotKey: config.settings.shortcuts[keyPath: keyPath],
         conflict: { config.shortcutConflict(for: $0, excluding: action) },
-        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) }
+        onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
       ) { hotKey in
         $config.withLock { $0.settings.shortcuts[keyPath: keyPath] = hotKey }
       }
@@ -820,38 +864,51 @@ extension SettingsView {
   }
 }
 
+// MARK: - GestureBindingsSection
+
 private struct GestureBindingsSection: View {
   let title: LocalizedStringResource
   @Binding var bindings: AppSettings.GestureBindings
+
   let isEnabled: Bool
   let config: AppConfig
 
   var body: some View {
     Section(title) {
       GestureBindingPicker(
-        direction: .left, selection: $bindings.left,
-        config: config
+        direction: .left,
+        selection: $bindings.left,
+        config: config,
       )
       GestureBindingPicker(
-        direction: .right, selection: $bindings.right,
-        config: config
+        direction: .right,
+        selection: $bindings.right,
+        config: config,
       )
       GestureBindingPicker(
-        direction: .up, selection: $bindings.up,
-        config: config
+        direction: .up,
+        selection: $bindings.up,
+        config: config,
       )
       GestureBindingPicker(
-        direction: .down, selection: $bindings.down,
-        config: config
+        direction: .down,
+        selection: $bindings.down,
+        config: config,
       )
     }
     .disabled(!isEnabled)
   }
 }
 
+// MARK: - GestureBindingPicker
+
 private struct GestureBindingPicker: View {
+
+  // MARK: Internal
+
   let direction: GestureDirection
   @Binding var selection: GestureAction
+
   let config: AppConfig
 
   var body: some View {
@@ -906,7 +963,8 @@ private struct GestureBindingPicker: View {
     }
   }
 
-  @ViewBuilder
+  // MARK: Private
+
   private func actionButton(_ action: GestureAction) -> some View {
     Button {
       selection = action
@@ -922,4 +980,5 @@ private struct GestureBindingPicker: View {
       }
     }
   }
+
 }

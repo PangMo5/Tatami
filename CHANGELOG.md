@@ -6,6 +6,22 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.9.0 (2026-07-23)
+
+### New
+- **Interactive Guided Setup:** First launch now builds a draft from this Mac's running-app metadata and connected displays, then teaches Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Float / Ignore, MFF / FFM, and app / window cycling in order. Every lesson runs in a safe virtual display, earlier shortcuts keep working in later lessons, and nothing touches real windows or `config.toml` until **Apply Setup**. Run it again at any time from **Settings → General**.
+- **AI-assisted workspace planning:** Describe your role and a typical week, then review a task-oriented workspace proposal before it changes the draft. Tatami can prepare a privacy-labelled prompt for ChatGPT, Claude, Gemini, or another AI, or use the on-device Apple Intelligence model on supported Macs. Recommendations account for app metadata, display count and usable geometry, keep one-app scratchpads deliberate, and never inspect screen contents.
+- **Interactive app / window switcher:** The held-shortcut HUD is now a compact switcher that fades in and out without interrupting cycling. Continue with the configured shortcut or arrow keys, commit with Return or modifier release, cancel with Escape, or point and click an item. Keyboard selection and pointer hover remain visually distinct; quick presses still switch immediately without flashing the HUD.
+
+### Improvements
+- **One cumulative practice surface:** Guided Setup reuses the workspaces, app assignments, layout modes, shortcuts, and gestures in the user's draft. Later labs preserve MRU behavior and every command learned earlier, so the final Focus & Cycling lesson rehearses the complete setup rather than an isolated mock.
+- **Borrow-aware focus and cycling:** Host and borrowed tiled windows form one visible cycling context until the borrow is dismissed. App-level cycling recalls each app's most-recent window, window-level cycling preserves same-app windows, and focus plus MFF can cross the host / Borrow boundary.
+- **Faster Borrow and menu-bar interaction:** Borrow now lays out its blocks before transferring focus, then orders keyboard focus and MFF pointer movement against the resulting live frame. It also skips redundant Accessibility frame writes, reuses a known hidden scratchpad window instead of reopening it, and keeps the menu-bar runtime latency-sensitive under App Nap.
+- **Adaptive action HUDs:** Action feedback now enters and leaves with a compact spring transition, resizes around its content, and updates an already-visible HUD without replaying the whole presentation.
+
+### Fixes
+- **MFF for non-tiled cycle targets:** Cycling to a Floating, Shared Floating, or Ignore-mode window now reads that window's live frame after focus and moves the pointer to its center instead of leaving it behind.
+
 ## 1.8.1 (2026-07-20)
 
 ### Fixes

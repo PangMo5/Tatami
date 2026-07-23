@@ -239,13 +239,13 @@ footer p { line-height: 1.5; }
 .win .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--text); opacity: 0.16; }
 .win .wbody { flex: 1; border-radius: 7px; background: linear-gradient(160deg, rgba(127,127,127,0.18), rgba(127,127,127,0.05)); }
 .hud {
-  /* Matches the real panel: centered horizontally, near the bottom. */
-  position: absolute; left: 50%; bottom: 9%; z-index: 6;
-  padding: 12px 20px; border-radius: 15px; font-size: 15px; font-weight: 600; color: var(--text);
+  /* Matches the compact action capsule: centered horizontally near the top. */
+  position: absolute; left: 50%; top: 3%; z-index: 6;
+  padding: 10px 18px; border-radius: 999px; font-size: 15px; font-weight: 600; color: var(--text);
   background: var(--glass-bg); border: 1px solid var(--glass-border);
   backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%);
   box-shadow: 0 20px 50px rgba(0,0,0,0.28);
-  opacity: 0; transform: translate(-50%, 0) scale(0.9); transition: opacity .3s, transform .3s;
+  opacity: 0; transform: translate(-50%, -10px) scale(0.92); transition: opacity .22s, transform .32s cubic-bezier(.2,.9,.2,1.2);
 }
 .hud.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
 .caption-wrap { margin-top: 24px; min-height: 56px; }
