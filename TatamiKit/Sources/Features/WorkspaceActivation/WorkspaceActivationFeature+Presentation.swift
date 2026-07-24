@@ -173,9 +173,26 @@ extension WorkspaceActivationFeature {
       guard !Task.isCancelled else { return }
 
       if shouldWarp {
-        let frame = await MainActor.run { snapshot.windowFrame(key) }
+        let result = await MainActor.run { () -> (frame: CGRect?, live: WindowKey?) in
+          (snapshot.windowFrame(key), snapshot.focusedWindowKey())
+        }
         guard !Task.isCancelled else { return }
-        if let frame {
+        let stillOwnsFocus =
+          if let live = result.live {
+            live == key
+          } else {
+            // A focus Tatami just requested can briefly have no AX focused
+            // window while the app activates. An observed/layout-only warp has
+            // no such ownership proof and must not revive a stale target.
+            shouldFocus
+          }
+        if !stillOwnsFocus {
+          debugLog.log(
+            "Focus",
+            "post-layout skip stale target \(key.bundleId)#\(key.windowID) "
+              + "live=\(result.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil")",
+          )
+        } else if let frame = result.frame {
           let center = CGPoint(x: frame.midX, y: frame.midY)
           debugLog.log(
             "Focus",

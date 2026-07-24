@@ -40,9 +40,11 @@ struct FocusFollowsMouseConfig: Sendable, Hashable {
 extension FocusFollowsMouseClient: DependencyKey {
   static let liveValue: FocusFollowsMouseClient = {
     @Dependency(\.debugLog) var debugLog
+    @Dependency(\.focusEventOrigin) var focusEventOrigin
     @Dependency(\.managedWindows) var managedWindows
     let controller = LiveFocusFollowsMouseController(
       debugLog: debugLog,
+      focusEventOrigin: focusEventOrigin,
       managedWindows: managedWindows,
     )
     return FocusFollowsMouseClient { config in
@@ -74,8 +76,13 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
 
   // MARK: Lifecycle
 
-  init(debugLog: DebugLogClient, managedWindows: ManagedWindowsClient) {
+  init(
+    debugLog: DebugLogClient,
+    focusEventOrigin: FocusEventOriginClient,
+    managedWindows: ManagedWindowsClient,
+  ) {
     self.debugLog = debugLog
+    self.focusEventOrigin = focusEventOrigin
     self.managedWindows = managedWindows
   }
 
@@ -113,8 +120,38 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// and throttle bookkeeping stay off the main thread; only the actual
   /// focus change — which touches AppKit + Accessibility — hops to the main
   /// actor.
-  fileprivate func handle(location: CGPoint, flags: CGEventFlags) {
+  fileprivate func handle(
+    location: CGPoint,
+    flags: CGEventFlags,
+    timestamp: CGEventTimestamp,
+  ) {
     if modifiersIndicateDisable(flags) { return }
+
+    let warpEvaluation = ProgrammaticPointerWarpGate.shared.evaluateMouseMove(
+      at: location,
+      timestamp: timestamp,
+    )
+    if warpEvaluation.generation != lastObservedWarpGeneration {
+      lastObservedWarpGeneration = warpEvaluation.generation
+      lastLoggedSuppressedWarpGeneration = nil
+      lastFocusedWindowID = 0
+      focusTask?.cancel()
+      focusTask = nil
+    }
+    guard warpEvaluation.allowsFocus else {
+      if
+        debugLog.isEnabled(),
+        lastLoggedSuppressedWarpGeneration != warpEvaluation.generation
+      {
+        lastLoggedSuppressedWarpGeneration = warpEvaluation.generation
+        debugLog.log(
+          "FocusDiag",
+          "ffm suppress programmatic move generation=\(warpEvaluation.generation) at=(\(Int(location.x)),\(Int(location.y)))",
+        )
+      }
+      return
+    }
+
     let now = Date()
     guard now.timeIntervalSince(lastFireAt) >= throttleInterval else { return }
     lastFireAt = now
@@ -146,7 +183,13 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // window. Latest-fire-wins.
     focusTask?.cancel()
     focusTask = Task { @MainActor in
-      guard !Task.isCancelled else { return }
+      guard
+        !Task.isCancelled,
+        ProgrammaticPointerWarpGate.shared.isCurrent(
+          generation: warpEvaluation.generation
+        )
+      else { return }
+      focusEventOrigin.recordPointerDrivenFocus(windowID)
       focusWindowFollowingMouse(pid: pid, windowID: windowID)
     }
   }
@@ -159,6 +202,11 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// cursor target is applied — touched only on the event-tap thread, like
   /// the rest of this controller's lock-free state.
   private var focusTask: Task<Void, Never>?
+  /// Last MFF warp generation observed on the event-tap thread. A generation
+  /// change invalidates both the FFM window dedup and any queued focus hop.
+  private var lastObservedWarpGeneration: UInt64 = 0
+  private var lastLoggedSuppressedWarpGeneration: UInt64?
+  private let focusEventOrigin: FocusEventOriginClient
   private let managedWindows: ManagedWindowsClient
 
   /// Runs on the event-tap thread (via `configure` / the tap callback).
@@ -356,7 +404,12 @@ private func focusFollowsMouseCallback(
   case .mouseMoved:
     let location = event.location
     let flags = event.flags
-    controller.handle(location: location, flags: flags)
+    let timestamp = event.timestamp
+    controller.handle(
+      location: location,
+      flags: flags,
+      timestamp: timestamp,
+    )
 
   case .tapDisabledByTimeout,
        .tapDisabledByUserInput:

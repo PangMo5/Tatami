@@ -26,6 +26,7 @@ extension MouseClient: DependencyKey {
     let controller = CursorHidingController()
     return MouseClient(
       warp: { point in
+        ProgrammaticPointerWarpGate.shared.recordWarp(to: point)
         CGWarpMouseCursorPosition(point)
         CGAssociateMouseAndMouseCursorPosition(1)
       },
@@ -89,4 +90,5 @@ private final class CursorHidingController {
       monitor = nil
     }
   }
+
 }

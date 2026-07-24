@@ -956,7 +956,7 @@ extension WorkspaceActivationFeature {
     let borrowedZoom = state.fullscreenZoomed[slot.workspace] ?? []
     let edge = slot.edge
     let fraction = slot.fraction
-    return .run { [tiler = windowTiler, displays, snapshot = windowSnapshot] send in
+    return .run { [tiler = windowTiler, displays, snapshot = windowSnapshot, mouse] send in
       let merged: [WindowKey: CGRect] = await MainActor.run {
         let workArea = displays.workArea(display).insetBy(
           dx: CGFloat(settings.layout.gapOuter),
@@ -994,10 +994,24 @@ extension WorkspaceActivationFeature {
           repairWorkspaceId == slot.workspace,
           borrowedTree?.windows.contains(focused) == true,
           let targetFrame = merged[focused],
+          let currentFrame = snapshot.windowFrame(focused),
           WindowTilerClient.frameWritePlan(
-            current: snapshot.windowFrame(focused),
+            current: currentFrame,
             target: targetFrame,
           ) != .none
+        else { return nil }
+        let cursor = mouse.axLocation()
+        let currentCenter = CGPoint(x: currentFrame.midX, y: currentFrame.midY)
+        let targetCenter = CGPoint(x: targetFrame.midX, y: targetFrame.midY)
+        let isNear: (CGPoint, CGPoint) -> Bool = { lhs, rhs in
+          abs(lhs.x - rhs.x) <= 4 && abs(lhs.y - rhs.y) <= 4
+        }
+        // A delayed Borrow convergence owns the frame correction, not the
+        // user's pointer. Carry MFF to the repaired center only while the
+        // pointer is still attached to the old center. If it already sits at
+        // the target (or the user moved it elsewhere), layout converges without
+        // reviving a stale warp.
+        guard isNear(cursor, currentCenter), !isNear(cursor, targetCenter)
         else { return nil }
         return PostLayoutFocus(
           windowKey: focused,
@@ -1041,6 +1055,7 @@ extension WorkspaceActivationFeature {
   /// this one bounded convergence pass restores the composition instead.
   func settleBorrowedPresentationAfterFocus(
     bundleId: String,
+    preservesPointer: Bool,
     state: State,
   ) -> Effect<Action> {
     let sharedTiled = state.config.sharedApps.contains {
@@ -1070,6 +1085,7 @@ extension WorkspaceActivationFeature {
             .borrowedPresentationSettled(
               display: display,
               workspaceId: workspaceId,
+              preservesPointer: preservesPointer,
             )
           )
         }

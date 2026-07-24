@@ -1038,6 +1038,156 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `duplicate focused window notification cannot revive MFF`() async {
+    let focused = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
+    let other = WindowKey(pid: 2, windowID: 202, bundleId: "app.two")
+    let ws = Workspace(
+      name: "one",
+      apps: [
+        AppAssignment(bundleIdentifier: focused.bundleId, name: "One"),
+        AppAssignment(bundleIdentifier: other.bundleId, name: "Two"),
+      ],
+    )
+    let state = Self.makeState(workspaces: [ws]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = ws.id
+      $0.tilingTrees[ws.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(focused),
+          right: .leaf(other),
+        )
+      )
+    }
+    let cursor = LockIsolated(CGPoint(x: 960, y: 540))
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.mouse.axLocation = { cursor.value }
+      $0.mouse.warp = { point in
+        warped.withValue { $0.append(point) }
+        cursor.setValue(point)
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowChanged(.windowFocused(bundleId: focused.bundleId, key: focused)))
+    #expect(warped.value.count == 1)
+
+    // The user moves after the first focus transition. A delayed duplicate AX
+    // notification must not interpret that pointer movement as a new MFF job.
+    cursor.setValue(CGPoint(x: 960, y: 540))
+    await store.send(.windowChanged(.windowFocused(bundleId: focused.bundleId, key: focused)))
+
+    #expect(warped.value.count == 1)
+    #expect(store.state.lastObservedFocusedWindow == focused)
+  }
+
+  @Test
+  func `FFM focus echo never feeds back into MFF`() async {
+    let focused = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
+    let other = WindowKey(pid: 2, windowID: 202, bundleId: "app.two")
+    let ws = Workspace(
+      name: "one",
+      apps: [
+        AppAssignment(bundleIdentifier: focused.bundleId, name: "One"),
+        AppAssignment(bundleIdentifier: other.bundleId, name: "Two"),
+      ],
+    )
+    let state = Self.makeState(workspaces: [ws]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = ws.id
+      $0.tilingTrees[ws.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(focused),
+          right: .leaf(other),
+        )
+      )
+      $0.lastObservedFocusedWindow = other
+    }
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1_000, height: 800) }
+      $0.focusEventOrigin.consumePointerDrivenFocus = { windowID in
+        windowID == focused.windowID
+      }
+      $0.mouse.axLocation = { .zero }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowChanged(.windowFocused(bundleId: focused.bundleId, key: focused)))
+
+    #expect(warped.value.isEmpty)
+    #expect(store.state.lastObservedFocusedWindow == focused)
+  }
+
+  @Test
+  func `post layout MFF drops a target that no longer owns focus`() async {
+    let stale = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
+    let live = WindowKey(pid: 2, windowID: 202, bundleId: "app.two")
+    let ws = Workspace(
+      name: "one",
+      apps: [
+        AppAssignment(bundleIdentifier: stale.bundleId, name: "One"),
+        AppAssignment(bundleIdentifier: live.bundleId, name: "Two"),
+      ],
+    )
+    let state = Self.makeState(workspaces: [ws]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = ws.id
+      $0.tilingTrees[ws.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(stale),
+          right: .leaf(live),
+        )
+      )
+    }
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.windowSnapshot.focusedWindowKey = { live }
+      $0.windowSnapshot.windowFrame = { _ in
+        CGRect(x: 0, y: 0, width: 500, height: 800)
+      }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .settleFocusAfterLayout(
+        windowKey: stale,
+        workspaceId: ws.id,
+        shouldFocus: false,
+      )
+    )
+    await store.receive {
+      guard case .cursorWarpFinished(let workspaceId, let target) = $0 else {
+        return false
+      }
+      return workspaceId == ws.id && target == stale
+    }
+
+    #expect(warped.value.isEmpty)
+    #expect(store.state.pendingCenterWarps[ws.id] == nil)
+  }
+
+  @Test
   func `app assigned only in inactive profile tiles transiently`() async {
     let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.inactive-profile")
     let activeWorkspace = Workspace(name: "Active")
@@ -1608,6 +1758,8 @@ struct WorkspaceActivationFeatureTests {
     let restoredFrame = CGRect(x: 600, y: 0, width: 400, height: 400)
     let order = LockIsolated<[String]>([])
     let frameReads = LockIsolated(0)
+    let cursor = LockIsolated(CGPoint.zero)
+    let warped = LockIsolated<[CGPoint]>([])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
@@ -1624,7 +1776,7 @@ struct WorkspaceActivationFeatureTests {
         order.withValue { $0.append("frame") }
         return frameReads.withValue { reads in
           defer { reads += 1 }
-          return reads == 1 ? restoredFrame : borrowedFrame
+          return reads < 2 ? restoredFrame : borrowedFrame
         }
       }
       $0.windowTiler.apply = { _ in
@@ -1634,8 +1786,10 @@ struct WorkspaceActivationFeatureTests {
         #expect(key == borrowedWindow)
         order.withValue { $0.append("focus") }
       }
+      $0.mouse.axLocation = { cursor.value }
       $0.mouse.warp = { point in
-        #expect(point == CGPoint(x: borrowedFrame.midX, y: borrowedFrame.midY))
+        warped.withValue { $0.append(point) }
+        cursor.setValue(point)
         order.withValue { $0.append("warp") }
       }
     }
@@ -1652,10 +1806,12 @@ struct WorkspaceActivationFeatureTests {
     // pass repairs the composition, then re-centers MFF on the live full frame.
     await clock.advance(by: .milliseconds(250))
     await store.receive {
-      guard case .borrowedPresentationSettled(let owner, let workspaceId) = $0 else {
+      guard
+        case .borrowedPresentationSettled(let owner, let workspaceId, let preservesPointer) = $0
+      else {
         return false
       }
-      return owner == display && workspaceId == borrowed.id
+      return owner == display && workspaceId == borrowed.id && !preservesPointer
     }
     await store.receive {
       guard case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus) = $0
@@ -1672,7 +1828,123 @@ struct WorkspaceActivationFeatureTests {
       order.value
         == ["layout", "focus", "frame", "warp", "frame", "layout", "frame", "warp"]
     )
+    #expect(
+      warped.value
+        == [
+          CGPoint(x: restoredFrame.midX, y: restoredFrame.midY),
+          CGPoint(x: borrowedFrame.midX, y: borrowedFrame.midY),
+        ]
+    )
     #expect(store.state.compositionsByDisplay[display]?.host == host.id)
+  }
+
+  @Test
+  func `borrow repair preserves a pointer the user moved after MFF`() async {
+    let display = Self.display
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Borrowed",
+      kind: .scratchpad,
+      apps: [AppAssignment(bundleIdentifier: borrowedWindow.bundleId, name: "Borrowed")],
+    )
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.focus.mouseFollowsFocus = true
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
+      )
+    }
+    let staleFrame = CGRect(x: 600, y: 0, width: 400, height: 400)
+    let applications = LockIsolated<[FrameApplication]>([])
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1000, height: 800) }
+      $0.windowSnapshot.focusedWindowKey = { borrowedWindow }
+      $0.windowSnapshot.windowFrame = { _ in staleFrame }
+      $0.mouse.axLocation = { CGPoint(x: 720, y: 120) }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .borrowedPresentationSettled(
+        display: display,
+        workspaceId: borrowed.id,
+        preservesPointer: false,
+      )
+    )
+    await store.finish()
+
+    #expect(applications.value.count == 1)
+    #expect(warped.value.isEmpty)
+  }
+
+  @Test
+  func `FFM Borrow settlement reflows without delayed MFF`() async {
+    let display = Self.display
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Borrowed",
+      kind: .scratchpad,
+      apps: [AppAssignment(bundleIdentifier: borrowedWindow.bundleId, name: "Borrowed")],
+    )
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.focus.mouseFollowsFocus = true
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
+      )
+    }
+    let applications = LockIsolated<[FrameApplication]>([])
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1_000, height: 800) }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .borrowedPresentationSettled(
+        display: display,
+        workspaceId: borrowed.id,
+        preservesPointer: true,
+      )
+    )
+    await store.finish()
+
+    #expect(applications.value.count == 1)
+    #expect(warped.value.isEmpty)
   }
 
   @Test
@@ -1728,10 +2000,12 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.appActivated(bundleId: borrowedWindow.bundleId))
     await clock.advance(by: .milliseconds(250))
     await store.receive {
-      guard case .borrowedPresentationSettled(let owner, let workspaceId) = $0 else {
+      guard
+        case .borrowedPresentationSettled(let owner, let workspaceId, let preservesPointer) = $0
+      else {
         return false
       }
-      return owner == display && workspaceId == borrowed.id
+      return owner == display && workspaceId == borrowed.id && !preservesPointer
     }
     await store.finish()
 
@@ -1788,6 +2062,7 @@ struct WorkspaceActivationFeatureTests {
         order.withValue { $0.append("layout") }
         applications.withValue { $0.append(request) }
       }
+      $0.windowSnapshot.focusedWindowKey = { left }
       $0.windowSnapshot.windowFrame = { key in
         #expect(key == left)
         order.withValue { $0.append("frame") }

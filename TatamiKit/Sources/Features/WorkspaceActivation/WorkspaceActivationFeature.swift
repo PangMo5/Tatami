@@ -151,10 +151,15 @@ public struct WorkspaceActivationFeature {
     /// the focused window closes — fall back through the list to the next
     /// most-recent window that's still on screen.
     public var mruWindows = [Workspace.ID: [WindowKey]]()
+    /// Last exact focus reported by the merged app/AX event stream. App
+    /// activation and AX observers can report the same focus several times,
+    /// sometimes after the cursor has already moved away. Only a transition
+    /// away from this key may trigger observed mouse-follows-focus behavior.
+    public var lastObservedFocusedWindow: WindowKey?
     /// A programmatic focus caused by a tree edit still owes one unconditional
-    /// center warp. The AX focus echo is allowed to replace the original warp,
-    /// but must inherit this stronger policy instead of downgrading it to the
-    /// ordinary click-preserving `skipIfCursorInside` behavior.
+    /// center warp. AX focus echoes must leave that ordered effect in place
+    /// instead of replacing it with the ordinary click-preserving
+    /// `skipIfCursorInside` behavior.
     public var pendingCenterWarps = [Workspace.ID: WindowKey]()
     /// Per-workspace set of fullscreen-zoomed windows. Tatami-specific
     /// multi-window fullscreen: each member is trimmed from the tree
@@ -535,7 +540,11 @@ public struct WorkspaceActivationFeature {
     /// A borrowed app can restore its own saved frame after being revealed or
     /// activated from outside Tatami (for example, through a notification).
     /// Verify the visible composition once that presentation settles.
-    case borrowedPresentationSettled(display: DisplayName, workspaceId: Workspace.ID)
+    case borrowedPresentationSettled(
+      display: DisplayName,
+      workspaceId: Workspace.ID,
+      preservesPointer: Bool,
+    )
     /// `performActivate` did not report completion within the watchdog
     /// window — release the `isActivating` gate so one wedged activation
     /// (an app stuck past every AX timeout) can't refuse all future
@@ -823,6 +832,15 @@ public struct WorkspaceActivationFeature {
           return debouncedSync(bundleId, delayMs: 40)
 
         case .windowFocused(let bundleId, let key):
+          let isPointerDriven = focusEventOrigin.consumePointerDrivenFocus(key?.windowID)
+          if isPointerDriven, let key {
+            debugLog.log(
+              "FocusDiag",
+              "windowFocused origin=FFM \(key.bundleId)#\(key.windowID) — preserve pointer",
+            )
+          }
+          let isFocusTransition = state.lastObservedFocusedWindow != key
+          state.lastObservedFocusedWindow = key
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
           // didActivateApplication).
@@ -834,7 +852,12 @@ public struct WorkspaceActivationFeature {
           // ops warp themselves, and their post-warp cursor lands on the tile,
           // so this observed pass then no-ops.
           var followWarp = Effect<Action>.none
-          if let key, let owner = state.workspaceOwning(key) {
+          if
+            !isPointerDriven,
+            isFocusTransition,
+            let key,
+            let owner = state.workspaceOwning(key)
+          {
             if let tree = state.tilingTrees[owner], tree.windows.contains(key) {
               // A different AX notification can be the delayed echo of the
               // focus we just left. It must not cancel the newer requested
@@ -866,10 +889,13 @@ public struct WorkspaceActivationFeature {
             // close keeps that app frontmost — the next focus change is
             // then the only trigger left.
             debouncedPrune(),
-            settleBorrowedPresentationAfterFocus(
-              bundleId: bundleId,
-              state: state,
-            ),
+            isFocusTransition
+              ? settleBorrowedPresentationAfterFocus(
+                bundleId: bundleId,
+                preservesPointer: isPointerDriven,
+                state: state,
+              )
+              : .none,
             .run { _ in await markerClient.setFocused(focusedKey) },
           )
 
@@ -1413,6 +1439,7 @@ public struct WorkspaceActivationFeature {
                 .borrowedPresentationSettled(
                   display: display,
                   workspaceId: workspaceId,
+                  preservesPointer: false,
                 )
               )
             }
@@ -2070,7 +2097,7 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         return flushLayout(workspaceId: id, state: state)
 
-      case .borrowedPresentationSettled(let display, let workspaceId):
+      case .borrowedPresentationSettled(let display, let workspaceId, let preservesPointer):
         guard
           !state.isActivating,
           !state.isTilingPaused,
@@ -2082,7 +2109,7 @@ public struct WorkspaceActivationFeature {
         debugLog.log("Borrow", "presentation settled \(workspaceId) on \(display.name)")
         return applyComposition(
           display: display,
-          repairFocusAfterLayout: workspaceId,
+          repairFocusAfterLayout: preservesPointer ? nil : workspaceId,
           state: state,
         )
 
@@ -2178,6 +2205,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.debugLog) var debugLog
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.focusManager) var focusManager
+  @Dependency(\.focusEventOrigin) var focusEventOrigin
   @Dependency(\.continuousClock) var clock
   @Dependency(\.modifierKeys) var modifierKeys
   @Dependency(\.borrowChord) var borrowChord
