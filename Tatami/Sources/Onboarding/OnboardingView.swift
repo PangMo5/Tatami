@@ -255,7 +255,12 @@ private struct OnboardingWelcomeStep: View {
 
       OnboardingSection(title: "Built from this Mac", subtitle: "Only app metadata and display names are used during setup.") {
         HStack(spacing: 28) {
-          Label("\(store.displays.count) display\(store.displays.count == 1 ? "" : "s")", systemImage: "display")
+          Label(
+            store.displays.count == 1
+              ? "\(store.displays.count) display"
+              : "\(store.displays.count) displays",
+            systemImage: "display"
+          )
           Label("\(store.runningApps.count) running apps", systemImage: "app.badge")
           Label("No screen contents captured", systemImage: "eye.slash")
         }
@@ -364,8 +369,8 @@ private struct OnboardingWorkspacesStep: View {
         VStack(spacing: 12) {
           if store.hasCustomizedWorkspaceMap {
             OnboardingDemoMonitor(
-              title: "Your Workspace Map",
-              status: "Your draft",
+              title: String(localized: "Your Workspace Map"),
+              status: String(localized: "Your draft"),
             ) {
               OnboardingWorkspaceMap(
                 groups: store.workspaceAppGroups,
@@ -452,7 +457,7 @@ private struct OnboardingWorkspacesStep: View {
         ForEach(store.workspaceAppGroups) { group in
           OnboardingAppGroup(
             title: group.workspace.kind == .scratchpad
-              ? "\(group.workspace.name) · one-app quick access"
+              ? String(localized: "\(group.workspace.name) · one-app quick access")
               : group.workspace.name,
             icon: group.workspace.symbolIconName ?? "square.stack.3d.up",
             tint: group.workspace.kind == .scratchpad ? .purple : .accentColor,
@@ -468,7 +473,7 @@ private struct OnboardingWorkspacesStep: View {
 
         if !store.sharedKnownApps.isEmpty {
           OnboardingAppGroup(
-            title: "Shared Apps",
+            title: String(localized: "Shared Apps"),
             icon: "square.on.square",
             tint: .purple,
             apps: store.sharedKnownApps,
@@ -482,7 +487,7 @@ private struct OnboardingWorkspacesStep: View {
         }
 
         OnboardingAppGroup(
-          title: "Not managed",
+          title: String(localized: "Not managed"),
           icon: "minus.circle",
           tint: .secondary,
           apps: store.unassignedApps,
@@ -846,8 +851,8 @@ private struct OnboardingSwitchingStep: View {
   // MARK: Private
 
   private func shortcutRow(
-    _ title: String,
-    _ detail: String,
+    _ title: LocalizedStringResource,
+    _ detail: LocalizedStringResource,
     _ action: HotKeyAction,
   ) -> some View {
     OnboardingShortcutPracticeRow(
@@ -905,8 +910,8 @@ private struct OnboardingTilingStep: View {
               )
             }
             OnboardingDemoMonitor(
-              title: store.activeDemoWorkspace?.name ?? "Tiling Lab",
-              status: "Split-tree layout · safe draft",
+              title: store.activeDemoWorkspace?.name ?? String(localized: "Tiling Lab"),
+              status: String(localized: "Split-tree layout · safe draft"),
               hud: store.demoActionResult,
             ) {
               OnboardingLayoutEditor(
@@ -1016,8 +1021,13 @@ private struct OnboardingTilingStep: View {
 
   // MARK: Private
 
-  private var tilingLesson: (step: String, title: String, detail: String, completed: Bool) {
-    let lessons: [(OnboardingPractice, String, String)] = [
+  private var tilingLesson: (
+    step: LocalizedStringResource,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
+    completed: Bool
+  ) {
+    let lessons: [(OnboardingPractice, LocalizedStringResource, LocalizedStringResource)] = [
       (
         .focus,
         "Focus a neighboring tile",
@@ -1067,8 +1077,8 @@ private struct OnboardingTilingStep: View {
   }
 
   private func shortcutRow(
-    _ title: String,
-    _ detail: String,
+    _ title: LocalizedStringResource,
+    _ detail: LocalizedStringResource,
     _ action: HotKeyAction,
   ) -> some View {
     OnboardingShortcutPracticeRow(
@@ -1115,14 +1125,15 @@ private struct OnboardingBorrowStep: View {
             onSelect: { store.send(.demoBorrowWorkspaceTapped($0)) },
           )
           OnboardingDemoMonitor(
-            title: "Borrow Lab",
-            status: "Two layouts · no merge",
+            title: String(localized: "Borrow Lab"),
+            status: String(localized: "Two layouts · no merge"),
             hud: store.demoActionResult,
           ) {
             OnboardingBorrowDemo(
-              hostName: store.activeDemoWorkspace?.name ?? "Host workspace",
+              hostName: store.activeDemoWorkspace?.name ?? String(localized: "Host workspace"),
               hostApps: store.activeDemoApps,
-              borrowedName: store.demoBorrowWorkspace?.name ?? "Borrowed workspace",
+              borrowedName: store.demoBorrowWorkspace?.name
+                ?? String(localized: "Borrowed workspace"),
               borrowedApps: store.demoBorrowApps,
               borrowed: store.demoBorrowed,
               edge: store.demoEffectiveBorrowEdge,
@@ -1194,7 +1205,7 @@ private struct OnboardingBorrowStep: View {
               Picker("Direction", selection: $store.draft.settings.switching.borrowDefaultEdge) {
                 Text("Ask every time").tag(BorrowEdge?.none)
                 ForEach(BorrowEdge.allCases, id: \.self) { edge in
-                  Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+                  Text(edge.displayName).tag(BorrowEdge?.some(edge))
                 }
               }
               Text(
@@ -1256,7 +1267,12 @@ private struct OnboardingBorrowStep: View {
 
   // MARK: Private
 
-  private var borrowLesson: (step: String, title: String, detail: String, completed: Bool) {
+  private var borrowLesson: (
+    step: LocalizedStringResource,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
+    completed: Bool
+  ) {
     if !store.demoBorrowed, !store.practices.contains(.borrowDismiss) {
       return (
         "Step 1 of 2",
@@ -1282,7 +1298,7 @@ private struct OnboardingBorrowStep: View {
   }
 
   private func borrowDirectionButton(
-    _ title: String,
+    _ title: LocalizedStringResource,
     symbol: String,
     edge: BorrowEdge,
   ) -> some View {
@@ -1294,11 +1310,11 @@ private struct OnboardingBorrowStep: View {
     }
     .buttonStyle(.bordered)
     .controlSize(.small)
-    .help(title)
-    .accessibilityLabel(title)
+    .help(Text(title))
+    .accessibilityLabel(Text(title))
   }
 
-  private func borrowShortcutDetail(_ workspace: Workspace) -> String {
+  private func borrowShortcutDetail(_ workspace: Workspace) -> LocalizedStringResource {
     let scratchpadSwitchDetail =
       if workspace.kind == .scratchpad {
         store.state.shortcut(for: .activateWorkspace(workspace.id))
@@ -1358,8 +1374,11 @@ private struct OnboardingFloatingStep: View {
               }
             }
             OnboardingDemoMonitor(
-              title: store.activeDemoWorkspace?.name ?? "Window Handling Lab",
-              status: "Selected app · \(store.demoLayoutMode.rawValue.capitalized)",
+              title: store.activeDemoWorkspace?.name
+                ?? String(localized: "Window Handling Lab"),
+              status: String(
+                localized: "Selected app · \(String(localized: store.demoLayoutMode.displayName))"
+              ),
               hud: store.demoActionResult,
             ) {
               OnboardingLayoutEditor(
@@ -1456,7 +1475,12 @@ private struct OnboardingFloatingStep: View {
 
   // MARK: Private
 
-  private var handlingLesson: (step: String, title: String, detail: String, completed: Bool) {
+  private var handlingLesson: (
+    step: LocalizedStringResource,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
+    completed: Bool
+  ) {
     if !store.practices.contains(.floating) {
       return (
         "Step 1 of 3",
@@ -1564,7 +1588,8 @@ private struct OnboardingFocusCyclingStep: View {
             }
 
             OnboardingDemoMonitor(
-              title: store.activeDemoWorkspace?.name ?? "Focus & Cycling Lab",
+              title: store.activeDemoWorkspace?.name
+                ?? String(localized: "Focus & Cycling Lab"),
               status: monitorStatus,
               hud: store.demoActionResult,
             ) {
@@ -1648,12 +1673,26 @@ private struct OnboardingFocusCyclingStep: View {
 
   private var monitorStatus: String {
     let borrow = store.demoBorrowed
-      ? "Borrowed \(store.demoBorrowWorkspace?.name ?? "workspace")"
-      : store.demoLayoutMode.rawValue.capitalized
-    return "MFF \(store.draft.settings.focus.mouseFollowsFocus ? "On" : "Off") · FFM \(store.draft.settings.focus.focusFollowsMouse ? "On" : "Off") · \(borrow)"
+      ? String(
+        localized:
+          "Borrowed \(store.demoBorrowWorkspace?.name ?? String(localized: "workspace"))"
+      )
+      : String(localized: store.demoLayoutMode.displayName)
+    let mff = store.draft.settings.focus.mouseFollowsFocus
+      ? String(localized: "On")
+      : String(localized: "Off")
+    let ffm = store.draft.settings.focus.focusFollowsMouse
+      ? String(localized: "On")
+      : String(localized: "Off")
+    return String(localized: "MFF \(mff) · FFM \(ffm) · \(borrow)")
   }
 
-  private var focusLesson: (step: String, title: String, detail: String, completed: Bool) {
+  private var focusLesson: (
+    step: LocalizedStringResource,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
+    completed: Bool
+  ) {
     if !store.practices.contains(.mouseFollowsFocus) {
       return (
         "Step 1 of 2",
@@ -1685,14 +1724,18 @@ private struct OnboardingFocusCyclingStep: View {
   }
 
   private func borrowDirectionButton(
-    _ title: String,
+    _ title: LocalizedStringResource,
     symbol: String,
     edge: BorrowEdge,
   ) -> some View {
     Button {
       store.send(.demoBorrowDirectionTapped(edge))
     } label: {
-      Label(title, systemImage: symbol)
+      Label {
+        Text(title)
+      } icon: {
+        Image(systemName: symbol)
+      }
     }
     .controlSize(.small)
   }
@@ -2020,7 +2063,7 @@ private struct OnboardingFinishStep: View {
 }
 
 extension OnboardingStep {
-  fileprivate var subtitle: String {
+  fileprivate var subtitle: LocalizedStringResource {
     switch self {
     case .welcome: "Switch tasks, not windows."
     case .environment: "Prepare Tatami for this Mac without unnecessary access."
@@ -2038,9 +2081,9 @@ extension OnboardingStep {
 extension OnboardingAppDestination {
   fileprivate func displayName(in config: AppConfig) -> String {
     switch self {
-    case .shared: "Shared Apps"
-    case .unassigned: "Not managed"
-    case .workspace(let id): config.workspace(id: id)?.name ?? "Workspace"
+    case .shared: String(localized: "Shared Apps")
+    case .unassigned: String(localized: "Not managed")
+    case .workspace(let id): config.workspace(id: id)?.name ?? String(localized: "Workspace")
     }
   }
 }

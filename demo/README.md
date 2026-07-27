@@ -12,7 +12,7 @@ wiring into the app's Tuist project.
 
 Nine apps, mirroring the website demo's three workspaces. They're **separate
 apps** (one binary, distinct bundle ids `dev.PangMo5.TatamiDemo.<kind>`) so
-Tatami can assign each to a workspace, float it, etc.
+Tatami can assign each to a workspace, keep it always on top, and so on.
 
 | Workspace | Apps |
 | --- | --- |

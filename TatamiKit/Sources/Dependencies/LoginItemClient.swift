@@ -30,7 +30,9 @@ extension LoginItemClient: DependencyKey {
         logger.error("login item \(enabled ? "register" : "unregister") failed: \(error.localizedDescription, privacy: .public)")
         reporter.report(
           "Login Item",
-          "Launch at Login could not be \(enabled ? "enabled" : "disabled")",
+          enabled
+            ? String(localized: "Launch at Login could not be enabled")
+            : String(localized: "Launch at Login could not be disabled"),
           ErrorReportClient.describe(error)
         )
       }

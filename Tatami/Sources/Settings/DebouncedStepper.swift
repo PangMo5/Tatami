@@ -12,8 +12,8 @@ struct DebouncedStepper<V: Strideable>: View {
   let external: V
   let range: ClosedRange<V>
   let step: V.Stride
-  let detail: String?
-  let label: (V) -> String
+  let detail: LocalizedStringResource?
+  let label: (V) -> LocalizedStringResource
   let commit: (V) -> Void
   @State private var local: V
 
@@ -21,8 +21,8 @@ struct DebouncedStepper<V: Strideable>: View {
     external: V,
     range: ClosedRange<V>,
     step: V.Stride = 1,
-    detail: String? = nil,
-    label: @escaping (V) -> String,
+    detail: LocalizedStringResource? = nil,
+    label: @escaping (V) -> LocalizedStringResource,
     commit: @escaping (V) -> Void
   ) {
     self.external = external
@@ -61,25 +61,25 @@ struct DebouncedStepper<V: Strideable>: View {
 /// tick. The live readout reads the local value so the number tracks the
 /// thumb without touching the store until the drag settles.
 struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloatingPoint {
-  let title: String
+  let title: LocalizedStringResource
   let external: V
   let range: ClosedRange<V>
   let step: V.Stride
-  let minLabel: String
-  let maxLabel: String
-  let detail: String?
+  let minLabel: LocalizedStringResource
+  let maxLabel: LocalizedStringResource
+  let detail: LocalizedStringResource?
   let readout: (V) -> String
   let commit: (V) -> Void
   @State private var local: V
 
   init(
-    title: String,
+    title: LocalizedStringResource,
     external: V,
     range: ClosedRange<V>,
     step: V.Stride,
-    minLabel: String,
-    maxLabel: String,
-    detail: String? = nil,
+    minLabel: LocalizedStringResource,
+    maxLabel: LocalizedStringResource,
+    detail: LocalizedStringResource? = nil,
     readout: @escaping (V) -> String,
     commit: @escaping (V) -> Void
   ) {

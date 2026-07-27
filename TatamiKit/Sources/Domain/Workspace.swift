@@ -10,7 +10,7 @@ public enum WorkspaceKind: String, Hashable, Sendable, Codable, CaseIterable {
   case normal
   case scratchpad
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .normal: "Normal"
     case .scratchpad: "Scratchpad"
@@ -149,6 +149,15 @@ public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
   case bottom
   case left
   case right
+
+  public var displayName: LocalizedStringResource {
+    switch self {
+    case .top: "Top"
+    case .bottom: "Bottom"
+    case .left: "Left"
+    case .right: "Right"
+    }
+  }
 
   /// The opposing edge — the host block sits opposite the borrowed dock.
   public var opposite: BorrowEdge {

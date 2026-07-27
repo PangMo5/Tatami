@@ -494,7 +494,7 @@ extension WorkspaceActivationFeature {
 
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
-    let hudSubtitle = dismissedBorrowName.map { "Returned \($0)" }
+    let hudSubtitle = dismissedBorrowName.map { String(localized: "Returned \($0)") }
     // The switch HUD shows on the display focus landed on (the target). On a
     // same-monitor switch with no resolved target it falls back to the cursor.
     let hudDisplay = targetDisplay
@@ -512,9 +512,9 @@ extension WorkspaceActivationFeature {
       let targetName = targetDisplay.name
       return .run { [workspaceHUD] _ in
         await workspaceHUD.showOnDisplay(
-          "Focus moved",
+          String(localized: "Focus moved"),
           "arrow.right.to.line",
-          "to \(targetName)",
+          String(localized: "to \(targetName)"),
           hudDurationMs,
           oldDisplay,
         )
@@ -1325,9 +1325,9 @@ extension WorkspaceActivationFeature {
     let durationMs = max(state.config.settings.hud.durationMs, 4000)
     return .run { [workspaceHUD] _ in
       await workspaceHUD.show(
-        "Borrow \(name)",
+        String(localized: "Borrow \(name)"),
         "rectangle.split.2x1",
-        "press a direction · h j k l / arrows · esc",
+        String(localized: "press a direction · h j k l / arrows · esc"),
         durationMs,
       )
     }

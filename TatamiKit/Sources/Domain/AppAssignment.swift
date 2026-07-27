@@ -18,6 +18,14 @@ public enum LayoutMode: String, Hashable, Sendable, Codable, CaseIterable {
   /// managed member: counts for membership, focus, focus-follows-mouse,
   /// and window cycling, just not for layout.
   case unmanaged
+
+  public var displayName: LocalizedStringResource {
+    switch self {
+    case .tiled: "Tiled"
+    case .floating: "Floating"
+    case .unmanaged: "Left untouched"
+    }
+  }
 }
 
 /// Inline membership entry: a workspace's reference to a specific app.

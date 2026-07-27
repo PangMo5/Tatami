@@ -5,11 +5,11 @@
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue)](LICENSE)
 
-A macOS workspace manager with yabai-style window tiling.
+A macOS workspace manager with BSP window tiling.
 
 Tatami groups your apps into virtual workspaces you switch between with a
 keystroke or a configurable trackpad gesture, and tiles their windows
-automatically with a yabai-style BSP engine. No SIP changes and no shell
+automatically with a binary space partitioning (BSP) engine. No SIP changes and no shell
 scripting required.
 
 ## Demo
@@ -32,7 +32,7 @@ scripting required.
 - **One key per workspace:** Hold the switch, assign, or borrow modifier with a **key equivalent**. The same keys also drive recent, next, and previous targets, while any action can take an explicit override.
 - **Optional switching behaviors:** Enable loop-around, skip-empty, or follow-app-focus.
 - **Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
-- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace, while cycling and recent navigation can independently stay local or span every display.
+- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace, while next/previous and recent navigation can independently stay local or span every display.
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
 
@@ -41,7 +41,7 @@ scripting required.
 - **Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.
 - **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile.
 - **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
-- **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and switch HUD.
+- **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and profile-switch feedback.
 - **Reviewable copying:** Use **Copy from** to compare another profile or workspace, then keep or skip each app and settings change.
 
 ### Borrow: compose two workspaces
@@ -49,37 +49,38 @@ scripting required.
 - **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
 - **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
 - **Directional placement:** Press the borrow modifier with a workspace key, then use `h`, `j`, `k`, `l`, or an arrow. You can also set a default edge and size globally or per workspace.
-- **Cross-boundary focus and cycling:** Directional focus and MFF move between blocks. Host and borrowed tiled windows share one app / window cycle until the borrow is dismissed. Activating a borrowed workspace switches to it fully, summoning the same borrow again dismisses it by default, and `esc` cancels placement.
+- **Cross-boundary focus and switching:** Directional focus and MFF move between blocks. Host and borrowed tiled windows share one app / window switching order until the borrowed workspace is returned. Activating a borrowed workspace switches to it fully, borrowing it again returns it by default, and `esc` cancels placement.
 - **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
-- **Scratchpads:** Borrow-only workspaces stay out of cycling, never activate alone, and auto-open their apps when summoned.
+- **Scratchpads:** Borrow-only workspaces stay out of regular switching, never activate alone, and auto-open their apps when summoned.
 
-### Window tiling (yabai-style BSP)
+### Window tiling (BSP)
 
 - **Automatic BSP layout:** Insert new windows at the shallowest tile.
 - **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
-- **Interactive window cycling:** Tap the window-cycle shortcut for an immediate switch, or hold its modifier for a compact app / window HUD. Navigate with the shortcut or arrow keys, commit with Return, modifier release, or a click, and cancel with Escape.
+- **Interactive window switching:** Tap the window-switch shortcut for an immediate switch, or hold its modifier for a compact app / window switcher. Navigate with the shortcut or arrow keys, commit with Return, modifier release, or a click, and cancel with Escape.
 - **Zoom and splits:** Fill the workspace with one window or toggle split orientation.
 - **Tree transforms:** Rotate, mirror, and balance the layout.
 - **Drag editing:** Swap or re-insert a window with a live placement preview. Manual edge resizing synchronizes back into the tree.
 - **Configurable spacing:** Set inner and outer gaps.
 
-### Floating windows
+### Always on Top
 
-- **Local or global floating:** Float an app in one workspace or add it to Shared Apps to float it everywhere.
-- **No SIP changes:** Tatami mirrors floats onto always-on-top ScreenCaptureKit panels, then hands you the real window when you interact with it.
-- **Predictable stacking:** Multiple floating windows stack by focus recency. This requires Screen Recording permission.
-- **Ignore mode:** Keep an app as a workspace member for auto-open, focus, focus-follows-mouse, and cycling while leaving its window untouched. Ignore mode needs no mirroring or Screen Recording.
+- **Per-workspace or shared:** Keep an app on top in one workspace or add it to Shared Apps to keep it on top everywhere.
+- **No SIP changes:** Tatami uses always-on-top ScreenCaptureKit mirrors, then hands you the real window when you interact with it.
+- **Predictable stacking:** Multiple always-on-top windows stack by focus recency. This requires Screen Recording permission.
+- **Leave As Is:** Keep an app as a workspace member for auto-open, focus, focus-follows-mouse, and window switching while preserving its current position and size. This mode needs no mirroring or Screen Recording.
 
 ### Focus & cursor
 
-- **Two explicit focus models:** Focus-follows-mouse gives the window under the pointer keyboard focus. Mouse-follows-focus moves the pointer after Tatami changes windows, including cycling to Floating, Shared Floating, or Ignore-mode windows.
+- **Two explicit focus models:** Focus-follows-mouse gives the window under the pointer keyboard focus. Mouse-follows-focus moves the pointer after Tatami changes windows, including switching to Always on Top, Shared Always on Top, or Leave As Is windows.
 - **Close-window refocus:** Return to the most recently used remaining window.
 - **Cursor control:** Optionally hide the cursor during a workspace switch.
 
 ### Interface & config
 
+- **Five interface languages:** Use Tatami in English, Korean, Japanese, Simplified Chinese, or Traditional Chinese, following your macOS app-language preference.
 - **Customizable menu bar:** Show the active workspace icon or name and, when relevant, the active profile icon or name.
-- **Adaptive on-screen HUD:** Compact spring feedback confirms workspace, profile, float, membership, layout, and Borrow actions. The app / window switcher is keyboard- and pointer-interactive, distinguishes selection from hover, and sizes itself to its items.
+- **Adaptive on-screen feedback:** Compact spring feedback confirms workspace, profile, Always on Top, membership, layout, and Borrow actions. The app / window switcher is keyboard- and pointer-interactive, distinguishes selection from hover, and sizes itself to its items.
 - **Workspace icons:** Choose a per-workspace SF Symbol.
 - **Native settings:** Configure Tatami in SwiftUI.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.
@@ -89,7 +90,7 @@ scripting required.
 
 ### Guided setup
 
-- **Learn by doing:** First launch walks through Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Float / Ignore, MFF / FFM, and app / window cycling in a safe virtual display.
+- **Learn by doing:** First launch walks through Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Always on Top / Leave As Is, MFF / FFM, and app / window switching in a safe virtual display.
 - **Built from this Mac:** Start from running-app metadata and connected-display geometry, then organize apps around repeatable work rather than generic categories. No screen contents are captured.
 - **Optional AI planning:** Review a task-oriented proposal from ChatGPT, Claude, Gemini, another AI, or the on-device Apple Intelligence model on supported Macs. AI output remains a proposal until you apply it.
 - **One cumulative practice surface:** Real shortcuts and trackpad gestures control the preview, and every command learned earlier remains available in later lessons.
@@ -100,7 +101,7 @@ scripting required.
 - macOS 14.0 or later
 - Accessibility permission
   (System Settings → Privacy & Security → Accessibility)
-- Screen Recording permission, only if you use floating windows. Their
+- Screen Recording permission, only if you use Always on Top. Those windows'
   always-on-top mirrors are ScreenCaptureKit captures
   (System Settings → Privacy & Security → Screen Recording)
 

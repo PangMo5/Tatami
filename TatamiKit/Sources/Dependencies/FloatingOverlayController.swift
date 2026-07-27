@@ -210,7 +210,7 @@ final class FloatingOverlayController {
       )
       reporter.report(
         "Floating",
-        "Floating mirrors unavailable — Screen Recording permission?",
+        String(localized: "Always-on-top mirrors are unavailable — check Screen Recording"),
         ErrorReportClient.describe(error),
       )
       return

@@ -36,7 +36,7 @@ struct SettingsView: View {
 
     var id: String { rawValue }
 
-    var title: String {
+    var title: LocalizedStringResource {
       switch self {
       case .general: "General"
       case .tiling: "Tiling"

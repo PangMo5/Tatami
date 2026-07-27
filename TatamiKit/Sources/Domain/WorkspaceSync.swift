@@ -59,7 +59,7 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     }
   }
 
-  public var label: String {
+  public var label: LocalizedStringResource {
     switch self {
     case .icon: "Icon"
     case .keyEquivalent: "Key equivalent"
@@ -82,10 +82,11 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     switch change {
     case let .icon(b, a): return pick(b, a) ?? "Default"
     case let .keyEquivalent(b, a): return pick(b, a).map { "“\($0)”" } ?? "—"
-    case let .kind(b, a): return pick(b, a).displayName
+    case let .kind(b, a): return String(localized: pick(b, a).displayName)
     case let .appToFocus(b, a): return pick(b, a) ?? "Most recent"
     case let .displayHint(b, a): return pick(b, a)?.name ?? "Dynamic"
-    case let .borrowEdge(b, a): return pick(b, a)?.rawValue.capitalized ?? "Global"
+    case let .borrowEdge(b, a):
+      return pick(b, a).map { String(localized: $0.displayName) } ?? String(localized: "Global")
     case let .borrowFraction(b, a):
       guard let v = pick(b, a) else { return "Global" }
       return "\(Int((v * 100).rounded()))%"

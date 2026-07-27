@@ -91,47 +91,59 @@ extension HotKeyAction {
   public func title(in config: AppConfig) -> String {
     switch self {
     case .activateWorkspace(let id):
-      "Activate " + (config.activeProfile?.workspaces[id: id]?.name ?? "workspace")
+      String(
+        localized:
+          "Activate \(config.activeProfile?.workspaces[id: id]?.name ?? String(localized: "workspace"))"
+      )
     case .assignFocusedAppToWorkspace(let id):
-      "Assign app to " + (config.activeProfile?.workspaces[id: id]?.name ?? "workspace")
+      String(
+        localized:
+          "Assign app to \(config.activeProfile?.workspaces[id: id]?.name ?? String(localized: "workspace"))"
+      )
     case .borrowWorkspace(let id):
-      "Borrow " + (config.activeProfile?.workspaces[id: id]?.name ?? "workspace")
-    case .switchToNextWorkspace: "Next workspace"
-    case .switchToPreviousWorkspace: "Previous workspace"
-    case .switchToRecentWorkspace: "Recent workspace"
+      String(
+        localized:
+          "Borrow \(config.activeProfile?.workspaces[id: id]?.name ?? String(localized: "workspace"))"
+      )
+    case .switchToNextWorkspace: String(localized: "Next workspace")
+    case .switchToPreviousWorkspace: String(localized: "Previous workspace")
+    case .switchToRecentWorkspace: String(localized: "Recent workspace")
     case .activateProfile(let id):
-      "Switch to " + (config.profiles.first(where: { $0.id == id })?.name ?? "profile")
-    case .moveFocusedAppToNextWorkspace: "Move app to next workspace"
-    case .moveFocusedAppToPreviousWorkspace: "Move app to previous workspace"
-    case .focusNextDisplay: "Focus next display"
-    case .focusPreviousDisplay: "Focus previous display"
-    case .focusLeft: "Focus left"
-    case .focusRight: "Focus right"
-    case .focusUp: "Focus up"
-    case .focusDown: "Focus down"
-    case .cycleNextWindow: "Cycle next window"
-    case .cyclePreviousWindow: "Cycle previous window"
-    case .resizeGrow: "Grow"
-    case .resizeShrink: "Shrink"
-    case .swapLeft: "Swap left"
-    case .swapRight: "Swap right"
-    case .swapUp: "Swap up"
-    case .swapDown: "Swap down"
-    case .toggleOrientation: "Toggle orientation"
-    case .toggleFullscreen: "Toggle fullscreen"
-    case .balance: "Balance layout"
-    case .toggleFloating: "Toggle floating"
-    case .toggleSharedFloating: "Toggle shared floating"
-    case .toggleSpaceActivated: "Toggle pause"
-    case .toggleFocusedAppInActiveWorkspace: "Toggle app in workspace"
-    case .toggleAppInSharedApps: "Toggle app in Shared Apps"
-    case .assignFocusedAppToRecentWorkspace: "Assign app to recent workspace"
-    case .assignFocusedAppToNextWorkspace: "Assign app to next workspace"
-    case .assignFocusedAppToPreviousWorkspace: "Assign app to previous workspace"
-    case .borrowRecentWorkspace: "Borrow recent workspace"
-    case .borrowNextWorkspace: "Borrow next workspace"
-    case .borrowPreviousWorkspace: "Borrow previous workspace"
-    case .dismissBorrow: "Dismiss borrow"
+      String(
+        localized:
+          "Switch to \(config.profiles.first(where: { $0.id == id })?.name ?? String(localized: "profile"))"
+      )
+    case .moveFocusedAppToNextWorkspace: String(localized: "Move app to next workspace")
+    case .moveFocusedAppToPreviousWorkspace: String(localized: "Move app to previous workspace")
+    case .focusNextDisplay: String(localized: "Focus next display")
+    case .focusPreviousDisplay: String(localized: "Focus previous display")
+    case .focusLeft: String(localized: "Focus left")
+    case .focusRight: String(localized: "Focus right")
+    case .focusUp: String(localized: "Focus up")
+    case .focusDown: String(localized: "Focus down")
+    case .cycleNextWindow: String(localized: "Cycle next window")
+    case .cyclePreviousWindow: String(localized: "Cycle previous window")
+    case .resizeGrow: String(localized: "Grow")
+    case .resizeShrink: String(localized: "Shrink")
+    case .swapLeft: String(localized: "Swap left")
+    case .swapRight: String(localized: "Swap right")
+    case .swapUp: String(localized: "Swap up")
+    case .swapDown: String(localized: "Swap down")
+    case .toggleOrientation: String(localized: "Toggle orientation")
+    case .toggleFullscreen: String(localized: "Toggle fullscreen")
+    case .balance: String(localized: "Balance layout")
+    case .toggleFloating: String(localized: "Toggle floating")
+    case .toggleSharedFloating: String(localized: "Toggle shared floating")
+    case .toggleSpaceActivated: String(localized: "Toggle pause")
+    case .toggleFocusedAppInActiveWorkspace: String(localized: "Toggle app in workspace")
+    case .toggleAppInSharedApps: String(localized: "Toggle app in Shared Apps")
+    case .assignFocusedAppToRecentWorkspace: String(localized: "Assign app to recent workspace")
+    case .assignFocusedAppToNextWorkspace: String(localized: "Assign app to next workspace")
+    case .assignFocusedAppToPreviousWorkspace: String(localized: "Assign app to previous workspace")
+    case .borrowRecentWorkspace: String(localized: "Borrow recent workspace")
+    case .borrowNextWorkspace: String(localized: "Borrow next workspace")
+    case .borrowPreviousWorkspace: String(localized: "Borrow previous workspace")
+    case .dismissBorrow: String(localized: "Dismiss borrow")
     }
   }
 

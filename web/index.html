@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tatami: macOS workspace manager with yabai-style window tiling</title>
-<meta name="description" content="Tatami is a macOS workspace manager with yabai-style BSP window tiling. Group apps into virtual workspaces and tile their windows automatically, with no SIP changes or shell scripting." />
+<title>Tatami: macOS workspace manager with BSP window tiling</title>
+<meta name="description" content="Tatami is a macOS workspace manager with BSP window tiling. Group apps into virtual workspaces and tile their windows automatically, with no SIP changes or shell scripting." />
 <meta name="theme-color" content="#000000" />
 <link rel="icon" type="image/png" href="./icon.png" />
 <link rel="stylesheet" href="./style.css" />
 <meta property="og:title" content="Tatami" />
-<meta property="og:description" content="A macOS workspace manager with yabai-style window tiling." />
+<meta property="og:description" content="A macOS workspace manager with BSP window tiling." />
 <meta property="og:image" content="./icon.png" />
 <meta property="og:type" content="website" />
 </head>
@@ -25,7 +25,7 @@
       <a href="#profiles">Profiles</a>
       <a href="#borrow">Borrow</a>
       <a href="#tiling">Tiling</a>
-      <a href="#floating">Floating</a>
+      <a href="#floating">Always on Top</a>
       <a href="#guided-setup">Guided Setup</a>
       <a href="./configuration.html">Configuration</a>
       <a href="./releases.html">Releases</a>
@@ -39,7 +39,7 @@
   <div class="wrap">
     <img class="hero-icon" src="./icon.png" alt="Tatami app icon" />
     <h1>Tatami</h1>
-    <p class="sub">A macOS workspace manager,<br />with yabai-style window tiling.</p>
+    <p class="sub">A macOS workspace manager,<br />with BSP window tiling.</p>
     <div class="cta">
       <a class="btn btn-primary download-link" href="https://github.com/PangMo5/Tatami/releases/download/v__VERSION__/Tatami-__VERSION__.dmg">Download for macOS</a>
       <a class="btn btn-link" href="https://github.com/PangMo5/Tatami">View on GitHub&nbsp;&rsaquo;</a>
@@ -49,6 +49,7 @@
       <button onclick="navigator.clipboard.writeText(document.getElementById('brew-cmd').textContent)">Copy</button>
     </div>
     <p class="meta">Version <span id="version">__VERSION__</span> · Requires macOS 14 · Free &amp; open source</p>
+    <p class="meta">Available in English, 한국어, 日本語, 简体中文, and 繁體中文.</p>
   </div>
 </section>
 
@@ -122,7 +123,7 @@
     <div class="features">
       <div class="feature">
         <div class="ico">🗄️</div>
-        <h3>A set per context</h3>
+        <h3>A setup for every situation</h3>
         <p>Each profile has its own workspaces, app assignments, and shortcuts. Switch by hotkey or from the menu bar.</p>
       </div>
       <div class="feature">
@@ -152,8 +153,8 @@
       </div>
       <div class="feature">
         <div class="ico">↔️</div>
-        <h3>Live, both ways</h3>
-        <p>The borrowed block <em>is</em> the real workspace, so edits there stick. Directional focus and MFF cross the seam, while host and borrowed tiled windows share one cycle. Activate it to switch over fully, or summon the same borrow again to dismiss it.</p>
+        <h3>Changes stay in sync</h3>
+        <p>The borrowed block <em>is</em> the real workspace, so changes stay with it. Directional focus and MFF cross the seam, while host and borrowed tiled windows share one switching order. Activate it to switch over fully, or borrow it again to return it.</p>
       </div>
       <div class="feature">
         <div class="ico">⌨️</div>
@@ -177,13 +178,13 @@
       </div>
       <div class="feature">
         <div class="ico">⌨️</div>
-        <h3>Keyboard-native control</h3>
-        <p>Focus, swap, and resize with <code>h</code> <code>j</code> <code>k</code> <code>l</code>. Tap the cycle shortcut to switch immediately, or hold it for a compact HUD controlled by the shortcut, arrow keys, Return, Escape, modifier release, or the pointer.</p>
+        <h3>Control it from the keyboard</h3>
+        <p>Focus, swap, and resize with <code>h</code> <code>j</code> <code>k</code> <code>l</code>. Tap the window-switch shortcut to move immediately, or hold it for a compact switcher controlled by the shortcut, arrow keys, Return, Escape, modifier release, or the pointer.</p>
       </div>
       <div class="feature">
         <div class="ico">🖱️</div>
         <h3>Drag to rearrange</h3>
-        <p>Drag a window onto another and a live overlay previews the swap or insertion before you drop. Resize an edge by hand and the layout remembers the ratio.</p>
+        <p>Drag a window onto another and a live preview shows the swap or insertion before you drop. Resize an edge by hand and the layout remembers the ratio.</p>
       </div>
     </div>
   </div>
@@ -191,24 +192,24 @@
 
 <section class="section-gray" id="floating">
   <div class="wrap">
-    <p class="eyebrow">Floating windows</p>
-    <h2>Float anything above the tiles.</h2>
-    <p class="sub">Some windows belong on top, including a video call, a simulator, or a music player. Mark the app as floating and Tatami keeps its windows above the layout.</p>
+    <p class="eyebrow">Always on Top</p>
+    <h2>Keep important windows above the layout.</h2>
+    <p class="sub">Some windows should remain visible, including a video call, a simulator, or a music player. Choose Always on Top and Tatami keeps them above the layout.</p>
     <div class="features">
       <div class="feature">
         <div class="ico">🪟</div>
         <h3>Per-workspace or shared</h3>
-        <p>Float an app in one workspace or add it to Shared Apps to float it everywhere. Use one toggle in the GUI or one hotkey anywhere.</p>
+        <p>Keep an app on top in one workspace or add it to Shared Apps to keep it on top everywhere. Use one setting in the app or one shortcut anywhere.</p>
       </div>
       <div class="feature">
         <div class="ico">🎯</div>
         <h3>The real window, on demand</h3>
-        <p>Reach for a floating window and Tatami hands you the actual window. Type, drag, and resize as usual. Focused floats stack by recency.</p>
+        <p>Reach for an always-on-top window and Tatami hands you the actual window. Type, drag, and resize as usual. Focused windows stack by recency.</p>
       </div>
       <div class="feature">
         <div class="ico">🛡️</div>
-        <h3>No SIP, no hacks</h3>
-        <p>Built on ScreenCaptureKit mirrors with Screen Recording permission, not injected window levels. System Integrity Protection stays on.</p>
+        <h3>System protection stays on</h3>
+        <p>Tatami uses ScreenCaptureKit mirrors with Screen Recording permission instead of changing protected system settings. System Integrity Protection stays on.</p>
       </div>
     </div>
   </div>
@@ -222,8 +223,8 @@
     <div class="features">
       <div class="feature">
         <div class="ico">🧭</div>
-        <h3>Your setup, not a canned tour</h3>
-        <p>Shape repeatable work contexts, assign the apps you already use, and carry those choices through switching, tiling, Borrow, window handling, focus, and cycling lessons.</p>
+        <h3>Built around your setup</h3>
+        <p>Shape repeatable workspaces, assign the apps you already use, and carry those choices through switching, tiling, Borrow, window handling, focus, and window-switching lessons.</p>
       </div>
       <div class="feature">
         <div class="ico">🖥️</div>
@@ -262,14 +263,14 @@
       <a href="./configuration.html">Configuration</a>
       <a href="https://github.com/PangMo5/Tatami/blob/main/LICENSE">License</a>
     </div>
-    <p>Tatami is open source under the GPL-3.0 license. Inspired by FlashSpace and yabai. Not affiliated with Apple Inc.</p>
+    <p>Tatami is open source under the GPL-3.0 license and uses a native BSP window engine. Not affiliated with Apple Inc.</p>
     <p class="footer-apps">Apps by <a href="https://pangmo5.dev/">PangMo5</a>: <a href="https://pangmo5.dev/SwiftyCrow/">SwiftyCrow</a> · <span class="cur" aria-current="page">Tatami</span> · <a href="https://pangmo5.dev/Amado/">Amado</a></p>
   </div>
 </footer>
 
 <script>
   // Looping product demo: walks through tiling, directional focus, swap, zoom,
-  // workspace switching, and floating windows. CSS transitions animate moves.
+  // workspace switching, and always-on-top windows. CSS transitions animate moves.
   (() => {
     const screen = document.getElementById("screen");
     const cap = document.getElementById("cap");
@@ -287,7 +288,7 @@
       // Bottom-right split in two, for the dwindle (spiral) layout.
       rbl: r(MX + G / 2, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
       rbr: r(MX + G / 2 + (RGT - MX - G / 2 - G) / 2 + G, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
-      // Free-floating window - portrait, like a phone simulator.
+      // Always-on-top window - portrait, like a phone simulator.
       float: r(38, 17, 24, 62),
     };
 
@@ -318,13 +319,13 @@
       { cap: "Swap the focused window into a bigger tile", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
       { cap: "Zoom a window to fill the screen", ws: 1, wins: { Notes: { r: "full", f: 1 } } },
       { cap: "Zoom off. The layout snaps right back", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
-      // Act 2 - floating: a new app opens floating above the tiles; the
+      // Act 2 - always on top: a new app opens above the tiles; the
       // layout underneath doesn't move for it.
-      { cap: "Floating apps open above the tiles without taking a tile", ws: 1, wins: { Notes: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", f: 1, fl: 1 } } },
+      { cap: "Always-on-top apps stay visible without taking a tile", ws: 1, wins: { Notes: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", f: 1, fl: 1 } } },
       // Act 3 - workspaces, each with its own assigned apps and layout.
       { cap: "Group apps into workspaces. Switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" }, Simulator: { r: "float", fl: 1 } } },
-      { cap: "Shared floating apps follow you to every workspace", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 }, Simulator: { r: "float", fl: 1 } } },
-      // Payoff - the workspace comes back exactly as it was left, float included.
+      { cap: "Shared always-on-top apps follow every workspace", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 }, Simulator: { r: "float", fl: 1 } } },
+      // Payoff - the workspace comes back exactly as it was left, including its always-on-top window.
       { cap: "Switch back. Everything is right where you left it", ws: 1, hud: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", fl: 1 } } },
     ];
 

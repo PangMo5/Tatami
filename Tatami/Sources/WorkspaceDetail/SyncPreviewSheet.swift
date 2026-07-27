@@ -36,16 +36,30 @@ extension SyncChangeItem {
     let title: String, detail: String, tint: Color, app: AppAssignment
     switch change.kind {
     case .add(let a):
-      (title, detail, tint, app) = (a.name, "Add · \(a.layout.rawValue.capitalized)", .green, a)
+      (title, detail, tint, app) = (
+        a.name,
+        String(localized: "Add · \(String(localized: a.layout.displayName))"),
+        .green,
+        a
+      )
     case .remove(let a):
-      (title, detail, tint, app) = (a.name, "Remove", .red, a)
+      (title, detail, tint, app) = (a.name, String(localized: "Remove"), .red, a)
     case let .modify(before, after):
       var parts: [String] = []
       if before.layout != after.layout {
-        parts.append("\(before.layout.rawValue.capitalized) → \(after.layout.rawValue.capitalized)")
+        parts.append(
+          String(
+            localized:
+              "\(String(localized: before.layout.displayName)) → \(String(localized: after.layout.displayName))"
+          )
+        )
       }
       if before.autoOpen != after.autoOpen {
-        parts.append("Auto-open \(after.autoOpen ? "on" : "off")")
+        parts.append(
+          after.autoOpen
+            ? String(localized: "Auto-open on")
+            : String(localized: "Auto-open off")
+        )
       }
       (title, detail, tint, app) = (after.name, parts.joined(separator: " · "), .orange, after)
     }
@@ -75,7 +89,7 @@ extension SyncChangeItem {
     case .activateShortcut, .assignAppShortcut, .borrowShortcut: symbol = "command"
     }
     self.init(
-      id: Self.fieldId(prefix, change.id), title: change.label,
+      id: Self.fieldId(prefix, change.id), title: String(localized: change.label),
       detail: "\(change.beforeText) → \(change.afterText)", detailTint: .secondary,
       symbol: appBundleId == nil ? symbol : nil, symbolTint: symbolTint,
       appBundleId: appBundleId, appIconPath: nil
@@ -86,9 +100,9 @@ extension SyncChangeItem {
 /// A sheet that previews a set of changes grouped for review, each toggleable,
 /// and hands the caller back the ids the user *unchecked* on Apply.
 struct SyncPreviewSheet: View {
-  let title: String
-  let message: String
-  let applyTitle: String
+  let title: LocalizedStringResource
+  let message: LocalizedStringResource
+  let applyTitle: LocalizedStringResource
   let groups: [SyncChangeGroup]
   let onApply: (_ excludedItemIds: Set<String>) -> Void
 
@@ -96,9 +110,9 @@ struct SyncPreviewSheet: View {
   @State private var selected: Set<String>
 
   init(
-    title: String,
-    message: String,
-    applyTitle: String = "Apply",
+    title: LocalizedStringResource,
+    message: LocalizedStringResource,
+    applyTitle: LocalizedStringResource = "Apply",
     groups: [SyncChangeGroup],
     onApply: @escaping (Set<String>) -> Void
   ) {

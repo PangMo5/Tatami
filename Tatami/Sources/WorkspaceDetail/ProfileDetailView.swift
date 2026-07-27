@@ -133,7 +133,9 @@ struct ProfileDetailView: View {
         Text(source.name)
         Text(diverged.isEmpty
           ? "No differences"
-          : "\(diverged.count) workspace\(diverged.count == 1 ? "" : "s") differ")
+          : diverged.count == 1
+            ? "\(diverged.count) workspace differs"
+            : "\(diverged.count) workspaces differ")
           .font(.caption)
           .foregroundStyle(diverged.isEmpty ? Color.secondary : Color.orange)
       }
@@ -236,7 +238,9 @@ struct ProfileDetailView: View {
         }
         if let dc = cur.displayCount {
           Stepper(
-            "\(count(dc)) monitor\(count(dc) == 1 ? "" : "s")",
+            count(dc) == 1
+              ? "\(count(dc)) monitor"
+              : "\(count(dc)) monitors",
             value: Binding<Int>(
               get: { count(dc) },
               set: { n in

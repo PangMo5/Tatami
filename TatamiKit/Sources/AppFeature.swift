@@ -254,7 +254,7 @@ public struct AppFeature {
         let duration = max(state.config.settings.hud.durationMs, 900)
         return .run { [workspaceHUD] _ in
           await workspaceHUD.show(
-            "\(domain) issue resolved",
+            String(localized: "\(domain) issue resolved"),
             "checkmark.circle",
             nil,
             duration,

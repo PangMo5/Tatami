@@ -17,6 +17,7 @@ let baseSettings: SettingsDictionary = [
   "DEVELOPMENT_TEAM": SettingValue(stringLiteral: developmentTeam),
   "SWIFT_VERSION": "6.0",
   "SWIFT_STRICT_CONCURRENCY": "complete",
+  "SWIFT_EMIT_LOC_STRINGS": "YES",
   "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
   "DEAD_CODE_STRIPPING": "YES",
   // Sign with the developer's Apple Development cert locally so the binary
@@ -34,7 +35,7 @@ let project = Project(
   organizationName: "PangMo5",
   options: .options(
     automaticSchemesOptions: .enabled(),
-    defaultKnownRegions: ["en"],
+    defaultKnownRegions: ["en", "ko", "ja", "zh-Hans", "zh-Hant"],
     developmentRegion: "en"
   ),
   settings: .settings(base: baseSettings),
@@ -55,7 +56,7 @@ let project = Project(
         // too, otherwise the Debug build still reads as "Tatami" there.
         "CFBundleName": "$(APP_DISPLAY_NAME)",
         "NSHumanReadableCopyright":
-          "© 2026 PangMo5. Released under GPL-3.0. Inspired by FlashSpace and yabai.",
+          "© 2026 PangMo5. Released under GPL-3.0.",
         "SUFeedURL": "https://pangmo5.dev/Tatami/appcast.xml",
         "SUEnableAutomaticChecks": true,
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",

@@ -9,8 +9,8 @@ struct OnboardingSection<Content: View>: View {
   // MARK: Lifecycle
 
   init(
-    title: String,
-    subtitle: String? = nil,
+    title: LocalizedStringResource,
+    subtitle: LocalizedStringResource? = nil,
     @ViewBuilder content: () -> Content,
   ) {
     self.title = title
@@ -20,8 +20,8 @@ struct OnboardingSection<Content: View>: View {
 
   // MARK: Internal
 
-  let title: String
-  let subtitle: String?
+  let title: LocalizedStringResource
+  let subtitle: LocalizedStringResource?
   @ViewBuilder let content: Content
 
   var body: some View {
@@ -53,8 +53,8 @@ struct OnboardingSection<Content: View>: View {
 
 struct OnboardingPhilosophyCard: View {
   let icon: String
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
 
   var body: some View {
     VStack(alignment: .leading, spacing: 13) {
@@ -86,13 +86,13 @@ struct OnboardingRecommendationCallout: View {
 
   // MARK: Lifecycle
 
-  init(_ text: String) {
+  init(_ text: LocalizedStringResource) {
     self.text = text
   }
 
   // MARK: Internal
 
-  let text: String
+  let text: LocalizedStringResource
 
   var body: some View {
     HStack(alignment: .top, spacing: 12) {
@@ -122,10 +122,10 @@ struct OnboardingRecommendationCallout: View {
 
 struct OnboardingInlineNotice: View {
   let icon: String
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   let tint: Color
-  let buttonTitle: String?
+  let buttonTitle: LocalizedStringResource?
   let action: () -> Void
 
   var body: some View {
@@ -157,10 +157,10 @@ struct OnboardingInlineNotice: View {
 // MARK: - OnboardingPermissionRow
 
 struct OnboardingPermissionRow: View {
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   let granted: Bool
-  let buttonTitle: String?
+  let buttonTitle: LocalizedStringResource?
   let action: () -> Void
 
   var body: some View {
@@ -276,7 +276,7 @@ struct OnboardingWorkspaceEditorRow: View {
 
   // MARK: Private
 
-  private func shortcutMeaning(_ title: String, symbols: String) -> some View {
+  private func shortcutMeaning(_ title: LocalizedStringResource, symbols: String) -> some View {
     HStack(spacing: 5) {
       Text(title)
         .foregroundStyle(.secondary)
@@ -301,7 +301,7 @@ struct OnboardingAppGroup: View {
   let icon: String
   let tint: Color
   let apps: [MacApp]
-  let emptyMessage: String
+  let emptyMessage: LocalizedStringResource
   let workspaces: [Workspace]
   let destination: (MacApp) -> OnboardingAppDestination
   let onDestinationChanged: (MacApp, OnboardingAppDestination) -> Void
@@ -366,12 +366,18 @@ private struct OnboardingAppDestinationMenu: View {
       Button {
         onDestinationChanged(.unassigned)
       } label: {
-        destinationLabel("Not managed", selected: destination == .unassigned)
+        destinationLabel(
+          String(localized: "Not managed"),
+          selected: destination == .unassigned
+        )
       }
       Button {
         onDestinationChanged(.shared)
       } label: {
-        destinationLabel("Shared Apps", selected: destination == .shared)
+        destinationLabel(
+          String(localized: "Shared Apps"),
+          selected: destination == .shared
+        )
       }
       Divider()
       ForEach(workspaces) { workspace in
@@ -408,7 +414,10 @@ private struct OnboardingAppDestinationMenu: View {
 
   // MARK: Private
 
-  private func destinationLabel(_ title: String, selected: Bool) -> some View {
+  private func destinationLabel(
+    _ title: String,
+    selected: Bool
+  ) -> some View {
     Label(title, systemImage: selected ? "checkmark" : "circle")
   }
 
@@ -417,9 +426,9 @@ private struct OnboardingAppDestinationMenu: View {
 // MARK: - OnboardingShortcutCard
 
 struct OnboardingShortcutCard: View {
-  let title: String
+  let title: LocalizedStringResource
   let symbols: String
-  let detail: String
+  let detail: LocalizedStringResource
 
   var body: some View {
     VStack(alignment: .leading, spacing: 9) {
@@ -450,8 +459,8 @@ struct OnboardingShortcutCard: View {
 // MARK: - OnboardingShortcutPracticeRow
 
 struct OnboardingShortcutPracticeRow: View {
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   let action: HotKeyAction
   let hotKey: HotKey?
   let config: AppConfig
@@ -497,7 +506,7 @@ struct OnboardingShortcutPracticeRow: View {
 // MARK: - OnboardingWorkspaceContextPicker
 
 struct OnboardingWorkspaceContextPicker: View {
-  var label = "Workspace"
+  var label: LocalizedStringResource = "Workspace"
   let workspaces: [OnboardingWorkspaceAppGroup]
   let selectedID: Workspace.ID?
   let onSelect: (Workspace.ID) -> Void
@@ -575,8 +584,8 @@ struct OnboardingRoleBlueprintGallery: View {
       }
 
       OnboardingDemoMonitor(
-        title: selectedRole.title + " example",
-        status: "Blueprint · not applied",
+        title: selectedRole.exampleTitle,
+        status: String(localized: "Blueprint · not applied"),
       ) {
         OnboardingRoleBlueprintMap(role: selectedRole)
       }
@@ -603,7 +612,7 @@ private enum OnboardingRoleBlueprint: String, CaseIterable, Identifiable {
     rawValue
   }
 
-  var title: String {
+  var title: LocalizedStringResource {
     switch self {
     case .software: "Software"
     case .design: "Design"
@@ -612,7 +621,7 @@ private enum OnboardingRoleBlueprint: String, CaseIterable, Identifiable {
     }
   }
 
-  var summary: String {
+  var summary: LocalizedStringResource {
     switch self {
     case .software:
       "Separate making a change from reviewing one. Keep a one-app terminal check temporary."
@@ -622,6 +631,15 @@ private enum OnboardingRoleBlueprint: String, CaseIterable, Identifiable {
       "Separate planning from discovery so meetings and evidence do not become one giant context."
     case .research:
       "Separate collecting sources from writing conclusions. Keep lookup tools temporary."
+    }
+  }
+
+  var exampleTitle: String {
+    switch self {
+    case .software: String(localized: "Software example")
+    case .design: String(localized: "Design example")
+    case .product: String(localized: "Product example")
+    case .research: String(localized: "Research example")
     }
   }
 
@@ -770,8 +788,8 @@ private enum OnboardingRoleBlueprint: String, CaseIterable, Identifiable {
 
 private struct OnboardingRoleContext: Identifiable {
   let id: String
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   let icon: String
   let apps: [OnboardingRoleApp]
   var isQuickAccess = false
@@ -781,7 +799,7 @@ private struct OnboardingRoleContext: Identifiable {
 
 private struct OnboardingRoleApp: Identifiable {
   let id: String
-  let name: String
+  let name: LocalizedStringResource
   let icon: String
 }
 
@@ -859,8 +877,8 @@ private struct OnboardingRoleBlueprintMap: View {
   // MARK: Private
 
   private func blueprintStrip(
-    title: String,
-    detail: String,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
     icon: String,
     tint: Color,
   ) -> some View {
@@ -961,8 +979,8 @@ struct OnboardingWorkspaceMap: View {
   }
 
   private func membershipStrip(
-    title: String,
-    detail: String,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
     icon: String,
     tint: Color,
   ) -> some View {
@@ -1162,8 +1180,8 @@ struct OnboardingDemoMonitor<Content: View>: View {
 /// its screen. Keeping this shell separate makes the screen read as the actual
 /// macOS result while still connecting the controls to that result.
 struct OnboardingDemoControlPanel<Content: View>: View {
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   @ViewBuilder let content: Content
 
   var body: some View {
@@ -1190,9 +1208,9 @@ struct OnboardingDemoControlPanel<Content: View>: View {
 // MARK: - OnboardingLessonPrompt
 
 struct OnboardingLessonPrompt: View {
-  let step: String
-  let title: String
-  let detail: String
+  let step: LocalizedStringResource
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   var completed = false
 
   var body: some View {
@@ -1206,7 +1224,7 @@ struct OnboardingLessonPrompt: View {
           in: .circle,
         )
       VStack(alignment: .leading, spacing: 4) {
-        Text(step.uppercased())
+        Text(step)
           .font(.caption2.weight(.bold))
           .foregroundStyle(completed ? Color.green : Color.accentColor)
         Text(title)
@@ -1233,8 +1251,8 @@ struct OnboardingLessonPrompt: View {
 // MARK: - OnboardingSettingToggle
 
 struct OnboardingSettingToggle: View {
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
 
   @Binding var isOn: Bool
 
@@ -1285,7 +1303,7 @@ struct OnboardingCommandReference: View {
 
   private struct CommandGroup: Identifiable {
     let id: String
-    let title: String
+    let title: LocalizedStringResource
     let icon: String
     let tint: Color
     let items: [CommandItem]
@@ -1293,9 +1311,9 @@ struct OnboardingCommandReference: View {
 
   private struct CommandItem: Identifiable {
     let id: String
-    let title: String
-    let detail: String
-    let practice: String
+    let title: LocalizedStringResource
+    let detail: LocalizedStringResource
+    let practice: LocalizedStringResource
     let actions: [HotKeyAction]
   }
 
@@ -1509,7 +1527,9 @@ struct OnboardingCommandReference: View {
 
   private func shortcutSummary(for actions: [HotKeyAction]) -> String {
     let symbols = actions.compactMap { shortcut($0)?.symbols }
-    return symbols.isEmpty ? "Set in Settings" : symbols.joined(separator: " · ")
+    return symbols.isEmpty
+      ? String(localized: "Set in Settings")
+      : symbols.joined(separator: " · ")
   }
 
 }
@@ -1549,8 +1569,8 @@ struct OnboardingWindowCyclingComparison: View {
 
   private func comparisonCard(
     shortcut: String,
-    title: String,
-    detail: String,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
     tint: Color,
   ) -> some View {
     VStack(alignment: .leading, spacing: 7) {
@@ -1607,8 +1627,8 @@ struct OnboardingGesturePractice: View {
       )
 
       OnboardingDemoMonitor(
-        title: activeWorkspace?.name ?? "Gesture Lab",
-        status: "Virtual display · safe preview",
+        title: activeWorkspace?.name ?? String(localized: "Gesture Lab"),
+        status: String(localized: "Virtual display · safe preview"),
         hud: actionResult,
       ) {
         OnboardingGestureWindowStage(
@@ -1688,7 +1708,7 @@ private struct OnboardingGestureConsole: View {
 
   var body: some View {
     OnboardingDemoControlPanel(
-      title: activeWorkspace?.name ?? "Gesture controller",
+      title: "Gesture controller",
       detail: "This console controls the virtual display below; it is not part of the simulated macOS screen.",
     ) {
       HStack(spacing: 10) {
@@ -1720,8 +1740,15 @@ private struct OnboardingGestureConsole: View {
 
   // MARK: Private
 
-  private func lessonBadge(number: Int, title: String, completed: Bool) -> some View {
-    Label("\(number) · \(title)", systemImage: completed ? "checkmark.circle.fill" : "circle")
+  private func lessonBadge(
+    number: Int,
+    title: LocalizedStringResource,
+    completed: Bool
+  ) -> some View {
+    Label(
+      "\(number) · \(String(localized: title))",
+      systemImage: completed ? "checkmark.circle.fill" : "circle"
+    )
       .font(.caption.weight(.semibold))
       .foregroundStyle(completed ? Color.green : Color.secondary)
   }
@@ -1884,11 +1911,11 @@ struct OnboardingLayoutToolbar: View {
   }
 
   private func commandGroup(
-    _ title: String,
+    _ title: LocalizedStringResource,
     @ViewBuilder content: () -> some View,
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text(title.uppercased())
+      Text(title)
         .font(.system(size: 9, weight: .bold))
         .foregroundStyle(.secondary)
       HStack(spacing: 4) { content() }
@@ -1896,7 +1923,7 @@ struct OnboardingLayoutToolbar: View {
   }
 
   private func iconButton(
-    _ title: String,
+    _ title: LocalizedStringResource,
     symbol: String,
     command: OnboardingDemoCommand,
   ) -> some View {
@@ -1908,8 +1935,8 @@ struct OnboardingLayoutToolbar: View {
     }
     .buttonStyle(.bordered)
     .controlSize(.small)
-    .help(title)
-    .accessibilityLabel(title)
+    .help(Text(title))
+    .accessibilityLabel(Text(title))
   }
 
 }
@@ -2029,8 +2056,8 @@ struct OnboardingBorrowDemo: View {
 // MARK: - OnboardingModeCard
 
 struct OnboardingModeCard: View {
-  let title: String
-  let detail: String
+  let title: LocalizedStringResource
+  let detail: LocalizedStringResource
   let selected: Bool
 
   var body: some View {
@@ -2064,7 +2091,7 @@ struct OnboardingModeCard: View {
 
 struct OnboardingMetric: View {
   let value: String
-  let label: String
+  let label: LocalizedStringResource
   let icon: String
 
   var body: some View {

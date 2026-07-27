@@ -1253,15 +1253,19 @@ public struct WorkspaceActivationFeature {
           _ = await MainActor.run { ensureAccessibilityTrust() }
           let subtitle: String
           if screenRecording.isGranted() {
-            subtitle = "Grant Accessibility in System Settings → "
-              + "Privacy & Security, then relaunch Tatami"
+            subtitle = String(
+              localized:
+                "Grant Accessibility in System Settings → Privacy & Security, then relaunch Tatami"
+            )
           } else {
             await screenRecording.requestAccess()
-            subtitle = "Grant Accessibility and Screen Recording in System Settings → "
-              + "Privacy & Security, then relaunch Tatami"
+            subtitle = String(
+              localized:
+                "Grant Accessibility and Screen Recording in System Settings → Privacy & Security, then relaunch Tatami"
+            )
           }
           await workspaceHUD.show(
-            "Permissions Needed",
+            String(localized: "Permissions Needed"),
             "exclamationmark.triangle.fill",
             subtitle,
             permsHudMs,
@@ -1556,7 +1560,7 @@ public struct WorkspaceActivationFeature {
           }
           let workspaceName = state.config.activeProfile?
             .workspaces[id: workspaceId]?.name ?? ""
-          let hudTitle = didAdd
+          let hudTitle: LocalizedStringResource = didAdd
             ? "Added \(displayName) → \(workspaceName)"
             : "Removed \(displayName) ← \(workspaceName)"
           let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
@@ -1573,7 +1577,7 @@ public struct WorkspaceActivationFeature {
           }
           // Rebuild the tree so the window drops out of / back into the layout.
           state.tilingTrees[workspaceId] = nil
-          let hudTitle = nowFloating
+          let hudTitle: LocalizedStringResource = nowFloating
             ? "Floating: \(displayName)"
             : "Tiled: \(displayName)"
           // Different glyphs for the two states so the HUD reads at a
@@ -1581,7 +1585,7 @@ public struct WorkspaceActivationFeature {
           let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
           // Un-floating keeps the workspace assignment — hint at the
           // membership shortcut for users who meant "take it out entirely".
-          let hudHint: String? = nowFloating
+          let hudHint: LocalizedStringResource? = nowFloating
             ? nil
             : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
               "Still in this workspace — \(key.symbols) removes it"
@@ -1596,13 +1600,13 @@ public struct WorkspaceActivationFeature {
           state.$config.withLock {
             nowFloating = $0.toggleSharedFloating(bundleId: bundleId, name: name)
           }
-          let hudTitle = nowFloating
+          let hudTitle: LocalizedStringResource = nowFloating
             ? "Shared Floating: \(displayName)"
             : "Shared Tiled: \(displayName)"
           let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
           // Un-floating keeps the app shared (tiled everywhere) — hint at
           // the membership shortcut for users who meant "take it out of Shared".
-          let hudHint: String? = nowFloating
+          let hudHint: LocalizedStringResource? = nowFloating
             ? nil
             : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
               "Still in Shared Apps — \(key.symbols) removes it"
@@ -1620,7 +1624,7 @@ public struct WorkspaceActivationFeature {
           state.$config.withLock {
             didAdd = $0.toggleSharedMembership(bundleId: bundleId, name: name)
           }
-          let hudTitle = didAdd
+          let hudTitle: LocalizedStringResource = didAdd
             ? "Added \(displayName) → Shared Apps"
             : "Removed \(displayName) ← Shared Apps"
           let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"

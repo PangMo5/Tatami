@@ -217,8 +217,8 @@ extension HotKey: Codable {
       @Dependency(\.errorReporter) var reporter
       reporter.report(
         "Shortcuts",
-        "Invalid shortcut \"\(string)\" in config.toml — not registered",
-        "expected skhd-style syntax, e.g. \"ctrl + alt - h\""
+        String(localized: "Invalid shortcut \"\(string)\" in config.toml — not registered"),
+        String(localized: "Expected syntax, for example: \"ctrl + alt - h\"")
       )
       throw DecodingError.dataCorrupted(.init(
         codingPath: decoder.codingPath,

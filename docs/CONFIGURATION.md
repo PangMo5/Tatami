@@ -19,7 +19,7 @@ feature in a safe virtual display. It writes this file only when you choose
 The file has three top-level parts:
 
 - **`[settings.*]`:** Global preferences described below
-- **`[[sharedApps]]`:** Apps that are part of every workspace, tiled or floating
+- **`[[sharedApps]]`:** Apps that are part of every workspace, either tiled or kept on top
 - **`[[profiles]]`:** Workspaces and their app assignments
 
 ## Shortcut syntax
@@ -56,22 +56,24 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 
 ## `[settings.hud]`
 
-A brief on-screen overlay confirming actions. `enabled` is the master switch.
-The rest pick which actions show one.
+Brief on-screen feedback confirming actions. The configuration table keeps its
+historical `hud` name for compatibility; the app calls this **On-Screen
+Feedback**. `enabled` is the master switch, and the remaining keys choose which
+actions show feedback.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `enabled` | bool | `true` | Master switch for every overlay. |
+| `enabled` | bool | `true` | Master switch for all on-screen feedback. |
 | `workspaceSwitch` | bool | `true` | Workspace name when switching. |
-| `windowCycle` | bool | `true` | Compact app/window switcher while cycling with a held shortcut modifier. Continue with the shortcut or arrow keys; commit with Return, modifier release, or a click; cancel with Escape. A quick press does not show it. |
+| `windowCycle` | bool | `true` | Compact app/window switcher while holding the window-switch shortcut modifier. Continue with the shortcut or arrow keys; commit with Return, modifier release, or a click; cancel with Escape. A quick press does not show it. |
 | `profileSwitch` | bool | `true` | Profile name when switching profiles (manual or auto). |
-| `floating` | bool | `true` | Float state changes in both per-workspace and shared contexts. |
+| `floating` | bool | `true` | Always-on-top state changes for both workspace apps and Shared Apps. The key name is retained for compatibility. |
 | `appMembership` | bool | `true` | App added to / removed from a workspace or Shared Apps. |
 | `tilingPaused` | bool | `true` | Tiling paused / resumed. |
 | `fullscreen` | bool | `true` | Fullscreen zoom entered / exited. |
-| `borrow` | bool | `true` | Borrow a workspace / dismiss a borrow, and the direction-pick hint. |
+| `borrow` | bool | `true` | Borrow or return a workspace, plus the direction-pick hint. |
 | `layout` | bool | `true` | Layout commands without a visual cue of their own (balance). |
-| `durationMs` | int | `900` | How long the overlay stays up, in milliseconds. HUDs carrying a follow-up hint stay twice as long. |
+| `durationMs` | int | `900` | How long feedback stays visible, in milliseconds. Feedback with a follow-up hint stays twice as long. |
 
 ## `[settings.layout]`
 
@@ -90,7 +92,7 @@ to disk and restored on the next launch.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `mouseFollowsFocus` | bool | `false` | Move the cursor to the window Tatami focuses. Directional focus, app/window cycling, workspace changes, close refocus, and Swap carry it to the new position; Floating and Ignore-mode cycle targets use their live window frame. Clicking a window preserves the click position. |
+| `mouseFollowsFocus` | bool | `false` | Move the cursor to the window Tatami focuses. Directional focus, app/window switching, workspace changes, close refocus, and Swap carry it to the new position; Always on Top and Leave As Is targets use their live window frame. Clicking a window preserves the click position. |
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
 | `refocusOnClose` | bool | `true` | When the focused window closes and focus would be stranded on a now-windowless app, move focus to the most recently used remaining window in the workspace (falling back through recency). |
@@ -102,13 +104,13 @@ to disk and restored on the next launch.
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `loop` | bool | `true` | Wrap from the last workspace back to the first (and vice versa). |
-| `skipEmpty` | bool | `false` | Skip workspaces with no running app when cycling next/previous. |
+| `skipEmpty` | bool | `false` | Skip workspaces with no running app when switching next/previous. |
 | `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
-| `cycleAcrossDisplays` | bool | `false` | Cycle next/previous workspace across every display's workspaces instead of only the display under the cursor. |
+| `cycleAcrossDisplays` | bool | `false` | Switch next/previous workspace across every display instead of only the display under the cursor. The key name is retained for compatibility. |
 | `recentAcrossDisplays` | bool | `false` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. |
-| `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific float, switch to the recent workspace. Shared apps do not count because they join every workspace. |
-| `cycleSameAppWindows` | bool | `false` | Next/previous-window cycling granularity. `false` (default) steps app-by-app and recalls each app's most-recent window. `true` visits every window, including multiple windows of the same app. The active workspace's tiled, Floating, and Ignore-mode windows participate; while Borrow is active, the host and borrowed tiled blocks form one cycle. |
-| `toggleBorrowOnRepeat` | bool | `true` | Summoning a workspace already borrowed on the current display dismisses it and restores the host. `false` re-docks it instead. |
+| `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific always-on-top window, switch to the recent workspace. Shared apps do not count because they join every workspace. |
+| `cycleSameAppWindows` | bool | `false` | Next/previous-window switching granularity. `false` (default) switches app-by-app and recalls each app's most-recent window. `true` visits every window, including multiple windows of the same app. The active workspace's Tiled, Always on Top, and Leave As Is windows participate; while Borrow is active, the host and borrowed tiled blocks form one switching order. The key name is retained for compatibility. |
+| `toggleBorrowOnRepeat` | bool | `true` | Borrowing a workspace already beside the current one returns it and restores the host. `false` moves the borrowed workspace instead. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
 
@@ -147,9 +149,9 @@ Available fixed action strings:
 
 - **Workspaces:** `nextWorkspace`, `previousWorkspace`, `recentWorkspace`, `moveAppToNextWorkspace`, `moveAppToPreviousWorkspace`, `assignAppToRecentWorkspace`, `assignAppToNextWorkspace`, `assignAppToPreviousWorkspace`
 - **Focus and displays:** `focusNextDisplay`, `focusPreviousDisplay`, `focusLeft`, `focusRight`, `focusUp`, `focusDown`
-- **Window cycling:** `cycleNextWindow`, `cyclePreviousWindow`
+- **Window switching:** `cycleNextWindow`, `cyclePreviousWindow`
 - **Layout:** `growWindow`, `shrinkWindow`, `swapLeft`, `swapRight`, `swapUp`, `swapDown`, `toggleOrientation`, `toggleFullscreen`, `balanceLayout`
-- **Apps and tiling:** `toggleFloating`, `toggleSharedFloating`, `toggleTiling`, `toggleAppInWorkspace`, `toggleAppInSharedApps`
+- **Apps and tiling:** `toggleFloating`, `toggleSharedFloating`, `toggleTiling`, `toggleAppInWorkspace`, `toggleAppInSharedApps` (`floating` remains the stable configuration identifier for **Always on Top**)
 - **Borrow:** `borrowRecentWorkspace`, `borrowNextWorkspace`, `borrowPreviousWorkspace`, `dismissBorrow`
 - **Unbound:** `none`
 
@@ -165,14 +167,14 @@ count, and the other directions and finger count remain unbound.
 
 ## `[settings.marker]`
 
-Small corner dots that identify zoomed, floating, and borrowed windows.
+Small corner dots that identify zoomed, always-on-top, and borrowed windows.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `fullscreenEnabled` | bool | `true` | Dot on the workspace's fullscreen-zoomed window (shown while it's focused). |
 | `fullscreenColorHex` | string | `"#007AFF"` | Fullscreen dot color (`#RRGGBB`). |
-| `floatingEnabled` | bool | `true` | Dot on floating windows, always visible so a mirror reads as floating at a glance. |
-| `floatingColorHex` | string | `"#FF9500"` | Floating dot color (`#RRGGBB`). |
+| `floatingEnabled` | bool | `true` | Dot on always-on-top windows, always visible so their state is clear at a glance. |
+| `floatingColorHex` | string | `"#FF9500"` | Always-on-top dot color (`#RRGGBB`). |
 | `borrowEnabled` | bool | `true` | Badge each borrowed window with its workspace icon while the borrow is on screen. |
 | `borrowColorHex` | string | `"#AF52DE"` | Borrow badge color (`#RRGGBB`). |
 | `size` | double | `14` | Dot diameter in points. The borrow badge is drawn larger so its glyph stays legible. |
@@ -237,12 +239,12 @@ restores the host to full screen.
 | `toggleOrientation` | Toggle the focused split's orientation |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
 | `balance` | Re-equalize every split so siblings share their space evenly |
-| `cycleNextWindow` / `cyclePreviousWindow` | Cycle apps or windows inside the visible Tatami context. Unlike Command-Tab, this excludes unrelated running apps; unlike Command-backtick, it can cross between apps. |
+| `cycleNextWindow` / `cyclePreviousWindow` | Switch apps or windows inside the visible Tatami workspace. Unlike Command-Tab, this excludes unrelated running apps; unlike Command-backtick, it can cross between apps. |
 | `moveToNextWorkspace` / `moveToPreviousWorkspace` | Move the focused app to the next/previous workspace and follow it there |
 | `dismissBorrow` | Return the borrowed workspace and restore the host to full screen |
 | `focusNextDisplay` / `focusPreviousDisplay` | Focus the active workspace on the next/previous display (loops around) |
-| `toggleFloating` | Float the focused app in the active workspace, adding it there if needed. Toggle again to re-tile. |
-| `toggleSharedFloating` | Float the focused app everywhere, adding it to Shared Apps if needed. Toggling off changes it to shared *tiled*. Use `toggleAppInSharedApps` to remove membership. |
+| `toggleFloating` | Keep the focused app on top in the active workspace, adding it there if needed. Use the action again to return it to Tiled. |
+| `toggleSharedFloating` | Keep the focused app on top everywhere, adding it to Shared Apps if needed. Turning it off changes it to shared *Tiled*. Use `toggleAppInSharedApps` to remove membership. |
 | `toggleFocusedAppInActiveWorkspace` | Add the focused window's app to the active workspace (or remove it if already a member) |
 | `toggleAppInSharedApps` | Add the focused app to Shared Apps (tiled into every workspace), or remove it if already shared |
 | `toggleSpaceActivated` | Pause/resume tiling |
@@ -263,15 +265,15 @@ re-recorded or cleared.
 | Toggle orientation | `⌃⌥S` |
 | Toggle fullscreen | `⌃⌥⏎` |
 | Balance | `⌃⌥E` |
-| Cycle next / previous window | `⌥⇥` · `⌥⇧⇥` |
-| Toggle floating | `⌥⌘⏎` |
-| Toggle shared floating | `⌥⇧⌘⏎` |
+| Switch to next / previous window | `⌥⇥` · `⌥⇧⇥` |
+| Toggle Always on Top | `⌥⌘⏎` |
+| Toggle Shared Always on Top | `⌥⇧⌘⏎` |
 | Toggle tiling (pause) | `⌃⌥⇧⌘Z` |
 | Toggle app in workspace | `⌃⌥/` |
 | Toggle app in Shared Apps | `⌃⌥⇧/` |
 | Move app to previous / next workspace | `⌃⌥⇧[` · `⌃⌥⇧]` |
 | Focus previous / next display | `⌃⌥⇧←` · `⌃⌥⇧→` |
-| Dismiss borrow | `⌃⌥⌘/` |
+| Return Borrowed Workspace | `⌃⌥⌘/` |
 | Recent / next / previous workspace key | `\` · `.` · `,` |
 
 Workspace **switch / assign / borrow** combine the modifiers above with each
@@ -280,9 +282,10 @@ workspace's key equivalent and with the recent / next / previous keys.
 ## `[[sharedApps]]`
 
 Apps listed here are part of **every** workspace. Each carries a `layout`:
-`tiled` (the default, tiles into each workspace's layout), `floating` (untiled,
-kept **above the tiles everywhere** via a mirror), or `unmanaged` (left exactly
-where it is while remaining a member, but is never tiled or mirrored). Each also has an
+`tiled` (the default, tiles into each workspace's layout), `floating` (shown as
+**Always on Top** in the app; untiled and kept above the tiles everywhere via a
+mirror), or `unmanaged` (shown as **Leave As Is**; left exactly where it is
+while remaining a member, but never tiled or mirrored). Each also has an
 optional `autoOpen` (bool, default `false`) that launches or reopens the app
 on workspace activation when it has no on-screen window, and an auto-written
 `iconPath` (string, machine-managed and not meant to be set by hand).
@@ -291,7 +294,7 @@ on workspace activation when it has no on-screen window, and an auto-written
 [[sharedApps]]
 bundleIdentifier = "com.apple.iphonesimulator"
 name = "Simulator"
-layout = "floating"      # untiled, always on top, drifts across workspaces
+layout = "floating"      # untiled, always on top, available in every workspace
 
 [[sharedApps]]
 bundleIdentifier = "com.apple.Music"
@@ -304,13 +307,13 @@ name = "IINA"
 layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 ```
 
-Floating windows are kept on top without disabling SIP: Tatami mirrors them
+Always-on-top windows stay above the layout without disabling SIP: Tatami mirrors them
 onto its own always-on-top panels via ScreenCaptureKit, which needs the
 **Screen Recording** permission (Settings → General → Permissions). The mirror
-hides and capture stops whenever the floating app itself has focus.
+hides and capture stops whenever the always-on-top app itself has focus.
 `unmanaged` apps need no such permission because the real window is never touched.
 
-Editable in the app under **Workspaces → Shared Apps** (Tiled / Float / Ignore).
+Editable in the app under **Workspaces → Shared Apps** (Tiled / Always on Top / Leave As Is).
 
 Legacy configs with `[[floatingApps]]` migrate automatically on first load:
 each entry becomes a shared app with `layout = "floating"`. A pre-1.4 `floating`
@@ -333,7 +336,7 @@ settings that differ and copies only the changes you keep checked.
 [[profiles]]
 id = "00000000-0000-0000-0000-000000000001"
 name = "Default"
-symbolIconName = "rectangle.stack"     # optional: SF Symbol (sidebar / menu bar / HUD)
+symbolIconName = "rectangle.stack"     # optional: SF Symbol (sidebar / menu bar / switch feedback)
 shortcut = "ctrl + alt + cmd - 1"      # optional: hotkey to switch to this profile
 
 # Optional: auto-activate this profile when the connected displays match. All
@@ -367,7 +370,7 @@ Profile fields:
 | --- | --- | --- |
 | `id` | UUID | Stable identifier. |
 | `name` | string | Display name. |
-| `symbolIconName` | string? | SF Symbol shown for the profile in the sidebar, menu bar, and switch HUD. Omit for the default `rectangle.stack`. |
+| `symbolIconName` | string? | SF Symbol shown for the profile in the sidebar, menu bar, and profile-switch feedback. Omit for the default `rectangle.stack`. |
 | `shortcut` | string? | skhd-style hotkey that switches to this profile. |
 | `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only. A present table with no conditions is a catch-all that matches any configuration. |
 
@@ -389,7 +392,7 @@ Workspace fields:
 | `id` | UUID | Stable identifier. |
 | `name` | string | Display name. |
 | `symbolIconName` | string? | SF Symbol used in the menu bar / sidebar. |
-| `kind` | string | `normal` (default) or `scratchpad`. A scratchpad is **borrow-only**: it is excluded from cycling, never activates alone, and auto-opens its apps when borrowed beside another workspace. |
+| `kind` | string | `normal` (default) or `scratchpad`. A scratchpad is **borrow-only**: it is excluded from regular switching, never activates alone, and auto-opens its apps when borrowed beside another workspace. |
 | `keyEquivalent` | string? | One-character key for this workspace, held with the switch / assign / borrow modifiers (see `[settings.shortcuts]`). Omit to disable key-equivalent actions for it. |
 | `activateShortcut` | string? | Explicit override for the switch combo. |
 | `assignAppShortcut` | string? | Explicit override for the assign combo (add the focused app, keeping its other memberships, and switch here). |
@@ -406,5 +409,5 @@ App assignment fields:
 | `bundleIdentifier` | string | The app's bundle ID. |
 | `name` | string | Display name. |
 | `autoOpen` | bool | Launch the app when the workspace activates and reopen it on re-entry if its window was closed. |
-| `layout` | string | `tiled` (BSP layout), `floating` (untiled and mirrored above the tiles, as described in `[[sharedApps]]`), or `unmanaged` (left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
+| `layout` | string | `tiled` (**Tiled** in the app), `floating` (**Always on Top**; untiled and mirrored above the tiles), or `unmanaged` (**Leave As Is**; left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
 | `iconPath` | string? | Cached path to the app's icon, written automatically. You don't set this by hand. |

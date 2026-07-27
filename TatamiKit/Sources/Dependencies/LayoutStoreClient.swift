@@ -204,7 +204,10 @@ private actor LayoutStore {
         // Not silent: a skipped entry is a real (partial) loss, surface it.
         reporter.report(
           "Layouts",
-          "\(decoded.skipped.count) workspace layout(s) could not be read and were reset",
+          String(
+            localized:
+              "\(decoded.skipped.count) workspace layout(s) could not be read and were reset"
+          ),
           "workspaceIds: \(decoded.skipped.joined(separator: ", "))"
         )
       }
@@ -212,7 +215,7 @@ private actor LayoutStore {
     } catch {
       reporter.report(
         "Layouts",
-        "layouts.json could not be read — saved layouts reset",
+        String(localized: "layouts.json could not be read — saved layouts reset"),
         ErrorReportClient.describe(error)
       )
       return [:]
@@ -230,7 +233,7 @@ private actor LayoutStore {
       logger.error("layout save failed: \(error.localizedDescription, privacy: .public)")
       reporter.report(
         "Layouts",
-        "layouts.json could not be saved — layout changes won't persist",
+        String(localized: "layouts.json could not be saved — layout changes won't persist"),
         ErrorReportClient.describe(error)
       )
     }

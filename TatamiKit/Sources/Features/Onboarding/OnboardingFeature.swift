@@ -21,7 +21,7 @@ public enum OnboardingStep: String, CaseIterable, Codable, Hashable, Identifiabl
     rawValue
   }
 
-  public var title: String {
+  public var title: LocalizedStringResource {
     switch self {
     case .welcome: "Welcome"
     case .environment: "This Mac"
@@ -86,7 +86,7 @@ public enum OnboardingContextStyle: String, CaseIterable, Codable, Hashable, Ide
     rawValue
   }
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .focused: "Focused"
     case .balanced: "Balanced"
@@ -94,7 +94,7 @@ public enum OnboardingContextStyle: String, CaseIterable, Codable, Hashable, Ide
     }
   }
 
-  public var detail: String {
+  public var detail: LocalizedStringResource {
     switch self {
     case .focused: "More precise contexts; group only apps that always travel together."
     case .balanced: "A moderate number of activity-based contexts."
@@ -105,7 +105,7 @@ public enum OnboardingContextStyle: String, CaseIterable, Codable, Hashable, Ide
   // MARK: Internal
 
   var promptDescription: String {
-    detail
+    String(localized: detail)
   }
 }
 
@@ -1079,13 +1079,13 @@ public struct OnboardingFeature {
       case .demoBorrowChordKey(.cancel):
         guard state.demoBorrowPendingWorkspaceID != nil else { return .none }
         state.demoBorrowPendingWorkspaceID = nil
-        state.demoActionResult = "Borrow cancelled"
+        state.demoActionResult = String(localized: "Borrow cancelled")
         return persistAndSyncBorrowChord(state)
 
       case .demoBorrowCancelButtonTapped:
         guard state.demoBorrowPendingWorkspaceID != nil else { return .none }
         state.demoBorrowPendingWorkspaceID = nil
-        state.demoActionResult = "Borrow cancelled"
+        state.demoActionResult = String(localized: "Borrow cancelled")
         return persistAndSyncBorrowChord(state)
 
       case .demoLayoutModeChanged(let mode):
@@ -1114,7 +1114,9 @@ public struct OnboardingFeature {
         else { return .none }
         focusDemoWindow(slot, in: block, state: &state)
         state.practices.insert(.focusFollowsMouse)
-        state.demoActionResult = "FFM focused \(demoAppName(for: slot, in: block, state: state))"
+        state.demoActionResult = String(
+          localized: "FFM focused \(demoAppName(for: slot, in: block, state: state))"
+        )
         return persist(state)
 
       case .demoDividerResized(let path, let ratio):
@@ -1926,7 +1928,7 @@ public struct OnboardingFeature {
           let recent = state.demoPreviousWorkspaceID,
           activateDemoWorkspace(recent, state: &state)
         else {
-          state.demoActionResult = "No recent workspace yet"
+          state.demoActionResult = String(localized: "No recent workspace yet")
           return true
         }
         state.practices.insert(.workspaceSwitch)
@@ -1954,7 +1956,7 @@ public struct OnboardingFeature {
           let id = adjacentDemoWorkspaceID(offset: 1, state: state),
           beginDemoBorrow(workspaceID: id, state: &state)
         else {
-          state.demoActionResult = "No eligible next workspace to borrow"
+          state.demoActionResult = String(localized: "No eligible next workspace to borrow")
           return true
         }
         return true
@@ -1964,7 +1966,7 @@ public struct OnboardingFeature {
           let id = adjacentDemoWorkspaceID(offset: -1, state: state),
           beginDemoBorrow(workspaceID: id, state: &state)
         else {
-          state.demoActionResult = "No eligible previous workspace to borrow"
+          state.demoActionResult = String(localized: "No eligible previous workspace to borrow")
           return true
         }
         return true
@@ -1974,19 +1976,19 @@ public struct OnboardingFeature {
           let id = state.demoPreviousWorkspaceID,
           beginDemoBorrow(workspaceID: id, state: &state)
         else {
-          state.demoActionResult = "No recent workspace to borrow"
+          state.demoActionResult = String(localized: "No recent workspace to borrow")
           return true
         }
         return true
 
       case .dismissBorrow:
         guard state.demoBorrowed else {
-          state.demoActionResult = "Nothing is borrowed on this display"
+          state.demoActionResult = String(localized: "Nothing is borrowed on this display")
           return true
         }
         dismissDemoBorrow(state: &state)
         state.practices.insert(.borrowDismiss)
-        state.demoActionResult = "Borrow dismissed · host restored"
+        state.demoActionResult = String(localized: "Borrow dismissed · host restored")
         return true
 
       default:
@@ -2034,7 +2036,7 @@ public struct OnboardingFeature {
     case .balance:
       setDemoTree(tree.applying(.balance), in: block, state: &state)
       state.practices.insert(.balance)
-      state.demoActionResult = "Balanced every split on both axes"
+      state.demoActionResult = String(localized: "Balanced every split on both axes")
 
     case .cycle(let direction):
       let candidates = cycleCandidates(
@@ -2043,7 +2045,7 @@ public struct OnboardingFeature {
         state: state,
       )
       guard candidates.count > 1 else {
-        state.demoActionResult = "Cycle needs at least two apps or windows"
+        state.demoActionResult = String(localized: "Cycle needs at least two apps or windows")
         return true
       }
       let currentIndex = candidates.firstIndex(where: {
@@ -2058,7 +2060,9 @@ public struct OnboardingFeature {
       focusDemoWindow(target.slot, in: target.block, state: &state)
       followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.cycle)
-      state.demoActionResult = direction == .next ? "Cycled to the next window" : "Cycled to the previous window"
+      state.demoActionResult = direction == .next
+        ? String(localized: "Cycled to the next window")
+        : String(localized: "Cycled to the previous window")
 
     case .focus(let direction):
       guard
@@ -2086,44 +2090,55 @@ public struct OnboardingFeature {
             in: crossBlock.block,
             state: state,
           )
-          state.demoActionResult = "Focused across the Borrow boundary to \(appName)"
+          state.demoActionResult = String(
+            localized: "Focused across the Borrow boundary to \(appName)"
+          )
           return true
         }
-        state.demoActionResult = "No window lies \(direction.displayName.lowercased()) of the focused tile"
+        state.demoActionResult = String(
+          localized:
+            "No window lies \(String(localized: direction.displayName).lowercased()) of the focused tile"
+        )
         return true
       }
       focusDemoWindow(target, in: block, state: &state)
       followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.focus)
-      state.demoActionResult = "Focused the \(direction.displayName.lowercased()) neighbour"
+      state.demoActionResult = String(
+        localized: "Focused the \(String(localized: direction.displayName).lowercased()) neighbour"
+      )
 
     case .fullscreen:
       let fullscreen = demoFullscreenSlot(in: block, state: state)
       setDemoFullscreenSlot(fullscreen == selected ? nil : selected, in: block, state: &state)
       state.practices.insert(.fullscreen)
       state.demoActionResult = demoFullscreenSlot(in: block, state: state) == nil
-        ? "Restored the split tree"
-        : "Zoomed the focused window"
+        ? String(localized: "Restored the split tree")
+        : String(localized: "Zoomed the focused window")
 
     case .orientation:
       let updated = tree.togglingSplit(at: selected)
       guard updated != tree else {
-        state.demoActionResult = "A single root tile has no parent split to flip"
+        state.demoActionResult = String(
+          localized: "A single root tile has no parent split to flip"
+        )
         return true
       }
       setDemoTree(updated, in: block, state: &state)
       state.practices.insert(.orientation)
-      state.demoActionResult = "Flipped the focused tile's parent split"
+      state.demoActionResult = String(localized: "Flipped the focused tile's parent split")
 
     case .resize(let delta):
       let updated = tree.resizing(window: selected, direction: .east, delta: delta)
       guard updated != tree else {
-        state.demoActionResult = "No vertical split owns the focused tile"
+        state.demoActionResult = String(localized: "No vertical split owns the focused tile")
         return true
       }
       setDemoTree(updated, in: block, state: &state)
       state.practices.insert(.resize)
-      state.demoActionResult = delta > 0 ? "Grew the focused window by one step" : "Shrank the focused window by one step"
+      state.demoActionResult = delta > 0
+        ? String(localized: "Grew the focused window by one step")
+        : String(localized: "Shrank the focused window by one step")
 
     case .swap(let direction):
       let hadNeighbor = tree.directionalNeighbor(
@@ -2142,8 +2157,11 @@ public struct OnboardingFeature {
       )
       guard updated != tree else {
         state.demoActionResult = tree.windows.count <= 1
-          ? "A single root tile cannot swap or warp"
-          : "No neighbour there · the parent split already points \(direction.displayName.lowercased())"
+          ? String(localized: "A single root tile cannot swap or warp")
+          : String(
+            localized:
+              "No neighbour there · the parent split already points \(String(localized: direction.displayName).lowercased())"
+          )
         return true
       }
       setDemoTree(updated, in: block, state: &state)
@@ -2151,8 +2169,14 @@ public struct OnboardingFeature {
       followDemoFocusIfEnabled(state: &state)
       state.practices.insert(.swap)
       state.demoActionResult = hadNeighbor
-        ? "Swapped with the \(direction.displayName.lowercased()) neighbour"
-        : "No neighbour there · warped the parent split \(direction.displayName.lowercased())"
+        ? String(
+          localized:
+            "Swapped with the \(String(localized: direction.displayName).lowercased()) neighbour"
+        )
+        : String(
+          localized:
+            "No neighbour there · warped the parent split \(String(localized: direction.displayName).lowercased())"
+        )
     }
     return true
   }
@@ -2326,8 +2350,8 @@ public struct OnboardingFeature {
     let current = state.demoGestureWindowIndex.clamped(to: 0 ... max(count - 1, 0))
     state.demoGestureWindowIndex = (current + offset + count) % count
     state.demoActionResult = offset > 0
-      ? "Cycled to the next window"
-      : "Cycled to the previous window"
+      ? String(localized: "Cycled to the next window")
+      : String(localized: "Cycled to the previous window")
   }
 
   private func beginDemoBorrow(
@@ -2349,7 +2373,7 @@ public struct OnboardingFeature {
     {
       dismissDemoBorrow(state: &state)
       state.practices.insert(.borrowDismiss)
-      state.demoActionResult = "Repeated summon dismissed \(workspace.name)"
+      state.demoActionResult = String(localized: "Repeated summon dismissed \(workspace.name)")
       return true
     }
 
@@ -2357,7 +2381,7 @@ public struct OnboardingFeature {
       performDemoBorrow(workspaceID: workspaceID, edge: edge, state: &state)
     } else {
       state.demoBorrowPendingWorkspaceID = workspaceID
-      state.demoActionResult = "Choose where \(workspace.name) should dock"
+      state.demoActionResult = String(localized: "Choose where \(workspace.name) should dock")
     }
     return true
   }
@@ -2387,7 +2411,9 @@ public struct OnboardingFeature {
       }
     }
     state.practices.insert(.borrow)
-    state.demoActionResult = "Borrowed \(workspace.name) on the \(edge.rawValue)"
+    state.demoActionResult = String(
+      localized: "Borrowed \(workspace.name) on the \(String(localized: edge.displayName))"
+    )
   }
 
   private func dismissDemoBorrow(state: inout State) {
@@ -2417,8 +2443,8 @@ public struct OnboardingFeature {
     state.demoLayoutMode = nowFloating ? .floating : .tiled
     state.practices.insert(nowFloating ? .floating : .tiledHandling)
     state.demoActionResult = nowFloating
-      ? "Floating \(app.name) above the split tree"
-      : "Returned \(app.name) to the split tree"
+      ? String(localized: "Floating \(app.name) above the split tree")
+      : String(localized: "Returned \(app.name) to the split tree")
   }
 
   private func assignApp(
@@ -2468,7 +2494,7 @@ public struct OnboardingFeature {
     state.demoActiveWorkspaceID = workspaceID
     state.demoGestureWindowIndex = 0
     state.demoFullscreenSlot = nil
-    state.demoActionResult = "Activated \(state.workspaceName(workspaceID))"
+    state.demoActionResult = String(localized: "Activated \(state.workspaceName(workspaceID))")
     syncDemoLayout(state: &state)
     state.demoFocusedBlock = .host
     if let selected = state.demoSelectedSlot {
@@ -2571,8 +2597,8 @@ public struct OnboardingFeature {
   private func switchDemoWorkspace(offset: Int, state: inout State) -> Bool {
     guard let next = adjacentDemoWorkspaceID(offset: offset, state: state) else {
       state.demoActionResult = offset > 0
-        ? "No eligible next workspace"
-        : "No eligible previous workspace"
+        ? String(localized: "No eligible next workspace")
+        : String(localized: "No eligible previous workspace")
       return false
     }
     return activateDemoWorkspace(next, state: &state)
@@ -2581,7 +2607,7 @@ public struct OnboardingFeature {
 }
 
 extension BSPDirection {
-  fileprivate var displayName: String {
+  fileprivate var displayName: LocalizedStringResource {
     switch self {
     case .west: "Left"
     case .east: "Right"

@@ -179,7 +179,7 @@ footer p { line-height: 1.5; }
 @media (max-width: 760px) { .features { grid-template-columns: 1fr; } }
 
 /* Animated showcase: a looping product demo that walks through tiling,
-   directional focus, swap, zoom, workspace switching, and floating windows.
+directional focus, swap, zoom, workspace switching, and always-on-top windows.
    A small JS state machine in index.html drives the stages; CSS transitions
    animate every move. */
 .demo-video {
@@ -231,7 +231,7 @@ footer p { line-height: 1.5; }
 }
 .win.show { opacity: 1; transform: scale(1); }
 .win.focused { outline-color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.18), 0 0 0 3px rgba(var(--accent-rgb), 0.28); z-index: 3; }
-/* Floating window: lifted above the tiles with a deeper shadow. */
+/* Always-on-top window: lifted above the tiles with a deeper shadow. */
 .win.floating { z-index: 4; box-shadow: 0 22px 48px rgba(0,0,0,0.34); }
 .win.floating.focused { z-index: 4; box-shadow: 0 22px 48px rgba(0,0,0,0.34), 0 0 0 3px rgba(var(--accent-rgb), 0.28); }
 .win .wtitle { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 600; color: var(--text); }

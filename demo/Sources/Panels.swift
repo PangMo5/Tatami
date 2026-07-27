@@ -172,7 +172,7 @@ private struct SafariPanel: View {
         Image(systemName: "square.grid.2x2.fill")
           .font(.system(size: 52)).foregroundStyle(.tint)
         Text("Tatami").font(.system(size: 46, weight: .semibold))
-        Text("A macOS workspace manager,\nwith yabai-style window tiling.")
+        Text("A macOS workspace manager,\nwith BSP window tiling.")
           .multilineTextAlignment(.center)
           .font(.system(size: 17)).foregroundStyle(.secondary)
         TiledGlyph().frame(width: 240, height: 120).padding(.top, 8)

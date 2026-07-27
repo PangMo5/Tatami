@@ -224,13 +224,17 @@ extension WorkspaceActivationFeature {
   func hudEffect(
     _ state: State,
     _ category: KeyPath<AppSettings.HUD, Bool>,
-    _ title: String,
+    _ title: LocalizedStringResource,
     _ icon: String?,
-    subtitle: String? = nil,
+    subtitle: LocalizedStringResource? = nil,
   ) -> Effect<Action> {
     guard state.config.settings.hud.shows(category) else { return .none }
     let durationMs = state.config.settings.hud.durationMs
-    return .run { [hud = workspaceHUD] _ in await hud.show(title, icon, subtitle, durationMs) }
+    let title = String(localized: title)
+    let subtitle = subtitle.map { String(localized: $0) }
+    return .run { [hud = workspaceHUD] _ in
+      await hud.show(title, icon, subtitle, durationMs)
+    }
   }
 
   /// Push marker targets from the warm floating-window cache. Floating-window

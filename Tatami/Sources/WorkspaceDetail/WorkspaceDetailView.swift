@@ -231,7 +231,7 @@ struct WorkspaceDetailView: View {
               Text("Use Global (\(globalEdgeLabel))").tag(BorrowEdge?.none)
               Divider()
               ForEach(BorrowEdge.allCases, id: \.self) { edge in
-                Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+                Text(edge.displayName).tag(BorrowEdge?.some(edge))
               }
             } label: {
               Text("Direction")

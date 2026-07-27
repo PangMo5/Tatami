@@ -18,7 +18,7 @@ extension KeyedDecodingContainer {
         @Dependency(\.errorReporter) var reporter
         reporter.report(
           "Settings",
-          "config.toml: '\(path)' has an invalid value — using the default",
+          String(localized: "config.toml: '\(path)' has an invalid value — using the default"),
           ErrorReportClient.describe(error),
         )
       }
@@ -305,7 +305,7 @@ public enum MarkerCorner: String, Codable, Hashable, Sendable, CaseIterable, Ide
     rawValue
   }
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .topLeading: "Top-left"
     case .topTrailing: "Top-right"
@@ -504,7 +504,7 @@ public enum AutoBalanceMode: String, Codable, Hashable, Sendable, CaseIterable, 
     rawValue
   }
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .none: "Off"
     case .horizontal: "Rows only"
@@ -526,7 +526,7 @@ public enum SplitTypePreference: String, Codable, Hashable, Sendable, CaseIterab
     rawValue
   }
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .auto: "Auto (by aspect)"
     case .horizontal: "Always horizontal"
@@ -546,7 +546,7 @@ public enum WindowPlacement: String, Codable, Hashable, Sendable, CaseIterable, 
     rawValue
   }
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .first: "Top / left"
     case .second: "Bottom / right"
@@ -1233,7 +1233,7 @@ public enum UpdateCheckInterval: String, Codable, Hashable, Sendable, CaseIterab
     }
   }
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .hourly: "Every hour"
     case .daily: "Every day"
@@ -1252,7 +1252,7 @@ public enum FocusFollowsMouseModifier: String, Codable, Hashable, Sendable, Case
   case control = "Ctrl"
   case shift = "Shift"
 
-  public var displayName: String {
+  public var displayName: LocalizedStringResource {
     switch self {
     case .none: "None"
     case .option: "Option (⌥)"

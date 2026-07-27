@@ -87,7 +87,9 @@ public struct CLIServerFeature {
         state.isRunning = false
         errorReporter.report(
           "CLI",
-          "Command-line server failed to start — `tatami` CLI won't respond",
+          String(
+            localized: "Command-line server failed to start — `tatami` CLI won't respond"
+          ),
           ErrorReportClient.describe(error)
         )
         return .none

@@ -393,7 +393,7 @@ extension SettingsView {
         Text("Ask (pick a direction)").tag(BorrowEdge?.none)
         Divider()
         ForEach(BorrowEdge.allCases, id: \.self) { edge in
-          Text(edge.rawValue.capitalized).tag(BorrowEdge?.some(edge))
+          Text(edge.displayName).tag(BorrowEdge?.some(edge))
         }
       } label: {
         Text("Default direction")
@@ -680,13 +680,13 @@ extension SettingsView {
   var cliStatusDetail: String {
     let cli = store.cli
     if cli.viaHomebrew {
-      return "Installed via Homebrew at \(cli.homebrewPath)"
+      return String(localized: "Installed via Homebrew at \(cli.homebrewPath)")
     } else if cli.isInstalled {
-      return "Installed at \(cli.symlinkPath)"
+      return String(localized: "Installed at \(cli.symlinkPath)")
     } else if cli.isBundled {
-      return "Not installed — will symlink to \(cli.symlinkPath)"
+      return String(localized: "Not installed — will symlink to \(cli.symlinkPath)")
     } else {
-      return "Not bundled with this build"
+      return String(localized: "Not bundled with this build")
     }
   }
 
@@ -695,8 +695,8 @@ extension SettingsView {
   /// that key with its global modifier and overridable by an explicit shortcut.
   @ViewBuilder
   func navTarget(
-    _ title: String,
-    description: String,
+    _ title: LocalizedStringResource,
+    description: LocalizedStringResource,
     key keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
     switchAction: HotKeyAction,
     switchOverride: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
@@ -731,7 +731,7 @@ extension SettingsView {
   /// target's key) and an explicit-shortcut override beside it.
   @ViewBuilder
   func navDerivedRow(
-    _ label: String,
+    _ label: LocalizedStringResource,
     _ modifiersKP: WritableKeyPath<AppSettings.Shortcuts, [String]>,
     _ keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
     _ overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
@@ -787,9 +787,9 @@ extension SettingsView {
   /// A labeled row of modifier toggle buttons (⌃⌥⇧⌘) editing one modifier
   /// list (e.g. switch vs assign).
   func modifierToggleRow(
-    _ title: String,
+    _ title: LocalizedStringResource,
     _ keyPath: WritableKeyPath<AppSettings.Shortcuts, [String]>,
-    description: String,
+    description: LocalizedStringResource,
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack {
@@ -829,10 +829,10 @@ extension SettingsView {
 
   @ViewBuilder
   func shortcut(
-    _ title: String,
+    _ title: LocalizedStringResource,
     _ action: HotKeyAction,
     _ keyPath: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
-    description: String? = nil,
+    description: LocalizedStringResource? = nil,
   ) -> some View {
     // Plain centered HStack rather than LabeledContent: the latter aligns
     // its label to the text baseline, which floats the title above the

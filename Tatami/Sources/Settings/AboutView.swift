@@ -19,7 +19,7 @@ struct AboutView: View {
           VStack(alignment: .leading, spacing: 2) {
             Text("Tatami")
               .font(.title2.weight(.semibold))
-            Text("macOS workspace manager with yabai-style tiling")
+            Text("macOS workspace manager with BSP window tiling")
               .font(.subheadline)
               .foregroundStyle(.secondary)
           }

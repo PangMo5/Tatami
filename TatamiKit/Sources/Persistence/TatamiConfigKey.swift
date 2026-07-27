@@ -35,7 +35,7 @@ extension SharedReaderKey where Self == FileStorageKey<AppConfig>.Default {
             reporter.abortPass(["Shortcuts", "Settings"])
             reporter.report(
               "Config",
-              "config.toml could not be parsed — keeping previous settings",
+              String(localized: "config.toml could not be parsed — keeping previous settings"),
               ErrorReportClient.describe(error)
             )
             FileHandle.standardError.write(
@@ -55,7 +55,7 @@ extension SharedReaderKey where Self == FileStorageKey<AppConfig>.Default {
           } catch {
             reporter.report(
               "ConfigSave",
-              "config.toml could not be saved",
+              String(localized: "config.toml could not be saved"),
               ErrorReportClient.describe(error)
             )
             throw error
