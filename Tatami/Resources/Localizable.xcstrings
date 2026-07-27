@@ -6353,40 +6353,6 @@
         }
       }
     },
-    "Build your setup by using it, then move through the visible context with a faster, interactive HUD.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "직접 써 보며 구성을 다듬고, 빠르게 조작할 수 있는 창 전환 화면으로 현재 작업 공간을 둘러보세요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "実際に使いながら設定を作り、操作フィードバックを見ながら表示中のワークスペースを切り替えてみましょう。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "边用边完成设置，再通过操作反馈快速切换当前场景。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "邊用邊完成設定，再透過操作回饋快速切換目前的工作空間。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Build your setup as you use it, then switch through the visible workspace with interactive on-screen feedback."
-          }
-        }
-      }
-    },
     "Built from this Mac": {
       "localizations": {
         "ko": {
@@ -32597,6 +32563,312 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zoomed the focused window"
+          }
+        }
+      }
+    },
+    "Tatami is now available in five interface languages, with clearer names and guidance written for each locale.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami를 이제 5개 언어로 사용할 수 있어요. 기능 이름은 더 분명해졌고, 안내 문구는 언어별로 자연스럽게 다듬었어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami が5つの表示言語に対応しました。機能名がより分かりやすくなり、各言語に合わせて案内文も見直されています。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 现已支持 5 种界面语言，功能名称更清晰，说明文字也针对各地区进行了优化。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 現已支援 5 種介面語言，功能名稱更清楚，說明文字也依各地用語重新調整。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami is now available in five interface languages, with clearer names and guidance written for each locale."
+          }
+        }
+      }
+    },
+    "Use Tatami in your language": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "원하는 언어로 Tatami 사용하기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使い慣れた言語で Tatami を使う"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用你的语言"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用熟悉的語言"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Tatami in your language"
+          }
+        }
+      }
+    },
+    "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "영어, 한국어, 일본어, 중국어 간체, 중국어 번체 중에서 선택할 수 있어요. Tatami는 macOS에서 앱에 선택한 언어를 따라요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "英語、韓国語、日本語、簡体字中国語、繁体字中国語から選べます。Tatami は macOS で App に選択した言語を使用します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可选择英语、韩语、日语、简体中文或繁体中文。Tatami 会使用你在 macOS 中为应用选择的语言。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可選擇英文、韓文、日文、簡體中文或繁體中文。Tatami 會使用你在 macOS 中為 App 選擇的語言。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS."
+          }
+        }
+      }
+    },
+    "Clearer names across the app": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "더 알아보기 쉬운 기능 이름"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "機能名がより分かりやすく"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "功能名称更清晰"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "功能名稱更清楚"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clearer names across the app"
+          }
+        }
+      }
+    },
+    "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "항상 위, 그대로 두기, 창 전환, 화면 알림처럼 기능 이름만 봐도 무엇을 하는지 알 수 있어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「常に手前」「そのまま」「ウインドウ切り替え」「操作フィードバック」など、名前から動作が分かるようになりました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置顶、保持原样、窗口切换和操作反馈等名称现在能更直接地说明功能。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "置頂、維持原狀、視窗切換和操作回饋等名稱，現在能更直接地說明功能。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does."
+          }
+        }
+      }
+    },
+    "Your configuration stays compatible": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기존 설정은 그대로 사용할 수 있어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "これまでの設定をそのまま使えます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现有配置继续兼容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現有設定可繼續使用"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your configuration stays compatible"
+          }
+        }
+      }
+    },
+    "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 공간, 프로필, 단축키와 기존 config.toml은 계속 작동해요. 호환성을 위해 설정 키는 바꾸지 않았어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークスペース、プロファイル、ショートカット、既存の config.toml はそのまま動作します。互換性のため、設定キーは変更していません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作区、配置方案、快捷键和现有 config.toml 会继续正常工作。为保持兼容，配置键没有变化。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "工作空間、設定組合、快速鍵和現有的 config.toml 都會繼續正常運作。為了維持相容性，設定鍵沒有變更。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed."
+          }
+        }
+      }
+    },
+    "Written for each language": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "언어마다 자연스럽게 다듬었어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "言語ごとに自然な表現へ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为每种语言单独优化"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依每種語言自然調整"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Written for each language"
+          }
+        }
+      }
+    },
+    "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "안내, 빈 화면, 오류, 확인 문구는 영어를 그대로 옮기지 않고 해야 할 일과 다음 행동이 잘 보이도록 작성했어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "案内、空の状態、エラー、確認メッセージは英語を直訳せず、やることと次の操作が分かる表現にしています。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说明、空状态、错误和确认信息不再逐字翻译英语，而是围绕当前任务和下一步操作编写。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "說明、空白狀態、錯誤和確認訊息不再逐字翻譯英文，而是依目前任務和下一步操作撰寫。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word."
           }
         }
       }

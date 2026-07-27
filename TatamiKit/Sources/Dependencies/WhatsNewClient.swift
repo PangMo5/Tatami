@@ -119,7 +119,7 @@ private struct WhatsNewView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text("What's New in Tatami \(version)")
               .font(.title.weight(.semibold))
-            Text("Build your setup by using it, then move through the visible context with a faster, interactive HUD.")
+            Text("Tatami is now available in five interface languages, with clearer names and guidance written for each locale.")
               .font(.subheadline)
               .foregroundStyle(.secondary)
           }
@@ -130,24 +130,24 @@ private struct WhatsNewView: View {
               .font(.headline)
 
             item(
-              icon: "list.bullet.rectangle",
-              title: "Guided Setup, built around this Mac",
-              detail: "First launch or **Settings → General → Run Guided Setup** turns your app metadata and displays into a draft. Learn every major feature in order on a safe virtual display; real windows and `config.toml` stay untouched until you apply.",
+              icon: "character.bubble",
+              title: "Use Tatami in your language",
+              detail: "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS.",
             )
             item(
-              icon: "wand.and.stars",
-              title: "Design the draft with your AI",
-              detail: "Describe your role and typical week, then review a proposal from ChatGPT, Claude, Gemini, another AI, or the on-device Apple Intelligence model on supported Macs. Tatami sends no screen contents and never applies a recommendation without review.",
+              icon: "textformat",
+              title: "Clearer names across the app",
+              detail: "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does.",
             )
             item(
-              icon: "rectangle.stack",
-              title: "A compact, interactive switcher",
-              detail: "Hold the cycle shortcut, then use the shortcut again, arrow keys, Return, Escape, modifier release, or the pointer. The switcher fades in and out, keyboard selection and hover stay distinct, and quick presses still switch immediately without showing the HUD.",
+              icon: "checkmark.shield",
+              title: "Your configuration stays compatible",
+              detail: "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed.",
             )
             item(
-              icon: "rectangle.split.2x1",
-              title: "Borrow-aware focus and cycling",
-              detail: "Host and borrowed tiled windows share one cycle until dismissed, with app and window MRU preserved. MFF also follows cycle targets outside the BSP tree, including Floating, Shared Floating, and Ignore-mode windows.",
+              icon: "text.bubble",
+              title: "Written for each language",
+              detail: "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word.",
             )
           }
           .padding(.horizontal, 6)
@@ -172,7 +172,11 @@ private struct WhatsNewView: View {
 
   @State private var showChangelog = false
 
-  private func item(icon: String, title: String, detail: String) -> some View {
+  private func item(
+    icon: String,
+    title: LocalizedStringResource,
+    detail: LocalizedStringResource,
+  ) -> some View {
     HStack(alignment: .top, spacing: 12) {
       Image(systemName: icon)
         .font(.title3)
@@ -181,7 +185,11 @@ private struct WhatsNewView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(title)
           .font(.headline)
-        Text((try? AttributedString(markdown: detail)) ?? AttributedString(detail))
+        let localizedDetail = String(localized: detail)
+        Text(
+          (try? AttributedString(markdown: localizedDetail))
+            ?? AttributedString(localizedDetail)
+        )
           .font(.callout)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)

@@ -6,6 +6,16 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.10.0 (2026-07-27)
+
+### New
+- **Five interface languages:** Tatami is now available in English, Korean, Japanese, Simplified Chinese, and Traditional Chinese across Settings, Guided Setup, the menu bar, on-screen feedback, errors, and confirmations. Tatami follows the macOS language preference selected for the app.
+
+### Improvements
+- **Writing designed for each locale:** Every translation is written around the task and next action instead of following English word for word, with terminology and tone reviewed for each supported locale.
+- **Clearer feature names:** User-facing copy now uses **Always on Top**, **Leave As Is**, **Window Switching**, and **On-Screen Feedback** in place of internal implementation terms. Existing `config.toml` keys remain compatible.
+- **Fully localized dynamic feedback:** Workspace and profile names, app actions, Borrow results, layout changes, errors, and other runtime messages now use locale-aware formatting without changing user-entered names.
+
 ## 1.9.2 (2026-07-27)
 
 ### Fixes
