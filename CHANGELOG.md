@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.9.2 (2026-07-27)
+
+### Fixes
+- **Stable MFF and FFM interaction:** When both focus modes are enabled, pointer-driven focus no longer feeds its Accessibility notification back into mouse-follows-focus and snaps the pointer again. Tatami ignores synthetic movement from its own cursor warps, drops stale focus echoes, and lets Borrow repair its layout without reclaiming a pointer the user already moved.
+
 ## 1.9.1 (2026-07-23)
 
 ### Fixes
