@@ -62,45 +62,10 @@ extension WindowTilerClient: DependencyKey {
       return
     }
     guard !Task.isCancelled else { return }
-    // A fresh WindowServer snapshot is cheap compared with AX and avoids the
-    // unreliable *cached*-frame shortcut: only windows visibly at their target
-    // right now are skipped. Off-screen / mid-unhide windows still take the AX
-    // path, preserving convergence after a workspace switch.
-    let visibleFrames = currentOnScreenFrames()
-    let pendingFrames = framesNeedingApply(
-      targets: request.windowFrames,
-      visibleFrames: visibleFrames,
-      forceAllFrames: request.forceAllFrames,
-    )
-    guard !pendingFrames.isEmpty else {
-      @Dependency(\.debugLog) var debugLog
-      debugLog.log("Tiler", "apply skipped: all \(request.windowFrames.count) frames current")
-      return
-    }
-    guard !Task.isCancelled else { return }
-    // Group frames by pid so we can toggle EnhancedUserInterface
-    // once per app instead of once per window. Ordered: apps apply in
-    // first-seen order, so passes are reproducible run to run (and the
-    // Tiler log reads the same way every switch).
-    let grouped = OrderedDictionary(grouping: pendingFrames, by: { $0.key.pid })
-    // Hop to the main actor once per app, not once for the whole pass.
-    // Every AX write blocks on the target app's run loop (up to the 1 s
-    // cap), so a single block would hold the main thread for the *sum*
-    // of every busy app's stalls — HUD and mirrors freeze with it.
-    // The cancellation check is what makes a superseding pass's
-    // `cancelInFlight` effective mid-apply: without it a cancelled apply
-    // would keep writing stale frames between the newer pass's hops.
-    for (pid, entries) in grouped {
-      guard !Task.isCancelled else { return }
-      await MainActor.run {
-        applyForApp(
-          pid: pid,
-          entries: entries,
-          visibleFrames: visibleFrames,
-          forceAllFrames: request.forceAllFrames,
-        )
-      }
-    }
+    // Planning and AX writes share one serial worker. A newer request therefore
+    // takes its WindowServer snapshot only after an older request has stopped,
+    // so it always observes and repairs any stale partial write left behind.
+    await performAXApply(request)
   }
 
   static let testValue = WindowTilerClient(apply: { _ in })
@@ -167,38 +132,73 @@ extension WindowTilerClient: DependencyKey {
 
   // MARK: Private
 
-  private static func currentOnScreenFrames() -> [CGWindowID: CGRect] {
-    let raw = CGWindowListCopyWindowInfo(
-      [.optionOnScreenOnly, .excludeDesktopElements],
-      kCGNullWindowID,
-    ) as? [[String: Any]] ?? []
-    var frames = [CGWindowID: CGRect]()
-    frames.reserveCapacity(raw.count)
-    for entry in raw {
-      guard
-        let windowID = entry[kCGWindowNumber as String] as? CGWindowID,
-        let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
-        let x = bounds["X"], let y = bounds["Y"],
-        let width = bounds["Width"], let height = bounds["Height"]
-      else { continue }
-      frames[windowID] = CGRect(x: x, y: y, width: width, height: height)
+  private static let axApplyQueue = DispatchQueue(
+    label: "dev.PangMo5.Tatami.ax-frame-apply",
+    qos: .userInitiated,
+  )
+
+  private static func performAXApply(
+    _ request: FrameApplication
+  ) async {
+    let cancellation = SynchronousCancellationFlag()
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        axApplyQueue.async {
+          if !cancellation.isCancelled {
+            applyRequest(request, cancellation: cancellation)
+          }
+          continuation.resume()
+        }
+      }
+    } onCancel: {
+      cancellation.cancel()
     }
-    return frames
   }
 
-  @MainActor
+  private static func applyRequest(
+    _ request: FrameApplication,
+    cancellation: SynchronousCancellationFlag,
+  ) {
+    guard !cancellation.isCancelled else { return }
+    // A fresh WindowServer snapshot avoids the unreliable cached-frame
+    // shortcut: only windows visibly at their target right now are skipped.
+    let visibleFrames = currentOnScreenWindowFrames()
+    let pendingFrames = framesNeedingApply(
+      targets: request.windowFrames,
+      visibleFrames: visibleFrames,
+      forceAllFrames: request.forceAllFrames,
+    )
+    guard !pendingFrames.isEmpty else {
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log("Tiler", "apply skipped: all \(request.windowFrames.count) frames current")
+      return
+    }
+    let grouped = OrderedDictionary(grouping: pendingFrames, by: { $0.key.pid })
+    for (pid, entries) in grouped {
+      guard !cancellation.isCancelled else { return }
+      applyForApp(
+        pid: pid,
+        entries: entries,
+        visibleFrames: visibleFrames,
+        forceAllFrames: request.forceAllFrames,
+        cancellation: cancellation,
+      )
+    }
+  }
+
   private static func applyForApp(
     pid: pid_t,
     entries: [(key: WindowKey, value: CGRect)],
     visibleFrames: [CGWindowID: CGRect],
     forceAllFrames: Bool,
+    cancellation: SynchronousCancellationFlag,
   ) {
     @Dependency(\.debugLog) var debugLog
     let logging = debugLog.isEnabled()
     let axApp = AXUIElementCreateApplication(pid)
-    // Cap how long any single AX write can block the main thread. The
-    // default has no practical ceiling, so one unresponsive app could
-    // wedge the whole tile pass (and the UI) indefinitely.
+    // Cap how long any single AX write can occupy the worker. The default has
+    // no practical ceiling, so one unresponsive app could otherwise wedge all
+    // later frame writes indefinitely.
     AXUIElementSetMessagingTimeout(axApp, 1.0)
 
     // Discover every window once + map CGWindowID → AXUIElement.
@@ -216,9 +216,11 @@ extension WindowTilerClient: DependencyKey {
       debugLog.log("Tiler", "apply pid=\(pid): AX window list unavailable — skipped")
       return
     }
+    guard !cancellation.isCancelled else { return }
 
     var lookup = [CGWindowID: AXUIElement]()
     for window in windows {
+      guard !cancellation.isCancelled else { return }
       var wid: CGWindowID = 0
       if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
         lookup[wid] = window
@@ -234,12 +236,14 @@ extension WindowTilerClient: DependencyKey {
     let enhanced = "AXEnhancedUserInterface" as CFString
     var enhancedWasOn = false
     var enhancedRaw: CFTypeRef?
+    guard !cancellation.isCancelled else { return }
     if
       AXUIElementCopyAttributeValue(axApp, enhanced, &enhancedRaw) == .success,
       let value = enhancedRaw as? Bool
     {
       enhancedWasOn = value
     }
+    guard !cancellation.isCancelled else { return }
     if enhancedWasOn {
       _ = AXUIElementSetAttributeValue(axApp, enhanced, kCFBooleanFalse)
     }
@@ -250,7 +254,7 @@ extension WindowTilerClient: DependencyKey {
     }
 
     for (key, frame) in entries {
-      guard !Task.isCancelled else { return }
+      guard !cancellation.isCancelled else { return }
       guard let window = lookup[key.windowID] else {
         debugLog.log("Tiler", "apply \(key.bundleId)#\(key.windowID) → missing-window")
         continue
@@ -259,6 +263,7 @@ extension WindowTilerClient: DependencyKey {
         frame,
         currentFrame: forceAllFrames ? nil : visibleFrames[key.windowID],
         to: window,
+        cancellation: cancellation,
       )
       if logging {
         debugLog.log(
@@ -269,18 +274,20 @@ extension WindowTilerClient: DependencyKey {
     }
   }
 
-  @MainActor
   private static func applyFrame(
     _ frame: CGRect,
     currentFrame: CGRect?,
     to window: AXUIElement,
+    cancellation: SynchronousCancellationFlag,
   ) -> String {
     // A native-fullscreen window is not ours to lay out. The old behavior
     // forced it out of fullscreen (`AXFullScreen = false`) before writing the
     // tiled frame — so the space-change reconcile that fires the instant the
     // user enters fullscreen bounced them straight back to the Desktop. Leave
     // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
+    guard !cancellation.isCancelled else { return "cancelled" }
     if isFullScreen(window) { return "skipped-fullscreen" }
+    guard !cancellation.isCancelled else { return "cancelled" }
 
     func setPosition() -> AXError {
       var position = CGPoint(x: frame.minX, y: frame.minY)
@@ -309,10 +316,12 @@ extension WindowTilerClient: DependencyKey {
       return "skipped-current"
 
     case .resizeOnly:
+      guard !cancellation.isCancelled else { return "cancelled" }
       let sizeError = setSize()
       return sizeError == .success ? "ok" : "size=\(sizeError.rawValue)"
 
     case .moveOnly:
+      guard !cancellation.isCancelled else { return "cancelled" }
       let posError = setPosition()
       return posError == .success ? "ok" : "pos=\(posError.rawValue)"
 
@@ -320,7 +329,9 @@ extension WindowTilerClient: DependencyKey {
       // Same-display geometry has no old-display clamp. Resize first so the
       // final position write restores the exact origin if the target app
       // adjusts its frame while honoring min/max-size constraints.
+      guard !cancellation.isCancelled else { return "cancelled" }
       let sizeError = setSize()
+      guard !cancellation.isCancelled else { return "cancelled" }
       let posError = setPosition()
       if posError == .success, sizeError == .success { return "ok" }
       return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
@@ -330,9 +341,13 @@ extension WindowTilerClient: DependencyKey {
       // display before the position write lands. Repeat the pair only for this
       // path; the second pass now runs against the target display.
       // (yabai uses the same repeated set for cross-display convergence.)
+      guard !cancellation.isCancelled else { return "cancelled" }
       _ = setPosition()
+      guard !cancellation.isCancelled else { return "cancelled" }
       _ = setSize()
+      guard !cancellation.isCancelled else { return "cancelled" }
       let posError = setPosition()
+      guard !cancellation.isCancelled else { return "cancelled" }
       let sizeError = setSize()
       if posError == .success, sizeError == .success { return "ok" }
       return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
@@ -349,7 +364,6 @@ extension WindowTilerClient: DependencyKey {
     return displayID
   }
 
-  @MainActor
   private static func isFullScreen(_ window: AXUIElement) -> Bool {
     var raw: CFTypeRef?
     let result = AXUIElementCopyAttributeValue(
@@ -360,6 +374,31 @@ extension WindowTilerClient: DependencyKey {
     guard result == .success, let value = raw as? Bool else { return false }
     return value
   }
+
+}
+
+// MARK: - SynchronousCancellationFlag
+
+/// GCD callbacks don't inherit Swift task cancellation. This lock-backed flag
+/// bridges `withTaskCancellationHandler` into the synchronous AX worker and is
+/// intentionally synchronous; an actor cannot be queried between blocking C
+/// calls without making the worker itself asynchronous.
+private final class SynchronousCancellationFlag: @unchecked Sendable {
+
+  // MARK: Internal
+
+  var isCancelled: Bool {
+    lock.withLock { cancelled }
+  }
+
+  func cancel() {
+    lock.withLock { cancelled = true }
+  }
+
+  // MARK: Private
+
+  private let lock = NSLock()
+  private var cancelled = false
 
 }
 
@@ -391,15 +430,37 @@ enum ScreenGeometry {
   }
 }
 
+/// Fresh WindowServer geometry in AX/CG top-origin coordinates. Unlike AX,
+/// this is one local snapshot with no target-app run-loop wait, so reducers can
+/// safely use it to partition already-discovered keys without blocking input.
+func currentOnScreenWindowFrames() -> [CGWindowID: CGRect] {
+  let raw = CGWindowListCopyWindowInfo(
+    [.optionOnScreenOnly, .excludeDesktopElements],
+    kCGNullWindowID,
+  ) as? [[String: Any]] ?? []
+  var frames = [CGWindowID: CGRect]()
+  frames.reserveCapacity(raw.count)
+  for entry in raw {
+    guard
+      let windowID = entry[kCGWindowNumber as String] as? CGWindowID,
+      let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
+      let x = bounds["X"], let y = bounds["Y"],
+      let width = bounds["Width"], let height = bounds["Height"]
+    else { continue }
+    frames[windowID] = CGRect(x: x, y: y, width: width, height: height)
+  }
+  return frames
+}
+
 /// Bound every AX message this process sends (call once at startup).
 ///
 /// The per-app-element `AXUIElementSetMessagingTimeout(axApp, …)` calls
 /// only cover messages to that app element itself — the *window* elements
 /// pulled out of `kAXWindowsAttribute` keep the system default (~6 s), so
 /// one beachballing app (Electron mid-GC, a paused-in-debugger app) could
-/// wedge the main thread for 6 s × per-window calls per tile pass. Setting
-/// the timeout on the system-wide element makes it the process-global
-/// default for all elements; per-element values still override it.
+/// occupy an AX worker for 6 s × per-window calls per tile pass. Setting the
+/// timeout on the system-wide element makes it the process-global default for
+/// all elements; per-element values still override it.
 @MainActor
 func boundGlobalAXMessagingTimeout() {
   AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
@@ -444,6 +505,26 @@ struct WindowDiscovery: Sendable {
   var retained = Set<CGWindowID>()
 }
 
+// MARK: - WindowCapabilityDiscovery
+
+/// Capability-complete result of one AX enumeration. Building both views from
+/// one pass prevents a mixed tiled/unmanaged app from paying the per-window AX
+/// cost twice for the same process snapshot.
+struct WindowCapabilityDiscovery: Sendable {
+  var movableKeys = [WindowKey]()
+  var resizableKeys = [WindowKey]()
+  var unreachable = Set<String>()
+  var retained = Set<CGWindowID>()
+
+  func discovery(requireResizable: Bool) -> WindowDiscovery {
+    WindowDiscovery(
+      keys: requireResizable ? resizableKeys : movableKeys,
+      unreachable: unreachable,
+      retained: retained,
+    )
+  }
+}
+
 /// All visible, regular, tile-able windows that belong to the given
 /// bundle identifiers, paired with their `WindowKey`s. Used by the
 /// activation reducer to compute the BSP target set.
@@ -465,27 +546,83 @@ func discoverWindowKeys(
   sls: SLSClient,
   requireResizable: Bool = true,
 ) -> WindowDiscovery {
-  guard !bundleIds.isEmpty else { return WindowDiscovery() }
+  discoverWindowCapabilities(
+    forBundleIds: bundleIds,
+    pidsByBundle: runningPIDsByBundle(bundleIds),
+    sls: sls,
+  ).discovery(requireResizable: requireResizable)
+}
+
+/// Main-actor entry point that captures the running-process snapshot and
+/// returns both eligibility views from one AX pass.
+@MainActor
+func discoverWindowCapabilities(
+  forBundleIds bundleIds: [String],
+  sls: SLSClient,
+) -> WindowCapabilityDiscovery {
+  discoverWindowCapabilities(
+    forBundleIds: bundleIds,
+    pidsByBundle: runningPIDsByBundle(bundleIds),
+    sls: sls,
+  )
+}
+
+/// Capture the AppKit-owned running-application snapshot briefly, before AX
+/// discovery moves to Tatami's serialized worker. Apple exposes AX observer
+/// run-loop selection but does not explicitly document general AX thread
+/// safety, so AX references stay confined to the worker that creates them.
+@MainActor
+func runningPIDsByBundle(_ bundleIds: [String]) -> [String: [pid_t]] {
+  let requested = Set(bundleIds)
+  var pidsByBundle = [String: [pid_t]]()
+  for app in NSWorkspace.shared.runningApplications
+    where !app.isTerminated && app.activationPolicy == .regular
+  {
+    if let bundleId = app.bundleIdentifier, requested.contains(bundleId) {
+      pidsByBundle[bundleId, default: []].append(app.processIdentifier)
+    }
+  }
+  for bundleId in pidsByBundle.keys {
+    pidsByBundle[bundleId]?.sort()
+  }
+  return pidsByBundle
+}
+
+/// AX-only discovery core. Callers provide a main-actor-captured process
+/// snapshot, allowing the synchronous IPC to run on an ordinary worker.
+func discoverWindowKeys(
+  forBundleIds bundleIds: [String],
+  pidsByBundle: [String: [pid_t]],
+  sls: SLSClient,
+  requireResizable: Bool = true,
+  isCancelled: @escaping @Sendable () -> Bool = { false },
+) -> WindowDiscovery {
+  discoverWindowCapabilities(
+    forBundleIds: bundleIds,
+    pidsByBundle: pidsByBundle,
+    sls: sls,
+    isCancelled: isCancelled,
+  ).discovery(requireResizable: requireResizable)
+}
+
+/// Enumerate each process once and classify every eligible window into both
+/// movable and resizable views from the same AX capability reads.
+func discoverWindowCapabilities(
+  forBundleIds bundleIds: [String],
+  pidsByBundle: [String: [pid_t]],
+  sls: SLSClient,
+  isCancelled: @escaping @Sendable () -> Bool = { false },
+) -> WindowCapabilityDiscovery {
+  guard !bundleIds.isEmpty, !isCancelled() else {
+    return WindowCapabilityDiscovery()
+  }
   @Dependency(\.debugLog) var debugLog
   // Per-window reject/keep bookkeeping exists only for the log line —
   // don't pay for the strings and arrays while logging is off.
   let logging = debugLog.isEnabled()
 
-  // Resolve *every* running pid per bundle id. Some apps (e.g. Neovide)
-  // run one process per window under a shared bundle id, so keying by
-  // bundle id alone — taking only the first pid — misses every window
-  // owned by a sibling process. Scan them all.
-  // Ordered so multi-process apps (Neovide) scan in a stable pid order.
-  var pidsByBundle: OrderedDictionary<String, [pid_t]> = [:]
-  for app in NSWorkspace.shared.runningApplications
-    where !app.isTerminated && app.activationPolicy == .regular
-  {
-    if let bid = app.bundleIdentifier {
-      pidsByBundle[bid, default: []].append(app.processIdentifier)
-    }
-  }
-
-  var result = [WindowKey]()
+  var movableKeys = [WindowKey]()
+  var resizableKeys = [WindowKey]()
   var unreachable = Set<String>()
   var retainedIDs = Set<CGWindowID>()
   let attrs = [
@@ -493,15 +630,17 @@ func discoverWindowKeys(
     kAXSubroleAttribute,
   ] as CFArray
   for bundleId in bundleIds {
+    if isCancelled() { break }
     let pids = pidsByBundle[bundleId] ?? []
     guard !pids.isEmpty else {
       debugLog.log("Tiler", "discover \(bundleId): no running pid")
       continue
     }
     for pid in pids {
+      if isCancelled() { break }
       let axApp = AXUIElementCreateApplication(pid)
       // Same rationale as the tile pass: bound the per-message wait so a
-      // hung app can't stall discovery (and the main thread) indefinitely.
+      // hung app can't occupy the discovery worker indefinitely.
       AXUIElementSetMessagingTimeout(axApp, 1.0)
       var raw: CFTypeRef?
       let windowsError = AXUIElementCopyAttributeValue(
@@ -522,12 +661,14 @@ func discoverWindowKeys(
         )
         continue
       }
-      let before = result.count
+      let movableBefore = movableKeys.count
+      let resizableBefore = resizableKeys.count
       var rejected = [String]()
       func reject(_ widProbe: CGWindowID, _ reason: @autoclosure () -> String) {
         if logging { rejected.append("\(widProbe):\(reason())") }
       }
       for window in windows {
+        if isCancelled() { break }
         var widProbe: CGWindowID = 0
         _ = _AXUIElementGetWindow(window, &widProbe)
         var valuesRef: CFArray?
@@ -565,8 +706,9 @@ func discoverWindowKeys(
           reject(widProbe, "subrole=\(subrole)")
           continue
         }
-        // Position must be settable, else we'd write to a window the host
-        // app rejects; size additionally for tiling (see `requireResizable`).
+        // Position must be settable for either consumer. Size determines only
+        // membership in the tiled subset; a fixed-size window remains valid
+        // for the unmanaged/movable cache.
         var movable: DarwinBoolean = false
         var resizable: DarwinBoolean = false
         let movError = AXUIElementIsAttributeSettable(
@@ -584,7 +726,7 @@ func discoverWindowKeys(
           reject(widProbe, "timeout")
           break
         }
-        if !movable.boolValue || (requireResizable && !resizable.boolValue) {
+        if !movable.boolValue {
           reject(widProbe, "notSettable(mov=\(movable.boolValue),res=\(resizable.boolValue))")
           continue
         }
@@ -595,16 +737,21 @@ func discoverWindowKeys(
             reject(widProbe, "sticky")
             continue
           }
-          result.append(key)
+          movableKeys.append(key)
+          if resizable.boolValue {
+            resizableKeys.append(key)
+          }
         } else {
           reject(widProbe, "noWid")
         }
       }
       if logging {
-        let kept = result[before...].map { $0.windowID }
+        let movableKept = movableKeys[movableBefore...].map(\.windowID)
+        let resizableKept = resizableKeys[resizableBefore...].map(\.windowID)
         debugLog.log(
           "Tiler",
-          "discover \(bundleId) pid=\(pid) axCount=\(windows.count) kept=\(kept) rejected=\(rejected)",
+          "discover \(bundleId) pid=\(pid) axCount=\(windows.count) "
+            + "movable=\(movableKept) resizable=\(resizableKept) rejected=\(rejected)",
         )
       }
     }
@@ -613,12 +760,18 @@ func discoverWindowKeys(
   // (the windows validated before the timeout hit) would read as "the
   // other windows closed". Consumers substitute last-known state.
   if !unreachable.isEmpty {
-    result.removeAll { unreachable.contains($0.bundleId) }
+    movableKeys.removeAll { unreachable.contains($0.bundleId) }
+    resizableKeys.removeAll { unreachable.contains($0.bundleId) }
   }
   // A retained id that *did* validate on a later pid/bundle in this same scan
   // is genuinely standard — don't also flag it as flapped.
-  retainedIDs.subtract(result.map(\.windowID))
-  return WindowDiscovery(keys: result, unreachable: unreachable, retained: retainedIDs)
+  retainedIDs.subtract(movableKeys.map(\.windowID))
+  return WindowCapabilityDiscovery(
+    movableKeys: movableKeys,
+    resizableKeys: resizableKeys,
+    unreachable: unreachable,
+    retained: retainedIDs,
+  )
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "WindowTiler")

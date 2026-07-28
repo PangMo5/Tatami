@@ -4,6 +4,26 @@ import Testing
 
 struct WindowTilerClientTests {
   @Test
+  func `one capability result derives movable and resizable discoveries`() {
+    let fixedSize = WindowKey(pid: 1, windowID: 10, bundleId: "app.fixed")
+    let flexible = WindowKey(pid: 2, windowID: 20, bundleId: "app.flexible")
+    let capabilities = WindowCapabilityDiscovery(
+      movableKeys: [fixedSize, flexible],
+      resizableKeys: [flexible],
+      unreachable: ["app.busy"],
+      retained: [30],
+    )
+
+    let movable = capabilities.discovery(requireResizable: false)
+    let resizable = capabilities.discovery(requireResizable: true)
+
+    #expect(movable.keys == [fixedSize, flexible])
+    #expect(resizable.keys == [flexible])
+    #expect(movable.unreachable == resizable.unreachable)
+    #expect(movable.retained == resizable.retained)
+  }
+
+  @Test
   func `frame writes use the smallest safe AX mutation`() {
     let current = CGRect(x: 8, y: 41, width: 800, height: 600)
 

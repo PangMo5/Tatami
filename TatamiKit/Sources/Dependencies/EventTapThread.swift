@@ -5,9 +5,9 @@ import Foundation
 /// `CFRunLoop`. `CGEventTap` run-loop sources are attached here instead of
 /// to the main run loop, so the per-event work the taps do — window
 /// hit-testing via `CGWindowListCopyWindowInfo`, throttle bookkeeping —
-/// runs off the main thread. Only the side effects that genuinely require
-/// the main actor (AppKit / Accessibility focus changes) hop back via
-/// `MainActor`. This mirrors how yabai isolates its event tap from the UI.
+/// runs off the main thread. Only AppKit identity and UI state hop back via
+/// `MainActor`; timeout-prone Accessibility focus messaging stays on its own
+/// worker. This mirrors how yabai isolates its event tap from the UI.
 ///
 /// One shared thread (rather than one per tap) keeps every tap callback
 /// serialized on a single run loop — which is exactly the isolation each
@@ -16,13 +16,8 @@ import Foundation
 /// touched from this thread (install/teardown via `perform`, plus the tap
 /// callback itself).
 final class EventTapThread: @unchecked Sendable {
-  static let shared = EventTapThread()
 
-  /// The thread's run loop, captured once the thread is up. Written once
-  /// during startup and only read afterwards (readers wait on `ready`),
-  /// so the unsynchronized access is sound.
-  private nonisolated(unsafe) var runLoop: CFRunLoop!
-  private let ready = DispatchSemaphore(value: 0)
+  // MARK: Lifecycle
 
   private init() {
     let thread = Thread { [self] in
@@ -40,6 +35,10 @@ final class EventTapThread: @unchecked Sendable {
     // `perform` can't race the run loop coming up.
     ready.wait()
   }
+
+  // MARK: Internal
+
+  static let shared = EventTapThread()
 
   /// Attach a run-loop source (e.g. a `CGEventTap`'s) to this thread.
   func addSource(_ source: CFRunLoopSource) {
@@ -60,4 +59,13 @@ final class EventTapThread: @unchecked Sendable {
     CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, work)
     CFRunLoopWakeUp(runLoop)
   }
+
+  // MARK: Private
+
+  /// The thread's run loop, captured once the thread is up. Written once
+  /// during startup and only read afterwards (readers wait on `ready`),
+  /// so the unsynchronized access is sound.
+  private nonisolated(unsafe) var runLoop: CFRunLoop!
+  private let ready = DispatchSemaphore(value: 0)
+
 }

@@ -5,6 +5,8 @@ import DependenciesMacros
 import Foundation
 import OSLog
 
+// MARK: - FocusManagerClient
+
 /// Window focus-cycling that doesn't fit into the BSP tree's
 /// directional model (cmd-tab-style cycling across workspace +
 /// floating apps). Directional focus is handled by the activation
@@ -17,9 +19,14 @@ struct FocusManagerClient: Sendable {
   var focusWindow: @Sendable (_ key: WindowKey) async -> Void
 }
 
+// MARK: - CycleDirection
+
 public enum CycleDirection: Sendable, Hashable {
-  case next, previous
+  case next
+  case previous
 }
+
+// MARK: - FocusManagerClient + DependencyKey
 
 extension FocusManagerClient: DependencyKey {
   static let liveValue: FocusManagerClient = {
@@ -29,11 +36,11 @@ extension FocusManagerClient: DependencyKey {
     // here is a deliberate switch (cycle / directional / activation), which
     // must transfer the frontmost application (focus-follows-mouse calls the
     // free function directly with forceFront false).
-    let raiseAndFocus: @MainActor (pid_t, CGWindowID, Bool) -> Void =
+    let raiseAndFocus: @MainActor (pid_t, CGWindowID, Bool) async -> Void =
       focusWindow(pid:windowID:forceFront:)
     return FocusManagerClient(
       focusWindow: { key in
-        await MainActor.run { raiseAndFocus(key.pid, key.windowID, true) }
+        await raiseAndFocus(key.pid, key.windowID, true)
       }
     )
   }()
@@ -51,4 +58,3 @@ extension DependencyValues {
     set { self[FocusManagerClient.self] = newValue }
   }
 }
-

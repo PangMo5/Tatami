@@ -258,11 +258,17 @@ extension WorkspaceActivationFeature {
         .send(.beginBorrowDirection(workspaceId: workspaceId)),
       )
     }
-    // AX focus notifications are best-effort. Reconcile exact visible-tree
-    // focus before show/hide starts so activation uses authoritative MRU state.
+    // Capture only the AppKit identity synchronously; resolving its AX focused
+    // window starts on the worker with the activation effect. This preserves
+    // the missed-notification MRU repair without putting AX IPC back on the
+    // hotkey/main event loop.
+    let outgoingFrontmostApp = setFocus ? windowSnapshot.frontmostApp() : nil
+    // AX callbacks continuously maintain the latest focused key. Never perform
+    // a synchronous focus IPC read in the hotkey reducer: one unresponsive app
+    // would stall every subsequent menu and hotkey event on the main thread.
     if
       setFocus,
-      let focused = windowSnapshot.focusedWindowKey(),
+      let focused = state.lastObservedFocusedWindow,
       let outgoing = state.recordFocusedWindow(
         focused,
         requireVisibleTreeMembership: true,
@@ -463,6 +469,14 @@ extension WorkspaceActivationFeature {
       state: state,
       workspaceIDs: presentationWorkspaceIDs,
     )
+    let activationObservedBundleIds = Array(OrderedSet(
+      bundleIds
+        + presentationFloatingBundleIds
+        + Self.unmanagedBundleIds(
+          state: state,
+          workspaceIDs: presentationWorkspaceIDs,
+        )
+    ))
     let otherFullscreenZoomed = presentationWorkspaceIDs
       .subtracting([workspace.id])
       .reduce(into: Set<WindowKey>()) { keys, workspaceId in
@@ -557,7 +571,7 @@ extension WorkspaceActivationFeature {
     }
     .cancellable(id: CancelID.activationWatchdog, cancelInFlight: true)
 
-    // `.userInteractive`: the whole effect is the visible response to a
+    // High/user-initiated priority: the whole effect is the visible response to a
     // hotkey press. Under system load the default priority leaves our
     // main-actor hops queued behind everything else — exactly when the
     // switch already crawls on slow AX replies.
@@ -571,6 +585,12 @@ extension WorkspaceActivationFeature {
         watchdog,
         crossMonitorHUD,
         displacedCompositionReflow,
+        // Arm tiled, floating, and unmanaged apps concurrently with activation.
+        // A first-time installation emits one observation-ready reconcile, so
+        // a state change racing this setup cannot fall through the cache gap.
+        .run { [observer = windowObserver, activationObservedBundleIds] _ in
+          await observer.observe(activationObservedBundleIds)
+        },
         .run(priority: .high) { [
           mgr = workspaceManager,
           tiler = windowTiler,
@@ -584,6 +604,10 @@ extension WorkspaceActivationFeature {
           debugLog = debugLog,
           focus = focusManager,
         ] send in
+          async let outgoingFocus: WindowKey? = {
+            guard let outgoingFrontmostApp else { return nil as WindowKey? }
+            return await snapshot.focusedWindowKeyOffMain(outgoingFrontmostApp)
+          }()
           // Wall-clock per phase — AX round trips block on *other* apps' run
           // loops, so when a switch crawls under load this names the phase
           // (and thus the app set) that ate the time.
@@ -604,7 +628,16 @@ extension WorkspaceActivationFeature {
           // floating windows visibly outlive the windows they mirror.
           await overlay.retainOnly(Set(presentationFloatingBundleIds))
           guard !Task.isCancelled else { return }
+          // Resolve the outgoing window before show/hide can focus a different
+          // window in the same process. Merely starting this child task first
+          // does not order its AX read ahead of `mgr.activate`.
+          let outgoingFocusedWindow = await outgoingFocus
+          guard !Task.isCancelled else { return }
           await mgr.activate(request)
+          guard !Task.isCancelled else { return }
+          if let outgoingFocusedWindow {
+            await send(.activationFocusSnapshotResolved(outgoingFocusedWindow))
+          }
           mark("showHide")
           // Superseded by a newer switch: stop before the tile pass. `send`
           // on a cancelled effect is already a no-op, but the AX work below
@@ -621,15 +654,17 @@ extension WorkspaceActivationFeature {
             // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
             // AX round trips — AX scans block on each target app's run loop
             // (measured 50 ms–1.2 s per switch), which is what made switching
-            // crawl under system load. Misses scan one bundle per main-actor
-            // hop so a busy app can't hold the main thread through its
-            // neighbors' turns. `activationCompleted` schedules the
-            // revalidation sweep that repairs any staleness.
+            // crawl under system load. Misses scan one bundle at a time on the
+            // AX discovery worker, so a busy app cannot occupy the main event
+            // loop. The observer is armed concurrently with this
+            // activation, so a state change racing the cache read marks that
+            // bundle dirty and reconciles after activation completes.
             var discovered = [WindowKey]()
             for bundleId in bundleIds {
               guard !Task.isCancelled else { return }
-              discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
+              discovered += await snapshot.cachedKeysOffMain([bundleId], true)
             }
+            let onScreenFrames = snapshot.onScreenWindowFrames()
             let keys = await MainActor.run {
               Self.scopedWindowKeys(
                 discovered,
@@ -638,7 +673,7 @@ extension WorkspaceActivationFeature {
                 protectedKeys: protectedWindowKeys,
                 partitionSharedWindows: partitionsSharedWindows,
                 targetWorkArea: displays.workArea(targetDisplay),
-                windowFrame: { snapshot.windowFrame($0) },
+                windowFrame: { onScreenFrames[$0.windowID] },
               )
             }
             mark("discover")
@@ -657,7 +692,7 @@ extension WorkspaceActivationFeature {
               let merged = Self.mergeTree(
                 existing: base,
                 target: keys,
-                focused: { snapshot.focusedWindowKey() },
+                focused: { outgoingFocusedWindow },
                 insertionPoint: insertionPoint,
                 workArea: workArea,
                 settings: settings,
@@ -713,13 +748,13 @@ extension WorkspaceActivationFeature {
             // SIP, so instead of trying we paint a live mirror above the tiles.
             // Passing the resolved set (possibly empty) also tears down mirrors
             // for apps that were just un-floated or belong to another workspace.
-            // Same cache-first, per-bundle main-actor hops as the tile
-            // discovery above.
+            // Same cache-first, per-bundle worker discovery as the tile pass
+            // above.
             var floatingDiscovered = Set<WindowKey>()
             for bundleId in presentationFloatingBundleIds {
               guard !Task.isCancelled else { return }
               floatingDiscovered.formUnion(
-                await MainActor.run { snapshot.cachedKeys([bundleId], false) }
+                await snapshot.cachedKeysOffMain([bundleId], false)
               )
             }
             let floatingKeys = floatingDiscovered
@@ -746,7 +781,43 @@ extension WorkspaceActivationFeature {
             )
             guard !Task.isCancelled else { return }
             if warpMouse {
-              let warp = await MainActor.run { () -> (key: WindowKey, rect: CGRect, live: WindowKey?)? in
+              var fallbackFrames = [WindowKey: CGRect]()
+              let liveWindowServerFrames = snapshot.onScreenWindowFrames()
+              if let mruWindow, frames[mruWindow] == nil {
+                if let frame = liveWindowServerFrames[mruWindow.windowID] {
+                  fallbackFrames[mruWindow] = frame
+                } else if let frame = await snapshot.windowFrameOffMain(mruWindow) {
+                  fallbackFrames[mruWindow] = frame
+                }
+              }
+              guard !Task.isCancelled else { return }
+              // Read focus after the potentially blocking MRU geometry lookup,
+              // so a user focus change during that IPC cannot leave a stale
+              // "still focused" proof for the eventual pointer warp.
+              var liveFocused = await snapshot.focusedWindowKeyOffMain()
+              guard !Task.isCancelled else { return }
+              if
+                let candidateFocus = liveFocused,
+                frames[candidateFocus] == nil,
+                fallbackFrames[candidateFocus] == nil
+              {
+                if let frame = liveWindowServerFrames[candidateFocus.windowID] {
+                  fallbackFrames[candidateFocus] = frame
+                } else {
+                  let frame = await snapshot.windowFrameOffMain(candidateFocus)
+                  guard !Task.isCancelled else { return }
+                  // Geometry is another suspension point. Validate focus again
+                  // and accept that frame only if the same window still owns it.
+                  let verifiedFocused = await snapshot.focusedWindowKeyOffMain()
+                  guard !Task.isCancelled else { return }
+                  if verifiedFocused == candidateFocus, let frame {
+                    fallbackFrames[candidateFocus] = frame
+                  }
+                  liveFocused = verifiedFocused
+                }
+              }
+              guard !Task.isCancelled else { return }
+              let warp: (key: WindowKey, rect: CGRect, live: WindowKey?)? = {
                 // Warp to the window this activation deliberately focused (the MRU
                 // target), not a live `focusedWindowKey()` read. That read races
                 // the async app activation and can return a *different* frontmost
@@ -754,10 +825,10 @@ extension WorkspaceActivationFeature {
                 // sending the cursor to the wrong tile — where focus-follows-mouse
                 // then grabs focus to it. Fall back to the live read only when this
                 // workspace has no MRU target (a pinned-app or empty workspace).
-                let live = snapshot.focusedWindowKey()
+                let live = liveFocused
                 if
                   let mruWindow,
-                  let rect = frames[mruWindow] ?? snapshot.windowFrame(mruWindow)
+                  let rect = frames[mruWindow] ?? fallbackFrames[mruWindow]
                 {
                   return (mruWindow, rect, live)
                 }
@@ -769,10 +840,10 @@ extension WorkspaceActivationFeature {
                 guard
                   let live,
                   live.bundleId == expectedFocusBundleId,
-                  let rect = frames[live] ?? snapshot.windowFrame(live)
+                  let rect = frames[live] ?? fallbackFrames[live]
                 else { return nil }
                 return (live, rect, live)
-              }
+              }()
               guard !Task.isCancelled else { return }
               if let warp {
                 let center = CGPoint(x: warp.rect.midX, y: warp.rect.midY)
@@ -791,6 +862,7 @@ extension WorkspaceActivationFeature {
                 if warp.live != warp.key {
                   await focus.focusWindow(warp.key)
                 }
+                guard !Task.isCancelled else { return }
                 mouse.warp(center)
               }
             }
@@ -986,15 +1058,26 @@ extension WorkspaceActivationFeature {
         return hf.merging(bf) { current, _ in current }
       }
       guard !Task.isCancelled, !merged.isEmpty else { return }
+      let focusedForRepair = settings.focus.mouseFollowsFocus && repairWorkspaceId != nil
+        ? await snapshot.focusedWindowKeyOffMain()
+        : nil
+      guard !Task.isCancelled else { return }
+      let currentFrameForRepair: CGRect? =
+        if let focusedForRepair {
+          await snapshot.windowFrameOffMain(focusedForRepair)
+        } else {
+          nil
+        }
+      guard !Task.isCancelled else { return }
       let repairFocus: PostLayoutFocus? = await MainActor.run {
         guard
           settings.focus.mouseFollowsFocus,
           let repairWorkspaceId,
-          let focused = snapshot.focusedWindowKey(),
+          let focused = focusedForRepair,
           repairWorkspaceId == slot.workspace,
           borrowedTree?.windows.contains(focused) == true,
           let targetFrame = merged[focused],
-          let currentFrame = snapshot.windowFrame(focused),
+          let currentFrame = currentFrameForRepair,
           WindowTilerClient.frameWritePlan(
             current: currentFrame,
             target: targetFrame,
@@ -1194,8 +1277,9 @@ extension WorkspaceActivationFeature {
       await mgr.activate(request)
       var discovered = [WindowKey]()
       for bundleId in tiledBorrowedBundleIds {
-        discovered += await MainActor.run { snapshot.cachedKeys([bundleId], true) }
+        discovered += await snapshot.cachedKeysOffMain([bundleId], true)
       }
+      let focusedForMerge = await snapshot.focusedWindowKeyOffMain()
       let keys = discovered
       let tree = await MainActor.run { () -> BSPNode<WindowKey>? in
         let workArea = displays.workArea(display).insetBy(
@@ -1205,7 +1289,7 @@ extension WorkspaceActivationFeature {
         return Self.mergeTree(
           existing: existingBorrowedTree,
           target: keys,
-          focused: { snapshot.focusedWindowKey() },
+          focused: { focusedForMerge },
           insertionPoint: nil,
           workArea: workArea,
           settings: settings,

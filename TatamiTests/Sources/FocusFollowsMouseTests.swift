@@ -1,5 +1,6 @@
 import CoreGraphics
 import Darwin
+import os
 import Testing
 @testable import TatamiKit
 
@@ -100,5 +101,31 @@ struct FocusFollowsMouseTests {
     #expect(queue.consume(202))
     #expect(queue.consume(101))
     #expect(!queue.consume(202))
+  }
+
+  @Test
+  func `cancelled queued focus does not record a pointer origin`() {
+    let recorded = OSAllocatedUnfairLock(initialState: 0)
+
+    let admitted = beginAXFocusMutationIfCurrent(
+      isCancelled: { true },
+      willPerformAXFocus: { recorded.withLock { $0 += 1 } },
+    )
+
+    #expect(!admitted)
+    #expect(recorded.withLock { $0 } == 0)
+  }
+
+  @Test
+  func `admitted focus records its pointer origin exactly once`() {
+    let recorded = OSAllocatedUnfairLock(initialState: 0)
+
+    let admitted = beginAXFocusMutationIfCurrent(
+      isCancelled: { false },
+      willPerformAXFocus: { recorded.withLock { $0 += 1 } },
+    )
+
+    #expect(admitted)
+    #expect(recorded.withLock { $0 } == 1)
   }
 }

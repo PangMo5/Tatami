@@ -103,7 +103,6 @@ extension WindowKey {
   /// Resolve a window's `WindowKey` from its `AXUIElement`. Fails if
   /// the bridge does (usually means the window has already been
   /// destroyed).
-  @MainActor
   public init?(axWindow: AXUIElement, pid: pid_t, bundleId: String) {
     var wid: CGWindowID = 0
     guard _AXUIElementGetWindow(axWindow, &wid) == .success, wid != 0 else {
@@ -120,7 +119,26 @@ extension WindowKey {
 /// cross-app switch actually moves keyboard focus. Focus-follows-mouse selects
 /// between these paths by comparing the current and target processes below.
 @MainActor
-public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = false) {
+public func focusWindow(
+  pid: pid_t,
+  windowID: CGWindowID,
+  forceFront: Bool = false,
+) async {
+  await focusWindow(
+    pid: pid,
+    windowID: windowID,
+    forceFront: forceFront,
+    willPerformAXFocus: nil,
+  )
+}
+
+@MainActor
+private func focusWindow(
+  pid: pid_t,
+  windowID: CGWindowID,
+  forceFront: Bool,
+  willPerformAXFocus: (@Sendable () -> Void)?,
+) async {
   // Let the floating overlay put its mirrors back up *before* the focus
   // moves, so a floating window never visibly drops behind the newly
   // focused tile (see MirrorWindowRegistry.setWillFocusHandler). When a
@@ -136,11 +154,31 @@ public func focusWindow(pid: pid_t, windowID: CGWindowID, forceFront: Bool = fal
     "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors) front=\(forceFront)",
   )
   if restoredMirrors {
-    DispatchQueue.main.asyncAfter(deadline: .now() + mirrorCommitBeat) {
-      MainActor.assumeIsolated { performFocus(pid: pid, windowID: windowID, forceFront: forceFront) }
+    do {
+      try await Task.sleep(for: mirrorCommitBeat)
+    } catch {
+      return
     }
-  } else {
-    performFocus(pid: pid, windowID: windowID, forceFront: forceFront)
+  }
+  guard !Task.isCancelled else { return }
+
+  // AppKit activation stays on the main actor. All timeout-prone AX lookup,
+  // reads, writes, and raises run on the dedicated focus worker below.
+  if !forceFront {
+    NSRunningApplication(processIdentifier: pid)?.activate()
+  }
+  @Dependency(\.sls) var sls
+  let result = await performFocusOffMain(
+    pid: pid,
+    windowID: windowID,
+    forceFront: forceFront,
+    fallbackToAppFront: true,
+    sls: sls,
+    willPerformAXFocus: willPerformAXFocus,
+  )
+  guard !Task.isCancelled else { return }
+  if case .activateApp = result {
+    NSRunningApplication(processIdentifier: pid)?.activate()
   }
 }
 
@@ -160,15 +198,20 @@ func focusFollowsMouseNeedsFrontmostTransfer(
 /// use the same synthesized user-generated SLS focus as other reliable window
 /// switches, including on a secondary display.
 @MainActor
-func focusWindowFollowingMouse(pid: pid_t, windowID: CGWindowID) {
+func focusWindowFollowingMouse(
+  pid: pid_t,
+  windowID: CGWindowID,
+  willPerformAXFocus: @escaping @Sendable () -> Void,
+) async {
   let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-  focusWindow(
+  await focusWindow(
     pid: pid,
     windowID: windowID,
     forceFront: focusFollowsMouseNeedsFrontmostTransfer(
       frontmostPID: frontmostPID,
       targetPID: pid,
     ),
+    willPerformAXFocus: willPerformAXFocus,
   )
 }
 
@@ -179,57 +222,208 @@ func focusWindowFollowingMouse(pid: pid_t, windowID: CGWindowID) {
 /// transfers the frontmost application even on a secondary display. Falls back
 /// to a best-effort `activate()` only if no AX window can be resolved.
 @MainActor
-public func focusAppFront(pid: pid_t) {
-  let axApp = AXUIElementCreateApplication(pid)
-  var raw: CFTypeRef?
-  var candidates = [AXUIElement]()
-  if
-    AXUIElementCopyAttributeValue(axApp, kAXMainWindowAttribute as CFString, &raw) == .success,
-    let value = raw, CFGetTypeID(value) == AXUIElementGetTypeID()
-  {
-    candidates.append(value as! AXUIElement)
+public func focusAppFront(pid: pid_t) async {
+  @Dependency(\.sls) var sls
+  let result = await focusAppFrontOffMain(pid: pid, sls: sls)
+  guard !Task.isCancelled else { return }
+  if case .activateApp = result {
+    NSRunningApplication(processIdentifier: pid)?.activate()
   }
-  if
-    AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &raw) == .success,
-    let windows = raw as? [AXUIElement]
-  {
-    candidates.append(contentsOf: windows)
-  }
-  for element in candidates where !axWindowIsMinimized(element) {
-    var wid: CGWindowID = 0
-    guard _AXUIElementGetWindow(element, &wid) == .success, wid != 0 else { continue }
-    // Resolve once and disallow another fallback from this best-effort path,
-    // avoiding recursion if the AX window list changes between the reads.
-    performFocus(
-      pid: pid,
-      windowID: wid,
-      forceFront: true,
-      fallbackToAppFront: false,
-    )
-    return
-  }
-  NSRunningApplication(processIdentifier: pid)?.activate()
 }
 
 /// How long a just-restored mirror gets to commit to the window server
 /// before the activation raises the target — roughly two display frames.
 /// Issuing both in the same runloop turn intermittently let the raise win
-/// the frame race; the focus-follows-mouse throttle (50 ms) dwarfs this.
-private let mirrorCommitBeat: TimeInterval = 0.03
+/// the frame race. This is an awaited suspension, so callers do not observe
+/// focus completion (or warp the pointer) before the delayed raise actually
+/// finishes.
+private let mirrorCommitBeat = Duration.milliseconds(30)
 
-@MainActor
-private func performFocus(
+// MARK: - FocusAXResult
+
+private enum FocusAXResult: Sendable {
+  case completed
+  case activateApp
+  case cancelled
+}
+
+/// Every focus request shares one serial, user-initiated lane. AX calls are
+/// synchronous cross-process IPC; serializing them prevents a burst of FFM and
+/// hotkey requests from blocking several cooperative-pool threads at once.
+private let focusAXQueue = DispatchQueue(
+  label: "dev.PangMo5.Tatami.ax-window-focus",
+  qos: .userInitiated,
+)
+private let focusAXMessagingTimeout: Float = 0.25
+
+// MARK: - FocusAXCancellationFlag
+
+/// GCD work does not inherit Swift task cancellation. This synchronous flag is
+/// checked before and between blocking AX messages so a superseded FFM request
+/// can leave the serial lane without applying stale focus.
+private final class FocusAXCancellationFlag: @unchecked Sendable {
+
+  // MARK: Internal
+
+  var isCancelled: Bool {
+    lock.withLock { cancelled }
+  }
+
+  func cancel() {
+    lock.withLock { cancelled = true }
+  }
+
+  // MARK: Private
+
+  private let lock = NSLock()
+  private var cancelled = false
+
+}
+
+private func performFocusOffMain(
+  pid: pid_t,
+  windowID: CGWindowID,
+  forceFront: Bool,
+  fallbackToAppFront: Bool,
+  sls: SLSClient,
+  willPerformAXFocus: (@Sendable () -> Void)?,
+) async -> FocusAXResult {
+  let cancellation = FocusAXCancellationFlag()
+  return await withTaskCancellationHandler {
+    await withCheckedContinuation { continuation in
+      focusAXQueue.async {
+        continuation.resume(
+          returning: performFocusAX(
+            pid: pid,
+            windowID: windowID,
+            forceFront: forceFront,
+            fallbackToAppFront: fallbackToAppFront,
+            sls: sls,
+            isCancelled: { cancellation.isCancelled },
+            willPerformAXFocus: willPerformAXFocus,
+          )
+        )
+      }
+    }
+  } onCancel: {
+    cancellation.cancel()
+  }
+}
+
+private func focusAppFrontOffMain(
+  pid: pid_t,
+  sls: SLSClient,
+) async -> FocusAXResult {
+  let cancellation = FocusAXCancellationFlag()
+  return await withTaskCancellationHandler {
+    await withCheckedContinuation { continuation in
+      focusAXQueue.async {
+        continuation.resume(
+          returning: focusAppFrontAX(
+            pid: pid,
+            sls: sls,
+            isCancelled: { cancellation.isCancelled },
+          )
+        )
+      }
+    }
+  } onCancel: {
+    cancellation.cancel()
+  }
+}
+
+private func focusAppFrontAX(
+  pid: pid_t,
+  sls: SLSClient,
+  isCancelled: @Sendable () -> Bool,
+) -> FocusAXResult {
+  guard !isCancelled() else { return .cancelled }
+  let axApp = AXUIElementCreateApplication(pid)
+  AXUIElementSetMessagingTimeout(axApp, focusAXMessagingTimeout)
+  var raw: CFTypeRef?
+  guard !isCancelled() else { return .cancelled }
+  if
+    AXUIElementCopyAttributeValue(axApp, kAXMainWindowAttribute as CFString, &raw) == .success,
+    let value = raw,
+    CFGetTypeID(value) == AXUIElementGetTypeID()
+  {
+    let element = value as! AXUIElement
+    AXUIElementSetMessagingTimeout(element, focusAXMessagingTimeout)
+    guard !isCancelled() else { return .cancelled }
+    if !axWindowIsMinimized(element) {
+      guard !isCancelled() else { return .cancelled }
+      var windowID: CGWindowID = 0
+      if
+        _AXUIElementGetWindow(element, &windowID) == .success,
+        windowID != 0
+      {
+        return focusResolvedWindowAX(
+          pid: pid,
+          windowID: windowID,
+          window: element,
+          forceFront: true,
+          sls: sls,
+          isCancelled: isCancelled,
+          checkMinimized: false,
+        )
+      }
+    }
+  }
+  guard !isCancelled() else { return .cancelled }
+  raw = nil
+  if
+    AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &raw) == .success,
+    let windows = raw as? [AXUIElement]
+  {
+    for element in windows {
+      guard !isCancelled() else { return .cancelled }
+      AXUIElementSetMessagingTimeout(element, focusAXMessagingTimeout)
+      guard !axWindowIsMinimized(element) else { continue }
+      guard !isCancelled() else { return .cancelled }
+      var windowID: CGWindowID = 0
+      guard
+        _AXUIElementGetWindow(element, &windowID) == .success,
+        windowID != 0
+      else { continue }
+      return focusResolvedWindowAX(
+        pid: pid,
+        windowID: windowID,
+        window: element,
+        forceFront: true,
+        sls: sls,
+        isCancelled: isCancelled,
+        checkMinimized: false,
+      )
+    }
+  }
+  return isCancelled() ? .cancelled : .activateApp
+}
+
+private func performFocusAX(
   pid: pid_t,
   windowID: CGWindowID,
   forceFront: Bool = false,
   fallbackToAppFront: Bool = true,
-) {
-  // Gentle same-app focus activates up front. Cross-app FFM and deliberate
-  // switches defer to SLPS below, which transfers frontmost itself.
-  if !forceFront, let app = NSRunningApplication(processIdentifier: pid) {
-    app.activate()
-  }
+  sls: SLSClient,
+  isCancelled: @Sendable () -> Bool,
+  willPerformAXFocus: (@Sendable () -> Void)?,
+) -> FocusAXResult {
+  guard !isCancelled() else { return .cancelled }
   let axApp = AXUIElementCreateApplication(pid)
+  AXUIElementSetMessagingTimeout(axApp, focusAXMessagingTimeout)
+  // FFM can re-enter the window it already focused after an MFF warp resets
+  // event-tap deduplication. A no-op AX main/raise is not guaranteed to emit a
+  // focus notification, so recording pointer origin for it would leave a
+  // phantom queue entry. Cross-app `forceFront` must still transfer the front
+  // process even when this app remembers the same focused window.
+  if
+    !forceFront,
+    willPerformAXFocus != nil,
+    focusedWindowID(of: axApp) == windowID
+  {
+    return .completed
+  }
+  guard !isCancelled() else { return .cancelled }
   var raw: CFTypeRef?
   guard
     AXUIElementCopyAttributeValue(
@@ -239,35 +433,102 @@ private func performFocus(
     ) == .success,
     let windows = raw as? [AXUIElement]
   else {
-    // Window list unreadable — for a deliberate switch still bring the app up.
-    if forceFront { NSRunningApplication(processIdentifier: pid)?.activate() }
-    return
+    // Window list unreadable — ask the main actor to bring the app up after
+    // the worker returns, preserving the old deliberate-switch fallback.
+    return forceFront ? .activateApp : .completed
   }
   for window in windows {
+    guard !isCancelled() else { return .cancelled }
+    AXUIElementSetMessagingTimeout(window, focusAXMessagingTimeout)
     var wid: CGWindowID = 0
     guard _AXUIElementGetWindow(window, &wid) == .success, wid == windowID else { continue }
-    // Never de-minimize a window the user minimized: raising a minimized
-    // window restores it. Auto-open is the only intended restore path.
-    if axWindowIsMinimized(window) { return }
-    AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
-    if forceFront {
-      // A deliberate switch must make `pid` the frontmost *application* so
-      // keyboard focus follows and the focus resolver (frontmost-app based)
-      // observes the change — otherwise cross-app window cycling stalls, the
-      // window raising but the front app never changing. NSRunningApplication
-      // .activate() from an accessory app can't do this reliably (esp. on a
-      // secondary display); SLPS can (and does the AX raise itself).
-      @Dependency(\.sls) var sls
-      sls.focusWindow(pid, windowID, window)
-    } else {
-      AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-    }
-    return
+    return focusResolvedWindowAX(
+      pid: pid,
+      windowID: windowID,
+      window: window,
+      forceFront: forceFront,
+      sls: sls,
+      isCancelled: isCancelled,
+      willPerformAXFocus: willPerformAXFocus,
+    )
   }
   // An MRU key can go stale between the reducer's last sync and activation.
   // Deliberate focus then fronts the app's current main/first non-minimized
   // window instead of silently leaving keyboard focus in the old workspace.
-  if forceFront, fallbackToAppFront { focusAppFront(pid: pid) }
+  if forceFront, fallbackToAppFront {
+    return focusAppFrontAX(pid: pid, sls: sls, isCancelled: isCancelled)
+  }
+  return isCancelled() ? .cancelled : .completed
+}
+
+private func focusedWindowID(of app: AXUIElement) -> CGWindowID? {
+  var raw: CFTypeRef?
+  guard
+    AXUIElementCopyAttributeValue(
+      app,
+      kAXFocusedWindowAttribute as CFString,
+      &raw,
+    ) == .success,
+    let value = raw,
+    CFGetTypeID(value) == AXUIElementGetTypeID()
+  else { return nil }
+  var windowID: CGWindowID = 0
+  guard
+    _AXUIElementGetWindow(value as! AXUIElement, &windowID) == .success,
+    windowID != 0
+  else { return nil }
+  return windowID
+}
+
+private func focusResolvedWindowAX(
+  pid: pid_t,
+  windowID: CGWindowID,
+  window: AXUIElement,
+  forceFront: Bool,
+  sls: SLSClient,
+  isCancelled: @Sendable () -> Bool,
+  checkMinimized: Bool = true,
+  willPerformAXFocus: (@Sendable () -> Void)? = nil,
+) -> FocusAXResult {
+  guard !isCancelled() else { return .cancelled }
+  // Never de-minimize a window the user minimized: raising a minimized
+  // window restores it. Auto-open is the only intended restore path.
+  if checkMinimized, axWindowIsMinimized(window) { return .completed }
+  // Pointer-origin bookkeeping must happen only after this request reaches
+  // the serial AX lane and survives cancellation. Recording in the caller
+  // leaves a phantom origin when a newer mouse move cancels queued work.
+  guard
+    beginAXFocusMutationIfCurrent(
+      isCancelled: isCancelled,
+      willPerformAXFocus: willPerformAXFocus,
+    )
+  else { return .cancelled }
+  AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+  if forceFront {
+    // A deliberate switch must make `pid` the frontmost *application* so
+    // keyboard focus follows and the focus resolver (frontmost-app based)
+    // observes the change — otherwise cross-app window cycling stalls, the
+    // window raising but the front app never changing. NSRunningApplication
+    // .activate() from an accessory app can't do this reliably (esp. on a
+    // secondary display); SLPS can (and does the AX raise itself).
+    sls.focusWindow(pid, windowID, window)
+  } else {
+    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+  }
+  return .completed
+}
+
+/// Treat origin recording and the following synchronous AX mutation as one
+/// admission edge: once admitted, cancellation is observed only after the
+/// mutation. This prevents a canceled queued FFM request from leaving origin
+/// state without ever issuing the focus operation it describes.
+func beginAXFocusMutationIfCurrent(
+  isCancelled: @Sendable () -> Bool,
+  willPerformAXFocus: (@Sendable () -> Void)?,
+) -> Bool {
+  guard !isCancelled() else { return false }
+  willPerformAXFocus?()
+  return true
 }
 
 /// Whether an AX window element is minimized. Missing/unreadable attribute

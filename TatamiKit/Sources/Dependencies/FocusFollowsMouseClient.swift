@@ -117,9 +117,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   }
 
   /// Runs on the event-tap thread. The hit-test (`CGWindowListCopyWindowInfo`)
-  /// and throttle bookkeeping stay off the main thread; only the actual
-  /// focus change — which touches AppKit + Accessibility — hops to the main
-  /// actor.
+  /// and throttle bookkeeping stay off the main thread. The focus task hops
+  /// briefly to the main actor for AppKit identity + mirror handoff, while its
+  /// timeout-prone Accessibility lookup/read/write runs on the focus worker.
   fileprivate func handle(
     location: CGPoint,
     flags: CGEventFlags,
@@ -189,8 +189,13 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
           generation: warpEvaluation.generation
         )
       else { return }
-      focusEventOrigin.recordPointerDrivenFocus(windowID)
-      focusWindowFollowingMouse(pid: pid, windowID: windowID)
+      await focusWindowFollowingMouse(
+        pid: pid,
+        windowID: windowID,
+        willPerformAXFocus: {
+          self.focusEventOrigin.recordPointerDrivenFocus(windowID)
+        },
+      )
     }
   }
 

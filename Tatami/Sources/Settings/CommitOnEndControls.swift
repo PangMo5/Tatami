@@ -1,21 +1,18 @@
 import SwiftUI
 
+// MARK: - CommitOnEndStepper
+
 /// A `Stepper` whose value lives in local `@State`, committed to the shared
-/// config on a short debounce. Binding a `Stepper` directly to the observed
+/// config when interaction ends. Binding a `Stepper` directly to the observed
 /// `@Shared` config made a single click run away: each step wrote the config,
 /// which synchronously re-rendered the whole `SettingsView` (its label also
 /// reads the config), and that re-render churned the Stepper's press tracking
 /// so it auto-repeated to the range bound. Stepping local `@State` keeps the
-/// press loop free of the observed store; the debounced `commit` persists once
-/// the user stops.
-struct DebouncedStepper<V: Strideable>: View {
-  let external: V
-  let range: ClosedRange<V>
-  let step: V.Stride
-  let detail: LocalizedStringResource?
-  let label: (V) -> LocalizedStringResource
-  let commit: (V) -> Void
-  @State private var local: V
+/// press loop free of the observed store; SwiftUI's editing-ended callback
+/// persists immediately without a timer.
+struct CommitOnEndStepper<V: Strideable>: View {
+
+  // MARK: Lifecycle
 
   init(
     external: V,
@@ -23,7 +20,7 @@ struct DebouncedStepper<V: Strideable>: View {
     step: V.Stride = 1,
     detail: LocalizedStringResource? = nil,
     label: @escaping (V) -> LocalizedStringResource,
-    commit: @escaping (V) -> Void
+    commit: @escaping (V) -> Void,
   ) {
     self.external = external
     self.range = range
@@ -34,43 +31,47 @@ struct DebouncedStepper<V: Strideable>: View {
     _local = State(initialValue: external)
   }
 
+  // MARK: Internal
+
+  let external: V
+  let range: ClosedRange<V>
+  let step: V.Stride
+  let detail: LocalizedStringResource?
+  let label: (V) -> LocalizedStringResource
+  let commit: (V) -> Void
+
   var body: some View {
     Stepper(value: $local, in: range, step: step) {
       Text(label(local))
       if let detail { Text(detail) }
-    }
-    // Persist after the user stops stepping. `.task(id:)` cancels the prior
-    // run whenever `local` changes, so rapid steps coalesce into one write.
-    .task(id: local) {
-      guard local != external else { return }
-      try? await Task.sleep(for: .milliseconds(120))
-      guard !Task.isCancelled else { return }
-      commit(local)
+    } onEditingChanged: { isEditing in
+      if !isEditing, local != external {
+        commit(local)
+      }
     }
     // Reflect external changes (config edited elsewhere) back into the value.
     .onChange(of: external) { _, newValue in
       if newValue != local { local = newValue }
     }
   }
+
+  // MARK: Private
+
+  @State private var local: V
+
 }
 
+// MARK: - CommitOnEndSlider
+
 /// A `Slider` whose value lives in local `@State`, committed to the shared
-/// config on a short debounce — same rationale as `DebouncedStepper`. Binding
+/// config when interaction ends. Binding
 /// a Slider directly to the observed `@Shared` config wrote the config (and
 /// synchronously re-rendered the whole `SettingsView` Form) on every drag
-/// tick. The live readout reads the local value so the number tracks the
-/// thumb without touching the store until the drag settles.
-struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloatingPoint {
-  let title: LocalizedStringResource
-  let external: V
-  let range: ClosedRange<V>
-  let step: V.Stride
-  let minLabel: LocalizedStringResource
-  let maxLabel: LocalizedStringResource
-  let detail: LocalizedStringResource?
-  let readout: (V) -> String
-  let commit: (V) -> Void
-  @State private var local: V
+/// tick. The live readout tracks the thumb without touching the store; the
+/// control's editing-ended event commits immediately, with no timer.
+struct CommitOnEndSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloatingPoint {
+
+  // MARK: Lifecycle
 
   init(
     title: LocalizedStringResource,
@@ -81,7 +82,7 @@ struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloat
     maxLabel: LocalizedStringResource,
     detail: LocalizedStringResource? = nil,
     readout: @escaping (V) -> String,
-    commit: @escaping (V) -> Void
+    commit: @escaping (V) -> Void,
   ) {
     self.title = title
     self.external = external
@@ -95,6 +96,18 @@ struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloat
     _local = State(initialValue: external)
   }
 
+  // MARK: Internal
+
+  let title: LocalizedStringResource
+  let external: V
+  let range: ClosedRange<V>
+  let step: V.Stride
+  let minLabel: LocalizedStringResource
+  let maxLabel: LocalizedStringResource
+  let detail: LocalizedStringResource?
+  let readout: (V) -> String
+  let commit: (V) -> Void
+
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack {
@@ -104,12 +117,20 @@ struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloat
           .foregroundStyle(.secondary)
           .monospacedDigit()
       }
-      Slider(value: $local, in: range, step: step) {
+      Slider(
+        value: $local,
+        in: range,
+        step: step,
+      ) {
         Text(title)
       } minimumValueLabel: {
         Text(minLabel)
       } maximumValueLabel: {
         Text(maxLabel)
+      } onEditingChanged: { isEditing in
+        if !isEditing, local != external {
+          commit(local)
+        }
       }
       .labelsHidden()
       if let detail {
@@ -118,16 +139,13 @@ struct DebouncedSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFloat
           .foregroundStyle(.secondary)
       }
     }
-    // Persist after the drag settles. `.task(id:)` cancels the prior run
-    // whenever `local` changes, so rapid ticks coalesce into one write.
-    .task(id: local) {
-      guard local != external else { return }
-      try? await Task.sleep(for: .milliseconds(120))
-      guard !Task.isCancelled else { return }
-      commit(local)
-    }
     .onChange(of: external) { _, newValue in
       if newValue != local { local = newValue }
     }
   }
+
+  // MARK: Private
+
+  @State private var local: V
+
 }

@@ -120,6 +120,13 @@ extension WorkspaceManagerClient: DependencyKey {
     return _live(cursorHide: cursorHide)
   }
 
+  static func shouldAutoOpen(
+    hasVisibleWindow: Bool,
+    hasHiddenKnownWindow: Bool,
+  ) -> Bool {
+    !hasVisibleWindow && !hasHiddenKnownWindow
+  }
+
   // MARK: Private
 
   private static func _live(cursorHide: CursorHideSink) -> WorkspaceManagerClient {
@@ -132,7 +139,8 @@ extension WorkspaceManagerClient: DependencyKey {
         let keepVisible = workspaceBundleIds.union(sharedBundleIds).union(borrowedBundleIds)
         let managedBundleIds = request.managedBundleIds
 
-        await MainActor.run {
+        @MainActor
+        func activateOnMain() async {
           let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
           }
@@ -183,10 +191,12 @@ extension WorkspaceManagerClient: DependencyKey {
                     && existingWindowIDs.contains($0.windowID)
                 }
             }
-            if !shouldAutoOpen(
-              hasVisibleWindow: hasVisibleWindow,
-              hasHiddenKnownWindow: hasHiddenKnownWindow,
-            ) {
+            if
+              !shouldAutoOpen(
+                hasVisibleWindow: hasVisibleWindow,
+                hasHiddenKnownWindow: hasHiddenKnownWindow,
+              )
+            {
               if hasHiddenKnownWindow {
                 debugLog.log("Manager", "unhide known window \(bundleId) — skip reopen")
               }
@@ -275,7 +285,7 @@ extension WorkspaceManagerClient: DependencyKey {
               let mruKey = request.windowKeyToFocus,
               mruKey.bundleId == toFocus.bundleIdentifier
             {
-              focusWindow(
+              await focusWindow(
                 pid: toFocus.processIdentifier,
                 windowID: mruKey.windowID,
                 forceFront: true,
@@ -286,7 +296,7 @@ extension WorkspaceManagerClient: DependencyKey {
               // frontmost app on a secondary display, so a switch to e.g. a
               // Figma workspace there left keyboard focus (and window cycling)
               // on the previous display's workspace.
-              focusAppFront(pid: toFocus.processIdentifier)
+              await focusAppFront(pid: toFocus.processIdentifier)
             }
           } else if request.setFocus {
             // Empty workspace — none of its apps are running, so nothing
@@ -304,6 +314,7 @@ extension WorkspaceManagerClient: DependencyKey {
             running.first { $0.isFinder }?
               .activate()
           }
+          guard !Task.isCancelled else { return }
 
           // 2. Hide everything else. Finder is special-cased: only hide
           //    it when a workspace app is actually running — otherwise
@@ -361,15 +372,10 @@ extension WorkspaceManagerClient: DependencyKey {
               + "displayScoped=\(pidsOnTargetDisplay != nil)",
           )
         }
+
+        await activateOnMain()
       }
     )
-  }
-
-  static func shouldAutoOpen(
-    hasVisibleWindow: Bool,
-    hasHiddenKnownWindow: Bool,
-  ) -> Bool {
-    !hasVisibleWindow && !hasHiddenKnownWindow
   }
 
   /// PIDs whose on-screen, layer-0 windows live exclusively on the named

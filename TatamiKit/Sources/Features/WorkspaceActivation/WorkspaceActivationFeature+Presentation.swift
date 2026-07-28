@@ -173,12 +173,15 @@ extension WorkspaceActivationFeature {
       guard !Task.isCancelled else { return }
 
       if shouldWarp {
-        let result = await MainActor.run { () -> (frame: CGRect?, live: WindowKey?) in
-          (snapshot.windowFrame(key), snapshot.focusedWindowKey())
-        }
+        let frame = await snapshot.windowFrameOffMain(key)
+        guard !Task.isCancelled else { return }
+        // Validate focus last. The frame read is cross-process IPC and focus
+        // can change while it is suspended; checking before it could warp to
+        // a target that was already stale by the time geometry arrived.
+        let live = await snapshot.focusedWindowKeyOffMain()
         guard !Task.isCancelled else { return }
         let stillOwnsFocus =
-          if let live = result.live {
+          if let live {
             live == key
           } else {
             // A focus Tatami just requested can briefly have no AX focused
@@ -190,9 +193,9 @@ extension WorkspaceActivationFeature {
           debugLog.log(
             "Focus",
             "post-layout skip stale target \(key.bundleId)#\(key.windowID) "
-              + "live=\(result.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil")",
+              + "live=\(live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil")",
           )
-        } else if let frame = result.frame {
+        } else if let frame {
           let center = CGPoint(x: frame.midX, y: frame.midY)
           debugLog.log(
             "Focus",
@@ -256,7 +259,7 @@ extension WorkspaceActivationFeature {
         } else {
           floatingIds.isEmpty
             ? []
-            : await MainActor.run { snapshot.cachedKeys(floatingIds, false) }
+            : await snapshot.cachedKeysOffMain(floatingIds, false)
         }
       guard !Task.isCancelled else { return }
       await marker.setTargets(
@@ -282,7 +285,7 @@ extension WorkspaceActivationFeature {
     let bundleIds = Self.floatingBundleIds(state: state)
     return .run { [snapshot = windowSnapshot] send in
       guard !Task.isCancelled else { return }
-      let keys = await MainActor.run { snapshot.discoverKeys(bundleIds, false) }
+      let keys = await snapshot.discoverKeysOffMain(bundleIds, false)
       guard !Task.isCancelled else { return }
       await send(.floatingPresentationResolved(keys))
     }

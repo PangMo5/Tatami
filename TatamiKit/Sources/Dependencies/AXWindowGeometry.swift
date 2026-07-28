@@ -9,16 +9,23 @@ import ApplicationServices
 /// copy-paste error hides, so it lives here once.
 @MainActor
 enum AXWindowGeometry {
+
+  // MARK: Internal
+
   /// The window's frame in AX coordinates (top-left origin, anchored to
   /// the primary screen). One `CopyMultipleAttributeValues` IPC round
   /// trip. Returns nil for degenerate (≤ 1 pt) sizes — those are
   /// placeholder windows mid-creation, not real geometry.
-  static func frame(of window: AXUIElement) -> CGRect? {
+  nonisolated static func frame(of window: AXUIElement) -> CGRect? {
     let attrs = [kAXPositionAttribute, kAXSizeAttribute] as CFArray
     var valuesRef: CFArray?
-    guard AXUIElementCopyMultipleAttributeValues(
-      window, attrs, AXCopyMultipleAttributeOptions(), &valuesRef
-    ) == .success,
+    guard
+      AXUIElementCopyMultipleAttributeValues(
+        window,
+        attrs,
+        AXCopyMultipleAttributeOptions(),
+        &valuesRef,
+      ) == .success,
       let values = valuesRef as? [CFTypeRef], values.count == 2,
       CFGetTypeID(values[0]) == AXValueGetTypeID(),
       CFGetTypeID(values[1]) == AXValueGetTypeID()
@@ -32,7 +39,7 @@ enum AXWindowGeometry {
   }
 
   /// Write the window's position + size (AX coordinates).
-  static func setFrame(_ window: AXUIElement, to frame: CGRect) {
+  nonisolated static func setFrame(_ window: AXUIElement, to frame: CGRect) {
     var position = CGPoint(x: frame.minX, y: frame.minY)
     var size = CGSize(width: frame.width, height: frame.height)
     if let value = AXValueCreate(.cgPoint, &position) {
@@ -45,10 +52,16 @@ enum AXWindowGeometry {
 
   /// AX/CG frames are top-left origin against the primary screen;
   /// `NSWindow.setFrame` wants bottom-left Cocoa coordinates.
-  static func flipToCocoa(_ frame: CGRect) -> NSRect { flip(frame) }
+  static func flipToCocoa(_ frame: CGRect) -> NSRect {
+    flip(frame)
+  }
 
   /// Cocoa bottom-left → AX/CG top-left.
-  static func flipToCG(_ frame: NSRect) -> CGRect { flip(frame) }
+  static func flipToCG(_ frame: NSRect) -> CGRect {
+    flip(frame)
+  }
+
+  // MARK: Private
 
   /// The flip is an involution — the same formula maps both directions.
   private static func flip(_ frame: CGRect) -> CGRect {
@@ -61,7 +74,8 @@ enum AXWindowGeometry {
       x: frame.origin.x,
       y: totalHeight - frame.origin.y - frame.height,
       width: frame.width,
-      height: frame.height
+      height: frame.height,
     )
   }
+
 }

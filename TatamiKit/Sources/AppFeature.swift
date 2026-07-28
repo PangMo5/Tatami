@@ -132,96 +132,101 @@ public struct AppFeature {
         // Normalize the config on disk: re-save so any legacy carbon
         // hotkey tables migrate to the skhd-style string form.
         state.$config.withLock { $0 = $0 }
-        return .merge(
-          .run { [whatsNew] _ in await whatsNew.showIfNeeded(hasExistingConfig) },
-          .send(.onboarding(.appStarted(
-            config: state.config,
-            hasExistingConfig: hasExistingConfig,
-          ))),
-          .send(.hotKeys(.onAppear)),
-          .send(.cli(.start)),
-          .send(.activation(.startObservingWindowEvents)),
-          .send(.activation(.startObservingAppLaunches)),
-          // Restore the last-active profile (persisted in ProfileSessionStore,
-          // not config.toml) before initial activation, so tiling + hotkeys
-          // target it. No saved selection → straight to the default profile.
-          .run { [profileSessionStore] send in
-            if let id = await profileSessionStore.loadActiveProfileId() {
-              await send(.activation(.restoreActiveProfile(id)))
-              await send(.hotKeys(.refreshBindings))
-            }
-            await send(.activation(.activateInitial))
-          },
-          .send(.settingsChanged(settings)),
+        return .concatenate(
+          // Establish the process-wide safety bound before any startup effect
+          // can issue AX IPC. A parallel `.merge` left initial activation and
+          // observer setup free to race this one-time initialization.
           .run { _ in
             await MainActor.run { boundGlobalAXMessagingTimeout() }
           },
-          // Guided Setup owns first-run permission education. Existing users
-          // keep the established launch-time warning if a grant goes missing.
-          permissionPrompt,
-          // Always consume swipe events; the tap itself is toggled on/off
-          // in `.settingsChanged`.
-          .run { [client = gestures] send in
-            for await gesture in client.events() {
-              await send(.gesturePerformed(gesture))
-            }
-          },
-          // The HUD captures navigation without becoming the active app.
-          // Selection and commit still run through the activation reducer.
-          .run { [workspaceHUD] send in
-            for await interaction in workspaceHUD.windowSwitcherEvents() {
-              await send(.activation(.windowCycleHUDInteraction(interaction)))
-            }
-          },
-          // React to live settings edits (Settings tab writes the shared
-          // config) so launch-time integrations reconfigure immediately.
-          // `Perceptions` is Perception's back-port of Swift's
-          // `Observations` async sequence (Observation requires macOS 26);
-          // observing only `.settings` re-emits just on settings changes.
-          .run { send in
-            for await settings in Perceptions({ sharedConfig.wrappedValue.settings }) {
-              await send(.settingsChanged(settings))
-            }
-          },
-          // Reading `updater` starts Sparkle's background schedule; keep
-          // its auto-check preference + interval in sync with settings.
-          .run { [updater, sharedConfig] _ in
-            for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
-              await updater.configure(
-                automaticallyChecks: general.checkForUpdatesAutomatically,
-                interval: general.checkInterval.seconds,
-              )
-            }
-          },
-          // Keep the login-item registration in sync with the setting.
-          .run { [loginItem, sharedConfig] _ in
-            for await enabled in Perceptions({
-              sharedConfig.wrappedValue.settings.general.launchAtLogin
-            }) {
-              loginItem.setEnabled(enabled)
-            }
-          },
-          // Mirror the debug-log toggle into the writer so flipping it
-          // in Settings opens/closes the log file immediately.
-          .run { [debugLog, sharedConfig] _ in
-            for await enabled in Perceptions({
-              sharedConfig.wrappedValue.settings.general.debugLogging
-            }) {
-              debugLog.setEnabled(enabled)
-              if enabled {
-                debugLog.log("App", "debug log enabled (settings toggle)")
+          .merge(
+            .run { [whatsNew] _ in await whatsNew.showIfNeeded(hasExistingConfig) },
+            .send(.onboarding(.appStarted(
+              config: state.config,
+              hasExistingConfig: hasExistingConfig,
+            ))),
+            .send(.hotKeys(.onAppear)),
+            .send(.cli(.start)),
+            .send(.activation(.startObservingWindowEvents)),
+            .send(.activation(.startObservingAppLaunches)),
+            // Restore the last-active profile (persisted in ProfileSessionStore,
+            // not config.toml) before initial activation, so tiling + hotkeys
+            // target it. No saved selection → straight to the default profile.
+            .run { [profileSessionStore] send in
+              if let id = await profileSessionStore.loadActiveProfileId() {
+                await send(.activation(.restoreActiveProfile(id)))
+                await send(.hotKeys(.refreshBindings))
               }
-            }
-          },
-          // Surface internal failures (config parse, invalid shortcuts,
-          // I/O errors) in the UI. Replays anything reported before this
-          // subscription — the initial config decode runs at the first
-          // `@Shared` access, well before `.task`.
-          .run { [errorReporter] send in
-            for await event in errorReporter.events() {
-              await send(.errorReportEvent(event))
-            }
-          },
+              await send(.activation(.activateInitial))
+            },
+            .send(.settingsChanged(settings)),
+            // Guided Setup owns first-run permission education. Existing users
+            // keep the established launch-time warning if a grant goes missing.
+            permissionPrompt,
+            // Always consume swipe events; the tap itself is toggled on/off
+            // in `.settingsChanged`.
+            .run { [client = gestures] send in
+              for await gesture in client.events() {
+                await send(.gesturePerformed(gesture))
+              }
+            },
+            // The HUD captures navigation without becoming the active app.
+            // Selection and commit still run through the activation reducer.
+            .run { [workspaceHUD] send in
+              for await interaction in workspaceHUD.windowSwitcherEvents() {
+                await send(.activation(.windowCycleHUDInteraction(interaction)))
+              }
+            },
+            // React to live settings edits (Settings tab writes the shared
+            // config) so launch-time integrations reconfigure immediately.
+            // `Perceptions` is Perception's back-port of Swift's
+            // `Observations` async sequence (Observation requires macOS 26);
+            // observing only `.settings` re-emits just on settings changes.
+            .run { send in
+              for await settings in Perceptions({ sharedConfig.wrappedValue.settings }) {
+                await send(.settingsChanged(settings))
+              }
+            },
+            // Reading `updater` starts Sparkle's background schedule; keep
+            // its auto-check preference + interval in sync with settings.
+            .run { [updater, sharedConfig] _ in
+              for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
+                await updater.configure(
+                  automaticallyChecks: general.checkForUpdatesAutomatically,
+                  interval: general.checkInterval.seconds,
+                )
+              }
+            },
+            // Keep the login-item registration in sync with the setting.
+            .run { [loginItem, sharedConfig] _ in
+              for await enabled in Perceptions({
+                sharedConfig.wrappedValue.settings.general.launchAtLogin
+              }) {
+                loginItem.setEnabled(enabled)
+              }
+            },
+            // Mirror the debug-log toggle into the writer so flipping it
+            // in Settings opens/closes the log file immediately.
+            .run { [debugLog, sharedConfig] _ in
+              for await enabled in Perceptions({
+                sharedConfig.wrappedValue.settings.general.debugLogging
+              }) {
+                debugLog.setEnabled(enabled)
+                if enabled {
+                  debugLog.log("App", "debug log enabled (settings toggle)")
+                }
+              }
+            },
+            // Surface internal failures (config parse, invalid shortcuts,
+            // I/O errors) in the UI. Replays anything reported before this
+            // subscription — the initial config decode runs at the first
+            // `@Shared` access, well before `.task`.
+            .run { [errorReporter] send in
+              for await event in errorReporter.events() {
+                await send(.errorReportEvent(event))
+              }
+            },
+          ),
         )
         .cancellable(id: CancelID.startupSubscriptions, cancelInFlight: true)
 

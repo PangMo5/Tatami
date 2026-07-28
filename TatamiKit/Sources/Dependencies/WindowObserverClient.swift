@@ -1,9 +1,12 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import Darwin
 import Dependencies
 import DependenciesMacros
 import Foundation
+
+// MARK: - WindowObserverClient
 
 /// Watches the windows of a fixed set of bundle identifiers via
 /// `AXObserver`. Emits an event whenever a window is created or
@@ -14,8 +17,10 @@ struct WindowObserverClient: Sendable {
   /// Replace the set of observed bundle identifiers. Pass empty to
   /// stop observing entirely.
   var observe: @Sendable ([String]) async -> Void
-  var events: @Sendable () -> AsyncStream<WindowChangeEvent> = { AsyncStream { _ in } }
+  var events: @Sendable () -> WindowEventSequence = { .finished }
 }
+
+// MARK: - WindowChangeEvent
 
 public enum WindowChangeEvent: Sendable, Hashable {
   case windowCreated(bundleId: String)
@@ -44,6 +49,280 @@ public enum WindowChangeEvent: Sendable, Hashable {
   case windowTitleChanged(bundleId: String)
 }
 
+// MARK: - WindowEventSequence
+
+/// Single-consumer pull sequence backed directly by a coalescing buffer.
+///
+/// Unlike a producer-side `AsyncStream` pump, `next()` drains only when the
+/// downstream consumer asks for another value, so a stalled reducer cannot
+/// accumulate a second unbounded stream backlog behind the coalescer.
+struct WindowEventSequence: AsyncSequence, Sendable {
+
+  // MARK: Lifecycle
+
+  fileprivate init(
+    buffer: CoalescingWindowEventBuffer,
+    onTermination: @escaping @Sendable () -> Void = { },
+  ) {
+    subscription = Subscription(buffer: buffer, onTermination: onTermination)
+  }
+
+  // MARK: Internal
+
+  typealias Element = WindowChangeEvent
+
+  final class Iterator: AsyncIteratorProtocol {
+
+    // MARK: Lifecycle
+
+    fileprivate init(subscription: Subscription) {
+      self.subscription = subscription
+    }
+
+    deinit {
+      subscription.cancel()
+    }
+
+    // MARK: Internal
+
+    func next() async -> WindowChangeEvent? {
+      let subscription = subscription
+      return await withTaskCancellationHandler {
+        await subscription.next()
+      } onCancel: {
+        subscription.cancel()
+      }
+    }
+
+    // MARK: Private
+
+    private let subscription: Subscription
+
+  }
+
+  static var finished: Self {
+    let buffer = CoalescingWindowEventBuffer()
+    buffer.finish()
+    return Self(buffer: buffer)
+  }
+
+  func makeAsyncIterator() -> Iterator {
+    Iterator(subscription: subscription)
+  }
+
+  // MARK: Fileprivate
+
+  fileprivate final class Subscription: @unchecked Sendable {
+
+    // MARK: Lifecycle
+
+    init(
+      buffer: CoalescingWindowEventBuffer,
+      onTermination: @escaping @Sendable () -> Void,
+    ) {
+      self.buffer = buffer
+      self.onTermination = onTermination
+    }
+
+    deinit {
+      cancel()
+    }
+
+    // MARK: Internal
+
+    func next() async -> WindowChangeEvent? {
+      let event = await buffer.next()
+      if event == nil { cancel() }
+      return event
+    }
+
+    func cancel() {
+      let shouldTerminate = lock.withLock {
+        guard !isTerminated else { return false }
+        isTerminated = true
+        return true
+      }
+      guard shouldTerminate else { return }
+      buffer.finish()
+      onTermination()
+    }
+
+    // MARK: Private
+
+    private let buffer: CoalescingWindowEventBuffer
+    private let onTermination: @Sendable () -> Void
+    private let lock = NSLock()
+    private var isTerminated = false
+
+  }
+
+  // MARK: Private
+
+  private let subscription: Subscription
+
+}
+
+// MARK: - CoalescingWindowEventBuffer
+
+/// AX can deliver focus and geometry bursts faster than the main store can
+/// consume them under CPU pressure. Preserve ordered drag-end edges, but keep
+/// only the latest state event per logical window/app so stale callbacks do not
+/// build an unbounded two-stage AsyncStream backlog.
+final class CoalescingWindowEventBuffer: @unchecked Sendable {
+
+  // MARK: Internal
+
+  func yield(_ event: WindowChangeEvent) {
+    let delivery: Delivery? = lock.withLock {
+      guard !isFinished else { return nil }
+      sequence &+= 1
+      let pending = Pending(sequence: sequence, event: event)
+      if event.isCoalescingBarrier {
+        freezeLatestStateEvents()
+        orderedEvents.append(pending)
+      } else if let key = event.coalescingKey {
+        latestStateEvents[key] = pending
+      } else {
+        orderedEvents.append(pending)
+      }
+      guard let waiter, let next = takeNextEvent() else { return nil }
+      self.waiter = nil
+      return Delivery(continuation: waiter, event: next)
+    }
+    if let delivery {
+      delivery.continuation.resume(returning: delivery.event)
+    }
+  }
+
+  func makeSequence(
+    onTermination: @escaping @Sendable () -> Void = { }
+  ) -> WindowEventSequence {
+    WindowEventSequence(buffer: self, onTermination: onTermination)
+  }
+
+  func finish() {
+    let waiter: CheckedContinuation<WindowChangeEvent?, Never>? = lock.withLock {
+      guard !isFinished else { return nil }
+      isFinished = true
+      guard latestStateEvents.isEmpty, orderedEvents.isEmpty else { return nil }
+      defer { self.waiter = nil }
+      return self.waiter
+    }
+    waiter?.resume(returning: nil)
+  }
+
+  func next() async -> WindowChangeEvent? {
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        let result: NextResult = lock.withLock {
+          if let event = takeNextEvent() {
+            return .event(event)
+          }
+          if isFinished {
+            return .finished
+          }
+          precondition(waiter == nil, "CoalescingWindowEventBuffer supports one consumer")
+          waiter = continuation
+          return .waiting
+        }
+        switch result {
+        case .event(let event):
+          continuation.resume(returning: event)
+        case .finished:
+          continuation.resume(returning: nil)
+        case .waiting:
+          break
+        }
+      }
+    } onCancel: { [weak self] in
+      self?.finish()
+    }
+  }
+
+  // MARK: Fileprivate
+
+  fileprivate enum Key: Hashable {
+    case membership(String)
+    case resized(WindowKey)
+    case moved(WindowKey)
+    case focus(bundleId: String, key: WindowKey?)
+    case title(String)
+  }
+
+  // MARK: Private
+
+  private struct Delivery {
+    var continuation: CheckedContinuation<WindowChangeEvent?, Never>
+    var event: WindowChangeEvent
+  }
+
+  private struct Pending {
+    var sequence: UInt64
+    var event: WindowChangeEvent
+  }
+
+  private enum NextResult {
+    case event(WindowChangeEvent)
+    case finished
+    case waiting
+  }
+
+  private let lock = NSLock()
+  private var sequence: UInt64 = 0
+  private var latestStateEvents = [Key: Pending]()
+  private var orderedEvents = [Pending]()
+  private var waiter: CheckedContinuation<WindowChangeEvent?, Never>?
+  private var isFinished = false
+
+  /// Freeze the current state segment before an ordered edge. In particular,
+  /// geometry observed before mouse-up must be delivered before that drag-end;
+  /// later geometry belongs to the next drag and may coalesce independently.
+  private func freezeLatestStateEvents() {
+    orderedEvents.append(contentsOf: latestStateEvents.values.sorted {
+      $0.sequence < $1.sequence
+    })
+    latestStateEvents.removeAll(keepingCapacity: true)
+  }
+
+  private func takeNextEvent() -> WindowChangeEvent? {
+    if !orderedEvents.isEmpty {
+      return orderedEvents.removeFirst().event
+    }
+    guard
+      let next = latestStateEvents.min(by: { $0.value.sequence < $1.value.sequence })
+    else { return nil }
+    latestStateEvents.removeValue(forKey: next.key)
+    return next.value.event
+  }
+
+}
+
+extension WindowChangeEvent {
+  fileprivate var coalescingKey: CoalescingWindowEventBuffer.Key? {
+    switch self {
+    case .windowCreated(let bundleId),
+         .windowDestroyed(let bundleId):
+      .membership(bundleId)
+    case .windowResized(let key, _):
+      .resized(key)
+    case .windowMoved(let key, _):
+      .moved(key)
+    case .windowFocused(let bundleId, let key):
+      .focus(bundleId: bundleId, key: key)
+    case .windowTitleChanged(let bundleId):
+      .title(bundleId)
+    case .windowDragEnded:
+      nil
+    }
+  }
+
+  fileprivate var isCoalescingBarrier: Bool {
+    if case .windowDragEnded = self { true } else { false }
+  }
+}
+
+// MARK: - WindowObserverClient + DependencyKey
+
 extension WindowObserverClient: DependencyKey {
   static let liveValue: WindowObserverClient = {
     let center = WindowObserverCenter()
@@ -51,13 +330,13 @@ extension WindowObserverClient: DependencyKey {
       observe: { bundleIds in
         await center.observe(bundleIds: bundleIds)
       },
-      events: { center.makeStream() }
+      events: { center.makeStream() },
     )
   }()
 
   static let testValue = WindowObserverClient(
     observe: { _ in },
-    events: { AsyncStream { _ in } }
+    events: { .finished },
   )
 
   static let previewValue = testValue
@@ -70,8 +349,12 @@ extension DependencyValues {
   }
 }
 
-/// Lives for the lifetime of the process. All AX work hops to the main
-/// thread because the observer runs on the main run loop.
+// MARK: - WindowObserverCenter
+
+/// Lives for the lifetime of the process. AppKit discovery and the global
+/// mouse monitor stay on the main actor, but every app's AX observer lives on
+/// its own run-loop thread. A slow target app can therefore delay only its own
+/// AX stream, never Tatami's menu/hotkey event loop or another app's observer.
 ///
 /// Observers are kept for the process lifetime of each observed app:
 /// `observe(bundleIds:)` is purely additive, never tears anything down
@@ -81,129 +364,338 @@ extension DependencyValues {
 /// every sync would lose any `kAXWindowCreated` that fired in the gap
 /// (a known source of the "Notification-Center-opened KakaoTalk window
 /// is invisible" bug).
-/// Termination cleanup runs on each `observe` call and on every event
-/// hop.
+/// Termination cleanup runs whenever the observed bundle set is refreshed.
 private final class WindowObserverCenter: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  init() {
+    let fanIn = CoalescingWindowEventBuffer()
+    eventSink = fanIn
+    registry = WindowObserverRegistry(eventSink: fanIn)
+    // Process-lifetime pump: coalesced fan-in → each subscriber's own
+    // coalesced stream.
+    Task { [weak self, fanIn] in
+      for await event in fanIn.makeSequence() { self?.broadcast(event) }
+    }
+  }
+
+  // MARK: Internal
+
+  /// A fresh multicast stream per caller. Registered under the lock and
+  /// dropped on termination (subscriber cancels its `for await`).
+  func makeStream() -> WindowEventSequence {
+    let id = UUID()
+    let subscriber = CoalescingWindowEventBuffer()
+    lock.withLock { subscribers[id] = subscriber }
+    return subscriber.makeSequence { [weak self] in
+      self?.lock.withLock { _ = self?.subscribers.removeValue(forKey: id) }
+    }
+  }
+
+  func observe(bundleIds: [String]) async {
+    let snapshot = await MainActor.run {
+      self.captureRunningAppsSnapshot(requestedBundleIds: bundleIds)
+    }
+    await registry.installOrUpdate(
+      snapshotGeneration: snapshot.generation,
+      bundleIds: bundleIds,
+      candidates: snapshot.candidates,
+      livePids: snapshot.livePids,
+    )
+  }
+
+  // MARK: Private
+
   /// Fan-in: every `ObservedApp` and the drag monitor yield here. A pump task
   /// forwards each event to all live subscribers, so multiple consumers
   /// (activation + the layout preview) each get their own stream without
   /// stealing events from one another.
-  private let continuation: AsyncStream<WindowChangeEvent>.Continuation
+  private let eventSink: CoalescingWindowEventBuffer
+  private let registry: WindowObserverRegistry
   private let lock = NSLock()
-  private var subscribers: [UUID: AsyncStream<WindowChangeEvent>.Continuation] = [:]
-  private var observed: [pid_t: ObservedApp] = [:]
+  private var subscribers = [UUID: CoalescingWindowEventBuffer]()
   /// Global mouse-up monitor; emits `.windowDragEnded` so the reducer commits
   /// a manual move/resize at the true end of the drag.
   private var dragEndMonitor: Any?
-
-  init() {
-    var c: AsyncStream<WindowChangeEvent>.Continuation!
-    let fanIn = AsyncStream(bufferingPolicy: .unbounded) { c = $0 }
-    self.continuation = c
-    // Process-lifetime pump: fan-in → all subscribers, in order.
-    Task { [weak self] in
-      for await event in fanIn { self?.broadcast(event) }
-    }
-  }
-
-  /// A fresh multicast stream per caller. Registered under the lock and
-  /// dropped on termination (subscriber cancels its `for await`).
-  func makeStream() -> AsyncStream<WindowChangeEvent> {
-    let id = UUID()
-    return AsyncStream(bufferingPolicy: .unbounded) { continuation in
-      lock.withLock { subscribers[id] = continuation }
-      continuation.onTermination = { [weak self] _ in
-        self?.lock.withLock { _ = self?.subscribers.removeValue(forKey: id) }
-      }
-    }
-  }
+  /// Assigned on the main actor when the running-app snapshot is captured, not
+  /// when its async caller eventually reaches the registry actor. This lets the
+  /// registry reject an older capture that resumes out of order.
+  @MainActor private var runningAppsSnapshotGeneration: UInt64 = 0
 
   private func broadcast(_ event: WindowChangeEvent) {
     let live = lock.withLock { Array(subscribers.values) }
-    for continuation in live { continuation.yield(event) }
-  }
-
-  func observe(bundleIds: [String]) async {
-    await MainActor.run {
-      self.installOrUpdate(bundleIds: bundleIds)
-    }
+    for subscriber in live { subscriber.yield(event) }
   }
 
   @MainActor
-  private func installOrUpdate(bundleIds: [String]) {
-    @Dependency(\.debugLog) var debugLog
+  private func captureRunningAppsSnapshot(
+    requestedBundleIds: [String]
+  ) -> RunningAppsSnapshot {
+    installDragEndMonitorIfNeeded()
+    runningAppsSnapshotGeneration &+= 1
+    return RunningAppsSnapshot.capture(
+      generation: runningAppsSnapshotGeneration,
+      requestedBundleIds: requestedBundleIds,
+    )
+  }
+
+  @MainActor
+  private func installDragEndMonitorIfNeeded() {
     // Install the global mouse-up monitor once. The reducer flushes a pending
     // manual move/resize on `.windowDragEnded`, so the commit lands at the
     // real end of the drag rather than on a time guess. Global monitors only
     // see other apps' events — exactly where window drags happen.
     if dragEndMonitor == nil {
-      let cont = continuation
+      let eventSink = eventSink
       dragEndMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
-        cont.yield(.windowDragEnded)
+        eventSink.yield(.windowDragEnded)
       }
     }
+  }
+
+}
+
+// MARK: - RunningAppSnapshot
+
+struct RunningAppSnapshot: Sendable {
+  var pid: pid_t
+  var bundleId: String
+}
+
+// MARK: - WindowObservedAppHandle
+
+/// Type-erased observer lifetime used by the registry. Keeping installation
+/// behind a handle makes the actor's suspend/revalidate contract testable
+/// without constructing real Accessibility objects or run-loop threads.
+struct WindowObservedAppHandle: Sendable {
+  var pid: pid_t
+  var bundleId: String
+  var install: @Sendable () async -> Int?
+  var tearDown: @Sendable () async -> Void
+  var stopThread: @Sendable () -> Void
+}
+
+// MARK: - RunningAppsSnapshot
+
+private struct RunningAppsSnapshot: Sendable {
+  var generation: UInt64
+  var candidates: [RunningAppSnapshot]
+  var livePids: Set<pid_t>
+
+  @MainActor
+  static func capture(
+    generation: UInt64,
+    requestedBundleIds: [String],
+  ) -> RunningAppsSnapshot {
+    let requested = Set(requestedBundleIds)
+    let running = NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }
+    return RunningAppsSnapshot(
+      generation: generation,
+      candidates: running.compactMap { app in
+        guard
+          app.activationPolicy == .regular,
+          let bundleId = app.bundleIdentifier,
+          requested.contains(bundleId)
+        else { return nil }
+        return RunningAppSnapshot(pid: app.processIdentifier, bundleId: bundleId)
+      },
+      livePids: Set(running.map(\.processIdentifier)),
+    )
+  }
+}
+
+// MARK: - WindowObserverRegistry
+
+/// Serializes registry mutations while each `ObservedApp` owns its AX state on
+/// a dedicated run-loop thread. The actor may suspend during installation
+/// without allowing duplicate installs because `installing` reserves the pid.
+actor WindowObserverRegistry {
+
+  // MARK: Lifecycle
+
+  init(
+    eventSink: CoalescingWindowEventBuffer,
+    makeObservedApp: (@Sendable (
+      _ pid: pid_t,
+      _ bundleId: String,
+      _ eventSink: CoalescingWindowEventBuffer,
+    ) -> WindowObservedAppHandle)? = nil,
+  ) {
+    self.eventSink = eventSink
+    self.makeObservedApp = makeObservedApp ?? { pid, bundleId, eventSink in
+      let app = ObservedApp(
+        pid: pid,
+        bundleId: bundleId,
+        eventSink: eventSink,
+      )
+      return WindowObservedAppHandle(
+        pid: pid,
+        bundleId: bundleId,
+        install: { await app.install() },
+        tearDown: { await app.tearDown() },
+        stopThread: { app.stopThread() },
+      )
+    }
+  }
+
+  // MARK: Internal
+
+  func installOrUpdate(
+    snapshotGeneration: UInt64,
+    bundleIds: [String],
+    candidates: [RunningAppSnapshot],
+    livePids: Set<pid_t>,
+  ) async {
+    @Dependency(\.debugLog) var debugLog
+    guard snapshotGeneration > latestLivePidsGeneration else {
+      debugLog.log(
+        "Observer",
+        "ignore stale running-app snapshot generation=\(snapshotGeneration) "
+          + "latest=\(latestLivePidsGeneration)",
+      )
+      return
+    }
+    latestLivePidsGeneration = snapshotGeneration
+    latestLivePids = livePids
+
     // Drop observers whose pid has died. Anything still running stays
     // observed even if it's no longer in the caller's interest set —
     // the next focus/launch event will surface it again, and we'd
     // otherwise have to rebuild the AXObserver from scratch (losing
     // any window-created event in flight).
-    for (pid, obs) in observed where !ObservedApp.isPidAlive(pid) {
+    let deadPids = observed.keys.filter { !livePids.contains($0) }
+    for pid in deadPids {
+      guard let obs = observed.removeValue(forKey: pid) else { continue }
       debugLog.log("Observer", "teardown pid=\(pid) bundle=\(obs.bundleId): pid dead")
-      obs.tearDown()
-      observed.removeValue(forKey: pid)
+      await obs.tearDown()
     }
 
     // Add observers for any new (pid, bundleId) pair we haven't seen
     // yet. Apps with multiple processes (e.g. helper instances) each
     // get their own AXObserver.
     for bundleId in bundleIds {
-      let apps = NSRunningApplication
-        .runningApplications(withBundleIdentifier: bundleId)
-        .filter { !$0.isTerminated && $0.activationPolicy == .regular }
+      let apps = candidates.filter { $0.bundleId == bundleId }
       if apps.isEmpty {
         debugLog.log("Observer", "skip \(bundleId): no running .regular app")
         continue
       }
       for app in apps {
-        if observed[app.processIdentifier] != nil {
+        // This loop may resume after installing an earlier app. Avoid starting
+        // another observer from the old candidate list when a newer liveness
+        // snapshot already reported this pid dead.
+        guard latestLivePids.contains(app.pid) else {
           debugLog.log(
             "Observer",
-            "already-observed pid=\(app.processIdentifier) bundle=\(bundleId)"
+            "skip stale candidate pid=\(app.pid) bundle=\(bundleId)",
           )
           continue
         }
-        if let obs = ObservedApp.install(
-          pid: app.processIdentifier,
-          bundleId: bundleId,
-          continuation: continuation
-        ) {
-          observed[app.processIdentifier] = obs
+        if observed[app.pid] != nil || installing.contains(app.pid) {
           debugLog.log(
             "Observer",
-            "installed pid=\(app.processIdentifier) bundle=\(bundleId) initialWindows=\(obs.lastSubscribedWindowCount)"
+            "already-observed pid=\(app.pid) bundle=\(bundleId)",
           )
+          continue
+        }
+        installing.insert(app.pid)
+        let obs = makeObservedApp(app.pid, bundleId, eventSink)
+        let initialWindowCount = await obs.install()
+        installing.remove(app.pid)
+
+        // `await obs.install()` is an actor reentrancy point. A newer running-app
+        // snapshot can report this pid dead while the AX thread is still arming.
+        // Never publish that stale observer after resumption: the newer call
+        // could not remove it from `observed` because it did not exist there yet.
+        guard latestLivePids.contains(app.pid) else {
+          debugLog.log(
+            "Observer",
+            "discard stale install pid=\(app.pid) bundle=\(bundleId) "
+              + "requestGeneration=\(snapshotGeneration) "
+              + "latestGeneration=\(latestLivePidsGeneration)",
+          )
+          if initialWindowCount != nil {
+            await obs.tearDown()
+          } else {
+            obs.stopThread()
+          }
+          continue
+        }
+
+        if let initialWindowCount {
+          observed[app.pid] = obs
+          debugLog.log(
+            "Observer",
+            "installed pid=\(app.pid) bundle=\(bundleId) initialWindows=\(initialWindowCount)",
+          )
+          // Installation itself is a state edge: a window can be created,
+          // destroyed, or restored between the caller's cache read and the
+          // moment notifications become armed. Replay one bundle-level
+          // reconcile after the source is installed; subsequent changes are
+          // carried by real notifications.
+          eventSink.yield(.windowCreated(bundleId: bundleId))
         } else {
           debugLog.log(
             "Observer",
-            "install FAILED pid=\(app.processIdentifier) bundle=\(bundleId)"
+            "install FAILED pid=\(app.pid) bundle=\(bundleId)",
           )
+          obs.stopThread()
         }
       }
     }
   }
+
+  // MARK: Private
+
+  private let eventSink: CoalescingWindowEventBuffer
+  private let makeObservedApp: @Sendable (
+    _ pid: pid_t,
+    _ bundleId: String,
+    _ eventSink: CoalescingWindowEventBuffer,
+  ) -> WindowObservedAppHandle
+  private var observed = [pid_t: WindowObservedAppHandle]()
+  private var installing = Set<pid_t>()
+  /// Latest process-liveness snapshot accepted by this actor. Installation
+  /// captures its generation before suspension and revalidates against this
+  /// authoritative set before publishing the observer.
+  private var latestLivePidsGeneration: UInt64 = 0
+  private var latestLivePids = Set<pid_t>()
+
 }
+
+// MARK: - ObservedApp
 
 /// One AXObserver wired to a single app, listening for window
 /// created/destroyed events on the app element + on each existing
 /// window (destruction is reported on the window element itself, not
 /// the app).
-@MainActor
-private final class ObservedApp {
+///
+/// All mutable properties are confined to `thread`. `@unchecked Sendable` is
+/// the bridge required by the C callback and retry task; neither accesses the
+/// state directly from another executor.
+private final class ObservedApp: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  fileprivate init(
+    pid: pid_t,
+    bundleId: String,
+    eventSink: CoalescingWindowEventBuffer,
+  ) {
+    self.pid = pid
+    self.bundleId = bundleId
+    self.eventSink = eventSink
+    thread = AXObserverThread(pid: pid)
+  }
+
+  // MARK: Internal
+
   let pid: pid_t
   let bundleId: String
-  let observer: AXObserver
-  let appElement: AXUIElement
-  let continuation: AsyncStream<WindowChangeEvent>.Continuation
+  let eventSink: CoalescingWindowEventBuffer
+
+  // MARK: Fileprivate
+
   /// While a menu is open AX briefly hops focus to the menu element
   /// and back, which would otherwise trigger reconciles. Toggled by
   /// `kAXMenuOpened/Closed` to gate focus events.
@@ -223,58 +715,13 @@ private final class ObservedApp {
   fileprivate var retryTask: Task<Void, Never>?
 
   fileprivate static func isPidAlive(_ pid: pid_t) -> Bool {
-    NSRunningApplication(processIdentifier: pid).map { !$0.isTerminated } ?? false
+    Darwin.kill(pid, 0) == 0 || errno == EPERM
   }
 
-  fileprivate static func install(
-    pid: pid_t,
-    bundleId: String,
-    continuation: AsyncStream<WindowChangeEvent>.Continuation
-  ) -> ObservedApp? {
-    @Dependency(\.debugLog) var debugLog
-    var observer: AXObserver?
-    let createResult = AXObserverCreate(pid, axObserverCallback, &observer)
-    guard createResult == .success, let observer else {
-      debugLog.log(
-        "Observer",
-        "AXObserverCreate FAILED pid=\(pid) bundle=\(bundleId) err=\(createResult.rawValue)"
-      )
-      return nil
-    }
-    let appElement = AXUIElementCreateApplication(pid)
-    let observed = ObservedApp(
-      pid: pid,
-      bundleId: bundleId,
-      observer: observer,
-      appElement: appElement,
-      continuation: continuation
-    )
-
-    let info = Unmanaged.passUnretained(observed).toOpaque()
-    observed.registerNotifications(info: info)
-
-    // Existing windows: subscribe to destruction + resize + move.
-    observed.refreshWindowSubscriptions()
-
-    CFRunLoopAddSource(
-      CFRunLoopGetMain(),
-      AXObserverGetRunLoopSource(observer),
-      .defaultMode
-    )
-
-    if observed.needsAXRetry {
-      // A heavy app's cold launch can take many seconds before its AX layer
-      // answers (Electron especially). Retry generously: yabai re-arms every
-      // 100 ms with no cap until the app is observable. We cap at 150 × 200 ms
-      // (~30 s) plus a pid-alive guard so a slow app's kAXWindowCreated still
-      // gets armed instead of giving up after a few seconds and missing the
-      // first lazily-opened window. An app whose AX comes up sooner stops early
-      // (the retry returns the moment registration succeeds); a workspace
-      // switch's re-scan is the final safety net.
-      observed.scheduleAXRetry(attemptsRemaining: 150)
-    }
-
-    return observed
+  /// Creates the observer and all AX references on their owning run-loop
+  /// thread. Returns the initial subscribed-window count on success.
+  fileprivate func install() async -> Int? {
+    try? await thread.perform { [self] in installOnThread() }
   }
 
   /// Register every app-level notification we care about. Returns true
@@ -282,6 +729,7 @@ private final class ObservedApp {
   /// caller can schedule a retry.
   @discardableResult
   fileprivate func registerNotifications(info: UnsafeMutableRawPointer) -> Bool {
+    guard let observer, let appElement else { return false }
     @Dependency(\.debugLog) var debugLog
     let appNotifications: [(CFString, String)] = [
       (kAXWindowCreatedNotification as CFString, "kAXWindowCreated"),
@@ -305,13 +753,9 @@ private final class ObservedApp {
         }
         debugLog.log(
           "Observer",
-          "addNotification \(label) FAILED pid=\(pid) bundle=\(bundleId) err=\(r.rawValue)"
+          "addNotification \(label) FAILED pid=\(pid) bundle=\(bundleId) err=\(r.rawValue)",
         )
       }
-    }
-    if allOK {
-      // Recovered — clear the retry flag in case this was a retry pass.
-      needsAXRetry = false
     }
     return allOK
   }
@@ -319,95 +763,71 @@ private final class ObservedApp {
   /// Delayed retry of the AX notification setup. Matches the upstream
   /// `ax_retry` loop: 200 ms between attempts, capped at `attemptsRemaining`.
   fileprivate func scheduleAXRetry(attemptsRemaining: Int) {
-    @Dependency(\.debugLog) var debugLog
     retryTask?.cancel()
-    let id = Unmanaged.passUnretained(self).toOpaque()
-    retryTask = Task { @MainActor [weak self] in
+    retryGeneration &+= 1
+    let generation = retryGeneration
+    let thread = thread
+    retryTask = Task { [weak self, thread] in
       try? await Task.sleep(for: .milliseconds(200))
       guard !Task.isCancelled, let self else { return }
-      debugLog.log(
-        "Observer",
-        "ax retry pid=\(self.pid) bundle=\(self.bundleId) remaining=\(attemptsRemaining)"
-      )
-      let ok = self.registerNotifications(info: id)
-      self.refreshWindowSubscriptions()
-      if ok {
-        // AX is ready: kAXWindowCreated is now armed, so a window that appears
-        // from here on fires a real event on its own — arming the subscription
-        // was the retry's whole job. Replay any window that slipped in while AX
-        // was not ready (the OS dropped those notifications); the live
-        // subscription covers the rest, so stop retrying even with no window
-        // yet (the old `ok && windows > 0` gate kept burning attempts and could
-        // give up before a lazy window opened).
-        debugLog.log(
-          "Observer",
-          "ax retry SUCCEEDED pid=\(self.pid) bundle=\(self.bundleId) windows=\(self.lastSubscribedWindowCount)"
+      thread.enqueue { [weak self] in
+        self?.performAXRetry(
+          generation: generation,
+          attemptsRemaining: attemptsRemaining,
         )
-        self.retryTask = nil
-        if self.lastSubscribedWindowCount > 0 {
-          self.continuation.yield(.windowCreated(bundleId: self.bundleId))
-        }
-        return
-      }
-      // Keep retrying only while the app is alive and AX still isn't ready —
-      // giving up early is what left a slow app's late window unobserved.
-      if attemptsRemaining > 1, ObservedApp.isPidAlive(self.pid) {
-        self.scheduleAXRetry(attemptsRemaining: attemptsRemaining - 1)
-      } else {
-        debugLog.log(
-          "Observer",
-          "ax retry GAVE UP pid=\(self.pid) bundle=\(self.bundleId) (ax never became ready)"
-        )
-        self.retryTask = nil
       }
     }
   }
 
-  fileprivate init(
-    pid: pid_t,
-    bundleId: String,
-    observer: AXObserver,
-    appElement: AXUIElement,
-    continuation: AsyncStream<WindowChangeEvent>.Continuation
-  ) {
-    self.pid = pid
-    self.bundleId = bundleId
-    self.observer = observer
-    self.appElement = appElement
-    self.continuation = continuation
+  fileprivate func tearDown() async {
+    _ = try? await thread.perform { [self] in tearDownOnThread() }
+    thread.stop()
   }
 
-  fileprivate func tearDown() {
-    retryTask?.cancel()
-    retryTask = nil
-    CFRunLoopRemoveSource(
-      CFRunLoopGetMain(),
-      AXObserverGetRunLoopSource(observer),
-      .defaultMode
-    )
+  fileprivate func stopThread() {
+    thread.stop()
   }
 
-  fileprivate func refreshWindowSubscriptions() {
+  /// Keep the C callback bounded: subscription refresh can synchronously wait
+  /// on the target app, so run it as the next turn on this app's own run loop
+  /// after the callback has returned.
+  fileprivate func refreshAfterWindowCreated() {
+    thread.enqueue { [weak self] in
+      guard let self else { return }
+      refreshWindowSubscriptions()
+      if needsAXRetry {
+        scheduleAXRetry(attemptsRemaining: 10)
+      }
+    }
+  }
+
+  @discardableResult
+  fileprivate func refreshWindowSubscriptions() -> Bool {
+    guard let observer, let appElement else { return false }
     @Dependency(\.debugLog) var debugLog
     var raw: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(
+    let windowsError = AXUIElementCopyAttributeValue(
       appElement,
       kAXWindowsAttribute as CFString,
-      &raw
-    ) == .success,
-          let windows = raw as? [AXUIElement]
+      &raw,
+    )
+    guard windowsError == .success, let windows = raw as? [AXUIElement]
     else {
       debugLog.log(
         "Observer",
-        "refreshSubs pid=\(pid) bundle=\(bundleId): kAXWindowsAttribute empty/failed"
+        "refreshSubs pid=\(pid) bundle=\(bundleId): "
+          + "kAXWindowsAttribute err=\(windowsError.rawValue)",
       )
       lastSubscribedWindowCount = 0
-      return
+      let isAnsweredEmpty =
+        windowsError == .noValue || windowsError == .attributeUnsupported
+      if !isAnsweredEmpty { needsAXRetry = true }
+      return isAnsweredEmpty
     }
     lastSubscribedWindowCount = windows.count
     debugLog.log(
       "Observer",
-      "refreshSubs pid=\(pid) bundle=\(bundleId) windows=\(windows.count)"
+      "refreshSubs pid=\(pid) bundle=\(bundleId) windows=\(windows.count)",
     )
     let info = Unmanaged.passUnretained(self).toOpaque()
     let windowNotifications: [(CFString, String)] = [
@@ -415,6 +835,7 @@ private final class ObservedApp {
       (kAXWindowResizedNotification as CFString, "kAXWindowResized"),
       (kAXWindowMovedNotification as CFString, "kAXWindowMoved"),
     ]
+    var allOK = true
     for window in windows {
       for (name, label) in windowNotifications {
         let r = AXObserverAddNotification(observer, window, name, info)
@@ -423,121 +844,220 @@ private final class ObservedApp {
         // macOS never re-attempts on its own — without the flag the
         // window's destroy/resize/move events were permanently missing.
         if r != .success, r != .notificationAlreadyRegistered {
-          if r == .cannotComplete {
-            needsAXRetry = true
-          }
+          allOK = false
+          needsAXRetry = true
           debugLog.log(
             "Observer",
-            "addNotification \(label) FAILED pid=\(pid) bundle=\(bundleId) err=\(r.rawValue)"
+            "addNotification \(label) FAILED pid=\(pid) bundle=\(bundleId) err=\(r.rawValue)",
           )
         }
       }
     }
+    return allOK
   }
+
+  // MARK: Private
+
+  private let thread: AXObserverThread
+  private var observer: AXObserver?
+  private var appElement: AXUIElement?
+  /// Invalidates a retry that already woke but has not reached the AX thread
+  /// yet. Cancellation alone cannot retract a queued CFRunLoop block.
+  private var retryGeneration: UInt64 = 0
+
+  private func installOnThread() -> Int? {
+    @Dependency(\.debugLog) var debugLog
+    var observer: AXObserver?
+    let createResult = AXObserverCreate(pid, axObserverCallback, &observer)
+    guard createResult == .success, let observer else {
+      debugLog.log(
+        "Observer",
+        "AXObserverCreate FAILED pid=\(pid) bundle=\(bundleId) err=\(createResult.rawValue)",
+      )
+      return nil
+    }
+    let appElement = AXUIElementCreateApplication(pid)
+    self.observer = observer
+    self.appElement = appElement
+
+    let info = Unmanaged.passUnretained(self).toOpaque()
+    needsAXRetry = false
+    let appNotificationsReady = registerNotifications(info: info)
+
+    // Existing windows: subscribe to destruction + resize + move.
+    let windowNotificationsReady = refreshWindowSubscriptions()
+    needsAXRetry = !(appNotificationsReady && windowNotificationsReady)
+    thread.addSource(AXObserverGetRunLoopSource(observer))
+
+    if needsAXRetry {
+      // A heavy app's cold launch can take many seconds before its AX layer
+      // answers (Electron especially). Retry generously: yabai re-arms every
+      // 100 ms with no cap until the app is observable. We cap at 150 × 200 ms
+      // (~30 s) plus a pid-alive guard so a slow app's kAXWindowCreated still
+      // gets armed instead of giving up after a few seconds and missing the
+      // first lazily-opened window. An app whose AX comes up sooner stops early
+      // (the retry returns the moment registration succeeds); a workspace
+      // switch's re-scan is the final safety net.
+      scheduleAXRetry(attemptsRemaining: 150)
+    }
+
+    return lastSubscribedWindowCount
+  }
+
+  private func performAXRetry(generation: UInt64, attemptsRemaining: Int) {
+    guard generation == retryGeneration else { return }
+    @Dependency(\.debugLog) var debugLog
+    let id = Unmanaged.passUnretained(self).toOpaque()
+    debugLog.log(
+      "Observer",
+      "ax retry pid=\(pid) bundle=\(bundleId) remaining=\(attemptsRemaining)",
+    )
+    needsAXRetry = false
+    let appNotificationsReady = registerNotifications(info: id)
+    let windowNotificationsReady = refreshWindowSubscriptions()
+    let ok = appNotificationsReady && windowNotificationsReady
+    needsAXRetry = !ok
+    if ok {
+      // AX is ready: kAXWindowCreated is now armed, so a window that appears
+      // from here on fires a real event on its own — arming the subscription
+      // was the retry's whole job. Replay any window that slipped in while AX
+      // was not ready; the live subscription covers the rest.
+      debugLog.log(
+        "Observer",
+        "ax retry SUCCEEDED pid=\(pid) bundle=\(bundleId) windows=\(lastSubscribedWindowCount)",
+      )
+      retryTask = nil
+      if lastSubscribedWindowCount > 0 {
+        eventSink.yield(.windowCreated(bundleId: bundleId))
+      }
+      return
+    }
+    // Keep retrying only while the app is alive and AX still isn't ready.
+    if attemptsRemaining > 1, ObservedApp.isPidAlive(pid) {
+      scheduleAXRetry(attemptsRemaining: attemptsRemaining - 1)
+    } else {
+      debugLog.log(
+        "Observer",
+        "ax retry GAVE UP pid=\(pid) bundle=\(bundleId) (ax never became ready)",
+      )
+      retryTask = nil
+    }
+  }
+
+  private func tearDownOnThread() {
+    retryTask?.cancel()
+    retryTask = nil
+    retryGeneration &+= 1
+    if let observer {
+      thread.removeSource(AXObserverGetRunLoopSource(observer))
+    }
+    observer = nil
+    appElement = nil
+  }
+
 }
 
-/// AXObserver callbacks run on the main run loop, which is the same
-/// run loop we already use for AX work, so we can call into the
-/// MainActor-isolated `ObservedApp` directly. We deliberately avoid
-/// carrying the `AXUIElement` across an `await` to keep strict
-/// concurrency happy — for window-created we only need to subscribe
-/// destruction on the new element, which the callback does in place.
+/// AXObserver callbacks execute on the owning app's `AXObserverThread`.
+/// Synchronous AX messaging is therefore isolated from Tatami's main run loop
+/// and from every other observed app.
 private func axObserverCallback(
-  observer: AXObserver,
+  observer _: AXObserver,
   element: AXUIElement,
   notification: CFString,
-  refcon: UnsafeMutableRawPointer?
+  refcon: UnsafeMutableRawPointer?,
 ) {
   guard let refcon else { return }
   let app = Unmanaged<ObservedApp>.fromOpaque(refcon).takeUnretainedValue()
   let name = notification as String
-  let boxed = UnsafeAXElement(value: element)
-  MainActor.assumeIsolated {
-    let element = boxed.value
-    @Dependency(\.debugLog) var debugLog
-    switch name {
-    case AXNotificationName.windowCreated:
-      app.refreshWindowSubscriptions()
-      // A brand-new window can answer CannotComplete just like a
-      // brand-new app — re-run the retry loop so its destroy/resize
-      // subscriptions aren't permanently missing.
-      if app.needsAXRetry {
-        app.scheduleAXRetry(attemptsRemaining: 10)
-      }
-      var wid: CGWindowID = 0
-      _ = _AXUIElementGetWindow(element, &wid)
-      debugLog.log(
-        "AX",
-        "windowCreated pid=\(app.pid) bundle=\(app.bundleId) elementWid=\(wid)"
-      )
-      app.continuation.yield(.windowCreated(bundleId: app.bundleId))
-    case AXNotificationName.elementDestroyed:
-      var wid: CGWindowID = 0
-      _ = _AXUIElementGetWindow(element, &wid)
-      debugLog.log(
-        "AX",
-        "windowDestroyed pid=\(app.pid) bundle=\(app.bundleId) elementWid=\(wid)"
-      )
-      app.continuation.yield(.windowDestroyed(bundleId: app.bundleId))
-    case AXNotificationName.windowResized:
-      // Only treat a resize as user-driven when the left mouse button
-      // is held — otherwise this alert is the echo of our own tiling
-      // writes (swap / warp / zoom / retile). The reducer applies an
-      // additional 1.5 px geometric tolerance check against the tile's
-      // expected area before applying the new ratio.
-      if isLeftMouseDown(),
-         let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-         let frame = AXWindowGeometry.frame(of: element)
-      {
-        app.continuation.yield(.windowResized(key: key, frame: frame))
-      }
-    case AXNotificationName.windowMoved:
-      if isLeftMouseDown(),
-         let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-         let frame = AXWindowGeometry.frame(of: element)
-      {
-        app.continuation.yield(.windowMoved(key: key, frame: frame))
-      }
-    case AXNotificationName.focusedWindowChanged,
-         AXNotificationName.mainWindowChanged:
-      // `element` is the newly focused/main window. No mouse gate —
-      // these are state-only (no AX writes), so they can't feed back
-      // into a tiling loop. Emit even when the `WindowKey` bridge fails
-      // (some apps' windows are AX-hidden until reconciled with
-      // CGWindowList) so the reducer can still trigger a per-app
-      // reconcile — the front-switch reconcile pattern.
-      // Skip while a menu is open: AX briefly bounces focus to the
-      // menu element and back, which would just churn the BSP.
-      if app.isMenuOpen { break }
-      let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId)
-      debugLog.log(
-        "AX",
-        "windowFocused pid=\(app.pid) bundle=\(app.bundleId) key=\(key?.windowID.description ?? "nil")"
-      )
-      app.continuation.yield(.windowFocused(bundleId: app.bundleId, key: key))
-    case AXNotificationName.windowMiniaturized,
-         AXNotificationName.windowDeminiaturized:
-      // Treat both as a reason to reconcile — minimized windows drop
-      // out of `discoverWindowKeys` (subrole filter), restored ones
-      // need to come back into the tree.
-      debugLog.log(
-        "AX",
-        "miniaturizeChange pid=\(app.pid) bundle=\(app.bundleId) name=\(name)"
-      )
-      app.continuation.yield(.windowCreated(bundleId: app.bundleId))
-    case AXNotificationName.menuOpened:
-      app.isMenuOpen = true
-    case AXNotificationName.menuClosed:
-      app.isMenuOpen = false
-    case AXNotificationName.titleChanged:
-      // Cosmetic for tiling; forwarded so the layout preview can refresh
-      // titles live. The activation reducer ignores it.
-      app.continuation.yield(.windowTitleChanged(bundleId: app.bundleId))
-    default:
-      break
+  @Dependency(\.debugLog) var debugLog
+  switch name {
+  case AXNotificationName.windowCreated:
+    debugLog.log(
+      "AX",
+      "windowCreated pid=\(app.pid) bundle=\(app.bundleId)",
+    )
+    app.eventSink.yield(.windowCreated(bundleId: app.bundleId))
+    // A brand-new window can answer CannotComplete just like a brand-new
+    // app. Subscribe on the next run-loop turn so the C callback returns
+    // before any timeout-prone AX refresh.
+    app.refreshAfterWindowCreated()
+
+  case AXNotificationName.elementDestroyed:
+    debugLog.log(
+      "AX",
+      "windowDestroyed pid=\(app.pid) bundle=\(app.bundleId)",
+    )
+    app.eventSink.yield(.windowDestroyed(bundleId: app.bundleId))
+
+  case AXNotificationName.windowResized:
+    // Only treat a resize as user-driven when the left mouse button
+    // is held — otherwise this alert is the echo of our own tiling
+    // writes (swap / warp / zoom / retile). The reducer applies an
+    // additional 1.5 px geometric tolerance check against the tile's
+    // expected area before applying the new ratio.
+    if
+      isLeftMouseDown(),
+      let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+      let frame = AXWindowGeometry.frame(of: element)
+    {
+      app.eventSink.yield(.windowResized(key: key, frame: frame))
     }
+
+  case AXNotificationName.windowMoved:
+    if
+      isLeftMouseDown(),
+      let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
+      let frame = AXWindowGeometry.frame(of: element)
+    {
+      app.eventSink.yield(.windowMoved(key: key, frame: frame))
+    }
+
+  case AXNotificationName.focusedWindowChanged,
+       AXNotificationName.mainWindowChanged:
+    // `element` is the newly focused/main window. No mouse gate —
+    // these are state-only (no AX writes), so they can't feed back
+    // into a tiling loop. Emit even when the `WindowKey` bridge fails
+    // (some apps' windows are AX-hidden until reconciled with
+    // CGWindowList) so the reducer can still trigger a per-app
+    // reconcile — the front-switch reconcile pattern.
+    // Skip while a menu is open: AX briefly bounces focus to the
+    // menu element and back, which would just churn the BSP.
+    if app.isMenuOpen { break }
+    let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId)
+    debugLog.log(
+      "AX",
+      "windowFocused pid=\(app.pid) bundle=\(app.bundleId) key=\(key?.windowID.description ?? "nil")",
+    )
+    app.eventSink.yield(.windowFocused(bundleId: app.bundleId, key: key))
+
+  case AXNotificationName.windowMiniaturized,
+       AXNotificationName.windowDeminiaturized:
+    // Treat both as a reason to reconcile — minimized windows drop
+    // out of `discoverWindowKeys` (subrole filter), restored ones
+    // need to come back into the tree.
+    debugLog.log(
+      "AX",
+      "miniaturizeChange pid=\(app.pid) bundle=\(app.bundleId) name=\(name)",
+    )
+    app.eventSink.yield(.windowCreated(bundleId: app.bundleId))
+
+  case AXNotificationName.menuOpened:
+    app.isMenuOpen = true
+
+  case AXNotificationName.menuClosed:
+    app.isMenuOpen = false
+
+  case AXNotificationName.titleChanged:
+    // Cosmetic for tiling; forwarded so the layout preview can refresh
+    // titles live. The activation reducer ignores it.
+    app.eventSink.yield(.windowTitleChanged(bundleId: app.bundleId))
+
+  default:
+    break
   }
 }
+
+// MARK: - AXNotificationName
 
 /// `AXObserver` delivers notification names as `CFString`. Converting the
 /// constants once keeps the switch an ordinary `String` value comparison;
@@ -560,15 +1080,156 @@ private enum AXNotificationName {
 /// True while the primary (left) mouse button is held — i.e. the user
 /// is actively dragging. Used to distinguish genuine manual resize/move
 /// from the AX echoes of our own programmatic tiling writes.
-@MainActor
 private func isLeftMouseDown() -> Bool {
-  (NSEvent.pressedMouseButtons & 0x1) != 0
+  CGEventSource.buttonState(.combinedSessionState, button: .left)
 }
 
-/// AX C-callback parameters are non-Sendable but the AX run loop
-/// already executes on the main thread, so the element is safe to use
-/// from a `MainActor.assumeIsolated` block. This box silences Swift 6
-/// strict-concurrency without changing semantics.
-private struct UnsafeAXElement: @unchecked Sendable {
-  let value: AXUIElement
+// MARK: - AXObserverThread
+
+/// Dedicated run loop for one target process's AX objects. AX references are
+/// created, observed, queried, and released on this thread, matching
+/// AeroSpace's thread-affinity model while keeping an unresponsive target app
+/// away from Tatami's UI and other observers.
+private final class AXObserverThread: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  init(pid: pid_t) {
+    let (readiness, readyContinuation) = AsyncStream<Void>.makeStream(
+      bufferingPolicy: .bufferingNewest(1)
+    )
+    self.readiness = readiness
+    let thread = Thread { [self] in
+      let currentRunLoop = CFRunLoopGetCurrent()
+      RunLoop.current.add(NSMachPort(), forMode: .common)
+      let shouldRun = lifecycleLock.withLock {
+        runLoop = currentRunLoop
+        switch lifecycle {
+        case .starting:
+          lifecycle = .running
+          return true
+
+        case .stopping:
+          lifecycle = .stopped
+          return false
+
+        case .running,
+             .stopped:
+          return false
+        }
+      }
+      readyContinuation.yield(())
+      readyContinuation.finish()
+      guard shouldRun else { return }
+      // `RunLoop.run()` starts the run loop again after `CFRunLoopStop`, which
+      // leaks one thread per exited app. Run one mode turn at a time so the
+      // lifecycle flag is authoritative, and drain autoreleased AX/Foundation
+      // bridges after every callback batch.
+      while lifecycleLock.withLock({ lifecycle != .stopped }) {
+        autoreleasepool {
+          _ = CFRunLoopRunInMode(CFRunLoopMode.defaultMode, 60, true)
+        }
+      }
+    }
+    thread.name = "dev.PangMo5.Tatami.ax-observer.\(pid)"
+    thread.qualityOfService = .userInitiated
+    thread.start()
+  }
+
+  // MARK: Internal
+
+  func perform<Value: Sendable>(
+    _ work: @escaping @Sendable () -> Value
+  ) async throws -> Value {
+    if lifecycleLock.withLock({ lifecycle == .starting }) {
+      for await _ in readiness { break }
+    }
+    try Task.checkCancellation()
+    return try await withCheckedThrowingContinuation { continuation in
+      let accepted = scheduleIfRunning {
+        continuation.resume(returning: work())
+      }
+      if !accepted {
+        continuation.resume(throwing: ThreadError.stopped)
+      }
+    }
+  }
+
+  func enqueue(_ work: @escaping @Sendable () -> Void) {
+    _ = scheduleIfRunning(work)
+  }
+
+  func addSource(_ source: CFRunLoopSource) {
+    CFRunLoopAddSource(runLoop, source, .commonModes)
+    CFRunLoopWakeUp(runLoop)
+  }
+
+  func removeSource(_ source: CFRunLoopSource) {
+    CFRunLoopRemoveSource(runLoop, source, .commonModes)
+    CFRunLoopWakeUp(runLoop)
+  }
+
+  func stop() {
+    lifecycleLock.withLock {
+      switch lifecycle {
+      case .starting:
+        // The thread publishes readiness even when startup was cancelled, but
+        // must not overwrite this request with `.running`.
+        lifecycle = .stopping
+
+      case .running:
+        // Serialize shutdown behind every already-accepted perform block. A
+        // direct CFRunLoopStop can make the loop exit before those blocks run,
+        // leaving their checked continuations suspended forever.
+        lifecycle = .stopping
+        let loop = runLoop!
+        CFRunLoopPerformBlock(
+          loop,
+          CFRunLoopMode.commonModes.rawValue,
+        ) { [self] in
+          lifecycleLock.withLock { lifecycle = .stopped }
+          CFRunLoopStop(loop)
+        }
+        CFRunLoopWakeUp(loop)
+
+      case .stopping,
+           .stopped:
+        break
+      }
+    }
+  }
+
+  // MARK: Private
+
+  private enum Lifecycle {
+    case starting
+    case running
+    case stopping
+    case stopped
+  }
+
+  private enum ThreadError: Error {
+    case stopped
+  }
+
+  private nonisolated(unsafe) var runLoop: CFRunLoop!
+  private let readiness: AsyncStream<Void>
+  private let lifecycleLock = NSLock()
+  private var lifecycle = Lifecycle.starting
+
+  private func scheduleIfRunning(
+    _ work: @escaping @Sendable () -> Void
+  ) -> Bool {
+    lifecycleLock.withLock {
+      guard lifecycle == .running else { return false }
+      CFRunLoopPerformBlock(
+        runLoop,
+        CFRunLoopMode.commonModes.rawValue,
+        work,
+      )
+      CFRunLoopWakeUp(runLoop)
+      return true
+    }
+  }
+
 }

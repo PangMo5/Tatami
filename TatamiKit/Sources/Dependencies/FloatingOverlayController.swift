@@ -6,6 +6,623 @@ import ScreenCaptureKit
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "FloatingOverlay")
 
+// MARK: - FloatingOverlayGeometryUpdate
+
+private struct FloatingOverlayGeometryUpdate: Sendable {
+  var generation: UInt64
+  var frames: [WindowKey: CGRect]
+  var invalidated: Set<WindowKey>
+  var replacesSnapshot: Bool
+}
+
+// MARK: - FloatingOverlayVisibilityInput
+
+private struct FloatingOverlayVisibilityInput: Sendable {
+  var windowID: CGWindowID
+  var frame: CGRect
+  var floatingPIDs: Set<pid_t>
+}
+
+// MARK: - FloatingOverlayAXCancellationFlag
+
+private final class FloatingOverlayAXCancellationFlag: @unchecked Sendable {
+
+  // MARK: Internal
+
+  var isCancelled: Bool {
+    lock.withLock { cancelled }
+  }
+
+  func cancel() {
+    lock.withLock { cancelled = true }
+  }
+
+  // MARK: Private
+
+  private let lock = NSLock()
+  private var cancelled = false
+
+}
+
+// MARK: - FloatingOverlayVisibilityWorker
+
+/// Serializes the repeated WindowServer z-order probes used by suppression.
+/// The focus hook's one-shot synchronous decision remains on MainActor, but
+/// its 16 ms verification loop must never enqueue WindowServer work there.
+private final class FloatingOverlayVisibilityWorker: @unchecked Sendable {
+
+  // MARK: Internal
+
+  static func isVisuallyOnTop(_ input: FloatingOverlayVisibilityInput) -> Bool {
+    guard
+      let above = CGWindowListCopyWindowInfo(
+        .optionOnScreenAboveWindow,
+        input.windowID,
+      ) as? [[String: Any]]
+    else { return false }
+    for entry in above {
+      guard
+        (entry[kCGWindowLayer as String] as? Int) == 0,
+        let owner = entry[kCGWindowOwnerPID as String] as? pid_t,
+        !input.floatingPIDs.contains(owner),
+        ((entry[kCGWindowAlpha as String] as? Double) ?? 1) > 0,
+        let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat]
+      else { continue }
+      let rect = CGRect(
+        x: bounds["X"] ?? 0,
+        y: bounds["Y"] ?? 0,
+        width: bounds["Width"] ?? 0,
+        height: bounds["Height"] ?? 0,
+      )
+      if rect.intersects(input.frame) { return false }
+    }
+    return true
+  }
+
+  func isVisuallyOnTop(_ input: FloatingOverlayVisibilityInput) async -> Bool {
+    let cancellation = FloatingOverlayAXCancellationFlag()
+    return await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        queue.async {
+          continuation.resume(
+            returning: cancellation.isCancelled
+              ? false
+              : Self.isVisuallyOnTop(input)
+          )
+        }
+      }
+    } onCancel: {
+      cancellation.cancel()
+    }
+  }
+
+  // MARK: Private
+
+  private let queue = DispatchQueue(
+    label: "dev.PangMo5.Tatami.floating-overlay-visibility",
+    qos: .userInitiated,
+  )
+
+}
+
+// MARK: - FloatingOverlayAXWorker
+
+/// Owns every floating-mirror AX element, observer, frame read/write, and
+/// raise on one user-initiated run-loop thread. AppKit panels and capture
+/// surfaces remain exclusively on `MainActor`.
+private final class FloatingOverlayAXWorker: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  init(sink: @escaping GeometrySink) {
+    self.sink = sink
+    let thread = Thread { [weak self] in
+      self?.run()
+    }
+    thread.name = "dev.PangMo5.Tatami.ax-floating-overlay"
+    thread.qualityOfService = .userInitiated
+    self.thread = thread
+    thread.start()
+  }
+
+  // MARK: Internal
+
+  typealias GeometrySink = @MainActor @Sendable (FloatingOverlayGeometryUpdate) -> Void
+
+  /// Replace the worker-owned target set. A lock-backed cancellation flag
+  /// lets a newer MainActor generation stop an older AX pass between bounded
+  /// cross-process messages even before the worker run loop reaches the newer
+  /// reconcile block.
+  func reconcile(
+    _ keys: Set<WindowKey>,
+    generation: UInt64,
+  ) {
+    let cancellation = FloatingOverlayAXCancellationFlag()
+    let shouldEnqueue = reconcileLock.withLock { () -> Bool in
+      guard generation >= latestReconcileGeneration else { return false }
+      latestReconcileGeneration = generation
+      latestReconcileRequest = (keys, generation)
+      currentReconcile?.cancellation.cancel()
+      currentReconcile = (generation, cancellation)
+      return true
+    }
+    guard shouldEnqueue else { return }
+    enqueueReconcile(
+      keys,
+      generation: generation,
+      cancellation: cancellation,
+    )
+  }
+
+  /// Snap a drifted real window to its mirror geometry and AX-raise it.
+  /// Callers await completion so AppKit activation preserves the existing
+  /// raise-before-activate ordering without blocking the main actor.
+  func raise(
+    _ key: WindowKey,
+    targetFrame: CGRect?,
+  ) async -> Bool {
+    let cancellation = FloatingOverlayAXCancellationFlag()
+    let interruptedReconcile = reconcileLock.withLock { () -> Bool in
+      guard let currentReconcile else { return false }
+      currentReconcile.cancellation.cancel()
+      return true
+    }
+    return await withTaskCancellationHandler {
+      await perform {
+        let shouldActivate = self.raiseOnThread(
+          key,
+          targetFrame: targetFrame,
+          isValid: {
+            !cancellation.isCancelled
+              && self.isLatestRequestedTarget(key)
+          },
+        )
+        if interruptedReconcile {
+          self.restartLatestReconcileIfNeeded()
+        }
+        return shouldActivate
+      }
+    } onCancel: {
+      cancellation.cancel()
+    }
+  }
+
+  // MARK: Fileprivate
+
+  fileprivate func handleGeometryChange(_ element: AXUIElement) {
+    var windowID: CGWindowID = 0
+    guard
+      _AXUIElementGetWindow(element, &windowID) == .success,
+      let key = keyByWindowID[windowID],
+      targetKeys.contains(key)
+    else { return }
+    AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
+    if let frame = AXWindowGeometry.frame(of: element) {
+      pendingGeometryFrames[key] = frame
+      pendingGeometryFailures.remove(key)
+    } else {
+      pendingGeometryFrames[key] = nil
+      pendingGeometryFailures.insert(key)
+    }
+    scheduleGeometryDeliveryIfNeeded()
+  }
+
+  // MARK: Private
+
+  private static let messagingTimeout: Float = 0.25
+
+  private let sink: GeometrySink
+  private var thread: Thread?
+  private let schedulingLock = NSLock()
+  private nonisolated(unsafe) var runLoop: CFRunLoop!
+  private var pendingOperations = [@Sendable () -> Void]()
+
+  /// State below is confined to `runLoop`.
+  private var targetGeneration: UInt64 = 0
+  private var targetKeys = Set<WindowKey>()
+  private var elements = [WindowKey: AXUIElement]()
+  private var keyByWindowID = [CGWindowID: WindowKey]()
+  private var observers = [pid_t: AXObserver]()
+  private var subscribed = Set<WindowKey>()
+  private var pendingGeometryFrames = [WindowKey: CGRect]()
+  private var pendingGeometryFailures = Set<WindowKey>()
+  private var isGeometryDeliveryInFlight = false
+
+  /// Admission state is accessed from the MainActor caller and worker thread.
+  private let reconcileLock = NSLock()
+  private var latestReconcileGeneration: UInt64 = 0
+  private var latestReconcileRequest: (
+    keys: Set<WindowKey>,
+    generation: UInt64,
+  )?
+  private var currentReconcile: (
+    generation: UInt64,
+    cancellation: FloatingOverlayAXCancellationFlag,
+  )?
+
+  private func run() {
+    let workerRunLoop = CFRunLoopGetCurrent()
+    RunLoop.current.add(NSMachPort(), forMode: .common)
+    // Starting this worker must never park MainActor waiting for a new
+    // thread to be scheduled under system load. Queue early work locally,
+    // then publish the run loop and drain it in original admission order.
+    schedulingLock.withLock {
+      for operation in pendingOperations {
+        CFRunLoopPerformBlock(
+          workerRunLoop,
+          CFRunLoopMode.commonModes.rawValue,
+          operation,
+        )
+      }
+      pendingOperations.removeAll(keepingCapacity: true)
+      runLoop = workerRunLoop
+    }
+    CFRunLoopWakeUp(workerRunLoop)
+    while true {
+      autoreleasepool {
+        _ = CFRunLoopRunInMode(.defaultMode, 60, true)
+      }
+    }
+  }
+
+  private func perform<T: Sendable>(
+    _ operation: @escaping @Sendable () -> T
+  ) async -> T {
+    await withCheckedContinuation { continuation in
+      enqueue {
+        continuation.resume(returning: operation())
+      }
+    }
+  }
+
+  private func enqueue(_ operation: @escaping @Sendable () -> Void) {
+    let workerRunLoop = schedulingLock.withLock { () -> CFRunLoop? in
+      guard let runLoop else {
+        pendingOperations.append(operation)
+        return nil
+      }
+      // Schedule while holding the admission lock so an operation queued
+      // during startup cannot overtake the buffered operations above.
+      CFRunLoopPerformBlock(
+        runLoop,
+        CFRunLoopMode.commonModes.rawValue,
+        operation,
+      )
+      return runLoop
+    }
+    if let workerRunLoop {
+      CFRunLoopWakeUp(workerRunLoop)
+    }
+  }
+
+  private func enqueueReconcile(
+    _ keys: Set<WindowKey>,
+    generation: UInt64,
+    cancellation: FloatingOverlayAXCancellationFlag,
+  ) {
+    enqueue { [self] in
+      let update = reconcileOnThread(
+        keys,
+        generation: generation,
+        isCancelled: { cancellation.isCancelled },
+      )
+      let isLatest = reconcileLock.withLock { () -> Bool in
+        let latest = latestReconcileGeneration == generation
+        if currentReconcile?.cancellation === cancellation {
+          currentReconcile = nil
+        }
+        return latest
+      }
+      guard
+        let update,
+        isLatest,
+        !cancellation.isCancelled
+      else { return }
+      deliver(update)
+    }
+  }
+
+  /// Interactive raise work may interrupt a multi-window reconcile so it
+  /// waits behind at most the currently-blocking 250 ms AX message. Resume
+  /// the newest target snapshot as trailing work after the raise returns.
+  private func restartLatestReconcileIfNeeded() {
+    let request = reconcileLock.withLock {
+      () -> (
+        keys: Set<WindowKey>,
+        generation: UInt64,
+        cancellation: FloatingOverlayAXCancellationFlag
+      )? in
+      if
+        let currentReconcile,
+        !currentReconcile.cancellation.isCancelled
+      {
+        return nil
+      }
+      guard let latestReconcileRequest else { return nil }
+      let cancellation = FloatingOverlayAXCancellationFlag()
+      currentReconcile = (latestReconcileRequest.generation, cancellation)
+      return (
+        latestReconcileRequest.keys,
+        latestReconcileRequest.generation,
+        cancellation,
+      )
+    }
+    guard let request else { return }
+    enqueueReconcile(
+      request.keys,
+      generation: request.generation,
+      cancellation: request.cancellation,
+    )
+  }
+
+  private func isLatestRequestedTarget(_ key: WindowKey) -> Bool {
+    reconcileLock.withLock {
+      latestReconcileRequest?.keys.contains(key) == true
+    }
+  }
+
+  private func reconcileOnThread(
+    _ keys: Set<WindowKey>,
+    generation: UInt64,
+    isCancelled: @Sendable () -> Bool,
+  ) -> FloatingOverlayGeometryUpdate? {
+    guard generation >= targetGeneration, !isCancelled() else { return nil }
+    targetGeneration = generation
+    targetKeys = keys
+    pendingGeometryFrames.removeAll(keepingCapacity: true)
+    pendingGeometryFailures.removeAll(keepingCapacity: true)
+    removeStaleElements(isCancelled: isCancelled)
+    guard !isCancelled() else { return nil }
+    resolveMissingElements(keys, isCancelled: isCancelled)
+    ensureSubscriptions(isCancelled: isCancelled)
+    let frames = snapshotFrames(keys, isCancelled: isCancelled)
+    guard !isCancelled() else { return nil }
+    return FloatingOverlayGeometryUpdate(
+      generation: generation,
+      frames: frames,
+      invalidated: keys.subtracting(frames.keys),
+      replacesSnapshot: true,
+    )
+  }
+
+  private func resolveMissingElements(
+    _ keys: Set<WindowKey>,
+    isCancelled: @Sendable () -> Bool,
+  ) {
+    let missing = keys.filter { elements[$0] == nil }
+    for (pid, groupedKeys) in Dictionary(grouping: missing, by: \.pid) {
+      guard !isCancelled() else { return }
+      let app = AXUIElementCreateApplication(pid)
+      AXUIElementSetMessagingTimeout(app, Self.messagingTimeout)
+      var raw: CFTypeRef?
+      guard
+        AXUIElementCopyAttributeValue(
+          app,
+          kAXWindowsAttribute as CFString,
+          &raw,
+        ) == .success,
+        let windows = raw as? [AXUIElement]
+      else { continue }
+      var requested = [CGWindowID: WindowKey]()
+      for key in groupedKeys {
+        requested[key.windowID] = key
+      }
+      for window in windows {
+        guard !isCancelled() else { return }
+        AXUIElementSetMessagingTimeout(window, Self.messagingTimeout)
+        var windowID: CGWindowID = 0
+        guard
+          _AXUIElementGetWindow(window, &windowID) == .success,
+          let key = requested[windowID]
+        else { continue }
+        elements[key] = window
+        keyByWindowID[windowID] = key
+      }
+    }
+  }
+
+  private func ensureSubscriptions(
+    isCancelled: @Sendable () -> Bool
+  ) {
+    let refcon = Unmanaged.passUnretained(self).toOpaque()
+    let movedName = kAXWindowMovedNotification as CFString
+    let resizedName = kAXWindowResizedNotification as CFString
+    let accepted: (AXError) -> Bool = {
+      $0 == .success || $0 == .notificationAlreadyRegistered
+    }
+    for (key, element) in elements where targetKeys.contains(key) && !subscribed.contains(key) {
+      guard !isCancelled() else { return }
+      guard let observer = observer(for: key.pid) else { continue }
+      let moved = AXObserverAddNotification(
+        observer,
+        element,
+        movedName,
+        refcon,
+      )
+      guard accepted(moved) else { continue }
+      guard !isCancelled() else {
+        AXObserverRemoveNotification(observer, element, movedName)
+        return
+      }
+      let resized = AXObserverAddNotification(
+        observer,
+        element,
+        resizedName,
+        refcon,
+      )
+      guard accepted(resized), !isCancelled() else {
+        AXObserverRemoveNotification(observer, element, movedName)
+        if accepted(resized) {
+          AXObserverRemoveNotification(observer, element, resizedName)
+        }
+        if isCancelled() { return }
+        continue
+      }
+      subscribed.insert(key)
+    }
+  }
+
+  private func observer(for pid: pid_t) -> AXObserver? {
+    if let observer = observers[pid] { return observer }
+    var observer: AXObserver?
+    guard
+      AXObserverCreate(pid, floatingOverlayAXWorkerCallback, &observer) == .success,
+      let observer
+    else { return nil }
+    CFRunLoopAddSource(
+      runLoop,
+      AXObserverGetRunLoopSource(observer),
+      .commonModes,
+    )
+    observers[pid] = observer
+    return observer
+  }
+
+  private func snapshotFrames(
+    _ keys: Set<WindowKey>,
+    isCancelled: @Sendable () -> Bool,
+  ) -> [WindowKey: CGRect] {
+    var frames = [WindowKey: CGRect]()
+    for key in keys {
+      guard !isCancelled() else { break }
+      guard let element = elements[key] else { continue }
+      AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
+      if let frame = AXWindowGeometry.frame(of: element) {
+        frames[key] = frame
+      }
+    }
+    return frames
+  }
+
+  private func removeStaleElements(
+    isCancelled: @Sendable () -> Bool
+  ) {
+    for key in Array(elements.keys) where !targetKeys.contains(key) {
+      guard !isCancelled() else { return }
+      if
+        subscribed.remove(key) != nil,
+        let element = elements[key],
+        let observer = observers[key.pid]
+      {
+        AXObserverRemoveNotification(
+          observer,
+          element,
+          kAXWindowMovedNotification as CFString,
+        )
+        AXObserverRemoveNotification(
+          observer,
+          element,
+          kAXWindowResizedNotification as CFString,
+        )
+      }
+      elements[key] = nil
+      keyByWindowID[key.windowID] = nil
+      pendingGeometryFrames[key] = nil
+      pendingGeometryFailures.remove(key)
+    }
+    let activePIDs = Set(targetKeys.map(\.pid))
+    for pid in Array(observers.keys) where !activePIDs.contains(pid) {
+      guard !isCancelled() else { return }
+      guard let observer = observers.removeValue(forKey: pid) else { continue }
+      CFRunLoopRemoveSource(
+        runLoop,
+        AXObserverGetRunLoopSource(observer),
+        .commonModes,
+      )
+    }
+  }
+
+  private func raiseOnThread(
+    _ key: WindowKey,
+    targetFrame: CGRect?,
+    isValid: @Sendable () -> Bool,
+  ) -> Bool {
+    guard isValid() else { return false }
+    if elements[key] == nil {
+      resolveMissingElements([key], isCancelled: { !isValid() })
+    }
+    guard isValid() else { return false }
+    // Preserve the existing best-effort fallback: even when AX cannot
+    // resolve the exact window, AppKit may still activate the owning app.
+    guard let element = elements[key] else { return true }
+    AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
+    if let targetFrame {
+      let current = AXWindowGeometry.frame(of: element)
+      guard isValid() else { return false }
+      let drifted = current.map {
+        abs($0.minX - targetFrame.minX) > 1
+          || abs($0.minY - targetFrame.minY) > 1
+          || abs($0.width - targetFrame.width) > 1
+          || abs($0.height - targetFrame.height) > 1
+      } ?? true
+      if drifted {
+        guard isValid() else { return false }
+        // Position + size are one logical mutation. Once the first write
+        // begins, finish the pair so cancellation cannot leave a half-frame.
+        AXWindowGeometry.setFrame(element, to: targetFrame)
+      }
+    }
+    guard isValid() else { return false }
+    AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+    return isValid()
+  }
+
+  private func scheduleGeometryDeliveryIfNeeded() {
+    guard
+      !isGeometryDeliveryInFlight,
+      !pendingGeometryFrames.isEmpty || !pendingGeometryFailures.isEmpty
+    else { return }
+    let frames = pendingGeometryFrames
+    let failures = pendingGeometryFailures
+    let generation = targetGeneration
+    pendingGeometryFrames.removeAll(keepingCapacity: true)
+    pendingGeometryFailures.removeAll(keepingCapacity: true)
+    isGeometryDeliveryInFlight = true
+    let sink = sink
+    DispatchQueue.main.async { [weak self] in
+      MainActor.assumeIsolated {
+        sink(
+          FloatingOverlayGeometryUpdate(
+            generation: generation,
+            frames: frames,
+            invalidated: failures,
+            replacesSnapshot: false,
+          )
+        )
+      }
+      self?.enqueue { [weak self] in
+        guard let self else { return }
+        isGeometryDeliveryInFlight = false
+        scheduleGeometryDeliveryIfNeeded()
+      }
+    }
+  }
+
+  private func deliver(_ update: FloatingOverlayGeometryUpdate) {
+    let sink = sink
+    // Both full snapshots and observer deltas originate on this one worker
+    // thread. The main queue preserves their submission order, unlike
+    // independent unstructured MainActor tasks.
+    DispatchQueue.main.async {
+      MainActor.assumeIsolated {
+        sink(update)
+      }
+    }
+  }
+
+}
+
+private func floatingOverlayAXWorkerCallback(
+  observer _: AXObserver,
+  element: AXUIElement,
+  notification _: CFString,
+  refcon: UnsafeMutableRawPointer?,
+) {
+  guard let refcon else { return }
+  let worker = Unmanaged<FloatingOverlayAXWorker>.fromOpaque(refcon).takeUnretainedValue()
+  worker.handleGeometryChange(element)
+}
+
 // MARK: - FloatingOverlayController
 
 @MainActor
@@ -31,7 +648,17 @@ final class FloatingOverlayController {
   func setFloating(_ windows: Set<WindowKey>) {
     let changed = desired != windows
     if !changed {
-      if addTask != nil || windows.allSatisfy({ panels[$0] != nil }) { return }
+      if
+        addTask != nil
+        || (
+          appliedGeometryGeneration == geometryGeneration
+            && windows.allSatisfy {
+              panels[$0] != nil && lastFrame[$0] != nil
+            }
+        )
+      {
+        return
+      }
     } else {
       desired = windows
       // A replacement set supersedes expensive ScreenCaptureKit discovery
@@ -40,8 +667,8 @@ final class FloatingOverlayController {
       addTask?.cancel()
       addTask = nil
     }
-    for key in panels.keys where !windows.contains(key) {
-      removeWindow(key)
+    for key in Array(panels.keys) where !windows.contains(key) {
+      removeWindow(key, reconcileAX: false)
     }
     let toAdd = windows.filter { panels[$0] == nil }
     if !toAdd.isEmpty {
@@ -54,7 +681,7 @@ final class FloatingOverlayController {
         addTask = nil
       }
     }
-    syncFrames()
+    requestGeometryReconcile()
     // Retained panels may have been created by the task we just cancelled.
     // Keep their global lifecycle hooks valid; a fresh add task owns hooks for
     // panels that do not exist yet.
@@ -73,8 +700,12 @@ final class FloatingOverlayController {
       addTask?.cancel()
       addTask = nil
     }
-    for key in panels.keys where !bundleIds.contains(key.bundleId) {
-      removeWindow(key)
+    let removedKeys = panels.keys.filter { !bundleIds.contains($0.bundleId) }
+    for key in removedKeys {
+      removeWindow(key, reconcileAX: false)
+    }
+    if !removedKeys.isEmpty {
+      requestGeometryReconcile()
     }
   }
 
@@ -114,13 +745,6 @@ final class FloatingOverlayController {
     return needsCommit
   }
 
-  // MARK: Fileprivate
-
-  fileprivate func handleGeometryChange(windowID: CGWindowID) {
-    guard let key = panels.keys.first(where: { $0.windowID == windowID }) else { return }
-    refresh(key)
-  }
-
   // MARK: Private
 
   /// The only time-based values in the overlay — everything else is
@@ -136,6 +760,13 @@ final class FloatingOverlayController {
     /// Cosmetic fade for a verified hide — runs strictly after the
     /// z-order check, so its length is taste, not correctness.
     static let hideFade: TimeInterval = 0.08
+    /// Failure-only retry cadence for a moved/resized frame that timed out.
+    /// Successful geometry never waits on this path.
+    static let geometryRetryStep = Duration.milliseconds(250)
+    static let geometryRetryMaxSteps = 4
+    /// Capture startup failures use the same bounded, failure-only cadence.
+    static let captureRetryStep = Duration.milliseconds(250)
+    static let captureRetryMaxSteps = 4
   }
 
   private var panels = [WindowKey: NSPanel]()
@@ -151,16 +782,32 @@ final class FloatingOverlayController {
   /// instead of letting several captures enumerate shareable content in parallel.
   private var addTask: Task<Void, Never>?
   private var addGeneration = 0
-  /// Resolved `AXUIElement` per mirrored window — used to read the live
-  /// frame and to raise the real window on interaction. AX calls are
-  /// synchronous cross-process IPC and must stay on the main thread, so we
-  /// resolve each window's element once and reuse it.
-  private var axWindowCache = [WindowKey: AXUIElement]()
-  /// One `AXObserver` per owning pid for `kAXWindowMoved` / `kAXWindowResized`
-  /// so mirrors follow their window event-driven, with no polling timer.
-  private var axObservers = [pid_t: AXObserver]()
-  private var subscribed = Set<WindowKey>()
+  /// Cross-process Accessibility ownership lives entirely on this worker.
+  /// Its sink carries immutable CGRect snapshots back to the UI actor.
+  private lazy var axWorker = FloatingOverlayAXWorker { [weak self] update in
+    self?.applyGeometryUpdate(update)
+  }
+
+  private let visibilityWorker = FloatingOverlayVisibilityWorker()
+
+  private var geometryGeneration: UInt64 = 0
+  private var appliedGeometryGeneration: UInt64?
   private var lastFrame = [WindowKey: NSRect]()
+  /// A moved/resized notification arrived but the final AX frame read failed.
+  /// Keep that panel out of the event path until a fresh snapshot succeeds.
+  private var geometryUnavailable = Set<WindowKey>()
+  private var geometryRetryTasks = [WindowKey: Task<Void, Never>]()
+  /// A capture restart failed or was aborted while this mirror still needed
+  /// to be visible. Keep it out of both z-order and event routing until an
+  /// exact-stream fresh-frame callback succeeds.
+  private var captureUnavailable = Set<WindowKey>()
+  private var captureRetryTasks = [WindowKey: Task<Void, Never>]()
+  private var captureRetryAttempts = [WindowKey: Int]()
+  /// Mirror interactions retain the old raise-before-AppKit-activate order,
+  /// but only the latest hover/click request may complete the activation.
+  private var activationTask: Task<Void, Never>?
+  private var activationGeneration: UInt64 = 0
+  private var activationKey: WindowKey?
   /// Mirrors currently hidden (click-through, stream stopped): the
   /// focused floating app's own windows, plus — while a float holds
   /// focus — sibling floats whose real window isn't covered by any tile,
@@ -172,6 +819,10 @@ final class FloatingOverlayController {
   /// the focused window's raise is verified — ordering a panel against
   /// an unverified raise was the source of the old demotion blinks.
   private var demoted = Set<WindowKey>()
+  /// The real focused window each demoted sibling is ordered beneath.
+  /// Geometry recovery uses the same anchor instead of accidentally lifting
+  /// the recovered sibling into the floating band.
+  private var demotionAnchors = [WindowKey: WindowKey]()
   /// In-flight fade-out task per window.
   private var hideTasks = [WindowKey: Task<Void, Never>]()
   /// `NSWorkspace.didActivateApplicationNotification` subscription — the
@@ -185,7 +836,7 @@ final class FloatingOverlayController {
   private var cursorMonitor: Any?
   /// Cursor-inside state per suppressed window — the restore acts on the
   /// inside→outside *edge*, not the level.
-  private var cursorInside: [WindowKey: Bool] = [:]
+  private var cursorInside = [WindowKey: Bool]()
   /// Listen-only mouse-down tap (created in `init`, enabled while panels
   /// exist): a click outside every suppressed floating window restores the
   /// mirrors *before* the clicked app raises. Covers the focus changes
@@ -195,7 +846,20 @@ final class FloatingOverlayController {
   private var clickTap: MirrorClickTap?
   private let debugLog: DebugLogClient
 
-  private var maxFPS: Int { NSScreen.main?.maximumFramesPerSecond ?? 60 }
+  /// Floating pids by focus recency, most recent first. Mirrors stack in
+  /// this order: the focused floating app on top, then the last-focused
+  /// floating app, and so on.
+  private var floatingMRU = [pid_t]()
+
+  /// pid of the floating app that currently holds focus, if any. Gates
+  /// the cursor-exit restore: only the focused float's mirror returns
+  /// when the cursor leaves it — a hidden unoccluded sibling must not
+  /// pop its mirror back just because the cursor brushed across it.
+  private var focusedFloatPid: pid_t?
+
+  private var maxFPS: Int {
+    NSScreen.main?.maximumFramesPerSecond ?? 60
+  }
 
   private func addMirrors(for keys: Set<WindowKey>) async {
     let content: SCShareableContent
@@ -225,16 +889,26 @@ final class FloatingOverlayController {
       // that ran mid-await couldn't remove a panel that didn't exist yet).
       guard !Task.isCancelled else { return }
       guard desired.contains(key), panels[key] == nil else { continue }
-      guard let scWindow = byID[key.windowID] else {
+      guard
+        let scWindow = byID[key.windowID],
+        scWindow.owningApplication?.processID == key.pid
+      else {
         debugLog.log(
           "Mirror",
-          "no SCWindow for \(key.bundleId)#\(key.windowID) — mirror skipped"
+          "no owner-matched SCWindow for \(key.bundleId)#\(key.windowID) — mirror skipped",
         )
         continue
       }
       let capture = WindowMirrorCapture()
       let panel = makePanel(for: key, capture: capture)
-      await capture.start(window: scWindow, maxFPS: maxFPS)
+      guard await capture.start(window: scWindow, maxFPS: maxFPS) else {
+        debugLog.log(
+          "Mirror",
+          "capture start failed \(key.bundleId)#\(key.windowID) — mirror skipped",
+        )
+        panel.orderOut(nil)
+        continue
+      }
       // Commit the panel only after capture startup succeeds and this request
       // is still current. Publishing it before the await let a replacement
       // set observe a half-created panel, cancel its owner, and then skip
@@ -258,7 +932,7 @@ final class FloatingOverlayController {
     guard !Task.isCancelled else { return }
     ensureActivationObserver()
     clickTap?.setEnabled(!panels.isEmpty)
-    syncFrames()
+    requestGeometryReconcile()
   }
 
   private func makePanel(for key: WindowKey, capture: WindowMirrorCapture) -> NSPanel {
@@ -266,7 +940,7 @@ final class FloatingOverlayController {
       contentRect: .zero,
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
-      defer: false
+      defer: false,
     )
     panel.isOpaque = false
     panel.backgroundColor = .clear
@@ -294,22 +968,33 @@ final class FloatingOverlayController {
       // Demoted gate: tracking areas fire on geometry, not occlusion — a
       // demoted mirror tucked *below* the focused float's real window
       // still gets mouseEntered at their overlap, and must not react.
-      guard let self, hovering,
-            !self.suppressed.contains(key), !self.demoted.contains(key)
+      guard
+        let self, hovering,
+        !self.suppressed.contains(key),
+        !self.demoted.contains(key),
+        !self.geometryUnavailable.contains(key),
+        !self.captureUnavailable.contains(key)
       else { return }
       // With focus-follows-mouse off, hover must not move focus (that
       // would be FFM in disguise, just for floats) — the mirror stays up
       // and scrolls forward via `onScroll`; focus moves on click. The
       // focused app's own mirror still hands back on hover: revealing the
       // real window of the app that already has focus moves no focus.
-      guard self.hoverActivates
+      guard
+        hoverActivates
         || NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid
       else { return }
-      self.activateRealWindow(key)
+      activateRealWindow(key)
     }
     view.onClick = { [weak self] in
-      guard let self, !self.suppressed.contains(key), !self.demoted.contains(key) else { return }
-      self.activateRealWindow(key)
+      guard
+        let self,
+        !self.suppressed.contains(key),
+        !self.demoted.contains(key),
+        !self.geometryUnavailable.contains(key),
+        !self.captureUnavailable.contains(key)
+      else { return }
+      activateRealWindow(key)
     }
     // Input parity with real windows: with FFM off the mirror sits under
     // the cursor, so scrolls, clicks, and drags land on the panel. Repost
@@ -319,12 +1004,18 @@ final class FloatingOverlayController {
     // (scrolls only started working after a click, i.e. once the handover
     // made them native). The real window sits at exactly the mirror's
     // frame, so the event's global location needs no translation.
-    view.onForwardEvent = { event in
+    view.onForwardEvent = { [weak self] event in
+      guard
+        let self,
+        !self.geometryUnavailable.contains(key),
+        !self.captureUnavailable.contains(key)
+      else { return }
       guard let cg = event.cgEvent?.copy() else { return }
       // 51 = the CGS event-record window id (the field the window server
       // stamps on routed events; same one yabai sets on synthetic clicks).
       cg.setIntegerValueField(
-        CGEventField(rawValue: 51)!, value: Int64(key.windowID)
+        CGEventField(rawValue: 51)!,
+        value: Int64(key.windowID),
       )
       cg.postToPid(key.pid)
     }
@@ -332,17 +1023,20 @@ final class FloatingOverlayController {
     return panel
   }
 
-  /// Drop a window's mirror panel, capture stream, and AX subscription.
-  private func removeWindow(_ key: WindowKey) {
+  /// Drop a window's mirror panel and capture stream. AX resources are owned
+  /// by the worker and reconcile asynchronously from the remaining panel set.
+  private func removeWindow(
+    _ key: WindowKey,
+    reconcileAX: Bool = true,
+  ) {
     if panels[key] != nil {
       debugLog.log("Mirror", "removed \(key.bundleId)#\(key.windowID)")
     }
-    if subscribed.remove(key) != nil,
-       let element = axWindowCache[key],
-       let observer = axObservers[key.pid]
-    {
-      AXObserverRemoveNotification(observer, element, kAXWindowMovedNotification as CFString)
-      AXObserverRemoveNotification(observer, element, kAXWindowResizedNotification as CFString)
+    if activationKey == key {
+      activationGeneration &+= 1
+      activationTask?.cancel()
+      activationTask = nil
+      activationKey = nil
     }
     captures[key]?.stop()
     captures.removeValue(forKey: key)
@@ -352,10 +1046,22 @@ final class FloatingOverlayController {
     }
     panels.removeValue(forKey: key)
     lastFrame.removeValue(forKey: key)
-    axWindowCache.removeValue(forKey: key)
+    geometryUnavailable.remove(key)
+    geometryRetryTasks.removeValue(forKey: key)?.cancel()
+    captureUnavailable.remove(key)
+    captureRetryTasks.removeValue(forKey: key)?.cancel()
+    captureRetryAttempts.removeValue(forKey: key)
     hideTasks.removeValue(forKey: key)?.cancel()
     suppressed.remove(key)
     demoted.remove(key)
+    demotionAnchors.removeValue(forKey: key)
+    let orphanedDemotions = demotionAnchors.compactMap { entry in
+      entry.value == key ? entry.key : nil
+    }
+    for sibling in orphanedDemotions {
+      demoted.remove(sibling)
+      demotionAnchors.removeValue(forKey: sibling)
+    }
     cursorInside.removeValue(forKey: key)
     syncSuppressedFrames()
     removeCursorMonitorIfIdle()
@@ -365,26 +1071,16 @@ final class FloatingOverlayController {
       focusedFloatPid = nil
     }
     if panels.isEmpty { clickTap?.setEnabled(false) }
-    if !panels.keys.contains(where: { $0.pid == key.pid }),
-       let observer = axObservers.removeValue(forKey: key.pid)
-    {
-      CFRunLoopRemoveSource(
-        CFRunLoopGetMain(),
-        AXObserverGetRunLoopSource(observer),
-        .defaultMode
-      )
-    }
     if panels.isEmpty { removeActivationObserver() }
+    if reconcileAX { requestGeometryReconcile() }
   }
-
-  // MARK: - Activation-driven visibility
 
   private func ensureActivationObserver() {
     guard appActivationObserver == nil, !panels.isEmpty else { return }
     appActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
       forName: NSWorkspace.didActivateApplicationNotification,
       object: nil,
-      queue: .main
+      queue: .main,
     ) { [weak self] note in
       let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
         .processIdentifier
@@ -401,11 +1097,6 @@ final class FloatingOverlayController {
       appActivationObserver = nil
     }
   }
-
-  /// Floating pids by focus recency, most recent first. Mirrors stack in
-  /// this order: the focused floating app on top, then the last-focused
-  /// floating app, and so on.
-  private var floatingMRU: [pid_t] = []
 
   /// The active app changed — mirrors of the now-active app hide. What
   /// happens to the *other* mirrors depends on who took focus:
@@ -447,12 +1138,6 @@ final class FloatingOverlayController {
     applyStackOrder(liftDemoted: !targetIsFloating)
   }
 
-  /// pid of the floating app that currently holds focus, if any. Gates
-  /// the cursor-exit restore: only the focused float's mirror returns
-  /// when the cursor leaves it — a hidden unoccluded sibling must not
-  /// pop its mirror back just because the cursor brushed across it.
-  private var focusedFloatPid: pid_t?
-
   /// Record `pid` as the focus target: track whether a float holds focus
   /// and bump it in the floating recency order.
   private func noteFocus(_ pid: pid_t) {
@@ -471,11 +1156,19 @@ final class FloatingOverlayController {
   /// them here only to re-demote after the next raise verification would
   /// flap them across levels).
   private func applyStackOrder(liftDemoted: Bool = true) {
-    if liftDemoted { demoted.removeAll() }
+    if liftDemoted {
+      demoted.removeAll()
+      demotionAnchors.removeAll()
+    }
     let ordered = panels.keys.sorted { mruIndex($0.pid) < mruIndex($1.pid) }
     var previousNumber: Int?
     for key in ordered {
-      guard let panel = panels[key], !suppressed.contains(key) else { continue }
+      guard
+        let panel = panels[key],
+        !suppressed.contains(key),
+        !geometryUnavailable.contains(key),
+        !captureUnavailable.contains(key)
+      else { continue }
       if demoted.contains(key) { continue }
       panel.level = .floating
       if let previousNumber {
@@ -496,12 +1189,18 @@ final class FloatingOverlayController {
   /// cursor at overlaps.
   private func demoteVisibleSiblings(below key: WindowKey) {
     let siblings = panels.keys
-      .filter { $0.pid != key.pid && !suppressed.contains($0) }
+      .filter {
+        $0.pid != key.pid
+          && !suppressed.contains($0)
+          && !geometryUnavailable.contains($0)
+          && !captureUnavailable.contains($0)
+      }
       .sorted { mruIndex($0.pid) < mruIndex($1.pid) }
     var previousNumber: Int?
     for sibling in siblings {
       guard let panel = panels[sibling] else { continue }
       demoted.insert(sibling)
+      demotionAnchors[sibling] = key
       panel.level = .normal
       panel.order(.below, relativeTo: previousNumber ?? Int(key.windowID))
       previousNumber = panel.windowNumber
@@ -518,9 +1217,12 @@ final class FloatingOverlayController {
   /// over the focused float — and hidden (suppressed) panels have nothing
   /// to order.
   private func applyOrdering(_ key: WindowKey) {
-    guard let panel = panels[key],
-          !demoted.contains(key),
-          !suppressed.contains(key)
+    guard
+      let panel = panels[key],
+      !demoted.contains(key),
+      !suppressed.contains(key),
+      !geometryUnavailable.contains(key),
+      !captureUnavailable.contains(key)
     else { return }
     panel.level = .floating
     if !panel.isVisible { panel.orderFrontRegardless() }
@@ -542,52 +1244,63 @@ final class FloatingOverlayController {
     syncSuppressedFrames()
     panel.ignoresMouseEvents = true
     ensureCursorMonitor()
+    captureRetryTasks.removeValue(forKey: key)?.cancel()
+    captureRetryAttempts.removeValue(forKey: key)
     hideTasks.removeValue(forKey: key)?.cancel()
     hideTasks[key] = Task { @MainActor [weak self] in
       // Wait for the raise to land (almost always 0–2 iterations). Bail
       // out — mirror stays up, truthfully — if it never does.
       var raised = false
       for _ in 0..<Timing.verifyMaxSteps {
-        guard let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
-        if self.isVisuallyOnTop(key) {
+        guard let self, !Task.isCancelled, suppressed.contains(key) else { return }
+        let input = visibilityInput(for: key)
+        let isOnTop =
+          if let input {
+            await visibilityWorker.isVisuallyOnTop(input)
+          } else {
+            false
+          }
+        guard !Task.isCancelled, suppressed.contains(key) else { return }
+        if isOnTop {
           raised = true
           break
         }
         try? await Task.sleep(for: Timing.verifyStep)
       }
-      guard let self, !Task.isCancelled, self.suppressed.contains(key) else { return }
+      guard let self, !Task.isCancelled, suppressed.contains(key) else { return }
       if !raised {
         // The mirror stays visible (truthfully) — when a float "won't hide",
         // this is the path that decided so.
-        self.debugLog.log(
+        debugLog.log(
           "Mirror",
-          "suppress \(key.bundleId)#\(key.windowID): raise never verified — mirror stays"
+          "suppress \(key.bundleId)#\(key.windowID): raise never verified — mirror stays",
         )
         return
       }
       // The focused window is verifiably above the tiles — now (and only
       // now) it's safe to slot still-mirrored siblings underneath it.
-      if key.pid == self.focusedFloatPid {
-        self.demoteVisibleSiblings(below: key)
+      if key.pid == focusedFloatPid {
+        demoteVisibleSiblings(below: key)
       }
       await NSAnimationContext.runAnimationGroup { ctx in
         ctx.duration = Timing.hideFade
         panel.animator().alphaValue = 0
       }
-      guard !Task.isCancelled, self.suppressed.contains(key) else { return }
+      guard !Task.isCancelled, suppressed.contains(key) else { return }
       // Back the layer with a still of the last frame first: a focus
       // change can force this panel visible before the stream restarts,
       // and an imageless layer would let whatever raised behind it show
       // through.
-      if let capture = self.captures[key],
-         let still = capture.stillImage(),
-         let view = panel.contentView as? MirrorView
+      if
+        let capture = captures[key],
+        let still = capture.stillImage(),
+        let view = panel.contentView as? MirrorView
       {
         view.setStill(still)
       }
       // Stop the stream: it keeps the screen-recording indicator lit, and
       // while the mirror is hidden nothing is painted.
-      self.captures[key]?.stop()
+      captures[key]?.stop()
     }
   }
 
@@ -597,25 +1310,21 @@ final class FloatingOverlayController {
   /// holds focus, the floats sort themselves through native activation
   /// z-order, so a sibling float above is never a reason to keep a mirror.
   private func isVisuallyOnTop(_ key: WindowKey) -> Bool {
-    guard let above = CGWindowListCopyWindowInfo(
-      .optionOnScreenAboveWindow, key.windowID
-    ) as? [[String: Any]] else { return true }
-    guard let frame = lastFrame[key].map(AXWindowGeometry.flipToCG) else { return true }
-    let floatingPids = Set(panels.keys.map(\.pid))
-    for entry in above {
-      guard (entry[kCGWindowLayer as String] as? Int) == 0,
-            let owner = entry[kCGWindowOwnerPID as String] as? pid_t,
-            !floatingPids.contains(owner),
-            ((entry[kCGWindowAlpha as String] as? Double) ?? 1) > 0,
-            let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat]
-      else { continue }
-      let rect = CGRect(
-        x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0,
-        width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0
-      )
-      if rect.intersects(frame) { return false }
-    }
-    return true
+    guard let input = visibilityInput(for: key) else { return false }
+    return FloatingOverlayVisibilityWorker.isVisuallyOnTop(input)
+  }
+
+  private func visibilityInput(
+    for key: WindowKey
+  ) -> FloatingOverlayVisibilityInput? {
+    // Missing geometry is "unknown", never verified-on-top. Keeping the
+    // mirror is the truthful fallback; hiding it could expose a tile.
+    guard let frame = lastFrame[key].map(AXWindowGeometry.flipToCG) else { return nil }
+    return FloatingOverlayVisibilityInput(
+      windowID: key.windowID,
+      frame: frame,
+      floatingPIDs: Set(panels.keys.map(\.pid)),
+    )
   }
 
   /// Show `key`'s mirror again.
@@ -631,7 +1340,7 @@ final class FloatingOverlayController {
   private func restoreMirror(
     _ key: WindowKey,
     waitForFrame: Bool = false,
-    onShown: (() -> Void)? = nil
+    onShown: (() -> Void)? = nil,
   ) {
     guard suppressed.contains(key) else { return }
     // Funnel for every restore path (focus handlers, click tap, cursor
@@ -641,7 +1350,7 @@ final class FloatingOverlayController {
     guard windowExists(key) else {
       debugLog.log(
         "Mirror",
-        "restore \(key.bundleId)#\(key.windowID): window gone — removing"
+        "restore \(key.bundleId)#\(key.windowID): window gone — removing",
       )
       removeWindow(key)
       onShown?()
@@ -649,7 +1358,7 @@ final class FloatingOverlayController {
     }
     debugLog.log(
       "Mirror",
-      "restore \(key.bundleId)#\(key.windowID) waitForFrame=\(waitForFrame)"
+      "restore \(key.bundleId)#\(key.windowID) waitForFrame=\(waitForFrame)",
     )
     suppressed.remove(key)
     cursorInside.removeValue(forKey: key)
@@ -660,19 +1369,34 @@ final class FloatingOverlayController {
       onShown?()
       return
     }
+    guard !geometryUnavailable.contains(key), lastFrame[key] != nil else {
+      panel.ignoresMouseEvents = true
+      scheduleGeometryRecovery(for: key)
+      return
+    }
+    guard !captureUnavailable.contains(key) else {
+      panel.ignoresMouseEvents = true
+      scheduleCaptureRecovery(for: key)
+      return
+    }
     panel.ignoresMouseEvents = false
     let capture = captures[key]
     if waitForFrame, let capture, !capture.isRunning {
       Task {
-        await capture.resume(maxFPS: maxFPS) { [weak self] in
-          self?.showPanel(key)
+        await capture.resume(maxFPS: maxFPS) { [weak self] outcome in
+          guard let self, acceptCaptureOutcome(outcome, for: key) else { return }
+          showPanel(key)
           onShown?()
         }
       }
     } else {
       showPanel(key)
       if let capture, !capture.isRunning {
-        Task { await capture.resume(maxFPS: maxFPS) }
+        Task {
+          await capture.resume(maxFPS: maxFPS) { [weak self] outcome in
+            _ = self?.acceptCaptureOutcome(outcome, for: key)
+          }
+        }
       }
       onShown?()
     }
@@ -684,15 +1408,21 @@ final class FloatingOverlayController {
   /// can't finish later and strand the mirror invisible. No-op while the
   /// key is (re-)suppressed.
   private func showPanel(_ key: WindowKey) {
-    guard !suppressed.contains(key), let panel = panels[key] else { return }
+    guard
+      !suppressed.contains(key),
+      !geometryUnavailable.contains(key),
+      !captureUnavailable.contains(key),
+      lastFrame[key] != nil,
+      let panel = panels[key]
+    else { return }
     panel.alphaValue = 1
+    panel.ignoresMouseEvents = false
     NSAnimationContext.runAnimationGroup { ctx in
       ctx.duration = 0
       panel.animator().alphaValue = 1
     }
+    registerMirrorTarget(for: key)
   }
-
-  // MARK: - Cursor-exit restore
 
   private func ensureCursorMonitor() {
     guard cursorMonitor == nil else { return }
@@ -719,7 +1449,12 @@ final class FloatingOverlayController {
       // leaves it. A hidden unoccluded sibling stays hidden — its real
       // window shows itself, and brushing the cursor across it must not
       // pop a mirror.
-      guard key.pid == focusedFloatPid, let panel = panels[key] else { continue }
+      guard
+        key.pid == focusedFloatPid,
+        !geometryUnavailable.contains(key),
+        !captureUnavailable.contains(key),
+        let panel = panels[key]
+      else { continue }
       let inside = panel.frame.contains(cursor)
       let wasInside = cursorInside[key] ?? true
       cursorInside[key] = inside
@@ -744,36 +1479,37 @@ final class FloatingOverlayController {
 
   /// Bring the mirrored window's real counterpart to the front and focus it.
   private func activateRealWindow(_ key: WindowKey) {
+    guard panels[key] != nil else { return }
     debugLog.log("FocusDiag", "mirror hover/click activate \(key.bundleId)#\(key.windowID)")
-    raiseAXWindow(key)
-    NSRunningApplication(processIdentifier: key.pid)?
-      .activate()
-    // An already-frontmost app fires no didActivate notification — settle
-    // the suppression state directly (e.g. a mirror restored by a menu-bar
-    // click while its app stayed active would otherwise stay up as an
-    // event-eating picture over the live window).
-    if NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid {
-      handleAppActivated(key.pid)
+    activationGeneration &+= 1
+    let generation = activationGeneration
+    activationTask?.cancel()
+    activationKey = key
+    let targetFrame = lastFrame[key].map(AXWindowGeometry.flipToCG)
+    let worker = axWorker
+    activationTask = Task { @MainActor [weak self] in
+      let shouldActivate = await worker.raise(key, targetFrame: targetFrame)
+      guard
+        let self,
+        shouldActivate,
+        !Task.isCancelled,
+        activationGeneration == generation,
+        panels[key] != nil
+      else { return }
+      NSRunningApplication(processIdentifier: key.pid)?
+        .activate()
+      // An already-frontmost app fires no didActivate notification — settle
+      // the suppression state directly (e.g. a mirror restored by a menu-bar
+      // click while its app stayed active would otherwise stay up as an
+      // event-eating picture over the live window).
+      if NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid {
+        handleAppActivated(key.pid)
+      }
+      if activationGeneration == generation {
+        activationTask = nil
+        activationKey = nil
+      }
     }
-  }
-
-  /// Snap a drifted real window back to its mirror's frame and AX-raise it.
-  /// In no-park mode the real window already sits at the mirror's frame, so
-  /// the snap only writes when the two have actually drifted — a redundant
-  /// AX move/resize makes some apps redraw, which reads as a flicker.
-  private func raiseAXWindow(_ key: WindowKey) {
-    ensureAXCacheCoversPanels()
-    guard let element = axWindowCache[key] else { return }
-    if let cocoa = lastFrame[key] {
-      let target = AXWindowGeometry.flipToCG(cocoa)
-      let current = AXWindowGeometry.frame(of: element)
-      let drifted = current.map {
-        abs($0.minX - target.minX) > 1 || abs($0.minY - target.minY) > 1
-          || abs($0.width - target.width) > 1 || abs($0.height - target.height) > 1
-      } ?? true
-      if drifted { AXWindowGeometry.setFrame(element, to: target) }
-    }
-    AXUIElementPerformAction(element, kAXRaiseAction as CFString)
   }
 
   /// A mouse-down landed outside every suppressed floating window — focus
@@ -798,34 +1534,57 @@ final class FloatingOverlayController {
   private func windowExists(_ key: WindowKey) -> Bool {
     let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, key.windowID)
       as? [[String: Any]]
-    return !(list ?? []).isEmpty
+    return (list ?? []).contains { entry in
+      (entry[kCGWindowNumber as String] as? CGWindowID) == key.windowID
+        && (entry[kCGWindowOwnerPID as String] as? pid_t) == key.pid
+    }
   }
 
   /// Publish the suppressed windows' frames (CG coordinates) for the
   /// mouse-down tap, which runs off the main thread.
   private func syncSuppressedFrames() {
-    var frames: [CGWindowID: CGRect] = [:]
+    var frames = [CGWindowID: CGRect]()
     for key in suppressed {
       if let cocoa = lastFrame[key] { frames[key.windowID] = AXWindowGeometry.flipToCG(cocoa) }
     }
     MirrorWindowRegistry.shared.setSuppressedFrames(frames)
   }
 
-  // MARK: - Frame sync
-
-  /// Full pass: resolve elements, (re)subscribe AX geometry notifications,
-  /// then position every mirror. Called on target changes; the per-window AX
-  /// observer drives every reposition in between.
-  private func syncFrames() {
-    ensureAXCacheCoversPanels()
-    ensureSubscriptions()
-    for key in Array(panels.keys) { refresh(key) }
+  private func requestGeometryReconcile() {
+    geometryGeneration &+= 1
+    axWorker.reconcile(
+      Set(panels.keys),
+      generation: geometryGeneration,
+    )
   }
 
-  /// Position + (re)size one mirror from the live AX frame of its window.
-  private func refresh(_ key: WindowKey) {
-    guard let panel = panels[key], let element = axWindowCache[key] else { return }
-    guard let cg = AXWindowGeometry.frame(of: element) else { return }
+  private func applyGeometryUpdate(_ update: FloatingOverlayGeometryUpdate) {
+    guard update.generation == geometryGeneration else { return }
+    if update.replacesSnapshot {
+      appliedGeometryGeneration = update.generation
+    }
+    let keys = update.replacesSnapshot
+      ? Set(panels.keys)
+      : Set(update.frames.keys).union(update.invalidated)
+    for key in keys where panels[key] != nil {
+      if let frame = update.frames[key] {
+        refresh(key, windowFrame: frame)
+      } else if update.replacesSnapshot || update.invalidated.contains(key) {
+        invalidateGeometry(for: key)
+      }
+    }
+  }
+
+  /// Position + (re)size one mirror from a worker-resolved AX frame.
+  private func refresh(
+    _ key: WindowKey,
+    windowFrame: CGRect,
+  ) {
+    guard let panel = panels[key] else { return }
+    if geometryUnavailable.remove(key) != nil {
+      geometryRetryTasks.removeValue(forKey: key)?.cancel()
+    }
+    let cg = windowFrame
     let cocoa = AXWindowGeometry.flipToCocoa(cg)
     if lastFrame[key] != cocoa {
       let previous = lastFrame[key]
@@ -839,91 +1598,277 @@ final class FloatingOverlayController {
       // mirror is pixel-correct the moment it comes back.
       if sizeChanged, let capture = captures[key] {
         capture.updateSize(
-          width: cg.width, height: cg.height,
-          scale: panel.backingScaleFactor, maxFPS: maxFPS
+          width: cg.width,
+          height: cg.height,
+          scale: panel.backingScaleFactor,
+          maxFPS: maxFPS,
         )
       }
     }
-    applyOrdering(key)
+    guard !suppressed.contains(key) else { return }
+    if let capture = captures[key], !capture.isRunning {
+      panel.ignoresMouseEvents = true
+      panel.orderOut(nil)
+      resumeCaptureAfterGeometryRecovery(
+        key,
+        capture: capture,
+      )
+      return
+    }
+    publishMirrorPanel(for: key)
+  }
+
+  /// A geometry notification says the window changed, but its final frame
+  /// could not be read within the bounded AX timeout. Leaving the old panel
+  /// in place would create a stale, event-eating mirror at the wrong location.
+  private func invalidateGeometry(for key: WindowKey) {
+    guard let panel = panels[key] else { return }
+    let newlyUnavailable = geometryUnavailable.insert(key).inserted
+    if newlyUnavailable {
+      debugLog.log(
+        "Mirror",
+        "geometry unavailable \(key.bundleId)#\(key.windowID) — mirror hidden",
+      )
+    }
+    let hadFrame = lastFrame.removeValue(forKey: key) != nil
+    if hadFrame, suppressed.contains(key) {
+      syncSuppressedFrames()
+    }
+    MirrorWindowRegistry.shared.set(
+      mirror: CGWindowID(panel.windowNumber),
+      target: nil,
+    )
+    panel.ignoresMouseEvents = true
+    panel.orderOut(nil)
+    captureRetryTasks.removeValue(forKey: key)?.cancel()
+    captureRetryAttempts.removeValue(forKey: key)
+    if newlyUnavailable {
+      scheduleGeometryRecovery(for: key)
+    }
+  }
+
+  private func publishMirrorPanel(for key: WindowKey) {
+    guard
+      panels[key] != nil,
+      lastFrame[key] != nil,
+      !geometryUnavailable.contains(key),
+      !captureUnavailable.contains(key),
+      !suppressed.contains(key)
+    else { return }
+    if demoted.contains(key) {
+      if
+        let anchor = demotionAnchors[key],
+        panels[anchor] != nil,
+        suppressed.contains(anchor)
+      {
+        demoteVisibleSiblings(below: anchor)
+      } else {
+        // The focus transition that justified this demotion is gone.
+        demoted.remove(key)
+        demotionAnchors.removeValue(forKey: key)
+        applyOrdering(key)
+      }
+    } else {
+      applyOrdering(key)
+    }
+    registerMirrorTarget(for: key)
+  }
+
+  private func registerMirrorTarget(for key: WindowKey) {
+    guard
+      let panel = panels[key],
+      panel.isVisible,
+      lastFrame[key] != nil,
+      !geometryUnavailable.contains(key),
+      !captureUnavailable.contains(key)
+    else { return }
     // Window number is only valid once ordered in; (re)registering is
     // idempotent. Focus-follows-mouse uses this to focus the mirrored
     // window when the cursor sits on the mirror.
     MirrorWindowRegistry.shared.set(
       mirror: CGWindowID(panel.windowNumber),
-      target: .init(pid: key.pid, windowID: key.windowID)
+      target: .init(pid: key.pid, windowID: key.windowID),
     )
   }
 
-  // MARK: - AX subscriptions
-
-  private func ensureSubscriptions() {
-    let refcon = Unmanaged.passUnretained(self).toOpaque()
-    for (key, element) in axWindowCache where panels[key] != nil && !subscribed.contains(key) {
-      guard let observer = observer(for: key.pid) else { continue }
-      AXObserverAddNotification(observer, element, kAXWindowMovedNotification as CFString, refcon)
-      AXObserverAddNotification(observer, element, kAXWindowResizedNotification as CFString, refcon)
-      subscribed.insert(key)
+  private func resumeCaptureAfterGeometryRecovery(
+    _ key: WindowKey,
+    capture: WindowMirrorCapture,
+  ) {
+    let framesPerSecond = maxFPS
+    Task { @MainActor [weak self, capture] in
+      await capture.resume(maxFPS: framesPerSecond) { [weak self] outcome in
+        guard
+          let self,
+          acceptCaptureOutcome(outcome, for: key),
+          panels[key] != nil,
+          !suppressed.contains(key),
+          !geometryUnavailable.contains(key),
+          lastFrame[key] != nil
+        else { return }
+        showPanel(key)
+        publishMirrorPanel(for: key)
+      }
     }
   }
 
-  private func observer(for pid: pid_t) -> AXObserver? {
-    if let existing = axObservers[pid] { return existing }
-    var observer: AXObserver?
-    guard AXObserverCreate(pid, floatingOverlayAXCallback, &observer) == .success,
-          let observer
-    else { return nil }
-    CFRunLoopAddSource(
-      CFRunLoopGetMain(),
-      AXObserverGetRunLoopSource(observer),
-      .defaultMode
-    )
-    axObservers[pid] = observer
-    return observer
+  /// Accept only an exact-stream fresh frame as a successful restart.
+  /// Failure/cancellation while the mirror still needs to be visible keeps
+  /// the panel hidden and event-inert, then enters a bounded retry path.
+  @discardableResult
+  private func acceptCaptureOutcome(
+    _ outcome: WindowMirrorCapture.FirstFrameOutcome,
+    for key: WindowKey,
+  ) -> Bool {
+    switch outcome {
+    case .freshFrame:
+      captureRetryTasks.removeValue(forKey: key)?.cancel()
+      guard panels[key] != nil else { return false }
+      if captureUnavailable.remove(key) != nil {
+        debugLog.log(
+          "Mirror",
+          "capture recovered \(key.bundleId)#\(key.windowID)",
+        )
+      }
+      captureRetryAttempts.removeValue(forKey: key)
+      return true
+
+    case .failed,
+         .cancelled:
+      if
+        captureUnavailable.contains(key),
+        captureRetryTasks[key] != nil
+      {
+        return false
+      }
+      guard
+        panels[key] != nil,
+        !suppressed.contains(key),
+        !geometryUnavailable.contains(key)
+      else {
+        captureRetryAttempts.removeValue(forKey: key)
+        return false
+      }
+      invalidateCapture(for: key, outcome: outcome)
+      return false
+    }
   }
 
-  /// Resolve every still-unresolved mirrored window to its `AXUIElement` in
-  /// one `kAXWindowsAttribute` enumeration per owning app.
-  private func ensureAXCacheCoversPanels() {
-    let missing = panels.keys.filter { axWindowCache[$0] == nil }
-    guard !missing.isEmpty else { return }
-    let byPid = Dictionary(grouping: missing, by: { $0.pid })
-    for (pid, keys) in byPid {
-      let app = AXUIElementCreateApplication(pid)
-      AXUIElementSetMessagingTimeout(app, 0.25)
-      var raw: CFTypeRef?
-      guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .success,
-            let windows = raw as? [AXUIElement]
-      else { continue }
-      var widToElement: [CGWindowID: AXUIElement] = [:]
-      for window in windows {
-        var wid: CGWindowID = 0
-        if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
-          widToElement[wid] = window
+  private func invalidateCapture(
+    for key: WindowKey,
+    outcome: WindowMirrorCapture.FirstFrameOutcome,
+  ) {
+    guard let panel = panels[key] else { return }
+    let newlyUnavailable = captureUnavailable.insert(key).inserted
+    if newlyUnavailable {
+      let reason =
+        switch outcome {
+        case .failed: "failed"
+        case .cancelled: "cancelled"
+        case .freshFrame: "recovered"
         }
+      debugLog.log(
+        "Mirror",
+        "capture \(reason) "
+          + "\(key.bundleId)#\(key.windowID) — mirror hidden",
+      )
+    }
+    MirrorWindowRegistry.shared.set(
+      mirror: CGWindowID(panel.windowNumber),
+      target: nil,
+    )
+    panel.ignoresMouseEvents = true
+    panel.orderOut(nil)
+    scheduleCaptureRecovery(for: key)
+  }
+
+  private func scheduleCaptureRecovery(for key: WindowKey) {
+    guard
+      panels[key] != nil,
+      captureUnavailable.contains(key),
+      !suppressed.contains(key),
+      !geometryUnavailable.contains(key),
+      let capture = captures[key],
+      captureRetryTasks[key] == nil
+    else { return }
+    let attempt = (captureRetryAttempts[key] ?? 0) + 1
+    guard attempt <= Timing.captureRetryMaxSteps else {
+      debugLog.log(
+        "Mirror",
+        "capture retry exhausted \(key.bundleId)#\(key.windowID) — mirror remains hidden",
+      )
+      return
+    }
+    captureRetryAttempts[key] = attempt
+    let framesPerSecond = maxFPS
+    captureRetryTasks[key] = Task { @MainActor [weak self, capture] in
+      do {
+        try await Task.sleep(for: Timing.captureRetryStep)
+      } catch {
+        return
       }
-      for key in keys where widToElement[key.windowID] != nil {
-        axWindowCache[key] = widToElement[key.windowID]
+      guard
+        let self,
+        !Task.isCancelled,
+        panels[key] != nil,
+        captureUnavailable.contains(key),
+        !suppressed.contains(key),
+        !geometryUnavailable.contains(key)
+      else { return }
+      await capture.resume(maxFPS: framesPerSecond) { [weak self] outcome in
+        guard let self else { return }
+        captureRetryTasks[key] = nil
+        guard acceptCaptureOutcome(outcome, for: key) else { return }
+        showPanel(key)
+        publishMirrorPanel(for: key)
       }
     }
   }
 
-}
-
-/// `AXObserver` C callback for floating-mirror geometry. The run-loop source
-/// is on the main run loop, so this already runs on the main thread and hops
-/// straight onto the MainActor-isolated controller. Only the window id (a
-/// Sendable scalar) is read from the non-Sendable element before the hop.
-private func floatingOverlayAXCallback(
-  observer: AXObserver,
-  element: AXUIElement,
-  notification: CFString,
-  refcon: UnsafeMutableRawPointer?
-) {
-  guard let refcon else { return }
-  var windowID: CGWindowID = 0
-  guard _AXUIElementGetWindow(element, &windowID) == .success, windowID != 0 else { return }
-  let controller = Unmanaged<FloatingOverlayController>.fromOpaque(refcon).takeUnretainedValue()
-  MainActor.assumeIsolated {
-    controller.handleGeometryChange(windowID: windowID)
+  private func scheduleGeometryRecovery(for key: WindowKey) {
+    guard panels[key] != nil, geometryRetryTasks[key] == nil else { return }
+    geometryRetryTasks[key] = Task { @concurrent [weak self] in
+      for _ in 0..<Timing.geometryRetryMaxSteps {
+        do {
+          try await Task.sleep(for: Timing.geometryRetryStep)
+        } catch {
+          return
+        }
+        guard !Task.isCancelled else { return }
+        let shouldContinue = await MainActor.run {
+          guard
+            let self,
+            self.panels[key] != nil,
+            self.geometryUnavailable.contains(key)
+          else { return false }
+          // Never cancel a still-running retry with another retry. Once the
+          // latest full snapshot commits, a continued failure may try again.
+          if self.appliedGeometryGeneration == self.geometryGeneration {
+            self.requestGeometryReconcile()
+          }
+          return true
+        }
+        guard shouldContinue else { return }
+      }
+      do {
+        try await Task.sleep(for: Timing.geometryRetryStep)
+      } catch {
+        return
+      }
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        guard
+          let self,
+          self.panels[key] != nil,
+          self.geometryUnavailable.contains(key)
+        else { return }
+        // No successful frame arrived within the bounded retry window.
+        // Stop the invisible stream so the recording indicator cannot stay
+        // lit indefinitely; a later geometry/target signal resumes it.
+        self.captures[key]?.stop()
+        self.geometryRetryTasks[key] = nil
+      }
+    }
   }
+
 }

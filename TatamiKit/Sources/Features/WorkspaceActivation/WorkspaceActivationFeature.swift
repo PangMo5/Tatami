@@ -122,6 +122,17 @@ public struct WorkspaceActivationFeature {
     /// its target display's writer, so the global reflow is committed once that
     /// transaction completes instead of polling or racing it.
     public var pendingDisplayGeometryReflow = false
+    /// Window notifications received while activation owns the authoritative
+    /// show/hide + layout transaction. Record only the affected bundles and
+    /// reconcile them once the gate opens instead of rescanning every workspace
+    /// app after a fixed delay.
+    public var pendingWindowSyncBundleIds = Set<String>()
+    /// AX discovery is synchronous IPC on a worker. Keep one request per bundle
+    /// in flight and mark any notification that arrives during it dirty; its
+    /// completion immediately launches one trailing refresh. This is real
+    /// latest-state coalescing without a scheduler-dependent time debounce.
+    public var windowSyncBundleIdsInFlight = Set<String>()
+    public var dirtyWindowSyncBundleIds = Set<String>()
     /// The workspace the in-flight activation is switching to. Cycling
     /// anchors here (falling back to the *completed* active workspace) so
     /// rapid next/previous presses advance from the switch in progress —
@@ -336,6 +347,7 @@ public struct WorkspaceActivationFeature {
     mutating func recordFocusedWindow(
       _ key: WindowKey,
       requireVisibleTreeMembership: Bool = false,
+      updateFocusedDisplay: Bool = true,
     ) -> Workspace.ID? {
       let workspaceId: Workspace.ID?
       if requireVisibleTreeMembership {
@@ -351,7 +363,7 @@ public struct WorkspaceActivationFeature {
       }
       guard let workspaceId else { return nil }
 
-      if let display = displayShowing(workspaceId) {
+      if updateFocusedDisplay, let display = displayShowing(workspaceId) {
         focusedDisplay = display
       }
       let treeWindows = tilingTrees[workspaceId]?.windows ?? []
@@ -506,10 +518,26 @@ public struct WorkspaceActivationFeature {
     /// Incrementally reconcile a single app's windows into the active
     /// tree: add new windows, drop gone ones, touch nothing else.
     case syncAppWindows(bundleId: String)
+    /// The timeout-prone AX discovery for `syncAppWindows` completed off the
+    /// main actor. `resizableKeys` is nil when every visible membership was
+    /// floating/unmanaged and no tiled result was needed.
+    case syncAppWindowsResolved(
+      bundleId: String,
+      resizableKeys: [WindowKey]?,
+      onScreenFrames: [CGWindowID: CGRect],
+    )
+    /// A worker-side live presence check completed for a tree that became
+    /// empty. The reducer rechecks that it is still empty before switching or
+    /// collapsing a Borrow composition.
+    case emptyWorkspacePresenceResolved(
+      workspaceId: Workspace.ID,
+      hasOnScreenMembers: Bool,
+      hasFloatingWindows: Bool,
+    )
     /// Drop active-workspace tree windows that are no longer on screen.
     /// Catches apps that *hide* their window on close (Electron apps like
-    /// Discord) instead of destroying it — there's no AX destroy event, so a
-    /// focus change to another app is the only trigger we get.
+    /// Discord) instead of destroying it — WindowServer destruction and
+    /// lifecycle reconciliation provide the authoritative triggers.
     case pruneOffscreenWindows
     /// Wake / native-Space-change / "something on the system shifted":
     /// re-reconcile every tree-resident + registered app.
@@ -529,6 +557,9 @@ public struct WorkspaceActivationFeature {
     /// The latest warp for this target completed (or found no frame), so an AX
     /// focus echo no longer needs to preserve the unconditional-center policy.
     case cursorWarpFinished(workspaceId: Workspace.ID, target: WindowKey)
+    /// The pre-switch frontmost identity was captured synchronously, then its
+    /// timeout-prone focused-window lookup completed on the AX worker.
+    case activationFocusSnapshotResolved(WindowKey)
     case tilingTreeUpdated(workspaceId: Workspace.ID, tree: BSPNode<WindowKey>?)
     /// Activation discovered fullscreen-zoomed bundle ids on disk and
     /// we resolved them to live `WindowKey`s.
@@ -826,10 +857,10 @@ public struct WorkspaceActivationFeature {
           return .merge(effects)
 
         case .windowCreated(let bundleId):
-          return debouncedSync(bundleId, delayMs: 40)
+          return requestWindowSync(bundleId)
 
         case .windowDestroyed(let bundleId):
-          return debouncedSync(bundleId, delayMs: 40)
+          return requestWindowSync(bundleId)
 
         case .windowFocused(let bundleId, let key):
           let isPointerDriven = focusEventOrigin.consumePointerDrivenFocus(key?.windowID)
@@ -880,15 +911,17 @@ public struct WorkspaceActivationFeature {
           // can render the dot only on the now-focused window.
           let markerClient = marker
           let focusedKey = key
+          // A known key already has authoritative membership. Re-scanning its
+          // whole app on every cmd-`/click focus was a synchronous AX pass that
+          // could block for the full messaging timeout without changing the
+          // tree. Unknown/nil focus still reconciles to discover a new or
+          // temporarily AX-hidden window.
+          let focusSync = key.flatMap { state.workspaceOwning($0) } == nil
+            ? requestWindowSync(bundleId)
+            : .none
           return .merge(
             followWarp,
-            debouncedSync(bundleId, delayMs: 40),
-            // A hide-on-close window (KakaoTalk, Discord) fires no AX
-            // destroy event; only the off-screen prune reclaims its
-            // lingering tile. `appActivated` schedules one, but a same-app
-            // close keeps that app frontmost — the next focus change is
-            // then the only trigger left.
-            debouncedPrune(),
+            focusSync,
             isFocusTransition
               ? settleBorrowedPresentationAfterFocus(
                 bundleId: bundleId,
@@ -905,7 +938,44 @@ public struct WorkspaceActivationFeature {
         }
 
       case .syncAppWindows(let bundleId):
+        if state.isActivating {
+          state.pendingWindowSyncBundleIds.insert(bundleId)
+          debugLog.log("Sync", "defer \(bundleId): activation in flight")
+          return .none
+        }
         return syncAppWindows(bundleId: bundleId, state: &state)
+
+      case .syncAppWindowsResolved(let bundleId, let resizableKeys, let onScreenFrames):
+        state.windowSyncBundleIdsInFlight.remove(bundleId)
+        let needsTrailingRefresh = state.dirtyWindowSyncBundleIds.remove(bundleId) != nil
+        if state.isActivating {
+          state.pendingWindowSyncBundleIds.insert(bundleId)
+          return .none
+        }
+        // An event arrived after this snapshot began. Publishing it would
+        // briefly restore stale membership/layout before the trailing scan;
+        // skip straight to the one dirty-bit refresh instead.
+        if needsTrailingRefresh {
+          return requestWindowSync(bundleId)
+        }
+        return applySyncedAppWindows(
+          bundleId: bundleId,
+          resizableKeys: resizableKeys,
+          onScreenFrames: onScreenFrames,
+          state: &state,
+        )
+
+      case .emptyWorkspacePresenceResolved(
+        let workspaceId,
+        let hasOnScreenMembers,
+        let hasFloatingWindows,
+      ):
+        return handleEmptyWorkspacePresenceResolution(
+          workspaceId: workspaceId,
+          hasOnScreenMembers: hasOnScreenMembers,
+          hasFloatingWindows: hasFloatingWindows,
+          state: state,
+        )
 
       case .floatingPresentationResolved(let keys):
         let overlay = floatingOverlay
@@ -963,7 +1033,7 @@ public struct WorkspaceActivationFeature {
         }
         bundleIds.formUnion(state.config.sharedApps.map(\.bundleIdentifier))
         guard !bundleIds.isEmpty else { return .none }
-        return .merge(bundleIds.map { debouncedSync($0, delayMs: 10) })
+        return .merge(bundleIds.map { requestWindowSync($0) })
 
       case .appLaunched(let bundleId, _):
         // Observe the new app immediately — even before it's in any tree.
@@ -975,7 +1045,7 @@ public struct WorkspaceActivationFeature {
         // chicken-and-egg: its AX-retry installs kAXWindowCreated as soon as the
         // app is reachable, which re-runs the sync when the window shows up.
         return .merge(
-          debouncedSync(bundleId, delayMs: 10),
+          requestWindowSync(bundleId),
           .run { [observer = windowObserver] _ in await observer.observe([bundleId]) },
         )
 
@@ -989,7 +1059,7 @@ public struct WorkspaceActivationFeature {
         // app wouldn't otherwise wake the marker.
         let markerClient = marker
         let markerEffect = Effect<Action>.run { [snapshot = windowSnapshot] _ in
-          let key = await MainActor.run { snapshot.focusedWindowKey() }
+          let key = await snapshot.focusedWindowKeyOffMain()
           await markerClient.setFocused(key)
         }
         // Workspaces (on any display) already on screen — a focus within one of
@@ -1040,7 +1110,6 @@ public struct WorkspaceActivationFeature {
           return .merge(
             markerEffect,
             .send(.activate(workspaceId: owner.id, setFocus: false)),
-            debouncedPrune(),
           )
         }
         // One focused-window resolution serves marker focus, insertion-
@@ -1050,10 +1119,9 @@ public struct WorkspaceActivationFeature {
         // target — Electron apps answer AX late right after activation).
         return .merge(
           .run { [snapshot = windowSnapshot] send in
-            let key = await MainActor.run { snapshot.focusedWindowKey() }
+            let key = await snapshot.focusedWindowKeyOffMain()
             await send(.windowChanged(.windowFocused(bundleId: bundleId, key: key)))
-          },
-          debouncedPrune(),
+          }
         )
 
       case .windowServerWindowDestroyed(let wid):
@@ -1103,7 +1171,7 @@ public struct WorkspaceActivationFeature {
           "SLS",
           "close settled → reflow workspaces=\(visibleIds)",
         )
-        let focused = windowSnapshot.focusedWindowKey()
+        let focused = state.lastObservedFocusedWindow
         return .concatenate(
           prune,
           .merge(
@@ -1133,7 +1201,7 @@ public struct WorkspaceActivationFeature {
         state.removeBundleFromWindowMRU(bundleId)
         windowSnapshot.invalidateBundle(bundleId)
         let prune = pruneOffscreenWindows(state: &state)
-        return .merge(prune, debouncedSync(bundleId, delayMs: 0))
+        return .merge(prune, requestWindowSync(bundleId))
 
       case .restoreActiveProfile(let id):
         // Startup-only: adopt the persisted selection if it still exists.
@@ -1255,13 +1323,13 @@ public struct WorkspaceActivationFeature {
           if screenRecording.isGranted() {
             subtitle = String(
               localized:
-                "Grant Accessibility in System Settings → Privacy & Security, then relaunch Tatami"
+              "Grant Accessibility in System Settings → Privacy & Security, then relaunch Tatami"
             )
           } else {
             await screenRecording.requestAccess()
             subtitle = String(
               localized:
-                "Grant Accessibility and Screen Recording in System Settings → Privacy & Security, then relaunch Tatami"
+              "Grant Accessibility and Screen Recording in System Settings → Privacy & Security, then relaunch Tatami"
             )
           }
           await workspaceHUD.show(
@@ -1965,6 +2033,17 @@ public struct WorkspaceActivationFeature {
         state.fullscreenZoomed[workspaceId] = keys.isEmpty ? nil : keys
         return .none
 
+      case .activationFocusSnapshotResolved(let key):
+        _ = state.recordFocusedWindow(
+          key,
+          requireVisibleTreeMembership: true,
+          // This is the outgoing window captured before activation. Its AX
+          // result can arrive after `performActivate` has already moved focus
+          // to another monitor, so repair only MRU/insertion state here.
+          updateFocusedDisplay: false,
+        )
+        return .none
+
       case .tilingTreeUpdated(let workspaceId, let tree):
         let removed = Set(state.tilingTrees[workspaceId]?.windows ?? [])
           .subtracting(tree.map { Set($0.windows) } ?? [])
@@ -1986,6 +2065,8 @@ public struct WorkspaceActivationFeature {
         state.activatingWorkspaceID = nil
         let reflowDisplayGeometry = state.pendingDisplayGeometryReflow
         state.pendingDisplayGeometryReflow = false
+        let pendingWindowSyncBundleIds = state.pendingWindowSyncBundleIds
+        state.pendingWindowSyncBundleIds.removeAll()
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
           state.previousWorkspacesByDisplay[display] = previous
         }
@@ -2072,18 +2153,12 @@ public struct WorkspaceActivationFeature {
           // effect's own floating discovery; only the paused path (which
           // skips that block) still needs a refresh here.
           state.isTilingPaused ? refreshMarkers(state: state) : .none,
-          // Stale-while-revalidate: activation served its window keys from
-          // `WindowKeyCache`, and window events that arrived *during* the
-          // activation were dropped by the `isActivating` gate. Rescan every
-          // bundle this workspace relies on now that the gate is open — the
-          // per-app sync is a no-op when nothing drifted, and repairs the
-          // tree (and the cache) when something did. The delay keeps the
-          // rescan (a main-thread AX pass) out of rapid cycling: a switch
-          // arriving sooner re-enters the gate and the sync drops; only a
-          // workspace the user actually settles on pays for revalidation.
+          // Reconcile only notifications that actually arrived while the
+          // activation gate was closed. The observer is armed at activation
+          // start, so a blanket delayed AX sweep is no longer needed.
           state.isTilingPaused
             ? .none
-            : .merge(observeIds.map { debouncedSync($0, delayMs: 150) }),
+            : .merge(pendingWindowSyncBundleIds.map { requestWindowSync($0) }),
           // Drain the reconnect-restore queue: this activation just freed the
           // single activation slot, so kick the next display's restore (if any).
           state.pendingDisplayRestores.isEmpty ? .none : .send(.processDisplayRestores),
@@ -2123,6 +2198,8 @@ public struct WorkspaceActivationFeature {
         state.activatingWorkspaceID = nil
         let reflowDisplayGeometry = state.pendingDisplayGeometryReflow
         state.pendingDisplayGeometryReflow = false
+        let pendingWindowSyncBundleIds = state.pendingWindowSyncBundleIds
+        state.pendingWindowSyncBundleIds.removeAll()
         debugLog.log(
           "Activate",
           "watchdog: activation did not complete in 10 s — releasing the gate",
@@ -2131,6 +2208,7 @@ public struct WorkspaceActivationFeature {
           .cancel(id: CancelID.activation),
           .cancel(id: CancelID.activationSettle),
           reflowDisplayGeometry ? .send(.displayGeometryChanged) : .none,
+          .merge(pendingWindowSyncBundleIds.map { requestWindowSync($0) }),
         )
       }
     }
@@ -2144,9 +2222,8 @@ public struct WorkspaceActivationFeature {
     var shouldFocus: Bool
   }
 
-  /// Cancellation identifiers for debounced window-event handling.
+  /// Cancellation identifiers for latest-wins effects and bounded safety work.
   enum CancelID: Hashable {
-    case sync(String)
     /// One visual surface has one frame writer. Normal workspace and borrow
     /// composition layouts on the same display share this id, so crossing the
     /// composition boundary also cancels the stale writer.
@@ -2162,8 +2239,6 @@ public struct WorkspaceActivationFeature {
     case floatingDiscovery
     /// Marker targets are independently latest-wins.
     case markerRefresh
-    /// Debounces the off-screen prune so rapid app switches collapse into one.
-    case prune
     /// Single-consumer stream subscriptions: `cancelInFlight` makes a
     /// repeated subscribe replace the old consumer instead of trapping
     /// AsyncStream with a second one.
@@ -2192,6 +2267,9 @@ public struct WorkspaceActivationFeature {
     /// Focus can move again while a cursor warp is waiting for the main actor.
     /// Only the newest focused window in a workspace may move the cursor.
     case warp(Workspace.ID)
+    /// Repeated close/sync signals for one empty tree share one live AX
+    /// presence check.
+    case emptyWorkspacePresence(Workspace.ID)
   }
 
   @Dependency(\.workspaceManager) var workspaceManager
@@ -2485,9 +2563,7 @@ public struct WorkspaceActivationFeature {
           if let tiledFrame {
             tiledFrame
           } else {
-            await MainActor.run {
-              windowSnapshot.windowFrame(target)
-            }
+            await windowSnapshot.windowFrameOffMain(target)
           }
         if let rect = targetFrame {
           mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
@@ -2538,7 +2614,7 @@ public struct WorkspaceActivationFeature {
     _ continuation: @escaping @Sendable (WindowKey) -> Action
   ) -> Effect<Action> {
     .run { [snapshot = windowSnapshot, debugLog] send in
-      let key = await MainActor.run { snapshot.focusedWindowKey() }
+      let key = await snapshot.focusedWindowKeyOffMain()
       guard let key else {
         // Silent-drop tell for "the BSP hotkey did nothing".
         debugLog.log("BSP", "no focused window — op dropped")

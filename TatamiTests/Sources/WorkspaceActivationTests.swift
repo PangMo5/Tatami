@@ -882,6 +882,36 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `outgoing focus snapshot repairs MRU without restoring the old display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let outgoing = WindowKey(pid: 1, windowID: 101, bundleId: "app.outgoing")
+    let oldWorkspace = Workspace(
+      name: "Old",
+      apps: [AppAssignment(bundleIdentifier: outgoing.bundleId, name: "Outgoing")],
+    )
+    let targetWorkspace = Workspace(name: "Target")
+    let state = Self.makeState(workspaces: [oldWorkspace, targetWorkspace]) {
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [
+        displayA: oldWorkspace.id,
+        displayB: targetWorkspace.id,
+      ]
+      $0.tilingTrees[oldWorkspace.id] = .leaf(outgoing)
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(.activationFocusSnapshotResolved(outgoing)) {
+      $0.insertionPoint[oldWorkspace.id] = outgoing
+      $0.mruWindows[oldWorkspace.id] = [outgoing]
+    }
+
+    #expect(store.state.focusedDisplay == displayB)
+  }
+
+  @Test
   func `shared only floating focus does not replace workspace MRU`() async {
     let own = WindowKey(pid: 1, windowID: 101, bundleId: "app.own")
     let shared = WindowKey(pid: 2, windowID: 202, bundleId: "app.shared")
@@ -1215,8 +1245,140 @@ struct WorkspaceActivationFeatureTests {
     }
 
     await store.send(.syncAppWindows(bundleId: key.bundleId)) {
+      $0.windowSyncBundleIdsInFlight.insert(key.bundleId)
+    }
+    await store.receive(\.syncAppWindowsResolved) {
+      $0.windowSyncBundleIdsInFlight.remove(key.bundleId)
       $0.insertionPoint[activeWorkspace.id] = key
       $0.tilingTrees[activeWorkspace.id] = .leaf(key)
+    }
+    await store.finish()
+  }
+
+  @Test
+  func `mixed tiled and unmanaged sync requests one capability discovery`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let bundleId = "app.mixed-capabilities"
+    let tiledWorkspace = Workspace(
+      name: "Tiled",
+      apps: [AppAssignment(bundleIdentifier: bundleId, name: "Mixed")],
+    )
+    let unmanagedWorkspace = Workspace(
+      name: "Unmanaged",
+      apps: [
+        AppAssignment(
+          bundleIdentifier: bundleId,
+          name: "Mixed",
+          layout: .unmanaged,
+        )
+      ],
+    )
+    let sentinel = WindowKey(pid: 2, windowID: 200, bundleId: "app.sentinel")
+    let state = Self.makeState(workspaces: [tiledWorkspace, unmanagedWorkspace]) {
+      $0.connectedDisplays = [displayA, displayB]
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [
+        displayA: tiledWorkspace.id,
+        displayB: unmanagedWorkspace.id,
+      ]
+      // Keep the unmanaged workspace non-empty so this test observes only the
+      // app-sync discovery, not its separate empty-workspace presence check.
+      $0.tilingTrees[unmanagedWorkspace.id] = .leaf(sentinel)
+    }
+    let capabilityCalls = LockIsolated(0)
+    let legacyCalls = LockIsolated<[Bool]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.discoverCapabilitiesAsync = { bundleIds in
+        #expect(bundleIds == [bundleId])
+        capabilityCalls.withValue { $0 += 1 }
+        return .value(WindowCapabilitySnapshot(
+          movableKeys: [],
+          resizableKeys: [],
+        ))
+      }
+      $0.windowSnapshot.discoverKeysAsync = { _, requireResizable in
+        legacyCalls.withValue { $0.append(requireResizable) }
+        return .value([])
+      }
+      $0.windowSnapshot.discoverKeys = { _, requireResizable in
+        legacyCalls.withValue { $0.append(requireResizable) }
+        return []
+      }
+    }
+
+    await store.send(.syncAppWindows(bundleId: bundleId)) {
+      $0.windowSyncBundleIdsInFlight.insert(bundleId)
+    }
+    await store.receive(\.syncAppWindowsResolved) {
+      $0.windowSyncBundleIdsInFlight.remove(bundleId)
+    }
+    await store.finish()
+
+    #expect(capabilityCalls.value == 1)
+    #expect(legacyCalls.value.isEmpty)
+  }
+
+  @Test
+  func `capability discovery preserves legacy dependency fallback`() async {
+    let movableOnly = WindowKey(pid: 1, windowID: 101, bundleId: "app.fixed")
+    let resizable = WindowKey(pid: 1, windowID: 102, bundleId: movableOnly.bundleId)
+    let calls = LockIsolated<[Bool]>([])
+    var snapshot = WindowSnapshotClient.testValue
+    snapshot.discoverKeys = { _, requireResizable in
+      calls.withValue { $0.append(requireResizable) }
+      return requireResizable ? [resizable] : [movableOnly, resizable]
+    }
+
+    let capabilities = await snapshot.discoverCapabilitiesOffMain([
+      movableOnly.bundleId
+    ])
+
+    #expect(capabilities.movableKeys == [movableOnly, resizable])
+    #expect(capabilities.resizableKeys == [resizable])
+    #expect(calls.value.count == 2)
+    #expect(Set(calls.value) == [false, true])
+  }
+
+  @Test
+  func `dirty app sync skips stale result and applies one trailing discovery`() async {
+    let stale = WindowKey(pid: 1, windowID: 101, bundleId: "app.sync")
+    let fresh = WindowKey(pid: 1, windowID: 102, bundleId: stale.bundleId)
+    let workspace = Workspace(
+      name: "Active",
+      apps: [AppAssignment(bundleIdentifier: stale.bundleId, name: "Sync")],
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.windowSyncBundleIdsInFlight.insert(stale.bundleId)
+      $0.dirtyWindowSyncBundleIds.insert(stale.bundleId)
+    }
+    let frame = CGRect(x: 0, y: 0, width: 500, height: 800)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.discoverKeys = { _, _ in [fresh] }
+      $0.windowSnapshot.onScreenWindowFrames = { [fresh.windowID: frame] }
+    }
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: stale.bundleId,
+      resizableKeys: [stale],
+      onScreenFrames: [stale.windowID: frame],
+    )) {
+      $0.windowSyncBundleIdsInFlight.remove(stale.bundleId)
+      $0.dirtyWindowSyncBundleIds.remove(stale.bundleId)
+    }
+    await store.receive(\.syncAppWindows) {
+      $0.windowSyncBundleIdsInFlight.insert(stale.bundleId)
+    }
+    await store.receive(\.syncAppWindowsResolved) {
+      $0.windowSyncBundleIdsInFlight.remove(stale.bundleId)
+      $0.insertionPoint[workspace.id] = fresh
+      $0.tilingTrees[workspace.id] = .leaf(fresh)
     }
     await store.finish()
   }
@@ -1310,6 +1472,7 @@ struct WorkspaceActivationFeatureTests {
         )
       )
       $0.mruWindows[ws.id] = [closed, survivor]
+      $0.lastObservedFocusedWindow = survivor
     }
     let order = LockIsolated<[String]>([])
     let warped = LockIsolated<[CGPoint]>([])
@@ -1390,6 +1553,7 @@ struct WorkspaceActivationFeatureTests {
         host: host.id,
         borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
       )
+      $0.lastObservedFocusedWindow = survivor
     }
     let clock = TestClock()
     let snapshotCount = LockIsolated(0)
@@ -1512,6 +1676,13 @@ struct WorkspaceActivationFeatureTests {
     } withDependencies: {
       $0.continuousClock = TestClock()
       $0.floatingOverlay.retainOnly = { _ in }
+      $0.windowSnapshot.frontmostApp = {
+        FrontmostApp(
+          pid: work.pid,
+          bundleId: work.bundleId,
+          name: "Browser",
+        )
+      }
       $0.windowSnapshot.focusedWindowKey = { liveFocus.value }
       $0.workspaceManager.activate = { request in
         requests.withValue { $0.append(request) }
@@ -2196,6 +2367,7 @@ struct WorkspaceActivationFeatureTests {
     store.exhaustivity = .off
 
     await store.send(.syncAppWindows(bundleId: closedB.bundleId))
+    await store.receive(\.syncAppWindowsResolved)
     await store.finish()
 
     #expect(store.state.tilingTrees[wsA.id]?.windows == [focusedA])
@@ -2239,6 +2411,7 @@ struct WorkspaceActivationFeatureTests {
     store.exhaustivity = .off
 
     await store.send(.syncAppWindows(bundleId: onA.bundleId))
+    await store.receive(\.syncAppWindowsResolved)
     await store.finish()
 
     #expect(store.state.tilingTrees[wsA.id]?.windows == [onA])

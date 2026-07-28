@@ -118,31 +118,15 @@ extension WorkspaceActivationFeature {
     return tree
   }
 
-  func debouncedSync(_ bundleId: String, delayMs: Int) -> Effect<Action> {
-    .run { [clock] send in
-      if delayMs > 0 {
-        try await clock.sleep(for: .milliseconds(delayMs))
-      }
-      await send(.syncAppWindows(bundleId: bundleId))
-    }
-    .cancellable(id: CancelID.sync(bundleId), cancelInFlight: true)
+  /// Enter the reducer-owned single-flight/dirty reconciliation path.
+  /// No timer or cooperative scheduling guess is involved.
+  func requestWindowSync(_ bundleId: String) -> Effect<Action> {
+    .send(.syncAppWindows(bundleId: bundleId))
   }
 
-  /// Schedule an off-screen prune after a short delay — a hidden window is
-  /// still on screen for an instant after focus moves off it, so let it
-  /// settle before snapshotting the on-screen set.
-  func debouncedPrune() -> Effect<Action> {
-    .run { [clock] send in
-      try await clock.sleep(for: .milliseconds(120))
-      await send(.pruneOffscreenWindows)
-    }
-    .cancellable(id: CancelID.prune, cancelInFlight: true)
-  }
-
-  /// Incrementally reconcile a single app's windows into the active
-  /// workspace's tree. Insert windows new to the tree (next to the
-  /// insertion point), remove vanished ones, leave the rest.
-  /// Unassigned visible apps are *not* folded into the tree.
+  /// Capture one app's AX window set off the main actor. The reducer guarantees
+  /// one in-flight request per bundle and schedules a trailing pass when any
+  /// notification arrives during this scan.
   func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
     guard !state.isTilingPaused else {
       debugLog.log("Sync", "skip \(bundleId): tiling paused")
@@ -164,6 +148,11 @@ extension WorkspaceActivationFeature {
       debugLog.log("Sync", "skip \(bundleId): activation in flight")
       return .none
     }
+    if state.windowSyncBundleIdsInFlight.contains(bundleId) {
+      state.dirtyWindowSyncBundleIds.insert(bundleId)
+      debugLog.log("Sync", "dirty \(bundleId): discovery already in flight")
+      return .none
+    }
     // Bundle-only AX create/destroy notifications do not identify a window or
     // display. Reconcile every visible owner so a shared/multi-member app split
     // across monitors cannot leave a stale window in the background tree.
@@ -172,11 +161,84 @@ extension WorkspaceActivationFeature {
       debugLog.log("Sync", "skip \(bundleId): no active workspace")
       return .none
     }
+
+    var needsResizableDiscovery = false
+    var needsMovableCache = false
+    for workspaceId in workspaceIds {
+      guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
+      else { continue }
+      let floating = workspace.apps.contains {
+        $0.bundleIdentifier == bundleId && $0.layout == .floating
+      } || state.config.sharedApps.contains {
+        $0.bundleIdentifier == bundleId && $0.layout == .floating
+      }
+      let unmanaged = workspace.apps.contains {
+        $0.bundleIdentifier == bundleId && $0.layout == .unmanaged
+      } || state.config.sharedApps.contains {
+        $0.bundleIdentifier == bundleId && $0.layout == .unmanaged
+      }
+      if unmanaged {
+        needsMovableCache = true
+      } else if !floating {
+        needsResizableDiscovery = true
+      }
+    }
+
+    let snapshot = windowSnapshot
+    let discoverResizable = needsResizableDiscovery
+    let populateMovableCache = needsMovableCache
+    state.windowSyncBundleIdsInFlight.insert(bundleId)
+    return .run(priority: .high) { send in
+      let resizableKeys: [WindowKey]?
+      switch (discoverResizable, populateMovableCache) {
+      case (true, true):
+        let capabilities = await snapshot.discoverCapabilitiesOffMain([bundleId])
+        resizableKeys = capabilities.resizableKeys
+
+      case (true, false):
+        resizableKeys = await snapshot.discoverKeysOffMain([bundleId], true)
+
+      case (false, true):
+        _ = await snapshot.discoverKeysOffMain([bundleId], false)
+        resizableKeys = nil
+
+      case (false, false):
+        // Floating presentation owns its own all-visible-floats discovery.
+        resizableKeys = nil
+      }
+      let frames = snapshot.onScreenWindowFrames()
+      await send(.syncAppWindowsResolved(
+        bundleId: bundleId,
+        resizableKeys: resizableKeys,
+        onScreenFrames: frames,
+      ))
+    }
+  }
+
+  /// Incrementally reconcile one completed worker snapshot into every visible
+  /// owner. Insert new windows next to the insertion point, remove vanished
+  /// ones, and leave the rest untouched.
+  func applySyncedAppWindows(
+    bundleId: String,
+    resizableKeys: [WindowKey]?,
+    onScreenFrames: [CGWindowID: CGRect],
+    state: inout State,
+  ) -> Effect<Action> {
+    guard
+      !state.isTilingPaused,
+      !state.isInFullscreenSpace,
+      !state.isActivating,
+      !MacApp.isTatami(bundleId)
+    else { return .none }
+    let workspaceIds = state.workspacesForSync(bundleId: bundleId)
+    guard !workspaceIds.isEmpty else { return .none }
     var effects = [Effect<Action>]()
     for workspaceId in workspaceIds {
       effects.append(syncAppWindows(
         bundleId: bundleId,
         workspaceId: workspaceId,
+        discovered: resizableKeys,
+        onScreenFrames: onScreenFrames,
         state: &state,
       ))
     }
@@ -207,11 +269,10 @@ extension WorkspaceActivationFeature {
     let onScreen = windowSnapshot.onScreenWindowIDs()
     let settings = state.config.settings
     let axis = settings.layout.autoBalance
-    // Read focus lazily — only when a prune actually happens (the read is an
-    // AX round trip to the frontmost app, and prune runs after every
-    // activation).
-    var focusedRead = false
-    var focused: WindowKey?
+    // Focus notifications maintain this state continuously. A prune must not
+    // synchronously ask the frontmost app for focus: that is precisely the AX
+    // round trip that used to block the hotkey/main event loop under load.
+    let focused = state.lastObservedFocusedWindow
 
     var prunedAny = false
     var effects = [Effect<Action>]()
@@ -226,10 +287,6 @@ extension WorkspaceActivationFeature {
       let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
       guard !gone.isEmpty else { continue }
       windowSnapshot.invalidateWindowIDs(Set(gone.map(\.windowID)))
-      if !focusedRead { focused = windowSnapshot.focusedWindowKey()
-        focusedRead = true
-      }
-
       var pruned: BSPNode<WindowKey>? = tree
       for key in gone { pruned = pruned?.removing(key) }
       let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
@@ -317,11 +374,62 @@ extension WorkspaceActivationFeature {
     return flushLayout(workspaceId: workspaceId, state: state)
   }
 
+  /// `switchToRecentWhenEmpty`: a close left the active workspace with
+  /// nothing of its own on screen — nothing tiled (registered, shared
+  /// tiled, or transient) and no *per-workspace* floating window — so jump
+  /// back to the recent workspace. Shared apps don't anchor: they join
+  /// every workspace, and a shared float follows you to the recent one
+  /// anyway. The tile-sync and prune callers gate on an actual removal;
+  /// the floating-branch caller relies on the live floating re-discovery
+  /// below — either way, deliberately sitting on an empty workspace never
+  /// bounces you out.
+  func handleEmptyWorkspacePresenceResolution(
+    workspaceId: Workspace.ID,
+    hasOnScreenMembers: Bool,
+    hasFloatingWindows: Bool,
+    state: State,
+  ) -> Effect<Action> {
+    guard
+      !state.isActivating,
+      state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
+    else { return .none }
+    if state.primaryActiveWorkspaceID == workspaceId {
+      guard
+        state.config.settings.switching.switchToRecentWhenEmpty,
+        let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
+      else { return .none }
+      guard !hasOnScreenMembers, !hasFloatingWindows else {
+        debugLog.log(
+          "Sync",
+          "ws=\(workspace.name) tree empty but member apps still on screen — not switching",
+        )
+        return .none
+      }
+      let display = tilingContext(for: workspaceId, state: state).display
+      let recent = display.flatMap { state.previousWorkspacesByDisplay[$0] }
+        ?? state.previousWorkspacesByDisplay.values.first
+      guard let recent, recent != workspaceId else { return .none }
+      debugLog.log("Sync", "ws=\(workspace.name) empty → switch to recent")
+      return .send(.activate(workspaceId: recent, setFocus: true))
+    }
+
+    guard !hasOnScreenMembers else { return .none }
+    for (display, composition) in state.compositionsByDisplay
+      where composition.borrowed.contains(where: { $0.workspace == workspaceId })
+    {
+      debugLog.log("Borrow", "borrowed \(workspaceId) empty → dismiss")
+      return .send(.dismissBorrow(display: display))
+    }
+    return .none
+  }
+
   // MARK: Private
 
   private func syncAppWindows(
     bundleId: String,
     workspaceId: Workspace.ID,
+    discovered: [WindowKey]?,
+    onScreenFrames: [CGWindowID: CGRect],
     state: inout State,
   ) -> Effect<Action> {
     guard
@@ -360,7 +468,6 @@ extension WorkspaceActivationFeature {
       // Still a managed member: discover it (populating the cache, which
       // feeds both the FFM hit-test and window cycling) but don't tile or
       // mirror.
-      _ = windowSnapshot.discoverKeys([bundleId], false)
       return workspace.apps
         .contains { $0.layout == .unmanaged && $0.bundleIdentifier == bundleId }
         ? handleEmptied(workspaceId: workspaceId, state: state)
@@ -400,7 +507,10 @@ extension WorkspaceActivationFeature {
       || inTree
       || isUnregisteredInActiveProfile
 
-    let discovered = windowSnapshot.discoverKeys([bundleId], true)
+    guard let discovered else {
+      debugLog.log("Sync", "skip \(bundleId): no resizable worker snapshot")
+      return .none
+    }
     let targetDisplay = state.displayShowing(workspaceId)
     var protectedKeys = Set<WindowKey>()
     if let targetDisplay {
@@ -422,7 +532,7 @@ extension WorkspaceActivationFeature {
       partitionSharedWindows: state.connectedDisplays.count > 1
         || state.activeWorkspacesByDisplay.count > 1,
       targetWorkArea: targetWorkArea,
-      windowFrame: { windowSnapshot.windowFrame($0) },
+      windowFrame: { onScreenFrames[$0.windowID] },
     )
     // The block's geometry — composition sub-rect when this is a borrowed/host
     // block, else the workspace's full work area. New windows insert into it.
@@ -437,7 +547,7 @@ extension WorkspaceActivationFeature {
     // needs it (insertion anchor + refocus); pure focus bookkeeping is
     // event-driven (`windowFocused` / `appActivated`).
     let focused: WindowKey? = (willRemove || willInsert)
-      ? windowSnapshot.focusedWindowKey()
+      ? state.lastObservedFocusedWindow
       : nil
     if let focused, existing?.windows.contains(focused) == true {
       state.insertionPoint[workspaceId] = focused
@@ -530,16 +640,6 @@ extension WorkspaceActivationFeature {
         + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])",
     )
 
-    // Shared apps included so floating ones get window events too (they're
-    // in neither the tree nor the workspace's registered set).
-    let observeIds = Array(OrderedSet(
-      (balanced?.windows.map(\.bundleId) ?? [])
-        + Array(registeredSet)
-        + state.config.sharedApps.map(\.bundleIdentifier)
-    ))
-    let observeEffect = Effect<Action>.run { [observer = windowObserver] _ in
-      await observer.observe(observeIds)
-    }
     // Only a sync that actually removed windows can have emptied the
     // workspace — launch/no-op syncs must never bounce the user off a
     // deliberately empty one.
@@ -548,6 +648,22 @@ extension WorkspaceActivationFeature {
       : handleEmptied(workspaceId: workspaceId, state: state)
 
     let treeChanged = oldWindows != newWindows
+    // Observers are process-lifetime and additive. Rewalking every running app
+    // after a no-op focus sync only repeated AppKit/AX setup work. A changed
+    // tree may contain a newly discovered transient, so only that path expands
+    // the observed set.
+    let observeIds = treeChanged
+      ? Array(OrderedSet(
+        (balanced?.windows.map(\.bundleId) ?? [])
+          + Array(registeredSet)
+          + state.config.sharedApps.map(\.bundleIdentifier)
+      ))
+      : []
+    let observeEffect: Effect<Action> = treeChanged
+      ? .run { [observer = windowObserver, observeIds] _ in
+        await observer.observe(observeIds)
+      }
+      : .none
     let markerRefresh = treeChanged ? refreshMarkers(state: state) : .none
     guard treeChanged, let final = balanced else {
       return .merge(observeEffect, markerRefresh, emptySwitch)
@@ -612,101 +728,41 @@ extension WorkspaceActivationFeature {
     )
   }
 
-  /// `switchToRecentWhenEmpty`: a close left the active workspace with
-  /// nothing of its own on screen — nothing tiled (registered, shared
-  /// tiled, or transient) and no *per-workspace* floating window — so jump
-  /// back to the recent workspace. Shared apps don't anchor: they join
-  /// every workspace, and a shared float follows you to the recent one
-  /// anyway. The tile-sync and prune callers gate on an actual removal;
-  /// the floating-branch caller relies on the live floating re-discovery
-  /// below — either way, deliberately sitting on an empty workspace never
-  /// bounces you out.
-  private func switchToRecentIfEmpty(
-    state: State,
-    workspaceId: Workspace.ID,
-  ) -> Effect<Action> {
-    guard
-      state.config.settings.switching.switchToRecentWhenEmpty,
-      !state.isActivating,
-      state.primaryActiveWorkspaceID == workspaceId,
-      let workspace = state.config.activeProfile?
-        .workspaces[id: workspaceId],
-      state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
-    else { return .none }
-    // Recent on the display the workspace is actually shown on (resolved via
-    // activeWorkspacesByDisplay first, not the cursor); falls back to any recent.
-    let display = tilingContext(for: workspaceId, state: state).display
-    let recent = display.flatMap { state.previousWorkspacesByDisplay[$0] }
-      ?? state.previousWorkspacesByDisplay.values.first
-    guard let recent, recent != workspaceId else { return .none }
-    // The BSP tree can read empty *transiently* while a window's identity
-    // is mid-flight — ghostty's native tabs each carry their own window id,
-    // so switching tabs swaps the live window out from under the tree (the
-    // old id is pruned before the new one syncs back in). Re-check the
-    // workspace's own tiled apps against the live window list: a tab switch
-    // leaves the app on screen, so a momentarily-stale tree must not be
-    // mistaken for an empty workspace and bounce the user to the recent one.
-    // Tiled *and* unmanaged apps occupy real screen space (only floating
-    // ones are mirrors). A live AX re-check of those tells "tree
-    // momentarily stale" (e.g. a native-tab window-id swap) apart from
-    // "workspace truly empty". requireResizable=false so fixed-size
-    // unmanaged windows (media players, etc.) still count.
-    let onScreenIds = workspace.apps.filter { $0.layout != .floating }.map(\.bundleIdentifier)
-    let hasOnScreen = !onScreenIds.isEmpty
-      && !windowSnapshot.discoverKeys(onScreenIds, false).isEmpty
-    guard !hasOnScreen else {
-      debugLog.log(
-        "Sync",
-        "ws=\(workspace.name) tree empty but member apps still on screen — not switching",
-      )
-      return .none
-    }
-    // A still-open per-workspace floating window anchors the workspace.
-    let floatingIds = workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
-    let hasFloating = !floatingIds.isEmpty
-      && !windowSnapshot.discoverKeys(floatingIds, false).isEmpty
-    guard !hasFloating else { return .none }
-    debugLog.log("Sync", "ws=\(workspace.name) empty → switch to recent")
-    return .send(.activate(workspaceId: recent, setFocus: true))
-  }
-
-  /// Empty-block handling after a sync/prune removal: the host block falls
-  /// back to `switchToRecentIfEmpty`, a borrowed block collapses its borrow so
-  /// the host reclaims the full screen. Both are gated on the tree actually
-  /// being empty, so a deliberately-empty block never bounces.
+  /// Re-check an empty tree's app presence on the AX worker. Native-tab apps
+  /// can replace their WindowServer id between prune and sync; the live check
+  /// prevents a transient empty tree from switching/collapsing, without
+  /// blocking the reducer/main event loop on AX IPC.
   private func handleEmptied(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
-    if state.primaryActiveWorkspaceID == workspaceId {
-      return switchToRecentIfEmpty(state: state, workspaceId: workspaceId)
+    guard
+      !state.isActivating,
+      state.tilingTrees[workspaceId]?.windows.isEmpty ?? true,
+      let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
+    else { return .none }
+    let onScreenIds = workspace.apps
+      .filter { $0.layout != .floating }
+      .map(\.bundleIdentifier)
+    let floatingIds = state.primaryActiveWorkspaceID == workspaceId
+      ? workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
+      : []
+    return .run { [snapshot = windowSnapshot] send in
+      let onScreenKeys = onScreenIds.isEmpty
+        ? []
+        : await snapshot.discoverKeysOffMain(onScreenIds, false)
+      let hasOnScreenMembers = !onScreenKeys.isEmpty
+      let floatingKeys = hasOnScreenMembers || floatingIds.isEmpty
+        ? []
+        : await snapshot.discoverKeysOffMain(floatingIds, false)
+      let hasFloatingWindows = !floatingKeys.isEmpty
+      await send(.emptyWorkspacePresenceResolved(
+        workspaceId: workspaceId,
+        hasOnScreenMembers: hasOnScreenMembers,
+        hasFloatingWindows: hasFloatingWindows,
+      ))
     }
-    return collapseIfBorrowedEmpty(borrowedId: workspaceId, state: state)
-  }
-
-  /// A borrowed block lost all its windows → dismiss the borrow. Re-checks the
-  /// borrowed workspace's on-screen apps first so a transient empty tree (e.g.
-  /// a native-tab window-id swap) doesn't collapse the composition.
-  private func collapseIfBorrowedEmpty(
-    borrowedId: Workspace.ID,
-    state: State,
-  ) -> Effect<Action> {
-    guard !state.isActivating else { return .none }
-    for (display, comp) in state.compositionsByDisplay
-      where comp.borrowed.contains(where: { $0.workspace == borrowedId })
-    {
-      guard
-        state.tilingTrees[borrowedId]?.windows.isEmpty ?? true,
-        let borrowedWs = state.config.activeProfile?.workspaces[id: borrowedId]
-      else { return .none }
-      let onScreenIds = borrowedWs.apps.filter { $0.layout != .floating }.map(\.bundleIdentifier)
-      let hasOnScreen = !onScreenIds.isEmpty
-        && !windowSnapshot.discoverKeys(onScreenIds, false).isEmpty
-      guard !hasOnScreen else {
-        debugLog.log("Borrow", "borrowed \(borrowedWs.name) tree empty but apps on screen — keep")
-        return .none
-      }
-      debugLog.log("Borrow", "borrowed \(borrowedWs.name) empty → dismiss")
-      return .send(.dismissBorrow(display: display))
-    }
-    return .none
+    .cancellable(
+      id: CancelID.emptyWorkspacePresence(workspaceId),
+      cancelInFlight: true,
+    )
   }
 
 }

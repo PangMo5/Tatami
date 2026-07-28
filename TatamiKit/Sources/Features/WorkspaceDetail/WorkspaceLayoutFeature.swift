@@ -3,22 +3,27 @@ import CoreGraphics
 import Foundation
 import Sharing
 
+// MARK: - SelectedTile
+
 /// The tapped tile — target for the toolbar's split-orientation + fullscreen
 /// actions. Captured from the leaf so it doesn't depend on tree structure.
 public struct SelectedTile: Equatable {
-  public var path: [BSPSide]
-  public var bundleId: String
-  public var liveKey: WindowKey?
-  /// Slot occurrence of the tile's window (nil when live) — lets the toolbar
-  /// fullscreen a specific same-app window in an inactive preview.
-  public var occurrence: Int?
   public init(path: [BSPSide], bundleId: String, liveKey: WindowKey?, occurrence: Int?) {
     self.path = path
     self.bundleId = bundleId
     self.liveKey = liveKey
     self.occurrence = occurrence
   }
+
+  public var path: [BSPSide]
+  public var bundleId: String
+  public var liveKey: WindowKey?
+  /// Slot occurrence of the tile's window (nil when live) — lets the toolbar
+  /// fullscreen a specific same-app window in an inactive preview.
+  public var occurrence: Int?
 }
+
+// MARK: - NonTiledApp
 
 /// A workspace member that isn't tiled — floating (mirrored above the tiles) or
 /// ignored (left alone). Shown in a band, not the BSP canvas.
@@ -28,8 +33,13 @@ public struct NonTiledApp: Identifiable, Equatable {
   public var iconPath: String?
   public var mode: LayoutMode
   public var isShared: Bool
-  public var id: String { bundleId }
+
+  public var id: String {
+    bundleId
+  }
 }
+
+// MARK: - WorkspaceLayoutFeature
 
 /// Owns the layout-preview business logic for one workspace: resolving the
 /// render tree, mapping trimmed→full edit paths, and applying edits — to the
@@ -38,8 +48,24 @@ public struct NonTiledApp: Identifiable, Equatable {
 /// `WorkspaceDetailFeature`; the view is a pure renderer over this store.
 @Reducer
 public struct WorkspaceLayoutFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
+
+    // MARK: Lifecycle
+
+    public init(workspaceId: Workspace.ID) {
+      self.workspaceId = workspaceId
+    }
+
+    // MARK: Public
+
     @Shared(.tatamiConfig) public var config = AppConfig()
     public var workspaceId: Workspace.ID
 
@@ -48,26 +74,23 @@ public struct WorkspaceLayoutFeature {
     public var layoutSnapshot: LayoutSnapshot?
     /// AX titles for the workspace's apps' live windows (disambiguates several
     /// windows of one app), even when the workspace isn't active.
-    public var windowTitles: [WindowKey: String] = [:]
+    public var windowTitles = [WindowKey: String]()
     /// Bundle ids with a currently-discoverable window. A shared app absent here
     /// is hidden and wouldn't tile on switch, so the preview omits it.
-    public var presentBundleIds: Set<String> = []
+    public var presentBundleIds = Set<String>()
     public var snapshotLoadedFor: Workspace.ID?
     public var windowInfoLoadedFor: Workspace.ID?
+    public var windowInfoRequestGeneration: UInt64 = 0
 
     /// The active workspace's live state, mirrored in from the view (the
     /// activation store lives in a sibling subtree).
     public var liveTree: BSPNode<WindowKey>?
-    public var liveZoomed: Set<WindowKey> = []
+    public var liveZoomed = Set<WindowKey>()
     public var isActive = false
 
     /// Tapped tile (drives toolbar orientation/fullscreen). Transient drag is
     /// view-local; this survives renders and is cleared by structural edits.
     public var selectedTile: SelectedTile?
-
-    public init(workspaceId: Workspace.ID) {
-      self.workspaceId = workspaceId
-    }
 
     public var workspace: Workspace? {
       config.workspace(id: workspaceId)
@@ -96,15 +119,25 @@ public struct WorkspaceLayoutFeature {
     /// exclude shared apps (they borrow only their own apps into a host).
     public var nonTiledApps: [NonTiledApp] {
       guard let workspace else { return [] }
-      var out: [NonTiledApp] = []
+      var out = [NonTiledApp]()
       for app in workspace.apps where app.layout != .tiled {
-        out.append(NonTiledApp(bundleId: app.bundleIdentifier, name: app.name,
-                               iconPath: app.iconPath, mode: app.layout, isShared: false))
+        out.append(NonTiledApp(
+          bundleId: app.bundleIdentifier,
+          name: app.name,
+          iconPath: app.iconPath,
+          mode: app.layout,
+          isShared: false,
+        ))
       }
       if workspace.kind != .scratchpad {
         for app in config.sharedApps where app.layout != .tiled {
-          out.append(NonTiledApp(bundleId: app.bundleIdentifier, name: app.name,
-                                 iconPath: app.iconPath, mode: app.layout, isShared: true))
+          out.append(NonTiledApp(
+            bundleId: app.bundleIdentifier,
+            name: app.name,
+            iconPath: app.iconPath,
+            mode: app.layout,
+            isShared: true,
+          ))
         }
       }
       return out
@@ -113,7 +146,7 @@ public struct WorkspaceLayoutFeature {
     /// Live window titles grouped by bundle id (sorted by window id) so the
     /// view can label several windows of one app distinctly.
     public var titlesByBundle: [String: [String]] {
-      var grouped: [String: [(CGWindowID, String)]] = [:]
+      var grouped = [String: [(CGWindowID, String)]]()
       for (key, title) in windowTitles {
         grouped[key.bundleId, default: []].append((key.windowID, title))
       }
@@ -133,9 +166,10 @@ public struct WorkspaceLayoutFeature {
         liveTree: liveTree,
         liveZoomed: liveZoomed,
         snapshot: layoutSnapshot,
-        autoBalance: config.settings.layout.autoBalance
+        autoBalance: config.settings.layout.autoBalance,
       )
     }
+
   }
 
   public enum Action {
@@ -166,10 +200,18 @@ public struct WorkspaceLayoutFeature {
     // Effect results
     case layoutSnapshotLoaded(LayoutSnapshot?)
     case loadWindowTitles(bundleIds: [String])
-    case windowInfoLoaded(titles: [WindowKey: String], present: Set<String>)
+    case windowInfoLoaded(
+      workspaceId: Workspace.ID,
+      generation: UInt64,
+      titles: [WindowKey: String],
+      present: Set<String>,
+    )
     case appActivityTick
 
     case delegate(Delegate)
+
+    // MARK: Public
+
     public enum Delegate: Equatable {
       /// Apply a structural op to the *active* workspace's live tree.
       case activeLayoutEdited(workspaceId: Workspace.ID, op: LayoutEditOp)
@@ -183,15 +225,6 @@ public struct WorkspaceLayoutFeature {
       case revealAppSettings(bundleId: String, isShared: Bool)
     }
   }
-
-  @Dependency(\.layoutStore) var layoutStore
-  @Dependency(\.windowSnapshot) var windowSnapshot
-  @Dependency(\.appLaunch) var appLaunch
-  @Dependency(\.windowObserver) var windowObserver
-
-  private enum CancelID { case appActivity, windowTitles }
-
-  public init() {}
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -219,7 +252,7 @@ public struct WorkspaceLayoutFeature {
               if case .windowTitleChanged = event { await send(.appActivityTick) }
             }
           }
-          .cancellable(id: CancelID.windowTitles, cancelInFlight: true)
+          .cancellable(id: CancelID.windowTitles, cancelInFlight: true),
         )
 
       case .appActivityTick:
@@ -237,27 +270,38 @@ public struct WorkspaceLayoutFeature {
         return .none
 
       case .loadWindowTitles(let bundleIds):
+        state.windowInfoRequestGeneration &+= 1
+        let generation = state.windowInfoRequestGeneration
+        let workspaceId = state.workspaceId
         guard !bundleIds.isEmpty else {
           state.windowTitles = [:]
           state.presentBundleIds = []
-          state.windowInfoLoadedFor = state.workspaceId
-          return .none
+          state.windowInfoLoadedFor = workspaceId
+          return .cancel(id: CancelID.windowInfoLoad)
         }
         // Discover live windows by bundle id — works even when this workspace
         // isn't active. The discovered set doubles as shared-app presence.
         return .run { [windowSnapshot] send in
-          let (titles, present) = await MainActor.run {
-            () -> ([WindowKey: String], Set<String>) in
-            let keys = windowSnapshot.cachedKeys(bundleIds, true)
-            return (windowSnapshot.windowTitles(keys), Set(keys.map(\.bundleId)))
-          }
-          await send(.windowInfoLoaded(titles: titles, present: present))
+          let keys = await windowSnapshot.cachedKeysOffMain(bundleIds, true)
+          let titles = await windowSnapshot.windowTitlesOffMain(keys)
+          let present = Set(keys.map(\.bundleId))
+          await send(.windowInfoLoaded(
+            workspaceId: workspaceId,
+            generation: generation,
+            titles: titles,
+            present: present,
+          ))
         }
+        .cancellable(id: CancelID.windowInfoLoad, cancelInFlight: true)
 
-      case .windowInfoLoaded(let titles, let present):
+      case .windowInfoLoaded(let workspaceId, let generation, let titles, let present):
+        guard
+          workspaceId == state.workspaceId,
+          generation == state.windowInfoRequestGeneration
+        else { return .none }
         state.windowTitles = titles
         state.presentBundleIds = present
-        state.windowInfoLoadedFor = state.workspaceId
+        state.windowInfoLoadedFor = workspaceId
         return .none
 
       case .tileTapped(let path, let bundleId, let liveKey, let occurrence):
@@ -274,15 +318,19 @@ public struct WorkspaceLayoutFeature {
         return .send(.delegate(.revealAppSettings(bundleId: bundleId, isShared: isShared)))
 
       case .dividerResized(let trimmedBranchPath, let ratio):
-        guard let full = state.resolved?.fullBranchPath(
-          trimmedBranchPath: trimmedBranchPath, hidden: state.hiddenSharedBundleIds
-        ) else { return .none }
+        guard
+          let full = state.resolved?.fullBranchPath(
+            trimmedBranchPath: trimmedBranchPath,
+            hidden: state.hiddenSharedBundleIds,
+          )
+        else { return .none }
         return route(.setRatio(path: full, ratio: ratio), state: &state)
 
       case .tileMoved(let source, let target, let zone):
         let hidden = state.hiddenSharedBundleIds
-        guard let sourceFull = state.resolved?.fullLeafPath(trimmedLeafPath: source, hidden: hidden),
-              let targetFull = state.resolved?.fullLeafPath(trimmedLeafPath: target, hidden: hidden)
+        guard
+          let sourceFull = state.resolved?.fullLeafPath(trimmedLeafPath: source, hidden: hidden),
+          let targetFull = state.resolved?.fullLeafPath(trimmedLeafPath: target, hidden: hidden)
         else { return .none }
         state.selectedTile = nil
         return route(.relocate(source: sourceFull, target: targetFull, zone: zone), state: &state)
@@ -300,10 +348,12 @@ public struct WorkspaceLayoutFeature {
         return route(.balance, state: &state)
 
       case .toggleOrientation:
-        guard let sel = state.selectedTile,
-              let full = state.resolved?.fullLeafPath(
-                trimmedLeafPath: sel.path, hidden: state.hiddenSharedBundleIds
-              )
+        guard
+          let sel = state.selectedTile,
+          let full = state.resolved?.fullLeafPath(
+            trimmedLeafPath: sel.path,
+            hidden: state.hiddenSharedBundleIds,
+          )
         else { return .none }
         state.selectedTile = nil
         return route(.toggleOrientation(leafPath: full), state: &state)
@@ -323,7 +373,16 @@ public struct WorkspaceLayoutFeature {
     }
   }
 
-  // MARK: - Edit routing
+  // MARK: Internal
+
+  @Dependency(\.layoutStore) var layoutStore
+  @Dependency(\.windowSnapshot) var windowSnapshot
+  @Dependency(\.appLaunch) var appLaunch
+  @Dependency(\.windowObserver) var windowObserver
+
+  // MARK: Private
+
+  private enum CancelID { case appActivity, windowInfoLoad, windowTitles }
 
   /// Apply a structural op: active → delegate to activation; inactive → edit the
   /// snapshot, persist, and invalidate the stale resident tree.
@@ -332,13 +391,14 @@ public struct WorkspaceLayoutFeature {
     if state.resolved?.isLive == true {
       return .send(.delegate(.activeLayoutEdited(workspaceId: id, op: op)))
     }
-    guard let workspace = state.workspace,
-          let template = previewLayoutTemplate(
-            snapshot: state.layoutSnapshot?.tree,
-            workspace: workspace,
-            sharedApps: state.config.sharedApps,
-            presentBundleIds: state.presentBundleIds
-          )
+    guard
+      let workspace = state.workspace,
+      let template = previewLayoutTemplate(
+        snapshot: state.layoutSnapshot?.tree,
+        workspace: workspace,
+        sharedApps: state.config.sharedApps,
+        presentBundleIds: state.presentBundleIds,
+      )
     else { return .none }
     // `SlotID` leaves are unique, so the op applies directly — a same-app swap
     // now produces a distinct tree (and persists) instead of collapsing to a
@@ -347,26 +407,29 @@ public struct WorkspaceLayoutFeature {
     guard newTemplate != template else { return .none }
     let snapshot = LayoutSnapshot(
       tree: newTemplate,
-      fullscreenZoomedSlots: state.layoutSnapshot?.fullscreenZoomedSlots ?? []
+      fullscreenZoomedSlots: state.layoutSnapshot?.fullscreenZoomedSlots ?? [],
     )
     state.layoutSnapshot = snapshot
     return .merge(
       .run { [layoutStore] _ in await layoutStore.save(id, snapshot) },
-      .send(.delegate(.residentLayoutInvalidated(workspaceId: id)))
+      .send(.delegate(.residentLayoutInvalidated(workspaceId: id))),
     )
   }
 
   private func toggleInactiveFullscreen(
-    slot: SlotID, zoomIn: Bool, state: inout State
+    slot: SlotID,
+    zoomIn: Bool,
+    state: inout State,
   ) -> Effect<Action> {
     let id = state.workspaceId
-    guard let workspace = state.workspace,
-          let template = previewLayoutTemplate(
-            snapshot: state.layoutSnapshot?.tree,
-            workspace: workspace,
-            sharedApps: state.config.sharedApps,
-            presentBundleIds: state.presentBundleIds
-          )
+    guard
+      let workspace = state.workspace,
+      let template = previewLayoutTemplate(
+        snapshot: state.layoutSnapshot?.tree,
+        workspace: workspace,
+        sharedApps: state.config.sharedApps,
+        presentBundleIds: state.presentBundleIds,
+      )
     else { return .none }
     var zoomed = Set(state.layoutSnapshot?.fullscreenZoomedSlots ?? [])
     if zoomIn {
@@ -381,7 +444,8 @@ public struct WorkspaceLayoutFeature {
     state.layoutSnapshot = snapshot
     return .merge(
       .run { [layoutStore] _ in await layoutStore.save(id, snapshot) },
-      .send(.delegate(.residentLayoutInvalidated(workspaceId: id)))
+      .send(.delegate(.residentLayoutInvalidated(workspaceId: id))),
     )
   }
+
 }
