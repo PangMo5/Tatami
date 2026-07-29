@@ -3,17 +3,30 @@ import ComposableArchitecture
 import Foundation
 
 extension WorkspaceActivationFeature {
-  // MARK: - Manual resize / snap-back
+  /// `tree` with its fullscreen-zoomed windows trimmed out — the layout the
+  /// user actually sees behind / around the zoom overlay. Mirrors the trim in
+  /// `computeFrames` so drag hit-testing reads the rendered frames, not the
+  /// raw tree (where a zoomed window still occupies its old slot). Returns nil
+  /// when every window is zoomed.
+  static func treeTrimmingZoomed(
+    _ tree: BSPNode<WindowKey>,
+    zoomed: Set<WindowKey>,
+  ) -> BSPNode<WindowKey>? {
+    let active = zoomed.intersection(Set(tree.windows))
+    guard !active.isEmpty else { return tree }
+    return tree.removingAll(active)
+  }
 
   func syncTreeRatio(
     for key: WindowKey,
     frame newFrame: CGRect,
-    state: inout State
+    state: inout State,
   ) -> Effect<Action> {
-    guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
-          let tree = state.tilingTrees[workspaceId]
+    guard
+      let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
+      let workspace = state.config.activeProfile?
+        .workspaces[id: workspaceId],
+      let tree = state.tilingTrees[workspaceId]
     else { return .none }
 
     // A fullscreen-zoomed window is rendered at the full work area, not at a
@@ -21,7 +34,7 @@ extension WorkspaceActivationFeature {
     // ratios from it. Snap it back to its fullscreen frame instead.
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     if zoomed.contains(key) {
-      return flushLayout(workspaceId: workspaceId, state: state)
+      return flushLayout(workspaceId: workspaceId, state: &state)
     }
 
     let settings = state.config.settings
@@ -42,8 +55,9 @@ extension WorkspaceActivationFeature {
     // happens to be a vertical (left/right) split.
     var newTree = tree
     func adjust(_ direction: BSPDirection, edge: CGFloat) {
-      guard let fencePath = newTree.fence(of: key, direction: direction, in: workArea, gap: gap),
-            case .branch(let branch) = newTree.subtree(at: fencePath)
+      guard
+        let fencePath = newTree.fence(of: key, direction: direction, in: workArea, gap: gap),
+        case .branch(let branch) = newTree.subtree(at: fencePath)
       else { return }
       let fenceRect = newTree.rect(at: fencePath, in: workArea, gap: gap)
       // `subdivide` lays children out as [first][gap][second]. For a window in
@@ -57,6 +71,7 @@ extension WorkspaceActivationFeature {
         guard total > 0 else { return }
         let divider = direction == .west ? edge - gap : edge
         ratio = (divider - fenceRect.minX) / total
+
       case .horizontal:
         let total = fenceRect.height - gap
         guard total > 0 else { return }
@@ -75,12 +90,10 @@ extension WorkspaceActivationFeature {
     state.tilingTrees[workspaceId] = newTree
 
     return .merge(
-      flushLayout(workspaceId: workspaceId, state: state),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace)
+      flushLayout(workspaceId: workspaceId, state: &state),
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace),
     )
   }
-
-  // MARK: - Drag-to-drop (drop-zone triangles)
 
   /// AX reported the user moved `key` to `frame`. Inspect the drop
   /// quadrant relative to the target tile:
@@ -98,13 +111,14 @@ extension WorkspaceActivationFeature {
   /// mouse-up, so preview and result always agree.
   func dropDecision(
     dragged: WindowKey,
-    state: State
+    state: State,
   ) -> (target: WindowKey, targetRect: CGRect, zone: DropZone)? {
     // Resolve the dragged window's owning block; the drop target is searched
     // within that one tree, so a drop can't cross the workspace boundary.
-    guard let workspaceId = state.workspaceOwning(dragged) ?? state.primaryActiveWorkspaceID,
-          let tree = state.tilingTrees[workspaceId],
-          tree.pathTo(window: dragged) != nil
+    guard
+      let workspaceId = state.workspaceOwning(dragged) ?? state.primaryActiveWorkspaceID,
+      let tree = state.tilingTrees[workspaceId],
+      tree.pathTo(window: dragged) != nil
     else { return nil }
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
@@ -124,10 +138,11 @@ extension WorkspaceActivationFeature {
     // becomes a drop target for another window's drag.
     guard let visible = Self.treeTrimmingZoomed(tree, zoomed: zoomed) else { return nil }
     let allFrames = visible.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
-    guard let target = allFrames.first(where: { other, rect in
-            other != dragged && rect.contains(cursor)
-          })?.key,
-          let targetRect = allFrames[target]
+    guard
+      let target = allFrames.first(where: { other, rect in
+        other != dragged && rect.contains(cursor)
+      })?.key,
+      let targetRect = allFrames[target]
     else { return nil }
 
     guard let zone = DropZone.quadrant(point: cursor, in: targetRect) else { return nil }
@@ -138,53 +153,38 @@ extension WorkspaceActivationFeature {
   /// the dragged one into the chosen side of the target. Re-tiles + persists.
   func applyDrop(
     _ drop: State.PendingDrop,
-    state: inout State
+    state: inout State,
   ) -> Effect<Action> {
     // Both windows must live in the same block's tree — the drop decision was
     // made within one tree, so a cross-boundary drop never reaches here.
-    guard let workspaceId = state.workspaceOwning(drop.dragged) ?? state.primaryActiveWorkspaceID,
-          let workspace = state.config.activeProfile?
-            .workspaces[id: workspaceId],
-          let tree = state.tilingTrees[workspaceId],
-          tree.pathTo(window: drop.dragged) != nil,
-          tree.pathTo(window: drop.target) != nil
+    guard
+      let workspaceId = state.workspaceOwning(drop.dragged) ?? state.primaryActiveWorkspaceID,
+      let workspace = state.config.activeProfile?
+        .workspaces[id: workspaceId],
+      let tree = state.tilingTrees[workspaceId],
+      tree.pathTo(window: drop.dragged) != nil,
+      tree.pathTo(window: drop.target) != nil
     else { return .none }
 
-    let newTree: BSPNode<WindowKey>
-    switch drop.zone {
-    case .swap:
-      newTree = tree.swapping(drop.dragged, drop.target)
-    case .top:
-      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .horizontal, child: .first)
-    case .right:
-      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .vertical, child: .second)
-    case .bottom:
-      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .horizontal, child: .second)
-    case .left:
-      newTree = tree.warpingInto(source: drop.dragged, target: drop.target, axis: .vertical, child: .first)
-    }
+    let newTree: BSPNode<WindowKey> =
+      switch drop.zone {
+      case .swap:
+        tree.swapping(drop.dragged, drop.target)
+      case .top:
+        tree.warpingInto(source: drop.dragged, target: drop.target, axis: .horizontal, child: .first)
+      case .right:
+        tree.warpingInto(source: drop.dragged, target: drop.target, axis: .vertical, child: .second)
+      case .bottom:
+        tree.warpingInto(source: drop.dragged, target: drop.target, axis: .horizontal, child: .second)
+      case .left:
+        tree.warpingInto(source: drop.dragged, target: drop.target, axis: .vertical, child: .first)
+      }
     state.tilingTrees[workspaceId] = newTree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
-      flushLayout(workspaceId: workspaceId, state: state),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace)
+      flushLayout(workspaceId: workspaceId, state: &state),
+      persist(newTree, fullscreenZoomed: zoomed, for: workspace),
     )
-  }
-
-  /// `tree` with its fullscreen-zoomed windows trimmed out — the layout the
-  /// user actually sees behind / around the zoom overlay. Mirrors the trim in
-  /// `computeFrames` so drag hit-testing reads the rendered frames, not the
-  /// raw tree (where a zoomed window still occupies its old slot). Returns nil
-  /// when every window is zoomed.
-  static func treeTrimmingZoomed(
-    _ tree: BSPNode<WindowKey>,
-    zoomed: Set<WindowKey>
-  ) -> BSPNode<WindowKey>? {
-    let active = zoomed.filter { tree.pathTo(window: $0) != nil }
-    guard !active.isEmpty else { return tree }
-    var trimmed: BSPNode<WindowKey>? = tree
-    for key in active { trimmed = trimmed?.removing(key) }
-    return trimmed
   }
 }

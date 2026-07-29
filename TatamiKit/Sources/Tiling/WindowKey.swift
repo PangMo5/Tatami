@@ -139,6 +139,11 @@ private func focusWindow(
   forceFront: Bool,
   willPerformAXFocus: (@Sendable () -> Void)?,
 ) async {
+  guard !Task.isCancelled else { return }
+  // Capture user-intent order on MainActor before the mirror commit suspension
+  // or the hop to the generic AX worker. Issuing this token inside the worker
+  // lets an older suspended request start later and invalidate a newer focus.
+  let request = focusAXLatestRequest.begin()
   // Let the floating overlay put its mirrors back up *before* the focus
   // moves, so a floating window never visibly drops behind the newly
   // focused tile (see MirrorWindowRegistry.setWillFocusHandler). When a
@@ -160,11 +165,18 @@ private func focusWindow(
       return
     }
   }
-  guard !Task.isCancelled else { return }
+  guard
+    !Task.isCancelled,
+    focusAXLatestRequest.isCurrent(request)
+  else { return }
 
   // AppKit activation stays on the main actor. All timeout-prone AX lookup,
   // reads, writes, and raises run on the dedicated focus worker below.
   if !forceFront {
+    guard
+      !Task.isCancelled,
+      focusAXLatestRequest.isCurrent(request)
+    else { return }
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
   @Dependency(\.sls) var sls
@@ -174,9 +186,13 @@ private func focusWindow(
     forceFront: forceFront,
     fallbackToAppFront: true,
     sls: sls,
+    request: request,
     willPerformAXFocus: willPerformAXFocus,
   )
-  guard !Task.isCancelled else { return }
+  guard
+    !Task.isCancelled,
+    focusAXLatestRequest.isCurrent(request)
+  else { return }
   if case .activateApp = result {
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
@@ -223,9 +239,18 @@ func focusWindowFollowingMouse(
 /// to a best-effort `activate()` only if no AX window can be resolved.
 @MainActor
 public func focusAppFront(pid: pid_t) async {
-  @Dependency(\.sls) var sls
-  let result = await focusAppFrontOffMain(pid: pid, sls: sls)
   guard !Task.isCancelled else { return }
+  let request = focusAXLatestRequest.begin()
+  @Dependency(\.sls) var sls
+  let result = await focusAppFrontOffMain(
+    pid: pid,
+    sls: sls,
+    request: request,
+  )
+  guard
+    !Task.isCancelled,
+    focusAXLatestRequest.isCurrent(request)
+  else { return }
   if case .activateApp = result {
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
@@ -241,20 +266,90 @@ private let mirrorCommitBeat = Duration.milliseconds(30)
 
 // MARK: - FocusAXResult
 
-private enum FocusAXResult: Sendable {
+enum FocusAXResult: Sendable, Equatable {
   case completed
   case activateApp
   case cancelled
 }
 
-/// Every focus request shares one serial, user-initiated lane. AX calls are
-/// synchronous cross-process IPC; serializing them prevents a burst of FFM and
-/// hotkey requests from blocking several cooperative-pool threads at once.
-private let focusAXQueue = DispatchQueue(
-  label: "dev.PangMo5.Tatami.ax-window-focus",
-  qos: .userInitiated,
+/// AX calls are synchronous cross-process IPC. Each process gets one serial,
+/// user-initiated lane: focus order stays deterministic within an app, while a
+/// busy app can no longer hold up focus requests for unrelated processes.
+private let focusAXQueues = AXPIDSerialQueueRegistry(
+  label: "dev.PangMo5.Tatami.ax-window-focus"
 )
+private let focusAXLatestRequest = FocusAXLatestRequest()
+private let focusAXMutationLock = NSLock()
 private let focusAXMessagingTimeout: Float = 0.25
+
+// MARK: - AXPIDSerialQueueRegistry
+
+/// Maps synchronous AX IPC to one serial GCD lane per target process.
+///
+/// Queue selection is itself synchronous (callers immediately enqueue a GCD
+/// block), so a narrow lock protects only the PID-to-queue map. AX work never
+/// runs under the lock.
+final class AXPIDSerialQueueRegistry: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  init(label: String) {
+    self.label = label
+  }
+
+  // MARK: Internal
+
+  func queue(for pid: pid_t) -> DispatchQueue {
+    lock.withLock {
+      if let queue = queues[pid] {
+        return queue
+      }
+      let queue = DispatchQueue(
+        label: "\(label).pid-\(pid)",
+        qos: .userInitiated,
+      )
+      queues[pid] = queue
+      return queue
+    }
+  }
+
+  // MARK: Private
+
+  private let label: String
+  private let lock = NSLock()
+  private var queues = [pid_t: DispatchQueue]()
+
+}
+
+// MARK: - FocusAXLatestRequest
+
+/// A process-independent sequence keeps concurrent PID lanes latest-wins.
+///
+/// Reads and target lookup may overlap across apps, but every blocking step
+/// checks this generation before the final mutation. The mutation itself is a
+/// short global critical section so an older request cannot pass its last
+/// check, pause, and steal focus back after a newer PID has focused.
+final class FocusAXLatestRequest: @unchecked Sendable {
+
+  // MARK: Internal
+
+  func begin() -> UInt64 {
+    lock.withLock {
+      generation &+= 1
+      return generation
+    }
+  }
+
+  func isCurrent(_ candidate: UInt64) -> Bool {
+    lock.withLock { generation == candidate }
+  }
+
+  // MARK: Private
+
+  private let lock = NSLock()
+  private var generation: UInt64 = 0
+
+}
 
 // MARK: - FocusAXCancellationFlag
 
@@ -286,12 +381,13 @@ private func performFocusOffMain(
   forceFront: Bool,
   fallbackToAppFront: Bool,
   sls: SLSClient,
+  request: UInt64,
   willPerformAXFocus: (@Sendable () -> Void)?,
 ) async -> FocusAXResult {
   let cancellation = FocusAXCancellationFlag()
   return await withTaskCancellationHandler {
     await withCheckedContinuation { continuation in
-      focusAXQueue.async {
+      focusAXQueues.queue(for: pid).async {
         continuation.resume(
           returning: performFocusAX(
             pid: pid,
@@ -299,7 +395,10 @@ private func performFocusOffMain(
             forceFront: forceFront,
             fallbackToAppFront: fallbackToAppFront,
             sls: sls,
-            isCancelled: { cancellation.isCancelled },
+            isCancelled: {
+              cancellation.isCancelled
+                || !focusAXLatestRequest.isCurrent(request)
+            },
             willPerformAXFocus: willPerformAXFocus,
           )
         )
@@ -313,16 +412,20 @@ private func performFocusOffMain(
 private func focusAppFrontOffMain(
   pid: pid_t,
   sls: SLSClient,
+  request: UInt64,
 ) async -> FocusAXResult {
   let cancellation = FocusAXCancellationFlag()
   return await withTaskCancellationHandler {
     await withCheckedContinuation { continuation in
-      focusAXQueue.async {
+      focusAXQueues.queue(for: pid).async {
         continuation.resume(
           returning: focusAppFrontAX(
             pid: pid,
             sls: sls,
-            isCancelled: { cancellation.isCancelled },
+            isCancelled: {
+              cancellation.isCancelled
+                || !focusAXLatestRequest.isCurrent(request)
+            },
           )
         )
       }
@@ -435,7 +538,10 @@ private func performFocusAX(
   else {
     // Window list unreadable — ask the main actor to bring the app up after
     // the worker returns, preserving the old deliberate-switch fallback.
-    return forceFront ? .activateApp : .completed
+    return focusAXFallbackResult(
+      forceFront: forceFront,
+      isCancelled: isCancelled,
+    )
   }
   for window in windows {
     guard !isCancelled() else { return .cancelled }
@@ -459,6 +565,17 @@ private func performFocusAX(
     return focusAppFrontAX(pid: pid, sls: sls, isCancelled: isCancelled)
   }
   return isCancelled() ? .cancelled : .completed
+}
+
+/// A blocking AX lookup can become stale while it waits on the target app.
+/// Revalidate the request before asking MainActor to run the AppKit fallback;
+/// returning `.activateApp` for a superseded request would steal focus back.
+func focusAXFallbackResult(
+  forceFront: Bool,
+  isCancelled: @Sendable () -> Bool,
+) -> FocusAXResult {
+  guard !isCancelled() else { return .cancelled }
+  return forceFront ? .activateApp : .completed
 }
 
 private func focusedWindowID(of app: AXUIElement) -> CGWindowID? {
@@ -497,25 +614,28 @@ private func focusResolvedWindowAX(
   // Pointer-origin bookkeeping must happen only after this request reaches
   // the serial AX lane and survives cancellation. Recording in the caller
   // leaves a phantom origin when a newer mouse move cancels queued work.
-  guard
-    beginAXFocusMutationIfCurrent(
-      isCancelled: isCancelled,
-      willPerformAXFocus: willPerformAXFocus,
-    )
-  else { return .cancelled }
-  AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
-  if forceFront {
-    // A deliberate switch must make `pid` the frontmost *application* so
-    // keyboard focus follows and the focus resolver (frontmost-app based)
-    // observes the change — otherwise cross-app window cycling stalls, the
-    // window raising but the front app never changing. NSRunningApplication
-    // .activate() from an accessory app can't do this reliably (esp. on a
-    // secondary display); SLPS can (and does the AX raise itself).
-    sls.focusWindow(pid, windowID, window)
-  } else {
-    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+  let applied = focusAXMutationLock.withLock {
+    guard
+      beginAXFocusMutationIfCurrent(
+        isCancelled: isCancelled,
+        willPerformAXFocus: willPerformAXFocus,
+      )
+    else { return false }
+    AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+    if forceFront {
+      // A deliberate switch must make `pid` the frontmost *application* so
+      // keyboard focus follows and the focus resolver (frontmost-app based)
+      // observes the change — otherwise cross-app window cycling stalls, the
+      // window raising but the front app never changing. NSRunningApplication
+      // .activate() from an accessory app can't do this reliably (esp. on a
+      // secondary display); SLPS can (and does the AX raise itself).
+      sls.focusWindow(pid, windowID, window)
+    } else {
+      AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    }
+    return true
   }
-  return .completed
+  return applied ? .completed : .cancelled
 }
 
 /// Treat origin recording and the following synchronous AX mutation as one

@@ -9,7 +9,7 @@ import Testing
 @Suite("BSPTree")
 struct BSPTreeTests {
   @Test
-  func singleWindowFillsTheRect() {
+  func `single window fills the rect`() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1], in: display)
     let frames = tree?.frames(in: display, gap: 0) ?? [:]
@@ -17,7 +17,7 @@ struct BSPTreeTests {
   }
 
   @Test
-  func twoWindowsSplitTheWiderAxisFirst() {
+  func `two windows split the wider axis first`() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2], in: display)
     let frames = tree?.frames(in: display, gap: 0) ?? [:]
@@ -27,7 +27,7 @@ struct BSPTreeTests {
   }
 
   @Test
-  func tallDisplaySplitsHorizontallyFirst() {
+  func `tall display splits horizontally first`() {
     let display = CGRect(x: 0, y: 0, width: 600, height: 1000)
     let tree = BSPNode.build([1, 2], in: display)
     let frames = tree?.frames(in: display, gap: 0) ?? [:]
@@ -36,17 +36,17 @@ struct BSPTreeTests {
   }
 
   @Test
-  func gapIsAppliedOnceBetweenSiblings() {
+  func `gap is applied once between siblings`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2], in: display)
     let frames = tree?.frames(in: display, gap: 10) ?? [:]
     #expect(frames[1]?.maxX == 495)
     #expect(frames[2]?.minX == 505)
-    #expect(frames[2]!.minX - frames[1]!.maxX == 10)
+    #expect(try #require(frames[2]?.minX) - frames[1]!.maxX == 10)
   }
 
   @Test
-  func minDepthInsertionBalancesAcrossSiblings() {
+  func `min depth insertion balances across siblings`() {
     // After three windows on a wide display, the shallowest-leaf
     // (BFS) rule picks the same depth each time. Inserting 1 → root.
     // 2 → splits root (left=1, right=2).
@@ -61,7 +61,7 @@ struct BSPTreeTests {
   }
 
   @Test
-  func removingAWindowCollapsesTheSibling() {
+  func `removing A window collapses the sibling`() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     var tree = BSPNode.build([1, 2, 3], in: display)
     tree = tree?.removing(2)
@@ -69,13 +69,24 @@ struct BSPTreeTests {
   }
 
   @Test
-  func removingTheOnlyWindowReturnsNil() {
-    let tree: BSPNode<Int> = .leaf(1)
+  func `removing the only window returns nil`() {
+    let tree = BSPNode<Int>.leaf(1)
     #expect(tree.removing(1) == nil)
   }
 
   @Test
-  func swappingTwoWindowsTransposesFrames() {
+  func `removing many windows walks the tree once and promotes survivors`() throws {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = try #require(BSPNode.build([1, 2, 3, 4, 5, 6], in: display))
+
+    let survivors = tree.removingAll([2, 4, 6])
+
+    #expect(Set(survivors?.windows ?? []) == [1, 3, 5])
+    #expect(tree.removingAll(Set(tree.windows)) == nil)
+  }
+
+  @Test
+  func `swapping two windows transposes frames`() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = BSPNode.build([1, 2], in: display)
     let frames = tree?.swapping(1, 2).frames(in: display, gap: 0) ?? [:]
@@ -84,9 +95,9 @@ struct BSPTreeTests {
   }
 
   @Test
-  func directionalSwapUsesANeighborThenWarpsAtTheOuterEdge() {
+  func `directional swap uses A neighbor then warps at the outer edge`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!
+    let tree = try #require(BSPNode.build([1, 2], in: display))
 
     let swapped = tree.applyingDirectionalSwap(
       window: 1,
@@ -108,9 +119,9 @@ struct BSPTreeTests {
   }
 
   @Test
-  func togglingSplitFlipsParentAxis() {
+  func `toggling split flips parent axis`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!
+    let tree = try #require(BSPNode.build([1, 2], in: display))
     let toggled = tree.togglingSplit(at: 2)
     let frames = toggled.frames(in: display, gap: 0)
     // After flip the children stack top/bottom rather than side-by-side.
@@ -119,9 +130,9 @@ struct BSPTreeTests {
   }
 
   @Test
-  func resizingNudgesNearestAxisAncestor() {
+  func `resizing nudges nearest axis ancestor`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!  // vertical split, ratio 0.5
+    let tree = try #require(BSPNode.build([1, 2], in: display)) // vertical split, ratio 0.5
     let grown = tree.resizing(window: 1, axis: .vertical, delta: 0.2)
     let frames = grown.frames(in: display, gap: 0)
     #expect(frames[1] == CGRect(x: 0, y: 0, width: 700, height: 600))
@@ -129,9 +140,9 @@ struct BSPTreeTests {
   }
 
   @Test
-  func directionalResizeAlwaysGrowsTheFocusedSide() {
+  func `directional resize always grows the focused side`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!
+    let tree = try #require(BSPNode.build([1, 2], in: display))
     let grown = tree.resizing(window: 2, direction: .east, delta: 0.2)
     let frames = grown.frames(in: display, gap: 0)
     #expect(frames[1]?.width == 300)
@@ -139,16 +150,16 @@ struct BSPTreeTests {
   }
 
   @Test
-  func pathToFindsTheLeaf() {
+  func `path to finds the leaf`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2, 3], in: display)!
+    let tree = try #require(BSPNode.build([1, 2, 3], in: display))
     #expect(tree.pathTo(window: 2) == [.right])
   }
 
   @Test
-  func parentZoomFillsTheParentBranch() {
+  func `parent zoom fills the parent branch`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2], in: display)!
+    let tree = try #require(BSPNode.build([1, 2], in: display))
     let zoomed = tree.togglingParentZoom(at: 2)
     let frames = zoomed.frames(in: display, gap: 0)
     // Parent of 2 is the root branch — its area is the whole display.
@@ -158,7 +169,7 @@ struct BSPTreeTests {
   }
 
   @Test
-  func stackInsertPushesOntoLeaf() {
+  func `stack insert pushes onto leaf`() {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     var tree: BSPNode<Int>? = .leaf(1)
     tree = tree?.settingInsertDirection(at: 1, direction: .stack)
@@ -170,9 +181,9 @@ struct BSPTreeTests {
   }
 
   @Test
-  func balancedRedistributesByLeafCount() {
+  func `balanced redistributes by leaf count`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
-    let tree = BSPNode.build([1, 2, 3], in: display)!
+    let tree = try #require(BSPNode.build([1, 2, 3], in: display))
     let balanced = tree.balanced(axis: .both)
     let frames = balanced.frames(in: display, gap: 0)
     #expect(frames.count == 3)

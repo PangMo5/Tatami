@@ -21,8 +21,9 @@ private func liveFocusedWindowKey() -> WindowKey? {
 }
 
 /// Performs only the synchronous AX messaging portion of focused-window
-/// resolution. The async dependency runs this on a serial worker so the main
-/// event loop remains available even when the frontmost app is busy.
+/// resolution. The async dependency runs this on a per-process serial worker
+/// so the main event loop and unrelated apps remain available when one app is
+/// busy.
 private func resolveFocusedWindowKey(pid: pid_t, bundleId: String) -> WindowKey? {
   let axApp = AXUIElementCreateApplication(pid)
   AXUIElementSetMessagingTimeout(axApp, 0.25)
@@ -52,9 +53,8 @@ private struct FrontmostAppIdentity: Sendable {
   var bundleId: String
 }
 
-private let focusedWindowAXQueue = DispatchQueue(
-  label: "dev.PangMo5.Tatami.ax-focused-window",
-  qos: .userInitiated,
+private let windowReadAXQueues = AXPIDSerialQueueRegistry(
+  label: "dev.PangMo5.Tatami.ax-window-read"
 )
 
 private let windowMetadataAXQueue = DispatchQueue(
@@ -64,56 +64,149 @@ private let windowMetadataAXQueue = DispatchQueue(
 
 // MARK: - WindowDiscoveryRequest
 
-private struct WindowDiscoveryRequest: Hashable, Sendable {
+struct WindowDiscoveryRequest: Sendable {
   struct Process: Hashable, Sendable {
     var bundleId: String
     var pid: pid_t
   }
 
-  var bundleIds: [String]
   var processes: [Process]
-  var requireResizable: Bool
   /// Global epoch used only to filter the result at commit.
   var scanStartEpoch: UInt64
-  /// Generation scoped to these bundles (plus unknown window invalidations).
-  /// This is part of single-flight identity; unrelated bundle changes can
-  /// still share the same in-flight AX scan.
-  var relevantInvalidationGeneration: UInt64
+  /// Per-bundle generations distinguish a real state change from another
+  /// consumer joining the same PID scan. Only the former requests a trailing
+  /// refresh.
+  var invalidationGenerations: [String: UInt64]
 
-  var pidsByBundle: [String: [pid_t]] {
-    Dictionary(grouping: processes, by: \.bundleId)
-      .mapValues { $0.map(\.pid) }
-  }
-
-  static func ==(lhs: Self, rhs: Self) -> Bool {
-    lhs.bundleIds == rhs.bundleIds
-      && lhs.processes == rhs.processes
-      && lhs.requireResizable == rhs.requireResizable
-      && lhs.relevantInvalidationGeneration == rhs.relevantInvalidationGeneration
-  }
-
-  func hash(into hasher: inout Hasher) {
-    hasher.combine(bundleIds)
-    hasher.combine(processes)
-    hasher.combine(requireResizable)
-    hasher.combine(relevantInvalidationGeneration)
+  func invalidationGeneration(for process: Process) -> UInt64 {
+    invalidationGenerations[process.bundleId, default: 0]
   }
 }
 
 // MARK: - WindowDiscoveryCoordinator
 
-/// One exact discovery request executes at most once. AX notifications for a
-/// busy app can arrive in bursts while its first synchronous scan is still
-/// waiting; every caller awaits that same worker result instead of queueing
-/// duplicate timeout-length scans.
-private actor WindowDiscoveryCoordinator {
+/// Each target PID executes at most one capability-complete AX scan at a time.
+/// Requests for different eligibility views or overlapping bundle groups share
+/// that process flight, while unrelated PIDs remain free to progress in
+/// parallel. A newer invalidation queues one trailing scan; merely adding
+/// another waiter does not.
+actor WindowDiscoveryCoordinator {
+
+  // MARK: Lifecycle
+
+  init(scan: Scan? = nil) {
+    self.scan = scan ?? { process, _, sls, cancellation in
+      await withCheckedContinuation { continuation in
+        windowReadAXQueues.queue(for: process.pid).async {
+          continuation.resume(
+            returning: cancellation.isCancelled
+              ? WindowCapabilityDiscovery()
+              : discoverWindowCapabilities(
+                forBundleIds: [process.bundleId],
+                pidsByBundle: [process.bundleId: [process.pid]],
+                sls: sls,
+                isCancelled: { cancellation.isCancelled },
+              )
+          )
+        }
+      }
+    }
+  }
 
   // MARK: Internal
+
+  typealias Scan = @Sendable (
+    _ process: WindowDiscoveryRequest.Process,
+    _ invalidationGeneration: UInt64,
+    _ sls: SLSClient,
+    _ cancellation: WindowDiscoveryCancellation,
+  ) async -> WindowCapabilityDiscovery
 
   func discover(
     _ request: WindowDiscoveryRequest,
     sls: SLSClient,
-    requiresTrailingRefresh: Bool,
+  ) async throws -> WindowCapabilityDiscovery {
+    guard !request.processes.isEmpty else {
+      return WindowCapabilityDiscovery()
+    }
+
+    return try await withThrowingTaskGroup(
+      of: (Int, WindowCapabilityDiscovery).self
+    ) { group in
+      for (index, process) in request.processes.enumerated() {
+        group.addTask {
+          let discovery = try await self.discover(
+            process,
+            invalidationGeneration: request.invalidationGeneration(for: process),
+            sls: sls,
+          )
+          return (index, discovery)
+        }
+      }
+
+      var ordered = [WindowCapabilityDiscovery?](
+        repeating: nil,
+        count: request.processes.count,
+      )
+      for try await (index, discovery) in group {
+        ordered[index] = discovery
+      }
+      return Self.merge(ordered.compactMap { $0 })
+    }
+  }
+
+  func inFlightWaiterCount(
+    for process: WindowDiscoveryRequest.Process
+  ) -> Int {
+    inFlight[process]?.waiters.count ?? 0
+  }
+
+  // MARK: Private
+
+  private struct PendingRefresh {
+    var invalidationGeneration: UInt64
+    var sls: SLSClient
+  }
+
+  private struct InFlight {
+    var generation: UInt64
+    var invalidationGeneration: UInt64
+    var task: Task<WindowCapabilityDiscovery, Never>
+    var cancellation: AXReadCancellationFlag
+    var pendingRefresh: PendingRefresh?
+    var waiters = [UUID: CheckedContinuation<WindowCapabilityDiscovery, any Error>]()
+  }
+
+  private let scan: Scan
+  private var generation: UInt64 = 0
+  private var inFlight = [WindowDiscoveryRequest.Process: InFlight]()
+
+  private nonisolated static func merge(
+    _ discoveries: [WindowCapabilityDiscovery]
+  ) -> WindowCapabilityDiscovery {
+    var merged = WindowCapabilityDiscovery()
+    for discovery in discoveries {
+      merged.movableKeys += discovery.movableKeys
+      merged.resizableKeys += discovery.resizableKeys
+      merged.unreachable.formUnion(discovery.unreachable)
+      merged.retained.formUnion(discovery.retained)
+    }
+    if !merged.unreachable.isEmpty {
+      merged.movableKeys.removeAll {
+        merged.unreachable.contains($0.bundleId)
+      }
+      merged.resizableKeys.removeAll {
+        merged.unreachable.contains($0.bundleId)
+      }
+    }
+    merged.retained.subtract(merged.movableKeys.map(\.windowID))
+    return merged
+  }
+
+  private func discover(
+    _ process: WindowDiscoveryRequest.Process,
+    invalidationGeneration: UInt64,
+    sls: SLSClient,
   ) async throws -> WindowCapabilityDiscovery {
     let waiterID = UUID()
     return try await withTaskCancellationHandler {
@@ -122,109 +215,99 @@ private actor WindowDiscoveryCoordinator {
         register(
           continuation,
           id: waiterID,
-          request: request,
+          process: process,
+          invalidationGeneration: invalidationGeneration,
           sls: sls,
-          requiresTrailingRefresh: requiresTrailingRefresh,
         )
       }
     } onCancel: {
       Task {
-        await self.cancelWaiter(id: waiterID, request: request)
+        await self.cancelWaiter(id: waiterID, process: process)
       }
     }
   }
 
-  // MARK: Private
-
-  private struct InFlight {
-    var generation: UInt64
-    var task: Task<WindowCapabilityDiscovery, Never>
-    var cancellation: AXReadCancellationFlag
-    var dirty: Bool
-    var waiters = [UUID: CheckedContinuation<WindowCapabilityDiscovery, any Error>]()
-    var sls: SLSClient
-  }
-
-  private let queue = DispatchQueue(
-    label: "dev.PangMo5.Tatami.ax-window-discovery",
-    qos: .userInitiated,
-    attributes: .concurrent,
-  )
-  private var generation: UInt64 = 0
-  private var inFlight = [WindowDiscoveryRequest: InFlight]()
-
   private func makeInFlight(
-    _ request: WindowDiscoveryRequest,
+    _ process: WindowDiscoveryRequest.Process,
+    invalidationGeneration: UInt64,
     sls: SLSClient,
     waiters: [UUID: CheckedContinuation<WindowCapabilityDiscovery, any Error>] = [:],
   ) -> InFlight {
     generation &+= 1
     let currentGeneration = generation
-    let queue = queue
     let cancellation = AXReadCancellationFlag()
+    let scan = scan
     let task = Task {
-      await withCheckedContinuation { continuation in
-        queue.async {
-          continuation.resume(
-            returning: cancellation.isCancelled
-              ? WindowCapabilityDiscovery()
-              : discoverWindowCapabilities(
-                forBundleIds: request.bundleIds,
-                pidsByBundle: request.pidsByBundle,
-                sls: sls,
-                isCancelled: { cancellation.isCancelled },
-              )
-          )
-        }
-      }
+      await scan(
+        process,
+        invalidationGeneration,
+        sls,
+        WindowDiscoveryCancellation {
+          cancellation.isCancelled || Task.isCancelled
+        },
+      )
     }
     return InFlight(
       generation: currentGeneration,
+      invalidationGeneration: invalidationGeneration,
       task: task,
       cancellation: cancellation,
-      dirty: false,
+      pendingRefresh: nil,
       waiters: waiters,
-      sls: sls,
     )
   }
 
   private func register(
     _ continuation: CheckedContinuation<WindowCapabilityDiscovery, any Error>,
     id: UUID,
-    request: WindowDiscoveryRequest,
+    process: WindowDiscoveryRequest.Process,
+    invalidationGeneration: UInt64,
     sls: SLSClient,
-    requiresTrailingRefresh: Bool,
   ) {
-    if var existing = inFlight[request] {
-      if requiresTrailingRefresh {
-        // One state change while a scan is running demands exactly one latest
-        // trailing snapshot; any further events collapse into this bit.
-        existing.dirty = true
+    if var existing = inFlight[process] {
+      if invalidationGeneration > existing.invalidationGeneration {
+        if let pending = existing.pendingRefresh {
+          if invalidationGeneration > pending.invalidationGeneration {
+            existing.pendingRefresh = PendingRefresh(
+              invalidationGeneration: invalidationGeneration,
+              sls: sls,
+            )
+          }
+        } else {
+          existing.pendingRefresh = PendingRefresh(
+            invalidationGeneration: invalidationGeneration,
+            sls: sls,
+          )
+        }
       }
       existing.waiters[id] = continuation
-      inFlight[request] = existing
+      inFlight[process] = existing
       return
     }
 
-    var entry = makeInFlight(request, sls: sls)
+    var entry = makeInFlight(
+      process,
+      invalidationGeneration: invalidationGeneration,
+      sls: sls,
+    )
     entry.waiters[id] = continuation
-    inFlight[request] = entry
+    inFlight[process] = entry
     observeCompletion(
-      request: request,
+      process: process,
       generation: entry.generation,
       task: entry.task,
     )
   }
 
   private func observeCompletion(
-    request: WindowDiscoveryRequest,
+    process: WindowDiscoveryRequest.Process,
     generation: UInt64,
     task: Task<WindowCapabilityDiscovery, Never>,
   ) {
     Task {
       let result = await task.value
       scanCompleted(
-        request: request,
+        process: process,
         generation: generation,
         result: result,
       )
@@ -232,29 +315,30 @@ private actor WindowDiscoveryCoordinator {
   }
 
   private func scanCompleted(
-    request: WindowDiscoveryRequest,
+    process: WindowDiscoveryRequest.Process,
     generation: UInt64,
     result: WindowCapabilityDiscovery,
   ) {
-    guard let current = inFlight[request], current.generation == generation
+    guard let current = inFlight[process], current.generation == generation
     else { return }
 
-    if current.dirty, !current.waiters.isEmpty {
+    if let pending = current.pendingRefresh, !current.waiters.isEmpty {
       let trailing = makeInFlight(
-        request,
-        sls: current.sls,
+        process,
+        invalidationGeneration: pending.invalidationGeneration,
+        sls: pending.sls,
         waiters: current.waiters,
       )
-      inFlight[request] = trailing
+      inFlight[process] = trailing
       observeCompletion(
-        request: request,
+        process: process,
         generation: trailing.generation,
         task: trailing.task,
       )
       return
     }
 
-    inFlight[request] = nil
+    inFlight[process] = nil
     for continuation in current.waiters.values {
       continuation.resume(returning: result)
     }
@@ -262,10 +346,10 @@ private actor WindowDiscoveryCoordinator {
 
   private func cancelWaiter(
     id: UUID,
-    request: WindowDiscoveryRequest,
+    process: WindowDiscoveryRequest.Process,
   ) {
     guard
-      var current = inFlight[request],
+      var current = inFlight[process],
       let continuation = current.waiters.removeValue(forKey: id)
     else { return }
 
@@ -273,9 +357,9 @@ private actor WindowDiscoveryCoordinator {
     if current.waiters.isEmpty {
       current.cancellation.cancel()
       current.task.cancel()
-      inFlight[request] = nil
+      inFlight[process] = nil
     } else {
-      inFlight[request] = current
+      inFlight[process] = current
     }
   }
 
@@ -284,21 +368,21 @@ private actor WindowDiscoveryCoordinator {
 @MainActor
 private func makeWindowDiscoveryRequest(
   bundleIds: [String],
-  requireResizable: Bool,
   scanStartEpoch: UInt64,
-  relevantInvalidationGeneration: UInt64,
+  invalidationGenerations: [String: UInt64],
 ) -> WindowDiscoveryRequest {
   let pids = runningPIDsByBundle(bundleIds)
+  var seen = Set<WindowDiscoveryRequest.Process>()
   return WindowDiscoveryRequest(
-    bundleIds: bundleIds,
     processes: bundleIds.flatMap { bundleId in
       (pids[bundleId] ?? []).map {
         WindowDiscoveryRequest.Process(bundleId: bundleId, pid: $0)
       }
+    }.filter {
+      seen.insert($0).inserted
     },
-    requireResizable: requireResizable,
     scanStartEpoch: scanStartEpoch,
-    relevantInvalidationGeneration: relevantInvalidationGeneration,
+    invalidationGenerations: invalidationGenerations,
   )
 }
 
@@ -319,14 +403,16 @@ private func resolveFocusedWindowKeyAsync(
   let cancellation = AXReadCancellationFlag()
   return await withTaskCancellationHandler {
     await withCheckedContinuation { continuation in
-      focusedWindowAXQueue.async {
-        continuation.resume(
-          returning: cancellation.isCancelled
+      windowReadAXQueues.queue(for: identity.pid).async {
+        let resolved =
+          cancellation.isCancelled
             ? nil
             : resolveFocusedWindowKey(
               pid: identity.pid,
               bundleId: identity.bundleId,
             )
+        continuation.resume(
+          returning: cancellation.isCancelled ? nil : resolved
         )
       }
     }
@@ -363,15 +449,38 @@ private func liveWindowFrameAsync(_ key: WindowKey) async -> CGRect? {
   let cancellation = AXReadCancellationFlag()
   return await withTaskCancellationHandler {
     await withCheckedContinuation { continuation in
-      focusedWindowAXQueue.async {
-        continuation.resume(
-          returning: cancellation.isCancelled ? nil : liveWindowFrame(key)
-        )
+      windowReadAXQueues.queue(for: key.pid).async {
+        let frame = cancellation.isCancelled ? nil : liveWindowFrame(key)
+        continuation.resume(returning: cancellation.isCancelled ? nil : frame)
       }
     }
   } onCancel: {
     cancellation.cancel()
   }
+}
+
+/// Validate cached/discovered identities against WindowServer without
+/// requiring them to be on screen. A hidden window being unhidden is live
+/// before `.optionOnScreenOnly` publishes it; checking the exact candidate
+/// also avoids materializing dictionaries for every system window.
+private func liveExistingWindowKeys(_ keys: [WindowKey]) -> Set<WindowKey> {
+  var existing = Set<WindowKey>()
+  for key in keys {
+    guard
+      let windows = CGWindowListCopyWindowInfo(
+        [.optionIncludingWindow, .excludeDesktopElements],
+        key.windowID,
+      ) as? [[String: Any]],
+      windows.contains(where: { window in
+        (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+          == key.windowID
+          && (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+          == key.pid
+      })
+    else { continue }
+    existing.insert(key)
+  }
+  return existing
 }
 
 private func liveWindowTitles(
@@ -446,6 +555,18 @@ enum AsyncWindowSnapshot<Value: Sendable>: Sendable {
   case value(Value)
 }
 
+// MARK: - WindowKeyCacheLookup
+
+/// Cache-only result that preserves the difference between an entry that has
+/// never been scanned and an authoritative scan that found no eligible windows.
+///
+/// For a multi-bundle request, `.hit` means every requested bundle is warm;
+/// one or more missing entries produce `.miss`.
+enum WindowKeyCacheLookup: Equatable, Sendable {
+  case miss
+  case hit([WindowKey])
+}
+
 // MARK: - WindowCapabilitySnapshot
 
 /// Keys derived from one AX capability enumeration. Resizable windows are
@@ -473,7 +594,7 @@ struct WindowSnapshotClient: Sendable {
     @Sendable (_ bundleIds: [String], _ requireResizable: Bool) -> [WindowKey] = { _, _ in [] }
   /// Async discovery for event-driven reconciliation. Only the AppKit process
   /// snapshot and cache commit touch `MainActor`; timeout-prone AX IPC runs on
-  /// a user-initiated worker and is single-flight per exact request.
+  /// user-initiated per-PID workers and is single-flight per target process.
   var discoverKeysAsync:
     @Sendable (_ bundleIds: [String], _ requireResizable: Bool) async
     -> AsyncWindowSnapshot<[WindowKey]> = { _, _ in .unavailable }
@@ -488,6 +609,12 @@ struct WindowSnapshotClient: Sendable {
   /// require a warm-or-discover result use `cachedKeysAsync`.
   var cachedKeys:
     @Sendable (_ bundleIds: [String], _ requireResizable: Bool) -> [WindowKey] = { _, _ in [] }
+  /// Async cache-only lookup. Unlike `cachedKeysAsync`, this endpoint never
+  /// discovers through AX: `.miss` and `.hit([])` remain distinct so the caller
+  /// explicitly owns any follow-up discovery policy.
+  var cachedKeysOnlyAsync:
+    @Sendable (_ bundleIds: [String], _ requireResizable: Bool) async
+    -> WindowKeyCacheLookup = { _, _ in .miss }
   /// Async cache-first discovery for activation. Warm hits return immediately;
   /// only missing bundles cross to the AX worker.
   var cachedKeysAsync:
@@ -497,6 +624,10 @@ struct WindowSnapshotClient: Sendable {
   /// authoritative lifecycle signal, so activation must not serve its stale
   /// window ids while a later discovery catches up.
   var invalidateBundle: @Sendable (_ bundleId: String) -> Void = { _ in }
+  /// Advance one bundle's discovery generation without discarding its
+  /// last-known keys. Visibility edges use this to force an in-flight stale
+  /// scan to run one trailing pass while preserving timeout fallback.
+  var markBundleDirty: @Sendable (_ bundleId: String) -> Void = { _ in }
   /// Remove exact WindowServer ids confirmed destroyed or pruned off-screen.
   /// Keeps cache-first activation from briefly laying out a dead tile.
   var invalidateWindowIDs: @Sendable (_ windowIDs: Set<CGWindowID>) -> Void = { _ in }
@@ -504,7 +635,7 @@ struct WindowSnapshotClient: Sendable {
   var focusedWindowKey: @Sendable () -> WindowKey?
   /// Async focused-window resolution for effects and user-input paths. AppKit
   /// identity is captured briefly on `MainActor`; synchronous AX IPC runs on a
-  /// serial user-initiated worker.
+  /// per-process serial user-initiated worker.
   var focusedWindowKeyAsync:
     @Sendable () async -> AsyncWindowSnapshot<WindowKey?> = { .unavailable }
   var focusedWindowKeyForAppAsync:
@@ -522,6 +653,10 @@ struct WindowSnapshotClient: Sendable {
   var frontmostApp: @Sendable () -> FrontmostApp?
   /// Window numbers of every window currently on screen.
   var onScreenWindowIDs: @Sendable () -> Set<CGWindowID> = { [] }
+  /// Which exact cached/discovered identities still exist in WindowServer,
+  /// including live hidden windows not yet published as on-screen.
+  var existingWindowKeys:
+    @Sendable (_ keys: [WindowKey]) -> Set<WindowKey> = { _ in [] }
   /// Bundle ids of every running app (any activation policy — the
   /// skip-empty cycle counts background-only members too).
   var runningBundleIds: @Sendable () -> Set<String> = { [] }
@@ -583,6 +718,13 @@ extension WindowSnapshotClient {
         cachedKeys(bundleIds, requireResizable)
       }
     }
+  }
+
+  func cachedKeysOnlyOffMain(
+    _ bundleIds: [String],
+    _ requireResizable: Bool,
+  ) async -> WindowKeyCacheLookup {
+    await cachedKeysOnlyAsync(bundleIds, requireResizable)
   }
 
   func focusedWindowKeyOffMain() async -> WindowKey? {
@@ -656,9 +798,8 @@ extension WindowSnapshotClient: DependencyKey {
           let scanStartEpoch = cache.currentInvalidationEpoch
           return makeWindowDiscoveryRequest(
             bundleIds: bundleIds,
-            requireResizable: requireResizable,
             scanStartEpoch: scanStartEpoch,
-            relevantInvalidationGeneration: cache.invalidationGeneration(
+            invalidationGenerations: cache.invalidationGenerations(
               for: bundleIds
             ),
           )
@@ -669,7 +810,6 @@ extension WindowSnapshotClient: DependencyKey {
           capabilityDiscovery = try await discoveryCoordinator.discover(
             request,
             sls: sls,
-            requiresTrailingRefresh: true,
           )
         } catch {
           return await MainActor.run {
@@ -695,9 +835,8 @@ extension WindowSnapshotClient: DependencyKey {
           let scanStartEpoch = cache.currentInvalidationEpoch
           return makeWindowDiscoveryRequest(
             bundleIds: bundleIds,
-            requireResizable: false,
             scanStartEpoch: scanStartEpoch,
-            relevantInvalidationGeneration: cache.invalidationGeneration(
+            invalidationGenerations: cache.invalidationGenerations(
               for: bundleIds
             ),
           )
@@ -708,7 +847,6 @@ extension WindowSnapshotClient: DependencyKey {
           capabilityDiscovery = try await discoveryCoordinator.discover(
             request,
             sls: sls,
-            requiresTrailingRefresh: true,
           )
         } catch {
           return await MainActor.run {
@@ -740,6 +878,17 @@ extension WindowSnapshotClient: DependencyKey {
           )
         }
       },
+      cachedKeysOnlyAsync: { bundleIds, requireResizable in
+        await MainActor.run {
+          guard
+            let keys = cache.cached(
+              bundleIds,
+              requireResizable: requireResizable,
+            )
+          else { return .miss }
+          return .hit(keys)
+        }
+      },
       cachedKeysAsync: { bundleIds, requireResizable in
         let missing = await MainActor.run {
           cache.missingBundleIds(
@@ -760,9 +909,8 @@ extension WindowSnapshotClient: DependencyKey {
           let scanStartEpoch = cache.currentInvalidationEpoch
           return makeWindowDiscoveryRequest(
             bundleIds: missing,
-            requireResizable: requireResizable,
             scanStartEpoch: scanStartEpoch,
-            relevantInvalidationGeneration: cache.invalidationGeneration(
+            invalidationGenerations: cache.invalidationGenerations(
               for: missing
             ),
           )
@@ -773,7 +921,6 @@ extension WindowSnapshotClient: DependencyKey {
           capabilityDiscovery = try await discoveryCoordinator.discover(
             request,
             sls: sls,
-            requiresTrailingRefresh: false,
           )
         } catch {
           return await MainActor.run {
@@ -797,6 +944,9 @@ extension WindowSnapshotClient: DependencyKey {
       },
       invalidateBundle: { bundleId in
         MainActor.assumeIsolated { cache.invalidate(bundleId: bundleId) }
+      },
+      markBundleDirty: { bundleId in
+        MainActor.assumeIsolated { cache.markDirty(bundleId: bundleId) }
       },
       invalidateWindowIDs: { windowIDs in
         MainActor.assumeIsolated { cache.invalidate(windowIDs: windowIDs) }
@@ -844,6 +994,9 @@ extension WindowSnapshotClient: DependencyKey {
         }
         return ids
       },
+      existingWindowKeys: { keys in
+        liveExistingWindowKeys(keys)
+      },
       runningBundleIds: {
         MainActor.assumeIsolated {
           Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
@@ -863,8 +1016,10 @@ extension WindowSnapshotClient: DependencyKey {
     discoverKeysAsync: { _, _ in .unavailable },
     discoverCapabilitiesAsync: { _ in .unavailable },
     cachedKeys: { _, _ in [] },
+    cachedKeysOnlyAsync: { _, _ in .miss },
     cachedKeysAsync: { _, _ in .unavailable },
     invalidateBundle: { _ in },
+    markBundleDirty: { _ in },
     invalidateWindowIDs: { _ in },
     focusedWindowKey: { nil },
     focusedWindowKeyAsync: { .unavailable },
@@ -874,6 +1029,7 @@ extension WindowSnapshotClient: DependencyKey {
     onScreenWindowFrames: { [:] },
     frontmostApp: { nil },
     onScreenWindowIDs: { [] },
+    existingWindowKeys: { _ in [] },
     runningBundleIds: { [] },
     windowTitles: { _ in [:] },
     windowTitlesAsync: { _ in .unavailable },
@@ -951,6 +1107,16 @@ final class WindowKeyCache {
     }
   }
 
+  func invalidationGenerations(
+    for bundleIds: [String]
+  ) -> [String: UInt64] {
+    var generations = [String: UInt64]()
+    for bundleId in bundleIds {
+      generations[bundleId] = invalidationGeneration(for: [bundleId])
+    }
+    return generations
+  }
+
   func invalidate(bundleId: String) {
     currentInvalidationEpoch &+= 1
     bundleInvalidationEpoch[bundleId] = currentInvalidationEpoch
@@ -958,6 +1124,14 @@ final class WindowKeyCache {
     guard !keys.isEmpty else { return }
     for key in keys { entries[key] = nil }
     publishManagedWindows()
+  }
+
+  /// Record a visibility/membership edge without throwing away last-known
+  /// identities. An AX timeout after unhide can then still serve the cache,
+  /// while scans that began before this edge are rejected and refreshed.
+  func markDirty(bundleId: String) {
+    currentInvalidationEpoch &+= 1
+    bundleInvalidationEpoch[bundleId] = currentInvalidationEpoch
   }
 
   func invalidate(windowIDs: Set<CGWindowID>) {
@@ -997,7 +1171,11 @@ final class WindowKeyCache {
       let cached = entries[key] ?? []
       let filtered = cached.filter { !windowIDs.contains($0.windowID) }
       guard filtered.count != cached.count else { continue }
-      entries[key] = filtered
+      // Destroying the last known surface is not an authoritative answer that
+      // the app has no windows forever. Apps such as KakaoTalk replace their
+      // WindowServer surface while hidden; leaving `[]` warm here prevents the
+      // next cache-first Borrow from ever discovering the replacement.
+      entries[key] = filtered.isEmpty ? nil : filtered
       changed = true
     }
     if changed { publishManagedWindows() }
@@ -1154,6 +1332,28 @@ final class WindowKeyCache {
     // reclaimed.
     sls.watchWindows(Array(ids))
   }
+
+}
+
+// MARK: - WindowDiscoveryCancellation
+
+struct WindowDiscoveryCancellation: Sendable {
+
+  // MARK: Lifecycle
+
+  init(_ isCancelled: @escaping @Sendable () -> Bool) {
+    checkCancellation = isCancelled
+  }
+
+  // MARK: Internal
+
+  var isCancelled: Bool {
+    checkCancellation()
+  }
+
+  // MARK: Private
+
+  private let checkCancellation: @Sendable () -> Bool
 
 }
 

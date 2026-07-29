@@ -4,6 +4,8 @@ import Dependencies
 import Testing
 @testable import TatamiKit
 
+// MARK: - WindowKeyCacheTests
+
 @MainActor
 struct WindowKeyCacheTests {
 
@@ -29,8 +31,8 @@ struct WindowKeyCacheTests {
 
       cache.invalidate(windowIDs: [ghostty.windowID])
 
-      #expect(cache.cached(ghostty.bundleId, requireResizable: true) == [])
-      #expect(cache.cached(ghostty.bundleId, requireResizable: false) == [])
+      #expect(cache.cached(ghostty.bundleId, requireResizable: true) == nil)
+      #expect(cache.cached(ghostty.bundleId, requireResizable: false) == nil)
       #expect(cache.cached(alacritty.bundleId, requireResizable: true) == [alacritty])
       #expect(published.value.last == [alacritty.windowID])
 
@@ -126,6 +128,44 @@ struct WindowKeyCacheTests {
   }
 
   @Test
+  func `visibility dirty mark preserves fallback and rejects an older scan`() {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let bundleId = "com.kakao.KakaoTalkMac"
+      let cached = WindowKey(pid: 1, windowID: 101, bundleId: bundleId)
+      let replacement = WindowKey(pid: 1, windowID: 102, bundleId: bundleId)
+      cache.store(
+        WindowDiscovery(keys: [cached]),
+        bundleIds: [bundleId],
+        requireResizable: true,
+      )
+      let staleScanEpoch = cache.currentInvalidationEpoch
+      let oldGeneration = cache.invalidationGeneration(for: [bundleId])
+
+      cache.markDirty(bundleId: bundleId)
+
+      #expect(cache.invalidationGeneration(for: [bundleId]) > oldGeneration)
+      #expect(cache.cached(bundleId, requireResizable: true) == [cached])
+      let staleResult = cache.storeAndResolve(
+        WindowDiscovery(keys: [replacement]),
+        bundleIds: [bundleId],
+        requireResizable: true,
+        ifUnchangedSince: staleScanEpoch,
+      )
+      #expect(staleResult == [cached])
+      #expect(cache.cached(bundleId, requireResizable: true) == [cached])
+
+      let freshResult = cache.storeAndResolve(
+        WindowDiscovery(keys: [replacement]),
+        bundleIds: [bundleId],
+        requireResizable: true,
+        ifUnchangedSince: cache.currentInvalidationEpoch,
+      )
+      #expect(freshResult == [replacement])
+    }
+  }
+
+  @Test
   func `evicted exact tombstone still blocks an older discovery`() {
     withNoopPublicationDependencies {
       let cache = WindowKeyCache()
@@ -149,7 +189,223 @@ struct WindowKeyCacheTests {
     }
   }
 
+  @Test
+  func `cache lookup distinguishes a miss from a warm empty entry`() {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let bundleId = "app.cache-only"
+
+      #expect(cache.cached([bundleId], requireResizable: true) == nil)
+
+      cache.store(
+        WindowDiscovery(),
+        bundleIds: [bundleId],
+        requireResizable: true,
+      )
+
+      #expect(cache.cached([bundleId], requireResizable: true) == [])
+      #expect(cache.cached([bundleId, "app.missing"], requireResizable: true) == nil)
+    }
+  }
+
+  @Test
+  func `async cache-only helper preserves warm empty without discovery fallback`() async {
+    var client = WindowSnapshotClient.testValue
+    client.cachedKeysOnlyAsync = { bundleIds, requireResizable in
+      #expect(requireResizable)
+      return bundleIds == ["app.warm-empty"] ? .hit([]) : .miss
+    }
+
+    let warm = await client.cachedKeysOnlyOffMain(["app.warm-empty"], true)
+    let miss = await client.cachedKeysOnlyOffMain(["app.missing"], true)
+
+    #expect(warm == .hit([]))
+    #expect(miss == .miss)
+  }
+
+  @Test
+  func `capability consumers share one PID scan without an automatic trailing refresh`() async
+    throws
+  {
+    let process = WindowDiscoveryRequest.Process(
+      bundleId: "app.shared",
+      pid: 42,
+    )
+    let probe = WindowDiscoveryScanProbe()
+    let coordinator = makeDiscoveryCoordinator(probe)
+    let request = discoveryRequest([process], invalidationGeneration: 7)
+
+    let movableTask = Task {
+      try await coordinator.discover(request, sls: .testValue)
+    }
+    await probe.waitForCallCount(1)
+
+    let resizableTask = Task {
+      try await coordinator.discover(request, sls: .testValue)
+    }
+    let joined = await waitForWaiters(
+      2,
+      process: process,
+      coordinator: coordinator,
+    )
+    await probe.releaseFirstScan()
+
+    let movable = try await movableTask.value
+      .discovery(requireResizable: false)
+      .keys
+    let resizable = try await resizableTask.value
+      .discovery(requireResizable: true)
+      .keys
+
+    #expect(joined)
+    #expect(await probe.recordedCalls() == [
+      WindowDiscoveryScanProbe.Call(
+        process: process,
+        invalidationGeneration: 7,
+      )
+    ])
+    #expect(movable.count == 2)
+    #expect(resizable.count == 1)
+  }
+
+  @Test
+  func `new PID invalidation queues exactly one trailing scan`() async throws {
+    let process = WindowDiscoveryRequest.Process(
+      bundleId: "app.invalidated",
+      pid: 43,
+    )
+    let probe = WindowDiscoveryScanProbe()
+    let coordinator = makeDiscoveryCoordinator(probe)
+    let firstRequest = discoveryRequest(
+      [process],
+      invalidationGeneration: 10,
+    )
+    let refreshedRequest = discoveryRequest(
+      [process],
+      invalidationGeneration: 11,
+    )
+
+    let firstTask = Task {
+      try await coordinator.discover(firstRequest, sls: .testValue)
+    }
+    await probe.waitForCallCount(1)
+
+    let refreshedTask = Task {
+      try await coordinator.discover(refreshedRequest, sls: .testValue)
+    }
+    let joined = await waitForWaiters(
+      2,
+      process: process,
+      coordinator: coordinator,
+    )
+    await probe.releaseFirstScan()
+    await probe.waitForCallCount(2)
+
+    let firstResult = try await firstTask.value
+    let refreshedResult = try await refreshedTask.value
+    let expectedWindowID = CGWindowID(111)
+
+    #expect(joined)
+    #expect(await probe.recordedCalls().map(\.invalidationGeneration) == [10, 11])
+    #expect(firstResult.movableKeys.first?.windowID == expectedWindowID)
+    #expect(refreshedResult.movableKeys.first?.windowID == expectedWindowID)
+  }
+
+  @Test
+  func `overlapping bundle requests share only the common PID flight`() async throws {
+    let shared = WindowDiscoveryRequest.Process(
+      bundleId: "app.shared",
+      pid: 44,
+    )
+    let independent = WindowDiscoveryRequest.Process(
+      bundleId: "app.independent",
+      pid: 45,
+    )
+    let probe = WindowDiscoveryScanProbe()
+    let coordinator = makeDiscoveryCoordinator(probe)
+    let sharedRequest = discoveryRequest(
+      [shared],
+      invalidationGeneration: 20,
+    )
+    let overlappingRequest = discoveryRequest(
+      [shared, independent],
+      invalidationGeneration: 20,
+    )
+
+    let sharedTask = Task {
+      try await coordinator.discover(sharedRequest, sls: .testValue)
+    }
+    await probe.waitForCallCount(1)
+
+    let overlappingTask = Task {
+      try await coordinator.discover(overlappingRequest, sls: .testValue)
+    }
+    let joined = await waitForWaiters(
+      2,
+      process: shared,
+      coordinator: coordinator,
+    )
+    await probe.releaseFirstScan()
+
+    _ = try await sharedTask.value
+    let overlapping = try await overlappingTask.value
+    let calls = await probe.recordedCalls()
+
+    #expect(joined)
+    #expect(calls.count(where: { $0.process == shared }) == 1)
+    #expect(calls.count(where: { $0.process == independent }) == 1)
+    #expect(Set(overlapping.movableKeys.map(\.bundleId)) == [
+      shared.bundleId,
+      independent.bundleId,
+    ])
+  }
+
   // MARK: Private
+
+  private func discoveryRequest(
+    _ processes: [WindowDiscoveryRequest.Process],
+    invalidationGeneration: UInt64,
+  ) -> WindowDiscoveryRequest {
+    var generations = [String: UInt64]()
+    for process in processes {
+      generations[process.bundleId] = invalidationGeneration
+    }
+    return WindowDiscoveryRequest(
+      processes: processes,
+      scanStartEpoch: invalidationGeneration,
+      invalidationGenerations: generations,
+    )
+  }
+
+  private func makeDiscoveryCoordinator(
+    _ probe: WindowDiscoveryScanProbe
+  ) -> WindowDiscoveryCoordinator {
+    WindowDiscoveryCoordinator {
+      process,
+      invalidationGeneration,
+      _,
+      cancellation in
+      await probe.scan(
+        process: process,
+        invalidationGeneration: invalidationGeneration,
+        cancellation: cancellation,
+      )
+    }
+  }
+
+  private func waitForWaiters(
+    _ expectedCount: Int,
+    process: WindowDiscoveryRequest.Process,
+    coordinator: WindowDiscoveryCoordinator,
+  ) async -> Bool {
+    for _ in 0..<10_000 {
+      if await coordinator.inFlightWaiterCount(for: process) >= expectedCount {
+        return true
+      }
+      await Task.yield()
+    }
+    return false
+  }
 
   private func withNoopPublicationDependencies(
     _ operation: () -> Void
@@ -160,6 +416,100 @@ struct WindowKeyCacheTests {
     } operation: {
       operation()
     }
+  }
+
+}
+
+// MARK: - WindowDiscoveryScanProbe
+
+private actor WindowDiscoveryScanProbe {
+
+  // MARK: Internal
+
+  struct Call: Equatable, Sendable {
+    var process: WindowDiscoveryRequest.Process
+    var invalidationGeneration: UInt64
+  }
+
+  func scan(
+    process: WindowDiscoveryRequest.Process,
+    invalidationGeneration: UInt64,
+    cancellation: WindowDiscoveryCancellation,
+  ) async -> WindowCapabilityDiscovery {
+    let callIndex = calls.count
+    calls.append(Call(
+      process: process,
+      invalidationGeneration: invalidationGeneration,
+    ))
+    resumeCallCountWaiters()
+
+    if callIndex == 0, !firstScanReleased {
+      await withCheckedContinuation {
+        firstScanContinuation = $0
+      }
+    }
+    guard !cancellation.isCancelled else {
+      return WindowCapabilityDiscovery()
+    }
+
+    let movable = WindowKey(
+      pid: process.pid,
+      windowID: CGWindowID(truncatingIfNeeded: invalidationGeneration + 100),
+      bundleId: process.bundleId,
+    )
+    let resizable = WindowKey(
+      pid: process.pid,
+      windowID: CGWindowID(truncatingIfNeeded: invalidationGeneration + 200),
+      bundleId: process.bundleId,
+    )
+    return WindowCapabilityDiscovery(
+      movableKeys: [movable, resizable],
+      resizableKeys: [resizable],
+    )
+  }
+
+  func waitForCallCount(_ expectedCount: Int) async {
+    guard calls.count < expectedCount else { return }
+    await withCheckedContinuation {
+      callCountWaiters.append(CallCountWaiter(
+        expectedCount: expectedCount,
+        continuation: $0,
+      ))
+    }
+  }
+
+  func releaseFirstScan() {
+    firstScanReleased = true
+    firstScanContinuation?.resume()
+    firstScanContinuation = nil
+  }
+
+  func recordedCalls() -> [Call] {
+    calls
+  }
+
+  // MARK: Private
+
+  private struct CallCountWaiter {
+    var expectedCount: Int
+    var continuation: CheckedContinuation<Void, Never>
+  }
+
+  private var calls = [Call]()
+  private var callCountWaiters = [CallCountWaiter]()
+  private var firstScanReleased = false
+  private var firstScanContinuation: CheckedContinuation<Void, Never>?
+
+  private func resumeCallCountWaiters() {
+    var pending = [CallCountWaiter]()
+    for waiter in callCountWaiters {
+      if calls.count >= waiter.expectedCount {
+        waiter.continuation.resume()
+      } else {
+        pending.append(waiter)
+      }
+    }
+    callCountWaiters = pending
   }
 
 }

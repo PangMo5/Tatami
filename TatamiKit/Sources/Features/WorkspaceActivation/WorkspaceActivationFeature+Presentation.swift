@@ -161,10 +161,21 @@ extension WorkspaceActivationFeature {
     _ key: WindowKey,
     workspaceId: Workspace.ID,
     shouldFocus: Bool,
+    borrowCompletion: BorrowPhase? = nil,
     state: inout State,
   ) -> Effect<Action> {
     let shouldWarp = state.config.settings.focus.mouseFollowsFocus
-    guard shouldFocus || shouldWarp else { return .none }
+    guard shouldFocus || shouldWarp else {
+      guard let phase = borrowCompletion else { return .none }
+      return .send(
+        .borrowFocusCompleted(
+          display: phase.display,
+          workspaceId: phase.workspaceId,
+          generation: phase.generation,
+          composition: phase.composition,
+        )
+      )
+    }
     if shouldWarp { state.pendingCenterWarps[workspaceId] = key }
 
     return .run {
@@ -216,6 +227,17 @@ extension WorkspaceActivationFeature {
           await send(.syncAppWindows(bundleId: key.bundleId))
         }
         await send(.cursorWarpFinished(workspaceId: workspaceId, target: key))
+      }
+      guard !Task.isCancelled else { return }
+      if let phase = borrowCompletion {
+        await send(
+          .borrowFocusCompleted(
+            display: phase.display,
+            workspaceId: phase.workspaceId,
+            generation: phase.generation,
+            composition: phase.composition,
+          )
+        )
       }
     }
     .cancellable(id: CancelID.warp(workspaceId), cancelInFlight: true)

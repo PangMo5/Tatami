@@ -25,6 +25,10 @@ struct WindowObserverClient: Sendable {
 public enum WindowChangeEvent: Sendable, Hashable {
   case windowCreated(bundleId: String)
   case windowDestroyed(bundleId: String)
+  /// A non-pointer geometry change. Apps can restore their remembered frame
+  /// after Tatami reveals them; unlike a user drag this should converge back
+  /// to the current tile immediately, without waiting on a settlement timer.
+  case windowFrameChanged(key: WindowKey, frame: CGRect)
   /// User finished a manual resize. Carries the new frame in AX
   /// top-origin coordinates so the reducer can sync the BSP tree's
   /// split ratio.
@@ -39,10 +43,16 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// dispatches). The bundle id is still emitted so the reducer can
   /// re-reconcile that app's windows — the front-switch reconcile path.
   case windowFocused(bundleId: String, key: WindowKey?)
-  /// The primary mouse button was released. Lets the reducer flush a pending
-  /// manual move/resize exactly at drag-end instead of guessing with a time
+  /// The primary mouse button was released. The optional final WindowServer
+  /// geometry lets the reducer recover a short drag whose AX callbacks were
+  /// delayed or dropped, then flush it exactly at mouse-up without a time
   /// debounce.
-  case windowDragEnded
+  case windowDragEnded(
+    trackedWindowID: CGWindowID?,
+    key: WindowKey?,
+    frame: CGRect?,
+    pointerMoved: Bool,
+  )
   /// A window's AX title changed. Cosmetic for tiling (activation ignores it),
   /// but lets the layout preview refresh titles live while the app stays
   /// frontmost — no app switch, so `didActivateApplication` never fires.
@@ -178,13 +188,23 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
       sequence &+= 1
       let pending = Pending(sequence: sequence, event: event)
       if event.isCoalescingBarrier {
-        freezeLatestStateEvents()
-        orderedEvents.append(pending)
+        eventQueue.append(.ordered(pending))
+        pendingEventCount += 1
+        segment &+= 1
       } else if let key = event.coalescingKey {
-        latestStateEvents[key] = pending
+        let slot = StateSlot(segment: segment, key: key)
+        if latestStateEvents[slot] == nil {
+          pendingEventCount += 1
+        }
+        latestStateEvents[slot] = pending
+        eventQueue.append(
+          .state(StateToken(slot: slot, sequence: pending.sequence))
+        )
       } else {
-        orderedEvents.append(pending)
+        eventQueue.append(.ordered(pending))
+        pendingEventCount += 1
       }
+      compactEventQueueIfNeeded()
       guard let waiter, let next = takeNextEvent() else { return nil }
       self.waiter = nil
       return Delivery(continuation: waiter, event: next)
@@ -204,7 +224,7 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
     let waiter: CheckedContinuation<WindowChangeEvent?, Never>? = lock.withLock {
       guard !isFinished else { return nil }
       isFinished = true
-      guard latestStateEvents.isEmpty, orderedEvents.isEmpty else { return nil }
+      guard pendingEventCount == 0 else { return nil }
       defer { self.waiter = nil }
       return self.waiter
     }
@@ -243,6 +263,7 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
 
   fileprivate enum Key: Hashable {
     case membership(String)
+    case frame(WindowKey)
     case resized(WindowKey)
     case moved(WindowKey)
     case focus(bundleId: String, key: WindowKey?)
@@ -261,6 +282,21 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
     var event: WindowChangeEvent
   }
 
+  private struct StateSlot: Hashable {
+    var segment: UInt64
+    var key: Key
+  }
+
+  private struct StateToken {
+    var slot: StateSlot
+    var sequence: UInt64
+  }
+
+  private enum QueuedEvent {
+    case ordered(Pending)
+    case state(StateToken)
+  }
+
   private enum NextResult {
     case event(WindowChangeEvent)
     case finished
@@ -269,30 +305,67 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
 
   private let lock = NSLock()
   private var sequence: UInt64 = 0
-  private var latestStateEvents = [Key: Pending]()
-  private var orderedEvents = [Pending]()
+  private var segment: UInt64 = 0
+  private var latestStateEvents = [StateSlot: Pending]()
+  private var eventQueue = [QueuedEvent]()
+  private var eventQueueHead = 0
+  private var pendingEventCount = 0
   private var waiter: CheckedContinuation<WindowChangeEvent?, Never>?
   private var isFinished = false
 
-  /// Freeze the current state segment before an ordered edge. In particular,
-  /// geometry observed before mouse-up must be delivered before that drag-end;
-  /// later geometry belongs to the next drag and may coalesce independently.
-  private func freezeLatestStateEvents() {
-    orderedEvents.append(contentsOf: latestStateEvents.values.sorted {
-      $0.sequence < $1.sequence
-    })
-    latestStateEvents.removeAll(keepingCapacity: true)
+  private func takeNextEvent() -> WindowChangeEvent? {
+    while eventQueueHead < eventQueue.count {
+      let queued = eventQueue[eventQueueHead]
+      eventQueueHead += 1
+      switch queued {
+      case .ordered(let pending):
+        pendingEventCount -= 1
+        compactEventQueueIfNeeded()
+        return pending.event
+
+      case .state(let token):
+        guard
+          let pending = latestStateEvents[token.slot],
+          pending.sequence == token.sequence
+        else { continue }
+        latestStateEvents.removeValue(forKey: token.slot)
+        pendingEventCount -= 1
+        compactEventQueueIfNeeded()
+        return pending.event
+      }
+    }
+    compactEventQueueIfNeeded()
+    return nil
   }
 
-  private func takeNextEvent() -> WindowChangeEvent? {
-    if !orderedEvents.isEmpty {
-      return orderedEvents.removeFirst().event
+  /// Updating one logical key appends a new token and leaves the old one as a
+  /// tombstone. Rebuild only when removed entries can pay for the copy, keeping
+  /// both drain time and retained storage linear in the event volume.
+  private func compactEventQueueIfNeeded() {
+    let queuedCount = eventQueue.count - eventQueueHead
+    let tombstoneCount = queuedCount - pendingEventCount
+    let consumedCanPayForCopy =
+      eventQueueHead >= 1_024 && eventQueueHead >= queuedCount
+    let tombstonesCanPayForCopy =
+      tombstoneCount >= 1_024 && tombstoneCount >= pendingEventCount
+    guard consumedCanPayForCopy || tombstonesCanPayForCopy else { return }
+
+    var compacted = [QueuedEvent]()
+    compacted.reserveCapacity(pendingEventCount)
+    for queued in eventQueue[eventQueueHead...] {
+      switch queued {
+      case .ordered:
+        compacted.append(queued)
+
+      case .state(let token):
+        guard
+          latestStateEvents[token.slot]?.sequence == token.sequence
+        else { continue }
+        compacted.append(queued)
+      }
     }
-    guard
-      let next = latestStateEvents.min(by: { $0.value.sequence < $1.value.sequence })
-    else { return nil }
-    latestStateEvents.removeValue(forKey: next.key)
-    return next.value.event
+    eventQueue = compacted
+    eventQueueHead = 0
   }
 
 }
@@ -303,6 +376,8 @@ extension WindowChangeEvent {
     case .windowCreated(let bundleId),
          .windowDestroyed(let bundleId):
       .membership(bundleId)
+    case .windowFrameChanged(let key, _):
+      .frame(key)
     case .windowResized(let key, _):
       .resized(key)
     case .windowMoved(let key, _):
@@ -319,6 +394,130 @@ extension WindowChangeEvent {
   fileprivate var isCoalescingBarrier: Bool {
     if case .windowDragEnded = self { true } else { false }
   }
+}
+
+// MARK: - WindowFrameWriteTracker
+
+/// Bridges synchronous AX frame writes and AXObserver callbacks.
+///
+/// Observer callbacks cannot await an actor, so a lock is required for this
+/// tiny synchronous contract. The reducer also mirrors its presentation-
+/// convergence membership here, allowing an observer callback to skip the
+/// timeout-prone AX frame read entirely for an unrelated programmatic change.
+///
+/// Each write entry lives only until its first post-write geometry notification.
+/// In-flight/intermediate notifications and the final target echo are suppressed
+/// before pointer state is considered; a different post-write frame is routed
+/// according to the current pointer/monitoring state.
+final class WindowFrameWriteTracker: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  init() { }
+
+  // MARK: Internal
+
+  enum GeometryEventRoute: Equatable, Sendable {
+    case ignore
+    case pointerDriven
+    case presentationChange
+  }
+
+  enum GeometryReadDisposition: Equatable, Sendable {
+    case ignore
+    case suppressOwnWrite
+    case read
+  }
+
+  static let shared = WindowFrameWriteTracker()
+
+  func begin(_ key: WindowKey, target: CGRect) -> UInt64 {
+    lock.withLock {
+      generation &+= 1
+      entries[key] = Entry(generation: generation, target: target, isWriting: true)
+      return generation
+    }
+  }
+
+  func finish(_ key: WindowKey, generation: UInt64) {
+    lock.withLock {
+      guard var entry = entries[key], entry.generation == generation else { return }
+      entry.isWriting = false
+      entries[key] = entry
+    }
+  }
+
+  /// Keep this registry equal to the reducer's currently armed convergence set.
+  /// An exact replacement avoids stale monitored keys after tree replacement or
+  /// composition dismissal.
+  func setMonitoredKeys(_ keys: Set<WindowKey>) {
+    lock.withLock {
+      monitoredKeys = keys
+    }
+  }
+
+  /// Decide whether the callback should pay for an AX geometry read.
+  ///
+  /// An in-flight Tatami write is known to be an echo without reading its frame.
+  /// A completed write still needs one frame to distinguish its final target
+  /// echo from an app-owned restore. Outside that write window, only a genuine
+  /// pointer drag or a reducer-armed key needs geometry.
+  func geometryReadDisposition(
+    for key: WindowKey,
+    pointerDriven: Bool,
+  ) -> GeometryReadDisposition {
+    lock.withLock {
+      if entries[key]?.isWriting == true {
+        return .suppressOwnWrite
+      }
+      if entries[key] != nil || pointerDriven || monitoredKeys.contains(key) {
+        return .read
+      }
+      return .ignore
+    }
+  }
+
+  /// Classify one geometry notification after its frame has been read.
+  ///
+  /// Own-write suppression deliberately precedes the pointer branch. A global
+  /// left-button state can overlap a hotkey-driven tile pass; treating that echo
+  /// as a manual drag mutates the BSP tree on the following mouse-up.
+  func routeGeometryEvent(
+    for key: WindowKey,
+    frame: CGRect,
+    pointerDriven: Bool,
+    tolerance: CGFloat = 1.5,
+  ) -> GeometryEventRoute {
+    lock.withLock {
+      if let entry = entries[key] {
+        if entry.isWriting { return .ignore }
+        entries[key] = nil
+        let matchesTarget =
+          abs(entry.target.minX - frame.minX) <= tolerance
+            && abs(entry.target.minY - frame.minY) <= tolerance
+            && abs(entry.target.width - frame.width) <= tolerance
+            && abs(entry.target.height - frame.height) <= tolerance
+        if matchesTarget { return .ignore }
+      }
+      if pointerDriven { return .pointerDriven }
+      if monitoredKeys.contains(key) { return .presentationChange }
+      return .ignore
+    }
+  }
+
+  // MARK: Private
+
+  private struct Entry {
+    var generation: UInt64
+    var target: CGRect
+    var isWriting: Bool
+  }
+
+  private let lock = NSLock()
+  private var generation: UInt64 = 0
+  private var entries = [WindowKey: Entry]()
+  private var monitoredKeys = Set<WindowKey>()
+
 }
 
 // MARK: - WindowObserverClient + DependencyKey
@@ -413,11 +612,18 @@ private final class WindowObserverCenter: @unchecked Sendable {
   /// stealing events from one another.
   private let eventSink: CoalescingWindowEventBuffer
   private let registry: WindowObserverRegistry
+  /// WindowServer snapshots can stall briefly when the system is saturated.
+  /// Keep them off AppKit's global-monitor callback while preserving exact
+  /// mouse-down/up ordering on one serial lane.
+  private let dragCaptureQueue = DispatchQueue(
+    label: "dev.PangMo5.Tatami.pointer-drag-capture",
+    qos: .userInteractive,
+  )
   private let lock = NSLock()
   private var subscribers = [UUID: CoalescingWindowEventBuffer]()
-  /// Global mouse-up monitor; emits `.windowDragEnded` so the reducer commits
-  /// a manual move/resize at the true end of the drag.
-  private var dragEndMonitor: Any?
+  /// Global mouse monitor; captures the exact window under mouse-down and
+  /// emits `.windowDragEnded` so the reducer commits at the true drag end.
+  private var dragMonitor: Any?
   /// Assigned on the main actor when the running-app snapshot is captured, not
   /// when its async caller eventually reaches the registry actor. This lets the
   /// registry reject an older capture that resumes out of order.
@@ -446,10 +652,49 @@ private final class WindowObserverCenter: @unchecked Sendable {
     // manual move/resize on `.windowDragEnded`, so the commit lands at the
     // real end of the drag rather than on a time guess. Global monitors only
     // see other apps' events — exactly where window drags happen.
-    if dragEndMonitor == nil {
+    if dragMonitor == nil {
+      let dragCaptureQueue = dragCaptureQueue
       let eventSink = eventSink
-      dragEndMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
-        eventSink.yield(.windowDragEnded)
+      dragMonitor = NSEvent.addGlobalMonitorForEvents(
+        matching: [.leftMouseDown, .leftMouseUp]
+      ) { event in
+        switch event.type {
+        case .leftMouseDown:
+          let cgEvent = event.cgEvent
+          let rawWindowID = cgEvent?.getIntegerValueField(
+            .mouseEventWindowUnderMousePointer
+          )
+          let windowID = rawWindowID.flatMap {
+            $0 > 0 ? CGWindowID(truncatingIfNeeded: $0) : nil
+          }
+          let location = cgEvent?.location
+          // Publish the cheap identity immediately. The WindowServer snapshot
+          // below may be delayed under load, but AX callbacks must never keep
+          // treating the previous drag's window as pointer-driven meanwhile.
+          WindowPointerDragTracker.shared.pointerDown(
+            windowID: windowID,
+            location: location,
+          )
+
+        case .leftMouseUp:
+          let session = WindowPointerDragTracker.shared.pointerUp(
+            location: event.cgEvent?.location
+          )
+          dragCaptureQueue.async {
+            guard
+              let session,
+              let completion = WindowPointerDragTracker.shared.complete(session)
+            else { return }
+            WindowPointerDragTracker.shared.yieldIfCurrent(
+              completion,
+              for: session,
+              to: eventSink,
+            )
+          }
+
+        default:
+          break
+        }
       }
     }
   }
@@ -548,27 +793,30 @@ actor WindowObserverRegistry {
     livePids: Set<pid_t>,
   ) async {
     @Dependency(\.debugLog) var debugLog
-    guard snapshotGeneration > latestLivePidsGeneration else {
+    let advancesLiveness = snapshotGeneration > latestLivePidsGeneration
+    if advancesLiveness {
+      latestLivePidsGeneration = snapshotGeneration
+      latestLivePids = livePids
+    } else {
       debugLog.log(
         "Observer",
-        "ignore stale running-app snapshot generation=\(snapshotGeneration) "
-          + "latest=\(latestLivePidsGeneration)",
+        "retain latest liveness for stale observer interest "
+          + "generation=\(snapshotGeneration) latest=\(latestLivePidsGeneration)",
       )
-      return
     }
-    latestLivePidsGeneration = snapshotGeneration
-    latestLivePids = livePids
 
     // Drop observers whose pid has died. Anything still running stays
     // observed even if it's no longer in the caller's interest set —
     // the next focus/launch event will surface it again, and we'd
     // otherwise have to rebuild the AXObserver from scratch (losing
     // any window-created event in flight).
-    let deadPids = observed.keys.filter { !livePids.contains($0) }
-    for pid in deadPids {
-      guard let obs = observed.removeValue(forKey: pid) else { continue }
-      debugLog.log("Observer", "teardown pid=\(pid) bundle=\(obs.bundleId): pid dead")
-      await obs.tearDown()
+    if advancesLiveness {
+      let deadPids = observed.keys.filter { !latestLivePids.contains($0) }
+      for pid in deadPids {
+        guard let obs = observed.removeValue(forKey: pid) else { continue }
+        debugLog.log("Observer", "teardown pid=\(pid) bundle=\(obs.bundleId): pid dead")
+        await obs.tearDown()
+      }
     }
 
     // Add observers for any new (pid, bundleId) pair we haven't seen
@@ -990,27 +1238,10 @@ private func axObserverCallback(
     app.eventSink.yield(.windowDestroyed(bundleId: app.bundleId))
 
   case AXNotificationName.windowResized:
-    // Only treat a resize as user-driven when the left mouse button
-    // is held — otherwise this alert is the echo of our own tiling
-    // writes (swap / warp / zoom / retile). The reducer applies an
-    // additional 1.5 px geometric tolerance check against the tile's
-    // expected area before applying the new ratio.
-    if
-      isLeftMouseDown(),
-      let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-      let frame = AXWindowGeometry.frame(of: element)
-    {
-      app.eventSink.yield(.windowResized(key: key, frame: frame))
-    }
+    routeGeometryNotification(element, app: app, kind: .resized)
 
   case AXNotificationName.windowMoved:
-    if
-      isLeftMouseDown(),
-      let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId),
-      let frame = AXWindowGeometry.frame(of: element)
-    {
-      app.eventSink.yield(.windowMoved(key: key, frame: frame))
-    }
+    routeGeometryNotification(element, app: app, kind: .moved)
 
   case AXNotificationName.focusedWindowChanged,
        AXNotificationName.mainWindowChanged:
@@ -1057,6 +1288,63 @@ private func axObserverCallback(
   }
 }
 
+// MARK: - WindowGeometryNotificationKind
+
+private enum WindowGeometryNotificationKind {
+  case moved
+  case resized
+}
+
+/// Route an AX geometry callback without reading its frame unless the exact key
+/// is part of a Tatami write, a pointer drag, or the reducer's convergence set.
+private func routeGeometryNotification(
+  _ element: AXUIElement,
+  app: ObservedApp,
+  kind: WindowGeometryNotificationKind,
+) {
+  guard let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId)
+  else { return }
+  let tracker = WindowFrameWriteTracker.shared
+  // Reject an in-flight Tatami write before consulting global pointer state.
+  // A notification click can hold the left button while KakaoTalk restores an
+  // unrelated window; only the exact WindowServer surface captured at
+  // mouse-down is a manual drag.
+  let preflight = tracker.geometryReadDisposition(for: key, pointerDriven: false)
+  if preflight == .suppressOwnWrite { return }
+  let pointerDriven = WindowPointerDragTracker.shared.isDragging(key.windowID)
+  switch (preflight, pointerDriven) {
+  case (.ignore, false):
+    return
+
+  case (.ignore, true),
+       (.read, _):
+    break
+
+  case (.suppressOwnWrite, _):
+    return
+  }
+  guard let frame = AXWindowGeometry.frame(of: element) else { return }
+  switch tracker.routeGeometryEvent(
+    for: key,
+    frame: frame,
+    pointerDriven: pointerDriven,
+  ) {
+  case .ignore:
+    return
+
+  case .pointerDriven:
+    switch kind {
+    case .moved:
+      app.eventSink.yield(.windowMoved(key: key, frame: frame))
+    case .resized:
+      app.eventSink.yield(.windowResized(key: key, frame: frame))
+    }
+
+  case .presentationChange:
+    app.eventSink.yield(.windowFrameChanged(key: key, frame: frame))
+  }
+}
+
 // MARK: - AXNotificationName
 
 /// `AXObserver` delivers notification names as `CFString`. Converting the
@@ -1077,11 +1365,179 @@ private enum AXNotificationName {
   static let titleChanged = kAXTitleChangedNotification as String
 }
 
-/// True while the primary (left) mouse button is held — i.e. the user
-/// is actively dragging. Used to distinguish genuine manual resize/move
-/// from the AX echoes of our own programmatic tiling writes.
-private func isLeftMouseDown() -> Bool {
-  CGEventSource.buttonState(.combinedSessionState, button: .left)
+// MARK: - WindowPointerDragCompletion
+
+struct WindowPointerDragCompletion: Sendable {
+  var trackedWindowID: CGWindowID?
+  var key: WindowKey?
+  var frame: CGRect?
+  var pointerMoved: Bool
+
+  var event: WindowChangeEvent {
+    .windowDragEnded(
+      trackedWindowID: trackedWindowID,
+      key: key,
+      frame: frame,
+      pointerMoved: pointerMoved,
+    )
+  }
+}
+
+// MARK: - WindowPointerDragTracker
+
+/// Captures the exact WindowServer surface under a left mouse-down.
+///
+/// Button state alone is not evidence that an AX move/resize belongs to the
+/// pointer. Clicking Notification Center can make KakaoTalk restore its saved
+/// frame while the same button is held; classifying that unrelated callback as
+/// a drag commits the restored frame into the BSP tree on mouse-up.
+final class WindowPointerDragTracker: @unchecked Sendable {
+
+  // MARK: Internal
+
+  struct Session: Sendable {
+    var generation: UInt64
+    var windowID: CGWindowID?
+    var startLocation: CGPoint?
+    var endLocation: CGPoint?
+  }
+
+  static let shared = WindowPointerDragTracker()
+
+  /// Capture only event-native values in the global-monitor callback. This
+  /// lock is intentionally tiny; WindowServer work stays on the serial capture
+  /// queue and no longer tries to reconstruct the frame from a late "start"
+  /// snapshot.
+  func pointerDown(windowID: CGWindowID?, location: CGPoint?) {
+    lock.withLock {
+      generation &+= 1
+      activeSession = Session(
+        generation: generation,
+        windowID: windowID,
+        startLocation: location,
+        endLocation: nil,
+      )
+    }
+  }
+
+  func pointerUp(location: CGPoint?) -> Session? {
+    lock.withLock {
+      guard var session = activeSession else { return nil }
+      session.endLocation = location
+      activeSession = nil
+      return session
+    }
+  }
+
+  func complete(_ session: Session) -> WindowPointerDragCompletion? {
+    let distance = session.startLocation.flatMap { start in
+      session.endLocation.map { end in
+        hypot(end.x - start.x, end.y - start.y)
+      }
+    }
+    let pointerMoved = (distance ?? 0) > 1
+    guard pointerMoved else {
+      return WindowPointerDragCompletion(
+        trackedWindowID: session.windowID,
+        key: nil,
+        frame: nil,
+        pointerMoved: false,
+      )
+    }
+    let fallbackWindowID = session.windowID == nil
+      ? session.endLocation.flatMap(Self.topmostWindowID)
+      : nil
+    let resolvedWindowID = session.windowID ?? fallbackWindowID
+    let current = resolvedWindowID
+      .flatMap(Self.snapshot)
+    return WindowPointerDragCompletion(
+      trackedWindowID: resolvedWindowID,
+      key: current?.key,
+      frame: current?.frame,
+      pointerMoved: true,
+    )
+  }
+
+  /// Validate the session and enqueue its barrier while holding the same lock
+  /// used by `pointerDown`. This makes the ordering atomic: either the old
+  /// barrier lands before a new drag becomes active, or the new generation is
+  /// already visible and the stale barrier is discarded.
+  @discardableResult
+  func yieldIfCurrent(
+    _ completion: WindowPointerDragCompletion,
+    for session: Session,
+    to eventSink: CoalescingWindowEventBuffer,
+  ) -> Bool {
+    lock.withLock {
+      guard generation == session.generation else { return false }
+      eventSink.yield(completion.event)
+      return true
+    }
+  }
+
+  func isDragging(_ candidate: CGWindowID) -> Bool {
+    CGEventSource.buttonState(.combinedSessionState, button: .left)
+      && lock.withLock { activeSession?.windowID == candidate }
+  }
+
+  // MARK: Private
+
+  private struct Snapshot {
+    var key: WindowKey
+    var frame: CGRect
+  }
+
+  private let lock = NSLock()
+  private var generation: UInt64 = 0
+  private var activeSession: Session?
+
+  private static func snapshot(_ windowID: CGWindowID) -> Snapshot? {
+    guard
+      let window = (
+        CGWindowListCopyWindowInfo(
+          [.optionIncludingWindow, .excludeDesktopElements],
+          windowID,
+        ) as? [[String: Any]]
+      )?.first,
+      let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+      pid != getpid(),
+      let bundleId = NSRunningApplication(
+        processIdentifier: pid
+      )?.bundleIdentifier,
+      let rawBounds = window[kCGWindowBounds as String] as? NSDictionary,
+      let frame = CGRect(
+        dictionaryRepresentation: rawBounds as CFDictionary
+      )
+    else { return nil }
+    return Snapshot(
+      key: WindowKey(pid: pid, windowID: windowID, bundleId: bundleId),
+      frame: frame,
+    )
+  }
+
+  private static func topmostWindowID(at point: CGPoint) -> CGWindowID? {
+    guard
+      let windows = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements],
+        kCGNullWindowID,
+      ) as? [[String: Any]]
+    else { return nil }
+    for window in windows {
+      guard
+        (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != getpid(),
+        let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+        number != 0,
+        let rawBounds = window[kCGWindowBounds as String] as? NSDictionary,
+        let bounds = CGRect(
+          dictionaryRepresentation: rawBounds as CFDictionary
+        ),
+        bounds.insetBy(dx: -8, dy: -8).contains(point)
+      else { continue }
+      return number
+    }
+    return nil
+  }
+
 }
 
 // MARK: - AXObserverThread

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Darwin
+import Dispatch
 import os
 import Testing
 @testable import TatamiKit
@@ -127,5 +128,84 @@ struct FocusFollowsMouseTests {
 
     #expect(admitted)
     #expect(recorded.withLock { $0 } == 1)
+  }
+
+  @Test
+  func `AX lanes preserve same PID order without blocking another PID`() {
+    let lanes = AXPIDSerialQueueRegistry(
+      label: "dev.PangMo5.TatamiTests.ax-pid-lane"
+    )
+    let firstPID: pid_t = 41
+    let secondPID: pid_t = 42
+    let firstLane = lanes.queue(for: firstPID)
+    let releaseFirst = DispatchSemaphore(value: 0)
+    let firstStarted = DispatchSemaphore(value: 0)
+    let samePIDFinished = DispatchSemaphore(value: 0)
+    let otherPIDFinished = DispatchSemaphore(value: 0)
+
+    #expect(firstLane === lanes.queue(for: firstPID))
+    #expect(firstLane !== lanes.queue(for: secondPID))
+
+    firstLane.async {
+      firstStarted.signal()
+      releaseFirst.wait()
+    }
+    guard firstStarted.wait(timeout: .now() + 1) == .success else {
+      releaseFirst.signal()
+      Issue.record("The first PID lane did not start")
+      return
+    }
+
+    lanes.queue(for: firstPID).async {
+      samePIDFinished.signal()
+    }
+    lanes.queue(for: secondPID).async {
+      otherPIDFinished.signal()
+    }
+
+    let otherPIDCompleted =
+      otherPIDFinished.wait(timeout: .now() + 1) == .success
+    let samePIDRanWhileBlocked =
+      samePIDFinished.wait(timeout: .now() + 0.02) == .success
+    releaseFirst.signal()
+    let samePIDCompleted =
+      samePIDRanWhileBlocked
+        || samePIDFinished.wait(timeout: .now() + 1) == .success
+
+    #expect(otherPIDCompleted)
+    #expect(!samePIDRanWhileBlocked)
+    #expect(samePIDCompleted)
+  }
+
+  @Test
+  func `new AX focus request invalidates an older PID lane`() {
+    let latest = FocusAXLatestRequest()
+
+    let oldRequest = latest.begin()
+    let newRequest = latest.begin()
+
+    #expect(!latest.isCurrent(oldRequest))
+    #expect(latest.isCurrent(newRequest))
+  }
+
+  @Test
+  func `superseded AX fallback cannot reactivate an old app`() {
+    let latest = FocusAXLatestRequest()
+
+    let oldRequest = latest.begin()
+    let newRequest = latest.begin()
+
+    #expect(
+      focusAXFallbackResult(
+        forceFront: true,
+        isCancelled: { !latest.isCurrent(oldRequest) },
+      ) == .cancelled
+    )
+    #expect(
+      focusAXFallbackResult(
+        forceFront: true,
+        isCancelled: { !latest.isCurrent(newRequest) },
+      ) == .activateApp
+    )
   }
 }

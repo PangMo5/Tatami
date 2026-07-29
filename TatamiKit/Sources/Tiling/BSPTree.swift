@@ -1,6 +1,8 @@
 import DequeModule
 import Foundation
 
+// MARK: - BSPNode
+
 /// Pure value-typed Binary Space Partitioning tree.
 ///
 /// Value-typed so the TCA reducer can own the tree without aliasing.
@@ -41,6 +43,8 @@ public indirect enum BSPNode<WindowID: Hashable & Sendable>: Hashable, Sendable 
   public typealias InsertDirection = BSPInsertDirection
 }
 
+// MARK: - BSPSplitAxis
+
 /// Axis along which a branch divides its rectangle.
 public enum BSPSplitAxis: String, Sendable, Hashable, Codable {
   /// Cut horizontally — children stack top/bottom.
@@ -49,25 +53,59 @@ public enum BSPSplitAxis: String, Sendable, Hashable, Codable {
   case vertical
 }
 
+// MARK: - BSPSide
+
 /// Which side of a branch a child sits on. Path component used by
 /// the recursive update helpers.
 public enum BSPSide: Sendable, Hashable { case left, right }
 
+// MARK: - BSPChild
+
 /// `first` = the existing window stays in the left/top slot and the
 /// new window goes right/bottom. `second` reverses it.
 public enum BSPChild: String, Sendable, Hashable, Codable {
-  case first, second
+  case first
+  case second
 }
+
+// MARK: - BSPInsertDirection
 
 /// Pre-set intent on a leaf: "the next window I insert should split
 /// this leaf in this direction (or stack on top of it)". `.stack`
 /// means: don't split, push the new window onto this leaf's stack.
 public enum BSPInsertDirection: String, Sendable, Hashable, Codable {
-  case north, east, south, west, stack
+  case north
+  case east
+  case south
+  case west
+  case stack
 }
+
+// MARK: - BSPLeaf
 
 /// One BSP leaf — the value payload at the tree's terminals.
 public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
+
+  // MARK: Lifecycle
+
+  public init(
+    windowList: [WindowID],
+    windowOrder: [WindowID]? = nil,
+    insertDirection: BSPNode<WindowID>.InsertDirection? = nil,
+    preferredChild: BSPNode<WindowID>.Child? = nil,
+    preferredSplit: BSPNode<WindowID>.SplitAxis? = nil,
+    parentZoom: Bool = false,
+  ) {
+    self.windowList = windowList
+    self.windowOrder = windowOrder ?? windowList
+    self.insertDirection = insertDirection
+    self.preferredChild = preferredChild
+    self.preferredSplit = preferredSplit
+    self.parentZoom = parentZoom
+  }
+
+  // MARK: Public
+
   /// Geometric/visual order of the stack (windowList[0] is the bottom
   /// of the stack, .last is the most recently inserted). Length 1
   /// for the common, non-stacked case.
@@ -86,25 +124,11 @@ public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
   /// structure changes.
   public var parentZoom: Bool
 
-  public init(
-    windowList: [WindowID],
-    windowOrder: [WindowID]? = nil,
-    insertDirection: BSPNode<WindowID>.InsertDirection? = nil,
-    preferredChild: BSPNode<WindowID>.Child? = nil,
-    preferredSplit: BSPNode<WindowID>.SplitAxis? = nil,
-    parentZoom: Bool = false
-  ) {
-    self.windowList = windowList
-    self.windowOrder = windowOrder ?? windowList
-    self.insertDirection = insertDirection
-    self.preferredChild = preferredChild
-    self.preferredSplit = preferredSplit
-    self.parentZoom = parentZoom
-  }
-
   /// True when this leaf participates in a stack (more than one window
   /// occupies the same area).
-  public var isStack: Bool { windowList.count > 1 }
+  public var isStack: Bool {
+    windowList.count > 1
+  }
 
   /// Top-of-focus window — `windowOrder[0]` if present, else the first
   /// element of `windowList`.
@@ -115,10 +139,32 @@ public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
   public func contains(_ id: WindowID) -> Bool {
     windowList.contains(id)
   }
+
 }
+
+// MARK: - BSPBranch
 
 /// One BSP branch — the internal node holding a split + two children.
 public struct BSPBranch<WindowID: Hashable & Sendable>: Hashable, Sendable {
+
+  // MARK: Lifecycle
+
+  public init(
+    split: BSPNode<WindowID>.SplitAxis,
+    ratio: CGFloat,
+    preferredChild: BSPNode<WindowID>.Child? = nil,
+    left: BSPNode<WindowID>,
+    right: BSPNode<WindowID>,
+  ) {
+    self.split = split
+    self.ratio = ratio
+    self.preferredChild = preferredChild
+    self.left = left
+    self.right = right
+  }
+
+  // MARK: Public
+
   public var split: BSPNode<WindowID>.SplitAxis
   public var ratio: CGFloat
   /// Child-side override consumed on the next split rooted at this
@@ -128,24 +174,19 @@ public struct BSPBranch<WindowID: Hashable & Sendable>: Hashable, Sendable {
   public var left: BSPNode<WindowID>
   public var right: BSPNode<WindowID>
 
-  public init(
-    split: BSPNode<WindowID>.SplitAxis,
-    ratio: CGFloat,
-    preferredChild: BSPNode<WindowID>.Child? = nil,
-    left: BSPNode<WindowID>,
-    right: BSPNode<WindowID>
-  ) {
-    self.split = split
-    self.ratio = ratio
-    self.preferredChild = preferredChild
-    self.left = left
-    self.right = right
-  }
 }
 
-extension BSPLeaf: Codable where WindowID: Codable {}
-extension BSPBranch: Codable where WindowID: Codable {}
-extension BSPNode: Codable where WindowID: Codable {}
+// MARK: - BSPLeaf + Codable
+
+extension BSPLeaf: Codable where WindowID: Codable { }
+
+// MARK: - BSPBranch + Codable
+
+extension BSPBranch: Codable where WindowID: Codable { }
+
+// MARK: - BSPNode + Codable
+
+extension BSPNode: Codable where WindowID: Codable { }
 
 extension BSPBranch {
   /// Copy with selected fields replaced. Every tree transform rebuilds a
@@ -155,14 +196,14 @@ extension BSPBranch {
     split: BSPSplitAxis? = nil,
     ratio: CGFloat? = nil,
     left: BSPNode<WindowID>? = nil,
-    right: BSPNode<WindowID>? = nil
+    right: BSPNode<WindowID>? = nil,
   ) -> BSPBranch {
     BSPBranch(
       split: split ?? self.split,
       ratio: ratio ?? self.ratio,
       preferredChild: preferredChild,
       left: left ?? self.left,
-      right: right ?? self.right
+      right: right ?? self.right,
     )
   }
 }
@@ -193,19 +234,19 @@ extension BSPNode where WindowID == WindowKey {
   /// slots the layout recorded rather than in Accessibility-enumeration order.
   public static func hydrate(
     template: BSPNode<SlotID>,
-    keys: [WindowKey]
+    keys: [WindowKey],
   ) -> BSPNode<WindowKey>? {
     let keyForSlot = slotToKey(keys)
     func build(_ node: BSPNode<SlotID>) -> BSPNode<WindowKey>? {
       switch node {
       case .leaf(let slotLeaf):
-        var hydratedList: [WindowKey] = []
+        var hydratedList = [WindowKey]()
         for slot in slotLeaf.windowList {
           guard let key = keyForSlot[slot] else { continue }
           hydratedList.append(key)
         }
         guard !hydratedList.isEmpty else { return nil }
-        var hydratedOrder: [WindowKey] = []
+        var hydratedOrder = [WindowKey]()
         for slot in slotLeaf.windowOrder {
           if let key = keyForSlot[slot], !hydratedOrder.contains(key) {
             hydratedOrder.append(key)
@@ -220,9 +261,10 @@ extension BSPNode where WindowID == WindowKey {
           insertDirection: slotLeaf.insertDirection,
           preferredChild: slotLeaf.preferredChild,
           preferredSplit: slotLeaf.preferredSplit,
-          parentZoom: slotLeaf.parentZoom
+          parentZoom: slotLeaf.parentZoom,
         )
         return .leaf(leaf)
+
       case .branch(let slotBranch):
         let l = build(slotBranch.left)
         let r = build(slotBranch.right)
@@ -236,7 +278,7 @@ extension BSPNode where WindowID == WindowKey {
             ratio: slotBranch.ratio,
             preferredChild: slotBranch.preferredChild,
             left: l,
-            right: r
+            right: r,
           ))
         }
       }
@@ -255,21 +297,22 @@ extension BSPNode {
   ) -> BSPNode<T> {
     switch self {
     case .leaf(let leaf):
-      return .leaf(BSPLeaf<T>(
+      .leaf(BSPLeaf<T>(
         windowList: leaf.windowList.map(f),
         windowOrder: leaf.windowOrder.map(f),
         insertDirection: leaf.insertDirection,
         preferredChild: leaf.preferredChild,
         preferredSplit: leaf.preferredSplit,
-        parentZoom: leaf.parentZoom
+        parentZoom: leaf.parentZoom,
       ))
+
     case .branch(let branch):
-      return .branch(BSPBranch<T>(
+      .branch(BSPBranch<T>(
         split: branch.split,
         ratio: branch.ratio,
         preferredChild: branch.preferredChild,
         left: branch.left.mapWindows(f),
-        right: branch.right.mapWindows(f)
+        right: branch.right.mapWindows(f),
       ))
     }
   }
@@ -278,23 +321,14 @@ extension BSPNode {
 // MARK: - Inspection
 
 extension BSPNode {
+
+  // MARK: Public
+
   /// All window ids in tree order. Stacks expand by `windowList` order.
   public var windows: [WindowID] {
-    var out: [WindowID] = []
+    var out = [WindowID]()
     appendWindows(into: &out)
     return out
-  }
-
-  /// Append tree-order window ids into a shared buffer — avoids the
-  /// per-branch `left.windows + right.windows` concatenation that
-  /// reallocated a fresh array at every node on a full walk.
-  private func appendWindows(into out: inout [WindowID]) {
-    switch self {
-    case .leaf(let leaf): out.append(contentsOf: leaf.windowList)
-    case .branch(let b):
-      b.left.appendWindows(into: &out)
-      b.right.appendWindows(into: &out)
-    }
   }
 
   /// Number of leaves (not windows). Used by `balanced(axis:)` to weigh
@@ -344,6 +378,21 @@ extension BSPNode {
     }
     return rect
   }
+
+  // MARK: Private
+
+  /// Append tree-order window ids into a shared buffer — avoids the
+  /// per-branch `left.windows + right.windows` concatenation that
+  /// reallocated a fresh array at every node on a full walk.
+  private func appendWindows(into out: inout [WindowID]) {
+    switch self {
+    case .leaf(let leaf): out.append(contentsOf: leaf.windowList)
+    case .branch(let b):
+      b.left.appendWindows(into: &out)
+      b.right.appendWindows(into: &out)
+    }
+  }
+
 }
 
 // MARK: - Build
@@ -355,7 +404,7 @@ extension BSPNode {
   public static func build(
     _ windows: [WindowID],
     in rect: CGRect,
-    defaultRatio: CGFloat = 0.5
+    defaultRatio: CGFloat = 0.5,
   ) -> BSPNode? {
     var tree: BSPNode? = nil
     for window in windows {
@@ -389,15 +438,16 @@ extension BSPNode {
     in rect: CGRect,
     defaultRatio: CGFloat = 0.5,
     viewSplitType: SplitAxis? = nil,
-    globalPlacement: Child = .second
+    globalPlacement: Child = .second,
   ) -> BSPNode {
     let info = leafInfos(currentRect: rect)
     let target: LeafInfoT? = {
-      if let anchor,
-         let hit = info.first(where: { leaf in
-           if case .leaf(let l) = self.subtree(at: leaf.path) { return l.contains(anchor) }
-           return false
-         })
+      if
+        let anchor,
+        let hit = info.first(where: { leaf in
+          if case .leaf(let l) = self.subtree(at: leaf.path) { return l.contains(anchor) }
+          return false
+        })
       {
         return hit
       }
@@ -437,11 +487,10 @@ extension BSPNode {
         ratio: defaultRatio,
         preferredChild: nil,
         left: l,
-        right: r
+        right: r,
       ))
     }
   }
-
 }
 
 // MARK: - Removal
@@ -458,6 +507,7 @@ extension BSPNode {
       leaf.windowList.removeAll { $0 == window }
       leaf.windowOrder.removeAll { $0 == window }
       return leaf.windowList.isEmpty ? nil : .leaf(leaf)
+
     case .branch(let b):
       let newLeft = b.left.removing(window)
       let newRight = b.right.removing(window)
@@ -466,6 +516,35 @@ extension BSPNode {
       case (let l?, nil): return l
       case (let l?, let r?):
         return .branch(b.with(left: l, right: r))
+      case (nil, nil):
+        return nil
+      }
+    }
+  }
+
+  /// Remove a set of windows in one tree walk.
+  ///
+  /// Repeatedly calling `removing(_:)` is quadratic when many windows are
+  /// fullscreen-zoomed. Filtering each leaf once preserves the same sibling-
+  /// promotion semantics while keeping frame computation linear in tree size.
+  public func removingAll(_ windows: Set<WindowID>) -> BSPNode? {
+    guard !windows.isEmpty else { return self }
+    switch self {
+    case .leaf(var leaf):
+      leaf.windowList.removeAll(where: windows.contains)
+      leaf.windowOrder.removeAll(where: windows.contains)
+      return leaf.windowList.isEmpty ? nil : .leaf(leaf)
+
+    case .branch(let branch):
+      let newLeft = branch.left.removingAll(windows)
+      let newRight = branch.right.removingAll(windows)
+      switch (newLeft, newRight) {
+      case (nil, let right?):
+        return right
+      case (let left?, nil):
+        return left
+      case (let left?, let right?):
+        return .branch(branch.with(left: left, right: right))
       case (nil, nil):
         return nil
       }
@@ -491,6 +570,7 @@ extension BSPNode {
       swap(in: &leaf.windowList)
       swap(in: &leaf.windowOrder)
       return .leaf(leaf)
+
     case .branch(let br):
       // Find a's and b's enclosing leaves.
       guard let pa = pathTo(window: a), let pb = pathTo(window: b) else { return self }
@@ -499,8 +579,9 @@ extension BSPNode {
       }
       // Different leaves: exchange their windowList + windowOrder
       // wholesale. Stacks travel together.
-      guard case .leaf(let leafA) = subtree(at: pa),
-            case .leaf(let leafB) = subtree(at: pb)
+      guard
+        case .leaf(let leafA) = subtree(at: pa),
+        case .leaf(let leafB) = subtree(at: pb)
       else { return self }
       var newA = leafA
       newA.windowList = leafB.windowList
@@ -550,7 +631,7 @@ extension BSPNode {
     direction: BSPDirection,
     in workArea: CGRect,
     gap: CGFloat,
-    focusOrder: [WindowID] = []
+    focusOrder: [WindowID] = [],
   ) -> BSPNode {
     if
       let target = directionalNeighbor(
@@ -590,7 +671,7 @@ extension BSPNode {
   public func resizing(
     window: WindowID,
     axis: SplitAxis,
-    delta: CGFloat
+    delta: CGFloat,
   ) -> BSPNode {
     guard let path = pathTo(window: window) else { return self }
     guard let ancestorPath = nearestAncestor(matching: axis, on: path) else { return self }
@@ -609,7 +690,7 @@ extension BSPNode {
   public func resizing(
     window: WindowID,
     direction: BSPDirection,
-    delta: CGFloat
+    delta: CGFloat,
   ) -> BSPNode {
     let axis: SplitAxis =
       (direction == .east || direction == .west) ? .vertical : .horizontal
@@ -634,7 +715,7 @@ extension BSPNode {
     of window: WindowID,
     direction: BSPDirection,
     in workArea: CGRect,
-    gap: CGFloat
+    gap: CGFloat,
   ) -> [Side]? {
     guard let path = pathTo(window: window) else { return nil }
     let windowRect = rect(at: path, in: workArea, gap: gap)
@@ -647,17 +728,17 @@ extension BSPNode {
     for i in (0..<path.count).reversed() {
       let candidatePath = Array(path.prefix(i))
       let candidateRect = rect(at: candidatePath, in: workArea, gap: gap)
-      guard case .branch(let b) = subtree(at: candidatePath),
-            b.split == targetAxis
+      guard
+        case .branch(let b) = subtree(at: candidatePath),
+        b.split == targetAxis
       else { continue }
-      let extendsPast: Bool = {
+      let extendsPast: Bool =
         switch direction {
-        case .north: return candidateRect.minY < windowRect.minY
-        case .south: return candidateRect.maxY > windowRect.maxY
-        case .west:  return candidateRect.minX < windowRect.minX
-        case .east:  return candidateRect.maxX > windowRect.maxX
+        case .north: candidateRect.minY < windowRect.minY
+        case .south: candidateRect.maxY > windowRect.maxY
+        case .west: candidateRect.minX < windowRect.minX
+        case .east: candidateRect.maxX > windowRect.maxX
         }
-      }()
       if extendsPast {
         bestPath = candidatePath
         break
@@ -684,14 +765,13 @@ extension BSPNode {
       let lc = bl.leafCount
       let rc = br.leafCount
       let total = lc + rc
-      let shouldBalance: Bool = {
+      let shouldBalance: Bool =
         switch axis {
-        case .none: return false
-        case .both: return true
-        case .horizontal: return b.split == .horizontal
-        case .vertical:   return b.split == .vertical
+        case .none: false
+        case .both: true
+        case .horizontal: b.split == .horizontal
+        case .vertical: b.split == .vertical
         }
-      }()
       let ratio = (!shouldBalance || total == 0)
         ? b.ratio
         : CGFloat(lc) / CGFloat(total)
@@ -708,8 +788,8 @@ extension BSPNode {
     case .branch(let b):
       let shouldSwap =
         (d == 90 && b.split == .vertical)
-        || (d == 270 && b.split == .horizontal)
-        || d == 180
+          || (d == 270 && b.split == .horizontal)
+          || d == 180
       let newLeft = shouldSwap ? b.right : b.left
       let newRight = shouldSwap ? b.left : b.right
       let newRatio = shouldSwap ? 1 - b.ratio : b.ratio
@@ -717,8 +797,10 @@ extension BSPNode {
         ? b.split
         : (b.split == .horizontal ? .vertical : .horizontal)
       return .branch(b.with(
-        split: newSplit, ratio: newRatio,
-        left: newLeft.rotated(by: d), right: newRight.rotated(by: d)
+        split: newSplit,
+        ratio: newRatio,
+        left: newLeft.rotated(by: d),
+        right: newRight.rotated(by: d),
       ))
     }
   }
@@ -729,18 +811,18 @@ extension BSPNode {
   public func mirrored(axis: SplitAxis) -> BSPNode {
     switch self {
     case .leaf:
-      return self
+      self
     case .branch(let b):
       if b.split == axis {
-        return .branch(b.with(
+        .branch(b.with(
           ratio: 1 - b.ratio,
           left: b.right.mirrored(axis: axis),
-          right: b.left.mirrored(axis: axis)
+          right: b.left.mirrored(axis: axis),
         ))
       } else {
-        return .branch(b.with(
+        .branch(b.with(
           left: b.left.mirrored(axis: axis),
-          right: b.right.mirrored(axis: axis)
+          right: b.right.mirrored(axis: axis),
         ))
       }
     }
@@ -750,21 +832,26 @@ extension BSPNode {
 // MARK: - Frames
 
 extension BSPNode {
+
+  // MARK: Public
+
   /// Resolve every window's frame given the work-area rect and the
   /// inner gap. Parent-zoom leaves render at their parent branch's
   /// rect (filling the sibling slot as well). Stack leaves emit the
   /// same rect for every stacked window.
   public func frames(in rect: CGRect, gap: CGFloat) -> [WindowID: CGRect] {
-    var out: [WindowID: CGRect] = [:]
+    var out = [WindowID: CGRect]()
     layout(into: &out, rect: rect, parentRect: rect, gap: gap)
     return out
   }
+
+  // MARK: Private
 
   private func layout(
     into out: inout [WindowID: CGRect],
     rect: CGRect,
     parentRect: CGRect,
-    gap: CGFloat
+    gap: CGFloat,
   ) {
     switch self {
     case .leaf(let leaf):
@@ -772,12 +859,14 @@ extension BSPNode {
       for id in leaf.windowList {
         out[id] = area.integral
       }
+
     case .branch(let b):
       let (lRect, rRect) = b.split.subdivide(rect, ratio: b.ratio, gap: gap)
       b.left.layout(into: &out, rect: lRect, parentRect: rect, gap: gap)
       b.right.layout(into: &out, rect: rRect, parentRect: rect, gap: gap)
     }
   }
+
 }
 
 // MARK: - Leaf metadata mutation
@@ -792,7 +881,7 @@ extension BSPNode {
   ///   * stack → no axis/child preference
   public func settingInsertDirection(
     at window: WindowID,
-    direction: InsertDirection?
+    direction: InsertDirection?,
   ) -> BSPNode {
     guard let path = pathTo(window: window) else { return self }
     return replacing(path: path) { node in
@@ -802,16 +891,21 @@ extension BSPNode {
       case .north:
         leaf.preferredSplit = .horizontal
         leaf.preferredChild = .first
+
       case .south:
         leaf.preferredSplit = .horizontal
         leaf.preferredChild = .second
+
       case .east:
         leaf.preferredSplit = .vertical
         leaf.preferredChild = .second
+
       case .west:
         leaf.preferredSplit = .vertical
         leaf.preferredChild = .first
-      case .stack, .none:
+
+      case .stack,
+           .none:
         leaf.preferredSplit = nil
         leaf.preferredChild = nil
       }
@@ -835,14 +929,15 @@ extension BSPNode {
 
   /// Clear `parentZoom` on every leaf except the one at `keepPath`.
   public func clearingParentZoom(except keepPath: [Side]) -> BSPNode {
-    // Single bottom-up rebuild clearing every leaf but `keepPath`, instead
-    // of one full root→leaf `replacing(path:)` rebuild per leaf (which made
-    // this O(leaves²) tree reconstructions).
+    /// Single bottom-up rebuild clearing every leaf but `keepPath`, instead
+    /// of one full root→leaf `replacing(path:)` rebuild per leaf (which made
+    /// this O(leaves²) tree reconstructions).
     func walk(_ node: BSPNode, _ path: [Side]) -> BSPNode {
       switch node {
       case .leaf(var leaf):
         if path != keepPath { leaf.parentZoom = false }
         return .leaf(leaf)
+
       case .branch(var b):
         b.left = walk(b.left, path + [.left])
         b.right = walk(b.right, path + [.right])
@@ -853,18 +948,24 @@ extension BSPNode {
   }
 }
 
-// MARK: - Direction enum
+// MARK: - BSPDirection
 
 /// Compass directions for geometric neighbor lookups (swap/focus/
 /// resize/warp). North = up, South = down in AX top-origin
 /// coordinates.
 public enum BSPDirection: String, Sendable, Hashable, Codable {
-  case west, east, north, south
+  case west
+  case east
+  case north
+  case south
 }
 
 // MARK: - Directional neighbor
 
 extension BSPNode {
+
+  // MARK: Public
+
   /// Closest leaf adjacent to `key` in `direction`. Score every other
   /// leaf by axis-aligned distance, tiebreak by recency in the focus
   /// order (front-to-back), reject candidates that don't actually lie
@@ -874,14 +975,14 @@ extension BSPNode {
     direction: BSPDirection,
     in workArea: CGRect,
     gap: CGFloat,
-    focusOrder: [WindowID] = []
+    focusOrder: [WindowID] = [],
   ) -> WindowID? {
-    let frames = self.frames(in: workArea, gap: gap)
+    let frames = frames(in: workArea, gap: gap)
     guard let mine = frames[key] else { return nil }
     // Precompute the focus-order rank (first index per id) once so the
     // recency tiebreak is an O(1) lookup, not a fresh O(n) `firstIndex`
     // scan per candidate (was O(candidates × focusOrder)).
-    var rankByID: [WindowID: Int] = [:]
+    var rankByID = [WindowID: Int]()
     for (i, id) in focusOrder.enumerated() where rankByID[id] == nil { rankByID[id] = i }
     var best: (id: WindowID, distance: CGFloat, rank: Int)?
     for (other, rect) in frames where other != key {
@@ -899,18 +1000,23 @@ extension BSPNode {
     return best?.id
   }
 
+  // MARK: Private
+
   /// Does `to` actually extend past `from` along `direction`?
   private func inDirection(from a: CGRect, to b: CGRect, direction: BSPDirection) -> Bool {
     switch direction {
     case .north:
       guard b.maxY <= a.minY + 0.5 else { return false }
       return overlaps1D(a.minX, a.maxX, b.minX, b.maxX)
+
     case .south:
       guard b.minY >= a.maxY - 0.5 else { return false }
       return overlaps1D(a.minX, a.maxX, b.minX, b.maxX)
+
     case .west:
       guard b.maxX <= a.minX + 0.5 else { return false }
       return overlaps1D(a.minY, a.maxY, b.minY, b.maxY)
+
     case .east:
       guard b.minX >= a.maxX - 0.5 else { return false }
       return overlaps1D(a.minY, a.maxY, b.minY, b.maxY)
@@ -923,39 +1029,20 @@ extension BSPNode {
 
   private func distance(from a: CGRect, to b: CGRect, direction: BSPDirection) -> CGFloat {
     switch direction {
-    case .north: return a.minY - b.maxY
-    case .south: return b.minY - a.maxY
-    case .west:  return a.minX - b.maxX
-    case .east:  return b.minX - a.maxX
+    case .north: a.minY - b.maxY
+    case .south: b.minY - a.maxY
+    case .west: a.minX - b.maxX
+    case .east: b.minX - a.maxX
     }
   }
+
 }
 
 // MARK: - Private helpers
 
 extension BSPNode {
-  /// Path + current rect + depth for a leaf, computed during the
-  /// recursive walk that picks an insertion target.
-  fileprivate struct LeafInfoT {
-    var path: [Side]
-    var rect: CGRect
-    var depth: Int
-  }
 
-  fileprivate func leafInfos(
-    currentRect: CGRect,
-    path: [Side] = [],
-    depth: Int = 0
-  ) -> [LeafInfoT] {
-    switch self {
-    case .leaf:
-      return [LeafInfoT(path: path, rect: currentRect, depth: depth)]
-    case .branch(let b):
-      let (lRect, rRect) = b.split.subdivide(currentRect, ratio: b.ratio, gap: 0)
-      return b.left.leafInfos(currentRect: lRect, path: path + [.left], depth: depth + 1)
-        + b.right.leafInfos(currentRect: rRect, path: path + [.right], depth: depth + 1)
-    }
-  }
+  // MARK: Internal
 
   /// Rebuild the tree with the subtree at `path` replaced by
   /// `transform`'s result. Internal (not public) so the framework
@@ -963,7 +1050,7 @@ extension BSPNode {
   /// metadata for drag-warp.
   func replacing(
     path: [Side],
-    with transform: (BSPNode) -> BSPNode
+    with transform: (BSPNode) -> BSPNode,
   ) -> BSPNode {
     guard let next = path.first else {
       return transform(self)
@@ -982,9 +1069,36 @@ extension BSPNode {
     }
   }
 
-  fileprivate func nearestAncestor(matching axis: SplitAxis, on path: [Side]) -> [Side]? {
+  // MARK: Fileprivate
+
+  /// Path + current rect + depth for a leaf, computed during the
+  /// recursive walk that picks an insertion target.
+  fileprivate struct LeafInfoT {
+    var path: [Side]
+    var rect: CGRect
+    var depth: Int
+  }
+
+  // MARK: Private
+
+  private func leafInfos(
+    currentRect: CGRect,
+    path: [Side] = [],
+    depth: Int = 0,
+  ) -> [LeafInfoT] {
+    switch self {
+    case .leaf:
+      return [LeafInfoT(path: path, rect: currentRect, depth: depth)]
+    case .branch(let b):
+      let (lRect, rRect) = b.split.subdivide(currentRect, ratio: b.ratio, gap: 0)
+      return b.left.leafInfos(currentRect: lRect, path: path + [.left], depth: depth + 1)
+        + b.right.leafInfos(currentRect: rRect, path: path + [.right], depth: depth + 1)
+    }
+  }
+
+  private func nearestAncestor(matching axis: SplitAxis, on path: [Side]) -> [Side]? {
     var current = self
-    var traveled: [Side] = []
+    var traveled = [Side]()
     var best: [Side]?
     for side in path {
       guard case .branch(let b) = current else { break }
@@ -996,6 +1110,7 @@ extension BSPNode {
     }
     return best
   }
+
 }
 
 // MARK: - Geometry
@@ -1006,7 +1121,7 @@ extension BSPNode.SplitAxis {
   func subdivide(
     _ rect: CGRect,
     ratio: CGFloat,
-    gap: CGFloat
+    gap: CGFloat,
   ) -> (CGRect, CGRect) {
     switch self {
     case .vertical:
@@ -1018,9 +1133,10 @@ extension BSPNode.SplitAxis {
         x: rect.minX + leftW + gap,
         y: rect.minY,
         width: rightW,
-        height: rect.height
+        height: rect.height,
       )
       return (left, right)
+
     case .horizontal:
       let usable = rect.height - gap
       let topH = (usable * ratio).rounded()
@@ -1030,7 +1146,7 @@ extension BSPNode.SplitAxis {
         x: rect.minX,
         y: rect.minY + topH + gap,
         width: rect.width,
-        height: bottomH
+        height: bottomH,
       )
       return (top, bottom)
     }

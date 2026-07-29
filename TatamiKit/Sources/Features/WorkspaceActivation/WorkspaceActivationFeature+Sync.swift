@@ -242,6 +242,19 @@ extension WorkspaceActivationFeature {
         state: &state,
       ))
     }
+    // Observer installation emits a synthetic create event after its AX
+    // notifications are armed. Even when that reconciliation is a tree no-op,
+    // verify presentation once more: the app may have restored its own frame
+    // between the initial layout snapshot and observer readiness.
+    if
+      state.presentationConvergenceWindows.contains(where: {
+        $0.bundleId == bundleId
+      })
+    {
+      effects.append(
+        .send(.presentationObservationReady(bundleIds: [bundleId]))
+      )
+    }
     return .merge(effects)
   }
 
@@ -250,7 +263,10 @@ extension WorkspaceActivationFeature {
   /// close instead of destroying it, so no `kAXUIElementDestroyedNotification`
   /// fires and the slot lingers; the on-screen window list is the only signal.
   /// Re-tiles the survivors and, when focus was stranded, pulls it to one.
-  func pruneOffscreenWindows(state: inout State) -> Effect<Action> {
+  func pruneOffscreenWindows(
+    knownDestroyedWindowIDs: Set<CGWindowID> = [],
+    state: inout State,
+  ) -> Effect<Action> {
     guard !state.isTilingPaused, !state.isActivating else { return .none }
     // In a native fullscreen Space the Desktop's windows are all off-screen, so
     // the on-screen list reports them "gone". Pruning then would empty the tree
@@ -284,7 +300,10 @@ extension WorkspaceActivationFeature {
         let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
         let tree = state.tilingTrees[workspaceId]
       else { continue }
-      let gone = tree.windows.filter { !onScreen.contains($0.windowID) }
+      let gone = tree.windows.filter {
+        knownDestroyedWindowIDs.contains($0.windowID)
+          || !onScreen.contains($0.windowID)
+      }
       guard !gone.isEmpty else { continue }
       windowSnapshot.invalidateWindowIDs(Set(gone.map(\.windowID)))
       var pruned: BSPNode<WindowKey>? = tree
@@ -293,6 +312,7 @@ extension WorkspaceActivationFeature {
       state.tilingTrees[workspaceId] = balanced
       let newWindows = Set(balanced?.windows ?? [])
       state.removeFromWindowMRU(Set(gone), workspaceId: workspaceId)
+      state.removeFromPresentationMonitoring(Set(gone))
       let zoomed = state.fullscreenZoomed[workspaceId] ?? []
       prunedAny = true
       if let display = state.displayShowing(workspaceId) {
@@ -353,10 +373,24 @@ extension WorkspaceActivationFeature {
     // One writer per affected display. Composition roots flush every block in
     // one frame application. Focus/cursor settlement observes all applied
     // layouts, including when several monitors lost windows in the same event.
-    let layoutEffects = layoutRootsByDisplay.values.map {
-      flushLayout(workspaceId: $0, state: state)
-    } + displaylessLayoutRoots.map {
-      flushLayout(workspaceId: $0, state: state)
+    var layoutEffects = [Effect<Action>]()
+    for workspaceId in layoutRootsByDisplay.values {
+      layoutEffects.append(
+        flushLayout(
+          workspaceId: workspaceId,
+          state: &state,
+          monitorsPresentationChanges: true,
+        )
+      )
+    }
+    for workspaceId in displaylessLayoutRoots {
+      layoutEffects.append(
+        flushLayout(
+          workspaceId: workspaceId,
+          state: &state,
+          monitorsPresentationChanges: true,
+        )
+      )
     }
     effects.append(.concatenate(.merge(layoutEffects), .merge(postLayoutFocusEffects)))
     effects.append(refreshMarkers(state: state))
@@ -366,12 +400,12 @@ extension WorkspaceActivationFeature {
   /// Re-apply the dragged window's owning tree frames (no tree change), snapping
   /// it back to its slot when the drag committed nothing. Ownership, rather
   /// than focused/cursor display, keeps a background-monitor drag local.
-  func retile(windowKey: WindowKey, state: State) -> Effect<Action> {
+  func retile(windowKey: WindowKey, state: inout State) -> Effect<Action> {
     guard
       let workspaceId = state.workspaceOwning(windowKey),
       state.tilingTrees[workspaceId] != nil
     else { return .none }
-    return flushLayout(workspaceId: workspaceId, state: state)
+    return flushLayout(workspaceId: workspaceId, state: &state)
   }
 
   /// `switchToRecentWhenEmpty`: a close left the active workspace with
@@ -387,12 +421,35 @@ extension WorkspaceActivationFeature {
     workspaceId: Workspace.ID,
     hasOnScreenMembers: Bool,
     hasFloatingWindows: Bool,
+    borrowDisplay: DisplayName?,
+    borrowGeneration: UInt64?,
+    borrowComposition: Composition?,
     state: State,
   ) -> Effect<Action> {
     guard
       !state.isActivating,
       state.tilingTrees[workspaceId]?.windows.isEmpty ?? true
     else { return .none }
+    if let borrowDisplay, let borrowGeneration, let borrowComposition {
+      // Presence discovery is AX IPC and may complete after a dismiss/reborrow.
+      // Only the exact composition generation that started this scan may act
+      // on its empty result.
+      guard
+        state.borrowGenerationByDisplay[borrowDisplay] == borrowGeneration,
+        state.compositionsByDisplay[borrowDisplay] == borrowComposition,
+        borrowComposition.borrowed.contains(where: {
+          $0.workspace == workspaceId
+        })
+      else { return .none }
+    } else if
+      state.compositionsByDisplay.values.contains(where: {
+        $0.borrowed.contains(where: { $0.workspace == workspaceId })
+      })
+    {
+      // A non-Borrow presence scan cannot dismiss a composition that appeared
+      // while its AX request was in flight.
+      return .none
+    }
     if state.primaryActiveWorkspaceID == workspaceId {
       guard
         state.config.settings.switching.switchToRecentWhenEmpty,
@@ -414,11 +471,9 @@ extension WorkspaceActivationFeature {
     }
 
     guard !hasOnScreenMembers else { return .none }
-    for (display, composition) in state.compositionsByDisplay
-      where composition.borrowed.contains(where: { $0.workspace == workspaceId })
-    {
+    if let borrowDisplay {
       debugLog.log("Borrow", "borrowed \(workspaceId) empty → dismiss")
-      return .send(.dismissBorrow(display: display))
+      return .send(.dismissBorrow(display: borrowDisplay))
     }
     return .none
   }
@@ -604,9 +659,11 @@ extension WorkspaceActivationFeature {
     let balanced = axis == .none ? tree : tree?.balanced(axis: axis)
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
+    let addedKeys = newWindows.subtracting(oldWindows)
     let removedKeys = oldWindows.subtracting(newWindows)
     state.tilingTrees[workspaceId] = balanced
     state.removeFromWindowMRU(removedKeys, workspaceId: workspaceId)
+    state.removeFromPresentationMonitoring(removedKeys)
 
     // A native-tab switch (Ghostty, Terminal) retires the active tab's
     // CGWindowID and surfaces a new one for the same app — so a fullscreen-zoom
@@ -620,7 +677,6 @@ extension WorkspaceActivationFeature {
     // is harmless: `computeFrames` ignores a zoom key not in the tree, so the
     // workspace un-zooms correctly on close and the stale key just lingers.
     if var zoom = state.fullscreenZoomed[workspaceId], !zoom.isEmpty {
-      let addedKeys = newWindows.subtracting(oldWindows)
       var changed = false
       for stale in zoom where balanced?.pathTo(window: stale) == nil {
         guard let replacement = addedKeys.first(where: { $0.bundleId == stale.bundleId })
@@ -669,6 +725,32 @@ extension WorkspaceActivationFeature {
       return .merge(observeEffect, markerRefresh, emptySwitch)
     }
 
+    // A fresh Borrow owns one deliberate focus/MFF completion. Cold Electron
+    // apps can publish their first reusable surface only after the initial
+    // reveal snapshot has already hydrated an empty tree. Resume that exact
+    // generation here instead of treating the first window as an ordinary
+    // sync; long-lived Borrows with no pending completion retain the generic
+    // new/replacement-window behavior and cannot steal focus.
+    var pendingBorrowResume: (display: DisplayName, generation: UInt64)?
+    if oldWindows.isEmpty, !newWindows.isEmpty {
+      for (display, composition) in state.compositionsByDisplay
+        where composition.borrowed.contains(where: {
+          $0.workspace == workspaceId
+        })
+      {
+        let generation = state.borrowGenerationByDisplay[display, default: 0]
+        guard
+          state.pendingBorrowCompletionByDisplay[display]
+          == State.PendingBorrowCompletion(
+            workspaceId: workspaceId,
+            generation: generation,
+          )
+        else { continue }
+        pendingBorrowResume = (display, generation)
+        break
+      }
+    }
+
     // When a window closed and focus would otherwise be stranded on a
     // now-windowless app (the frontmost window is no longer part of this
     // workspace), pull focus to a remaining window so typing has a home.
@@ -715,10 +797,29 @@ extension WorkspaceActivationFeature {
     }
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-    let layoutThenFocus = Effect<Action>.concatenate(
-      flushLayout(workspaceId: workspaceId, state: state),
-      postLayoutFocusEffect,
-    )
+    let isCompositionMember = state.compositionsByDisplay.values.contains {
+      $0.host == workspaceId
+        || $0.borrowed.contains(where: { $0.workspace == workspaceId })
+    }
+    let layoutThenFocus: Effect<Action> =
+      if let pendingBorrowResume {
+        .send(
+          .flushCompositionAndFocus(
+            display: pendingBorrowResume.display,
+            workspaceId: workspaceId,
+            generation: pendingBorrowResume.generation,
+          )
+        )
+      } else {
+        .concatenate(
+          flushLayout(
+            workspaceId: workspaceId,
+            state: &state,
+            monitorsPresentationChanges: isCompositionMember,
+          ),
+          postLayoutFocusEffect,
+        )
+      }
     return .merge(
       layoutThenFocus,
       observeEffect,
@@ -744,6 +845,15 @@ extension WorkspaceActivationFeature {
     let floatingIds = state.primaryActiveWorkspaceID == workspaceId
       ? workspace.apps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
       : []
+    let borrowedContext = state.compositionsByDisplay.first(where: {
+      $0.value.borrowed.contains(where: { $0.workspace == workspaceId })
+    }).map { display, composition in
+      (
+        display: display,
+        generation: state.borrowGenerationByDisplay[display, default: 0],
+        composition: composition,
+      )
+    }
     return .run { [snapshot = windowSnapshot] send in
       let onScreenKeys = onScreenIds.isEmpty
         ? []
@@ -757,6 +867,9 @@ extension WorkspaceActivationFeature {
         workspaceId: workspaceId,
         hasOnScreenMembers: hasOnScreenMembers,
         hasFloatingWindows: hasFloatingWindows,
+        borrowDisplay: borrowedContext?.display,
+        borrowGeneration: borrowedContext?.generation,
+        borrowComposition: borrowedContext?.composition,
       ))
     }
     .cancellable(

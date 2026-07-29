@@ -3,7 +3,6 @@ import ApplicationServices
 import Dependencies
 import DependenciesMacros
 import Foundation
-import OrderedCollections
 import OSLog
 
 // MARK: - WindowTilerClient
@@ -27,6 +26,297 @@ struct FrameApplication: Sendable, Hashable {
   /// when an older same-app AX batch was already executing when cancelled.
   /// Ordinary activation/layout passes keep the fresh-geometry skip fast path.
   var forceAllFrames = false
+}
+
+// MARK: - WindowFrameApplyCoordinator
+
+/// Keeps unrelated apps out of each other's AX critical path.
+///
+/// Each submission reserves its place on every PID lane before taking the fast
+/// WindowServer snapshot. A lane that was busy at reservation time always gets
+/// one queued revalidation, even when the outer snapshot looked current, so an
+/// older partial write cannot land after the fast path and leave stale geometry
+/// behind. Reservations are submitted in-order even when concurrent preflights
+/// finish out-of-order.
+final class WindowFrameApplyCoordinator: Sendable {
+
+  // MARK: Lifecycle
+
+  init(
+    currentFrames: @escaping CurrentFrames,
+    applyForPID: @escaping ApplyForPID,
+    didSkip: @escaping DidSkip = { _ in },
+  ) {
+    self.currentFrames = currentFrames
+    self.applyForPID = applyForPID
+    self.didSkip = didSkip
+  }
+
+  // MARK: Internal
+
+  enum Skip: Sendable, Equatable {
+    case request(frameCount: Int)
+    case pid(pid_t, frameCount: Int)
+  }
+
+  typealias CancellationCheck = @Sendable () -> Bool
+  typealias CurrentFrames = @Sendable () -> [CGWindowID: CGRect]
+  typealias ApplyForPID = @Sendable (
+    _ pid: pid_t,
+    _ frames: [WindowKey: CGRect],
+    _ visibleFrames: [CGWindowID: CGRect],
+    _ forceAllFrames: Bool,
+    _ isCancelled: @escaping CancellationCheck,
+  ) -> Void
+  typealias DidSkip = @Sendable (Skip) -> Void
+
+  func apply(_ request: FrameApplication) async {
+    guard !request.windowFrames.isEmpty, !Task.isCancelled else { return }
+
+    let framesByPID = Dictionary(grouping: request.windowFrames, by: { $0.key.pid })
+      .mapValues { Dictionary(uniqueKeysWithValues: $0) }
+    let reservation = await laneRegistry.reserve(pids: Array(framesByPID.keys))
+    guard !Task.isCancelled else {
+      for ticket in reservation.tickets.values {
+        ticket.lane.completeWithoutWork(ticket: ticket.ticket)
+      }
+      return
+    }
+
+    // Keep the cheap WindowServer probe out of every AX lane. Already-current
+    // PIDs with an idle lane return without queueing any worker operation.
+    let initialVisibleFrames = currentFrames()
+    let initiallyPending = WindowTilerClient.framesNeedingApply(
+      targets: request.windowFrames,
+      visibleFrames: initialVisibleFrames,
+      forceAllFrames: request.forceAllFrames,
+    )
+    let pidsNeedingWrite = Set(initiallyPending.keys.map(\.pid))
+    let work = framesByPID.compactMap { pid, frames -> PIDWork? in
+      guard let ticket = reservation.tickets[pid] else { return nil }
+      return PIDWork(
+        pid: pid,
+        frames: frames,
+        lane: ticket.lane,
+        ticket: ticket.ticket,
+        needsWrite: pidsNeedingWrite.contains(pid),
+        wasBusy: ticket.wasBusy,
+      )
+    }
+    let queuedWork = work.filter { $0.needsWrite || $0.wasBusy }
+    for item in work where !item.needsWrite && !item.wasBusy {
+      item.lane.completeWithoutWork(ticket: item.ticket)
+    }
+    guard !queuedWork.isEmpty else {
+      didSkip(.request(frameCount: request.windowFrames.count))
+      return
+    }
+
+    let cancellation = SynchronousCancellationFlag()
+    let currentFramesSnapshot = currentFrames
+    let applyPID = applyForPID
+    let reportSkip = didSkip
+    await withTaskCancellationHandler {
+      await withTaskGroup(of: Void.self) { group in
+        for item in queuedWork {
+          group.addTask {
+            await item.lane.perform(
+              ticket: item.ticket
+            ) {
+              let isCancelled: CancellationCheck = { cancellation.isCancelled }
+              guard !isCancelled() else { return }
+
+              // An older same-PID operation may have completed or partially
+              // written since the fast preflight. Re-snapshot only after a
+              // busy lane reaches us. An idle lane has no older Tatami writer,
+              // so the shared fast snapshot is already its exact baseline and
+              // avoids one full WindowServer enumeration per app.
+              let visibleFrames = item.wasBusy
+                ? currentFramesSnapshot()
+                : initialVisibleFrames
+              let pendingFrames = WindowTilerClient.framesNeedingApply(
+                targets: item.frames,
+                visibleFrames: visibleFrames,
+                forceAllFrames: request.forceAllFrames,
+              )
+              guard !pendingFrames.isEmpty else {
+                reportSkip(.pid(item.pid, frameCount: item.frames.count))
+                return
+              }
+              applyPID(
+                item.pid,
+                pendingFrames,
+                visibleFrames,
+                request.forceAllFrames,
+                isCancelled,
+              )
+            }
+          }
+        }
+      }
+    } onCancel: {
+      cancellation.cancel()
+    }
+  }
+
+  // MARK: Private
+
+  private struct PIDWork: Sendable {
+    var pid: pid_t
+    var frames: [WindowKey: CGRect]
+    var lane: WindowFrameApplyLane
+    var ticket: UInt64
+    var needsWrite: Bool
+    var wasBusy: Bool
+  }
+
+  private let currentFrames: CurrentFrames
+  private let applyForPID: ApplyForPID
+  private let didSkip: DidSkip
+  private let laneRegistry = WindowFrameApplyLaneRegistry()
+
+}
+
+// MARK: - WindowFrameApplyReservation
+
+private struct WindowFrameApplyReservation: Sendable {
+  var tickets: [pid_t: WindowFrameApplyLaneTicket]
+}
+
+// MARK: - WindowFrameApplyLaneTicket
+
+private struct WindowFrameApplyLaneTicket: Sendable {
+  var lane: WindowFrameApplyLane
+  var ticket: UInt64
+  var wasBusy: Bool
+}
+
+// MARK: - WindowFrameApplyLaneRegistry
+
+private actor WindowFrameApplyLaneRegistry {
+
+  // MARK: Internal
+
+  func reserve(pids: [pid_t]) -> WindowFrameApplyReservation {
+    var tickets = [pid_t: WindowFrameApplyLaneTicket]()
+    tickets.reserveCapacity(pids.count)
+    for pid in pids {
+      let lane: WindowFrameApplyLane
+      if let existing = lanes[pid] {
+        lane = existing
+      } else {
+        lane = WindowFrameApplyLane(pid: pid)
+        lanes[pid] = lane
+      }
+      let reservation = lane.reserve()
+      tickets[pid] = WindowFrameApplyLaneTicket(
+        lane: lane,
+        ticket: reservation.ticket,
+        wasBusy: reservation.wasBusy,
+      )
+    }
+    return WindowFrameApplyReservation(tickets: tickets)
+  }
+
+  // MARK: Private
+
+  private var lanes = [pid_t: WindowFrameApplyLane]()
+
+}
+
+// MARK: - WindowFrameApplyLane
+
+/// The lock only protects synchronous admission metadata. Blocking AX calls run
+/// on `queue`; they never execute while the lock is held.
+private final class WindowFrameApplyLane: @unchecked Sendable {
+
+  // MARK: Lifecycle
+
+  init(pid: pid_t) {
+    queue = DispatchQueue(
+      label: "dev.PangMo5.Tatami.ax-frame-apply.\(pid)",
+      qos: .userInitiated,
+    )
+  }
+
+  // MARK: Internal
+
+  /// Reserve ordering before WindowServer preflight. `wasBusy` includes older
+  /// reservations whose preflight has not submitted yet, not only work already
+  /// running on the Dispatch queue.
+  func reserve() -> (ticket: UInt64, wasBusy: Bool) {
+    lock.withLock {
+      nextTicket &+= 1
+      let wasBusy = unresolvedReservationCount > 0
+      unresolvedReservationCount += 1
+      return (ticket: nextTicket, wasBusy: wasBusy)
+    }
+  }
+
+  func completeWithoutWork(ticket: UInt64) {
+    let ready = lock.withLock {
+      submissions[ticket] = .noWork
+      return dequeueReadySubmissions()
+    }
+    enqueue(ready)
+  }
+
+  func perform(
+    ticket: UInt64,
+    _ operation: @escaping @Sendable () -> Void,
+  ) async {
+    await withCheckedContinuation { continuation in
+      let ready = lock.withLock {
+        submissions[ticket] = .work(operation, continuation)
+        return dequeueReadySubmissions()
+      }
+      enqueue(ready)
+    }
+  }
+
+  // MARK: Private
+
+  private enum Submission {
+    case noWork
+    case work(@Sendable () -> Void, CheckedContinuation<Void, Never>)
+  }
+
+  private let queue: DispatchQueue
+  private let lock = NSLock()
+  private var nextTicket: UInt64 = 0
+  private var nextTicketToEnqueue: UInt64 = 1
+  private var unresolvedReservationCount = 0
+  private var submissions = [UInt64: Submission]()
+
+  private func dequeueReadySubmissions() -> [Submission] {
+    var ready = [Submission]()
+    while let submission = submissions.removeValue(forKey: nextTicketToEnqueue) {
+      nextTicketToEnqueue &+= 1
+      if case .noWork = submission {
+        unresolvedReservationCount -= 1
+      }
+      ready.append(submission)
+    }
+    return ready
+  }
+
+  private func enqueue(_ submissions: [Submission]) {
+    for submission in submissions {
+      switch submission {
+      case .noWork:
+        continue
+      case .work(let operation, let continuation):
+        queue.async { [self] in
+          operation()
+          lock.withLock {
+            self.unresolvedReservationCount -= 1
+          }
+          continuation.resume()
+        }
+      }
+    }
+  }
+
 }
 
 // MARK: - WindowTilerClient + DependencyKey
@@ -62,10 +352,7 @@ extension WindowTilerClient: DependencyKey {
       return
     }
     guard !Task.isCancelled else { return }
-    // Planning and AX writes share one serial worker. A newer request therefore
-    // takes its WindowServer snapshot only after an older request has stopped,
-    // so it always observes and repairs any stale partial write left behind.
-    await performAXApply(request)
+    await frameApplyCoordinator.apply(request)
   }
 
   static let testValue = WindowTilerClient(apply: { _ in })
@@ -132,66 +419,37 @@ extension WindowTilerClient: DependencyKey {
 
   // MARK: Private
 
-  private static let axApplyQueue = DispatchQueue(
-    label: "dev.PangMo5.Tatami.ax-frame-apply",
-    qos: .userInitiated,
-  )
-
-  private static func performAXApply(
-    _ request: FrameApplication
-  ) async {
-    let cancellation = SynchronousCancellationFlag()
-    await withTaskCancellationHandler {
-      await withCheckedContinuation { continuation in
-        axApplyQueue.async {
-          if !cancellation.isCancelled {
-            applyRequest(request, cancellation: cancellation)
-          }
-          continuation.resume()
-        }
-      }
-    } onCancel: {
-      cancellation.cancel()
-    }
-  }
-
-  private static func applyRequest(
-    _ request: FrameApplication,
-    cancellation: SynchronousCancellationFlag,
-  ) {
-    guard !cancellation.isCancelled else { return }
-    // A fresh WindowServer snapshot avoids the unreliable cached-frame
-    // shortcut: only windows visibly at their target right now are skipped.
-    let visibleFrames = currentOnScreenWindowFrames()
-    let pendingFrames = framesNeedingApply(
-      targets: request.windowFrames,
-      visibleFrames: visibleFrames,
-      forceAllFrames: request.forceAllFrames,
-    )
-    guard !pendingFrames.isEmpty else {
-      @Dependency(\.debugLog) var debugLog
-      debugLog.log("Tiler", "apply skipped: all \(request.windowFrames.count) frames current")
-      return
-    }
-    let grouped = OrderedDictionary(grouping: pendingFrames, by: { $0.key.pid })
-    for (pid, entries) in grouped {
-      guard !cancellation.isCancelled else { return }
+  private static let frameApplyCoordinator = WindowFrameApplyCoordinator(
+    currentFrames: currentOnScreenWindowFrames,
+    applyForPID: { pid, frames, visibleFrames, forceAllFrames, isCancelled in
       applyForApp(
         pid: pid,
-        entries: entries,
+        entries: Array(frames),
         visibleFrames: visibleFrames,
-        forceAllFrames: request.forceAllFrames,
-        cancellation: cancellation,
+        forceAllFrames: forceAllFrames,
+        isCancelled: isCancelled,
       )
-    }
-  }
+    },
+    didSkip: { skip in
+      @Dependency(\.debugLog) var debugLog
+      switch skip {
+      case .request(let frameCount):
+        debugLog.log("Tiler", "apply skipped: all \(frameCount) frames current")
+      case .pid(let pid, let frameCount):
+        debugLog.log(
+          "Tiler",
+          "apply pid=\(pid) skipped after revalidation: all \(frameCount) frames current",
+        )
+      }
+    },
+  )
 
   private static func applyForApp(
     pid: pid_t,
     entries: [(key: WindowKey, value: CGRect)],
     visibleFrames: [CGWindowID: CGRect],
     forceAllFrames: Bool,
-    cancellation: SynchronousCancellationFlag,
+    isCancelled: @escaping @Sendable () -> Bool,
   ) {
     @Dependency(\.debugLog) var debugLog
     let logging = debugLog.isEnabled()
@@ -216,11 +474,11 @@ extension WindowTilerClient: DependencyKey {
       debugLog.log("Tiler", "apply pid=\(pid): AX window list unavailable — skipped")
       return
     }
-    guard !cancellation.isCancelled else { return }
+    guard !isCancelled() else { return }
 
     var lookup = [CGWindowID: AXUIElement]()
     for window in windows {
-      guard !cancellation.isCancelled else { return }
+      guard !isCancelled() else { return }
       var wid: CGWindowID = 0
       if _AXUIElementGetWindow(window, &wid) == .success, wid != 0 {
         lookup[wid] = window
@@ -236,14 +494,14 @@ extension WindowTilerClient: DependencyKey {
     let enhanced = "AXEnhancedUserInterface" as CFString
     var enhancedWasOn = false
     var enhancedRaw: CFTypeRef?
-    guard !cancellation.isCancelled else { return }
+    guard !isCancelled() else { return }
     if
       AXUIElementCopyAttributeValue(axApp, enhanced, &enhancedRaw) == .success,
       let value = enhancedRaw as? Bool
     {
       enhancedWasOn = value
     }
-    guard !cancellation.isCancelled else { return }
+    guard !isCancelled() else { return }
     if enhancedWasOn {
       _ = AXUIElementSetAttributeValue(axApp, enhanced, kCFBooleanFalse)
     }
@@ -254,17 +512,19 @@ extension WindowTilerClient: DependencyKey {
     }
 
     for (key, frame) in entries {
-      guard !cancellation.isCancelled else { return }
+      guard !isCancelled() else { return }
       guard let window = lookup[key.windowID] else {
         debugLog.log("Tiler", "apply \(key.bundleId)#\(key.windowID) → missing-window")
         continue
       }
+      let writeGeneration = WindowFrameWriteTracker.shared.begin(key, target: frame)
       let outcome = applyFrame(
         frame,
         currentFrame: forceAllFrames ? nil : visibleFrames[key.windowID],
         to: window,
-        cancellation: cancellation,
+        isCancelled: isCancelled,
       )
+      WindowFrameWriteTracker.shared.finish(key, generation: writeGeneration)
       if logging {
         debugLog.log(
           "Tiler",
@@ -278,16 +538,16 @@ extension WindowTilerClient: DependencyKey {
     _ frame: CGRect,
     currentFrame: CGRect?,
     to window: AXUIElement,
-    cancellation: SynchronousCancellationFlag,
+    isCancelled: @escaping @Sendable () -> Bool,
   ) -> String {
     // A native-fullscreen window is not ours to lay out. The old behavior
     // forced it out of fullscreen (`AXFullScreen = false`) before writing the
     // tiled frame — so the space-change reconcile that fires the instant the
     // user enters fullscreen bounced them straight back to the Desktop. Leave
     // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
-    guard !cancellation.isCancelled else { return "cancelled" }
+    guard !isCancelled() else { return "cancelled" }
     if isFullScreen(window) { return "skipped-fullscreen" }
-    guard !cancellation.isCancelled else { return "cancelled" }
+    guard !isCancelled() else { return "cancelled" }
 
     func setPosition() -> AXError {
       var position = CGPoint(x: frame.minX, y: frame.minY)
@@ -316,12 +576,12 @@ extension WindowTilerClient: DependencyKey {
       return "skipped-current"
 
     case .resizeOnly:
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       let sizeError = setSize()
       return sizeError == .success ? "ok" : "size=\(sizeError.rawValue)"
 
     case .moveOnly:
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       let posError = setPosition()
       return posError == .success ? "ok" : "pos=\(posError.rawValue)"
 
@@ -329,9 +589,9 @@ extension WindowTilerClient: DependencyKey {
       // Same-display geometry has no old-display clamp. Resize first so the
       // final position write restores the exact origin if the target app
       // adjusts its frame while honoring min/max-size constraints.
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       let sizeError = setSize()
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       let posError = setPosition()
       if posError == .success, sizeError == .success { return "ok" }
       return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
@@ -341,13 +601,13 @@ extension WindowTilerClient: DependencyKey {
       // display before the position write lands. Repeat the pair only for this
       // path; the second pass now runs against the target display.
       // (yabai uses the same repeated set for cross-display convergence.)
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       _ = setPosition()
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       _ = setSize()
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       let posError = setPosition()
-      guard !cancellation.isCancelled else { return "cancelled" }
+      guard !isCancelled() else { return "cancelled" }
       let sizeError = setSize()
       if posError == .success, sizeError == .success { return "ok" }
       return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
