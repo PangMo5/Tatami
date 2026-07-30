@@ -724,6 +724,27 @@ extension WindowSnapshotClient {
     }
   }
 
+  /// Resolve a cache-first discovery without accepting an invalidated cold
+  /// scan as an authoritative empty result.
+  ///
+  /// A genuine empty scan warms the cache with `.hit([])`. If invalidation
+  /// wins while the first scan is in flight, the cache remains `.miss`; only
+  /// that race gets one fresh discovery.
+  func stableCachedKeysOffMain(
+    _ bundleIds: [String],
+    _ requireResizable: Bool,
+  ) async -> [WindowKey] {
+    let keys = await cachedKeysOffMain(bundleIds, requireResizable)
+    guard keys.isEmpty else { return keys }
+
+    switch await cachedKeysOnlyOffMain(bundleIds, requireResizable) {
+    case .hit(let stableKeys):
+      return stableKeys
+    case .miss:
+      return await discoverKeysOffMain(bundleIds, requireResizable)
+    }
+  }
+
   func cachedKeysOnlyOffMain(
     _ bundleIds: [String],
     _ requireResizable: Bool,

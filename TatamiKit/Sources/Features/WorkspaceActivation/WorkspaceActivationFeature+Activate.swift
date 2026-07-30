@@ -692,7 +692,7 @@ extension WorkspaceActivationFeature {
             ) { group in
               for (index, bundleId) in bundleIds.enumerated() {
                 group.addTask {
-                  (index, await snapshot.cachedKeysOffMain([bundleId], true))
+                  (index, await snapshot.stableCachedKeysOffMain([bundleId], true))
                 }
               }
               var results = [(Int, [WindowKey])]()
@@ -713,8 +713,13 @@ extension WorkspaceActivationFeature {
               )
             }
             mark("discover")
-            let (tree, frames, restoredZoom) = await MainActor.run {
-              () -> (BSPNode<WindowKey>?, [WindowKey: CGRect], Set<WindowKey>) in
+            let (tree, frames, restoredZoom, unresolvedZoomSlots) = await MainActor.run {
+              () -> (
+                BSPNode<WindowKey>?,
+                [WindowKey: CGRect],
+                Set<WindowKey>,
+                Set<SlotID>
+              ) in
               let workArea = displays.workArea(targetDisplay).insetBy(
                 dx: CGFloat(settings.layout.gapOuter),
                 dy: CGFloat(settings.layout.gapOuter),
@@ -750,15 +755,23 @@ extension WorkspaceActivationFeature {
                 targetDisplay: targetDisplay,
                 fullscreenZoomed: resolvedZoom,
               )
-              return (tree, frames, resolvedZoom)
+              let assignments = slotAssignment(keys)
+              let resolvedSlots = Set(resolvedZoom.compactMap { assignments[$0] })
+              let unresolvedZoomSlots =
+                Set(persistedZoomSlots).subtracting(resolvedSlots)
+              return (tree, frames, resolvedZoom, unresolvedZoomSlots)
             }
             mark("layout")
             // Cancellation can arrive while the main actor computes a large tree.
             // Do not publish or persist a superseded workspace's layout snapshot.
             guard !Task.isCancelled else { return }
             await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
-            if !restoredZoom.isEmpty, zoomed.isEmpty {
-              await send(.persistedFullscreenZoomRestored(workspaceId: workspaceId, keys: restoredZoom))
+            if persistedSnapshot != nil, zoomed.isEmpty {
+              await send(.persistedFullscreenZoomRestored(
+                workspaceId: workspaceId,
+                keys: restoredZoom,
+                unresolvedSlots: unresolvedZoomSlots,
+              ))
             }
             guard !Task.isCancelled else { return }
             if let tree {
@@ -767,9 +780,11 @@ extension WorkspaceActivationFeature {
                 workspaceId,
                 LayoutSnapshot(
                   tree: tree.mapWindows { slots[$0]! },
-                  fullscreenZoomedSlots: restoredZoom
-                    .compactMap { slots[$0] }
-                    .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) },
+                  fullscreenZoomedSlots: Set(
+                    restoredZoom.compactMap { slots[$0] }
+                  )
+                  .union(unresolvedZoomSlots)
+                  .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) },
                 ),
               )
             }

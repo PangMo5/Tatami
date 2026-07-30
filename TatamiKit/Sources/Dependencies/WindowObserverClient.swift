@@ -23,6 +23,10 @@ struct WindowObserverClient: Sendable {
 // MARK: - WindowChangeEvent
 
 public enum WindowChangeEvent: Sendable, Hashable {
+  /// AX notifications are now armed for this app. The app may already have
+  /// become focused while installation was in flight, so consumers must
+  /// reconcile both membership and the current global focus once.
+  case observationReady(bundleId: String)
   case windowCreated(bundleId: String)
   case windowDestroyed(bundleId: String)
   /// A non-pointer geometry change. Apps can restore their remembered frame
@@ -262,6 +266,7 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
   // MARK: Fileprivate
 
   fileprivate enum Key: Hashable {
+    case observation(String)
     case membership(String)
     case frame(WindowKey)
     case resized(WindowKey)
@@ -373,6 +378,8 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
 extension WindowChangeEvent {
   fileprivate var coalescingKey: CoalescingWindowEventBuffer.Key? {
     switch self {
+    case .observationReady(let bundleId):
+      .observation(bundleId)
     case .windowCreated(let bundleId),
          .windowDestroyed(let bundleId):
       .membership(bundleId)
@@ -881,7 +888,7 @@ actor WindowObserverRegistry {
           // moment notifications become armed. Replay one bundle-level
           // reconcile after the source is installed; subsequent changes are
           // carried by real notifications.
-          eventSink.yield(.windowCreated(bundleId: bundleId))
+          eventSink.yield(.observationReady(bundleId: bundleId))
         } else {
           debugLog.log(
             "Observer",
@@ -1176,7 +1183,7 @@ private final class ObservedApp: @unchecked Sendable {
       )
       retryTask = nil
       if lastSubscribedWindowCount > 0 {
-        eventSink.yield(.windowCreated(bundleId: bundleId))
+        eventSink.yield(.observationReady(bundleId: bundleId))
       }
       return
     }

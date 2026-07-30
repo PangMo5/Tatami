@@ -225,6 +225,10 @@ public struct WorkspaceActivationFeature {
     /// Parent-zoom is *not* tracked here — that one lives inside the
     /// tree leaves directly.
     public var fullscreenZoomed = [Workspace.ID: Set<WindowKey>]()
+    /// Persisted zoom slots that could not resolve during a transiently empty
+    /// startup discovery. The first later sync that sees the matching live
+    /// occurrences promotes them into `fullscreenZoomed`.
+    public var unresolvedFullscreenZoomSlots = [Workspace.ID: Set<SlotID>]()
 
     /// Active composition per display — a host workspace plus borrowed
     /// blocks. Absent → that display shows its host alone (default behavior).
@@ -759,9 +763,14 @@ public struct WorkspaceActivationFeature {
       currentFrames: [CGWindowID: CGRect],
       layoutGeneration: UInt64,
     )
-    /// Activation discovered fullscreen-zoomed bundle ids on disk and
-    /// we resolved them to live `WindowKey`s.
-    case persistedFullscreenZoomRestored(workspaceId: Workspace.ID, keys: Set<WindowKey>)
+    /// Activation loaded fullscreen zoom slots from disk. Live occurrences
+    /// resolve immediately; transiently absent slots stay pending for the
+    /// first valid observer-driven sync.
+    case persistedFullscreenZoomRestored(
+      workspaceId: Workspace.ID,
+      keys: Set<WindowKey>,
+      unresolvedSlots: Set<SlotID>,
+    )
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
     /// `performActivate` did not report completion within the watchdog
     /// window — release the `isActivating` gate so one wedged activation
@@ -1184,6 +1193,28 @@ public struct WorkspaceActivationFeature {
             effects.append(retile(windowKey: key, state: &state))
           }
           return .merge(effects)
+
+        case .observationReady(let bundleId):
+          let snapshot = windowSnapshot
+          let log = debugLog
+          return .merge(
+            requestWindowSync(bundleId),
+            .run { send in
+              guard
+                let key = await snapshot.focusedWindowKeyOffMain(),
+                key.bundleId == bundleId
+              else { return }
+              log.log(
+                "FocusDiag",
+                "observer ready recovered focus \(key.bundleId)#\(key.windowID)",
+              )
+              await send(
+                .windowChanged(
+                  .windowFocused(bundleId: bundleId, key: key)
+                )
+              )
+            },
+          )
 
         case .windowCreated(let bundleId):
           return requestWindowSync(bundleId)
@@ -2458,7 +2489,13 @@ public struct WorkspaceActivationFeature {
         let zoomed = state.fullscreenZoomed[workspaceId] ?? []
         return .merge(
           flushLayout(workspaceId: workspaceId, state: &state),
-          persist(newTree, fullscreenZoomed: zoomed, for: workspace),
+          persist(
+            newTree,
+            fullscreenZoomed: zoomed,
+            unresolvedFullscreenZoomSlots:
+            state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+            for: workspace,
+          ),
         )
 
       case .invalidateResidentLayout(let workspaceId):
@@ -2472,11 +2509,18 @@ public struct WorkspaceActivationFeature {
         guard !state.visibleWorkspaceIDs.contains(workspaceId) else { return .none }
         state.tilingTrees[workspaceId] = nil
         state.fullscreenZoomed[workspaceId] = nil
+        state.unresolvedFullscreenZoomSlots[workspaceId] = nil
         state.insertionPoint[workspaceId] = nil
         return .none
 
-      case .persistedFullscreenZoomRestored(let workspaceId, let keys):
+      case .persistedFullscreenZoomRestored(
+        let workspaceId,
+        let keys,
+        let unresolvedSlots,
+      ):
         state.fullscreenZoomed[workspaceId] = keys.isEmpty ? nil : keys
+        state.unresolvedFullscreenZoomSlots[workspaceId] =
+          unresolvedSlots.isEmpty ? nil : unresolvedSlots
         return .none
 
       case .activationFocusSnapshotResolved(let key):
@@ -3162,6 +3206,7 @@ public struct WorkspaceActivationFeature {
   func persist(
     _ tree: BSPNode<WindowKey>?,
     fullscreenZoomed: Set<WindowKey>,
+    unresolvedFullscreenZoomSlots: Set<SlotID> = [],
     for workspace: Workspace,
   ) -> Effect<Action> {
     guard let tree else { return .none }
@@ -3170,8 +3215,8 @@ public struct WorkspaceActivationFeature {
     // app persist their distinct positions; the same map keys the zoom set.
     let slots = slotAssignment(tree.windows)
     let template = tree.mapWindows { slots[$0]! }
-    let zoomedSlots = fullscreenZoomed
-      .compactMap { slots[$0] }
+    let zoomedSlots = Set(fullscreenZoomed.compactMap { slots[$0] })
+      .union(unresolvedFullscreenZoomSlots)
       .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) }
     let snapshot = LayoutSnapshot(tree: template, fullscreenZoomedSlots: zoomedSlots)
     return .run { [store = layoutStore] _ in await store.save(id, snapshot) }
@@ -3481,6 +3526,9 @@ public struct WorkspaceActivationFeature {
         set.remove(windowKey)
       }
       state.fullscreenZoomed[workspaceId] = set.isEmpty ? nil : set
+      // Explicit user intent supersedes any cold-start restore still waiting
+      // for an absent window occurrence.
+      state.unresolvedFullscreenZoomSlots[workspaceId] = nil
       hud = hudEffect(
         state,
         \.fullscreen,
@@ -3516,7 +3564,13 @@ public struct WorkspaceActivationFeature {
         forceAllFrames: true,
         followUp: followUp,
       ),
-      persist(tree, fullscreenZoomed: zoomed, for: workspace),
+      persist(
+        tree,
+        fullscreenZoomed: zoomed,
+        unresolvedFullscreenZoomSlots:
+        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+        for: workspace,
+      ),
       refreshMarkers(state: state),
       hud,
     )

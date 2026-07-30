@@ -1033,6 +1033,123 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `observer readiness recovers first focus for mouse follows focus`() async {
+    let terminal = WindowKey(pid: 1, windowID: 101, bundleId: "org.alacritty")
+    let notion = WindowKey(pid: 2, windowID: 202, bundleId: "com.cron.electron")
+    let workspace = Workspace(
+      name: "Terminal",
+      apps: [
+        AppAssignment(bundleIdentifier: terminal.bundleId, name: "Alacritty"),
+        AppAssignment(bundleIdentifier: notion.bundleId, name: "Notion Calendar"),
+      ],
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(terminal),
+          right: .leaf(notion),
+        )
+      )
+      $0.lastObservedFocusedWindow = terminal
+      // Keep the membership reconcile inert; this test isolates the focus edge
+      // recovered when the observer becomes ready.
+      $0.isTilingPaused = true
+    }
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.focusedWindowKeyAsync = { .value(notion) }
+      $0.displays.workArea = { _ in
+        CGRect(x: 0, y: 0, width: 1_000, height: 800)
+      }
+      $0.mouse.axLocation = { .zero }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowChanged(.observationReady(bundleId: notion.bundleId))
+    )
+    await store.receive {
+      guard
+        case .windowChanged(
+          .windowFocused(bundleId: let bundleId, key: let key)
+        ) = $0
+      else { return false }
+      return bundleId == notion.bundleId && key == notion
+    }
+    await store.finish()
+
+    #expect(store.state.lastObservedFocusedWindow == notion)
+    #expect(warped.value == [CGPoint(x: 748, y: 400)])
+  }
+
+  @Test
+  func `first valid sync restores fullscreen slots missed by startup discovery`() async {
+    let first = WindowKey(pid: 42, windowID: 101, bundleId: "company.thebrowser.dia")
+    let second = WindowKey(pid: 42, windowID: 202, bundleId: first.bundleId)
+    let workspace = Workspace(
+      name: "Browser",
+      apps: [AppAssignment(bundleIdentifier: first.bundleId, name: "Dia")],
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+    }
+    let persistedSlots: Set<SlotID> = [
+      SlotID(bundleId: first.bundleId, occurrence: 0),
+      SlotID(bundleId: first.bundleId, occurrence: 1),
+    ]
+    let applications = LockIsolated<[FrameApplication]>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in
+        CGRect(x: 0, y: 0, width: 1_000, height: 800)
+      }
+      $0.windowTiler.apply = { request in
+        applications.withValue { $0.append(request) }
+      }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.persistedFullscreenZoomRestored(
+      workspaceId: workspace.id,
+      keys: [],
+      unresolvedSlots: persistedSlots,
+    ))
+    await store.send(.syncAppWindowsResolved(
+      bundleId: first.bundleId,
+      resizableKeys: [first, second],
+      onScreenFrames: [
+        first.windowID: CGRect(x: 0, y: 0, width: 500, height: 800),
+        second.windowID: CGRect(x: 500, y: 0, width: 500, height: 800),
+      ],
+    ))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id]?.windows == [first, second])
+    #expect(store.state.fullscreenZoomed[workspace.id] == [first, second])
+    #expect(store.state.unresolvedFullscreenZoomSlots[workspace.id] == nil)
+    #expect(
+      applications.value.last?.windowFrames[first]
+        == applications.value.last?.windowFrames[second]
+    )
+    #expect(applications.value.last?.forceAllFrames == true)
+    #expect(Set(saved.value.last?.fullscreenZoomedSlots ?? []) == persistedSlots)
+  }
+
+  @Test
   func `stale focus echo cannot cancel newer center warp`() async {
     let target = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
     let stale = WindowKey(pid: 2, windowID: 202, bundleId: "app.two")
@@ -1646,6 +1763,7 @@ struct WorkspaceActivationFeatureTests {
     let targetFrame = try #require(
       applications.value.last?.windowFrames[notion]
     )
+    #expect(applications.value.last?.forceAllFrames == true)
     #expect(targetFrame != staleHalfFrame)
     #expect(targetFrame.width > staleHalfFrame.width)
 

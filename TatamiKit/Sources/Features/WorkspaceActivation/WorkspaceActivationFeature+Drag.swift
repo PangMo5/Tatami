@@ -91,7 +91,13 @@ extension WorkspaceActivationFeature {
 
     return .merge(
       flushLayout(workspaceId: workspaceId, state: &state),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace),
+      persist(
+        newTree,
+        fullscreenZoomed: zoomed,
+        unresolvedFullscreenZoomSlots:
+        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+        for: workspace,
+      ),
     )
   }
 
@@ -184,7 +190,13 @@ extension WorkspaceActivationFeature {
 
     return .merge(
       flushLayout(workspaceId: workspaceId, state: &state),
-      persist(newTree, fullscreenZoomed: zoomed, for: workspace),
+      persist(
+        newTree,
+        fullscreenZoomed: zoomed,
+        unresolvedFullscreenZoomSlots:
+        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+        for: workspace,
+      ),
     )
   }
 }

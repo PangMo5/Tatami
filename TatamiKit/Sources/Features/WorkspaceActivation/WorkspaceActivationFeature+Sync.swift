@@ -370,7 +370,13 @@ extension WorkspaceActivationFeature {
       }
 
       effects.append(
-        persist(balanced, fullscreenZoomed: zoomed, for: workspace)
+        persist(
+          balanced,
+          fullscreenZoomed: zoomed,
+          unresolvedFullscreenZoomSlots:
+          state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+          for: workspace,
+        )
       )
       postLayoutFocusEffects.append(postLayoutFocusEffect)
       // Pruning only runs when windows actually left the screen.
@@ -709,6 +715,30 @@ extension WorkspaceActivationFeature {
       if changed { state.fullscreenZoomed[workspaceId] = zoom.isEmpty ? nil : zoom }
     }
 
+    if
+      let balanced,
+      var unresolved = state.unresolvedFullscreenZoomSlots[workspaceId],
+      !unresolved.isEmpty
+    {
+      let keyForSlot = slotToKey(balanced.windows)
+      let resolvedPairs = unresolved.compactMap { slot in
+        keyForSlot[slot].map { (slot, $0) }
+      }
+      let resolvedSlots = Set(resolvedPairs.map(\.0))
+      let resolvedKeys = Set(resolvedPairs.map(\.1))
+      if !resolvedKeys.isEmpty {
+        state.fullscreenZoomed[workspaceId, default: []].formUnion(resolvedKeys)
+        unresolved.subtract(resolvedSlots)
+        state.unresolvedFullscreenZoomSlots[workspaceId] =
+          unresolved.isEmpty ? nil : unresolved
+        debugLog.log(
+          "Sync",
+          "restored persisted fullscreen \(bundleId): "
+            + "\(resolvedKeys.map { $0.windowID })",
+        )
+      }
+    }
+
     let added = newWindows.subtracting(oldWindows).map { $0.windowID }
     let removed = removedKeys.map { $0.windowID }
     debugLog.log(
@@ -836,6 +866,11 @@ extension WorkspaceActivationFeature {
           flushLayout(
             workspaceId: workspaceId,
             state: &state,
+            // A newly visible app can briefly report the target geometry
+            // before restoring its remembered frame. Window-created tiling is
+            // an authoritative membership transition, so always perform the
+            // first AX write instead of trusting that transient preflight.
+            forceAllFrames: !addedKeys.isEmpty,
             monitorsPresentationChanges: isCompositionMember,
             presentationRepairKeys: reappearingKeys,
           ),
@@ -845,7 +880,13 @@ extension WorkspaceActivationFeature {
     return .merge(
       layoutThenFocus,
       observeEffect,
-      persist(final, fullscreenZoomed: zoomed, for: workspace),
+      persist(
+        final,
+        fullscreenZoomed: zoomed,
+        unresolvedFullscreenZoomSlots:
+        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+        for: workspace,
+      ),
       markerRefresh,
       emptySwitch,
     )

@@ -245,6 +245,44 @@ struct WindowKeyCacheTests {
   }
 
   @Test
+  func `stable cache-first helper retries only an invalidated cold scan`() async {
+    let recovered = WindowKey(pid: 42, windowID: 101, bundleId: "app.invalidated")
+    let freshDiscoveries = LockIsolated(0)
+    var invalidatedClient = WindowSnapshotClient.testValue
+    invalidatedClient.cachedKeysAsync = { _, _ in .value([]) }
+    invalidatedClient.cachedKeysOnlyAsync = { _, _ in .miss }
+    invalidatedClient.discoverKeysAsync = { _, requireResizable in
+      #expect(requireResizable)
+      freshDiscoveries.withValue { $0 += 1 }
+      return .value([recovered])
+    }
+
+    let keys = await invalidatedClient.stableCachedKeysOffMain(
+      [recovered.bundleId],
+      true,
+    )
+
+    #expect(keys == [recovered])
+    #expect(freshDiscoveries.value == 1)
+
+    var warmEmptyClient = WindowSnapshotClient.testValue
+    warmEmptyClient.cachedKeysAsync = { _, _ in .value([]) }
+    warmEmptyClient.cachedKeysOnlyAsync = { _, _ in .hit([]) }
+    warmEmptyClient.discoverKeysAsync = { _, _ in
+      freshDiscoveries.withValue { $0 += 1 }
+      return .value([recovered])
+    }
+
+    let empty = await warmEmptyClient.stableCachedKeysOffMain(
+      ["app.warm-empty"],
+      true,
+    )
+
+    #expect(empty.isEmpty)
+    #expect(freshDiscoveries.value == 1)
+  }
+
+  @Test
   func `capability consumers share one PID scan without an automatic trailing refresh`() async
     throws
   {

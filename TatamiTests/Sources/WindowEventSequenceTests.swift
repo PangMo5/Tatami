@@ -358,6 +358,36 @@ struct WindowEventSequenceTests {
   }
 
   @Test
+  func `successful observer installation publishes a readiness edge`() async {
+    let candidate = RunningAppSnapshot(pid: 4242, bundleId: "app.ready")
+    let eventSink = CoalescingWindowEventBuffer()
+    let sequence = eventSink.makeSequence()
+    let registry = WindowObserverRegistry(
+      eventSink: eventSink,
+      makeObservedApp: { pid, bundleId, _ in
+        WindowObservedAppHandle(
+          pid: pid,
+          bundleId: bundleId,
+          install: { 1 },
+          tearDown: { },
+          stopThread: { },
+        )
+      },
+    )
+
+    await registry.installOrUpdate(
+      snapshotGeneration: 1,
+      bundleIds: [candidate.bundleId],
+      candidates: [candidate],
+      livePids: [candidate.pid],
+    )
+    eventSink.finish()
+
+    let events = await collect(sequence)
+    #expect(events == [.observationReady(bundleId: candidate.bundleId)])
+  }
+
+  @Test
   func `observer install discarded when a newer snapshot reports its pid dead`() async {
     let pid = pid_t(4242)
     let bundleId = "app.install-race"
