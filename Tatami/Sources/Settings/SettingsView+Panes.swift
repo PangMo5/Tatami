@@ -171,14 +171,14 @@ extension SettingsView {
     }
 
     Section("Gaps") {
-      CommitOnEndStepper(
+      CommitOnChangeStepper(
         external: config.settings.layout.gapInner,
         range: 0 ... 100,
         detail: "Space between adjacent tiled windows.",
         label: { "Inner gap: \($0) px" },
         commit: { v in $config.withLock { $0.settings.layout.gapInner = v } },
       )
-      CommitOnEndStepper(
+      CommitOnChangeStepper(
         external: config.settings.layout.gapOuter,
         range: 0 ... 100,
         detail: "Space between the tiles and the screen edge.",
@@ -507,7 +507,7 @@ extension SettingsView {
       // `Gestures.sensitivity` owns the threshold ↔ sensitivity mapping
       // (inverse of the swipe distance: higher = shorter swipe). Buffered so
       // a drag doesn't write the @Shared config — and re-render the whole
-      // Form — on every tick (same rationale as CommitOnEndStepper).
+      // Form — on every tick (same rationale as CommitOnChangeStepper).
       CommitOnEndSlider(
         title: "Sensitivity",
         external: config.settings.gestures.sensitivity,
@@ -607,7 +607,7 @@ extension SettingsView {
           Text("Borrow")
           Text("Borrowing a workspace in beside another, or returning it.")
         }
-        CommitOnEndStepper(
+        CommitOnChangeStepper(
           external: config.settings.hud.durationMs,
           range: 300 ... 3000,
           step: 100,
@@ -654,7 +654,7 @@ extension SettingsView {
       )
       .disabled(!config.settings.marker.borrowEnabled)
 
-      CommitOnEndStepper(
+      CommitOnChangeStepper(
         external: config.settings.marker.size,
         range: 8 ... 28,
         label: { "Dot size: \(Int($0)) pt" },

@@ -1,16 +1,16 @@
 import SwiftUI
 
-// MARK: - CommitOnEndStepper
+// MARK: - CommitOnChangeStepper
 
 /// A `Stepper` whose value lives in local `@State`, committed to the shared
-/// config when interaction ends. Binding a `Stepper` directly to the observed
+/// config after its value changes. Binding a `Stepper` directly to the observed
 /// `@Shared` config made a single click run away: each step wrote the config,
 /// which synchronously re-rendered the whole `SettingsView` (its label also
 /// reads the config), and that re-render churned the Stepper's press tracking
 /// so it auto-repeated to the range bound. Stepping local `@State` keeps the
-/// press loop free of the observed store; SwiftUI's editing-ended callback
-/// persists immediately without a timer.
-struct CommitOnEndStepper<V: Strideable>: View {
+/// press loop free of the observed store; the value-keyed task commits on the
+/// next SwiftUI update cycle without depending on a gesture-ended callback.
+struct CommitOnChangeStepper<V: Strideable>: View {
 
   // MARK: Lifecycle
 
@@ -44,10 +44,12 @@ struct CommitOnEndStepper<V: Strideable>: View {
     Stepper(value: $local, in: range, step: step) {
       Text(label(local))
       if let detail { Text(detail) }
-    } onEditingChanged: { isEditing in
-      if !isEditing, local != external {
-        commit(local)
-      }
+    }
+    .task(id: local) {
+      guard local != external else { return }
+      await Task.yield()
+      guard !Task.isCancelled, local != external else { return }
+      commit(local)
     }
     // Reflect external changes (config edited elsewhere) back into the value.
     .onChange(of: external) { _, newValue in
