@@ -1562,6 +1562,9 @@ struct WorkspaceActivationFeatureTests {
       $0.windowSnapshot.onScreenWindowIDs = {
         [hidden.windowID, survivor.windowID]
       }
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == hidden.windowID ? hidden : nil
+      }
       $0.windowSnapshot.invalidateWindowIDs = { ids in
         invalidated.withValue { $0.formUnion(ids) }
       }
@@ -1575,8 +1578,87 @@ struct WorkspaceActivationFeatureTests {
     await store.finish()
 
     #expect(store.state.tilingTrees[ws.id]?.windows == [survivor])
+    #expect(store.state.windowServerHiddenWindows == [hidden])
     #expect(invalidated.value.isEmpty)
     #expect(applied.value == [[survivor]])
+  }
+
+  @Test
+  func `reappearing hidden surface repairs its delayed pre-close frame restore`() async throws {
+    let slack = WindowKey(pid: 1, windowID: 101, bundleId: "com.tinyspeck.slackmacgap")
+    let notion = WindowKey(pid: 2, windowID: 202, bundleId: "com.cron.electron")
+    let workspace = Workspace(
+      name: "Slack",
+      apps: [AppAssignment(bundleIdentifier: slack.bundleId, name: "Slack")],
+    )
+    let workArea = await MainActor.run {
+      ScreenGeometry.workArea(for: Self.display)
+    }
+    let staleHalfFrame = CGRect(
+      x: workArea.minX,
+      y: workArea.minY,
+      width: workArea.width / 2,
+      height: workArea.height,
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(slack)
+      $0.fullscreenZoomed[workspace.id] = [slack]
+      $0.windowServerHiddenWindows = [notion]
+    }
+    let liveFrames = LockIsolated([
+      slack.windowID: workArea,
+      notion.windowID: staleHalfFrame,
+    ])
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.onScreenWindowFrames = { liveFrames.value }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+        liveFrames.withValue { frames in
+          for (key, frame) in application.windowFrames {
+            frames[key.windowID] = frame
+          }
+        }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .syncAppWindowsResolved(
+        bundleId: notion.bundleId,
+        resizableKeys: [notion],
+        onScreenFrames: liveFrames.value,
+      )
+    )
+    await store.finish()
+
+    #expect(store.state.windowServerHiddenWindows.isEmpty)
+    #expect(store.state.presentationConvergenceWindows.contains(notion))
+    let targetFrame = try #require(
+      applications.value.last?.windowFrames[notion]
+    )
+    #expect(targetFrame != staleHalfFrame)
+    #expect(targetFrame.width > staleHalfFrame.width)
+
+    liveFrames.withValue { $0[notion.windowID] = staleHalfFrame }
+    await store.send(
+      .windowChanged(
+        .windowFrameChanged(key: notion, frame: staleHalfFrame)
+      )
+    )
+    await store.finish()
+
+    #expect(applications.value.last?.windowFrames[notion] == targetFrame)
+    #expect(liveFrames.value[notion.windowID] == targetFrame)
   }
 
   @Test
@@ -1607,22 +1689,59 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `window invisible during activation queues one post activation prune`() async {
+  func `window invisible during activation preserves the outgoing surface before deferred prune`() async {
     let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
     let ws = Workspace(name: "one")
     let state = Self.makeState(workspaces: [ws]) {
       $0.isActivating = true
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = ws.id
       $0.tilingTrees[ws.id] = .leaf(key)
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == key.windowID ? key : nil
+      }
     }
 
     await store.send(.windowServerWindowEvent(.becameInvisible(key.windowID))) {
+      $0.windowServerHiddenWindows = [key]
       $0.pendingWindowServerPrune = true
     }
 
     #expect(store.state.tilingTrees[ws.id]?.windows == [key])
+  }
+
+  @Test
+  func `late outgoing invisibility preserves the surface after active mapping changed`() async {
+    let notion = WindowKey(pid: 1, windowID: 101, bundleId: "com.cron.electron")
+    let slack = WindowKey(pid: 2, windowID: 202, bundleId: "com.tinyspeck.slackmacgap")
+    let terminalWorkspace = Workspace(name: "Terminal")
+    let slackWorkspace = Workspace(name: "Slack")
+    let state = Self.makeState(workspaces: [terminalWorkspace, slackWorkspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = slackWorkspace.id
+      $0.tilingTrees[terminalWorkspace.id] = .leaf(notion)
+      $0.tilingTrees[slackWorkspace.id] = .leaf(slack)
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == notion.windowID ? notion : nil
+      }
+      $0.windowSnapshot.onScreenWindowIDs = { [slack.windowID] }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowServerWindowEvent(.becameInvisible(notion.windowID)))
+    await store.finish()
+
+    #expect(store.state.windowServerHiddenWindows == [notion])
+    #expect(store.state.tilingTrees[terminalWorkspace.id]?.windows == [notion])
+    #expect(store.state.tilingTrees[slackWorkspace.id]?.windows == [slack])
   }
 
   @Test(arguments: [true, false])

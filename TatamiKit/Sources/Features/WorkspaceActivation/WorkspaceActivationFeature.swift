@@ -141,6 +141,13 @@ public struct WorkspaceActivationFeature {
     /// owns the tree writer. One post-activation snapshot catches the finished
     /// tree up without replaying a stale visibility edge after a window reappears.
     public var pendingWindowServerPrune = false
+    /// Live WindowServer surfaces observed leaving the screen through an 816
+    /// invisibility edge. The edge can arrive after activation has already
+    /// moved the display mapping away from the outgoing tree, so keep the exact
+    /// key until reinsertion. If the same surface returns, its app can restore
+    /// the old frame after Tatami's first layout write; presentation
+    /// convergence must remain armed across that delayed restore.
+    public var windowServerHiddenWindows = Set<WindowKey>()
     /// AX discovery is synchronous IPC on a worker. Keep one request per bundle
     /// in flight and mark any notification that arrives during it dirty; its
     /// completion immediately launches one trailing refresh. This is real
@@ -1501,6 +1508,13 @@ public struct WorkspaceActivationFeature {
         // lifecycle: it migrates a zoom key onto the app's replacement window by
         // slot (718ec31), and a stale key never in the tree is harmless
         // (`computeFrames` ignores it). Prune reclaims the lingering tile.
+        if
+          let hidden = state.windowServerHiddenWindows.first(where: {
+            $0.windowID == wid
+          })
+        {
+          state.windowServerHiddenWindows.remove(hidden)
+        }
         windowSnapshot.invalidateWindowIDs([wid])
         if state.isActivating {
           state.pendingWindowServerPrune = true
@@ -1513,7 +1527,21 @@ public struct WorkspaceActivationFeature {
 
       case .windowServerWindowEvent(.becameInvisible(let wid)):
         debugLog.log("SLS", "window invisible wid=\(wid)")
+        if
+          !state.isTilingPaused,
+          !state.isInFullscreenSpace,
+          let key = windowSnapshot.cachedWindowKey(wid),
+          state.tilingTrees.values.contains(where: {
+            $0.windows.contains(key)
+          })
+        {
+          state.windowServerHiddenWindows.insert(key)
+        }
         if state.isActivating {
+          // Activation deliberately hides the outgoing workspace before its
+          // display mapping changes. Preserve that surface identity now; the
+          // deferred prune runs after `activationCompleted`, when the outgoing
+          // tree is no longer visible and can no longer establish ownership.
           state.pendingWindowServerPrune = true
           return .none
         }
@@ -1542,6 +1570,11 @@ public struct WorkspaceActivationFeature {
 
       case .appTerminated(let bundleId):
         state.removeBundleFromWindowMRU(bundleId)
+        for key in Array(state.windowServerHiddenWindows)
+          where key.bundleId == bundleId
+        {
+          state.windowServerHiddenWindows.remove(key)
+        }
         windowSnapshot.invalidateBundle(bundleId)
         let prune = pruneOffscreenWindows(state: &state)
         return .merge(prune, requestWindowSync(bundleId))

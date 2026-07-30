@@ -672,6 +672,19 @@ extension WorkspaceActivationFeature {
     state.tilingTrees[workspaceId] = balanced
     state.removeFromWindowMRU(removedKeys, workspaceId: workspaceId)
     state.removeFromPresentationMonitoring(removedKeys)
+    let reappearingKeys = addedKeys.intersection(state.windowServerHiddenWindows)
+    if !reappearingKeys.isEmpty {
+      state.windowServerHiddenWindows.subtract(reappearingKeys)
+      state.armPresentationMonitoring(
+        reappearingKeys,
+        preservesPointer: false,
+      )
+      debugLog.log(
+        "Sync",
+        "reappeared \(bundleId): arm frame convergence "
+          + "\(reappearingKeys.map { $0.windowID })",
+      )
+    }
 
     // A native-tab switch (Ghostty, Terminal) retires the active tab's
     // CGWindowID and surfaces a new one for the same app — so a fullscreen-zoom
@@ -824,6 +837,7 @@ extension WorkspaceActivationFeature {
             workspaceId: workspaceId,
             state: &state,
             monitorsPresentationChanges: isCompositionMember,
+            presentationRepairKeys: reappearingKeys,
           ),
           postLayoutFocusEffect,
         )
