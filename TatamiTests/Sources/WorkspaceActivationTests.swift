@@ -848,10 +848,16 @@ struct WorkspaceActivationFeatureTests {
       $0.activeWorkspacesByDisplay[Self.display] = ws1.id
       $0.isActivating = true
     }
+    let savedHistory = LockIsolated<[DisplayName: [UUID]]?>(nil)
+    let savedMRU = LockIsolated<[UUID]?>(nil)
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.continuousClock = TestClock()
+      $0.profileSessionStore.saveWorkspaceState = { history, mru in
+        savedHistory.setValue(history)
+        savedMRU.setValue(mru)
+      }
     }
 
     await store.send(.activationCompleted(workspaceId: ws2.id, display: Self.display)) {
@@ -862,6 +868,142 @@ struct WorkspaceActivationFeatureTests {
       $0.displayWorkspaceHistory[Self.display] = [ws2.id]
       $0.workspaceMRU = [ws2.id]
     }
+    await store.finish()
+
+    #expect(savedHistory.value == [Self.display: [ws2.id]])
+    #expect(savedMRU.value == [ws2.id])
+  }
+
+  @Test
+  func `restored workspace history keeps only valid normal workspaces`() async {
+    let liveDisplay = DisplayName(uuid: "display-1", name: "Renamed Display")
+    let savedDisplay = DisplayName(uuid: "display-1", name: "Old Display Name")
+    let first = Workspace(name: "First")
+    let second = Workspace(name: "Second")
+    let scratchpad = Workspace(name: "Scratchpad", kind: .scratchpad)
+    let removed = UUID()
+    let state = Self.makeState(workspaces: [first, second, scratchpad])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [liveDisplay] }
+    }
+
+    await store.send(.restoreWorkspaceHistory(
+      displayWorkspaceHistory: [
+        savedDisplay: [removed, scratchpad.id, first.id, first.id, second.id]
+      ],
+      workspaceMRU: [removed, scratchpad.id, first.id, first.id, second.id],
+    )) {
+      $0.displayWorkspaceHistory[liveDisplay] = [first.id, second.id]
+      $0.workspaceMRU = [first.id, second.id]
+      $0.previousWorkspacesByDisplay[liveDisplay] = second.id
+    }
+
+    #expect(store.state.displayWorkspaceHistory.keys.first?.name == liveDisplay.name)
+  }
+
+  @Test
+  func `initial activation restores the last workspace on every display`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let workspaceA = Workspace(name: "Workspace A")
+    let workspaceB = Workspace(name: "Workspace B")
+    let state = Self.makeState(workspaces: [workspaceA, workspaceB]) {
+      $0.isTilingPaused = true
+      $0.displayWorkspaceHistory = [
+        displayA: [workspaceA.id],
+        displayB: [workspaceB.id],
+      ]
+      $0.workspaceMRU = [workspaceB.id, workspaceA.id]
+    }
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [displayA, displayB] }
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateInitial)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == workspaceA.id && display == displayA
+    }
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == workspaceA.id && display == displayA
+    }
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == workspaceB.id && display == displayB
+    }
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == workspaceB.id && display == displayB
+    }
+    await store.finish()
+
+    #expect(store.state.connectedDisplays == [displayA, displayB])
+    #expect(store.state.activeWorkspacesByDisplay == [
+      displayA: workspaceA.id,
+      displayB: workspaceB.id,
+    ])
+    #expect(requests.value.map { $0.targetDisplay } == [displayA, displayB])
+    #expect(requests.value.map(\.workspace.id) == [workspaceA.id, workspaceB.id])
+  }
+
+  @Test
+  func `initial activation seeds an empty legacy session from the frontmost app`() async {
+    let display = DisplayName(uuid: "display-a", name: "A")
+    let first = Workspace(
+      name: "First",
+      apps: [AppAssignment(bundleIdentifier: "app.first", name: "First")],
+    )
+    let frontmost = Workspace(
+      name: "Frontmost",
+      apps: [AppAssignment(bundleIdentifier: "app.frontmost", name: "Frontmost")],
+    )
+    let state = Self.makeState(workspaces: [first, frontmost]) {
+      $0.isTilingPaused = true
+    }
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [display] }
+      $0.displays.current = { display }
+      $0.windowSnapshot.frontmostApp = {
+        FrontmostApp(pid: 1, bundleId: "app.frontmost", name: "Frontmost")
+      }
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateInitial)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let workspaceId, let owner) = $0 else { return false }
+      return workspaceId == frontmost.id && owner == display
+    }
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let owner) = $0 else { return false }
+      return workspaceId == frontmost.id && owner == display
+    }
+    await store.finish()
+
+    #expect(requests.value.last?.workspace.id == frontmost.id)
   }
 
   @Test
@@ -4430,6 +4572,26 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `restart falls back to a workspace pinned to a missing display`() {
+    let connected = DisplayName("Laptop")
+    let missing = DisplayName("Studio Display")
+    let workspace = workspace("Studio", hint: missing)
+
+    let plan = WorkspaceActivationFeature.planDisplayRestore(
+      connected: [connected],
+      newlyConnected: [connected],
+      workspaces: [workspace],
+      active: [:],
+      history: [:],
+      workspaceMRU: [workspace.id],
+    )
+
+    #expect(plan == [
+      DisplayAssignment(display: connected, workspace: workspace.id)
+    ])
+  }
+
+  @Test
   func `reconnect re asserts connected displays and leaves unpinned new ones empty`() {
     // The Figma case: dynamic Figma on A; B reconnects with nothing pinned to
     // it. The plan re-asserts A→figma (overwriting macOS's shuffle) and leaves
@@ -4487,6 +4649,44 @@ struct WorkspaceActivationFeatureTests {
       DisplayAssignment(display: b, workspace: wB.id),
       DisplayAssignment(display: c, workspace: wOnC.id),
     ])
+  }
+
+  @Test
+  func `profile session decodes the legacy active profile only shape`() throws {
+    let profileId = UUID()
+    let data = Data(
+      """
+      {"activeProfileId":"\(profileId.uuidString)"}
+      """.utf8
+    )
+
+    let session = try JSONDecoder().decode(ProfileSession.self, from: data)
+
+    #expect(session.activeProfileId == profileId)
+    #expect(session.displayWorkspaceHistory.isEmpty)
+    #expect(session.workspaceMRU.isEmpty)
+  }
+
+  @Test
+  func `profile session round trips display workspace history`() throws {
+    let profileId = UUID()
+    let workspaceId = UUID()
+    let display = DisplayName(uuid: "display-1", name: "Studio")
+    let session = ProfileSession(
+      activeProfileId: profileId,
+      displayWorkspaceHistory: [
+        .init(display: display, workspaceIds: [workspaceId])
+      ],
+      workspaceMRU: [workspaceId],
+    )
+
+    let restored = try JSONDecoder().decode(
+      ProfileSession.self,
+      from: JSONEncoder().encode(session),
+    )
+
+    #expect(restored == session)
+    #expect(restored.historyByDisplay == [display: [workspaceId]])
   }
 
   // MARK: Private

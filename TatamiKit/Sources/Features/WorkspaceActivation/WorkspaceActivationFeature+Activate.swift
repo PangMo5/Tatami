@@ -39,8 +39,9 @@ extension WorkspaceActivationFeature {
   ///     1. the last workspace shown here, if it's pinned here, or it's dynamic
   ///        and not currently in use on another display;
   ///     2. else the first workspace statically pinned to this display;
-  ///     3. else a dynamic workspace not in use on another display — the most
-  ///        recently used one (`workspaceMRU`), falling back to the first.
+  ///     3. else a dynamic workspace (or one whose pinned display is absent)
+  ///        not in use on another display — the most recently used one
+  ///        (`workspaceMRU`), falling back to the first.
   /// - vacated (a dynamic workspace just left this display): walk the display's
   ///   MRU history newest→oldest and take the first workspace that belongs here
   ///   (dynamic, or pinned to this display) and isn't already in use elsewhere —
@@ -90,12 +91,18 @@ extension WorkspaceActivationFeature {
       // 3. a free dynamic: most-recently-used, else the first.
       if
         let recentDynamic = workspaceMRU.first(where: {
-          byId[$0] != nil && isDynamic($0) && !elsewhere($0)
+          byId[$0] != nil
+            && (isDynamic($0) || homelessPin($0))
+            && !elsewhere($0)
         })
       {
         return recentDynamic
       }
-      return workspaces.first { $0.kind != .scratchpad && $0.isDynamic && !elsewhere($0.id) }?.id
+      return workspaces.first {
+        $0.kind != .scratchpad
+          && ($0.isDynamic || homelessPin($0.id))
+          && !elsewhere($0.id)
+      }?.id
     }
     return (history[display] ?? []).first {
       byId[$0] != nil && !elsewhere($0) && (isDynamic($0) || pinned($0))

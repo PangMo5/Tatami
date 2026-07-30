@@ -3,30 +3,44 @@ import DependenciesMacros
 import Foundation
 import OSLog
 
-/// Persists *session* state that isn't a setting — currently just which profile
-/// is active — to its own JSON file next to `config.toml`, the same way tiling
-/// memory lives in `layouts.json`. Keeping it out of `config.toml` means a
-/// profile switch never rewrites (and normalizes / strips comments from) the
-/// user's hand-editable settings file, and the selection still survives a
-/// restart. Injected into `AppConfig.activeProfileId` at startup.
+// MARK: - ProfileSessionStoreClient
+
+/// Persists *session* state that isn't a setting — the active profile and
+/// workspace MRU — to its own JSON file next to `config.toml`, the same way
+/// tiling memory lives in `layouts.json`. Keeping it out of `config.toml` means
+/// switching never rewrites (and normalizes / strips comments from) the user's
+/// hand-editable settings file, while the last display/workspace assignment
+/// still survives a restart.
 @DependencyClient
 struct ProfileSessionStoreClient: Sendable {
-  var loadActiveProfileId: @Sendable () async -> UUID?
+  var load: @Sendable () async -> ProfileSession = { ProfileSession() }
   var saveActiveProfileId: @Sendable (UUID?) async -> Void
+  var saveWorkspaceState:
+    @Sendable (_ displayWorkspaceHistory: [DisplayName: [UUID]], _ workspaceMRU: [UUID])
+    async -> Void
 }
+
+// MARK: DependencyKey
 
 extension ProfileSessionStoreClient: DependencyKey {
   static let liveValue: ProfileSessionStoreClient = {
     let store = ProfileSessionStore()
     return ProfileSessionStoreClient(
-      loadActiveProfileId: { await store.load() },
-      saveActiveProfileId: { id in await store.save(id) }
+      load: { await store.load() },
+      saveActiveProfileId: { id in await store.saveActiveProfileId(id) },
+      saveWorkspaceState: { history, mru in
+        await store.saveWorkspaceState(
+          displayWorkspaceHistory: history,
+          workspaceMRU: mru,
+        )
+      },
     )
   }()
 
   static let testValue = ProfileSessionStoreClient(
-    loadActiveProfileId: { nil },
-    saveActiveProfileId: { _ in }
+    load: { ProfileSession() },
+    saveActiveProfileId: { _ in },
+    saveWorkspaceState: { _, _ in },
   )
 
   static let previewValue = testValue
@@ -39,31 +53,109 @@ extension DependencyValues {
   }
 }
 
-/// On-disk shape. A struct (not a bare UUID) so more session fields can join
-/// later without a format break.
-private struct ProfileSession: Codable, Hashable, Sendable {
+// MARK: - ProfileSession
+
+/// On-disk shape. New fields decode with empty defaults so an existing
+/// active-profile-only file migrates in place on the first workspace switch.
+struct ProfileSession: Codable, Hashable, Sendable {
+
+  // MARK: Lifecycle
+
+  init(
+    activeProfileId: UUID? = nil,
+    displayWorkspaceHistory: [DisplayWorkspaceHistory] = [],
+    workspaceMRU: [UUID] = [],
+  ) {
+    self.activeProfileId = activeProfileId
+    self.displayWorkspaceHistory = displayWorkspaceHistory
+    self.workspaceMRU = workspaceMRU
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    activeProfileId = try container.decodeIfPresent(UUID.self, forKey: .activeProfileId)
+    displayWorkspaceHistory =
+      try container.decodeIfPresent(
+        [DisplayWorkspaceHistory].self,
+        forKey: .displayWorkspaceHistory,
+      ) ?? []
+    workspaceMRU = try container.decodeIfPresent([UUID].self, forKey: .workspaceMRU) ?? []
+  }
+
+  // MARK: Internal
+
+  struct DisplayWorkspaceHistory: Codable, Hashable, Sendable {
+    var display: DisplayName
+    var workspaceIds: [UUID]
+  }
+
   var activeProfileId: UUID?
+  var displayWorkspaceHistory: [DisplayWorkspaceHistory]
+  var workspaceMRU: [UUID]
+
+  var historyByDisplay: [DisplayName: [UUID]] {
+    displayWorkspaceHistory.reduce(into: [DisplayName: [UUID]]()) { result, entry in
+      for workspaceId in entry.workspaceIds
+        where !result[entry.display, default: []].contains(workspaceId)
+      {
+        result[entry.display, default: []].append(workspaceId)
+      }
+    }
+  }
+
 }
+
+// MARK: - ProfileSessionStore
 
 /// Single small JSON file (`profile-session.json`) next to `config.toml`. One
 /// serial actor owns all I/O; the whole thing is tiny so a full rewrite per
 /// save is fine.
 private actor ProfileSessionStore {
-  private let fileURL = ConfigLocation.directory
-    .appendingPathComponent("profile-session.json", isDirectory: false)
-  private var cached: ProfileSession?
 
-  func load() -> UUID? {
-    loaded().activeProfileId
+  // MARK: Internal
+
+  func load() -> ProfileSession {
+    loaded()
   }
 
-  func save(_ id: UUID?) {
+  func saveActiveProfileId(_ id: UUID?) {
     var session = loaded()
     guard session.activeProfileId != id else { return }
     session.activeProfileId = id
     cached = session
     write(session)
   }
+
+  func saveWorkspaceState(
+    displayWorkspaceHistory: [DisplayName: [UUID]],
+    workspaceMRU: [UUID],
+  ) {
+    var session = loaded()
+    let history = displayWorkspaceHistory
+      .map {
+        ProfileSession.DisplayWorkspaceHistory(
+          display: $0.key,
+          workspaceIds: $0.value,
+        )
+      }
+      .sorted {
+        ($0.display.uuid ?? $0.display.name) < ($1.display.uuid ?? $1.display.name)
+      }
+    guard
+      session.displayWorkspaceHistory != history
+      || session.workspaceMRU != workspaceMRU
+    else { return }
+    session.displayWorkspaceHistory = history
+    session.workspaceMRU = workspaceMRU
+    cached = session
+    write(session)
+  }
+
+  // MARK: Private
+
+  private let fileURL = ConfigLocation.directory
+    .appendingPathComponent("profile-session.json", isDirectory: false)
+  private var cached: ProfileSession?
 
   private func loaded() -> ProfileSession {
     if let cached { return cached }
@@ -89,6 +181,7 @@ private actor ProfileSessionStore {
       logger.error("profile-session save failed: \(error.localizedDescription, privacy: .public)")
     }
   }
+
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "ProfileSession")

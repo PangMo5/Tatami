@@ -149,14 +149,23 @@ public struct AppFeature {
             .send(.cli(.start)),
             .send(.activation(.startObservingWindowEvents)),
             .send(.activation(.startObservingAppLaunches)),
-            // Restore the last-active profile (persisted in ProfileSessionStore,
-            // not config.toml) before initial activation, so tiling + hotkeys
-            // target it. No saved selection → straight to the default profile.
+            // Restore process-session choices (kept out of config.toml) before
+            // initial activation, so the active profile and per-display
+            // workspace plan are both ready when startup begins tiling.
             .run { [profileSessionStore] send in
-              if let id = await profileSessionStore.loadActiveProfileId() {
+              let session = await profileSessionStore.load()
+              if let id = session.activeProfileId {
                 await send(.activation(.restoreActiveProfile(id)))
                 await send(.hotKeys(.refreshBindings))
               }
+              await send(
+                .activation(
+                  .restoreWorkspaceHistory(
+                    displayWorkspaceHistory: session.historyByDisplay,
+                    workspaceMRU: session.workspaceMRU,
+                  )
+                )
+              )
               await send(.activation(.activateInitial))
             },
             .send(.settingsChanged(settings)),

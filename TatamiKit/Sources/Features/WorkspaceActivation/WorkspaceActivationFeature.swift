@@ -105,12 +105,12 @@ public struct WorkspaceActivationFeature {
     /// they were last on.
     public var lastActiveDisplay = [Workspace.ID: DisplayName]()
     /// Per-display MRU list of workspaces shown on it (newest first). Unlike
-    /// `activeWorkspacesByDisplay`, this survives a disconnect (session only, not
-    /// pruned when a display goes away), so reconnecting a monitor can restore
-    /// its last workspace and walk older ones when the newest is in use.
+    /// `activeWorkspacesByDisplay`, this survives disconnects and app restarts,
+    /// so each monitor can restore its last workspace and walk older valid ones
+    /// when the newest was removed from config or is already in use.
     public var displayWorkspaceHistory = [DisplayName: [Workspace.ID]]()
-    /// Global MRU of workspaces (newest first), for the reconnect fallback of
-    /// "the last-used dynamic workspace not in use on another display."
+    /// Global persisted MRU of workspaces (newest first), for restart/reconnect
+    /// fallback to the last-used dynamic workspace not in use elsewhere.
     public var workspaceMRU = [Workspace.ID]()
     /// Displays connected as of the last reconfigure, to detect which ones are
     /// newly plugged in on the next change.
@@ -552,6 +552,13 @@ public struct WorkspaceActivationFeature {
     /// Set the active profile from the persisted session (ProfileSessionStore)
     /// at startup, before `activateInitial` — no re-activation of its own.
     case restoreActiveProfile(Profile.ID)
+    /// Adopt persisted workspace recency before `activateInitial`. Invalid and
+    /// Scratchpad ids are discarded, while saved display identities are
+    /// reconciled onto currently connected UUID/name identities.
+    case restoreWorkspaceHistory(
+      displayWorkspaceHistory: [DisplayName: [Workspace.ID]],
+      workspaceMRU: [Workspace.ID],
+    )
     /// Re-activate the whole active profile across *every* connected display —
     /// a manual profile switch fires no `displaysReconfigured`, so this re-runs
     /// the same per-display restore plan to retile all monitors for the new
@@ -1624,6 +1631,49 @@ public struct WorkspaceActivationFeature {
         state.$config.withLock { $0.activeProfileId = id }
         return .none
 
+      case .restoreWorkspaceHistory(let displayWorkspaceHistory, let workspaceMRU):
+        let validWorkspaceIds = Set(
+          state.config.profiles.flatMap {
+            $0.workspaces
+              .filter { $0.kind != .scratchpad }
+              .map(\.id)
+          }
+        )
+        let connectedDisplays = displays.all()
+        var restoredHistory = [DisplayName: [Workspace.ID]]()
+        for (savedDisplay, workspaceIds) in displayWorkspaceHistory {
+          let display = connectedDisplays.first { savedDisplay.matches($0) }
+            ?? savedDisplay
+          for workspaceId in workspaceIds
+            where validWorkspaceIds.contains(workspaceId)
+            && !restoredHistory[display, default: []].contains(workspaceId)
+          {
+            restoredHistory[display, default: []].append(workspaceId)
+          }
+        }
+        state.displayWorkspaceHistory = restoredHistory
+        state.workspaceMRU = workspaceMRU.reduce(into: []) { restored, workspaceId in
+          if
+            validWorkspaceIds.contains(workspaceId),
+            !restored.contains(workspaceId)
+          {
+            restored.append(workspaceId)
+          }
+        }
+        let activeWorkspaceIds = Set(
+          state.config.activeProfile?.workspaces
+            .filter { $0.kind != .scratchpad }
+            .map(\.id) ?? []
+        )
+        state.previousWorkspacesByDisplay = restoredHistory.reduce(into: [:]) {
+          previous, entry in
+          let activeHistory = entry.value.filter(activeWorkspaceIds.contains)
+          if let workspaceId = activeHistory.dropFirst().first {
+            previous[entry.key] = workspaceId
+          }
+        }
+        return .none
+
       case .reactivateActiveProfile(let focus):
         guard let profile = state.config.activeProfile else { return .none }
         let connected = displays.all()
@@ -1685,14 +1735,18 @@ public struct WorkspaceActivationFeature {
       case .activateInitial:
         // Startup: a matching display rule wins over the persisted / first
         // selection, so launching docked lands in the docked profile.
-        state.connectedDisplays = Set(displays.all())
+        let connectedDisplays = displays.all()
+        state.connectedDisplays = Set(connectedDisplays)
         let startupActive = state.config.activeProfileId ?? state.config.profiles.first?.id
         if
           let matched = state.config.autoActiveProfile(connected: state.connectedDisplays),
           matched != startupActive
         {
           state.$config.withLock { $0.activeProfileId = matched }
-          debugLog.log("Profile", "startup auto-activate for displays=\(displays.all().map(\.name))")
+          debugLog.log(
+            "Profile",
+            "startup auto-activate for displays=\(connectedDisplays.map(\.name))",
+          )
           return .merge(
             .send(.delegate(.profileAutoActivated(matched))),
             .send(.reactivateActiveProfile(focus: nil)),
@@ -1706,10 +1760,49 @@ public struct WorkspaceActivationFeature {
         let candidates = profile.workspaces.filter { $0.kind != .scratchpad }
         guard !candidates.isEmpty else { return .none }
         let frontBundle = windowSnapshot.frontmostApp()?.bundleId
-        let target = candidates.first { ws in
-          guard let fb = frontBundle else { return false }
-          return ws.apps.contains { $0.bundleIdentifier == fb }
-        } ?? candidates[0]
+        let frontmostCandidate = candidates.first { ws in
+          guard let frontBundle else { return false }
+          return ws.apps.contains { $0.bundleIdentifier == frontBundle }
+        }
+        if !connectedDisplays.isEmpty {
+          var restoreDisplays = connectedDisplays
+          if
+            let currentDisplay = displays.current(),
+            let index = restoreDisplays.firstIndex(where: { $0.matches(currentDisplay) })
+          {
+            restoreDisplays.insert(restoreDisplays.remove(at: index), at: 0)
+          }
+          // An existing active-profile-only session has no workspace history.
+          // Preserve the established frontmost-app startup behavior as the
+          // one-time seed; once any activation completes, persisted display
+          // history becomes authoritative on following launches.
+          let startupWorkspaceMRU = state.workspaceMRU.isEmpty
+            ? frontmostCandidate.map { [$0.id] } ?? []
+            : state.workspaceMRU
+          let plan = Self.planDisplayRestore(
+            connected: restoreDisplays,
+            newlyConnected: Set(restoreDisplays),
+            workspaces: candidates.elements,
+            active: [:],
+            history: state.displayWorkspaceHistory,
+            workspaceMRU: startupWorkspaceMRU,
+          )
+          if !plan.isEmpty {
+            state.activeWorkspacesByDisplay = [:]
+            state.pendingDisplayRestores = plan
+            state.focusWorkspaceOnRestore = nil
+            debugLog.log(
+              "Activate",
+              "initial restore plan="
+                + "\(plan.map { "\($0.display.name)→\($0.workspace)" })",
+            )
+            return .send(.processDisplayRestores)
+          }
+        }
+        // No usable display assignment (headless startup or a config whose
+        // every normal workspace is temporarily unavailable): preserve the
+        // established frontmost-app/first-workspace fallback.
+        let target = frontmostCandidate ?? candidates[0]
         debugLog.log(
           "Activate",
           "initial → ws=\(target.name) (frontmost=\(frontBundle ?? "nil"))",
@@ -2667,6 +2760,7 @@ public struct WorkspaceActivationFeature {
         state.pendingWindowSyncBundleIds.removeAll()
         let pendingWindowServerPrune = state.pendingWindowServerPrune
         state.pendingWindowServerPrune = false
+        var persistWorkspaceSession = Effect<Action>.none
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
           state.previousWorkspacesByDisplay[display] = previous
         }
@@ -2689,6 +2783,11 @@ public struct WorkspaceActivationFeature {
           // Global MRU too (reconnect dynamic fallback).
           state.workspaceMRU.removeAll { $0 == id }
           state.workspaceMRU.insert(id, at: 0)
+          let history = state.displayWorkspaceHistory
+          let workspaceMRU = state.workspaceMRU
+          persistWorkspaceSession = .run { [profileSessionStore] _ in
+            await profileSessionStore.saveWorkspaceState(history, workspaceMRU)
+          }
         }
         // A display a dynamic workspace just vacated gets refilled with what the
         // user last had on it — same rules as a reconnect. Skipped mid-cascade
@@ -2742,6 +2841,7 @@ public struct WorkspaceActivationFeature {
         let activatedKeys = Set(state.tilingTrees[id]?.windows ?? [])
         return .merge(
           .cancel(id: CancelID.activationWatchdog),
+          persistWorkspaceSession,
           .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
           // The unpaused path already pushed markers from the activation
           // effect's own floating discovery; only the paused path (which
@@ -2865,6 +2965,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.appLaunch) var appLaunch
   @Dependency(\.displays) var displays
   @Dependency(\.layoutStore) var layoutStore
+  @Dependency(\.profileSessionStore) var profileSessionStore
   @Dependency(\.workspaceHUD) var workspaceHUD
   @Dependency(\.mouse) var mouse
   @Dependency(\.marker) var marker
