@@ -1091,6 +1091,46 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `first focused transient enters MRU when its sync inserts it`() async {
+    let slack = WindowKey(pid: 1, windowID: 101, bundleId: "com.tinyspeck.slackmacgap")
+    let notion = WindowKey(pid: 2, windowID: 202, bundleId: "com.cron.electron")
+    let workspace = Workspace(
+      name: "Slack",
+      apps: [AppAssignment(bundleIdentifier: slack.bundleId, name: "Slack")],
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(slack)
+      $0.mruWindows[workspace.id] = [slack]
+      // Notion's first AX focus arrived before its unregistered window became
+      // an authoritative transient member of this tree.
+      $0.lastObservedFocusedWindow = notion
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in
+        CGRect(x: 0, y: 0, width: 1_000, height: 800)
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: notion.bundleId,
+      resizableKeys: [notion],
+      onScreenFrames: [
+        slack.windowID: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+        notion.windowID: CGRect(x: 500, y: 0, width: 500, height: 800),
+      ],
+    ))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id]?.windows.contains(notion) == true)
+    #expect(store.state.mruWindows[workspace.id] == [notion, slack])
+  }
+
+  @Test
   func `first valid sync restores fullscreen slots missed by startup discovery`() async {
     let first = WindowKey(pid: 42, windowID: 101, bundleId: "company.thebrowser.dia")
     let second = WindowKey(pid: 42, windowID: 202, bundleId: first.bundleId)
@@ -2195,6 +2235,67 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.compositionsByDisplay[displayB] == nil)
     #expect(requests.value.last?.targetDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == host.id)
+  }
+
+  @Test
+  func `activating a borrowed workspace clears its badge before activation completes`() async {
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 202, bundleId: "company.thebrowser.dia")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Browser")
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.marker.fullscreenEnabled = true
+        $0.settings.marker.borrowEnabled = true
+      }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.fullscreenZoomed[borrowed.id] = [borrowedWindow]
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [
+          BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)
+        ],
+      )
+    }
+    let activationGate = AsyncStream<Void>.makeStream()
+    let markerEvents = AsyncStream<[WindowKey: MarkerTarget]>.makeStream()
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in
+        var iterator = activationGate.stream.makeAsyncIterator()
+        _ = await iterator.next()
+      }
+      $0.marker.setTargets = { targets, _, _, _ in
+        markerEvents.continuation.yield(targets)
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+    var markerIterator = markerEvents.stream.makeAsyncIterator()
+
+    await store.send(.activate(workspaceId: borrowed.id, setFocus: true))
+
+    // The activation manager is still blocked. This replacement is what
+    // removes the old always-visible, symbol-sized Borrow badge immediately.
+    let targetsBeforeCompletion = await markerIterator.next()
+    #expect(targetsBeforeCompletion?[borrowedWindow] == nil)
+
+    activationGate.continuation.yield()
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      return workspaceId == borrowed.id
+    }
+    let targetsAfterCompletion = await markerIterator.next()
+    await store.finish()
+
+    #expect(targetsAfterCompletion?[borrowedWindow]?.symbol == nil)
+    #expect(targetsAfterCompletion?[borrowedWindow]?.alwaysVisible == false)
   }
 
   @Test

@@ -676,6 +676,15 @@ extension WorkspaceActivationFeature {
     let addedKeys = newWindows.subtracting(oldWindows)
     let removedKeys = oldWindows.subtracting(newWindows)
     state.tilingTrees[workspaceId] = balanced
+    // A first focus event can precede the sync that makes an unregistered
+    // transient an authoritative tree member. `windowFocused` remembers the
+    // exact key but deliberately cannot put a non-member into MRU. Complete
+    // that same focus transaction now that membership exists, so dismissing a
+    // Scratchpad Borrow restores this window without requiring an extra
+    // opt+tab focus event.
+    if let focused, addedKeys.contains(focused) {
+      state.recordFocusedWindow(focused)
+    }
     state.removeFromWindowMRU(removedKeys, workspaceId: workspaceId)
     state.removeFromPresentationMonitoring(removedKeys)
     let reappearingKeys = addedKeys.intersection(state.windowServerHiddenWindows)

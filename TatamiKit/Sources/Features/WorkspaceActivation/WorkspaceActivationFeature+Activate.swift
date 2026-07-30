@@ -365,6 +365,7 @@ extension WorkspaceActivationFeature {
     let restoringHost =
       targetDisplay.flatMap { state.compositionsByDisplay[$0]?.host } == workspaceId
     var dismissedBorrowName: String?
+    var clearedComposition = false
     if let targetDisplay, let comp = state.compositionsByDisplay[targetDisplay] {
       if let slot = comp.borrowed.first, slot.workspace != workspaceId {
         dismissedBorrowName = profile.workspaces[id: slot.workspace]?.name
@@ -375,6 +376,7 @@ extension WorkspaceActivationFeature {
         state.pendingCenterWarps[slot.workspace] = nil
       }
       state.compositionsByDisplay[targetDisplay] = nil
+      clearedComposition = true
     }
     var displacedCompositionHosts = [Workspace.ID]()
     for (sourceDisplay, composition) in Array(state.compositionsByDisplay)
@@ -388,6 +390,7 @@ extension WorkspaceActivationFeature {
         state.pendingCenterWarps[slot.workspace] = nil
       }
       state.compositionsByDisplay[sourceDisplay] = nil
+      clearedComposition = true
       if composition.host != workspaceId {
         displacedCompositionHosts.append(composition.host)
       }
@@ -490,11 +493,6 @@ extension WorkspaceActivationFeature {
           workspaceIDs: presentationWorkspaceIDs,
         )
     ))
-    let otherFullscreenZoomed = presentationWorkspaceIDs
-      .subtracting([workspace.id])
-      .reduce(into: Set<WindowKey>()) { keys, workspaceId in
-        keys.formUnion(state.fullscreenZoomed[workspaceId] ?? [])
-      }
     let sessionTree = state.tilingTrees[workspace.id]
     let sharedTiledBundleIds = Set(
       state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
@@ -514,10 +512,13 @@ extension WorkspaceActivationFeature {
     let existingTargetKeys = Set(sessionTree?.windows ?? [])
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
-    // Borrow markers live across displays; this display's composition was just
-    // cleared, so this is any *other* display's borrows that the global marker
-    // push below must preserve.
-    let borrowedMarkers = Self.borrowMarkerTargets(state: state)
+    // A composition marker is an always-visible symbol badge. Clear it as soon
+    // as activation drops the composition; waiting for the post-layout
+    // floating-window pass leaves the old, 2× Borrow badge masquerading as an
+    // oversized fullscreen dot on the promoted workspace.
+    let clearedCompositionMarkers = clearedComposition
+      ? refreshMarkers(state: state)
+      : Effect<Action>.none
 
     let hudName = workspace.name
     let hudIcon = workspace.symbolIconName
@@ -606,6 +607,7 @@ extension WorkspaceActivationFeature {
         watchdog,
         crossMonitorHUD,
         displacedCompositionReflow,
+        clearedCompositionMarkers,
         // Arm tiled, floating, and unmanaged apps concurrently with activation.
         // A first-time installation emits one observation-ready reconcile, so
         // a state change racing this setup cannot fall through the cache gap.
@@ -624,7 +626,6 @@ extension WorkspaceActivationFeature {
           hud = workspaceHUD,
           mouse = mouse,
           overlay = floatingOverlay,
-          marker = marker,
           snapshot = windowSnapshot,
           displays = displays,
           debugLog = debugLog,
@@ -828,23 +829,10 @@ extension WorkspaceActivationFeature {
             guard !Task.isCancelled else { return }
             await overlay.setFloating(floatingKeys)
             guard !Task.isCancelled else { return }
-            // Markers ride the same discovery — `activationCompleted` used to
-            // re-run a full AX scan for the floating keys this pass just
-            // resolved.
-            let markerCfg = settings.marker
-            await marker.setTargets(
-              Self.markerTargets(
-                fullscreenZoomed: markerCfg.fullscreenEnabled
-                  ? restoredZoom.union(otherFullscreenZoomed)
-                  : [],
-                floatingKeys: markerCfg.floatingEnabled ? Array(floatingKeys) : [],
-                borrowed: borrowedMarkers,
-                cfg: markerCfg,
-              ),
-              markerCfg.size,
-              markerCfg.corner,
-              markerCfg.hideOnHover,
-            )
+            // Markers ride the same discovery, but reducer state owns their
+            // categories. Re-derive after `activationCompleted` publishes the
+            // target workspace and cancel any composition-era marker refresh.
+            await send(.activationMarkerKeysResolved(Array(floatingKeys)))
             guard !Task.isCancelled else { return }
             if warpMouse {
               var fallbackFrames = [WindowKey: CGRect]()

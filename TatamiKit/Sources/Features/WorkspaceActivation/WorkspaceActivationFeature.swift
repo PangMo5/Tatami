@@ -723,6 +723,10 @@ public struct WorkspaceActivationFeature {
     /// this exact result, then derives marker targets from current state so a
     /// marker-only refresh can never cancel the authoritative mirror update.
     case floatingPresentationResolved([WindowKey])
+    /// Activation already resolved its floating windows. Rebuild only the
+    /// marker targets from current reducer state, so a composition cleared
+    /// during the switch cannot leave its old Borrow badge behind.
+    case activationMarkerKeysResolved([WindowKey])
     /// The latest warp for this target completed (or found no frame), so an AX
     /// focus echo no longer needs to preserve the unconditional-center policy.
     case cursorWarpFinished(workspaceId: Workspace.ID, target: WindowKey)
@@ -1353,6 +1357,9 @@ public struct WorkspaceActivationFeature {
             .cancellable(id: CancelID.floatingPresentation, cancelInFlight: true),
           refreshMarkers(state: state, resolvedFloatingKeys: keys),
         )
+
+      case .activationMarkerKeysResolved(let keys):
+        return refreshMarkers(state: state, resolvedFloatingKeys: keys)
 
       case .cursorWarpFinished(let workspaceId, let target):
         if state.pendingCenterWarps[workspaceId] == target {
