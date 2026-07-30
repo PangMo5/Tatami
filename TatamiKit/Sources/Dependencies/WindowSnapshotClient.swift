@@ -631,6 +631,10 @@ struct WindowSnapshotClient: Sendable {
   /// Remove exact WindowServer ids confirmed destroyed or pruned off-screen.
   /// Keeps cache-first activation from briefly laying out a dead tile.
   var invalidateWindowIDs: @Sendable (_ windowIDs: Set<CGWindowID>) -> Void = { _ in }
+  /// Resolve a watched WindowServer id back to its last-known application.
+  /// Visibility notifications carry only the id; retaining this mapping lets a
+  /// later 815 edge re-discover the one app without a global AX sweep.
+  var cachedWindowKey: @Sendable (_ windowID: CGWindowID) -> WindowKey? = { _ in nil }
   /// The `WindowKey` of the focused window of the frontmost app.
   var focusedWindowKey: @Sendable () -> WindowKey?
   /// Async focused-window resolution for effects and user-input paths. AppKit
@@ -951,6 +955,9 @@ extension WindowSnapshotClient: DependencyKey {
       invalidateWindowIDs: { windowIDs in
         MainActor.assumeIsolated { cache.invalidate(windowIDs: windowIDs) }
       },
+      cachedWindowKey: { windowID in
+        MainActor.assumeIsolated { cache.cachedKey(windowID: windowID) }
+      },
       focusedWindowKey: {
         MainActor.assumeIsolated { liveFocusedWindowKey() }
       },
@@ -1021,6 +1028,7 @@ extension WindowSnapshotClient: DependencyKey {
     invalidateBundle: { _ in },
     markBundleDirty: { _ in },
     invalidateWindowIDs: { _ in },
+    cachedWindowKey: { _ in nil },
     focusedWindowKey: { nil },
     focusedWindowKeyAsync: { .unavailable },
     focusedWindowKeyForAppAsync: { _, _ in .unavailable },
@@ -1179,6 +1187,15 @@ final class WindowKeyCache {
       changed = true
     }
     if changed { publishManagedWindows() }
+  }
+
+  func cachedKey(windowID: CGWindowID) -> WindowKey? {
+    for keys in entries.values {
+      if let key = keys.first(where: { $0.windowID == windowID }) {
+        return key
+      }
+    }
+    return nil
   }
 
   /// Store a fresh scan's result for every *requested* bundle id — a

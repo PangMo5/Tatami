@@ -137,6 +137,10 @@ public struct WorkspaceActivationFeature {
     /// reconcile them once the gate opens instead of rescanning every workspace
     /// app after a fixed delay.
     public var pendingWindowSyncBundleIds = Set<String>()
+    /// WindowServer termination/invisibility edges received while activation
+    /// owns the tree writer. One post-activation snapshot catches the finished
+    /// tree up without replaying a stale visibility edge after a window reappears.
+    public var pendingWindowServerPrune = false
     /// AX discovery is synchronous IPC on a worker. Keep one request per bundle
     /// in flight and mark any notification that arrives during it dirty; its
     /// completion immediately launches one trailing refresh. This is real
@@ -525,7 +529,7 @@ public struct WorkspaceActivationFeature {
 
   public enum Action {
     case startObservingWindowEvents
-    case windowServerWindowDestroyed(CGWindowID)
+    case windowServerWindowEvent(SLSWindowEvent)
     /// Connected displays changed — drop active/recent state for displays
     /// that are gone so multi-monitor tracking doesn't hold stale entries.
     case displaysReconfigured([DisplayName])
@@ -831,11 +835,11 @@ public struct WorkspaceActivationFeature {
             }
           },
           .run { [sls] send in
-            // WindowServer destroy events catch hide-on-close windows that
-            // emit no AX notification (KakaoTalk), which the AX observer
-            // can't see.
-            for await wid in sls.windowDestructionEvents() {
-              await send(.windowServerWindowDestroyed(wid))
+            // WindowServer visibility edges catch hide-on-close windows that
+            // emit no AX notification; termination remains the authoritative
+            // cache tombstone.
+            for await event in sls.windowEvents() {
+              await send(.windowServerWindowEvent(event))
             }
           },
           .run { [borrowChord] send in
@@ -1483,12 +1487,12 @@ public struct WorkspaceActivationFeature {
           }
         )
 
-      case .windowServerWindowDestroyed(let wid):
+      case .windowServerWindowEvent(.terminated(let wid)):
         // A WindowServer destruction is the authoritative membership edge.
         // Remove that exact id immediately instead of sleeping for a guessed
         // frame boundary and asking CGWindowList whether it has caught up.
         // Presentation convergence handles any later app-owned survivor reset.
-        debugLog.log("SLS", "window destroyed wid=\(wid)")
+        debugLog.log("SLS", "window terminated wid=\(wid)")
         // NOTE: we deliberately do NOT strip `wid` from `fullscreenZoomed` here.
         // 804 also fires when the WindowServer merely recycles a surface (deep
         // sleep / clamshell / display wake) for a window that isn't really
@@ -1498,10 +1502,40 @@ public struct WorkspaceActivationFeature {
         // slot (718ec31), and a stale key never in the tree is harmless
         // (`computeFrames` ignores it). Prune reclaims the lingering tile.
         windowSnapshot.invalidateWindowIDs([wid])
+        if state.isActivating {
+          state.pendingWindowServerPrune = true
+          return .none
+        }
         return pruneOffscreenWindows(
           knownDestroyedWindowIDs: [wid],
           state: &state,
         )
+
+      case .windowServerWindowEvent(.becameInvisible(let wid)):
+        debugLog.log("SLS", "window invisible wid=\(wid)")
+        if state.isActivating {
+          state.pendingWindowServerPrune = true
+          return .none
+        }
+        // 816 is an authoritative on-screen membership edge, not a lifecycle
+        // tombstone. Remove the tile immediately while preserving the cache
+        // identity so the same surface can return through 815.
+        return pruneOffscreenWindows(
+          knownInvisibleWindowIDs: [wid],
+          state: &state,
+        )
+
+      case .windowServerWindowEvent(.becameVisible(let wid)):
+        guard let key = windowSnapshot.cachedWindowKey(wid) else {
+          debugLog.log("SLS", "window visible wid=\(wid) — no cached owner")
+          return .none
+        }
+        windowSnapshot.markBundleDirty(key.bundleId)
+        debugLog.log(
+          "SLS",
+          "window visible wid=\(wid) bundle=\(key.bundleId) → reconcile",
+        )
+        return requestWindowSync(key.bundleId)
 
       case .pruneOffscreenWindows:
         return pruneOffscreenWindows(state: &state)
@@ -2547,6 +2581,8 @@ public struct WorkspaceActivationFeature {
         state.pendingDisplayGeometryReflow = false
         let pendingWindowSyncBundleIds = state.pendingWindowSyncBundleIds
         state.pendingWindowSyncBundleIds.removeAll()
+        let pendingWindowServerPrune = state.pendingWindowServerPrune
+        state.pendingWindowServerPrune = false
         if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
           state.previousWorkspacesByDisplay[display] = previous
         }
@@ -2633,6 +2669,7 @@ public struct WorkspaceActivationFeature {
           state.isTilingPaused
             ? .none
             : .merge(pendingWindowSyncBundleIds.map { requestWindowSync($0) }),
+          pendingWindowServerPrune ? .send(.pruneOffscreenWindows) : .none,
           // Drain the reconnect-restore queue: this activation just freed the
           // single activation slot, so kick the next display's restore (if any).
           state.pendingDisplayRestores.isEmpty ? .none : .send(.processDisplayRestores),
@@ -2655,6 +2692,8 @@ public struct WorkspaceActivationFeature {
         state.pendingDisplayGeometryReflow = false
         let pendingWindowSyncBundleIds = state.pendingWindowSyncBundleIds
         state.pendingWindowSyncBundleIds.removeAll()
+        let pendingWindowServerPrune = state.pendingWindowServerPrune
+        state.pendingWindowServerPrune = false
         debugLog.log(
           "Activate",
           "watchdog: activation did not complete in 10 s — releasing the gate",
@@ -2663,6 +2702,7 @@ public struct WorkspaceActivationFeature {
           .cancel(id: CancelID.activation),
           reflowDisplayGeometry ? .send(.displayGeometryChanged) : .none,
           .merge(pendingWindowSyncBundleIds.map { requestWindowSync($0) }),
+          pendingWindowServerPrune ? .send(.pruneOffscreenWindows) : .none,
         )
       }
     }

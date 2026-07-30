@@ -166,6 +166,27 @@ struct WindowKeyCacheTests {
   }
 
   @Test
+  func `window id lookup preserves the owner needed by a visible edge`() {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let key = WindowKey(
+        pid: 1,
+        windowID: 101,
+        bundleId: "com.cron.electron",
+      )
+
+      cache.store(
+        WindowDiscovery(keys: [key]),
+        bundleIds: [key.bundleId],
+        requireResizable: true,
+      )
+
+      #expect(cache.cachedKey(windowID: key.windowID) == key)
+      #expect(cache.cachedKey(windowID: 999) == nil)
+    }
+  }
+
+  @Test
   func `evicted exact tombstone still blocks an older discovery`() {
     withNoopPublicationDependencies {
       let cache = WindowKeyCache()

@@ -1535,6 +1535,96 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.pendingCenterWarps[ws.id] == nil)
   }
 
+  @Test
+  func `window invisible removes the tile without tombstoning its live surface`() async {
+    let hidden = WindowKey(pid: 1, windowID: 101, bundleId: "com.cron.electron")
+    let survivor = WindowKey(pid: 2, windowID: 202, bundleId: "app.survivor")
+    let ws = Workspace(name: "one")
+    let state = Self.makeState(workspaces: [ws]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = ws.id
+      $0.tilingTrees[ws.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(hidden),
+          right: .leaf(survivor),
+        )
+      )
+    }
+    let invalidated = LockIsolated<Set<CGWindowID>>([])
+    let applied = LockIsolated<[Set<WindowKey>]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      // Prove the 816 edge itself is authoritative even if the next list
+      // snapshot still contains the surface.
+      $0.windowSnapshot.onScreenWindowIDs = {
+        [hidden.windowID, survivor.windowID]
+      }
+      $0.windowSnapshot.invalidateWindowIDs = { ids in
+        invalidated.withValue { $0.formUnion(ids) }
+      }
+      $0.windowTiler.apply = { request in
+        applied.withValue { $0.append(Set(request.windowFrames.keys)) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowServerWindowEvent(.becameInvisible(hidden.windowID)))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[ws.id]?.windows == [survivor])
+    #expect(invalidated.value.isEmpty)
+    #expect(applied.value == [[survivor]])
+  }
+
+  @Test
+  func `window visible reconciles only its cached owner`() async {
+    let key = WindowKey(pid: 1, windowID: 101, bundleId: "com.cron.electron")
+    let state = Self.makeState(workspaces: []) {
+      $0.isActivating = true
+    }
+    let dirtied = LockIsolated<[String]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == key.windowID ? key : nil
+      }
+      $0.windowSnapshot.markBundleDirty = { bundleId in
+        dirtied.withValue { $0.append(bundleId) }
+      }
+    }
+
+    await store.send(.windowServerWindowEvent(.becameVisible(key.windowID)))
+    await store.receive(\.syncAppWindows) {
+      $0.pendingWindowSyncBundleIds.insert(key.bundleId)
+    }
+    await store.finish()
+
+    #expect(dirtied.value == [key.bundleId])
+  }
+
+  @Test
+  func `window invisible during activation queues one post activation prune`() async {
+    let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
+    let ws = Workspace(name: "one")
+    let state = Self.makeState(workspaces: [ws]) {
+      $0.isActivating = true
+      $0.tilingTrees[ws.id] = .leaf(key)
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(.windowServerWindowEvent(.becameInvisible(key.windowID))) {
+      $0.pendingWindowServerPrune = true
+    }
+
+    #expect(store.state.tilingTrees[ws.id]?.windows == [key])
+  }
+
   @Test(arguments: [true, false])
   func `window server close immediately reflows either borrowed sibling and repairs a restore`(
     closedComesFirst: Bool
@@ -1607,7 +1697,7 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.windowServerWindowDestroyed(closed.windowID))
+    await store.send(.windowServerWindowEvent(.terminated(closed.windowID)))
     await store.finish()
 
     #expect(store.state.tilingTrees[borrowed.id]?.windows == [survivor])
@@ -3347,7 +3437,7 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.windowServerWindowDestroyed(closedB.windowID))
+    await store.send(.windowServerWindowEvent(.terminated(closedB.windowID)))
     await store.finish()
 
     #expect(store.state.tilingTrees[wsA.id]?.windows == [focusedA])

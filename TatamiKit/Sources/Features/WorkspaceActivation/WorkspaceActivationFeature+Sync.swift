@@ -265,6 +265,7 @@ extension WorkspaceActivationFeature {
   /// Re-tiles the survivors and, when focus was stranded, pulls it to one.
   func pruneOffscreenWindows(
     knownDestroyedWindowIDs: Set<CGWindowID> = [],
+    knownInvisibleWindowIDs: Set<CGWindowID> = [],
     state: inout State,
   ) -> Effect<Action> {
     guard !state.isTilingPaused, !state.isActivating else { return .none }
@@ -302,10 +303,17 @@ extension WorkspaceActivationFeature {
       else { continue }
       let gone = tree.windows.filter {
         knownDestroyedWindowIDs.contains($0.windowID)
+          || knownInvisibleWindowIDs.contains($0.windowID)
           || !onScreen.contains($0.windowID)
       }
       guard !gone.isEmpty else { continue }
-      windowSnapshot.invalidateWindowIDs(Set(gone.map(\.windowID)))
+      // A visibility edge removes the tile but not the WindowServer identity:
+      // hide-on-close, minimize, and Space transitions can all bring the same
+      // surface back through 815. Every other off-screen id is a real cache
+      // invalidation, including explicit 804 termination.
+      let invalidatedWindowIDs = Set(gone.map(\.windowID))
+        .subtracting(knownInvisibleWindowIDs)
+      windowSnapshot.invalidateWindowIDs(invalidatedWindowIDs)
       var pruned: BSPNode<WindowKey>? = tree
       for key in gone { pruned = pruned?.removing(key) }
       let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
