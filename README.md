@@ -32,14 +32,14 @@ scripting required.
 - **One key per workspace:** Hold the switch, assign, or borrow modifier with a **key equivalent**. The same keys also drive recent, next, and previous targets, while any action can take an explicit override.
 - **Optional switching behaviors:** Enable loop-around, skip-empty, or follow-app-focus.
 - **Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
-- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace, while next/previous and recent navigation can independently stay local or span every display.
+- **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace across relaunches, while next/previous and recent navigation can independently stay local or span every display.
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
 
 ### Profiles
 
 - **Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.
-- **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile.
+- **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile, and Tatami returns to the right profile after relaunch.
 - **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
 - **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and profile-switch feedback.
 - **Reviewable copying:** Use **Copy from** to compare another profile or workspace, then keep or skip each app and settings change.
@@ -57,10 +57,11 @@ scripting required.
 
 - **Automatic BSP layout:** Insert new windows at the shallowest tile.
 - **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
-- **Interactive window switching:** Tap the window-switch shortcut for an immediate switch, or hold its modifier for a compact app / window switcher. Navigate with the shortcut or arrow keys, commit with Return, modifier release, or a click, and cancel with Escape.
+- **Interactive window switching:** Tap the window-switch shortcut for an immediate switch, or hold its modifier for a compact app / window switcher. It shows each window's current state and lets you choose the exact target with the keyboard or pointer.
 - **Zoom and splits:** Fill the workspace with one window or toggle split orientation.
 - **Tree transforms:** Rotate, mirror, and balance the layout.
 - **Drag editing:** Swap or re-insert a window with a live placement preview. Manual edge resizing synchronizes back into the tree.
+- **Persistent layouts:** Keep each workspace's tree and ratios across workspace switches, relaunches, and system sleep.
 - **Configurable spacing:** Set inner and outer gaps.
 
 ### Always on Top
@@ -80,7 +81,7 @@ scripting required.
 
 - **Five interface languages:** Use Tatami in English, Korean, Japanese, Simplified Chinese, or Traditional Chinese, following your macOS app-language preference.
 - **Customizable menu bar:** Show the active workspace icon or name and, when relevant, the active profile icon or name.
-- **Adaptive on-screen feedback:** Compact spring feedback confirms workspace, profile, Always on Top, membership, layout, and Borrow actions. The app / window switcher is keyboard- and pointer-interactive, distinguishes selection from hover, and sizes itself to its items.
+- **Adaptive on-screen feedback:** Compact spring feedback confirms workspace, profile, Always on Top, membership, layout, and Borrow actions. The app / window switcher shows each target's state and works with both keyboard and pointer.
 - **Workspace icons:** Choose a per-workspace SF Symbol.
 - **Native settings:** Configure Tatami in SwiftUI.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.

@@ -6,6 +6,24 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.11.0 (2026-07-31)
+
+### New
+- **Resume the last workspace on every display:** Tatami now restores the last eligible profile, each display's workspace history, and the global workspace recency order after relaunch. A manually selected profile stays selected; a display-conditioned profile is restored only while its rule still matches, then Tatami falls back to the best profile for the connected displays.
+
+### Improvements
+- **More responsive window tracking:** Window identity, capabilities, geometry, focus, mirrors, and markers now share cache-first, coalesced update paths instead of repeating synchronous Accessibility work. Per-app operations preserve their order without letting one busy app stall unrelated apps, and superseded scans or focus requests can no longer publish stale results.
+- **A clearer, more precise window switcher:** The held-shortcut switcher now shows focused, Borrowed, Shared Apps, Always on Top, and fullscreen status on each app icon. Pointer hover updates the real selection, so Return or modifier release commits the exact highlighted window even when one app has several windows; the refreshed layout is more compact and honors Reduce Motion.
+- **Balance that follows the layout setting:** The Balance command now applies the configured Auto-balance axes. With Auto-balance off, it rebuilds the canonical BSP tree instead of only equalizing ratios inside an already uneven topology.
+
+### Fixes
+- **Reliable late, hidden, and reappearing windows:** Tatami reacts to WindowServer visibility changes immediately, removes a hidden surface without forgetting its identity, and keeps converging a reappearing app back to its tile if the app restores an older frame later. First windows from slow apps now recover their intended focus, fullscreen slot, and frame as soon as observation becomes ready.
+- **Stable Borrow completion and focus:** A cold app whose first window appears after Borrow starts is tiled and focused immediately. Borrow now preserves exact host focus and window badges while settling, clears stale badges before a full activation, and remains composed when focus moves to another display or back to an already visible host.
+- **Layouts preserved through sleep and wake:** WindowServer teardown during system sleep no longer erases the live BSP tree. On wake, Tatami reconnects surviving windows or replaces recycled surfaces as one completed layout, without persisting a transient half-restored state.
+- **Last-used profile restored safely:** Relaunching Tatami no longer falls back to the first profile when the previous manual profile is still valid, and it no longer restores a conditioned profile whose display rule stopped matching.
+- **Settings steppers save every click:** Gap, duration, marker-size, gesture-threshold, and Borrow-fraction changes now commit after each macOS Stepper update instead of relying on an editing-ended callback that ordinary clicks may never send.
+- **Guided Setup fullscreen matches the app:** The virtual layout editor now tracks fullscreen windows as a set, supports more than one fullscreen window across the practice workspaces, and preserves that state when resuming a saved or legacy setup draft.
+
 ## 1.10.0 (2026-07-27)
 
 ### New

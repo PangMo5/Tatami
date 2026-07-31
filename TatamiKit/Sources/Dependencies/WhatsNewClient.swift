@@ -130,22 +130,22 @@ private struct WhatsNewView: View {
               .font(.headline)
 
             item(
-              icon: "character.bubble",
+              icon: "arrow.clockwise.circle",
               title: "Use Tatami in your language",
               detail: "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS.",
             )
             item(
-              icon: "textformat",
+              icon: "moon.zzz",
               title: "Clearer names across the app",
               detail: "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does.",
             )
             item(
-              icon: "checkmark.shield",
+              icon: "bolt.horizontal.circle",
               title: "Your configuration stays compatible",
               detail: "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed.",
             )
             item(
-              icon: "text.bubble",
+              icon: "rectangle.3.group",
               title: "Written for each language",
               detail: "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word.",
             )
@@ -190,9 +190,9 @@ private struct WhatsNewView: View {
           (try? AttributedString(markdown: localizedDetail))
             ?? AttributedString(localizedDetail)
         )
-          .font(.callout)
-          .foregroundStyle(.secondary)
-          .fixedSize(horizontal: false, vertical: true)
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
       }
     }
   }

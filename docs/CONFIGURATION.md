@@ -86,7 +86,9 @@ actions show feedback.
 | `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
 
 Workspaces always remember their layout. Split axes and ratios are persisted
-to disk and restored on the next launch.
+to disk and restored on the next launch. System sleep preserves the live tree;
+if macOS recreates a window surface on wake, Tatami reconnects it to the saved
+layout without writing the temporary wake-up state back to disk.
 
 ## `[settings.focus]`
 
@@ -238,7 +240,7 @@ restores the host to full screen.
 | `resizeGrow` / `resizeShrink` | Resize the focused tile |
 | `toggleOrientation` | Toggle the focused split's orientation |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
-| `balance` | Re-equalize every split so siblings share their space evenly |
+| `balance` | Apply the configured `autoBalance` axes. With Auto-balance off, rebuild the canonical BSP topology and ratios from the current window order. |
 | `cycleNextWindow` / `cyclePreviousWindow` | Switch apps or windows inside the visible Tatami workspace. Unlike Command-Tab, this excludes unrelated running apps; unlike Command-backtick, it can cross between apps. |
 | `moveToNextWorkspace` / `moveToPreviousWorkspace` | Move the focused app to the next/previous workspace and follow it there |
 | `dismissBorrow` | Return the borrowed workspace and restore the host to full screen |
@@ -324,8 +326,12 @@ bool on any app or shared app also migrates (`true` → `floating`, else `tiled`
 A profile is a named bundle of workspaces. You can define several and switch
 between them (a switch re-tiles every display for the new profile), and a
 profile can **auto-activate** based on which monitors are connected. Which
-profile is currently active is session state, stored in `profile-session.json`
-next to `config.toml`, never written into `config.toml` itself.
+profile is currently active, the workspace history for each display, and the
+global workspace recency order are session state stored in
+`profile-session.json` next to `config.toml`, never written into `config.toml`
+itself. On launch, Tatami restores the last manual profile unconditionally. A
+profile with display conditions is restored only while those conditions still
+match; otherwise the normal auto-activation resolver chooses the best match.
 
 Profiles keep independent workspaces, so their apps and settings can drift
 apart. The app can reconcile them without hand-editing: **Copy from…** in a

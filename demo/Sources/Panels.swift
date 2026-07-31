@@ -358,11 +358,11 @@ private struct MailPanel: View {
       .background(Color(nsColor: .windowBackgroundColor))
       Divider()
       VStack(alignment: .leading, spacing: 12) {
-        Text("Tatami 1.2.1 is out").font(.system(size: 20, weight: .semibold))
+        Text("Tatami 1.11.0 is out").font(.system(size: 20, weight: .semibold))
         Text("from  Sparkle Updates").font(.system(size: 12)).foregroundStyle(.secondary)
         Divider()
-        Text("This release fixes detection of windows that hide instead of close, "
-          + "so apps like Discord tile and untile cleanly. Update from the menu bar.")
+        Text("This release restores each display's last workspace and keeps hidden or "
+          + "reappearing windows in sync. Update from the menu bar.")
           .font(.system(size: 14)).foregroundStyle(.primary.opacity(0.85))
         Spacer()
       }
@@ -372,9 +372,9 @@ private struct MailPanel: View {
     }
   }
   private let rows: [(String, String)] = [
-    ("Sparkle Updates", "Tatami 1.2.1 is out"),
-    ("GitHub", "Your release v1.2.1 published"),
-    ("Homebrew", "tatami 1.2.1 bottled"),
+    ("Sparkle Updates", "Tatami 1.11.0 is out"),
+    ("GitHub", "Your release v1.11.0 published"),
+    ("Homebrew", "tatami 1.11.0 cask updated"),
     ("PangMo5", "Re: demo footage"),
   ]
 }
@@ -399,7 +399,7 @@ private struct CalendarPanel: View {
           Color(nsColor: .textBackgroundColor)
           event("Standup", colW * 0 + 4, 24, colW - 8, 50, .blue)
           event("Record demo", colW * 2 + 4, 70, colW - 8, 110, .orange)
-          event("Ship 1.2.1", colW * 4 + 4, 40, colW - 8, 80, .green)
+          event("Ship 1.11.0", colW * 4 + 4, 40, colW - 8, 80, .green)
           event("Review", colW * 1 + 4, 150, colW - 8, 60, .purple)
         }
       }

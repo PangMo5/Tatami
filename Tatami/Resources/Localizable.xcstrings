@@ -26,6 +26,12 @@
             "state": "translated",
             "value": ""
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ""
+          }
         }
       }
     },
@@ -101,7 +107,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "%1$@ → %2$@"
           }
         },
@@ -203,7 +209,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "%1$@%2$@"
           }
         },
@@ -271,7 +277,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "%1$lld · %2$@"
           }
         },
@@ -611,7 +617,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "%1$lld of %2$lld"
           }
         },
@@ -8261,7 +8267,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Copy each change from “%1$@” (%2$@) into this workspace. Uncheck anything you'd rather keep."
           }
         },
@@ -21793,7 +21799,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Recognized %1$lldF %2$@"
           }
         },
@@ -23119,7 +23125,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Review %1$lld workspaces and %2$lld app placements"
           }
         },
@@ -25499,7 +25505,7 @@
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Step %1$lld of %2$lld"
           }
         },
@@ -32606,31 +32612,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami를 이제 5개 언어로 사용할 수 있어요. 기능 이름은 더 분명해졌고, 안내 문구는 언어별로 자연스럽게 다듬었어요."
+            "value": "Tatami를 다시 열면 각 디스플레이에서 마지막 프로필과 작업 공간으로 돌아가요. 앱 상태가 바뀌거나 잠자기 후에도 창을 더 빠르고 안정적으로 맞춰요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami が5つの表示言語に対応しました。機能名がより分かりやすくなり、各言語に合わせて案内文も見直されています。"
+            "value": "Tatami を開き直すと、各ディスプレイで最後に使ったプロファイルとワークスペースに戻ります。App の変化やスリープ後も、ウインドウをすばやく安定して整えます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 现已支持 5 种界面语言，功能名称更清晰，说明文字也针对各地区进行了优化。"
+            "value": "重新打开 Tatami 后，每台显示器都会恢复上次使用的配置方案和工作区。应用状态变化或睡眠唤醒后，窗口也能更快、更稳定地归位。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 現已支援 5 種介面語言，功能名稱更清楚，說明文字也依各地用語重新調整。"
+            "value": "重新開啟 Tatami 時，每部顯示器都會回到上次使用的設定組合和工作空間。App 狀態變更或睡眠喚醒後，視窗也能更快、更穩定地回到正確位置。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami is now available in five interface languages, with clearer names and guidance written for each locale."
+            "value": "Tatami now returns to the right profile and workspace on every display, while window tracking stays responsive and resilient through app changes and sleep."
           }
         }
       }
@@ -32640,31 +32646,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "원하는 언어로 Tatami 사용하기"
+            "value": "마지막으로 사용한 구성으로 돌아가요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "使い慣れた言語で Tatami を使う"
+            "value": "前回の作業環境から再開"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用你的语言"
+            "value": "从上次的位置继续"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "使用熟悉的語言"
+            "value": "從上次的狀態繼續"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use Tatami in your language"
+            "value": "Resume where you left off"
           }
         }
       }
@@ -32674,31 +32680,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "영어, 한국어, 일본어, 중국어 간체, 중국어 번체 중에서 선택할 수 있어요. Tatami는 macOS에서 앱에 선택한 언어를 따라요."
+            "value": "마지막으로 사용한 조건에 맞는 프로필과 디스플레이별 작업 공간을 복원해요. 디스플레이 조건이 달라졌다면 현재 구성에 맞는 프로필을 선택해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "英語、韓国語、日本語、簡体字中国語、繁体字中国語から選べます。Tatami は macOS で App に選択した言語を使用します。"
+            "value": "最後に使った、現在の条件に合うプロファイルと、各ディスプレイのワークスペースを復元します。ディスプレイ条件が変わった場合は、今の構成に合うプロファイルを選びます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "可选择英语、韩语、日语、简体中文或繁体中文。Tatami 会使用你在 macOS 中为应用选择的语言。"
+            "value": "Tatami 会恢复上次使用且仍符合条件的配置方案，以及每台显示器的工作区。显示器条件发生变化时，会选择适合当前设备组合的配置方案。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "可選擇英文、韓文、日文、簡體中文或繁體中文。Tatami 會使用你在 macOS 中為 App 選擇的語言。"
+            "value": "Tatami 會還原上次使用且仍符合條件的設定組合，以及每部顯示器的工作空間。顯示器條件變更時，會選擇符合目前組合的設定。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS."
+            "value": "Tatami restores the last eligible profile and each display's workspace. If a display rule no longer matches, it chooses the correct profile for the current setup."
           }
         }
       }
@@ -32708,31 +32714,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "더 알아보기 쉬운 기능 이름"
+            "value": "잠자기 후에도 배치를 유지해요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "機能名がより分かりやすく"
+            "value": "スリープ後もレイアウトを維持"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "功能名称更清晰"
+            "value": "睡眠唤醒后保留布局"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "功能名稱更清楚"
+            "value": "睡眠喚醒後保留版面"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clearer names across the app"
+            "value": "Keep layouts through sleep"
           }
         }
       }
@@ -32742,31 +32748,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "항상 위, 그대로 두기, 창 전환, 화면 알림처럼 기능 이름만 봐도 무엇을 하는지 알 수 있어요."
+            "value": "잠자기와 깨우기 후에도 BSP 배치를 유지해요. macOS가 창을 새로 만들면 새 배치로 인식하지 않고 저장된 위치에 다시 연결해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "「常に手前」「そのまま」「ウインドウ切り替え」「操作フィードバック」など、名前から動作が分かるようになりました。"
+            "value": "スリープと復帰をまたいでも BSP レイアウトを維持します。macOS がウインドウを作り直しても、新しいレイアウトとして扱わず、保存済みの位置に戻します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "置顶、保持原样、窗口切换和操作反馈等名称现在能更直接地说明功能。"
+            "value": "BSP 布局会在睡眠和唤醒后保留。即使 macOS 重新创建窗口，Tatami 也会将它放回已保存的位置，而不会当作新布局。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "置頂、維持原狀、視窗切換和操作回饋等名稱，現在能更直接地說明功能。"
+            "value": "BSP 版面會在睡眠與喚醒後保留。即使 macOS 重新建立視窗，Tatami 也會將它放回已儲存的位置，不會當成新的版面。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does."
+            "value": "Your BSP layout survives sleep and wake. If macOS recreates a window, Tatami reconnects it to its saved place instead of treating it as a new layout."
           }
         }
       }
@@ -32776,31 +32782,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "기존 설정은 그대로 사용할 수 있어요"
+            "value": "기다림 없이 창 변화를 따라가요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "これまでの設定をそのまま使えます"
+            "value": "待たずにウインドウの変化を反映"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "现有配置继续兼容"
+            "value": "更快跟上窗口变化"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "現有設定可繼續使用"
+            "value": "更快跟上視窗變化"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your configuration stays compatible"
+            "value": "Track windows without the wait"
           }
         }
       }
@@ -32810,31 +32816,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "작업 공간, 프로필, 단축키와 기존 config.toml은 계속 작동해요. 호환성을 위해 설정 키는 바꾸지 않았어요."
+            "value": "중복된 손쉬운 사용 조회를 줄였어요. 늦게 열리거나 숨었다 다시 나타난 창도 빌려오기 안을 포함해 알맞은 타일과 포커스로 더 안정적으로 돌아가요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ワークスペース、プロファイル、ショートカット、既存の config.toml はそのまま動作します。互換性のため、設定キーは変更していません。"
+            "value": "重複するアクセシビリティ処理を減らしました。遅れて開くウインドウや、非表示から戻ったウインドウも、借りている間を含めて正しいタイルとフォーカスへより安定して戻ります。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "工作区、配置方案、快捷键和现有 config.toml 会继续正常工作。为保持兼容，配置键没有变化。"
+            "value": "减少了重复的辅助功能查询。延迟打开、隐藏后重新出现的窗口也能更稳定地回到正确的分区和焦点位置，包括借用中的窗口。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "工作空間、設定組合、快速鍵和現有的 config.toml 都會繼續正常運作。為了維持相容性，設定鍵沒有變更。"
+            "value": "減少了重複的輔助使用查詢。較晚開啟、隱藏後再次出現的視窗，也能更穩定地回到正確的並排區域和焦點位置，包括借用中的視窗。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed."
+            "value": "Window discovery and updates now avoid redundant Accessibility work. Late-opening, hidden, and reappearing windows return to the right tile and focus more reliably, including inside Borrow."
           }
         }
       }
@@ -32844,31 +32850,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "언어마다 자연스럽게 다듬었어요"
+            "value": "상태가 잘 보이는 창 전환과 예측 가능한 균형"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "言語ごとに自然な表現へ"
+            "value": "状態が見える切り替えと分かりやすい均等化"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "为每种语言单独优化"
+            "value": "状态更清晰的窗口切换与可预测的均衡"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "依每種語言自然調整"
+            "value": "狀態更清楚的視窗切換與可預期的均衡"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Written for each language"
+            "value": "A clearer switcher and predictable Balance"
           }
         }
       }
@@ -32878,31 +32884,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "안내, 빈 화면, 오류, 확인 문구는 영어를 그대로 옮기지 않고 해야 할 일과 다음 행동이 잘 보이도록 작성했어요."
+            "value": "창 전환기에서 포커스, 빌려오기, 공용 앱, 항상 위, 전체 화면 상태를 확인하고 마우스로 정확한 창을 선택할 수 있어요. 균형 맞추기는 자동 균형 설정을 따르며, 끔에서는 기본 BSP 배치를 다시 구성해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "案内、空の状態、エラー、確認メッセージは英語を直訳せず、やることと次の操作が分かる表現にしています。"
+            "value": "切り替え画面で、フォーカス、借りる、共有アプリ、常に手前、フルスクリーンの状態を確認し、ポインタで目的のウインドウを正確に選べます。均等化は自動均等配置に従い、「オフ」では標準の BSP レイアウトに組み直します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "说明、空状态、错误和确认信息不再逐字翻译英语，而是围绕当前任务和下一步操作编写。"
+            "value": "窗口切换器会显示焦点、借用、共享应用、置顶和全屏状态，并可用指针准确选择窗口。均衡会遵循自动均衡设置；关闭时会重建标准 BSP 布局。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "說明、空白狀態、錯誤和確認訊息不再逐字翻譯英文，而是依目前任務和下一步操作撰寫。"
+            "value": "視窗切換器會顯示焦點、借用、共用 App、置頂和全螢幕狀態，並可用游標準確選取視窗。均衡會遵循自動均衡設定；關閉時會重建標準 BSP 版面。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word."
+            "value": "The switcher shows focus, Borrow, Shared Apps, Always on Top, and fullscreen status, and hover selects the exact window. Balance follows Auto-balance; with it off, Balance rebuilds the canonical BSP layout."
           }
         }
       }
