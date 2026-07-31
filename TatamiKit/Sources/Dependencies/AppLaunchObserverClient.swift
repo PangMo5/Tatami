@@ -36,6 +36,11 @@ enum AppLaunchEvent: Sendable, Hashable {
   /// have changed without any per-app notification firing — so the
   /// reducer should re-reconcile the active workspace.
   case activeSpaceChanged
+  /// WindowServer can retire every surface while the machine sleeps or shuts
+  /// down. Mark that teardown window before its 804/816 events arrive so it
+  /// cannot be mistaken for a sequence of user-initiated closes.
+  case willSleep
+  case willPowerOff
   case didWake
 }
 
@@ -137,11 +142,25 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
     // After wake the window list may have re-laid out (macOS sometimes
     // moves windows across Spaces during sleep). Reconcile.
     nc.addObserver(
+      forName: NSWorkspace.willSleepNotification,
+      object: nil,
+      queue: .main,
+    ) { [weak self] _ in
+      self?.broadcast(.willSleep)
+    }
+    nc.addObserver(
       forName: NSWorkspace.didWakeNotification,
       object: nil,
       queue: .main,
     ) { [weak self] _ in
       self?.broadcast(.didWake)
+    }
+    nc.addObserver(
+      forName: NSWorkspace.willPowerOffNotification,
+      object: nil,
+      queue: .main,
+    ) { [weak self] _ in
+      self?.broadcast(.willPowerOff)
     }
   }
 

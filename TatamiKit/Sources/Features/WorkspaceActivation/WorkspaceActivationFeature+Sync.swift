@@ -128,6 +128,10 @@ extension WorkspaceActivationFeature {
   /// one in-flight request per bundle and schedules a trailing pass when any
   /// notification arrives during this scan.
   func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
+    guard !state.isSystemSuspended else {
+      debugLog.log("Sync", "skip \(bundleId): system suspended")
+      return .none
+    }
     guard !state.isTilingPaused else {
       debugLog.log("Sync", "skip \(bundleId): tiling paused")
       return .none
@@ -225,6 +229,7 @@ extension WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action> {
     guard
+      !state.isSystemSuspended,
       !state.isTilingPaused,
       !state.isInFullscreenSpace,
       !state.isActivating,
@@ -269,6 +274,10 @@ extension WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action> {
     guard !state.isTilingPaused, !state.isActivating else { return .none }
+    if state.isSystemSuspended || state.isRecoveringSystemLayout {
+      debugLog.log("Prune", "skip: system layout suspended/recovering")
+      return .none
+    }
     // In a native fullscreen Space the Desktop's windows are all off-screen, so
     // the on-screen list reports them "gone". Pruning then would empty the tree
     // and bounce the user out of fullscreen — stay put until they return (the
@@ -408,6 +417,72 @@ extension WorkspaceActivationFeature {
     }
     effects.append(.concatenate(.merge(layoutEffects), .merge(postLayoutFocusEffects)))
     effects.append(refreshMarkers(state: state))
+    return .merge(effects)
+  }
+
+  /// Complete one bundle from the wake reconciliation batch. If every
+  /// pre-suspend WindowKey disappeared, WindowServer recycled the whole
+  /// workspace and there is no live identity left from which to preserve the
+  /// prior tree. Reset only that genuinely lost layout using the same
+  /// Auto-balance contract as the explicit Balance command.
+  func completeSystemLayoutRecovery(
+    bundleId: String,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard state.isRecoveringSystemLayout else { return .none }
+    state.pendingSystemLayoutBundleIds.remove(bundleId)
+    guard state.pendingSystemLayoutBundleIds.isEmpty else { return .none }
+
+    let suspendedLayouts = state.suspendedLayoutWindows
+    state.isRecoveringSystemLayout = false
+    state.suspendedLayoutWindows = [:]
+
+    let settings = state.config.settings
+    var effects = [Effect<Action>]()
+    for (workspaceId, suspendedWindows) in suspendedLayouts {
+      guard
+        state.visibleWorkspaceIDs.contains(workspaceId),
+        let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+        let current = state.tilingTrees[workspaceId],
+        !current.windows.isEmpty
+      else { continue }
+
+      let lostEveryIdentity = Set(current.windows).isDisjoint(with: suspendedWindows)
+      let recovered: BSPNode<WindowKey>
+      if lostEveryIdentity {
+        let (_, workArea) = tilingContext(for: workspaceId, state: state)
+        recovered = current.balancedForCommand(
+          autoBalance: settings.layout.autoBalance,
+          in: workArea,
+          gap: CGFloat(settings.layout.gapInner),
+          splitAxis: settings.layout.splitType.bspSplitAxis(),
+        )
+        state.tilingTrees[workspaceId] = recovered
+        state.insertionPoint[workspaceId] = recovered.windows.first
+        debugLog.log(
+          "Sleep",
+          "reset lost layout ws=\(workspace.name) mode=\(settings.layout.autoBalance.rawValue)",
+        )
+      } else {
+        recovered = current
+      }
+      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+      let save = persist(
+        recovered,
+        fullscreenZoomed: zoomed,
+        unresolvedFullscreenZoomSlots:
+        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+        for: workspace,
+      )
+      effects.append(
+        lostEveryIdentity
+          ? .merge(
+            flushLayout(workspaceId: workspaceId, state: &state),
+            save,
+          )
+          : save
+      )
+    }
     return .merge(effects)
   }
 
@@ -886,16 +961,19 @@ extension WorkspaceActivationFeature {
           postLayoutFocusEffect,
         )
       }
-    return .merge(
-      layoutThenFocus,
-      observeEffect,
-      persist(
+    let persistence = state.isRecoveringSystemLayout
+      ? Effect<Action>.none
+      : persist(
         final,
         fullscreenZoomed: zoomed,
         unresolvedFullscreenZoomSlots:
         state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
         for: workspace,
-      ),
+      )
+    return .merge(
+      layoutThenFocus,
+      observeEffect,
+      persistence,
       markerRefresh,
       emptySwitch,
     )

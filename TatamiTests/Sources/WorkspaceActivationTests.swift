@@ -966,6 +966,70 @@ struct WorkspaceActivationFeatureTests {
     #expect(discovered.value.count(where: { $0 == "app.shared" }) == 1)
   }
 
+  @Test(arguments: AutoBalanceMode.allCases)
+  func `fresh activation initializes a missing layout from auto balance`(
+    mode: AutoBalanceMode
+  ) async {
+    let keys = [
+      WindowKey(pid: 1, windowID: 101, bundleId: "app.one"),
+      WindowKey(pid: 2, windowID: 202, bundleId: "app.two"),
+      WindowKey(pid: 3, windowID: 303, bundleId: "app.three"),
+      WindowKey(pid: 4, windowID: 404, bundleId: "app.four"),
+    ]
+    let workspace = Workspace(
+      name: "Fresh",
+      apps: keys.map {
+        AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId)
+      },
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let initial = WorkspaceActivationFeature.mergeTree(
+      existing: nil,
+      target: keys,
+      focused: { nil },
+      insertionPoint: nil,
+      workArea: workArea,
+      settings: AppSettings(),
+    )!
+    let expected = initial.balancedForCommand(
+      autoBalance: mode,
+      in: workArea,
+      gap: 0,
+      splitAxis: nil,
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = mode
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.layout.splitType = .auto
+      }
+      $0.focusedDisplay = Self.display
+    }
+    let keyByBundle = Dictionary(uniqueKeysWithValues: keys.map { ($0.bundleId, $0) })
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.workArea = { _ in workArea }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowSnapshot.cachedKeys = { bundleIds, _ in
+        bundleIds.compactMap { keyByBundle[$0] }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: workspace.id, setFocus: false))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      return workspaceId == workspace.id
+    }
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == expected)
+  }
+
   @Test
   func `activation completed records display and recent workspace`() async {
     let ws1 = Workspace(name: "one")
@@ -2043,6 +2107,183 @@ struct WorkspaceActivationFeatureTests {
     #expect(warped.value == [CGPoint(x: liveFrame.midX, y: liveFrame.midY)])
     #expect(invalidated.value == [closed.windowID])
     #expect(store.state.pendingCenterWarps[ws.id] == nil)
+  }
+
+  @Test
+  func `system suspend preserves the live tree through WindowServer teardown`() async {
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")
+    let workspace = Workspace(name: "Sleep")
+    let tree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.7,
+        left: .leaf(first),
+        right: .leaf(second),
+      )
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = tree
+    }
+    let invalidated = LockIsolated<Set<CGWindowID>>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+      $0.windowSnapshot.invalidateWindowIDs = { ids in
+        invalidated.withValue { $0.formUnion(ids) }
+      }
+      $0.windowSnapshot.onScreenWindowIDs = { [] }
+    }
+
+    await store.send(.systemWillSuspend) {
+      $0.isSystemSuspended = true
+      $0.suspendedLayoutWindows[workspace.id] = [first, second]
+    }
+    await store.send(.windowServerWindowEvent(.terminated(first.windowID)))
+    await store.send(.windowServerWindowEvent(.becameInvisible(second.windowID)))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == tree)
+    #expect(invalidated.value == [first.windowID])
+    #expect(saved.value.isEmpty)
+  }
+
+  @Test(arguments: AutoBalanceMode.allCases)
+  func `resume resets a fully recycled layout using auto balance`(
+    mode: AutoBalanceMode
+  ) async {
+    let old = [
+      WindowKey(pid: 1, windowID: 1, bundleId: "new.one"),
+      WindowKey(pid: 2, windowID: 2, bundleId: "new.two"),
+    ]
+    let windows = [
+      WindowKey(pid: 11, windowID: 101, bundleId: "new.one"),
+      WindowKey(pid: 12, windowID: 102, bundleId: "new.two"),
+      WindowKey(pid: 13, windowID: 103, bundleId: "new.three"),
+      WindowKey(pid: 14, windowID: 104, bundleId: "new.four"),
+    ]
+    let workspace = Workspace(name: "Recovered")
+    let current = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .horizontal,
+        ratio: 0.8,
+        left: .branch(
+          BSPBranch(
+            split: .vertical,
+            ratio: 0.2,
+            left: .leaf(windows[0]),
+            right: .leaf(windows[1]),
+          )
+        ),
+        right: .branch(
+          BSPBranch(
+            split: .vertical,
+            ratio: 0.75,
+            left: .leaf(windows[2]),
+            right: .leaf(windows[3]),
+          )
+        ),
+      )
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let expected = current.balancedForCommand(
+      autoBalance: mode,
+      in: workArea,
+      gap: 0,
+      splitAxis: nil,
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = mode
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.layout.splitType = .auto
+      }
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = current
+      $0.isRecoveringSystemLayout = true
+      $0.suspendedLayoutWindows[workspace.id] = Set(old)
+      $0.pendingSystemLayoutBundleIds = ["new.one"]
+    }
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.systemLayoutBundleReconciled(bundleId: "new.one"))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == expected)
+    #expect(!store.state.isRecoveringSystemLayout)
+    #expect(store.state.suspendedLayoutWindows.isEmpty)
+    #expect(store.state.pendingSystemLayoutBundleIds.isEmpty)
+    #expect(applications.value.last?.windowFrames.keys.count == windows.count)
+    let slots = slotAssignment(expected.windows)
+    #expect(saved.value.last?.tree == expected.mapWindows { slots[$0]! })
+  }
+
+  @Test
+  func `wake reconciliation persists only the completed replacement layout`() async {
+    let old = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
+    let replacement = WindowKey(pid: 1, windowID: 202, bundleId: old.bundleId)
+    let workspace = Workspace(
+      name: "Recovered",
+      apps: [AppAssignment(bundleIdentifier: old.bundleId, name: "One")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(old)
+      $0.isRecoveringSystemLayout = true
+      $0.suspendedLayoutWindows[workspace.id] = [old]
+      $0.pendingSystemLayoutBundleIds = [old.bundleId]
+      $0.windowSyncBundleIdsInFlight = [old.bundleId]
+    }
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: old.bundleId,
+      resizableKeys: [replacement],
+      onScreenFrames: [replacement.windowID: workArea],
+    ))
+    await store.receive {
+      guard case .systemLayoutBundleReconciled(let bundleId) = $0 else { return false }
+      return bundleId == old.bundleId
+    }
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id]?.windows == [replacement])
+    #expect(!store.state.isRecoveringSystemLayout)
+    #expect(saved.value.count == 1)
   }
 
   @Test

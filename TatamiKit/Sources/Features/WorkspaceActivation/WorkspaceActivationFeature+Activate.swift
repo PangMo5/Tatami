@@ -738,6 +738,7 @@ extension WorkspaceActivationFeature {
                 base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
                 persistedZoomSlots = snapshot.fullscreenZoomedSlots
               }
+              let restoredLayout = base != nil
               let merged = Self.mergeTree(
                 existing: base,
                 target: keys,
@@ -747,7 +748,21 @@ extension WorkspaceActivationFeature {
                 settings: settings,
               )
               let axis = settings.layout.autoBalance
-              let tree = axis == .none ? merged : merged?.balanced(axis: axis)
+              // No resident tree and no persisted template (or a template with
+              // zero matching windows) means the old shape is genuinely gone.
+              // Initialize from the same contract as explicit Balance:
+              // Auto-balance axes when enabled, canonical BSP when Off.
+              let tree =
+                if restoredLayout {
+                  axis == .none ? merged : merged?.balanced(axis: axis)
+                } else {
+                  merged?.balancedForCommand(
+                    autoBalance: axis,
+                    in: workArea,
+                    gap: CGFloat(settings.layout.gapInner),
+                    splitAxis: settings.layout.splitType.bspSplitAxis(),
+                  )
+                }
               let resolvedZoom: Set<WindowKey> = {
                 if !zoomed.isEmpty { return zoomed }
                 guard let tree else { return [] }
