@@ -210,7 +210,7 @@ extension SettingsView {
         "Balance",
         .balance,
         \.balance,
-        description: "Reset every split in the layout to equal sizes.",
+        description: "Follow Auto-balance; Off rebuilds the BSP layout.",
       )
     }
 

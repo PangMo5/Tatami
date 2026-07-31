@@ -9,9 +9,34 @@ import SwiftUI
 
 public enum WindowSwitcherInteraction: Equatable, Sendable {
   case move(CycleDirection)
+  case select(WindowKey)
   case commitSelected
   case commit(WindowKey)
   case cancel
+}
+
+// MARK: - WindowSwitcherIndicators
+
+public struct WindowSwitcherIndicators: Equatable, Sendable {
+  public init(
+    isFloating: Bool = false,
+    isShared: Bool = false,
+    isBorrowed: Bool = false,
+    isFocused: Bool = false,
+    isFullscreen: Bool = false,
+  ) {
+    self.isFloating = isFloating
+    self.isShared = isShared
+    self.isBorrowed = isBorrowed
+    self.isFocused = isFocused
+    self.isFullscreen = isFullscreen
+  }
+
+  public var isFloating: Bool
+  public var isShared: Bool
+  public var isBorrowed: Bool
+  public var isFocused: Bool
+  public var isFullscreen: Bool
 }
 
 // MARK: - WorkspaceHUDClient
@@ -52,6 +77,7 @@ struct WorkspaceHUDClient: Sendable {
     _ windows: [WindowKey],
     _ selected: WindowKey,
     _ byWindow: Bool,
+    _ indicators: [WindowKey: WindowSwitcherIndicators],
     _ autoDismissAfterMs: Int?,
     _ display: DisplayName?,
   ) async -> Void
@@ -93,11 +119,12 @@ extension WorkspaceHUDClient: DependencyKey {
           display: display,
         )
       },
-      showWindowSwitcher: { windows, selected, byWindow, autoDismissAfterMs, display in
+      showWindowSwitcher: { windows, selected, byWindow, indicators, autoDismissAfterMs, display in
         await controller.showWindowSwitcher(
           windows: windows,
           selected: selected,
           byWindow: byWindow,
+          indicators: indicators,
           autoDismissAfterMs: autoDismissAfterMs,
           display: display,
         )
@@ -113,7 +140,7 @@ extension WorkspaceHUDClient: DependencyKey {
     windowSwitcherEvents: { .finished },
     show: { _, _, _, _ in },
     showOnDisplay: { _, _, _, _, _ in },
-    showWindowSwitcher: { _, _, _, _, _ in },
+    showWindowSwitcher: { _, _, _, _, _, _ in },
     dismissWindowSwitcher: { _ in },
     dismiss: { },
   )
@@ -402,6 +429,7 @@ private final class WorkspaceHUDController {
     windows: [WindowKey],
     selected: WindowKey,
     byWindow: Bool,
+    indicators: [WindowKey: WindowSwitcherIndicators],
     autoDismissAfterMs: Int?,
     display: DisplayName?,
   ) {
@@ -416,7 +444,11 @@ private final class WorkspaceHUDController {
         + "selected=\(selected.bundleId)#\(selected.windowID) "
         + "display=\(display?.name ?? "cursor")",
     )
-    let items = windowSwitcherItems(windows, byWindow: byWindow)
+    let items = windowSwitcherItems(
+      windows,
+      byWindow: byWindow,
+      indicators: indicators,
+    )
     let panelSize = HUDLayout.windowSwitcherPanelSize(
       itemCount: items.count,
       byWindow: byWindow,
@@ -700,6 +732,7 @@ private final class WorkspaceHUDController {
   private func windowSwitcherItems(
     _ windows: [WindowKey],
     byWindow: Bool,
+    indicators: [WindowKey: WindowSwitcherIndicators],
   ) -> [WindowSwitcherItem] {
     if byWindow {
       let now = Date()
@@ -735,6 +768,7 @@ private final class WorkspaceHUDController {
         appName: appMetadata.name,
         windowTitle: windowTitlesByKey[key],
         icon: appMetadata.icon,
+        indicators: indicators[key] ?? WindowSwitcherIndicators(),
       )
     }
   }
@@ -1064,6 +1098,7 @@ private struct WindowSwitcherItem: Identifiable {
   let appName: String
   let windowTitle: String?
   let icon: NSImage
+  let indicators: WindowSwitcherIndicators
 
   var id: WindowKey {
     key
@@ -1086,43 +1121,28 @@ private struct WindowSwitcherHUDView: View {
         : $0.key.bundleId == value.selected.bundleId
     }?.key
 
-    HUDGlassSurface(surface: RoundedRectangle(cornerRadius: 30, style: .continuous)) {
+    HUDGlassSurface(surface: RoundedRectangle(cornerRadius: 24, style: .continuous)) {
       VStack(spacing: 0) {
-        HStack(spacing: 7) {
-          Image(
-            systemName: value.byWindow
-              ? "macwindow.on.rectangle"
-              : "square.stack.3d.up"
-          )
-          .foregroundStyle(.tint)
-          .symbolRenderingMode(.hierarchical)
-          Text(value.byWindow ? "Window cycle" : "App cycle")
-            .font(.caption.weight(.semibold))
-          Spacer()
-          Text(value.surfaceSize.width < 240 ? "↩ select" : "← → move  ·  ↩ select")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .frame(height: 36)
-
-        Divider()
-          .opacity(0.35)
+        WindowSwitcherHeader(
+          byWindow: value.byWindow,
+          isCompact: value.surfaceSize.width < 240,
+        )
 
         ScrollViewReader { proxy in
           ScrollView(.horizontal) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
               ForEach(value.items) { item in
                 WindowSwitcherItemView(
                   item: item,
                   isSelected: item.key == selectedItem,
                   showsWindowTitle: value.byWindow,
+                  onHighlight: { onSelect(.select(item.key)) },
                   onSelect: { onSelect(.commit(item.key)) },
                 )
               }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
           }
           .scrollIndicators(.hidden)
           .onAppear {
@@ -1135,11 +1155,73 @@ private struct WindowSwitcherHUDView: View {
       }
       .frame(width: value.surfaceSize.width, height: value.surfaceSize.height)
     }
-    .shadow(color: .black.opacity(0.28), radius: 14, y: 7)
+    .shadow(color: .black.opacity(0.32), radius: 18, y: 8)
     .padding(HUDLayout.shadowPadding)
     .modifier(
       WindowSwitcherPresentationModifier(isPresented: presentation.isPresented)
     )
+  }
+}
+
+// MARK: - WindowSwitcherHeader
+
+@MainActor
+private struct WindowSwitcherHeader: View {
+  let byWindow: Bool
+  let isCompact: Bool
+
+  var body: some View {
+    HStack(spacing: 6) {
+      Image(
+        systemName: byWindow
+          ? "macwindow.on.rectangle"
+          : "square.stack.3d.up"
+      )
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(.tint)
+      .symbolRenderingMode(.hierarchical)
+      .accessibilityHidden(true)
+
+      Text(byWindow ? "Window cycle" : "App cycle")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+      Spacer(minLength: 12)
+
+      HStack(spacing: 5) {
+        if !isCompact {
+          WindowSwitcherKeyCap("←  →")
+        }
+        WindowSwitcherKeyCap("↩")
+      }
+      .accessibilityHidden(true)
+    }
+    .padding(.horizontal, 14)
+    .frame(height: 32)
+  }
+}
+
+// MARK: - WindowSwitcherKeyCap
+
+@MainActor
+private struct WindowSwitcherKeyCap: View {
+  init(_ label: String) {
+    self.label = label
+  }
+
+  let label: String
+
+  var body: some View {
+    Text(label)
+      .font(.caption2.monospaced().weight(.medium))
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, 5)
+      .frame(height: 18)
+      .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 5))
+      .overlay {
+        RoundedRectangle(cornerRadius: 5)
+          .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+      }
   }
 }
 
@@ -1153,71 +1235,192 @@ private struct WindowSwitcherItemView: View {
   let item: WindowSwitcherItem
   let isSelected: Bool
   let showsWindowTitle: Bool
+  let onHighlight: @MainActor () -> Void
   let onSelect: @MainActor () -> Void
 
   var body: some View {
     Button(action: onSelect) {
-      VStack(spacing: 7) {
-        Image(nsImage: item.icon)
-          .resizable()
-          .scaledToFit()
-          .frame(width: 52, height: 52)
+      VStack(spacing: 5) {
+        WindowSwitcherAppIcon(
+          icon: item.icon,
+          indicators: item.indicators,
+        )
         Text(item.appName)
           .font(.caption.weight(.medium))
+          .foregroundStyle(isSelected ? .primary : .secondary)
           .lineLimit(1)
         if showsWindowTitle {
           Text(item.windowTitle ?? "Window")
             .font(.caption2)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(isSelected ? .secondary : .tertiary)
             .lineLimit(1)
         }
       }
-      .frame(width: 82, height: showsWindowTitle ? 108 : 88)
-      .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+      .frame(width: 84, height: showsWindowTitle ? 110 : 90)
+      .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
       .background(
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
           .fill(backgroundStyle)
       )
       .overlay(
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
           .strokeBorder(
             borderStyle,
-            lineWidth: isSelected ? 1.5 : 1,
+            lineWidth: 1,
           )
       )
-      .overlay(alignment: .topTrailing) {
-        if isSelected {
-          Circle()
-            .fill(Color.accentColor)
-            .frame(width: 7, height: 7)
-            .padding(9)
-            .transition(.scale.combined(with: .opacity))
-        }
-      }
-      .scaleEffect(isHovering && !isSelected ? 1.018 : 1)
+      .shadow(
+        color: isSelected ? Color.accentColor.opacity(0.2) : .clear,
+        radius: 10,
+        y: 3,
+      )
+      .scaleEffect(isSelected ? 1.025 : (isHovering ? 1.012 : 1))
     }
     .buttonStyle(.plain)
-    .onHover { isHovering = $0 }
-    .animation(.easeOut(duration: 0.12), value: isHovering)
-    .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isSelected)
+    .onHover { hovering in
+      isHovering = hovering
+      if hovering {
+        onHighlight()
+      }
+    }
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.1), value: isHovering)
+    .animation(
+      reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.86),
+      value: isSelected,
+    )
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
     .accessibilityLabel(item.appName)
+    .accessibilityValue(indicatorAccessibilityValue)
     .accessibilityHint("Select")
   }
 
   // MARK: Private
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var isHovering = false
 
   private var backgroundStyle: Color {
-    if isSelected { return Color.accentColor.opacity(0.20) }
-    if isHovering { return Color.white.opacity(0.08) }
+    if isSelected { return Color.accentColor.opacity(0.13) }
+    if isHovering { return Color.white.opacity(0.06) }
     return .clear
   }
 
   private var borderStyle: Color {
-    if isSelected { return Color.accentColor.opacity(0.78) }
-    if isHovering { return Color.white.opacity(0.28) }
+    if isSelected { return Color.accentColor.opacity(0.48) }
+    if isHovering { return Color.white.opacity(0.16) }
     return .clear
   }
 
+  private var indicatorAccessibilityValue: String {
+    var values = [String]()
+    if item.indicators.isFloating { values.append(String(localized: "Floating")) }
+    if item.indicators.isShared { values.append(String(localized: "Shared Apps")) }
+    if item.indicators.isBorrowed { values.append(String(localized: "Borrow")) }
+    if item.indicators.isFocused { values.append(String(localized: "Focused")) }
+    if item.indicators.isFullscreen { values.append(String(localized: "Fullscreen")) }
+    return values.formatted()
+  }
+
+}
+
+// MARK: - WindowSwitcherAppIcon
+
+@MainActor
+private struct WindowSwitcherAppIcon: View {
+  let icon: NSImage
+  let indicators: WindowSwitcherIndicators
+
+  var body: some View {
+    Image(nsImage: icon)
+      .resizable()
+      .scaledToFit()
+      .frame(width: 54, height: 54)
+      .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
+      .overlay(alignment: .topTrailing) {
+        if indicators.isFocused {
+          Circle()
+            .fill(Color.accentColor)
+            .stroke(.white.opacity(0.9), lineWidth: 1.5)
+            .frame(width: 8, height: 8)
+            .shadow(color: Color.accentColor.opacity(0.55), radius: 3)
+            .offset(x: 2, y: -2)
+            .accessibilityHidden(true)
+        }
+      }
+      .overlay(alignment: .bottomLeading) {
+        if indicators.isShared || indicators.isBorrowed {
+          WindowSwitcherIndicatorGroup {
+            if indicators.isShared {
+              WindowSwitcherIndicatorSymbol(
+                symbol: "person.2.fill",
+                color: .blue,
+              )
+            }
+            if indicators.isBorrowed {
+              WindowSwitcherIndicatorSymbol(
+                symbol: "rectangle.righthalf.inset.filled",
+                color: .purple,
+              )
+            }
+          }
+          .offset(x: -3, y: 2)
+        }
+      }
+      .overlay(alignment: .bottomTrailing) {
+        if indicators.isFloating || indicators.isFullscreen {
+          WindowSwitcherIndicatorGroup {
+            if indicators.isFloating {
+              WindowSwitcherIndicatorSymbol(
+                symbol: "rectangle.on.rectangle",
+                color: .orange,
+              )
+            }
+            if indicators.isFullscreen {
+              WindowSwitcherIndicatorSymbol(
+                symbol: "arrow.up.left.and.arrow.down.right",
+                color: .cyan,
+              )
+            }
+          }
+          .offset(x: 3, y: 2)
+        }
+      }
+  }
+}
+
+// MARK: - WindowSwitcherIndicatorGroup
+
+@MainActor
+private struct WindowSwitcherIndicatorGroup<Content: View>: View {
+  @ViewBuilder let content: Content
+
+  var body: some View {
+    HStack(spacing: 2) {
+      content
+    }
+    .padding(.horizontal, 3)
+    .frame(height: 14)
+    .background(.black.opacity(0.68), in: Capsule())
+    .overlay {
+      Capsule()
+        .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
+    }
+    .shadow(color: .black.opacity(0.32), radius: 3, y: 1)
+    .accessibilityHidden(true)
+  }
+}
+
+// MARK: - WindowSwitcherIndicatorSymbol
+
+@MainActor
+private struct WindowSwitcherIndicatorSymbol: View {
+  let symbol: String
+  let color: Color
+
+  var body: some View {
+    Image(systemName: symbol)
+      .font(.system(size: 7.5, weight: .bold))
+      .foregroundStyle(color)
+      .frame(width: 8, height: 8)
+  }
 }

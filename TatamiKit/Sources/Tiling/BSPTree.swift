@@ -751,6 +751,58 @@ extension BSPNode {
 // MARK: - Balance / rotate / mirror
 
 extension BSPNode {
+  /// Apply the explicit Balance command using the auto-balance preference.
+  /// When automatic balancing is off, rebuild the leaves into the canonical
+  /// recursive BSP topology. Enabled modes retain their leaf-weighted behavior
+  /// on the configured axes.
+  public func balancedForCommand(
+    autoBalance: AutoBalanceMode,
+    in rect: CGRect,
+    gap: CGFloat = 0,
+    splitAxis: SplitAxis? = nil,
+  ) -> BSPNode {
+    autoBalance == .none
+      ? bspBalanced(in: rect, gap: gap, splitAxis: splitAxis)
+      : balanced(axis: autoBalance)
+  }
+
+  /// Rebuild into a master-and-remainder BSP: the first leaf occupies half of
+  /// the current region, then each following leaf takes half of the remaining
+  /// region. Existing leaf payload and stack metadata stay intact.
+  public func bspBalanced(
+    in rect: CGRect,
+    gap: CGFloat = 0,
+    splitAxis: SplitAxis? = nil,
+  ) -> BSPNode {
+    var leaves = [BSPLeaf<WindowID>]()
+    func appendLeaves(_ node: BSPNode) {
+      switch node {
+      case .leaf(let leaf):
+        leaves.append(leaf)
+      case .branch(let branch):
+        appendLeaves(branch.left)
+        appendLeaves(branch.right)
+      }
+    }
+    appendLeaves(self)
+
+    func build(_ index: Int, in remainingRect: CGRect) -> BSPNode {
+      guard index < leaves.count - 1 else {
+        return .leaf(leaves[index])
+      }
+      let axis = splitAxis
+        ?? (remainingRect.width >= remainingRect.height ? .vertical : .horizontal)
+      let (_, nextRect) = axis.subdivide(remainingRect, ratio: 0.5, gap: gap)
+      return .branch(BSPBranch(
+        split: axis,
+        ratio: 0.5,
+        left: .leaf(leaves[index]),
+        right: build(index + 1, in: nextRect),
+      ))
+    }
+    return build(0, in: rect)
+  }
+
   /// Equalize every split per axis so child sizes match the number of
   /// leaves they contain. `.none` is a no-op. `.both` does both axes.
   /// Takes the user preference (`AutoBalanceMode`) directly — a separate

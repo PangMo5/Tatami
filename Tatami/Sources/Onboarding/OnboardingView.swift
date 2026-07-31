@@ -965,7 +965,7 @@ private struct OnboardingTilingStep: View {
           shortcutRow("Grow", "Adjust the selected split ratio", .resizeGrow)
           shortcutRow("Flip split", "Toggle the selected branch between horizontal and vertical", .toggleOrientation)
           shortcutRow("Zoom", "Toggle workspace fullscreen for the selected tile", .toggleFullscreen)
-          shortcutRow("Balance", "Equalize every split", .balance)
+          shortcutRow("Balance", "Follow Auto-balance; Off rebuilds the BSP layout.", .balance)
         }
       }
 
@@ -1060,8 +1060,8 @@ private struct OnboardingTilingStep: View {
       ),
       (
         .balance,
-        "Balance the whole layout",
-        "Balance equalizes every split ratio. Use it as an explicit reset when a hand-shaped layout becomes uneven.",
+        "Balance the current layout",
+        "Balance follows Auto-balance. Off rebuilds the canonical BSP layout.",
       ),
     ]
     if let index = lessons.firstIndex(where: { !store.practices.contains($0.0) }) {

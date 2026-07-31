@@ -2034,9 +2034,18 @@ public struct OnboardingFeature {
       .flatMap { slots.contains($0) ? $0 : nil } ?? slots[0]
     switch command {
     case .balance:
-      setDemoTree(tree.applying(.balance), in: block, state: &state)
+      setDemoTree(
+        tree.balancedForCommand(
+          autoBalance: state.draft.settings.layout.autoBalance,
+          in: Self.demoWorkArea,
+          gap: CGFloat(state.draft.settings.layout.gapInner),
+          splitAxis: state.draft.settings.layout.splitType.bspSplitAxis(),
+        ),
+        in: block,
+        state: &state,
+      )
       state.practices.insert(.balance)
-      state.demoActionResult = String(localized: "Balanced every split on both axes")
+      state.demoActionResult = String(localized: "Layout Balanced")
 
     case .cycle(let direction):
       let candidates = cycleCandidates(

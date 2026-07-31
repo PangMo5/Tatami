@@ -4789,36 +4789,36 @@
         }
       }
     },
-    "Balance equalizes every split ratio. Use it as an explicit reset when a hand-shaped layout becomes uneven.": {
+    "Balance follows Auto-balance. Off rebuilds the canonical BSP layout.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "균등 배치는 모든 분할 비율을 같게 맞춰요. 직접 다듬은 배치가 흐트러졌을 때 초기화하듯 사용할 수 있어요."
+            "value": "균형 맞추기는 자동 균형 설정을 따라요. 끔에서는 기본 BSP 배치로 다시 구성해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "均等化すると、すべての分割比率が揃います。手動で整えたレイアウトが偏ったときのリセットとして使えます。"
+            "value": "均等化は自動均等配置の設定に従います。「オフ」では標準の BSP レイアウトに組み直します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "均衡会将所有分区比例调成一致。手动调整后的布局变得不均时，可用它恢复整齐。"
+            "value": "均衡会遵循自动均衡设置。关闭时会重建为标准 BSP 布局。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "平衡會將所有分割比例調成一致。手動調整後的佈局變得不平均時，可用它恢復整齊。"
+            "value": "均衡會遵循自動均衡設定。關閉時會重建為標準 BSP 佈局。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Balance equalizes every split ratio. Use it as an explicit reset when a hand-shaped layout becomes uneven."
+            "value": "Balance follows Auto-balance. Off rebuilds the canonical BSP layout."
           }
         }
       }
@@ -4857,36 +4857,36 @@
         }
       }
     },
-    "Balance the whole layout": {
+    "Balance the current layout": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전체 배치를 균등하게 맞춰요"
+            "value": "현재 배치를 균형 맞춰요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "レイアウト全体を均等化します"
+            "value": "現在のレイアウトを均等化します"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "均衡整个布局"
+            "value": "均衡当前布局"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "平衡整個佈局"
+            "value": "均衡目前的佈局"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Balance the whole layout"
+            "value": "Balance the current layout"
           }
         }
       }
@@ -10671,36 +10671,36 @@
         }
       }
     },
-    "Equalize all split ratios as an explicit layout reset.": {
+    "Follow Auto-balance; Off rebuilds the BSP layout.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모든 분할 비율을 균등하게 맞춰 배치를 초기화해요."
+            "value": "자동 균형 설정을 따라요. 끔에서는 BSP 배치를 다시 구성해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "すべての分割比率を均等にして、レイアウトを明示的にリセットします。"
+            "value": "自動均等配置の設定に従います。「オフ」では BSP レイアウトに組み直します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "将所有分割比例调为一致，明确重置布局。"
+            "value": "遵循自动均衡设置；关闭时重建 BSP 布局。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "將所有分割比例調為一致，明確重設版面。"
+            "value": "遵循自動均衡設定；關閉時重建 BSP 佈局。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Equalize all split ratios as an explicit layout reset."
+            "value": "Follow Auto-balance; Off rebuilds the BSP layout."
           }
         }
       }

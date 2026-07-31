@@ -74,6 +74,7 @@ public struct WorkspaceActivationFeature {
       public var workspaceId: Workspace.ID
       public var windows: [WindowKey]
       public var selected: WindowKey
+      public var focusedWindow: WindowKey
       public var byWindow: Bool
       public var display: DisplayName?
       public var holdModifiers: HotKeyModifiers
@@ -832,8 +833,9 @@ public struct WorkspaceActivationFeature {
     case resize(BSPDirection, delta: CGFloat)
     case toggleOrientation
     case toggleZoomFullscreen
-    /// Equalize both split axes. Resolved against the focused window so it
-    /// balances the owning block when a composition is active.
+    /// Follow the configured auto-balance axes, or rebuild the canonical
+    /// recursive BSP topology when automatic balancing is disabled.
+    /// Resolved against the focused window so it targets the owning block.
     case balance
   }
 
@@ -2341,6 +2343,7 @@ public struct WorkspaceActivationFeature {
             ? showWindowCycleHUD(
               cycle,
               autoDismissAfterMs: state.config.settings.hud.durationMs,
+              state: state,
             )
             : .none,
         )
@@ -2353,13 +2356,14 @@ public struct WorkspaceActivationFeature {
               from: current.selected,
               direction: direction,
               holdModifiers: current.holdModifiers,
+              focusedWindow: current.focusedWindow,
               state: state,
             )
           else { return .none }
           next.isHUDVisible = current.isHUDVisible
           state.windowCycleSession = next
           return next.isHUDVisible
-            ? showWindowCycleHUD(next, autoDismissAfterMs: nil)
+            ? showWindowCycleHUD(next, autoDismissAfterMs: nil, state: state)
             : .none
         }
         return resolveFocusedWindowKey { key in
@@ -2414,10 +2418,15 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         cycle.isHUDVisible = true
         state.windowCycleSession = cycle
-        return showWindowCycleHUD(cycle, autoDismissAfterMs: nil)
+        return showWindowCycleHUD(cycle, autoDismissAfterMs: nil, state: state)
 
       case .windowCycleModifierReleased:
         guard let cycle = state.windowCycleSession else { return .none }
+        debugLog.log(
+          "BSP",
+          "cycle commit source=modifier selected="
+            + "\(cycle.selected.bundleId)#\(cycle.selected.windowID)",
+        )
         return finishWindowCycle(cycle, commit: true, state: &state)
 
       case .windowCycleHUDInteraction(.move(let direction)):
@@ -2427,15 +2436,37 @@ public struct WorkspaceActivationFeature {
             from: current.selected,
             direction: direction,
             holdModifiers: current.holdModifiers,
+            focusedWindow: current.focusedWindow,
             state: state,
           )
         else { return .none }
         next.isHUDVisible = true
         state.windowCycleSession = next
-        return showWindowCycleHUD(next, autoDismissAfterMs: nil)
+        return showWindowCycleHUD(next, autoDismissAfterMs: nil, state: state)
+
+      case .windowCycleHUDInteraction(.select(let selected)):
+        guard
+          var cycle = state.windowCycleSession,
+          cycle.windows.contains(selected),
+          cycle.selected != selected
+        else { return .none }
+        cycle.selected = selected
+        cycle.workspaceId = state.workspaceOwning(selected) ?? cycle.workspaceId
+        cycle.isHUDVisible = true
+        state.windowCycleSession = cycle
+        debugLog.log(
+          "BSP",
+          "cycle select source=pointer selected=\(selected.bundleId)#\(selected.windowID)",
+        )
+        return showWindowCycleHUD(cycle, autoDismissAfterMs: nil, state: state)
 
       case .windowCycleHUDInteraction(.commitSelected):
         guard let cycle = state.windowCycleSession else { return .none }
+        debugLog.log(
+          "BSP",
+          "cycle commit source=keyboard selected="
+            + "\(cycle.selected.bundleId)#\(cycle.selected.windowID)",
+        )
         return finishWindowCycle(cycle, commit: true, state: &state)
 
       case .windowCycleHUDInteraction(.commit(let selected)):
@@ -2448,6 +2479,10 @@ public struct WorkspaceActivationFeature {
         // Commit/warp must then use the clicked window's tree, not whichever
         // block owned the keyboard selection before the click.
         cycle.workspaceId = state.workspaceOwning(selected) ?? cycle.workspaceId
+        debugLog.log(
+          "BSP",
+          "cycle commit source=pointer selected=\(selected.bundleId)#\(selected.windowID)",
+        )
         return finishWindowCycle(cycle, commit: true, state: &state)
 
       case .windowCycleHUDInteraction(.cancel):
@@ -2563,10 +2598,6 @@ public struct WorkspaceActivationFeature {
         }
 
       case .bspBalance:
-        // The manual balance command always equalizes both axes. The
-        // `autoBalance` setting governs only the automatic balancing applied
-        // on activation (see `performActivate`); gating the hotkey on it made
-        // balance a no-op whenever auto-balance was off — which is the default.
         // Resolve the focused window first so balance targets the owning block
         // when a composition is active (and the HUD/flush stay in one place).
         return resolveFocusedWindowKey { key in
@@ -3369,6 +3400,7 @@ public struct WorkspaceActivationFeature {
     from key: WindowKey,
     direction: CycleDirection,
     holdModifiers: HotKeyModifiers,
+    focusedWindow: WindowKey? = nil,
     state: State,
   ) -> State.WindowCycleSession? {
     guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID
@@ -3446,6 +3478,7 @@ public struct WorkspaceActivationFeature {
       workspaceId: targetWorkspaceId,
       windows: ordered,
       selected: target,
+      focusedWindow: focusedWindow ?? key,
       byWindow: byWindow,
       display: display ?? tilingContext(for: targetWorkspaceId, state: state).display,
       holdModifiers: holdModifiers,
@@ -3519,16 +3552,70 @@ public struct WorkspaceActivationFeature {
   private func showWindowCycleHUD(
     _ cycle: State.WindowCycleSession,
     autoDismissAfterMs: Int?,
+    state: State,
   ) -> Effect<Action> {
-    .run { [workspaceHUD] _ in
+    let indicators = windowSwitcherIndicators(cycle, state: state)
+    return .run { [workspaceHUD] _ in
       await workspaceHUD.showWindowSwitcher(
         cycle.windows,
         cycle.selected,
         cycle.byWindow,
+        indicators,
         autoDismissAfterMs,
         cycle.display,
       )
     }
+  }
+
+  private func windowSwitcherIndicators(
+    _ cycle: State.WindowCycleSession,
+    state: State,
+  ) -> [WindowKey: WindowSwitcherIndicators] {
+    let composition = cycle.display.flatMap { state.compositionsByDisplay[$0] }
+    let workspaceIds = Set(
+      composition.map { [$0.host] + $0.borrowed.map(\.workspace) }
+        ?? [cycle.workspaceId]
+    )
+    let floatingBundleIds = Set(Self.floatingBundleIds(
+      state: state,
+      workspaceIDs: workspaceIds,
+    ))
+    let sharedBundleIds = Set(state.config.sharedApps.map(\.bundleIdentifier))
+    let borrowedWorkspaceIds = Set(composition?.borrowed.map(\.workspace) ?? [])
+    let fullscreenKeys = workspaceIds.reduce(into: Set<WindowKey>()) {
+      $0.formUnion(state.fullscreenZoomed[$1] ?? [])
+    }
+    let fullscreenBundleIds = Set(fullscreenKeys.map(\.bundleId))
+    let borrowedBundleIds = borrowedWorkspaceIds.reduce(into: Set<String>()) {
+      $0.formUnion(state.tilingTrees[$1]?.windows.map(\.bundleId) ?? [])
+    }
+    var ownerByWindow = [WindowKey: Workspace.ID]()
+    for workspaceId in workspaceIds {
+      for key in state.tilingTrees[workspaceId]?.windows ?? [] {
+        ownerByWindow[key] = workspaceId
+      }
+    }
+
+    return Dictionary(uniqueKeysWithValues: cycle.windows.map { key in
+      let isBorrowed = cycle.byWindow
+        ? ownerByWindow[key].map(borrowedWorkspaceIds.contains) == true
+        : borrowedBundleIds.contains(key.bundleId)
+      let isFullscreen = cycle.byWindow
+        ? fullscreenKeys.contains(key)
+        : fullscreenBundleIds.contains(key.bundleId)
+      return (
+        key,
+        WindowSwitcherIndicators(
+          isFloating: floatingBundleIds.contains(key.bundleId),
+          isShared: sharedBundleIds.contains(key.bundleId),
+          isBorrowed: isBorrowed,
+          isFocused: cycle.byWindow
+            ? key == cycle.focusedWindow
+            : key.bundleId == cycle.focusedWindow.bundleId,
+          isFullscreen: isFullscreen,
+        ),
+      )
+    })
   }
 
   private func resolveFocusedWindowKey(
@@ -3647,7 +3734,12 @@ public struct WorkspaceActivationFeature {
       )
 
     case .balance:
-      tree = tree.balanced(axis: .both)
+      tree = tree.balancedForCommand(
+        autoBalance: settings.layout.autoBalance,
+        in: workArea,
+        gap: gap,
+        splitAxis: settings.layout.splitType.bspSplitAxis(),
+      )
       hud = hudEffect(state, \.layout, "Layout Balanced", "equal.circle")
     }
 

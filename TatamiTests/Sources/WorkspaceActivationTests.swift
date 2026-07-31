@@ -134,6 +134,11 @@ struct WorkspaceActivationFeatureTests {
     let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
     let workspace = Workspace(name: "Work")
     let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(bundleIdentifier: appA1.bundleId, name: "A")
+        ]
+      }
       $0.focusedDisplay = Self.display
       $0.activeWorkspacesByDisplay[Self.display] = workspace.id
       $0.tilingTrees[workspace.id] = .branch(
@@ -151,20 +156,23 @@ struct WorkspaceActivationFeatureTests {
           right: .leaf(appB),
         )
       )
+      $0.fullscreenZoomed[workspace.id] = [appB]
     }
     let focused = LockIsolated<WindowKey?>(nil)
     let hudWindows = LockIsolated<[WindowKey]>([])
     let hudSelected = LockIsolated<WindowKey?>(nil)
     let hudByWindow = LockIsolated<Bool?>(nil)
     let hudDisplay = LockIsolated<DisplayName?>(nil)
+    let hudIndicators = LockIsolated<[WindowKey: WindowSwitcherIndicators]>([:])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { windows, selected, byWindow, _, display in
+      $0.workspaceHUD.showWindowSwitcher = { windows, selected, byWindow, indicators, _, display in
         hudWindows.withValue { $0 = windows }
         hudSelected.withValue { $0 = selected }
         hudByWindow.withValue { $0 = byWindow }
+        hudIndicators.withValue { $0 = indicators }
         hudDisplay.withValue { $0 = display }
       }
     }
@@ -176,6 +184,10 @@ struct WorkspaceActivationFeatureTests {
     #expect(hudWindows.value == [appA1, appB])
     #expect(hudSelected.value == appB)
     #expect(hudByWindow.value == false)
+    #expect(hudIndicators.value[appA1]?.isShared == true)
+    #expect(hudIndicators.value[appA1]?.isFocused == true)
+    #expect(hudIndicators.value[appB]?.isFullscreen == true)
+    #expect(hudIndicators.value[appB]?.isFocused == false)
     #expect(hudDisplay.value == Self.display)
   }
 
@@ -195,13 +207,15 @@ struct WorkspaceActivationFeatureTests {
     let focused = LockIsolated<WindowKey?>(nil)
     let hudWindows = LockIsolated<[WindowKey]>([])
     let hudByWindow = LockIsolated<Bool?>(nil)
+    let hudIndicators = LockIsolated<[WindowKey: WindowSwitcherIndicators]>([:])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { windows, _, byWindow, _, _ in
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, byWindow, indicators, _, _ in
         hudWindows.withValue { $0 = windows }
         hudByWindow.withValue { $0 = byWindow }
+        hudIndicators.withValue { $0 = indicators }
       }
     }
 
@@ -211,6 +225,8 @@ struct WorkspaceActivationFeatureTests {
     #expect(focused.value == appA2)
     #expect(hudWindows.value == [appA1, appA2])
     #expect(hudByWindow.value == true)
+    #expect(hudIndicators.value[appA1]?.isFocused == true)
+    #expect(hudIndicators.value[appA2]?.isFocused == false)
   }
 
   @Test
@@ -236,6 +252,7 @@ struct WorkspaceActivationFeatureTests {
     }
     let order = LockIsolated<[String]>([])
     let warped = LockIsolated<[CGPoint]>([])
+    let hudIndicators = LockIsolated<[WindowKey: WindowSwitcherIndicators]>([:])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
@@ -257,6 +274,9 @@ struct WorkspaceActivationFeatureTests {
         order.withValue { $0.append("warp") }
         warped.withValue { $0.append(point) }
       }
+      $0.workspaceHUD.showWindowSwitcher = { _, _, _, indicators, _, _ in
+        hudIndicators.withValue { $0 = indicators }
+      }
     }
     store.exhaustivity = .off
 
@@ -265,6 +285,8 @@ struct WorkspaceActivationFeatureTests {
 
     #expect(order.value == ["focus", "frame", "warp"])
     #expect(warped.value == [CGPoint(x: floatingFrame.midX, y: floatingFrame.midY)])
+    #expect(hudIndicators.value[floating]?.isFloating == true)
+    #expect(hudIndicators.value[floating]?.isShared == true)
   }
 
   @Test
@@ -285,12 +307,14 @@ struct WorkspaceActivationFeatureTests {
     }
     let focused = LockIsolated<WindowKey?>(nil)
     let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudIndicators = LockIsolated<[WindowKey: WindowSwitcherIndicators]>([:])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _ in
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, indicators, _, _ in
         hudWindows.withValue { $0 = windows }
+        hudIndicators.withValue { $0 = indicators }
       }
     }
     store.exhaustivity = .off
@@ -300,6 +324,8 @@ struct WorkspaceActivationFeatureTests {
 
     #expect(focused.value == borrowedWindow)
     #expect(hudWindows.value == [hostWindow, borrowedWindow])
+    #expect(hudIndicators.value[hostWindow]?.isFocused == true)
+    #expect(hudIndicators.value[borrowedWindow]?.isBorrowed == true)
   }
 
   @Test
@@ -325,7 +351,7 @@ struct WorkspaceActivationFeatureTests {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _ in
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _, _ in
         hudWindows.withValue { $0 = windows }
       }
     }
@@ -361,7 +387,7 @@ struct WorkspaceActivationFeatureTests {
       $0.continuousClock = clock
       $0.modifierKeys.current = { modifiers.value }
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { _, _, _, _, _ in
+      $0.workspaceHUD.showWindowSwitcher = { _, _, _, _, _, _ in
         hudShows.withValue { $0 += 1 }
       }
       $0.workspaceHUD.dismissWindowSwitcher = { _ in
@@ -412,7 +438,7 @@ struct WorkspaceActivationFeatureTests {
       $0.continuousClock = clock
       $0.modifierKeys.current = { modifiers.value }
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { _, _, _, autoDismiss, _ in
+      $0.workspaceHUD.showWindowSwitcher = { _, _, _, _, autoDismiss, _ in
         hudAutoDismiss.withValue { $0 = .some(autoDismiss) }
       }
       $0.workspaceHUD.dismissWindowSwitcher = { display in
@@ -464,6 +490,7 @@ struct WorkspaceActivationFeatureTests {
         workspaceId: workspace.id,
         windows: [appA, appB, appC],
         selected: appB,
+        focusedWindow: appA,
         byWindow: false,
         display: Self.display,
         holdModifiers: .command,
@@ -476,7 +503,7 @@ struct WorkspaceActivationFeatureTests {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
-      $0.workspaceHUD.showWindowSwitcher = { _, selected, _, _, _ in
+      $0.workspaceHUD.showWindowSwitcher = { _, selected, _, _, _, _ in
         hudSelected.withValue { $0 = selected }
       }
     }
@@ -486,8 +513,58 @@ struct WorkspaceActivationFeatureTests {
     await store.finish()
 
     #expect(store.state.windowCycleSession?.selected == appC)
+    #expect(store.state.windowCycleSession?.focusedWindow == appA)
     #expect(hudSelected.value == appC)
     #expect(focused.value == nil)
+  }
+
+  @Test
+  func `window cycle HUD arrow commits exact same app window`() async {
+    let appA1 = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appA2 = WindowKey(pid: 1, windowID: 102, bundleId: "app.a")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.switching.cycleSameAppWindows = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA1), right: .leaf(appA2))
+      )
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspace.id,
+        windows: [appA1, appA2],
+        selected: appA1,
+        focusedWindow: appA1,
+        byWindow: true,
+        display: Self.display,
+        holdModifiers: .option,
+        isHUDVisible: true,
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudSelected = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { _, selected, _, _, _, _ in
+        hudSelected.withValue { $0 = selected }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowCycleHUDInteraction(.move(.next)))
+
+    #expect(store.state.windowCycleSession?.selected == appA2)
+    #expect(store.state.windowCycleSession?.focusedWindow == appA1)
+    #expect(hudSelected.value == appA2)
+    #expect(focused.value == nil)
+
+    await store.send(.windowCycleHUDInteraction(.commitSelected))
+    await store.finish()
+
+    #expect(store.state.windowCycleSession == nil)
+    #expect(focused.value == appA2)
   }
 
   @Test
@@ -505,6 +582,7 @@ struct WorkspaceActivationFeatureTests {
         workspaceId: workspace.id,
         windows: [appA, appB],
         selected: appB,
+        focusedWindow: appA,
         byWindow: false,
         display: Self.display,
         holdModifiers: .command,
@@ -532,6 +610,52 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `window cycle HUD pointer selection commits exact same app window`() async {
+    let appA1 = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let appA2 = WindowKey(pid: 1, windowID: 102, bundleId: "app.a")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(appA1), right: .leaf(appA2))
+      )
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspace.id,
+        windows: [appA1, appA2],
+        selected: appA1,
+        focusedWindow: appA1,
+        byWindow: true,
+        display: Self.display,
+        holdModifiers: .option,
+        isHUDVisible: true,
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudSelected = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { _, selected, _, _, _, _ in
+        hudSelected.withValue { $0 = selected }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowCycleHUDInteraction(.select(appA2)))
+
+    #expect(store.state.windowCycleSession?.selected == appA2)
+    #expect(hudSelected.value == appA2)
+
+    await store.send(.windowCycleHUDInteraction(.commitSelected))
+    await store.finish()
+
+    #expect(store.state.windowCycleSession == nil)
+    #expect(focused.value == appA2)
+  }
+
+  @Test
   func `window cycle HUD click commits the clicked item`() async {
     let appA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
     let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
@@ -546,6 +670,7 @@ struct WorkspaceActivationFeatureTests {
         workspaceId: workspace.id,
         windows: [appA, appB],
         selected: appB,
+        focusedWindow: appA,
         byWindow: false,
         display: Self.display,
         holdModifiers: .command,
@@ -582,6 +707,7 @@ struct WorkspaceActivationFeatureTests {
         workspaceId: workspace.id,
         windows: [appA, appB],
         selected: appB,
+        focusedWindow: appA,
         byWindow: false,
         display: Self.display,
         holdModifiers: .command,
@@ -3790,6 +3916,65 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.activeLayoutWriteGenerations.isEmpty)
     #expect(store.state.dirtyPresentationSnapshotWindows.isEmpty)
     #expect(!store.state.isPresentationSnapshotInFlight)
+  }
+
+  @Test
+  func `balance with auto balance off rebuilds canonical BSP topology`() async {
+    let left = WindowKey(pid: 1, windowID: 101, bundleId: "app.left")
+    let topRight = WindowKey(pid: 2, windowID: 201, bundleId: "app.top-right")
+    let bottomRight = WindowKey(pid: 3, windowID: 301, bundleId: "app.bottom-right")
+    let workspace = Workspace(name: "Work")
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = .none
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.34,
+          left: .branch(BSPBranch(
+            split: .horizontal,
+            ratio: 0.72,
+            left: .leaf(left),
+            right: .leaf(topRight),
+          )),
+          right: .leaf(bottomRight),
+        )
+      )
+    }
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowTiler.apply = { request in
+        applications.withValue { $0.append(request) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.bspOpResolved(windowKey: left, op: .balance))
+    await store.finish()
+
+    guard
+      case .branch(let root) = store.state.tilingTrees[workspace.id],
+      case .branch(let right) = root.right
+    else {
+      Issue.record("Expected master-and-remainder BSP topology")
+      return
+    }
+    #expect(root.split == .vertical)
+    #expect(root.ratio == 0.5)
+    #expect(right.split == .horizontal)
+    #expect(right.ratio == 0.5)
+    #expect(root.left.windows == [left])
+    #expect(root.right.windows == [topRight, bottomRight])
+    #expect(applications.value.last?.forceAllFrames == true)
   }
 
   @Test

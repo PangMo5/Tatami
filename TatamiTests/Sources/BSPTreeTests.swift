@@ -188,4 +188,52 @@ struct BSPTreeTests {
     let frames = balanced.frames(in: display, gap: 0)
     #expect(frames.count == 3)
   }
+
+  @Test
+  func `balance command follows auto balance axes and rebuilds BSP when off`() {
+    let display = CGRect(x: 0, y: 0, width: 1_000, height: 600)
+    let tree = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.2,
+      left: .branch(BSPBranch(
+        split: .horizontal,
+        ratio: 0.3,
+        left: .leaf(1),
+        right: .leaf(2),
+      )),
+      right: .leaf(3),
+    ))
+    let ratio = { (tree: BSPNode<Int>, path: [BSPSide]) -> CGFloat? in
+      guard case .branch(let branch) = tree.subtree(at: path) else { return nil }
+      return branch.ratio
+    }
+
+    let rowsOnly = tree.balancedForCommand(autoBalance: .horizontal, in: display)
+    #expect(ratio(rowsOnly, []) == 0.2)
+    #expect(ratio(rowsOnly, [.left]) == 0.5)
+
+    let columnsOnly = tree.balancedForCommand(autoBalance: .vertical, in: display)
+    #expect(ratio(columnsOnly, []) == CGFloat(2) / 3)
+    #expect(ratio(columnsOnly, [.left]) == 0.3)
+
+    let both = tree.balancedForCommand(autoBalance: .both, in: display)
+    #expect(ratio(both, []) == CGFloat(2) / 3)
+    #expect(ratio(both, [.left]) == 0.5)
+
+    let off = tree.balancedForCommand(autoBalance: .none, in: display)
+    guard
+      case .branch(let root) = off,
+      case .leaf = root.left,
+      case .branch(let remainder) = root.right
+    else {
+      Issue.record("Expected master-and-remainder BSP topology")
+      return
+    }
+    #expect(root.split == .vertical)
+    #expect(root.ratio == 0.5)
+    #expect(root.left.windows == [1])
+    #expect(remainder.split == .horizontal)
+    #expect(remainder.ratio == 0.5)
+    #expect(root.right.windows == [2, 3])
+  }
 }

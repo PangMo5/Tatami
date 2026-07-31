@@ -1452,7 +1452,7 @@ struct OnboardingCommandReference: View {
           CommandItem(
             id: "balance",
             title: "Balance layout",
-            detail: "Equalize all split ratios as an explicit layout reset.",
+            detail: "Follow Auto-balance; Off rebuilds the BSP layout.",
             practice: "Tiling Lab",
             actions: [.balance],
           ),
