@@ -548,15 +548,15 @@ public struct WorkspaceActivationFeature {
     /// The display set is unchanged, but its work areas moved or resized.
     case displayGeometryChanged
     /// Activate a sensible workspace on launch so tiling starts
-    /// immediately instead of waiting for the first manual switch.
+    /// immediately instead of waiting for the first manual switch. The startup
+    /// session must be restored first so this plans within the resolved profile.
     case activateInitial
-    /// Set the active profile from the persisted session (ProfileSessionStore)
-    /// at startup, before `activateInitial` — no re-activation of its own.
-    case restoreActiveProfile(Profile.ID)
-    /// Adopt persisted workspace recency before `activateInitial`. Invalid and
-    /// Scratchpad ids are discarded, while saved display identities are
-    /// reconciled onto currently connected UUID/name identities.
-    case restoreWorkspaceHistory(
+    /// Resolve the last-used profile against the connected displays first, then
+    /// adopt only valid workspace recency before `activateInitial`. Scratchpad
+    /// ids are discarded and saved display identities are reconciled onto the
+    /// currently connected UUID/name identities.
+    case restoreStartupSession(
+      lastUsedProfileId: Profile.ID?,
       displayWorkspaceHistory: [DisplayName: [Workspace.ID]],
       workspaceMRU: [Workspace.ID],
     )
@@ -802,6 +802,9 @@ public struct WorkspaceActivationFeature {
       /// A display rule matched and this feature already retiled for it —
       /// AppFeature runs the remaining switch side effects.
       case profileAutoActivated(Profile.ID)
+      /// Startup rejected a missing or condition-mismatched last profile and
+      /// resolved another one. AppFeature persists the corrected session id.
+      case startupProfileResolved(Profile.ID)
     }
   }
 
@@ -1626,14 +1629,24 @@ public struct WorkspaceActivationFeature {
         let prune = pruneOffscreenWindows(state: &state)
         return .merge(prune, requestWindowSync(bundleId))
 
-      case .restoreActiveProfile(let id):
-        // Startup-only: adopt the persisted selection if it still exists.
-        // Bindings + `activateInitial` are sent after this, so they target it.
-        guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
-        state.$config.withLock { $0.activeProfileId = id }
-        return .none
+      case .restoreStartupSession(
+        let lastUsedProfileId,
+        let displayWorkspaceHistory,
+        let workspaceMRU,
+      ):
+        // Profile selection is the first half of this transaction: workspace
+        // history below derives `previousWorkspacesByDisplay` from the active
+        // profile, so resolving it in a later action can retain the wrong ids.
+        let liveDisplays = displays.all()
+        let connectedDisplays = Set(liveDisplays)
+        let startupProfileId = state.config.startupActiveProfile(
+          lastUsedProfileId: lastUsedProfileId,
+          connected: connectedDisplays,
+        )
+        if let startupProfileId {
+          state.$config.withLock { $0.activeProfileId = startupProfileId }
+        }
 
-      case .restoreWorkspaceHistory(let displayWorkspaceHistory, let workspaceMRU):
         let validWorkspaceIds = Set(
           state.config.profiles.flatMap {
             $0.workspaces
@@ -1641,10 +1654,9 @@ public struct WorkspaceActivationFeature {
               .map(\.id)
           }
         )
-        let connectedDisplays = displays.all()
         var restoredHistory = [DisplayName: [Workspace.ID]]()
         for (savedDisplay, workspaceIds) in displayWorkspaceHistory {
-          let display = connectedDisplays.first { savedDisplay.matches($0) }
+          let display = liveDisplays.first { savedDisplay.matches($0) }
             ?? savedDisplay
           for workspaceId in workspaceIds
             where validWorkspaceIds.contains(workspaceId)
@@ -1674,7 +1686,19 @@ public struct WorkspaceActivationFeature {
             previous[entry.key] = workspaceId
           }
         }
-        return .none
+        if startupProfileId != nil {
+          debugLog.log(
+            "Profile",
+            "startup resolved profile=\(state.config.activeProfile?.name ?? "?") "
+              + "last=\(lastUsedProfileId?.uuidString ?? "nil") "
+              + "displays=\(connectedDisplays.map(\.name))",
+          )
+        }
+        guard
+          let startupProfileId,
+          startupProfileId != lastUsedProfileId
+        else { return .none }
+        return .send(.delegate(.startupProfileResolved(startupProfileId)))
 
       case .reactivateActiveProfile(let focus):
         guard let profile = state.config.activeProfile else { return .none }
@@ -1735,25 +1759,12 @@ public struct WorkspaceActivationFeature {
         return .none
 
       case .activateInitial:
-        // Startup: a matching display rule wins over the persisted / first
-        // selection, so launching docked lands in the docked profile.
+        // `restoreStartupSession` has already resolved the profile against the
+        // connected displays and filtered recency for that profile. This action
+        // only plans its workspace restore, so it cannot switch profiles after
+        // workspace state has been derived.
         let connectedDisplays = displays.all()
         state.connectedDisplays = Set(connectedDisplays)
-        let startupActive = state.config.activeProfileId ?? state.config.profiles.first?.id
-        if
-          let matched = state.config.autoActiveProfile(connected: state.connectedDisplays),
-          matched != startupActive
-        {
-          state.$config.withLock { $0.activeProfileId = matched }
-          debugLog.log(
-            "Profile",
-            "startup auto-activate for displays=\(connectedDisplays.map(\.name))",
-          )
-          return .merge(
-            .send(.delegate(.profileAutoActivated(matched))),
-            .send(.reactivateActiveProfile(focus: nil)),
-          )
-        }
         // (connectedDisplays already seeded above so the first real reconfigure
         // diffs against reality — an unplug must not read as everything
         // plugging in.)

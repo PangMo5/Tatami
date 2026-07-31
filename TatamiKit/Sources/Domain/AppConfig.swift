@@ -106,6 +106,24 @@ extension AppConfig {
     return best?.id
   }
 
+  /// The profile to restore on launch. A last-used manual profile has no
+  /// display constraints, so it remains eligible. A conditioned profile is
+  /// restored only while its rule still matches; otherwise the normal
+  /// auto-activation resolver (then the first profile) provides the fallback.
+  public func startupActiveProfile(
+    lastUsedProfileId: Profile.ID?,
+    connected: Set<DisplayName>,
+  ) -> Profile.ID? {
+    if
+      let lastUsedProfileId,
+      let profile = profiles.first(where: { $0.id == lastUsedProfileId }),
+      profile.autoActivation?.matches(connected: connected) ?? true
+    {
+      return profile.id
+    }
+    return autoActiveProfile(connected: connected) ?? profiles.first?.id
+  }
+
   /// How one profile's auto-activation rule relates to the others': which
   /// profiles fire on the same configuration, and whether the tie is decided
   /// by order (equal specificity — a genuine conflict) or by precedence

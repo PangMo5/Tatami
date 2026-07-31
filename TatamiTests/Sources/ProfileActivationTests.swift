@@ -70,6 +70,34 @@ struct ProfileActivationTests {
   }
 
   @Test
+  func startupResolverKeepsTheLastManualProfile() {
+    let laptop = Profile(name: "Laptop", autoActivation: .init(displayCount: .exactly(1)))
+    let manual = Profile(name: "Interview")
+    let config = AppConfig(profiles: [laptop, manual])
+
+    #expect(
+      config.startupActiveProfile(
+        lastUsedProfileId: manual.id,
+        connected: [builtin],
+      ) == manual.id
+    )
+  }
+
+  @Test
+  func startupResolverFallsBackWhenTheLastProfilesConditionNoLongerMatches() {
+    let laptop = Profile(name: "Laptop", autoActivation: .init(displayCount: .exactly(1)))
+    let dual = Profile(name: "Dual", autoActivation: .init(displayCount: .exactly(2)))
+    let config = AppConfig(profiles: [laptop, dual])
+
+    #expect(
+      config.startupActiveProfile(
+        lastUsedProfileId: dual.id,
+        connected: [builtin],
+      ) == laptop.id
+    )
+  }
+
+  @Test
   func codableRoundTrips() throws {
     let rule = ProfileActivation(
       whenConnected: .contains([ext]),

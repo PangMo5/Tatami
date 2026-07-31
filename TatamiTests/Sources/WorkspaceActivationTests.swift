@@ -1014,19 +1014,104 @@ struct WorkspaceActivationFeatureTests {
     } withDependencies: {
       $0.displays.all = { [liveDisplay] }
     }
+    let activeProfileId = store.state.config.activeProfile!.id
 
-    await store.send(.restoreWorkspaceHistory(
+    await store.send(.restoreStartupSession(
+      lastUsedProfileId: activeProfileId,
       displayWorkspaceHistory: [
         savedDisplay: [removed, scratchpad.id, first.id, first.id, second.id]
       ],
       workspaceMRU: [removed, scratchpad.id, first.id, first.id, second.id],
     )) {
+      $0.$config.withLock { $0.activeProfileId = activeProfileId }
       $0.displayWorkspaceHistory[liveDisplay] = [first.id, second.id]
       $0.workspaceMRU = [first.id, second.id]
       $0.previousWorkspacesByDisplay[liveDisplay] = second.id
     }
 
     #expect(store.state.displayWorkspaceHistory.keys.first?.name == liveDisplay.name)
+  }
+
+  @Test
+  func `startup session restores the last eligible profile before its workspace history`() async {
+    let display = DisplayName(uuid: "display-a", name: "Built-in")
+    let defaultWorkspace = Workspace(name: "Default")
+    let recent = Workspace(name: "Interview Recent")
+    let previous = Workspace(name: "Interview Previous")
+    let defaultProfile = Profile(
+      name: "Default",
+      autoActivation: .init(displayCount: .exactly(1)),
+      workspaces: [defaultWorkspace],
+    )
+    let interviewProfile = Profile(
+      name: "Interview",
+      workspaces: [recent, previous],
+    )
+    let state = WorkspaceActivationFeature.State()
+    state.$config.withLock {
+      $0.profiles = [defaultProfile, interviewProfile]
+      $0.activeProfileId = defaultProfile.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [display] }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.restoreStartupSession(
+      lastUsedProfileId: interviewProfile.id,
+      displayWorkspaceHistory: [
+        display: [recent.id, defaultWorkspace.id, previous.id]
+      ],
+      workspaceMRU: [recent.id, defaultWorkspace.id, previous.id],
+    ))
+
+    #expect(store.state.config.activeProfileId == interviewProfile.id)
+    #expect(store.state.previousWorkspacesByDisplay[display] == previous.id)
+    #expect(store.state.displayWorkspaceHistory[display] == [
+      recent.id,
+      defaultWorkspace.id,
+      previous.id,
+    ])
+  }
+
+  @Test
+  func `startup session falls back when the last profile condition does not match`() async {
+    let display = DisplayName(uuid: "display-a", name: "Built-in")
+    let laptop = Profile(
+      name: "Laptop",
+      autoActivation: .init(displayCount: .exactly(1)),
+      workspaces: [Workspace(name: "Laptop")],
+    )
+    let dual = Profile(
+      name: "Dual",
+      autoActivation: .init(displayCount: .exactly(2)),
+      workspaces: [Workspace(name: "Dual")],
+    )
+    let state = WorkspaceActivationFeature.State()
+    state.$config.withLock {
+      $0.profiles = [laptop, dual]
+      $0.activeProfileId = dual.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [display] }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.restoreStartupSession(
+      lastUsedProfileId: dual.id,
+      displayWorkspaceHistory: [:],
+      workspaceMRU: [],
+    ))
+    await store.receive {
+      guard case .delegate(.startupProfileResolved(let id)) = $0 else { return false }
+      return id == laptop.id
+    }
+
+    #expect(store.state.config.activeProfileId == laptop.id)
   }
 
   @Test

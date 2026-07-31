@@ -139,6 +139,24 @@ public struct AppFeature {
           .run { _ in
             await MainActor.run { boundGlobalAXMessagingTimeout() }
           },
+          // Resolve the persisted profile and workspace session before any
+          // display observer can emit its initial topology. Otherwise that
+          // first event can auto-select a profile from the empty startup state
+          // and overwrite a valid last-used manual profile.
+          .run { [profileSessionStore] send in
+            let session = await profileSessionStore.load()
+            await send(
+              .activation(
+                .restoreStartupSession(
+                  lastUsedProfileId: session.activeProfileId,
+                  displayWorkspaceHistory: session.historyByDisplay,
+                  workspaceMRU: session.workspaceMRU,
+                )
+              )
+            )
+            await send(.hotKeys(.refreshBindings))
+            await send(.activation(.activateInitial))
+          },
           .merge(
             .run { [whatsNew] _ in await whatsNew.showIfNeeded(hasExistingConfig) },
             .send(.onboarding(.appStarted(
@@ -149,25 +167,6 @@ public struct AppFeature {
             .send(.cli(.start)),
             .send(.activation(.startObservingWindowEvents)),
             .send(.activation(.startObservingAppLaunches)),
-            // Restore process-session choices (kept out of config.toml) before
-            // initial activation, so the active profile and per-display
-            // workspace plan are both ready when startup begins tiling.
-            .run { [profileSessionStore] send in
-              let session = await profileSessionStore.load()
-              if let id = session.activeProfileId {
-                await send(.activation(.restoreActiveProfile(id)))
-                await send(.hotKeys(.refreshBindings))
-              }
-              await send(
-                .activation(
-                  .restoreWorkspaceHistory(
-                    displayWorkspaceHistory: session.historyByDisplay,
-                    workspaceMRU: session.workspaceMRU,
-                  )
-                )
-              )
-              await send(.activation(.activateInitial))
-            },
             .send(.settingsChanged(settings)),
             // Guided Setup owns first-run permission education. Existing users
             // keep the established launch-time warning if a grant goes missing.
@@ -468,6 +467,12 @@ public struct AppFeature {
           .send(.hotKeys(.refreshBindings)),
           .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
         )
+
+      case .activation(.delegate(.startupProfileResolved(let id))):
+        guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
+        return .run { [profileSessionStore] _ in
+          await profileSessionStore.saveActiveProfileId(id)
+        }
 
       case .workspaceList(.detail(.layoutChanged)):
         // Re-tile now if the edited workspace is the active one, so the window
