@@ -1520,6 +1520,41 @@ extension WorkspaceActivationFeature {
     return state.workspaceMRU.first { $0 != current && isEligible($0) }
   }
 
+  /// Transfer keyboard focus to a workspace that is already visible without
+  /// re-running activation. Activation intentionally tears down the target
+  /// display's Borrow composition before re-tiling its host; display focus
+  /// navigation must preserve that composition and focus its existing window.
+  func focusVisibleWorkspace(
+    workspaceId: Workspace.ID,
+    display: DisplayName,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard state.displayShowing(workspaceId)?.matches(display) == true else {
+      return .none
+    }
+    state.focusedDisplay = display
+    let target = (state.mruWindows[workspaceId] ?? []).first
+      ?? state.tilingTrees[workspaceId]?.windows.first
+    guard let target else {
+      debugLog.log(
+        "Display",
+        "focus visible \(workspaceId) on \(display.name): no window",
+      )
+      return .none
+    }
+    debugLog.log(
+      "Display",
+      "focus visible \(workspaceId) on \(display.name) "
+        + "→ \(target.bundleId)#\(target.windowID)",
+    )
+    return settleFocusAfterLayout(
+      target,
+      workspaceId: workspaceId,
+      shouldFocus: true,
+      state: &state,
+    )
+  }
+
   func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
     // A hotkey passes nil → resolve the pointer display. Internal collapse
     // actions pass their exact owner so a background monitor stays isolated.

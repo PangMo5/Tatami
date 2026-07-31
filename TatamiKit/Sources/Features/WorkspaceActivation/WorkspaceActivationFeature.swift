@@ -1965,6 +1965,23 @@ public struct WorkspaceActivationFeature {
         // A deliberate switch supersedes any in-flight reconnect restore cascade
         // — the user's action wins over the display-restore queue.
         state.pendingDisplayRestores = []
+        // An already-active host on another monitor does not need activation:
+        // it is a display focus transfer. Re-activating it would deliberately
+        // tear down that display's Borrow composition, returning a borrowed
+        // workspace merely because the user visited another monitor and came
+        // back. Borrow dismissal remains explicit through `.dismissBorrow`.
+        if
+          setFocus,
+          let display = state.activeWorkspacesByDisplay.first(where: {
+            $0.value == workspaceId
+          })?.key
+        {
+          return focusVisibleWorkspace(
+            workspaceId: workspaceId,
+            display: display,
+            state: &state,
+          )
+        }
         return performActivate(
           workspaceId: workspaceId,
           setFocus: setFocus,
@@ -2248,13 +2265,20 @@ public struct WorkspaceActivationFeature {
           return .send(.activate(workspaceId: recent, setFocus: true))
         }
         // If the global recent workspace is already on another display, this
-        // is a focus transfer — keep it there. A plain dynamic activation would
-        // resolve through the cursor and pull the workspace onto this display.
+        // is a focus transfer — keep it there and preserve any Borrow
+        // composition on that display. A plain activation would both pull a
+        // dynamic workspace through the cursor and return its borrowed block.
         state.pendingDisplayRestores = []
+        if let display = state.displayShowing(recent) {
+          return focusVisibleWorkspace(
+            workspaceId: recent,
+            display: display,
+            state: &state,
+          )
+        }
         return performActivate(
           workspaceId: recent,
           setFocus: true,
-          displayOverride: state.displayShowing(recent),
           state: &state,
         )
 
@@ -2276,14 +2300,13 @@ public struct WorkspaceActivationFeature {
           return .none
         }
         debugLog.log("Display", "focusAdjacent → \(nextDisplay.name)")
-        // This is a focus transfer, not a workspace move. A dynamic workspace
-        // has no display hint, so a plain `.activate` would resolve through the
-        // still-old cursor display and pull the target workspace back here.
+        // This is a focus transfer, not a workspace activation. Re-running
+        // activation here returned any workspace borrowed into the target
+        // monitor because host activation deliberately clears its composition.
         state.pendingDisplayRestores = []
-        return performActivate(
+        return focusVisibleWorkspace(
           workspaceId: wsId,
-          setFocus: true,
-          displayOverride: nextDisplay,
+          display: nextDisplay,
           state: &state,
         )
 

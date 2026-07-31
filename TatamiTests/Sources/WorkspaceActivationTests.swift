@@ -776,37 +776,152 @@ struct WorkspaceActivationFeatureTests {
     let displayB = DisplayName("B")
     let wsA = Workspace(name: "A")
     let wsB = Workspace(name: "B")
+    let windowA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let windowB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
     let state = Self.makeState(workspaces: [wsA, wsB]) {
-      $0.isTilingPaused = true
       $0.focusedDisplay = displayA
       $0.activeWorkspacesByDisplay = [displayA: wsA.id, displayB: wsB.id]
+      $0.tilingTrees = [wsA.id: .leaf(windowA), wsB.id: .leaf(windowB)]
     }
     let requests = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.displays.all = { [displayA, displayB] }
       $0.displays.current = { displayA }
-      $0.continuousClock = TestClock()
       $0.workspaceManager.activate = { request in
         requests.withValue { $0.append(request) }
       }
-      $0.floatingOverlay.retainOnly = { _ in }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
     }
     store.exhaustivity = .off
 
     await store.send(.focusAdjacentDisplay(direction: 1))
-    await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
-      return workspaceId == wsB.id && display == displayB
-    }
     await store.finish()
 
-    #expect(requests.value.count == 1)
-    #expect(requests.value.first?.workspace.id == wsB.id)
-    #expect(requests.value.first?.targetDisplay == displayB)
+    #expect(requests.value.isEmpty)
+    #expect(focused.value == [windowB])
+    #expect(store.state.focusedDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
     #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
+  }
+
+  @Test
+  func `focus between displays preserves borrowed workspace on return`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(name: "Browser")
+    let terminal = Workspace(name: "Terminal")
+    let figma = Workspace(name: "Figma")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let terminalWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.terminal")
+    let figmaWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.figma")
+    let composition = Composition(
+      host: browser.id,
+      borrowed: [
+        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4),
+      ],
+    )
+    let state = Self.makeState(workspaces: [browser, terminal, figma]) {
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [
+        displayA: browser.id,
+        displayB: terminal.id,
+      ]
+      $0.tilingTrees = [
+        browser.id: .leaf(browserWindow),
+        terminal.id: .leaf(terminalWindow),
+        figma.id: .leaf(figmaWindow),
+      ]
+      $0.compositionsByDisplay[displayA] = composition
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.focusAdjacentDisplay(direction: 1))
+    await store.finish()
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(store.state.compositionsByDisplay[displayA] == composition)
+
+    await store.send(.focusAdjacentDisplay(direction: -1))
+    await store.finish()
+
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.compositionsByDisplay[displayA] == composition)
+    #expect(activations.value.isEmpty)
+    #expect(focused.value == [terminalWindow, browserWindow])
+  }
+
+  @Test
+  func `activating visible host across displays preserves borrowed workspace`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(name: "Browser")
+    let terminal = Workspace(name: "Terminal")
+    let figma = Workspace(name: "Figma")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let terminalWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.terminal")
+    let figmaWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.figma")
+    let composition = Composition(
+      host: browser.id,
+      borrowed: [
+        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4),
+      ],
+    )
+    let state = Self.makeState(workspaces: [browser, terminal, figma]) {
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [
+        displayA: browser.id,
+        displayB: terminal.id,
+      ]
+      $0.tilingTrees = [
+        browser.id: .leaf(browserWindow),
+        terminal.id: .leaf(terminalWindow),
+        figma.id: .leaf(figmaWindow),
+      ]
+      $0.compositionsByDisplay[displayA] = composition
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: terminal.id, setFocus: true))
+    await store.finish()
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(store.state.compositionsByDisplay[displayA] == composition)
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.finish()
+
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.compositionsByDisplay[displayA] == composition)
+    #expect(activations.value.isEmpty)
+    #expect(focused.value == [terminalWindow, browserWindow])
   }
 
   @Test
@@ -815,35 +930,34 @@ struct WorkspaceActivationFeatureTests {
     let displayB = DisplayName("B")
     let wsA = Workspace(name: "A")
     let wsB = Workspace(name: "B")
+    let windowB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
     let state = Self.makeState(workspaces: [wsA, wsB]) {
       $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = true }
-      $0.isTilingPaused = true
       $0.focusedDisplay = displayA
       $0.activeWorkspacesByDisplay = [displayA: wsA.id, displayB: wsB.id]
       $0.workspaceMRU = [wsA.id, UUID(), wsB.id]
+      $0.tilingTrees[wsB.id] = .leaf(windowB)
     }
     let requests = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.displays.current = { displayA }
-      $0.continuousClock = TestClock()
       $0.workspaceManager.activate = { request in
         requests.withValue { $0.append(request) }
       }
-      $0.floatingOverlay.retainOnly = { _ in }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
     }
     store.exhaustivity = .off
 
     await store.send(.activateRecent)
-    await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
-      return workspaceId == wsB.id && display == displayB
-    }
     await store.finish()
 
-    #expect(requests.value.last?.workspace.id == wsB.id)
-    #expect(requests.value.last?.targetDisplay == displayB)
+    #expect(requests.value.isEmpty)
+    #expect(focused.value == [windowB])
     #expect(store.state.focusedDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
