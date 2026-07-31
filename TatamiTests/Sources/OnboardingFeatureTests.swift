@@ -523,6 +523,99 @@ struct OnboardingFeatureTests {
   }
 
   @Test
+  func `fullscreen set remains attached and supports multiple windows`() async throws {
+    let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
+    let browser = MacApp(bundleIdentifier: "browser", name: "Browser")
+    let workspace = Workspace(name: "Build", apps: [
+      AppAssignment(editor),
+      AppAssignment(browser),
+    ])
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.runningApps = [editor, browser]
+    state.demoActiveWorkspaceID = workspace.id
+    state.demoLayoutTree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [editor.bundleIdentifier, browser.bundleIdentifier]
+    )
+    let tree = try #require(state.demoLayoutTree)
+    let zoomed = try #require(tree.windows.first)
+    let focused = try #require(
+      tree.directionalNeighbor(
+        of: zoomed,
+        direction: .east,
+        in: CGRect(x: 0, y: 0, width: 1200, height: 720),
+        gap: CGFloat(state.draft.settings.layout.gapInner),
+        focusOrder: tree.windows,
+      )
+    )
+    state.demoSelectedSlot = zoomed
+    state.step = .focusAndCycling
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.demoCommandTapped(.fullscreen))
+    #expect(store.state.demoFullscreenSlots == [zoomed])
+
+    await store.send(.demoCommandTapped(.focus(.east)))
+    #expect(store.state.demoSelectedSlot == focused)
+    #expect(store.state.demoFullscreenSlots == [zoomed])
+
+    await store.send(.demoCommandTapped(.fullscreen))
+    #expect(store.state.demoFullscreenSlots == [zoomed, focused])
+
+    await store.send(.demoTileTapped(.host, zoomed))
+    await store.send(.demoCommandTapped(.fullscreen))
+    #expect(store.state.demoFullscreenSlots == [focused])
+  }
+
+  @Test
+  func `onboarding progress preserves fullscreen sets and restores legacy snapshots`() throws {
+    let workspace = Workspace(name: "Build")
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    let config = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    let first = SlotID(bundleId: "editor", occurrence: 0)
+    let second = SlotID(bundleId: "browser", occurrence: 0)
+    let tree = BSPNode<SlotID>.synthesizedTemplate(
+      tiledBundleIds: [first.bundleId, second.bundleId]
+    )
+    var progress = OnboardingProgress(
+      baseline: OnboardingConfigSnapshot(config),
+      demoActiveWorkspaceID: workspace.id,
+      demoBorrowed: false,
+      demoFullscreenZoomed: [workspace.id: [first, second]],
+      demoLayoutMode: .tiled,
+      demoLayoutTree: tree,
+      draft: OnboardingConfigSnapshot(config),
+      furthestStepIndex: 4,
+      contextStyle: .focused,
+      practices: [.fullscreen],
+      prefersScratchpads: true,
+      recurringWork: "",
+      roleDescription: "",
+      step: .tiling,
+    )
+
+    let current = try JSONDecoder().decode(
+      OnboardingProgress.self,
+      from: JSONEncoder().encode(progress),
+    )
+    #expect(current.restoredDemoFullscreenZoomed == [workspace.id: [first, second]])
+
+    progress.demoFullscreenZoomed = nil
+    progress.demoFullscreenSlot = first
+    let legacy = try JSONDecoder().decode(
+      OnboardingProgress.self,
+      from: JSONEncoder().encode(progress),
+    )
+    #expect(legacy.restoredDemoFullscreenZoomed == [workspace.id: [first]])
+  }
+
+  @Test
   func `borrow focuses its MRU window and MFF follows into the borrowed block`() async {
     let editor = MacApp(bundleIdentifier: "editor", name: "Editor")
     let chat = MacApp(bundleIdentifier: "chat", name: "Chat")

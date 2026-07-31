@@ -22809,6 +22809,40 @@
         }
       }
     },
+    "Restored the focused window": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "포커스한 창의 확대를 해제했어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォーカス中のウインドウの拡大を解除しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消聚焦窗口的放大"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消聚焦視窗的放大"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restored the focused window"
+          }
+        }
+      }
+    },
     "Restored the split tree": {
       "localizations": {
         "ko": {

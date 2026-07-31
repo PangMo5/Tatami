@@ -12,7 +12,8 @@ struct OnboardingLayoutEditor: View {
     tree: BSPNode<SlotID>?,
     apps: [SlotID: MacApp],
     selectedSlot: SlotID?,
-    fullscreenSlot: SlotID?,
+    fullscreenSlots: Set<SlotID>,
+    windowOrder: [SlotID] = [],
     innerGap: Int,
     outerGap: Int,
     specialMode: LayoutMode?,
@@ -28,7 +29,8 @@ struct OnboardingLayoutEditor: View {
     self.tree = tree
     self.apps = apps
     self.selectedSlot = selectedSlot
-    self.fullscreenSlot = fullscreenSlot
+    self.fullscreenSlots = fullscreenSlots
+    self.windowOrder = windowOrder
     self.innerGap = innerGap
     self.outerGap = outerGap
     self.specialMode = specialMode
@@ -47,7 +49,8 @@ struct OnboardingLayoutEditor: View {
   let tree: BSPNode<SlotID>?
   let apps: [SlotID: MacApp]
   let selectedSlot: SlotID?
-  let fullscreenSlot: SlotID?
+  let fullscreenSlots: Set<SlotID>
+  let windowOrder: [SlotID]
   let innerGap: Int
   let outerGap: Int
   let specialMode: LayoutMode?
@@ -73,9 +76,23 @@ struct OnboardingLayoutEditor: View {
         height: max(contentBounds.height - unmanagedBandHeight, 1),
       )
       let baseTree = layoutTree(removing: primarySlot)
-      let renderedTree = pendingRatio.map { pending in
+      let editedTree = pendingRatio.map { pending in
         baseTree?.applying(.setRatio(path: pending.path, ratio: pending.ratio))
       } ?? baseTree
+      let activeFullscreenSlots = Set(fullscreenSlots.filter { slot in
+        tree?.windows.contains(slot) == true && apps[slot] != nil
+      })
+      let fullscreenStack = orderedFullscreenStack(
+        active: activeFullscreenSlots,
+        treeOrder: tree?.windows ?? [],
+      )
+      let frontmostFullscreenSlot =
+        selectedSlot.flatMap { activeFullscreenSlots.contains($0) ? $0 : nil }
+          ?? fullscreenStack.last
+      let renderedTree = layoutTree(
+        editedTree,
+        removingFullscreen: activeFullscreenSlots,
+      )
       let regions = renderedTree?.leafRegions(in: tileBounds, gap: CGFloat(innerGap)) ?? []
       let dividers = renderedTree?.branchRegions(in: tileBounds, gap: CGFloat(innerGap)) ?? []
       let displayedPointerLocation = tracksPointerPosition
@@ -88,58 +105,84 @@ struct OnboardingLayoutEditor: View {
         RoundedRectangle(cornerRadius: 14)
           .strokeBorder(Color.primary.opacity(0.08))
 
-        if let fullscreenSlot, let app = apps[fullscreenSlot] {
-          Button {
-            onTileTapped(fullscreenSlot)
-          } label: {
-            tile(app: app, slot: fullscreenSlot, selected: true)
-          }
-          .buttonStyle(.plain)
-          .frame(width: contentBounds.width, height: contentBounds.height)
-          .position(x: contentBounds.midX, y: contentBounds.midY)
-        } else {
-          ForEach(regions, id: \.path) { region in
-            if let slot = region.leaf.topWindow, let app = apps[slot] {
-              tileView(
+        ForEach(fullscreenStack, id: \.self) { fullscreenSlot in
+          if let app = apps[fullscreenSlot] {
+            Button {
+              onTileTapped(fullscreenSlot)
+            } label: {
+              tile(
                 app: app,
-                slot: slot,
-                region: region,
-                allRegions: regions,
+                slot: fullscreenSlot,
+                selected: selectedSlot == fullscreenSlot,
               )
             }
+            .buttonStyle(.plain)
+            .frame(width: contentBounds.width, height: contentBounds.height)
+            .position(x: contentBounds.midX, y: contentBounds.midY)
+            .zIndex(fullscreenZIndex(for: fullscreenSlot, in: fullscreenStack))
           }
+        }
 
-          if allowsEditing {
-            ForEach(dividers, id: \.path) { divider in
-              dividerHandle(divider)
-            }
-          }
-
-          if let overlay = dropOverlay(regions: regions) {
-            dropOverlayView(target: overlay.target, zone: overlay.zone)
-              .allowsHitTesting(false)
-          }
-
+        ForEach(regions, id: \.path) { region in
           if
-            let drag = tileDrag,
-            let source = regions.first(where: { $0.path == drag.source }),
-            let slot = source.leaf.topWindow,
-            let app = apps[slot]
+            let slot = region.leaf.topWindow,
+            let app = apps[slot],
+            activeFullscreenSlots.isEmpty || selectedSlot == slot
           {
-            dragGhost(app: app, at: drag.location)
+            tileView(
+              app: app,
+              slot: slot,
+              region: region,
+              allRegions: regions,
+              allowsDragging: activeFullscreenSlots.isEmpty,
+            )
+            .zIndex(activeFullscreenSlots.isEmpty ? 0 : 3)
           }
+        }
 
-          if specialMode == .floating, let primarySlot, let app = apps[primarySlot] {
-            floatingCard(app: app, in: contentBounds)
-              .contentShape(.rect)
-              .onTapGesture { onTileTapped(primarySlot) }
+        if allowsEditing, activeFullscreenSlots.isEmpty {
+          ForEach(dividers, id: \.path) { divider in
+            dividerHandle(divider)
           }
+        }
 
-          if specialMode == .unmanaged, let primarySlot, let app = apps[primarySlot] {
-            unmanagedBand(app: app, in: contentBounds, height: unmanagedBandHeight)
-              .contentShape(.rect)
-              .onTapGesture { onTileTapped(primarySlot) }
-          }
+        if let overlay = dropOverlay(regions: regions), activeFullscreenSlots.isEmpty {
+          dropOverlayView(target: overlay.target, zone: overlay.zone)
+            .allowsHitTesting(false)
+        }
+
+        if
+          activeFullscreenSlots.isEmpty,
+          let drag = tileDrag,
+          let source = regions.first(where: { $0.path == drag.source }),
+          let slot = source.leaf.topWindow,
+          let app = apps[slot]
+        {
+          dragGhost(app: app, at: drag.location)
+        }
+
+        if
+          specialMode == .floating,
+          let primarySlot,
+          let app = apps[primarySlot],
+          activeFullscreenSlots.isEmpty || !activeFullscreenSlots.contains(primarySlot)
+        {
+          floatingCard(app: app, in: contentBounds)
+            .contentShape(.rect)
+            .onTapGesture { onTileTapped(primarySlot) }
+            .zIndex(activeFullscreenSlots.isEmpty ? 0 : 3)
+        }
+
+        if
+          specialMode == .unmanaged,
+          let primarySlot,
+          let app = apps[primarySlot],
+          activeFullscreenSlots.isEmpty || !activeFullscreenSlots.contains(primarySlot)
+        {
+          unmanagedBand(app: app, in: contentBounds, height: unmanagedBandHeight)
+            .contentShape(.rect)
+            .onTapGesture { onTileTapped(primarySlot) }
+            .zIndex(activeFullscreenSlots.isEmpty ? 0 : 3)
         }
 
         if let displayedPointerLocation {
@@ -153,6 +196,7 @@ struct OnboardingLayoutEditor: View {
             )
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+            .zIndex(4)
         }
       }
       .compositingGroup()
@@ -173,7 +217,7 @@ struct OnboardingLayoutEditor: View {
             contentBounds: contentBounds,
             regions: regions,
             primarySlot: primarySlot,
-            fullscreenSlot: fullscreenSlot,
+            fullscreenSlot: frontmostFullscreenSlot,
             unmanagedBandHeight: unmanagedBandHeight,
           )
           guard slot != lastHoveredSlot else { return }
@@ -188,7 +232,7 @@ struct OnboardingLayoutEditor: View {
     }
     .frame(height: height)
     .animation(.spring(response: 0.32, dampingFraction: 0.86), value: tree)
-    .animation(.spring(response: 0.32, dampingFraction: 0.86), value: fullscreenSlot)
+    .animation(.spring(response: 0.32, dampingFraction: 0.86), value: fullscreenSlots)
     .animation(.spring(response: 0.32, dampingFraction: 0.86), value: specialMode)
     .onChange(of: pointerLocation) { _, newValue in
       guard tracksPointerPosition, livePointerLocation != newValue else { return }
@@ -215,11 +259,41 @@ struct OnboardingLayoutEditor: View {
     return tree.removing(primarySlot)
   }
 
+  private func layoutTree(
+    _ tree: BSPNode<SlotID>?,
+    removingFullscreen fullscreenSlots: Set<SlotID>,
+  ) -> BSPNode<SlotID>? {
+    guard !fullscreenSlots.isEmpty else { return tree }
+    return tree?.removingAll(fullscreenSlots)
+  }
+
+  private func orderedFullscreenStack(
+    active fullscreenSlots: Set<SlotID>,
+    treeOrder: [SlotID],
+  ) -> [SlotID] {
+    var result = treeOrder.filter(fullscreenSlots.contains)
+    for slot in windowOrder.reversed() where fullscreenSlots.contains(slot) {
+      result.removeAll { $0 == slot }
+      result.append(slot)
+    }
+    return result
+  }
+
+  private func fullscreenZIndex(
+    for slot: SlotID,
+    in stack: [SlotID],
+  ) -> Double {
+    if selectedSlot == slot { return 3 }
+    guard let index = stack.firstIndex(of: slot), !stack.isEmpty else { return 1 }
+    return 1 + Double(index) / Double(stack.count)
+  }
+
   private func tileView(
     app: MacApp,
     slot: SlotID,
     region: BSPNode<SlotID>.LeafRegion,
     allRegions: [BSPNode<SlotID>.LeafRegion],
+    allowsDragging: Bool,
   ) -> some View {
     let isDragging = tileDrag?.source == region.path
     return Button {
@@ -231,7 +305,13 @@ struct OnboardingLayoutEditor: View {
     .frame(width: region.rect.width, height: region.rect.height)
     .position(x: region.rect.midX, y: region.rect.midY)
     .opacity(isDragging ? 0.28 : 1)
-    .simultaneousGesture(tileDragGesture(region: region, allRegions: allRegions))
+    .simultaneousGesture(
+      tileDragGesture(
+        region: region,
+        allRegions: allRegions,
+        allowsDragging: allowsDragging,
+      )
+    )
   }
 
   private func slot(
@@ -242,8 +322,13 @@ struct OnboardingLayoutEditor: View {
     fullscreenSlot: SlotID?,
     unmanagedBandHeight: CGFloat,
   ) -> SlotID? {
-    if let fullscreenSlot, contentBounds.contains(location) {
-      return fullscreenSlot
+    if
+      let fullscreenSlot,
+      selectedSlot != fullscreenSlot,
+      let selectedRegion = regions.first(where: { $0.leaf.topWindow == selectedSlot }),
+      selectedRegion.rect.contains(location)
+    {
+      return selectedSlot
     }
     if specialMode == .floating, let primarySlot {
       let width = contentBounds.width * 0.34
@@ -271,6 +356,9 @@ struct OnboardingLayoutEditor: View {
       ).contains(location)
     {
       return primarySlot
+    }
+    if let fullscreenSlot, contentBounds.contains(location) {
+      return fullscreenSlot
     }
     return regions.first(where: { $0.rect.contains(location) })?.leaf.topWindow
   }
@@ -303,15 +391,16 @@ struct OnboardingLayoutEditor: View {
   private func tileDragGesture(
     region: BSPNode<SlotID>.LeafRegion,
     allRegions: [BSPNode<SlotID>.LeafRegion],
+    allowsDragging: Bool,
   ) -> some Gesture {
     DragGesture(minimumDistance: 6, coordinateSpace: .named(coordinateSpace))
       .onChanged { value in
-        guard allowsEditing else { return }
+        guard allowsEditing, allowsDragging else { return }
         if tileDrag == nil { NSCursor.closedHand.set() }
         tileDrag = (region.path, value.location)
       }
       .onEnded { value in
-        guard allowsEditing else { return }
+        guard allowsEditing, allowsDragging else { return }
         defer {
           tileDrag = nil
           NSCursor.arrow.set()

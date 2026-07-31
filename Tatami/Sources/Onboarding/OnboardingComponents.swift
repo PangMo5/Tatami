@@ -1108,6 +1108,7 @@ struct OnboardingDemoMonitor<Content: View>: View {
             Image(systemName: "battery.75percent")
               .font(.system(size: 10, weight: .medium))
           }
+          .foregroundStyle(.white.opacity(0.9))
           .padding(.horizontal, 12)
           .frame(height: 28)
           .background(.ultraThinMaterial)
@@ -1116,15 +1117,18 @@ struct OnboardingDemoMonitor<Content: View>: View {
             .padding(11)
             .frame(maxWidth: .infinity)
             .background {
-              LinearGradient(
-                colors: [
-                  Color.accentColor.opacity(0.10),
-                  Color.purple.opacity(0.055),
-                  Color(nsColor: .windowBackgroundColor).opacity(0.84),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing,
-              )
+              ZStack {
+                Color(nsColor: .windowBackgroundColor)
+                LinearGradient(
+                  colors: [
+                    Color.accentColor.opacity(0.10),
+                    Color.purple.opacity(0.055),
+                    .clear,
+                  ],
+                  startPoint: .topLeading,
+                  endPoint: .bottomTrailing,
+                )
+              }
             }
         }
         .compositingGroup()

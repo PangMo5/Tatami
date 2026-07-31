@@ -222,7 +222,7 @@ public struct OnboardingProgress: Codable, Equatable, Sendable {
     baseline: OnboardingConfigSnapshot,
     demoActiveWorkspaceID: Workspace.ID?,
     demoBorrowed: Bool,
-    demoFullscreenSlot: SlotID?,
+    demoFullscreenZoomed: [Workspace.ID: Set<SlotID>],
     demoLayoutMode: LayoutMode,
     demoLayoutTree: BSPNode<SlotID>?,
     draft: OnboardingConfigSnapshot,
@@ -237,7 +237,12 @@ public struct OnboardingProgress: Codable, Equatable, Sendable {
     self.baseline = baseline
     self.demoActiveWorkspaceID = demoActiveWorkspaceID
     self.demoBorrowed = demoBorrowed
-    self.demoFullscreenSlot = demoFullscreenSlot
+    self.demoFullscreenSlot = demoActiveWorkspaceID.flatMap { workspaceID in
+      demoLayoutTree?.windows.first(where: {
+        demoFullscreenZoomed[workspaceID]?.contains($0) == true
+      })
+    }
+    self.demoFullscreenZoomed = demoFullscreenZoomed
     self.demoLayoutMode = demoLayoutMode
     self.demoLayoutTree = demoLayoutTree
     self.draft = draft
@@ -255,7 +260,9 @@ public struct OnboardingProgress: Codable, Equatable, Sendable {
   public var baseline: OnboardingConfigSnapshot
   public var demoActiveWorkspaceID: Workspace.ID?
   public var demoBorrowed: Bool
+  /// Legacy single-window field retained so v1 progress snapshots still decode.
   public var demoFullscreenSlot: SlotID?
+  public var demoFullscreenZoomed: [Workspace.ID: Set<SlotID>]?
   public var demoLayoutMode: LayoutMode
   public var demoLayoutTree: BSPNode<SlotID>?
   public var draft: OnboardingConfigSnapshot
@@ -266,6 +273,14 @@ public struct OnboardingProgress: Codable, Equatable, Sendable {
   public var recurringWork: String
   public var roleDescription: String
   public var step: OnboardingStep
+
+  public var restoredDemoFullscreenZoomed: [Workspace.ID: Set<SlotID>] {
+    if let demoFullscreenZoomed {
+      return demoFullscreenZoomed
+    }
+    guard let demoActiveWorkspaceID, let demoFullscreenSlot else { return [:] }
+    return [demoActiveWorkspaceID: [demoFullscreenSlot]]
+  }
 
 }
 
@@ -320,9 +335,8 @@ public struct OnboardingFeature {
     public var demoBorrowed = false
     public var demoBorrowLayoutTree: BSPNode<SlotID>?
     public var demoBorrowSelectedSlot: SlotID?
-    public var demoBorrowFullscreenSlot: SlotID?
     public var demoFocusedBlock = OnboardingDemoBlock.host
-    public var demoFullscreenSlot: SlotID?
+    public var demoFullscreenZoomed = [Workspace.ID: Set<SlotID>]()
     public var demoLastGesture: TrackpadGesture?
     public var demoLastShortcut: HotKeyAction?
     public var demoLayoutMode = LayoutMode.tiled
@@ -337,6 +351,16 @@ public struct OnboardingFeature {
     public var displays = [DisplayName]()
     public var draft = AppConfig()
     public var externalAIPromptCopied = false
+
+    public var demoBorrowFullscreenSlots: Set<SlotID> {
+      guard let demoBorrowWorkspaceID else { return [] }
+      return demoFullscreenZoomed[demoBorrowWorkspaceID] ?? []
+    }
+
+    public var demoFullscreenSlots: Set<SlotID> {
+      guard let demoActiveWorkspaceID else { return [] }
+      return demoFullscreenZoomed[demoActiveWorkspaceID] ?? []
+    }
     public var furthestStepIndex = 0
     public var hasAccessibility = true
     public var hasScreenRecording = true
@@ -653,7 +677,7 @@ public struct OnboardingFeature {
           ?? state.normalWorkspaces.first?.id
         state.demoBorrowWorkspaceID = preferredBorrowWorkspaceID(state: state)
         state.demoBorrowed = matchingProgress?.demoBorrowed ?? false
-        state.demoFullscreenSlot = matchingProgress?.demoFullscreenSlot
+        state.demoFullscreenZoomed = matchingProgress?.restoredDemoFullscreenZoomed ?? [:]
         state.demoLayoutMode = matchingProgress?.demoLayoutMode ?? .tiled
         state.demoLayoutTree = restoredDemoLayoutTree(
           matchingProgress?.demoLayoutTree,
@@ -1008,7 +1032,6 @@ public struct OnboardingFeature {
         state.demoBorrowWorkspaceID = id
         state.demoBorrowLayoutTree = nil
         state.demoBorrowSelectedSlot = nil
-        state.demoBorrowFullscreenSlot = nil
         dismissDemoBorrow(state: &state)
         syncDemoBorrowLayout(state: &state)
         return persistAndSyncBorrowChord(state)
@@ -1251,11 +1274,10 @@ public struct OnboardingFeature {
         state.demoBorrowed = false
         state.demoBorrowLayoutTree = nil
         state.demoBorrowSelectedSlot = nil
-        state.demoBorrowFullscreenSlot = nil
         state.demoBorrowEdge = nil
         state.demoBorrowPendingWorkspaceID = nil
         state.demoFocusedBlock = .host
-        state.demoFullscreenSlot = nil
+        state.demoFullscreenZoomed = [:]
         state.demoLastGesture = nil
         state.demoLastShortcut = nil
         state.demoActionResult = nil
@@ -1379,7 +1401,7 @@ public struct OnboardingFeature {
       baseline: OnboardingConfigSnapshot(state.baseline),
       demoActiveWorkspaceID: state.demoActiveWorkspaceID,
       demoBorrowed: state.demoBorrowed,
-      demoFullscreenSlot: state.demoFullscreenSlot,
+      demoFullscreenZoomed: state.demoFullscreenZoomed,
       demoLayoutMode: state.demoLayoutMode,
       demoLayoutTree: state.demoLayoutTree,
       draft: OnboardingConfigSnapshot(state.draft),
@@ -1621,12 +1643,11 @@ public struct OnboardingFeature {
     } else {
       state.demoSelectedSlot = state.demoLayoutTree?.windows.first
     }
-    if
-      let fullscreen = state.demoFullscreenSlot,
-      state.demoLayoutTree?.windows.contains(fullscreen) != true
-    {
-      state.demoFullscreenSlot = nil
-    }
+    pruneDemoFullscreenSlots(
+      workspaceID: state.demoActiveWorkspaceID,
+      tree: state.demoLayoutTree,
+      state: &state,
+    )
     syncDemoLayoutMode(state: &state)
   }
 
@@ -1645,12 +1666,22 @@ public struct OnboardingFeature {
     } else {
       state.demoBorrowSelectedSlot = state.demoBorrowLayoutTree?.windows.first
     }
-    if
-      let fullscreen = state.demoBorrowFullscreenSlot,
-      state.demoBorrowLayoutTree?.windows.contains(fullscreen) != true
-    {
-      state.demoBorrowFullscreenSlot = nil
-    }
+    pruneDemoFullscreenSlots(
+      workspaceID: state.demoBorrowWorkspaceID,
+      tree: state.demoBorrowLayoutTree,
+      state: &state,
+    )
+  }
+
+  private func pruneDemoFullscreenSlots(
+    workspaceID: Workspace.ID?,
+    tree: BSPNode<SlotID>?,
+    state: inout State,
+  ) {
+    guard let workspaceID else { return }
+    var fullscreen = state.demoFullscreenZoomed[workspaceID] ?? []
+    fullscreen.formIntersection(Set(tree?.windows ?? []))
+    state.demoFullscreenZoomed[workspaceID] = fullscreen.isEmpty ? nil : fullscreen
   }
 
   private func demoTree(
@@ -1732,29 +1763,21 @@ public struct OnboardingFeature {
     }
   }
 
-  private func demoFullscreenSlot(
+  private func demoFullscreenSlots(
     in block: OnboardingDemoBlock,
     state: State,
-  ) -> SlotID? {
-    switch block {
-    case .host:
-      state.demoFullscreenSlot
-    case .borrowed:
-      state.demoBorrowFullscreenSlot
-    }
+  ) -> Set<SlotID> {
+    guard let workspaceID = demoWorkspaceID(for: block, state: state) else { return [] }
+    return state.demoFullscreenZoomed[workspaceID] ?? []
   }
 
-  private func setDemoFullscreenSlot(
-    _ slot: SlotID?,
+  private func setDemoFullscreenSlots(
+    _ slots: Set<SlotID>,
     in block: OnboardingDemoBlock,
     state: inout State,
   ) {
-    switch block {
-    case .host:
-      state.demoFullscreenSlot = slot
-    case .borrowed:
-      state.demoBorrowFullscreenSlot = slot
-    }
+    guard let workspaceID = demoWorkspaceID(for: block, state: state) else { return }
+    state.demoFullscreenZoomed[workspaceID] = slots.isEmpty ? nil : slots
   }
 
   private func demoAppName(
@@ -2118,12 +2141,23 @@ public struct OnboardingFeature {
       )
 
     case .fullscreen:
-      let fullscreen = demoFullscreenSlot(in: block, state: state)
-      setDemoFullscreenSlot(fullscreen == selected ? nil : selected, in: block, state: &state)
+      var fullscreen = demoFullscreenSlots(in: block, state: state)
+      let zoomingIn = !fullscreen.contains(selected)
+      if zoomingIn {
+        fullscreen.insert(selected)
+      } else {
+        fullscreen.remove(selected)
+      }
+      setDemoFullscreenSlots(fullscreen, in: block, state: &state)
       state.practices.insert(.fullscreen)
-      state.demoActionResult = demoFullscreenSlot(in: block, state: state) == nil
-        ? String(localized: "Restored the split tree")
-        : String(localized: "Zoomed the focused window")
+      state.demoActionResult =
+        if zoomingIn {
+          String(localized: "Zoomed the focused window")
+        } else if fullscreen.isEmpty {
+          String(localized: "Restored the split tree")
+        } else {
+          String(localized: "Restored the focused window")
+        }
 
     case .orientation:
       let updated = tree.togglingSplit(at: selected)
@@ -2502,7 +2536,6 @@ public struct OnboardingFeature {
     }
     state.demoActiveWorkspaceID = workspaceID
     state.demoGestureWindowIndex = 0
-    state.demoFullscreenSlot = nil
     state.demoActionResult = String(localized: "Activated \(state.workspaceName(workspaceID))")
     syncDemoLayout(state: &state)
     state.demoFocusedBlock = .host
@@ -2532,7 +2565,8 @@ public struct OnboardingFeature {
     state: State,
   ) -> OnboardingDemoPoint? {
     guard let tree = demoTree(for: block, state: state) else { return nil }
-    if demoFullscreenSlot(in: block, state: state) == slot {
+    let fullscreen = demoFullscreenSlots(in: block, state: state)
+    if fullscreen.contains(slot) {
       return OnboardingDemoPoint(x: 0.5, y: 0.5)
     }
     if block == .host, state.demoPrimarySlot == slot {
@@ -2548,7 +2582,7 @@ public struct OnboardingFeature {
 
     let outerGap = CGFloat(state.draft.settings.layout.gapOuter)
     let contentBounds = Self.demoWorkArea.insetBy(dx: outerGap, dy: outerGap)
-    let layoutTree =
+    let baseTree =
       if
         block == .host,
         let primarySlot = state.demoPrimarySlot,
@@ -2558,6 +2592,7 @@ public struct OnboardingFeature {
       } else {
         tree
       }
+    let layoutTree = baseTree?.removingAll(fullscreen)
     guard
       let region = layoutTree?.leafRegions(
         in: contentBounds,
