@@ -149,6 +149,11 @@ public struct WorkspaceActivationFeature {
     /// the old frame after Tatami's first layout write; presentation
     /// convergence must remain armed across that delayed restore.
     public var windowServerHiddenWindows = Set<WindowKey>()
+    /// Exact 815 returns waiting for their owning bundle reconciliation to
+    /// publish membership. `armPresentationMonitoring` intentionally accepts
+    /// only tree members, so an unhidden surface that is not inserted yet must
+    /// carry this intent into the completed sync transaction.
+    public var pendingWindowServerPresentationWindows = Set<WindowKey>()
     /// AX discovery is synchronous IPC on a worker. Keep one request per bundle
     /// in flight and mark any notification that arrives during it dirty; its
     /// completion immediately launches one trailing refresh. This is real
@@ -452,6 +457,19 @@ public struct WorkspaceActivationFeature {
     ) {
       guard !keys.isEmpty, var mru = mruWindows[workspaceId] else { return }
       mru.removeAll(where: keys.contains)
+      mruWindows[workspaceId] = mru.isEmpty ? nil : mru
+    }
+
+    /// Carry same-physical-window recency across a WindowServer identity swap.
+    /// Native tabs replace CGWindowIDs while the user's logical tile stays put.
+    mutating func replaceInWindowMRU(
+      _ replacements: [WindowKey: WindowKey],
+      workspaceId: Workspace.ID,
+    ) {
+      guard !replacements.isEmpty, var mru = mruWindows[workspaceId] else { return }
+      mru = mru.map { replacements[$0] ?? $0 }
+      var seen = Set<WindowKey>()
+      mru.removeAll { !seen.insert($0).inserted }
       mruWindows[workspaceId] = mru.isEmpty ? nil : mru
     }
 
@@ -1655,6 +1673,13 @@ public struct WorkspaceActivationFeature {
         {
           state.windowServerHiddenWindows.remove(hidden)
         }
+        if
+          let pending = state.pendingWindowServerPresentationWindows.first(where: {
+            $0.windowID == wid
+          })
+        {
+          state.pendingWindowServerPresentationWindows.remove(pending)
+        }
         windowSnapshot.invalidateWindowIDs([wid])
         if state.isSystemSuspended || state.isRecoveringSystemLayout {
           debugLog.log("Sleep", "preserve terminated surface wid=\(wid)")
@@ -1675,15 +1700,23 @@ public struct WorkspaceActivationFeature {
           debugLog.log("Sleep", "preserve invisible surface wid=\(wid)")
           return .none
         }
+        let residentKey = state.tilingTrees.values.lazy.compactMap { tree in
+          tree.windows.first(where: { $0.windowID == wid })
+        }.first
+        let eventKey = residentKey
+          ?? windowSnapshot.cachedWindowKey(wid)
+          ?? state.lastObservedFocusedWindow.flatMap {
+            $0.windowID == wid ? $0 : nil
+          }
+        if let eventKey {
+          state.pendingWindowServerPresentationWindows.remove(eventKey)
+        }
         if
           !state.isTilingPaused,
           !state.isInFullscreenSpace,
-          let key = windowSnapshot.cachedWindowKey(wid),
-          state.tilingTrees.values.contains(where: {
-            $0.windows.contains(key)
-          })
+          let residentKey
         {
-          state.windowServerHiddenWindows.insert(key)
+          state.windowServerHiddenWindows.insert(residentKey)
         }
         if state.isActivating {
           // Activation deliberately hides the outgoing workspace before its
@@ -1693,18 +1726,47 @@ public struct WorkspaceActivationFeature {
           state.pendingWindowServerPrune = true
           return .none
         }
-        // 816 is an authoritative on-screen membership edge, not a lifecycle
-        // tombstone. Remove the tile immediately while preserving the cache
-        // identity so the same surface can return through 815.
-        return pruneOffscreenWindows(
-          knownInvisibleWindowIDs: [wid],
-          state: &state,
+        guard !state.isTilingPaused, !state.isInFullscreenSpace else {
+          return .none
+        }
+        // A native macOS tab switch orders a new layer-0 surface in for the
+        // same process as it orders the old tab out. Commit that identity swap
+        // as one BSP transaction. Without this edge pairing, the old 816 path
+        // first expanded every sibling and a later AX sync split them again.
+        if
+          let replacement = replaceInvisibleWindowServerSurface(
+            windowID: wid,
+            state: &state,
+          )
+        {
+          return replacement
+        }
+        guard let eventKey else {
+          debugLog.log("SLS", "window invisible wid=\(wid) — no cached owner")
+          return .none
+        }
+        // During a rapid native-tab sequence the WindowServer identity can
+        // advance through several intermediate ids before the BSP tree's
+        // previous reconciliation completes. An 816 for such an intermediate
+        // id must not prune every tree surface missing from the same global
+        // snapshot: that briefly expands an unrelated sibling (for example,
+        // Alacritty) to the full work area. Keep the logical slot until this
+        // bundle's authoritative AX set arrives. The reducer's single-flight
+        // dirty bit guarantees a trailing latest-state scan without a timer.
+        windowSnapshot.markBundleDirty(eventKey.bundleId)
+        debugLog.log(
+          "SLS",
+          "window invisible wid=\(wid) bundle=\(eventKey.bundleId) → reconcile",
         )
+        return requestWindowSync(eventKey.bundleId)
 
       case .windowServerWindowEvent(.becameVisible(let wid)):
         guard let key = windowSnapshot.cachedWindowKey(wid) else {
           debugLog.log("SLS", "window visible wid=\(wid) — no cached owner")
           return .none
+        }
+        if state.windowServerHiddenWindows.remove(key) != nil {
+          state.pendingWindowServerPresentationWindows.insert(key)
         }
         windowSnapshot.markBundleDirty(key.bundleId)
         debugLog.log(
@@ -1722,6 +1784,11 @@ public struct WorkspaceActivationFeature {
           where key.bundleId == bundleId
         {
           state.windowServerHiddenWindows.remove(key)
+        }
+        for key in Array(state.pendingWindowServerPresentationWindows)
+          where key.bundleId == bundleId
+        {
+          state.pendingWindowServerPresentationWindows.remove(key)
         }
         windowSnapshot.invalidateBundle(bundleId)
         if state.isSystemSuspended || state.isRecoveringSystemLayout {

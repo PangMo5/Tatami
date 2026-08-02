@@ -690,26 +690,48 @@ enum ScreenGeometry {
   }
 }
 
+// MARK: - WindowServerSurface
+
 /// Fresh WindowServer geometry in AX/CG top-origin coordinates. Unlike AX,
 /// this is one local snapshot with no target-app run-loop wait, so reducers can
 /// safely use it to partition already-discovered keys without blocking input.
-func currentOnScreenWindowFrames() -> [CGWindowID: CGRect] {
+struct WindowServerSurface: Equatable, Sendable {
+  var ownerPID: pid_t
+  var layer: Int
+  var frame: CGRect
+}
+
+/// One local WindowServer snapshot with enough ownership metadata to
+/// distinguish a native-tab surface replacement from an ordinary hide/close.
+/// Native tabs swap CGWindowIDs inside the same process; popup/menu layers are
+/// excluded by consumers without paying an AX round trip.
+func currentOnScreenWindowSurfaces() -> [CGWindowID: WindowServerSurface] {
   let raw = CGWindowListCopyWindowInfo(
     [.optionOnScreenOnly, .excludeDesktopElements],
     kCGNullWindowID,
   ) as? [[String: Any]] ?? []
-  var frames = [CGWindowID: CGRect]()
-  frames.reserveCapacity(raw.count)
+  var surfaces = [CGWindowID: WindowServerSurface]()
+  surfaces.reserveCapacity(raw.count)
   for entry in raw {
     guard
       let windowID = entry[kCGWindowNumber as String] as? CGWindowID,
+      let ownerPID = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+      let layer = (entry[kCGWindowLayer as String] as? NSNumber)?.intValue,
       let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
       let x = bounds["X"], let y = bounds["Y"],
       let width = bounds["Width"], let height = bounds["Height"]
     else { continue }
-    frames[windowID] = CGRect(x: x, y: y, width: width, height: height)
+    surfaces[windowID] = WindowServerSurface(
+      ownerPID: ownerPID,
+      layer: layer,
+      frame: CGRect(x: x, y: y, width: width, height: height),
+    )
   }
-  return frames
+  return surfaces
+}
+
+func currentOnScreenWindowFrames() -> [CGWindowID: CGRect] {
+  currentOnScreenWindowSurfaces().mapValues(\.frame)
 }
 
 /// Bound every AX message this process sends (call once at startup).

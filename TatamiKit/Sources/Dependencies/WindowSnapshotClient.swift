@@ -653,6 +653,11 @@ struct WindowSnapshotClient: Sendable {
   /// Fresh geometry for every on-screen window from one WindowServer snapshot.
   /// This is local IPC rather than a per-app AX round trip.
   var onScreenWindowFrames: @Sendable () -> [CGWindowID: CGRect] = { [:] }
+  /// The same local snapshot with owner/layer metadata. Visibility transitions
+  /// use it to recognize a CGWindowID swap from the same physical native-tab
+  /// group without waiting for a second AX event or a guessed delay.
+  var onScreenWindowSurfaces:
+    @Sendable () -> [CGWindowID: WindowServerSurface] = { [:] }
   /// The frontmost app (bundle id + localized name), if any.
   var frontmostApp: @Sendable () -> FrontmostApp?
   /// Window numbers of every window currently on screen.
@@ -999,6 +1004,9 @@ extension WindowSnapshotClient: DependencyKey {
       onScreenWindowFrames: {
         currentOnScreenWindowFrames()
       },
+      onScreenWindowSurfaces: {
+        currentOnScreenWindowSurfaces()
+      },
       frontmostApp: {
         MainActor.assumeIsolated {
           NSWorkspace.shared.frontmostApplication.flatMap { app in
@@ -1056,6 +1064,7 @@ extension WindowSnapshotClient: DependencyKey {
     windowFrame: { _ in nil },
     windowFrameAsync: { _ in .unavailable },
     onScreenWindowFrames: { [:] },
+    onScreenWindowSurfaces: { [:] },
     frontmostApp: { nil },
     onScreenWindowIDs: { [] },
     existingWindowKeys: { _ in [] },

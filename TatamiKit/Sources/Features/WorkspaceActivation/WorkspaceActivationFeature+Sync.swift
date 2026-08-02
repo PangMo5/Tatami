@@ -31,6 +31,66 @@ extension WorkspaceActivationFeature {
     }
   }
 
+  /// Pair old/new WindowServer identities from one app while preserving the
+  /// logical BSP slot. macOS native tabs are separate CGWindow surfaces: a tab
+  /// switch removes one id and exposes another, but it is not a close followed
+  /// by an unrelated window insertion.
+  static func surfaceReplacements(
+    outgoing: [WindowKey],
+    incoming: [WindowKey],
+    expectedFrames: [WindowKey: CGRect],
+    liveFrames: [CGWindowID: CGRect],
+  ) -> [WindowKey: WindowKey] {
+    guard !outgoing.isEmpty, !incoming.isEmpty else { return [:] }
+    var available = incoming
+    var replacements = [WindowKey: WindowKey]()
+    for old in outgoing {
+      let sameProcess = available.indices.filter { available[$0].pid == old.pid }
+      guard !sameProcess.isEmpty else { continue }
+      let oldFrame = expectedFrames[old]
+      let best = sameProcess.min { lhs, rhs in
+        let lhsKey = available[lhs]
+        let rhsKey = available[rhs]
+        func distance(_ key: WindowKey) -> CGFloat {
+          guard let oldFrame, let frame = liveFrames[key.windowID] else {
+            return .greatestFiniteMagnitude
+          }
+          let dx = frame.midX - oldFrame.midX
+          let dy = frame.midY - oldFrame.midY
+          return dx * dx + dy * dy
+        }
+        let lhsDistance = distance(lhsKey)
+        let rhsDistance = distance(rhsKey)
+        return lhsDistance == rhsDistance
+          ? lhsKey.windowID < rhsKey.windowID
+          : lhsDistance < rhsDistance
+      }
+      guard let best else { continue }
+      replacements[old] = available.remove(at: best)
+    }
+    return replacements
+  }
+
+  /// Pure target-rect variant of `computeFrames`. Visibility reconciliation
+  /// already owns an exact display/composition rect, so it must not cross the
+  /// MainActor-only NSScreen boundary merely to compare surface geometry.
+  static func replacementExpectedFrames(
+    tree: BSPNode<WindowKey>,
+    settings: AppSettings,
+    targetRect: CGRect,
+    fullscreenZoomed: Set<WindowKey>,
+  ) -> [WindowKey: CGRect] {
+    let gap = CGFloat(settings.layout.gapInner)
+    let activeZoom = fullscreenZoomed.intersection(Set(tree.windows))
+    guard !activeZoom.isEmpty else {
+      return tree.frames(in: targetRect, gap: gap)
+    }
+    let trimmed = tree.removingAll(activeZoom)
+    var frames = trimmed?.frames(in: targetRect, gap: gap) ?? [:]
+    for key in activeZoom { frames[key] = targetRect }
+    return frames
+  }
+
   /// Incremental merge. Removes vanished windows (sibling promotes),
   /// inserts new windows at the insertion point. Fresh trees (no
   /// existing) build via `BSPNode.build` (which uses the shallowest-
@@ -261,6 +321,95 @@ extension WorkspaceActivationFeature {
       )
     }
     return .merge(effects)
+  }
+
+  /// Consume a WindowServer 816 edge as an atomic surface replacement when a
+  /// new layer-0 surface from the same process is already occupying the tile's
+  /// display. The fast local snapshot keeps native-tab switching immediate;
+  /// the normal AX sync still follows as an eligibility/cache verification.
+  func replaceInvisibleWindowServerSurface(
+    windowID: CGWindowID,
+    state: inout State,
+  ) -> Effect<Action>? {
+    guard
+      let workspaceId = state.visibleWorkspaceIDs.first(where: { workspaceId in
+        state.tilingTrees[workspaceId]?.windows.contains(where: {
+          $0.windowID == windowID
+        }) == true
+      }),
+      let tree = state.tilingTrees[workspaceId],
+      let outgoing = tree.windows.first(where: { $0.windowID == windowID })
+    else { return nil }
+
+    let surfaces = windowSnapshot.onScreenWindowSurfaces()
+    let knownWindowIDs = Set(
+      state.visibleWorkspaceIDs.flatMap {
+        state.tilingTrees[$0]?.windows.map(\.windowID) ?? []
+      }
+    )
+    let (_, targetRect) = tilingContext(for: workspaceId, state: state)
+    let expectedFrames = Self.replacementExpectedFrames(
+      tree: tree,
+      settings: state.config.settings,
+      targetRect: targetRect,
+      fullscreenZoomed: state.fullscreenZoomed[workspaceId] ?? [],
+    )
+    let expectedFrame = expectedFrames[outgoing]
+    let candidates = surfaces.compactMap { windowID, surface -> WindowKey? in
+      guard
+        surface.ownerPID == outgoing.pid,
+        surface.layer == 0,
+        !knownWindowIDs.contains(windowID),
+        surface.frame.width > 0,
+        surface.frame.height > 0,
+        targetRect.contains(CGPoint(x: surface.frame.midX, y: surface.frame.midY))
+      else { return nil }
+      return WindowKey(
+        pid: outgoing.pid,
+        windowID: windowID,
+        bundleId: outgoing.bundleId,
+      )
+    }
+    let replacement = candidates.min { lhs, rhs in
+      func distance(_ key: WindowKey) -> CGFloat {
+        guard let expectedFrame, let frame = surfaces[key.windowID]?.frame else {
+          return .greatestFiniteMagnitude
+        }
+        let dx = frame.midX - expectedFrame.midX
+        let dy = frame.midY - expectedFrame.midY
+        return dx * dx + dy * dy
+      }
+      let lhsDistance = distance(lhs)
+      let rhsDistance = distance(rhs)
+      return lhsDistance == rhsDistance
+        ? lhs.windowID < rhs.windowID
+        : lhsDistance < rhsDistance
+    }
+    guard let replacement else { return nil }
+
+    state.windowServerHiddenWindows.insert(outgoing)
+    windowSnapshot.markBundleDirty(outgoing.bundleId)
+    let orderedVisible = state.config.activeProfile?.workspaces.map(\.id) ?? []
+    let existingBundleKeys = orderedVisible
+      .filter(state.visibleWorkspaceIDs.contains)
+      .flatMap { state.tilingTrees[$0]?.windows ?? [] }
+      .filter { $0.bundleId == outgoing.bundleId && $0 != outgoing }
+    let discovered = Array(OrderedSet(existingBundleKeys + [replacement]))
+    let frames = surfaces.mapValues(\.frame)
+    debugLog.log(
+      "SLS",
+      "surface replacement \(outgoing.bundleId) "
+        + "\(outgoing.windowID)→\(replacement.windowID)",
+    )
+    return .merge(
+      applySyncedAppWindows(
+        bundleId: outgoing.bundleId,
+        resizableKeys: discovered,
+        onScreenFrames: frames,
+        state: &state,
+      ),
+      requestWindowSync(outgoing.bundleId),
+    )
   }
 
   /// Drop active-workspace tree windows that have left the screen without an
@@ -668,7 +817,7 @@ extension WorkspaceActivationFeature {
     }
     let existingTargetKeys = Set(existing?.windows ?? [])
     let targetWorkArea = displays.workArea(targetDisplay)
-    let current = Self.scopedWindowKeys(
+    let scoped = Self.scopedWindowKeys(
       discovered,
       sharedTiledBundleIds: sharedTiledSet,
       existingTargetKeys: existingTargetKeys,
@@ -678,11 +827,35 @@ extension WorkspaceActivationFeature {
       targetWorkArea: targetWorkArea,
       windowFrame: { onScreenFrames[$0.windowID] },
     )
+    // SLS 816 is the exact visibility edge for a surface. AX can continue to
+    // return that now-hidden element for one scan (Electron hide-on-close), so
+    // do not let it reassert membership. A matching 815 removes the key from
+    // this set before requesting its reconciliation.
+    let current = scoped.filter { !state.windowServerHiddenWindows.contains($0) }
     // The block's geometry — composition sub-rect when this is a borrowed/host
     // block, else the workspace's full work area. New windows insert into it.
     let (_, workArea) = tilingContext(for: workspaceId, state: state)
-    let currentSet = Set(current)
     let treeWindows = existing?.windows ?? []
+    let currentSet = Set(current)
+    let staleBundleKeys = treeWindows.filter {
+      $0.bundleId == bundleId && !currentSet.contains($0)
+    }
+    let freshBundleKeys = current.filter { !treeWindows.contains($0) }
+    let expectedFrames = existing.map {
+      Self.replacementExpectedFrames(
+        tree: $0,
+        settings: settings,
+        targetRect: workArea,
+        fullscreenZoomed: state.fullscreenZoomed[workspaceId] ?? [],
+      )
+    } ?? [:]
+    let replacements = Self.surfaceReplacements(
+      outgoing: staleBundleKeys,
+      incoming: freshBundleKeys,
+      expectedFrames: expectedFrames,
+      liveFrames: onScreenFrames,
+    )
+    let replacedOutgoing = Set(replacements.keys)
     let willRemove = treeWindows.contains { $0.bundleId == bundleId && !currentSet.contains($0) }
     let willInsert = eligibleToAdd && current.contains { !treeWindows.contains($0) }
     // The focused-window read is a live AX round trip to the frontmost
@@ -707,8 +880,19 @@ extension WorkspaceActivationFeature {
         + "discovered=\(current.map { $0.windowID }) treeBefore=\(treeBefore)",
     )
 
-    var tree = existing
-    for key in (tree?.windows ?? []) where key.bundleId == bundleId && !currentSet.contains(key) {
+    var tree = existing?.mapWindows { replacements[$0] ?? $0 }
+    if
+      let insertionPoint = state.insertionPoint[workspaceId],
+      let replacement = replacements[insertionPoint]
+    {
+      state.insertionPoint[workspaceId] = replacement
+    }
+    state.replaceInWindowMRU(replacements, workspaceId: workspaceId)
+    for key in (tree?.windows ?? [])
+      where key.bundleId == bundleId
+      && !currentSet.contains(key)
+      && !replacedOutgoing.contains(key)
+    {
       tree = tree?.removing(key)
     }
 
@@ -763,16 +947,26 @@ extension WorkspaceActivationFeature {
     state.removeFromWindowMRU(removedKeys, workspaceId: workspaceId)
     state.removeFromPresentationMonitoring(removedKeys)
     let reappearingKeys = addedKeys.intersection(state.windowServerHiddenWindows)
-    if !reappearingKeys.isEmpty {
+    let replacedHiddenKeys = replacedOutgoing.intersection(state.windowServerHiddenWindows)
+    let replacementKeys = Set(replacedHiddenKeys.compactMap { replacements[$0] })
+    let visibleRepairKeys = newWindows.intersection(
+      state.pendingWindowServerPresentationWindows
+    )
+    let presentationRepairKeys = reappearingKeys
+      .union(replacementKeys)
+      .union(visibleRepairKeys)
+    if !presentationRepairKeys.isEmpty {
       state.windowServerHiddenWindows.subtract(reappearingKeys)
+      state.windowServerHiddenWindows.subtract(replacedHiddenKeys)
+      state.pendingWindowServerPresentationWindows.subtract(visibleRepairKeys)
       state.armPresentationMonitoring(
-        reappearingKeys,
+        presentationRepairKeys,
         preservesPointer: false,
       )
       debugLog.log(
         "Sync",
         "reappeared \(bundleId): arm frame convergence "
-          + "\(reappearingKeys.map { $0.windowID })",
+          + "\(presentationRepairKeys.map { $0.windowID })",
       )
     }
 
@@ -790,7 +984,9 @@ extension WorkspaceActivationFeature {
     if var zoom = state.fullscreenZoomed[workspaceId], !zoom.isEmpty {
       var changed = false
       for stale in zoom where balanced?.pathTo(window: stale) == nil {
-        guard let replacement = addedKeys.first(where: { $0.bundleId == stale.bundleId })
+        guard
+          let replacement = replacements[stale]
+          ?? addedKeys.first(where: { $0.bundleId == stale.bundleId })
         else { continue }
         zoom.remove(stale)
         zoom.insert(replacement)
@@ -825,9 +1021,13 @@ extension WorkspaceActivationFeature {
 
     let added = newWindows.subtracting(oldWindows).map { $0.windowID }
     let removed = removedKeys.map { $0.windowID }
+    let replacementLog = replacements.map {
+      "\($0.key.windowID)→\($0.value.windowID)"
+    }
     debugLog.log(
       "Sync",
       "result \(bundleId): added=\(added) removed=\(removed) "
+        + "replaced=\(replacementLog) "
         + "treeAfter=\(balanced?.windows.map { $0.windowID } ?? [])",
     )
 
@@ -956,7 +1156,7 @@ extension WorkspaceActivationFeature {
             // first AX write instead of trusting that transient preflight.
             forceAllFrames: !addedKeys.isEmpty,
             monitorsPresentationChanges: isCompositionMember,
-            presentationRepairKeys: reappearingKeys,
+            presentationRepairKeys: presentationRepairKeys,
           ),
           postLayoutFocusEffect,
         )

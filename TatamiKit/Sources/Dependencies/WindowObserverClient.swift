@@ -1047,9 +1047,12 @@ private final class ObservedApp: @unchecked Sendable {
   /// on the target app, so run it as the next turn on this app's own run loop
   /// after the callback has returned.
   fileprivate func refreshAfterWindowCreated() {
+    guard !isWindowSubscriptionRefreshPending else { return }
+    isWindowSubscriptionRefreshPending = true
     thread.enqueue { [weak self] in
       guard let self else { return }
       refreshWindowSubscriptions()
+      isWindowSubscriptionRefreshPending = false
       if needsAXRetry {
         scheduleAXRetry(attemptsRemaining: 10)
       }
@@ -1116,6 +1119,10 @@ private final class ObservedApp: @unchecked Sendable {
   private let thread: AXObserverThread
   private var observer: AXObserver?
   private var appElement: AXUIElement?
+  /// A burst of native-tab AX create notifications needs one latest-window
+  /// subscription pass, not one synchronous kAXWindows scan per callback.
+  /// Access is confined to this app's AX observer thread.
+  private var isWindowSubscriptionRefreshPending = false
   /// Invalidates a retry that already woke but has not reached the AX thread
   /// yet. Cancellation alone cannot retract a queued CFRunLoop block.
   private var retryGeneration: UInt64 = 0

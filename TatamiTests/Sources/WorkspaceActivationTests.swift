@@ -2404,6 +2404,7 @@ struct WorkspaceActivationFeatureTests {
   func `window invisible removes the tile without tombstoning its live surface`() async {
     let hidden = WindowKey(pid: 1, windowID: 101, bundleId: "com.cron.electron")
     let survivor = WindowKey(pid: 2, windowID: 202, bundleId: "app.survivor")
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
     let ws = Workspace(name: "one")
     let state = Self.makeState(workspaces: [ws]) {
       $0.focusedDisplay = Self.display
@@ -2422,14 +2423,37 @@ struct WorkspaceActivationFeatureTests {
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
       // Prove the 816 edge itself is authoritative even if the next list
       // snapshot still contains the surface.
       $0.windowSnapshot.onScreenWindowIDs = {
         [hidden.windowID, survivor.windowID]
       }
+      // A same-process window on another display and an in-display popup are
+      // not native-tab replacements for this tile.
+      $0.windowSnapshot.onScreenWindowSurfaces = {
+        [
+          301: WindowServerSurface(
+            ownerPID: hidden.pid,
+            layer: 0,
+            frame: CGRect(x: 1_200, y: 0, width: 800, height: 800),
+          ),
+          302: WindowServerSurface(
+            ownerPID: hidden.pid,
+            layer: 1,
+            frame: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+          ),
+        ]
+      }
       $0.windowSnapshot.cachedWindowKey = { windowID in
         windowID == hidden.windowID ? hidden : nil
       }
+      $0.windowSnapshot.discoverKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [hidden.bundleId])
+        #expect(requireResizable)
+        return []
+      }
+      $0.windowSnapshot.onScreenWindowFrames = { [:] }
       $0.windowSnapshot.invalidateWindowIDs = { ids in
         invalidated.withValue { $0.formUnion(ids) }
       }
@@ -2440,12 +2464,206 @@ struct WorkspaceActivationFeatureTests {
     store.exhaustivity = .off
 
     await store.send(.windowServerWindowEvent(.becameInvisible(hidden.windowID)))
+    await store.receive(\.syncAppWindows)
+    await store.receive(\.syncAppWindowsResolved)
     await store.finish()
 
     #expect(store.state.tilingTrees[ws.id]?.windows == [survivor])
     #expect(store.state.windowServerHiddenWindows == [hidden])
     #expect(invalidated.value.isEmpty)
     #expect(applied.value == [[survivor]])
+  }
+
+  @Test
+  func `native tab visibility swap replaces the surface in one layout transaction`() async {
+    let oldTab = WindowKey(
+      pid: 1,
+      windowID: 101,
+      bundleId: "com.mitchellh.ghostty",
+    )
+    let newTab = WindowKey(
+      pid: 1,
+      windowID: 102,
+      bundleId: oldTab.bundleId,
+    )
+    let survivor = WindowKey(pid: 2, windowID: 202, bundleId: "org.alacritty")
+    let workspace = Workspace(
+      name: "Terminal",
+      apps: [AppAssignment(bundleIdentifier: oldTab.bundleId, name: "Ghostty")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_600, height: 1_000)
+    let oldTree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.37,
+        left: .leaf(survivor),
+        right: .leaf(oldTab),
+      )
+    )
+    let expectedTree = oldTree.mapWindows { $0 == oldTab ? newTab : $0 }
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = oldTree
+      $0.insertionPoint[workspace.id] = oldTab
+      $0.mruWindows[workspace.id] = [oldTab, survivor]
+    }
+    let newFrame = CGRect(x: 600, y: 0, width: 1_000, height: 1_000)
+    let surfaces = [
+      newTab.windowID: WindowServerSurface(
+        ownerPID: newTab.pid,
+        layer: 0,
+        frame: newFrame,
+      ),
+      survivor.windowID: WindowServerSurface(
+        ownerPID: survivor.pid,
+        layer: 0,
+        frame: CGRect(x: 0, y: 0, width: 600, height: 1_000),
+      ),
+    ]
+    let applications = LockIsolated<[Set<WindowKey>]>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let dirtied = LockIsolated<[String]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == oldTab.windowID ? oldTab : nil
+      }
+      $0.windowSnapshot.onScreenWindowSurfaces = { surfaces }
+      $0.windowSnapshot.onScreenWindowFrames = { surfaces.mapValues(\.frame) }
+      $0.windowSnapshot.markBundleDirty = { bundleId in
+        dirtied.withValue { $0.append(bundleId) }
+      }
+      $0.windowSnapshot.discoverKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [oldTab.bundleId])
+        #expect(requireResizable)
+        return [newTab]
+      }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(Set(application.windowFrames.keys)) }
+      }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.windowServerWindowEvent(.becameInvisible(oldTab.windowID)))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == expectedTree)
+    #expect(store.state.insertionPoint[workspace.id] == newTab)
+    #expect(store.state.mruWindows[workspace.id] == [newTab, survivor])
+    #expect(store.state.windowServerHiddenWindows.isEmpty)
+    #expect(store.state.presentationConvergenceWindows.contains(newTab))
+    #expect(!applications.value.isEmpty)
+    #expect(applications.value.allSatisfy { $0 == [newTab, survivor] })
+    #expect(saved.value.count == 1)
+    #expect(dirtied.value == [oldTab.bundleId])
+  }
+
+  @Test
+  func `rapid native tab intermediate invisibility never expands its sibling`() async {
+    let residentTab = WindowKey(
+      pid: 1,
+      windowID: 101,
+      bundleId: "com.mitchellh.ghostty",
+    )
+    let intermediateTab = WindowKey(
+      pid: residentTab.pid,
+      windowID: 102,
+      bundleId: residentTab.bundleId,
+    )
+    let latestTab = WindowKey(
+      pid: residentTab.pid,
+      windowID: 103,
+      bundleId: residentTab.bundleId,
+    )
+    let alacritty = WindowKey(pid: 2, windowID: 202, bundleId: "org.alacritty")
+    let workspace = Workspace(
+      name: "Terminal",
+      apps: [AppAssignment(bundleIdentifier: residentTab.bundleId, name: "Ghostty")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_600, height: 1_000)
+    let oldTree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.37,
+        left: .leaf(alacritty),
+        right: .leaf(residentTab),
+      )
+    )
+    let expectedTree = oldTree.mapWindows { $0 == residentTab ? latestTab : $0 }
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = oldTree
+      $0.insertionPoint[workspace.id] = residentTab
+      $0.mruWindows[workspace.id] = [residentTab, alacritty]
+    }
+    let frames = [
+      latestTab.windowID: CGRect(x: 600, y: 0, width: 1_000, height: 1_000),
+      alacritty.windowID: CGRect(x: 0, y: 0, width: 600, height: 1_000),
+    ]
+    let applications = LockIsolated<[Set<WindowKey>]>([])
+    let dirtied = LockIsolated<[String]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == intermediateTab.windowID ? intermediateTab : nil
+      }
+      $0.windowSnapshot.markBundleDirty = { bundleId in
+        dirtied.withValue { $0.append(bundleId) }
+      }
+      $0.windowSnapshot.discoverKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [residentTab.bundleId])
+        #expect(requireResizable)
+        return [latestTab]
+      }
+      $0.windowSnapshot.onScreenWindowFrames = { frames }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(Set(application.windowFrames.keys)) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowServerWindowEvent(.becameInvisible(intermediateTab.windowID))
+    )
+    await store.receive(\.syncAppWindows)
+    await store.receive(\.syncAppWindowsResolved)
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == expectedTree)
+    #expect(store.state.insertionPoint[workspace.id] == latestTab)
+    #expect(store.state.mruWindows[workspace.id] == [latestTab, alacritty])
+    #expect(store.state.windowServerHiddenWindows.isEmpty)
+    #expect(!applications.value.isEmpty)
+    #expect(applications.value.allSatisfy { $0 == [latestTab, alacritty] })
+    #expect(dirtied.value == [residentTab.bundleId])
+  }
+
+  @Test
+  func `surface replacement pairing keeps multiple native tab groups in their original slots`() {
+    let oldLeft = WindowKey(pid: 7, windowID: 101, bundleId: "com.mitchellh.ghostty")
+    let oldRight = WindowKey(pid: 7, windowID: 102, bundleId: oldLeft.bundleId)
+    let newLeft = WindowKey(pid: 7, windowID: 201, bundleId: oldLeft.bundleId)
+    let newRight = WindowKey(pid: 7, windowID: 202, bundleId: oldLeft.bundleId)
+    let leftFrame = CGRect(x: 0, y: 0, width: 500, height: 800)
+    let rightFrame = CGRect(x: 500, y: 0, width: 500, height: 800)
+
+    let replacements = WorkspaceActivationFeature.surfaceReplacements(
+      outgoing: [oldLeft, oldRight],
+      incoming: [newRight, newLeft],
+      expectedFrames: [oldLeft: leftFrame, oldRight: rightFrame],
+      liveFrames: [newLeft.windowID: leftFrame, newRight.windowID: rightFrame],
+    )
+
+    #expect(replacements == [oldLeft: newLeft, oldRight: newRight])
   }
 
   @Test
@@ -2485,6 +2703,14 @@ struct WorkspaceActivationFeatureTests {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.cachedWindowKey = { windowID in
+        windowID == notion.windowID ? notion : nil
+      }
+      $0.windowSnapshot.discoverKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [notion.bundleId])
+        #expect(requireResizable)
+        return [notion]
+      }
       $0.windowSnapshot.onScreenWindowFrames = { liveFrames.value }
       $0.windowTiler.apply = { application in
         applications.withValue { $0.append(application) }
@@ -2497,13 +2723,9 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(
-      .syncAppWindowsResolved(
-        bundleId: notion.bundleId,
-        resizableKeys: [notion],
-        onScreenFrames: liveFrames.value,
-      )
-    )
+    await store.send(.windowServerWindowEvent(.becameVisible(notion.windowID)))
+    await store.receive(\.syncAppWindows)
+    await store.receive(\.syncAppWindowsResolved)
     await store.finish()
 
     #expect(store.state.windowServerHiddenWindows.isEmpty)
