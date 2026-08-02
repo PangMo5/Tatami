@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.11.1 (2026-08-02)
+
+### Fixes
+- **Stable layouts during native tab changes:** Creating, closing, or switching native tabs no longer lets transient WindowServer surface identities enter the BSP tree as separate windows. Tatami preserves the existing tile, focus history, zoom state, and presentation state while the real window surface changes, even during rapid tab churn.
+
 ## 1.11.0 (2026-07-31)
 
 ### New
