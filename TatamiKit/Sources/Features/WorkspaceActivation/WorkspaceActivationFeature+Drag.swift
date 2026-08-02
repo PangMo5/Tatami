@@ -17,6 +17,23 @@ extension WorkspaceActivationFeature {
     return tree.removingAll(active)
   }
 
+  /// Mouse-up hands geometry ownership from the target app back to Tatami.
+  /// The app can finish its native drag transaction after our first AX write
+  /// and restore one of the pre-drop frames, so pointer commits must publish
+  /// one complete frame set and keep the visible tree armed until any delayed
+  /// presentation change has converged.
+  func flushPointerDrivenLayout(
+    workspaceId: Workspace.ID,
+    state: inout State,
+  ) -> Effect<Action> {
+    flushLayout(
+      workspaceId: workspaceId,
+      state: &state,
+      forceAllFrames: true,
+      monitorsPresentationChanges: true,
+    )
+  }
+
   func syncTreeRatio(
     for key: WindowKey,
     frame newFrame: CGRect,
@@ -34,7 +51,7 @@ extension WorkspaceActivationFeature {
     // ratios from it. Snap it back to its fullscreen frame instead.
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     if zoomed.contains(key) {
-      return flushLayout(workspaceId: workspaceId, state: &state)
+      return flushPointerDrivenLayout(workspaceId: workspaceId, state: &state)
     }
 
     let settings = state.config.settings
@@ -90,7 +107,7 @@ extension WorkspaceActivationFeature {
     state.tilingTrees[workspaceId] = newTree
 
     return .merge(
-      flushLayout(workspaceId: workspaceId, state: &state),
+      flushPointerDrivenLayout(workspaceId: workspaceId, state: &state),
       persist(
         newTree,
         fullscreenZoomed: zoomed,
@@ -189,7 +206,7 @@ extension WorkspaceActivationFeature {
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
 
     return .merge(
-      flushLayout(workspaceId: workspaceId, state: &state),
+      flushPointerDrivenLayout(workspaceId: workspaceId, state: &state),
       persist(
         newTree,
         fullscreenZoomed: zoomed,

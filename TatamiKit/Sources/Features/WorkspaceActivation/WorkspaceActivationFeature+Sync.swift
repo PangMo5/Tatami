@@ -643,7 +643,7 @@ extension WorkspaceActivationFeature {
       let workspaceId = state.workspaceOwning(windowKey),
       state.tilingTrees[workspaceId] != nil
     else { return .none }
-    return flushLayout(workspaceId: workspaceId, state: &state)
+    return flushPointerDrivenLayout(workspaceId: workspaceId, state: &state)
   }
 
   /// `switchToRecentWhenEmpty`: a close left the active workspace with

@@ -5043,6 +5043,101 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `drop converges every tile after the app restores an old frame`() async throws {
+    let left = WindowKey(pid: 1, windowID: 101, bundleId: "org.alacritty")
+    let topRight = WindowKey(pid: 2, windowID: 201, bundleId: "com.mitchellh.ghostty")
+    let bottomRight = WindowKey(pid: 2, windowID: 202, bundleId: topRight.bundleId)
+    let workspace = Workspace(name: "Terminal")
+    let workArea = await MainActor.run {
+      ScreenGeometry.workArea(for: Self.display)
+    }
+    let initialTree = BSPNode.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(left),
+        right: .branch(
+          BSPBranch(
+            split: .horizontal,
+            ratio: 0.5,
+            left: .leaf(topRight),
+            right: .leaf(bottomRight),
+          )
+        ),
+      )
+    )
+    let initialFrames = initialTree.frames(in: workArea, gap: 0)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = initialTree
+      $0.drag = .dropping(
+        .init(dragged: bottomRight, target: topRight, zone: .right)
+      )
+    }
+    let liveFrames = LockIsolated(
+      Dictionary(uniqueKeysWithValues: initialFrames.map { ($0.key.windowID, $0.value) })
+    )
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.dragPreview.hide = { }
+      $0.windowSnapshot.onScreenWindowFrames = { liveFrames.value }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+        liveFrames.withValue { frames in
+          for (key, frame) in application.windowFrames {
+            frames[key.windowID] = frame
+          }
+        }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowChanged(
+        .windowDragEnded(
+          trackedWindowID: bottomRight.windowID,
+          key: nil,
+          frame: nil,
+          pointerMoved: true,
+        )
+      )
+    )
+    await store.finish()
+
+    let firstApplication = try #require(applications.value.first)
+    #expect(firstApplication.forceAllFrames)
+    #expect(Set(firstApplication.windowFrames.keys) == [left, topRight, bottomRight])
+    #expect(
+      store.state.presentationConvergenceWindows
+        == [left, topRight, bottomRight]
+    )
+    let targetFrame = try #require(firstApplication.windowFrames[topRight])
+    let staleFrame = try #require(initialFrames[topRight])
+    #expect(targetFrame.height > staleFrame.height)
+    #expect(staleFrame.height == workArea.height / 2)
+
+    liveFrames.withValue { $0[topRight.windowID] = staleFrame }
+    await store.send(
+      .windowChanged(
+        .windowFrameChanged(key: topRight, frame: staleFrame)
+      )
+    )
+    await store.finish()
+
+    #expect(applications.value.count == 2)
+    #expect(applications.value.last?.windowFrames[topRight] == targetFrame)
+    #expect(liveFrames.value[topRight.windowID] == targetFrame)
+  }
+
+  @Test
   func `plain move snaps back on mouse up`() async {
     let key = WindowKey(pid: 1, windowID: 100, bundleId: "app.one")
     let store = TestStore(initialState: Self.makeState(workspaces: [])) {
