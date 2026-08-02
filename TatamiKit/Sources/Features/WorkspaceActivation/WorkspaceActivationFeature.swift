@@ -483,6 +483,16 @@ public struct WorkspaceActivationFeature {
       }
     }
 
+    /// Consume exact evidence that an 816-hidden WindowServer surface is live
+    /// again. SLS 815 is not guaranteed for hide-on-close Electron windows;
+    /// their AX observer can instead report the same focused window id when the
+    /// app recreates its presentation. Carry the repair intent until bundle
+    /// reconciliation has restored BSP membership.
+    mutating func markWindowServerSurfaceVisible(_ key: WindowKey) {
+      guard windowServerHiddenWindows.remove(key) != nil else { return }
+      pendingWindowServerPresentationWindows.insert(key)
+    }
+
     mutating func removeFromPresentationMonitoring(_ keys: Set<WindowKey>) {
       guard !keys.isEmpty else { return }
       presentationConvergenceWindows.subtract(keys)
@@ -1281,6 +1291,7 @@ public struct WorkspaceActivationFeature {
             )
           }
           let isFocusTransition = state.lastObservedFocusedWindow != key
+          if let key { state.markWindowServerSurfaceVisible(key) }
           state.lastObservedFocusedWindow = key
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
@@ -1765,9 +1776,7 @@ public struct WorkspaceActivationFeature {
           debugLog.log("SLS", "window visible wid=\(wid) — no cached owner")
           return .none
         }
-        if state.windowServerHiddenWindows.remove(key) != nil {
-          state.pendingWindowServerPresentationWindows.insert(key)
-        }
+        state.markWindowServerSurfaceVisible(key)
         windowSnapshot.markBundleDirty(key.bundleId)
         debugLog.log(
           "SLS",

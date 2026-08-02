@@ -2750,6 +2750,53 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `focused AX edge restores a hidden Electron surface without SLS visible`() async {
+    let survivor = WindowKey(pid: 1, windowID: 101, bundleId: "org.alacritty")
+    let notion = WindowKey(pid: 2, windowID: 202, bundleId: "com.cron.electron")
+    let workspace = Workspace(name: "Terminal")
+    let workArea = CGRect(x: 0, y: 0, width: 1_600, height: 1_000)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(survivor)
+      $0.windowServerHiddenWindows = [notion]
+    }
+    let frames = [
+      survivor.windowID: CGRect(x: 0, y: 0, width: 800, height: 1_000),
+      notion.windowID: CGRect(x: 800, y: 0, width: 800, height: 1_000),
+    ]
+    let applications = LockIsolated<[Set<WindowKey>]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowSnapshot.discoverKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [notion.bundleId])
+        #expect(requireResizable)
+        return [notion]
+      }
+      $0.windowSnapshot.onScreenWindowFrames = { frames }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(Set(application.windowFrames.keys)) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowChanged(.windowFocused(bundleId: notion.bundleId, key: notion))
+    )
+    await store.receive(\.syncAppWindows)
+    await store.receive(\.syncAppWindowsResolved)
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id]?.windows == [survivor, notion])
+    #expect(store.state.windowServerHiddenWindows.isEmpty)
+    #expect(store.state.pendingWindowServerPresentationWindows.isEmpty)
+    #expect(store.state.presentationConvergenceWindows.contains(notion))
+    #expect(applications.value.allSatisfy { $0 == [survivor, notion] })
+  }
+
+  @Test
   func `window visible reconciles only its cached owner`() async {
     let key = WindowKey(pid: 1, windowID: 101, bundleId: "com.cron.electron")
     let state = Self.makeState(workspaces: []) {
