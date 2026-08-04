@@ -6,6 +6,12 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.11.2 (2026-08-04)
+
+### Fixes
+- **Layouts preserved through screen lock:** Locking the screen no longer lets temporary Accessibility or WindowServer snapshots remove windows from the active BSP layout. Tatami freezes destructive membership changes before the lock shield appears, waits for every overlapping sleep or session transition to finish, then reconnects the complete layout after unlock.
+- **Complete workspace feedback across displays:** Moving focus to a workspace already visible on another display once again shows its workspace HUD without disturbing a live Borrow composition. The display being left now names both the destination workspace and monitor, so every cross-display switch makes the result clear.
+
 ## 1.11.1 (2026-08-02)
 
 ### Fixes
