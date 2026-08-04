@@ -42,6 +42,15 @@ enum AppLaunchEvent: Sendable, Hashable {
   case willSleep
   case willPowerOff
   case didWake
+  /// A user-session transition can make every application window temporarily
+  /// unavailable to AX without putting the machine to sleep.
+  case sessionWillResign
+  case sessionDidBecomeActive
+  /// Direct screen lock raises loginwindow's shield before AX starts returning
+  /// zero window ids/non-settable attributes. Freeze membership on that early
+  /// edge and resume only after authentication completes.
+  case screenWillLock
+  case screenDidUnlock
 }
 
 // MARK: - AppLaunchObserverClient + DependencyKey
@@ -156,11 +165,41 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       self?.broadcast(.didWake)
     }
     nc.addObserver(
+      forName: NSWorkspace.sessionDidResignActiveNotification,
+      object: nil,
+      queue: .main,
+    ) { [weak self] _ in
+      self?.broadcast(.sessionWillResign)
+    }
+    nc.addObserver(
+      forName: NSWorkspace.sessionDidBecomeActiveNotification,
+      object: nil,
+      queue: .main,
+    ) { [weak self] _ in
+      self?.broadcast(.sessionDidBecomeActive)
+    }
+    nc.addObserver(
       forName: NSWorkspace.willPowerOffNotification,
       object: nil,
       queue: .main,
     ) { [weak self] _ in
       self?.broadcast(.willPowerOff)
+    }
+
+    let distributed = DistributedNotificationCenter.default()
+    distributed.addObserver(
+      forName: Self.shieldWindowRaisedNotification,
+      object: nil,
+      queue: .main,
+    ) { [weak self] _ in
+      self?.broadcast(.screenWillLock)
+    }
+    distributed.addObserver(
+      forName: Self.screenIsUnlockedNotification,
+      object: nil,
+      queue: .main,
+    ) { [weak self] _ in
+      self?.broadcast(.screenDidUnlock)
     }
   }
 
@@ -179,6 +218,13 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
   }
 
   // MARK: Private
+
+  private static let shieldWindowRaisedNotification = Notification.Name(
+    "com.apple.shieldWindowRaised"
+  )
+  private static let screenIsUnlockedNotification = Notification.Name(
+    "com.apple.screenIsUnlocked"
+  )
 
   private let lock = NSLock()
   private var continuations = [UUID: AsyncStream<AppLaunchEvent>.Continuation]()

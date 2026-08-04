@@ -188,8 +188,8 @@ extension WorkspaceActivationFeature {
   /// one in-flight request per bundle and schedules a trailing pass when any
   /// notification arrives during this scan.
   func syncAppWindows(bundleId: String, state: inout State) -> Effect<Action> {
-    guard !state.isSystemSuspended else {
-      debugLog.log("Sync", "skip \(bundleId): system suspended")
+    guard !state.isLayoutSuspended else {
+      debugLog.log("Sync", "skip \(bundleId): layout suspended")
       return .none
     }
     guard !state.isTilingPaused else {
@@ -289,7 +289,7 @@ extension WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action> {
     guard
-      !state.isSystemSuspended,
+      !state.isLayoutSuspended,
       !state.isTilingPaused,
       !state.isInFullscreenSpace,
       !state.isActivating,
@@ -423,7 +423,7 @@ extension WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action> {
     guard !state.isTilingPaused, !state.isActivating else { return .none }
-    if state.isSystemSuspended || state.isRecoveringSystemLayout {
+    if state.isLayoutSuspended || state.isRecoveringSystemLayout {
       debugLog.log("Prune", "skip: system layout suspended/recovering")
       return .none
     }
@@ -569,6 +569,72 @@ extension WorkspaceActivationFeature {
     return .merge(effects)
   }
 
+  /// Freeze destructive membership changes while a lifecycle transition makes
+  /// AX/WindowServer snapshots temporarily non-authoritative. Only the first
+  /// overlapping reason captures the tree; later reasons must not overwrite
+  /// that pre-transition identity set with an intermediate snapshot.
+  func beginLayoutSuspension(
+    _ reason: State.LayoutSuspensionReason,
+    state: inout State,
+  ) -> Effect<Action> {
+    let wasSuspended = state.isLayoutSuspended
+    let inserted = state.layoutSuspensionReasons.insert(reason).inserted
+    guard inserted else { return .none }
+
+    if wasSuspended {
+      debugLog.log(
+        "Suspend",
+        "begin \(reason): waiting on \(state.layoutSuspensionReasons)",
+      )
+      return .none
+    }
+
+    state.isRecoveringSystemLayout = false
+    state.pendingSystemLayoutBundleIds = []
+    state.suspendedLayoutWindows = state.visibleWorkspaceIDs.reduce(into: [:]) {
+      if let tree = state.tilingTrees[$1], !tree.windows.isEmpty {
+        $0[$1] = Set(tree.windows)
+      }
+    }
+    debugLog.log(
+      "Suspend",
+      "begin \(reason): preserve layouts for \(state.suspendedLayoutWindows.count) workspace(s)",
+    )
+    return .none
+  }
+
+  /// Clear one lifecycle reason and reconcile only after every overlapping
+  /// transition has completed. In particular, `didWake` must not query AX while
+  /// loginwindow's lock shield is still covering the user session.
+  func endLayoutSuspension(
+    _ reason: State.LayoutSuspensionReason,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard state.layoutSuspensionReasons.remove(reason) != nil else {
+      debugLog.log("Suspend", "end \(reason): no matching begin")
+      return .none
+    }
+    guard !state.isLayoutSuspended else {
+      debugLog.log(
+        "Suspend",
+        "end \(reason): still waiting on \(state.layoutSuspensionReasons)",
+      )
+      return .none
+    }
+
+    state.isRecoveringSystemLayout =
+      !state.isTilingPaused && !state.suspendedLayoutWindows.isEmpty
+    if !state.isRecoveringSystemLayout {
+      state.suspendedLayoutWindows = [:]
+      state.pendingSystemLayoutBundleIds = []
+    }
+    debugLog.log(
+      "Suspend",
+      "end \(reason): reconcile=\(state.isRecoveringSystemLayout)",
+    )
+    return .send(.activeSpaceChanged)
+  }
+
   /// Complete one bundle from the wake reconciliation batch. If every
   /// pre-suspend WindowKey disappeared, WindowServer recycled the whole
   /// workspace and there is no live identity left from which to preserve the
@@ -609,7 +675,7 @@ extension WorkspaceActivationFeature {
         state.tilingTrees[workspaceId] = recovered
         state.insertionPoint[workspaceId] = recovered.windows.first
         debugLog.log(
-          "Sleep",
+          "Suspend",
           "reset lost layout ws=\(workspace.name) mode=\(settings.layout.autoBalance.rawValue)",
         )
       } else {

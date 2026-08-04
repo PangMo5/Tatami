@@ -2255,7 +2255,7 @@ struct WorkspaceActivationFeatureTests {
     }
 
     await store.send(.systemWillSuspend) {
-      $0.isSystemSuspended = true
+      $0.layoutSuspensionReasons = [.systemSleep]
       $0.suspendedLayoutWindows[workspace.id] = [first, second]
     }
     await store.send(.windowServerWindowEvent(.terminated(first.windowID)))
@@ -2265,6 +2265,86 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.tilingTrees[workspace.id] == tree)
     #expect(invalidated.value == [first.windowID])
     #expect(saved.value.isEmpty)
+  }
+
+  @Test
+  func `screen lock rejects transient empty AX snapshots`() async {
+    let slack = WindowKey(pid: 1, windowID: 101, bundleId: "app.slack")
+    let discord = WindowKey(pid: 2, windowID: 202, bundleId: "app.discord")
+    let workspace = Workspace(name: "Chat")
+    let tree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(slack),
+        right: .leaf(discord),
+      )
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = tree
+      $0.windowSyncBundleIdsInFlight = [slack.bundleId, discord.bundleId]
+    }
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+
+    await store.send(.screenWillLock) {
+      $0.layoutSuspensionReasons = [.screenLock]
+      $0.suspendedLayoutWindows[workspace.id] = [slack, discord]
+    }
+    await store.send(.syncAppWindowsResolved(
+      bundleId: slack.bundleId,
+      resizableKeys: [],
+      onScreenFrames: [:],
+    )) {
+      $0.windowSyncBundleIdsInFlight.remove(slack.bundleId)
+    }
+    await store.send(.syncAppWindowsResolved(
+      bundleId: discord.bundleId,
+      resizableKeys: [],
+      onScreenFrames: [:],
+    )) {
+      $0.windowSyncBundleIdsInFlight.remove(discord.bundleId)
+    }
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == tree)
+    #expect(saved.value.isEmpty)
+  }
+
+  @Test
+  func `system wake waits for an overlapping screen lock`() async {
+    let window = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
+    let workspace = Workspace(name: "Sleep")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(window)
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(.systemWillSuspend) {
+      $0.layoutSuspensionReasons = [.systemSleep]
+      $0.suspendedLayoutWindows[workspace.id] = [window]
+    }
+    await store.send(.screenWillLock) {
+      $0.layoutSuspensionReasons.insert(.screenLock)
+    }
+    await store.send(.systemDidWake) {
+      $0.layoutSuspensionReasons.remove(.systemSleep)
+    }
+    await store.finish()
+
+    #expect(store.state.layoutSuspensionReasons == [.screenLock])
+    #expect(!store.state.isRecoveringSystemLayout)
+    #expect(store.state.tilingTrees[workspace.id] == .leaf(window))
   }
 
   @Test(arguments: AutoBalanceMode.allCases)

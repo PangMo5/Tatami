@@ -96,6 +96,15 @@ public struct WorkspaceActivationFeature {
       case moving(WindowKey)
     }
 
+    /// Independent lifecycle reasons that freeze destructive window-membership
+    /// updates. They may overlap: a sleeping Mac commonly wakes to a still-
+    /// locked screen, and reconciliation must wait for both edges to clear.
+    public enum LayoutSuspensionReason: Equatable, Hashable, Sendable {
+      case screenLock
+      case sessionInactive
+      case systemSleep
+    }
+
     @Shared(.tatamiConfig) public var config = AppConfig()
     public var activeWorkspacesByDisplay = [DisplayName: Workspace.ID]()
     /// Per-display "most recent" workspace, for switch-to-recent on the
@@ -199,10 +208,9 @@ public struct WorkspaceActivationFeature {
     /// Space bounces the user straight back to the Desktop. Set from the
     /// space-change observer.
     public var isInFullscreenSpace = false
-    /// True from `NSWorkspace.willSleep` / `willPowerOff` until wake begins.
-    /// WindowServer surface destruction in this interval is lifecycle churn,
-    /// not user intent, so tree pruning and persistence must stay frozen.
-    public var isSystemSuspended = false
+    /// Active lifecycle gates that make AX/WindowServer membership snapshots
+    /// temporarily non-authoritative.
+    public var layoutSuspensionReasons = Set<LayoutSuspensionReason>()
     /// The pre-suspend tree identities and the bundle reconciliations still
     /// outstanding after wake. Keeping this gate through the reconciliation
     /// also catches teardown events queued by WindowServer until after
@@ -273,6 +281,10 @@ public struct WorkspaceActivationFeature {
     public var didWarnMissingScreenRecording = false
 
     public var drag = DragState.idle
+
+    public var isLayoutSuspended: Bool {
+      !layoutSuspensionReasons.isEmpty
+    }
 
     /// The active workspace on the display the user is currently on. Falls
     /// back to any active workspace (single-display, or before `focusedDisplay`
@@ -765,6 +777,12 @@ public struct WorkspaceActivationFeature {
     /// surfaces for sleep or shutdown, then reconcile fresh identities on wake.
     case systemWillSuspend
     case systemDidWake
+    /// Screen lock and user-session switches can make AX return zero window ids
+    /// even though every physical window remains alive.
+    case screenWillLock
+    case screenDidUnlock
+    case sessionWillResign
+    case sessionDidBecomeActive
     case systemLayoutBundleReconciled(bundleId: String)
     case startObservingAppLaunches
     case appLaunched(bundleId: String, name: String)
@@ -1379,7 +1397,7 @@ public struct WorkspaceActivationFeature {
       case .syncAppWindowsResolved(let bundleId, let resizableKeys, let onScreenFrames):
         state.windowSyncBundleIdsInFlight.remove(bundleId)
         let needsTrailingRefresh = state.dirtyWindowSyncBundleIds.remove(bundleId) != nil
-        if state.isSystemSuspended {
+        if state.isLayoutSuspended {
           return .none
         }
         if state.isActivating {
@@ -1471,41 +1489,36 @@ public struct WorkspaceActivationFeature {
               await send(.systemWillSuspend)
             case .didWake:
               await send(.systemDidWake)
+            case .sessionWillResign:
+              await send(.sessionWillResign)
+            case .sessionDidBecomeActive:
+              await send(.sessionDidBecomeActive)
+            case .screenWillLock:
+              await send(.screenWillLock)
+            case .screenDidUnlock:
+              await send(.screenDidUnlock)
             }
           }
         }
         .cancellable(id: CancelID.appLaunchEvents, cancelInFlight: true)
 
       case .systemWillSuspend:
-        state.isSystemSuspended = true
-        state.isRecoveringSystemLayout = false
-        state.pendingSystemLayoutBundleIds = []
-        let suspendedLayouts: [Workspace.ID: Set<WindowKey>] =
-          state.visibleWorkspaceIDs.reduce(into: [:]) {
-            if let tree = state.tilingTrees[$1], !tree.windows.isEmpty {
-              $0[$1] = Set(tree.windows)
-            }
-          }
-        state.suspendedLayoutWindows = suspendedLayouts
-        debugLog.log(
-          "Sleep",
-          "suspend: preserve layouts for \(state.suspendedLayoutWindows.count) workspace(s)",
-        )
-        return .none
+        return beginLayoutSuspension(.systemSleep, state: &state)
 
       case .systemDidWake:
-        state.isSystemSuspended = false
-        state.isRecoveringSystemLayout =
-          !state.isTilingPaused && !state.suspendedLayoutWindows.isEmpty
-        if !state.isRecoveringSystemLayout {
-          state.suspendedLayoutWindows = [:]
-          state.pendingSystemLayoutBundleIds = []
-        }
-        debugLog.log(
-          "Sleep",
-          "wake: reconcile=\(state.isRecoveringSystemLayout)",
-        )
-        return .send(.activeSpaceChanged)
+        return endLayoutSuspension(.systemSleep, state: &state)
+
+      case .screenWillLock:
+        return beginLayoutSuspension(.screenLock, state: &state)
+
+      case .screenDidUnlock:
+        return endLayoutSuspension(.screenLock, state: &state)
+
+      case .sessionWillResign:
+        return beginLayoutSuspension(.sessionInactive, state: &state)
+
+      case .sessionDidBecomeActive:
+        return endLayoutSuspension(.sessionInactive, state: &state)
 
       case .activeSpaceChanged:
         // Re-read whether we're in a native fullscreen Space. Every layout side
@@ -1692,8 +1705,8 @@ public struct WorkspaceActivationFeature {
           state.pendingWindowServerPresentationWindows.remove(pending)
         }
         windowSnapshot.invalidateWindowIDs([wid])
-        if state.isSystemSuspended || state.isRecoveringSystemLayout {
-          debugLog.log("Sleep", "preserve terminated surface wid=\(wid)")
+        if state.isLayoutSuspended || state.isRecoveringSystemLayout {
+          debugLog.log("Suspend", "preserve terminated surface wid=\(wid)")
           return .none
         }
         if state.isActivating {
@@ -1707,8 +1720,8 @@ public struct WorkspaceActivationFeature {
 
       case .windowServerWindowEvent(.becameInvisible(let wid)):
         debugLog.log("SLS", "window invisible wid=\(wid)")
-        if state.isSystemSuspended || state.isRecoveringSystemLayout {
-          debugLog.log("Sleep", "preserve invisible surface wid=\(wid)")
+        if state.isLayoutSuspended || state.isRecoveringSystemLayout {
+          debugLog.log("Suspend", "preserve invisible surface wid=\(wid)")
           return .none
         }
         let residentKey = state.tilingTrees.values.lazy.compactMap { tree in
@@ -1800,7 +1813,7 @@ public struct WorkspaceActivationFeature {
           state.pendingWindowServerPresentationWindows.remove(key)
         }
         windowSnapshot.invalidateBundle(bundleId)
-        if state.isSystemSuspended || state.isRecoveringSystemLayout {
+        if state.isLayoutSuspended || state.isRecoveringSystemLayout {
           return .none
         }
         let prune = pruneOffscreenWindows(state: &state)
