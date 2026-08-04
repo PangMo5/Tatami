@@ -160,13 +160,22 @@ private enum HUDLayout {
 
   // MARK: Internal
 
-  static let shadowPadding: CGFloat = 12
+  static let actionShadowPadding: CGFloat = 12
+  static let windowSwitcherShadowRadius: CGFloat = 8
+  static let windowSwitcherShadowYOffset: CGFloat = 4
   static let maximumActionSurfaceSize = NSSize(width: 404, height: 70)
+
+  /// `NSHostingView` clips drawing outside its panel. Keep the transparent
+  /// panel outset coupled to the widest shadow extent so a future style tweak
+  /// cannot reintroduce a hard rectangular cutoff.
+  static var windowSwitcherShadowPadding: CGFloat {
+    windowSwitcherShadowRadius + abs(windowSwitcherShadowYOffset)
+  }
 
   static var actionPanelSize: NSSize {
     NSSize(
-      width: maximumActionSurfaceSize.width + shadowPadding * 2,
-      height: maximumActionSurfaceSize.height + shadowPadding * 2,
+      width: maximumActionSurfaceSize.width + actionShadowPadding * 2,
+      height: maximumActionSurfaceSize.height + actionShadowPadding * 2,
     )
   }
 
@@ -200,15 +209,18 @@ private enum HUDLayout {
     let idealSurfaceWidth = CGFloat(itemCount) * 82
       + CGFloat(max(0, itemCount - 1)) * 8
       + 28
-    let maximumSurfaceWidth = max(280, visibleWidth - 96 - shadowPadding * 2)
+    let maximumSurfaceWidth = max(
+      280,
+      visibleWidth - 96 - windowSwitcherShadowPadding * 2,
+    )
     // A two-item cycle is common and should read as one compact island rather
     // than two cards followed by an empty third-card slot.
     let minimumSurfaceWidth: CGFloat = itemCount <= 2 ? 164 : 280
     let surfaceWidth = min(max(minimumSurfaceWidth, idealSurfaceWidth), maximumSurfaceWidth)
     let surfaceHeight: CGFloat = byWindow ? 160 : 140
     return NSSize(
-      width: surfaceWidth + shadowPadding * 2,
-      height: surfaceHeight + shadowPadding * 2,
+      width: surfaceWidth + windowSwitcherShadowPadding * 2,
+      height: surfaceHeight + windowSwitcherShadowPadding * 2,
     )
   }
 
@@ -272,8 +284,6 @@ private final class ActionHUDContentModel {
 @MainActor
 @Observable
 private final class HUDPresentationModel {
-
-  // MARK: Internal
 
   private(set) var isPresented = false
 
@@ -455,8 +465,8 @@ private final class WorkspaceHUDController {
       visibleWidth: screen.visibleFrame.width,
     )
     let surfaceSize = NSSize(
-      width: panelSize.width - HUDLayout.shadowPadding * 2,
-      height: panelSize.height - HUDLayout.shadowPadding * 2,
+      width: panelSize.width - HUDLayout.windowSwitcherShadowPadding * 2,
+      height: panelSize.height - HUDLayout.windowSwitcherShadowPadding * 2,
     )
     let entry: Entry
     if
@@ -999,7 +1009,7 @@ private struct WorkspaceHUDView: View {
       height: HUDLayout.maximumActionSurfaceSize.height,
       alignment: .top,
     )
-    .padding(HUDLayout.shadowPadding)
+    .padding(HUDLayout.actionShadowPadding)
     .frame(width: HUDLayout.actionPanelSize.width, height: HUDLayout.actionPanelSize.height)
     .modifier(
       ActionHUDPresentationModifier(isPresented: presentation.isPresented)
@@ -1155,8 +1165,12 @@ private struct WindowSwitcherHUDView: View {
       }
       .frame(width: value.surfaceSize.width, height: value.surfaceSize.height)
     }
-    .shadow(color: .black.opacity(0.32), radius: 18, y: 8)
-    .padding(HUDLayout.shadowPadding)
+    .shadow(
+      color: .black.opacity(0.32),
+      radius: HUDLayout.windowSwitcherShadowRadius,
+      y: HUDLayout.windowSwitcherShadowYOffset,
+    )
+    .padding(HUDLayout.windowSwitcherShadowPadding)
     .modifier(
       WindowSwitcherPresentationModifier(isPresented: presentation.isPresented)
     )
