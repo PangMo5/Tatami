@@ -771,7 +771,7 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `focus adjacent display keeps dynamic workspace on that display`() async {
+  func `focus adjacent display keeps workspace and shows HUDs on both displays`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
     let wsA = Workspace(name: "A")
@@ -785,6 +785,7 @@ struct WorkspaceActivationFeatureTests {
     }
     let requests = LockIsolated<[ActivationRequest]>([])
     let focused = LockIsolated<[WindowKey]>([])
+    let hudCalls = LockIsolated<Set<String>>([])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
@@ -795,6 +796,11 @@ struct WorkspaceActivationFeatureTests {
       }
       $0.focusManager.focusWindow = { key in
         focused.withValue { $0.append(key) }
+      }
+      $0.workspaceHUD.showOnDisplay = { name, _, subtitle, _, display in
+        hudCalls.withValue {
+          _ = $0.insert("\(display?.name ?? "nil")|\(name)|\(subtitle ?? "nil")")
+        }
       }
     }
     store.exhaustivity = .off
@@ -807,6 +813,11 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.focusedDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
     #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
+    #expect(hudCalls.value == [
+      "\(displayB.name)|\(wsB.name)|nil",
+      "\(displayA.name)|\(String(localized: "Focus moved"))|"
+        + String(localized: "\(wsB.name) is on \(displayB.name)"),
+    ])
   }
 
   @Test

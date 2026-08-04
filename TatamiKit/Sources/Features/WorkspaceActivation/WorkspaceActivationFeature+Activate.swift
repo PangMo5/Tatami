@@ -228,6 +228,34 @@ extension WorkspaceActivationFeature {
     }
   }
 
+  /// On the display being left, identify both where focus went and which
+  /// workspace now owns it. The destination display shows the regular
+  /// workspace-switch HUD separately.
+  func focusMovedHUDEffect(
+    workspace: Workspace,
+    from oldDisplay: DisplayName?,
+    to targetDisplay: DisplayName?,
+    state: State,
+  ) -> Effect<Action> {
+    guard
+      state.config.settings.hud.shows(\.workspaceSwitch),
+      let oldDisplay,
+      let targetDisplay,
+      !oldDisplay.matches(targetDisplay)
+    else { return .none }
+    let durationMs = state.config.settings.hud.durationMs
+    let subtitle = String(localized: "\(workspace.name) is on \(targetDisplay.name)")
+    return .run { [workspaceHUD] _ in
+      await workspaceHUD.showOnDisplay(
+        String(localized: "Focus moved"),
+        "arrow.right.to.line",
+        subtitle,
+        durationMs,
+        oldDisplay,
+      )
+    }
+  }
+
   func performActivate(
     workspaceId: Workspace.ID,
     setFocus: Bool,
@@ -348,9 +376,6 @@ extension WorkspaceActivationFeature {
     // switch a second HUD on the monitor being left says where focus went, so
     // it doesn't look like the workspace just vanished.
     let oldDisplay = state.focusedDisplay
-    let crossMonitor = setFocus
-      && oldDisplay != nil && targetDisplay != nil
-      && !oldDisplay!.matches(targetDisplay!)
     if setFocus, let targetDisplay {
       state.focusedDisplay = targetDisplay
     }
@@ -538,23 +563,14 @@ extension WorkspaceActivationFeature {
     // On a cross-monitor switch, a second HUD on the monitor being left names
     // where focus went. Separate panel (the controller tracks one per screen),
     // shown alongside the switch HUD on the new monitor.
-    let crossMonitorHUD: Effect<Action> = {
-      guard
-        crossMonitor, !suppressSwitchHUD,
-        state.config.settings.hud.shows(\.workspaceSwitch),
-        let oldDisplay, let targetDisplay
-      else { return .none }
-      let targetName = targetDisplay.name
-      return .run { [workspaceHUD] _ in
-        await workspaceHUD.showOnDisplay(
-          String(localized: "Focus moved"),
-          "arrow.right.to.line",
-          String(localized: "to \(targetName)"),
-          hudDurationMs,
-          oldDisplay,
-        )
-      }
-    }()
+    let crossMonitorHUD = !setFocus || suppressSwitchHUD
+      ? Effect<Action>.none
+      : focusMovedHUDEffect(
+        workspace: workspace,
+        from: oldDisplay,
+        to: targetDisplay,
+        state: state,
+      )
     var displacedCompositionEffects = [Effect<Action>]()
     for workspaceId in displacedCompositionHosts {
       displacedCompositionEffects.append(
@@ -1532,6 +1548,7 @@ extension WorkspaceActivationFeature {
     guard state.displayShowing(workspaceId)?.matches(display) == true else {
       return .none
     }
+    let oldDisplay = state.focusedDisplay
     state.focusedDisplay = display
     let target = (state.mruWindows[workspaceId] ?? []).first
       ?? state.tilingTrees[workspaceId]?.windows.first
@@ -1547,11 +1564,37 @@ extension WorkspaceActivationFeature {
       "focus visible \(workspaceId) on \(display.name) "
         + "→ \(target.bundleId)#\(target.windowID)",
     )
-    return settleFocusAfterLayout(
+    let focus = settleFocusAfterLayout(
       target,
       workspaceId: workspaceId,
       shouldFocus: true,
       state: &state,
+    )
+    guard
+      let oldDisplay,
+      !oldDisplay.matches(display),
+      state.config.settings.hud.shows(\.workspaceSwitch),
+      let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
+    else { return focus }
+    let durationMs = state.config.settings.hud.durationMs
+    let targetHUD = Effect<Action>.run { [hud = workspaceHUD] _ in
+      await hud.showOnDisplay(
+        workspace.name,
+        workspace.symbolIconName,
+        nil,
+        durationMs,
+        display,
+      )
+    }
+    return .merge(
+      focus,
+      targetHUD,
+      focusMovedHUDEffect(
+        workspace: workspace,
+        from: oldDisplay,
+        to: display,
+        state: state,
+      ),
     )
   }
 
