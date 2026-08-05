@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// One staged mock app for recording Tatami promo footage. The build ships
-/// four of these — Terminal / Code / Safari / Notes — as *separate* apps
+/// these as *separate* apps
 /// (distinct bundle ids, same binary), so Tatami can assign each to its own
 /// workspace, float it, etc., reproducing the full website demo flow.
 ///
@@ -10,11 +10,11 @@ import SwiftUI
 /// - **⌘N** opens another window of the same app (same-app multi-window tile).
 /// - **⌘W** closes the focused window (show the survivors re-tiling).
 ///
-/// Open the four apps in sequence to recreate the dwindle reveal.
+/// Open the Code apps in sequence to recreate the dwindle reveal.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private let kind = DemoApp.current
-  private var windows: [NSWindow] = []
+
+  // MARK: Internal
 
   func applicationDidFinishLaunching(_: Notification) {
     buildMenu()
@@ -22,12 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
-  @objc func openWindow(_: Any?) {
+  @objc
+  func openWindow(_: Any?) {
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: kind.size),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
-      defer: false
+      defer: false,
     )
     window.title = kind.title
     window.contentView = NSHostingView(rootView: kind.view)
@@ -40,6 +41,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     windows.append(window)
   }
 
+  // MARK: Private
+
+  private let kind = DemoApp.current
+  private var windows = [NSWindow]()
+
   private func buildMenu() {
     let mainMenu = NSMenu()
 
@@ -50,7 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     appMenu.addItem(
       withTitle: "Quit Tatami Demo",
       action: #selector(NSApplication.terminate(_:)),
-      keyEquivalent: "q"
+      keyEquivalent: "q",
     )
 
     let windowItem = NSMenuItem()
@@ -58,16 +64,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let windowMenu = NSMenu(title: "Window")
     windowItem.submenu = windowMenu
     let newItem = NSMenuItem(
-      title: "New Window", action: #selector(openWindow(_:)), keyEquivalent: "n"
+      title: "New Window",
+      action: #selector(openWindow(_:)),
+      keyEquivalent: "n",
     )
     newItem.target = self
     windowMenu.addItem(newItem)
     windowMenu.addItem(
-      withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"
+      withTitle: "Close",
+      action: #selector(NSWindow.performClose(_:)),
+      keyEquivalent: "w",
     )
 
     NSApp.mainMenu = mainMenu
   }
+
 }
 
 // Program entry runs on the main thread, so adopting the main actor here is

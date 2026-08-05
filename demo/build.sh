@@ -3,7 +3,7 @@
 # used only to record promo footage. No Xcode/Tuist project: just swiftc + a
 # hand-assembled .app bundle, fully isolated from the product.
 #
-# Ships FOUR apps (Terminal / Code / Safari / Notes) from one binary, each with
+# Ships ten apps from one binary, each with
 # a distinct bundle id, so Tatami can assign them to different workspaces and
 # the full website demo flow (tiling + workspace switching + floating) works.
 set -euo pipefail
@@ -55,6 +55,7 @@ make_app terminal Terminal
 make_app code Code
 make_app safari Safari
 make_app notes Notes
+make_app assistant Assistant
 make_app figma Figma
 make_app photos Photos
 make_app messages Messages
@@ -64,4 +65,5 @@ make_app calendar Calendar
 rm -f build/tatami-demo
 echo
 echo "Open a workspace's apps, e.g. Code:"
-echo "  open build/Terminal.app build/Code.app build/Safari.app build/Notes.app"
+echo "  open build/Terminal.app build/Code.app build/Safari.app"
+echo "Shared Always on Top: Notes · Scratchpad: AI Assistant"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Swap the demo workspaces in/out for recording while keeping YOUR real
-# settings. `apply` backs up your config, then writes: your settings +
-# floatingApps (everything before the first [[profiles]]) followed by the demo
-# profile from demo-workspaces.toml. `restore` puts your config back.
+# settings. `apply` backs up your config, then writes your settings followed by
+# the controlled demo Shared Apps + profiles from demo-workspaces.toml.
+# `restore` puts your config back.
 # Tatami hot-reloads config.toml, so workspaces switch live — no relaunch.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -21,11 +21,11 @@ case "${1:-}" in
     local_src="$BACKUP"
     [[ -f "$local_src" ]] || local_src="$CFG"
     {
-      awk '/^\[\[profiles\]\]/{exit} {print}' "$local_src"
+      awk '/^\[\[(sharedApps|floatingApps|profiles)\]\]/{exit} {print}' "$local_src"
       echo
       cat demo-workspaces.toml
     } > "$CFG"
-    echo "Applied: your settings kept, demo workspaces (Code / Design / Chat) swapped in."
+    echo "Applied: your settings kept, demo Shared Apps + workspaces swapped in."
     echo "Restore: $0 restore"
     ;;
   restore)

@@ -1,71 +1,140 @@
-# Demo workspaces for recording — mirrors the website demo's three workspaces
-# (Code / Design / Chat). `use-demo-config.sh apply` keeps your real settings
-# and floatingApps and only swaps in this profile, so nothing here touches your
-# gaps, shortcuts, markers, etc.
+# Controlled marketing setup for recording README and website footage.
+
+[[sharedApps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.notes"
+name = "Notes"
+layout = "floating"
+autoOpen = true
 
 [[profiles]]
 id = "00000000-0000-0000-0000-0000000000d0"
-name = "Demo"
+name = "Work"
+symbolIconName = "laptopcomputer"
+shortcut = "ctrl + alt + shift + cmd - 1"
 
 [[profiles.workspaces]]
 id = "00000000-0000-0000-0000-0000000000c1"
 name = "Code"
 symbolIconName = "chevron.left.forwardslash.chevron.right"
-activateShortcut = "ctrl + alt + shift - 1"
+kind = "normal"
+keyEquivalent = "1"
+appToFocusBundleId = "dev.PangMo5.TatamiDemo.code"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.terminal"
 name = "Terminal"
-autoOpen = false
+autoOpen = true
+layout = "tiled"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.code"
 name = "Code"
-autoOpen = false
+autoOpen = true
+layout = "tiled"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.safari"
 name = "Safari"
 autoOpen = false
-
-[[profiles.workspaces.apps]]
-bundleIdentifier = "dev.PangMo5.TatamiDemo.notes"
-name = "Notes"
-autoOpen = false
+layout = "tiled"
 
 [[profiles.workspaces]]
 id = "00000000-0000-0000-0000-0000000000c2"
 name = "Design"
-symbolIconName = "paintpalette"
-activateShortcut = "ctrl + alt + shift - 2"
+symbolIconName = "paintpalette.fill"
+kind = "normal"
+keyEquivalent = "2"
+appToFocusBundleId = "dev.PangMo5.TatamiDemo.figma"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.figma"
 name = "Figma"
-autoOpen = false
+autoOpen = true
+layout = "tiled"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.photos"
 name = "Photos"
 autoOpen = false
+layout = "unmanaged"
 
 [[profiles.workspaces]]
 id = "00000000-0000-0000-0000-0000000000c3"
 name = "Chat"
-symbolIconName = "message"
-activateShortcut = "ctrl + alt + shift - 3"
+symbolIconName = "message.fill"
+kind = "normal"
+keyEquivalent = "3"
+borrowEdge = "right"
+borrowFraction = 0.36
+appToFocusBundleId = "dev.PangMo5.TatamiDemo.messages"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.messages"
 name = "Messages"
-autoOpen = false
+autoOpen = true
+layout = "tiled"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.mail"
 name = "Mail"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.calendar"
+name = "Calendar"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-0000000000c4"
+name = "AI Assistant"
+symbolIconName = "sparkles"
+kind = "scratchpad"
+keyEquivalent = "a"
+borrowEdge = "right"
+borrowFraction = 0.32
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.assistant"
+name = "AI Assistant"
+autoOpen = true
+layout = "tiled"
+
+[[profiles]]
+id = "00000000-0000-0000-0000-0000000000d1"
+name = "Personal"
+symbolIconName = "house.fill"
+shortcut = "ctrl + alt + shift + cmd - 2"
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-0000000000e1"
+name = "Reading"
+symbolIconName = "books.vertical.fill"
+kind = "normal"
+keyEquivalent = "r"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.safari"
+name = "Safari"
 autoOpen = false
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-0000000000e2"
+name = "Planning"
+symbolIconName = "calendar"
+kind = "normal"
+keyEquivalent = "p"
 
 [[profiles.workspaces.apps]]
 bundleIdentifier = "dev.PangMo5.TatamiDemo.calendar"
 name = "Calendar"
 autoOpen = false
+layout = "tiled"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.TatamiDemo.mail"
+name = "Mail"
+autoOpen = false
+layout = "tiled"
