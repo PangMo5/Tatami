@@ -15,16 +15,13 @@ scripting required.
 ## Screenshots
 
 <p align="center">
-  <a href="Resources/Marketing/screenshots/workspaces.png">
-    <img src="Resources/Marketing/screenshots/workspaces.png" alt="Tatami profile and workspace settings over a tiled workspace." width="31%" />
-  </a>
-  <a href="Resources/Marketing/screenshots/borrow.png">
-    <img src="Resources/Marketing/screenshots/borrow.png" alt="A scratchpad borrowed beside a tiled workspace in Tatami." width="31%" />
-  </a>
-  <a href="Resources/Marketing/screenshots/guided-setup.png">
-    <img src="Resources/Marketing/screenshots/guided-setup.png" alt="Tatami Guided Setup introducing workspaces and its privacy model." width="31%" />
-  </a>
+  <img src="Resources/Marketing/screenshots/overview.png" alt="Tatami Guided Setup, profile and workspace settings, and a scratchpad borrowed beside a tiled workspace." width="100%" />
 </p>
+
+<p align="center"><sub>Full size:
+<a href="Resources/Marketing/screenshots/guided-setup.png">Guided Setup</a> ·
+<a href="Resources/Marketing/screenshots/workspaces.png">Workspaces</a> ·
+<a href="Resources/Marketing/screenshots/borrow.png">Borrow</a></sub></p>
 
 ## Demo
 
