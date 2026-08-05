@@ -22,6 +22,20 @@ scripting required.
 
 <p align="center"><a href="https://pangmo5.dev/Tatami#demo">▶ Watch the demo</a></p>
 
+## Screenshots
+
+<p align="center">
+  <a href="Resources/Marketing/screenshots/workspaces.png">
+    <img src="Resources/Marketing/screenshots/workspaces.png" alt="Tatami profile and workspace settings over a tiled workspace." width="31%" />
+  </a>
+  <a href="Resources/Marketing/screenshots/borrow.png">
+    <img src="Resources/Marketing/screenshots/borrow.png" alt="A scratchpad borrowed beside a tiled workspace in Tatami." width="31%" />
+  </a>
+  <a href="Resources/Marketing/screenshots/guided-setup.png">
+    <img src="Resources/Marketing/screenshots/guided-setup.png" alt="Tatami Guided Setup introducing workspaces and its privacy model." width="31%" />
+  </a>
+</p>
+
 ## Features
 
 ### Workspaces
