@@ -12,16 +12,6 @@ keystroke or a configurable trackpad gesture, and tiles their windows
 automatically with a binary space partitioning (BSP) engine. No SIP changes and no shell
 scripting required.
 
-## Demo
-
-<p align="center">
-  <a href="https://pangmo5.dev/Tatami#demo">
-    <img src="web/tatami-demo-poster.jpg" alt="Tatami demo. Click to watch." width="760" />
-  </a>
-</p>
-
-<p align="center"><a href="https://pangmo5.dev/Tatami#demo">▶ Watch the demo</a></p>
-
 ## Screenshots
 
 <p align="center">
@@ -35,6 +25,18 @@ scripting required.
     <img src="Resources/Marketing/screenshots/guided-setup.png" alt="Tatami Guided Setup introducing workspaces and its privacy model." width="31%" />
   </a>
 </p>
+
+## Demo
+
+<p align="center">
+  <a href="https://pangmo5.dev/Tatami#demo">
+    <img src="web/tatami-demo-poster.jpg" alt="Tatami demo. Click to watch." width="760" />
+  </a>
+</p>
+
+<p align="center"><a href="https://pangmo5.dev/Tatami#demo">▶ Watch the demo</a></p>
+
+<p align="center"><sub>Recorded on an early version. It will be re-recorded for a later release.</sub></p>
 
 ## Features
 
