@@ -846,6 +846,12 @@ public struct WorkspaceActivationFeature {
       unresolvedSlots: Set<SlotID>,
     )
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
+    /// The whole activation effect ran out, post-layout tail included.
+    /// `activationCompleted` fires early — as soon as the *visible* switch is
+    /// published — so anything that starts another activation must wait for
+    /// this instead, or it cancels the tail (floating mirrors, markers, the
+    /// pointer warp) of the activation that just completed.
+    case activationTailFinished
     /// `performActivate` did not report completion within the watchdog
     /// window — release the `isActivating` gate so one wedged activation
     /// (an app stuck past every AX timeout) can't refuse all future
@@ -2054,16 +2060,29 @@ public struct WorkspaceActivationFeature {
         // A deliberate switch supersedes any in-flight reconnect restore cascade
         // — the user's action wins over the display-restore queue.
         state.pendingDisplayRestores = []
-        // An already-active host on another monitor does not need activation:
-        // it is a display focus transfer. Re-activating it would deliberately
-        // tear down that display's Borrow composition, returning a borrowed
-        // workspace merely because the user visited another monitor and came
-        // back. Borrow dismissal remains explicit through `.dismissBorrow`.
+        // An already-active host that activation would leave exactly where it
+        // is does not need activation: it is a display focus transfer.
+        // Re-activating it would deliberately tear down that display's Borrow
+        // composition, returning a borrowed workspace merely because the user
+        // visited another monitor and came back. Borrow dismissal remains
+        // explicit through `.dismissBorrow`.
+        //
+        // The comparison against `deliberateActivationDisplay` is what keeps a
+        // dynamic workspace dynamic: it is already visible on *some* monitor
+        // almost always, so shortcutting on visibility alone pinned it to
+        // whichever monitor it last landed on and "follows mouse" stopped
+        // moving anything.
         if
           setFocus,
           let display = state.activeWorkspacesByDisplay.first(where: {
             $0.value == workspaceId
-          })?.key
+          })?.key,
+          let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+          deliberateActivationDisplay(for: workspace, state: state)?.matches(display) ?? true,
+          // Nothing to focus means the transfer would swallow the switch
+          // whole: no app activation, no hide pass, no HUD. Fall through to a
+          // real activation, which is what raises the workspace back up.
+          visibleFocusTarget(workspaceId, state: state) != nil
         {
           return focusVisibleWorkspace(
             workspaceId: workspaceId,
@@ -3066,6 +3085,16 @@ public struct WorkspaceActivationFeature {
                 connected: state.connectedDisplays,
               ).map { DisplayAssignment(display: vacated, workspace: $0) }
             }
+          // The refill is otherwise invisible in the log, which made an empty
+          // vacated display indistinguishable from one that was never vacated.
+          for vacated in emptiedByMove {
+            let fill = fills.first { $0.display.matches(vacated) }?.workspace
+            debugLog.log(
+              "Display",
+              "vacated \(vacated.name) → "
+                + (fill.flatMap { profile.workspaces[id: $0]?.name } ?? "nothing eligible"),
+            )
+          }
           state.pendingDisplayRestores = fills
         }
         let treeIds = state.tilingTrees[id]?.windows.map(\.bundleId)
@@ -3109,9 +3138,6 @@ public struct WorkspaceActivationFeature {
             ? .none
             : .merge(pendingWindowSyncBundleIds.map { requestWindowSync($0) }),
           pendingWindowServerPrune ? .send(.pruneOffscreenWindows) : .none,
-          // Drain the reconnect-restore queue: this activation just freed the
-          // single activation slot, so kick the next display's restore (if any).
-          state.pendingDisplayRestores.isEmpty ? .none : .send(.processDisplayRestores),
           reflowDisplayGeometry ? .send(.displayGeometryChanged) : .none,
           activatedKeys.isEmpty
             ? .none
@@ -3122,6 +3148,13 @@ public struct WorkspaceActivationFeature {
               )
             ),
         )
+
+      case .activationTailFinished:
+        // Drain the display-restore queue: the activation effect is fully
+        // done, so the next display's restore can take the slot without
+        // cancelling anyone's post-layout work.
+        guard !state.pendingDisplayRestores.isEmpty else { return .none }
+        return .send(.processDisplayRestores)
 
       case .activationTimedOut:
         guard state.isActivating else { return .none }
@@ -3142,6 +3175,9 @@ public struct WorkspaceActivationFeature {
           reflowDisplayGeometry ? .send(.displayGeometryChanged) : .none,
           .merge(pendingWindowSyncBundleIds.map { requestWindowSync($0) }),
           pendingWindowServerPrune ? .send(.pruneOffscreenWindows) : .none,
+          // The cancelled effect will never report its tail, so drain the
+          // restore queue here or a wedged activation strands it for good.
+          state.pendingDisplayRestores.isEmpty ? .none : .send(.processDisplayRestores),
         )
       }
     }

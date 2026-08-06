@@ -104,6 +104,12 @@ extension WorkspaceActivationFeature {
           && !elsewhere($0.id)
       }?.id
     }
+    // Deliberately stricter than the reconnect branch: only a workspace
+    // pinned to *this* display, or a dynamic one nobody else is using, may
+    // take over. A homeless pin (pinned to a disconnected display) is not
+    // dragged here — it belongs somewhere else and summoning it would open
+    // its apps on a monitor the user never assigned it to. When nothing
+    // qualifies the display is left empty, which is the intended outcome.
     return (history[display] ?? []).first {
       byId[$0] != nil && !elsewhere($0) && (isDynamic($0) || pinned($0))
     }
@@ -256,6 +262,18 @@ extension WorkspaceActivationFeature {
     }
   }
 
+  /// Where a deliberate (focus-taking) activation puts `workspace`: its pinned
+  /// display resolved to a connected screen, else — for a dynamic workspace —
+  /// the display under the pointer. `performActivate` and the already-visible
+  /// focus-transfer shortcut must agree on this; when they drift, a dynamic
+  /// workspace looks pinned to whichever monitor it happens to sit on.
+  func deliberateActivationDisplay(for workspace: Workspace, state: State) -> DisplayName? {
+    guard let hint = workspace.displayHint else {
+      return displays.current() ?? state.focusedDisplay
+    }
+    return displays.connected(hint) ?? displays.primary() ?? hint
+  }
+
   func performActivate(
     workspaceId: Workspace.ID,
     setFocus: Bool,
@@ -352,25 +370,25 @@ extension WorkspaceActivationFeature {
           config.mutateWorkspace(workspaceId) { $0.displayHint = displayOverride }
         }
       }
-    } else if let hint = workspace.displayHint {
-      let connected = displays.connected(hint)
-      if let connected, hint.uuid != connected.uuid {
+    } else if workspace.displayHint == nil, !setFocus {
+      // A background reflow keeps the workspace on its actual display (or the
+      // keyboard-focused one before it has an owner) so a config/layout sync
+      // cannot move it merely because the pointer happens to be on another
+      // monitor. A deliberate dynamic activation follows the mouse instead —
+      // that is `deliberateActivationDisplay`.
+      targetDisplay = state.displayShowing(workspaceId) ?? state.focusedDisplay
+        ?? displays.current()
+    } else {
+      if
+        let hint = workspace.displayHint,
+        let connected = displays.connected(hint),
+        hint.uuid != connected.uuid
+      {
         state.$config.withLock { config in
           config.mutateWorkspace(workspaceId) { $0.displayHint = connected }
         }
       }
-      targetDisplay = connected ?? displays.primary() ?? hint
-    } else {
-      // A deliberate dynamic activation follows the mouse. Background reflows
-      // keep the workspace on its actual display (or the keyboard-focused one
-      // before it has an owner) so a config/layout sync cannot move it merely
-      // because the pointer happens to be on another monitor.
-      targetDisplay =
-        if setFocus {
-          displays.current() ?? state.focusedDisplay
-        } else {
-          state.displayShowing(workspaceId) ?? state.focusedDisplay ?? displays.current()
-        }
+      targetDisplay = deliberateActivationDisplay(for: workspace, state: state)
     }
     // The switch HUD shows on the display focus lands on; on a cross-monitor
     // switch a second HUD on the monitor being left says where focus went, so
@@ -411,6 +429,11 @@ extension WorkspaceActivationFeature {
       clearedComposition = true
     }
     var displacedCompositionHosts = [Workspace.ID]()
+    // Borrowed blocks stranded on a display this activation pulls its host
+    // away from. The manager's hide pass only ever covers the display being
+    // activated, so without an explicit return these windows stay on screen
+    // until that display happens to be re-activated for some other reason.
+    var strandedBorrows = [(display: DisplayName, bundleIds: Set<String>)]()
     for (sourceDisplay, composition) in Array(state.compositionsByDisplay)
       where composition.host == workspaceId
       || composition.borrowed.contains(where: { $0.workspace == workspaceId })
@@ -425,6 +448,18 @@ extension WorkspaceActivationFeature {
       clearedComposition = true
       if composition.host != workspaceId {
         displacedCompositionHosts.append(composition.host)
+      } else {
+        // The host itself is moving. Take its borrowed blocks down with it,
+        // scoped to apps Tatami manages so an unregistered window the user
+        // parked next to the borrow is left where it is.
+        let bundleIds = Set(
+          composition.borrowed
+            .flatMap { state.tilingTrees[$0.workspace]?.windows ?? [] }
+            .map(\.bundleId)
+        ).intersection(state.managedBundleIds)
+        if !bundleIds.isEmpty {
+          strandedBorrows.append((display: sourceDisplay, bundleIds: bundleIds))
+        }
       }
     }
     // "Most recently used" (no pinned focus app): restore the exact window the
@@ -653,6 +688,7 @@ extension WorkspaceActivationFeature {
           displays = displays,
           debugLog = debugLog,
           focus = focusManager,
+          strandedBorrows,
         ] send in
           async let outgoingFocus: WindowKey? = {
             guard let outgoingFrontmostApp else { return nil as WindowKey? }
@@ -966,6 +1002,17 @@ extension WorkspaceActivationFeature {
           if !coreCompletionSent {
             await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
           }
+          // Take down blocks borrowed into a display this host just left. Runs
+          // after the tile pass so the host's own windows already count as
+          // living on their new display and aren't hidden along with them.
+          for stranded in strandedBorrows {
+            await mgr.returnBorrowed(stranded.bundleIds, stranded.display)
+          }
+          // The tail survived to the end. Only now is it safe for a queued
+          // display restore to start its own activation, which would cancel
+          // this effect. A cancelled tail never gets here, but cancellation
+          // only happens when another activation is already taking over.
+          await send(.activationTailFinished)
         }
         .cancellable(id: CancelID.activation, cancelInFlight: true),
       ),
@@ -1536,6 +1583,14 @@ extension WorkspaceActivationFeature {
     return state.workspaceMRU.first { $0 != current && isEligible($0) }
   }
 
+  /// The window a visible workspace can hand keyboard focus to right now.
+  /// Nil means there is nothing to focus, so a focus transfer would be a
+  /// silent no-op and the caller has to run a real activation instead.
+  func visibleFocusTarget(_ workspaceId: Workspace.ID, state: State) -> WindowKey? {
+    (state.mruWindows[workspaceId] ?? []).first
+      ?? state.tilingTrees[workspaceId]?.windows.first
+  }
+
   /// Transfer keyboard focus to a workspace that is already visible without
   /// re-running activation. Activation intentionally tears down the target
   /// display's Borrow composition before re-tiling its host; display focus
@@ -1550,9 +1605,7 @@ extension WorkspaceActivationFeature {
     }
     let oldDisplay = state.focusedDisplay
     state.focusedDisplay = display
-    let target = (state.mruWindows[workspaceId] ?? []).first
-      ?? state.tilingTrees[workspaceId]?.windows.first
-    guard let target else {
+    guard let target = visibleFocusTarget(workspaceId, state: state) else {
       debugLog.log(
         "Display",
         "focus visible \(workspaceId) on \(display.name): no window",

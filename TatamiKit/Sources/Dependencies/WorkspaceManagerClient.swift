@@ -22,6 +22,15 @@ import OSLog
 @DependencyClient
 struct WorkspaceManagerClient: Sendable {
   var activate: @Sendable (ActivationRequest) async -> Void
+  /// Hide `bundleIds` on one display, leaving every other display alone.
+  ///
+  /// The hide pass inside `activate` is scoped to the display being activated,
+  /// so a display a workspace *leaves* never gets one. When a Borrow host is
+  /// pulled to another monitor, that leaves the borrowed windows stranded on
+  /// the vacated display with nothing to ever take them down. This returns
+  /// them explicitly instead of relying on the vacated display happening to
+  /// be refilled.
+  var returnBorrowed: @Sendable (_ bundleIds: Set<String>, _ display: DisplayName) async -> Void
 }
 
 // MARK: - CursorHideSink
@@ -103,10 +112,18 @@ extension WorkspaceManagerClient: DependencyKey {
 
   static let liveValue = WorkspaceManagerClient.live()
 
-  static let testValue = WorkspaceManagerClient(activate: { _ in })
-  static let previewValue = WorkspaceManagerClient(activate: { request in
-    logger.debug("[preview] activate \(request.workspace.name)")
-  })
+  static let testValue = WorkspaceManagerClient(
+    activate: { _ in },
+    returnBorrowed: { _, _ in },
+  )
+  static let previewValue = WorkspaceManagerClient(
+    activate: { request in
+      logger.debug("[preview] activate \(request.workspace.name)")
+    },
+    returnBorrowed: { bundleIds, display in
+      logger.debug("[preview] returnBorrowed \(bundleIds) from \(display.name)")
+    },
+  )
 
   static func live() -> WorkspaceManagerClient {
     // Resolve the cursor-hide side effect through the dependency
@@ -125,6 +142,19 @@ extension WorkspaceManagerClient: DependencyKey {
     hasHiddenKnownWindow: Bool,
   ) -> Bool {
     !hasVisibleWindow && !hasHiddenKnownWindow
+  }
+
+  /// Whether auto-open may send a *reopen* to an app, as opposed to launching
+  /// one that isn't running.
+  ///
+  /// A background activation (a vacated-display refill, a followAppFocus jump)
+  /// must never hand keyboard focus away. `OpenConfiguration.activates = false`
+  /// is not enough: a reopen makes many apps activate themselves from
+  /// `applicationShouldHandleReopen`, and the user's cursor then follows that
+  /// focus onto another monitor. A running app's windows come back through the
+  /// unhide pass regardless, so the reopen buys nothing there.
+  static func shouldReopenRunningApp(setFocus: Bool, isRunning: Bool) -> Bool {
+    setFocus || !isRunning
   }
 
   // MARK: Private
@@ -200,6 +230,18 @@ extension WorkspaceManagerClient: DependencyKey {
               if hasHiddenKnownWindow {
                 debugLog.log("Manager", "unhide known window \(bundleId) — skip reopen")
               }
+              return
+            }
+            guard
+              Self.shouldReopenRunningApp(
+                setFocus: request.setFocus,
+                isRunning: !instances.isEmpty,
+              )
+            else {
+              debugLog.log(
+                "Manager",
+                "autoOpen \(bundleId): background activation — unhide only",
+              )
               return
             }
             guard
@@ -374,6 +416,45 @@ extension WorkspaceManagerClient: DependencyKey {
         }
 
         await activateOnMain()
+      },
+      returnBorrowed: { bundleIds, display in
+        @Dependency(\.debugLog) var debugLog
+        guard !bundleIds.isEmpty else { return }
+
+        @MainActor
+        func returnOnMain() {
+          let onScreenWindows = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID,
+          ) as? [[String: Any]] ?? []
+          // Same exclusivity rule as the activation hide pass: an app with a
+          // window on another monitor is left alone, because `hide()` is
+          // process-wide and would blank that monitor too. Read *after* the
+          // host's windows have been retiled onto their new display, or the
+          // host app still looks exclusive to the display it just left.
+          let exclusive = Self.pidsExclusively(onDisplay: display, in: onScreenWindows)
+          var hiddenCount = 0
+          for app in NSWorkspace.shared.runningApplications
+            where app.activationPolicy == .regular && !app.isTerminated
+          {
+            guard
+              let bundleId = app.bundleIdentifier,
+              bundleIds.contains(bundleId),
+              !MacApp.isTatami(bundleId),
+              exclusive.contains(app.processIdentifier),
+              !app.isHidden
+            else { continue }
+            app.hide()
+            hiddenCount += 1
+          }
+          debugLog.log(
+            "Manager",
+            "returnBorrowed display=\(display.name) "
+              + "bundles=\(bundleIds.sorted()) hide=\(hiddenCount)",
+          )
+        }
+
+        await returnOnMain()
       }
     )
   }

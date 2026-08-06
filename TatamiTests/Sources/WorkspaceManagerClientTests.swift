@@ -23,4 +23,25 @@ struct WorkspaceManagerClientTests {
       )
     )
   }
+
+  @Test
+  func `a background activation never reopens a running app`() {
+    // The vacated-display refill runs with setFocus == false. Reopening a
+    // running app there lets it activate itself, which steals keyboard focus
+    // (and drags the cursor along under mouse-follows-focus) onto the display
+    // the user just switched away from.
+    #expect(
+      !WorkspaceManagerClient.shouldReopenRunningApp(setFocus: false, isRunning: true)
+    )
+    // Not running: nothing to unhide, so launching it is the only way to
+    // populate the display, and a fresh launch has no focus to steal yet.
+    #expect(
+      WorkspaceManagerClient.shouldReopenRunningApp(setFocus: false, isRunning: false)
+    )
+    // A deliberate switch is allowed to bring an app forward — the focus block
+    // still owns where focus lands.
+    #expect(
+      WorkspaceManagerClient.shouldReopenRunningApp(setFocus: true, isRunning: true)
+    )
+  }
 }

@@ -882,9 +882,11 @@ struct WorkspaceActivationFeatureTests {
   func `activating visible host across displays preserves borrowed workspace`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
-    let browser = Workspace(name: "Browser")
-    let terminal = Workspace(name: "Terminal")
-    let figma = Workspace(name: "Figma")
+    // Pinned, so activation resolves each workspace back to the display it is
+    // already on — the round trip is a pure focus transfer.
+    let browser = Workspace(name: "Browser", displayHint: displayA)
+    let terminal = Workspace(name: "Terminal", displayHint: displayB)
+    let figma = Workspace(name: "Figma", displayHint: displayA)
     let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
     let terminalWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.terminal")
     let figmaWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.figma")
@@ -933,6 +935,340 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.compositionsByDisplay[displayA] == composition)
     #expect(activations.value.isEmpty)
     #expect(focused.value == [terminalWindow, browserWindow])
+  }
+
+  @Test
+  func `activating a visible dynamic workspace pulls it to the pointer display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(name: "Browser")
+    let terminal = Workspace(name: "Terminal")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let terminalWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.terminal")
+    let state = Self.makeState(workspaces: [browser, terminal]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [
+        displayA: terminal.id,
+        displayB: browser.id,
+      ]
+      $0.tilingTrees = [
+        browser.id: .leaf(browserWindow),
+        terminal.id: .leaf(terminalWindow),
+      ]
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == browser.id && display == displayA
+    }
+    await store.finish()
+
+    // Already visible on B, but dynamic and the pointer is on A: it moves.
+    // Shortcutting to a focus transfer here is what pinned dynamic
+    // workspaces to whichever monitor they last landed on.
+    #expect(activations.value.count == 1)
+    #expect(activations.value.first?.workspace.id == browser.id)
+    #expect(activations.value.first?.targetDisplay == displayA)
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.activeWorkspacesByDisplay[displayA] == browser.id)
+    #expect(store.state.activeWorkspacesByDisplay[displayB] == nil)
+  }
+
+  @Test
+  func `activating a visible dynamic workspace under the pointer stays a focus transfer`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(name: "Browser")
+    let terminal = Workspace(name: "Terminal")
+    let figma = Workspace(name: "Figma")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let terminalWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.terminal")
+    let figmaWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.figma")
+    let composition = Composition(
+      host: browser.id,
+      borrowed: [
+        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4),
+      ],
+    )
+    let state = Self.makeState(workspaces: [browser, terminal, figma]) {
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [
+        displayA: browser.id,
+        displayB: terminal.id,
+      ]
+      $0.tilingTrees = [
+        browser.id: .leaf(browserWindow),
+        terminal.id: .leaf(terminalWindow),
+        figma.id: .leaf(figmaWindow),
+      ]
+      $0.compositionsByDisplay[displayA] = composition
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.finish()
+
+    // The pointer is already on the host's display, so activation would not
+    // move it — the Borrow composition must survive the switch.
+    #expect(activations.value.isEmpty)
+    #expect(focused.value == [browserWindow])
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.compositionsByDisplay[displayA] == composition)
+  }
+
+  @Test
+  func `a workspace pinned to a missing display activates onto the only one`() async {
+    let only = DisplayName("Laptop")
+    let gone = DisplayName("Studio Display")
+    let homeless = Workspace(name: "Slack", displayHint: gone)
+    let other = Workspace(name: "Terminal", displayHint: only)
+    let state = Self.makeState(workspaces: [homeless, other]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = only
+      $0.activeWorkspacesByDisplay = [only: other.id]
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [only] }
+      $0.displays.current = { only }
+      // The pinned display is not connected.
+      $0.displays.connected = { $0.matches(only) ? only : nil }
+      $0.displays.primary = { only }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: homeless.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == homeless.id && display == only
+    }
+    await store.finish()
+
+    // One monitor: every workspace has to be reachable on it, pinned to a
+    // display that isn't plugged in or not. The vacated-display rules never
+    // apply here — nothing can be vacated when there is only one display.
+    #expect(activations.value.count == 1)
+    #expect(activations.value.first?.targetDisplay == only)
+    #expect(store.state.activeWorkspacesByDisplay[only] == homeless.id)
+  }
+
+  @Test
+  func `pulling a composition host to another display returns the borrowed block`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(
+      name: "Browser",
+      apps: [AppAssignment(bundleIdentifier: "app.browser", name: "Browser")],
+    )
+    let figma = Workspace(
+      name: "Figma",
+      apps: [AppAssignment(bundleIdentifier: "app.figma", name: "Figma")],
+    )
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let figmaWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.figma")
+    let composition = Composition(
+      host: browser.id,
+      borrowed: [BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4)],
+    )
+    let state = Self.makeState(workspaces: [browser, figma]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayB: browser.id]
+      $0.tilingTrees = [browser.id: .leaf(browserWindow), figma.id: .leaf(figmaWindow)]
+      $0.compositionsByDisplay[displayB] = composition
+    }
+    let returned = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceManager.returnBorrowed = { bundleIds, display in
+        returned.withValue { $0.append((bundleIds, display)) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    // Browser is dynamic and the pointer is on A, so it leaves B.
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == browser.id && display == displayA
+    }
+    await store.finish()
+
+    #expect(returned.value.count == 1)
+    #expect(returned.value.first?.0 == ["app.figma"])
+    #expect(returned.value.first?.1 == displayB)
+    #expect(store.state.compositionsByDisplay[displayB] == nil)
+  }
+
+  @Test
+  func `returning a borrow leaves unregistered apps alone`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(
+      name: "Browser",
+      apps: [AppAssignment(bundleIdentifier: "app.browser", name: "Browser")],
+    )
+    // Registered in no workspace: a floating utility the user parked next to
+    // the borrow. It must survive the return.
+    let figma = Workspace(name: "Figma")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let strayWindow = WindowKey(pid: 9, windowID: 901, bundleId: "app.stray")
+    let composition = Composition(
+      host: browser.id,
+      borrowed: [BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4)],
+    )
+    let state = Self.makeState(workspaces: [browser, figma]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayB: browser.id]
+      $0.tilingTrees = [browser.id: .leaf(browserWindow), figma.id: .leaf(strayWindow)]
+      $0.compositionsByDisplay[displayB] = composition
+    }
+    let returned = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceManager.returnBorrowed = { bundleIds, display in
+        returned.withValue { $0.append((bundleIds, display)) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.finish()
+
+    // Nothing managed to return → no hide call at all.
+    #expect(returned.value.isEmpty)
+  }
+
+  @Test
+  func `a display focus transfer returns nothing and keeps its composition`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browser = Workspace(
+      name: "Browser",
+      apps: [AppAssignment(bundleIdentifier: "app.browser", name: "Browser")],
+    )
+    let figma = Workspace(
+      name: "Figma",
+      apps: [AppAssignment(bundleIdentifier: "app.figma", name: "Figma")],
+    )
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let figmaWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.figma")
+    let composition = Composition(
+      host: browser.id,
+      borrowed: [BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4)],
+    )
+    let state = Self.makeState(workspaces: [browser, figma]) {
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayB: browser.id]
+      $0.tilingTrees = [browser.id: .leaf(browserWindow), figma.id: .leaf(figmaWindow)]
+      $0.compositionsByDisplay[displayB] = composition
+    }
+    let returned = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      // Pointer already on the host's display → activation would not move it.
+      $0.displays.current = { displayB }
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceManager.returnBorrowed = { bundleIds, display in
+        returned.withValue { $0.append((bundleIds, display)) }
+      }
+      $0.focusManager.focusWindow = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.finish()
+
+    // b6f8ec2's contract: a focus transfer preserves the Borrow composition.
+    #expect(returned.value.isEmpty)
+    #expect(store.state.compositionsByDisplay[displayB] == composition)
+  }
+
+  @Test
+  func `activating a visible workspace with no window still activates it`() async {
+    let displayA = DisplayName("A")
+    let browser = Workspace(name: "Browser", displayHint: displayA)
+    let state = Self.makeState(workspaces: [browser]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: browser.id]
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      return workspaceId == browser.id && display == displayA
+    }
+    await store.finish()
+
+    // A focus transfer has no window to hand focus to here, so it would
+    // swallow the switch whole — no app activation, no hide pass, no HUD.
+    #expect(activations.value.count == 1)
+    #expect(activations.value.first?.workspace.id == browser.id)
   }
 
   @Test
@@ -5729,6 +6065,88 @@ struct WorkspaceActivationFeatureTests {
       DisplayAssignment(display: b, workspace: wB.id),
       DisplayAssignment(display: c, workspace: wOnC.id),
     ])
+  }
+
+  @Test
+  func `vacated display leaves itself empty rather than summon a homeless pin`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let gone = DisplayName("Disconnected")
+    let dynamic = workspace("dynamic") // just left B for A
+    let homeless = workspace("homeless", hint: gone)
+    let chosen = WorkspaceActivationFeature.chooseWorkspaceForDisplay(
+      b,
+      reconnect: false,
+      byId: [dynamic.id: dynamic, homeless.id: homeless],
+      workspaces: [dynamic, homeless],
+      assigned: [a: dynamic.id],
+      history: [b: [dynamic.id, homeless.id]],
+      connected: [a, b],
+    )
+    // `dynamic` is in use on A. `homeless` is pinned to a disconnected
+    // display, and unlike the reconnect branch the vacated branch will not
+    // drag it here — an empty display beats opening a workspace's apps on a
+    // monitor it was never assigned to.
+    #expect(chosen == nil)
+  }
+
+  @Test
+  func `vacated display walks its history in order past ineligible entries`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let gone = DisplayName("Disconnected")
+    let dynamic = workspace("dynamic")
+    let homeless = workspace("homeless", hint: gone)
+    let pinnedHere = workspace("pinnedHere", hint: b)
+    let chosen = WorkspaceActivationFeature.chooseWorkspaceForDisplay(
+      b,
+      reconnect: false,
+      byId: [dynamic.id: dynamic, homeless.id: homeless, pinnedHere.id: pinnedHere],
+      workspaces: [dynamic, homeless, pinnedHere],
+      assigned: [a: dynamic.id],
+      history: [b: [homeless.id, dynamic.id, pinnedHere.id]],
+      connected: [a, b],
+    )
+    // Newest first, skipping the homeless pin and the one now on A.
+    #expect(chosen == pinnedHere.id)
+  }
+
+  @Test
+  func `vacated display still rejects a dynamic workspace in use elsewhere`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let dynamic = workspace("dynamic")
+    let chosen = WorkspaceActivationFeature.chooseWorkspaceForDisplay(
+      b,
+      reconnect: false,
+      byId: [dynamic.id: dynamic],
+      workspaces: [dynamic],
+      assigned: [a: dynamic.id],
+      history: [b: [dynamic.id]],
+      connected: [a, b],
+    )
+    // One workspace lives on exactly one display.
+    #expect(chosen == nil)
+  }
+
+  @Test
+  func `vacated display returns nil when history holds only the departed dynamic`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let dynamic = workspace("dynamic")
+    let neverHere = workspace("neverHere", hint: a)
+    let chosen = WorkspaceActivationFeature.chooseWorkspaceForDisplay(
+      b,
+      reconnect: false,
+      byId: [dynamic.id: dynamic, neverHere.id: neverHere],
+      workspaces: [dynamic, neverHere],
+      assigned: [a: dynamic.id],
+      history: [b: [dynamic.id]],
+      connected: [a, b],
+    )
+    // The vacated branch is per-display MRU only: a workspace that was never
+    // on B is not dragged over just to fill it.
+    #expect(chosen == nil)
   }
 
   @Test
