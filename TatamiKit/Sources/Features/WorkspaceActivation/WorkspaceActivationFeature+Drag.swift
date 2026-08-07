@@ -31,6 +31,11 @@ extension WorkspaceActivationFeature {
       state: &state,
       forceAllFrames: true,
       monitorsPresentationChanges: true,
+      // The pointer caused this layout, so the pointer does not move for it.
+      // Without this the drift repair that chases the app's restored frame
+      // ends in a post-layout warp and the cursor teleports out from under
+      // the user the instant they release a drag.
+      preservesPointer: true,
     )
   }
 

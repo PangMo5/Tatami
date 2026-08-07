@@ -3323,12 +3323,13 @@ public struct WorkspaceActivationFeature {
     followUp: PostLayoutFocus? = nil,
     monitorsPresentationChanges: Bool = false,
     presentationRepairKeys: Set<WindowKey> = [],
+    preservesPointer: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
     let monitoredKeys = monitorsPresentationChanges
       ? state.armPresentationMonitoring(
         Set(tree.windows),
-        preservesPointer: false,
+        preservesPointer: preservesPointer,
       )
       : []
     state.layoutWriteGeneration &+= 1
@@ -3385,6 +3386,7 @@ public struct WorkspaceActivationFeature {
     followUp: PostLayoutFocus? = nil,
     monitorsPresentationChanges: Bool = false,
     presentationRepairKeys: Set<WindowKey> = [],
+    preservesPointer: Bool = false,
   ) -> Effect<Action> {
     for (display, comp) in state.compositionsByDisplay
       where comp.host == workspaceId
@@ -3396,6 +3398,9 @@ public struct WorkspaceActivationFeature {
         followUp: followUp,
         monitorsPresentationChanges: monitorsPresentationChanges,
         presentationRepairKeys: presentationRepairKeys,
+        // A drag inside a Borrow is still a drag: without this the pointer
+        // exemption stopped at the composition boundary.
+        preservesPointer: preservesPointer,
         state: &state,
       )
     }
@@ -3421,6 +3426,7 @@ public struct WorkspaceActivationFeature {
       followUp: followUp,
       monitorsPresentationChanges: monitorsPresentationChanges,
       presentationRepairKeys: presentationRepairKeys,
+      preservesPointer: preservesPointer,
       state: &state,
     )
   }
@@ -3530,6 +3536,7 @@ public struct WorkspaceActivationFeature {
     let expectedFrames = expectedPresentationFrames(for: candidates, state: state)
     var drifted = Set<WindowKey>()
     var exhausted = Set<WindowKey>()
+    var converged = Set<WindowKey>()
     for key in candidates {
       guard
         let current = currentFrames[key.windowID],
@@ -3542,6 +3549,7 @@ public struct WorkspaceActivationFeature {
           tolerance: 1.5,
         ) == .none
       {
+        converged.insert(key)
         state.presentationRepairAttempts[key] = nil
       } else if
         state.presentationRepairAttempts[key, default: 0]
@@ -3553,6 +3561,12 @@ public struct WorkspaceActivationFeature {
       }
     }
 
+    // Keep watching a converged window — apps restore old frames well after
+    // they first look settled — but drop its pointer exemption. That flag means
+    // "the pointer caused this layout", which stops being true once the layout
+    // has landed; leaving it set let one drag silently suppress every later
+    // mouse-follows-focus repair for that window.
+    state.presentationPreservesPointerWindows.subtract(converged)
     if !exhausted.isEmpty {
       for key in exhausted {
         debugLog.log(

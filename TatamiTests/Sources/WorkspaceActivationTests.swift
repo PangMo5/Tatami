@@ -4343,6 +4343,61 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `a drag inside a Borrow arms the pointer exemption`() async {
+    let display = Self.display
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(
+      name: "Borrowed",
+      kind: .scratchpad,
+      apps: [AppAssignment(bundleIdentifier: borrowedWindow.bundleId, name: "Borrowed")],
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = display
+      $0.activeWorkspacesByDisplay[display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)],
+      )
+      $0.drag = .dropping(.init(dragged: hostWindow, target: hostWindow, zone: .right))
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.dragPreview.hide = { }
+      $0.windowSnapshot.onScreenWindowFrames = { [:] }
+      $0.windowTiler.apply = { _ in }
+      $0.mouse.warp = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowChanged(
+        .windowDragEnded(
+          trackedWindowID: hostWindow.windowID,
+          key: nil,
+          frame: nil,
+          pointerMoved: true,
+        )
+      )
+    )
+    await store.finish()
+
+    // A drag is still a drag when a Borrow is up: the pointer exemption has to
+    // cross the composition boundary, or the drop repair warps the cursor away.
+    #expect(store.state.presentationPreservesPointerWindows.contains(hostWindow))
+  }
+
+  @Test
   func `notification activation reflows an unchanged borrowed tree`() async {
     let display = Self.display
     let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
@@ -5564,6 +5619,96 @@ struct WorkspaceActivationFeatureTests {
     #expect(applications.value.count == 2)
     #expect(applications.value.last?.windowFrames[topRight] == targetFrame)
     #expect(liveFrames.value[topRight.windowID] == targetFrame)
+  }
+
+  @Test
+  func `a drop never warps the cursor while repairing the app's restored frame`() async throws {
+    let left = WindowKey(pid: 1, windowID: 101, bundleId: "org.alacritty")
+    let topRight = WindowKey(pid: 2, windowID: 201, bundleId: "com.mitchellh.ghostty")
+    let bottomRight = WindowKey(pid: 2, windowID: 202, bundleId: topRight.bundleId)
+    let workspace = Workspace(name: "Terminal")
+    let workArea = await MainActor.run {
+      ScreenGeometry.workArea(for: Self.display)
+    }
+    let initialTree = BSPNode.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(left),
+        right: .branch(
+          BSPBranch(
+            split: .horizontal,
+            ratio: 0.5,
+            left: .leaf(topRight),
+            right: .leaf(bottomRight),
+          )
+        ),
+      )
+    )
+    let initialFrames = initialTree.frames(in: workArea, gap: 0)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.focus.mouseFollowsFocus = true
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = initialTree
+      $0.lastObservedFocusedWindow = topRight
+      $0.drag = .dropping(
+        .init(dragged: bottomRight, target: topRight, zone: .right)
+      )
+    }
+    let liveFrames = LockIsolated(
+      Dictionary(uniqueKeysWithValues: initialFrames.map { ($0.key.windowID, $0.value) })
+    )
+    let warps = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.dragPreview.hide = { }
+      $0.windowSnapshot.onScreenWindowFrames = { liveFrames.value }
+      $0.mouse.warp = { point in warps.withValue { $0.append(point) } }
+      $0.windowTiler.apply = { application in
+        liveFrames.withValue { frames in
+          for (key, frame) in application.windowFrames {
+            frames[key.windowID] = frame
+          }
+        }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowChanged(
+        .windowDragEnded(
+          trackedWindowID: bottomRight.windowID,
+          key: nil,
+          frame: nil,
+          pointerMoved: true,
+        )
+      )
+    )
+    await store.finish()
+
+    // The pointer caused this layout, so the tiles it touched are exempt from
+    // being chased by the cursor.
+    #expect(store.state.presentationPreservesPointerWindows.contains(topRight))
+
+    // The app restores its pre-drop frame; the repair writes the target frame
+    // back, and the cursor must stay exactly where the user released it.
+    let staleFrame = try #require(initialFrames[topRight])
+    liveFrames.withValue { $0[topRight.windowID] = staleFrame }
+    await store.send(
+      .windowChanged(
+        .windowFrameChanged(key: topRight, frame: staleFrame)
+      )
+    )
+    await store.finish()
+
+    #expect(warps.value.isEmpty)
   }
 
   @Test

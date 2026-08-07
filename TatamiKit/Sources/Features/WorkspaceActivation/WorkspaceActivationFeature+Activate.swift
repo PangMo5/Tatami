@@ -1156,6 +1156,9 @@ extension WorkspaceActivationFeature {
     monitorsPresentationChanges: Bool = false,
     presentationRepairKeys: Set<WindowKey> = [],
     borrowPhaseCompletion: BorrowPhase? = nil,
+    // Default false: a borrow summon's own layout should still carry the
+    // cursor to the borrowed block. Only a pointer-driven flush sets this.
+    preservesPointer: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
     let settings = state.config.settings
@@ -1183,7 +1186,7 @@ extension WorkspaceActivationFeature {
     let monitoredKeys = monitorsPresentationChanges
       ? state.armPresentationMonitoring(
         Set(hostTree.windows + (borrowedTree?.windows ?? [])),
-        preservesPointer: false,
+        preservesPointer: preservesPointer,
       )
       : []
     state.layoutWriteGeneration &+= 1
@@ -1218,25 +1221,15 @@ extension WorkspaceActivationFeature {
         )
         return hf.merging(bf) { current, _ in current }
       }
-      guard !Task.isCancelled else { return }
-      guard !merged.isEmpty else {
-        if let phase = borrowPhaseCompletion {
-          await send(
-            .borrowCompositionLayoutCompleted(
-              display: phase.display,
-              workspaceId: phase.workspaceId,
-              generation: phase.generation,
-              composition: phase.composition,
-            )
-          )
-        }
-        return
-      }
-      await tiler.apply(
-        FrameApplication(windowFrames: merged, forceAllFrames: forceAllFrames)
-      )
-      guard !Task.isCancelled else { return }
-      if let phase = borrowPhaseCompletion {
+      // A Borrow's focus must not ride this writer's cancellation. Superseding
+      // layout writes are routine — a sync folding the borrowed window into the
+      // tree starts one — and they change where the block lands, not whether it
+      // gets focus. Dropping the notification here left the block summoned but
+      // unfocused, with the cursor still on the host. The reducer re-validates
+      // generation, pending completion and composition identity, so a genuinely
+      // stale one is rejected there rather than silently lost here.
+      @Sendable func publishBorrowPhase() async {
+        guard let phase = borrowPhaseCompletion else { return }
         await send(
           .borrowCompositionLayoutCompleted(
             display: phase.display,
@@ -1246,6 +1239,19 @@ extension WorkspaceActivationFeature {
           )
         )
       }
+      guard !Task.isCancelled else {
+        await publishBorrowPhase()
+        return
+      }
+      guard !merged.isEmpty else {
+        await publishBorrowPhase()
+        return
+      }
+      await tiler.apply(
+        FrameApplication(windowFrames: merged, forceAllFrames: forceAllFrames)
+      )
+      await publishBorrowPhase()
+      guard !Task.isCancelled else { return }
       if let followUp {
         await send(
           .settleFocusAfterLayout(
