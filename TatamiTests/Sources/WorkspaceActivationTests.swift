@@ -1236,6 +1236,67 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `an app focus jump warps to the window the system actually raised`() async {
+    let display = Self.display
+    let first = WindowKey(pid: 7, windowID: 701, bundleId: "com.mitchellh.ghostty")
+    let second = WindowKey(pid: 7, windowID: 702, bundleId: first.bundleId)
+    let terminal = Workspace(
+      name: "Terminal",
+      apps: [AppAssignment(bundleIdentifier: first.bundleId, name: "Ghostty")],
+    )
+    let workArea = await MainActor.run { ScreenGeometry.workArea(for: display) }
+    let tree = BSPNode.branch(
+      BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(first), right: .leaf(second))
+    )
+    let frames = tree.frames(in: workArea, gap: 0)
+    let state = Self.makeState(workspaces: [terminal]) {
+      $0.$config.withLock {
+        $0.settings.focus.mouseFollowsFocus = true
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = display
+      $0.tilingTrees[terminal.id] = tree
+      // The workspace last used `first`, but the user just clicked the app in
+      // the Dock and the system raised `second`.
+      $0.mruWindows[terminal.id] = [first, second]
+    }
+    let warps = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [display] }
+      $0.displays.current = { display }
+      $0.displays.workArea = { _ in workArea }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.windowTiler.apply = { _ in }
+      $0.windowSnapshot.cachedKeysAsync = { _, _ in .value([first, second]) }
+      $0.windowSnapshot.onScreenWindowFrames = {
+        Dictionary(uniqueKeysWithValues: frames.map { ($0.key.windowID, $0.value) })
+      }
+      $0.windowSnapshot.focusedWindowKeyAsync = { .value(second) }
+      $0.windowSnapshot.focusedWindowKey = { second }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowObserver.observe = { _ in }
+      $0.profileSessionStore.saveWorkspaceState = { _, _ in }
+      $0.sls.isActiveSpaceFullscreen = { false }
+      $0.focusManager.focusWindow = { _ in }
+      $0.mouse.warp = { point in warps.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateFollowingAppFocus(workspaceId: terminal.id))
+    await store.finish()
+
+    // Follows the raised window, not the workspace's MRU pick — otherwise a
+    // multi-window app gives no clue which window took focus.
+    let target = try? #require(frames[second])
+    #expect(warps.value == [CGPoint(x: target?.midX ?? 0, y: target?.midY ?? 0)])
+  }
+
+  @Test
   func `activating a visible workspace with no window still activates it`() async {
     let displayA = DisplayName("A")
     let browser = Workspace(name: "Browser", displayHint: displayA)

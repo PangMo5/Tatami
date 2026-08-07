@@ -850,6 +850,12 @@ public struct WorkspaceActivationFeature {
       keys: Set<WindowKey>,
       unresolvedSlots: Set<SlotID>,
     )
+    /// A workspace switch caused by the user activating one of its apps from
+    /// outside Tatami (Dock, Spotlight, cmd-tab). The app already owns focus so
+    /// this must not re-pick a focus target, but the cursor still follows it:
+    /// landing on a workspace with two windows of that app otherwise gives no
+    /// clue which one was raised.
+    case activateFollowingAppFocus(workspaceId: Workspace.ID)
     case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
     /// The whole activation effect ran out, post-layout tail included.
     /// `activationCompleted` fires early — as soon as the *visible* switch is
@@ -1698,7 +1704,7 @@ public struct WorkspaceActivationFeature {
           )
           return .merge(
             markerEffect,
-            .send(.activate(workspaceId: owner.id, setFocus: false)),
+            .send(.activateFollowingAppFocus(workspaceId: owner.id)),
           )
         }
         // One focused-window resolution serves marker focus, insertion-
@@ -2124,6 +2130,17 @@ public struct WorkspaceActivationFeature {
         return performActivate(
           workspaceId: workspaceId,
           setFocus: setFocus,
+          state: &state,
+        )
+
+      case .activateFollowingAppFocus(let workspaceId):
+        // A deliberate user action, so it outranks any queued display restore
+        // exactly like a hotkey switch does.
+        state.pendingDisplayRestores = []
+        return performActivate(
+          workspaceId: workspaceId,
+          setFocus: false,
+          followsCursor: true,
           state: &state,
         )
 

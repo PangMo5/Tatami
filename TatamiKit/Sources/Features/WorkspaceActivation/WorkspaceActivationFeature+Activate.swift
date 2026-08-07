@@ -279,6 +279,12 @@ extension WorkspaceActivationFeature {
     setFocus: Bool,
     displayOverride: DisplayName? = nil,
     suppressSwitchHUD: Bool = false,
+    // The cursor follows focus even though this activation does not set it.
+    // `setFocus` answers "does Tatami pick the focused window", which is not
+    // the same question as "did focus move" — an app the user activated from
+    // the Dock or Spotlight already owns focus, and the cursor still has to
+    // follow it or a multi-window workspace gives no clue which window won.
+    followsCursor: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
     guard
@@ -502,7 +508,12 @@ extension WorkspaceActivationFeature {
       windowKeyToFocus: mruWindow,
       managedBundleIds: restoringHost ? state.managedBundleIds : [],
     )
-    let warpMouse = setFocus && state.config.settings.focus.mouseFollowsFocus
+    let warpMouse = (setFocus || followsCursor)
+      && state.config.settings.focus.mouseFollowsFocus
+    // When focus arrived on its own, the window the system actually raised is
+    // the truth — the workspace's MRU pick can name a different window of the
+    // same app, and warping there would point at the wrong tile.
+    let prefersLiveFocusTarget = followsCursor && !setFocus
     // Show the HUD on a normal switch, or whenever this switch returned a
     // borrow (so the dismissal is always announced — even mid-move).
     // A profile switch shows its own HUD (profile name + activated workspace),
@@ -954,6 +965,16 @@ extension WorkspaceActivationFeature {
                 // then grabs focus to it. Fall back to the live read only when this
                 // workspace has no MRU target (a pinned-app or empty workspace).
                 let live = liveFocused
+                // Unless focus arrived on its own: then the raised window is
+                // the answer and the MRU pick is a guess about it.
+                if
+                  prefersLiveFocusTarget,
+                  let live,
+                  live.bundleId == expectedFocusBundleId,
+                  let rect = frames[live] ?? fallbackFrames[live]
+                {
+                  return (live, rect, live)
+                }
                 if
                   let mruWindow,
                   let rect = frames[mruWindow] ?? fallbackFrames[mruWindow]
