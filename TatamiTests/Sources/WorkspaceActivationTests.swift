@@ -1311,13 +1311,14 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `recent remains scoped to the focused display by default`() async {
+  func `recent stays scoped to the focused display when across displays is off`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
     let current = Workspace(name: "Current")
     let localRecent = Workspace(name: "Local Recent")
     let otherDisplayRecent = Workspace(name: "Other Display Recent")
     let state = Self.makeState(workspaces: [current, localRecent, otherDisplayRecent]) {
+      $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = false }
       $0.isTilingPaused = true
       $0.focusedDisplay = displayA
       $0.activeWorkspacesByDisplay = [displayA: current.id, displayB: otherDisplayRecent.id]
@@ -1355,6 +1356,7 @@ struct WorkspaceActivationFeatureTests {
     let wsA = Workspace(name: "A")
     let wsB = Workspace(name: "B")
     let state = Self.makeState(workspaces: [wsA, wsB]) {
+      $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = false }
       $0.focusedDisplay = displayA
       $0.activeWorkspacesByDisplay = [displayA: wsA.id, displayB: wsB.id]
       $0.previousWorkspacesByDisplay[displayB] = wsA.id

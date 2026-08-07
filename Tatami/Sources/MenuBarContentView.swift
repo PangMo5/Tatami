@@ -180,6 +180,12 @@ struct MenuBarContentView: View {
     .keyboardShortcut(",", modifiers: .command)
 
     Button("Check for Updates…") {
+      // Sparkle only activates the app conditionally on the first check, and
+      // not at all on the "you're up to date" alert path — so from a menu bar
+      // extra the first click puts its window behind whatever is frontmost and
+      // reads as nothing happening. Claim the foreground here, inside the click
+      // event, while the system still grants activation rights.
+      NSApp.activate(ignoringOtherApps: true)
       store.send(.checkForUpdatesTapped)
     }
 

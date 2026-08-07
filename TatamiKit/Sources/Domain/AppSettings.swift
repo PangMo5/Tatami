@@ -635,7 +635,7 @@ extension AppSettings {
       skipEmpty: Bool = false,
       followAppFocus: Bool = true,
       cycleAcrossDisplays: Bool = false,
-      recentAcrossDisplays: Bool = false,
+      recentAcrossDisplays: Bool = true,
       switchToRecentWhenEmpty: Bool = false,
       cycleSameAppWindows: Bool = false,
       toggleBorrowOnRepeat: Bool = true,
@@ -660,7 +660,7 @@ extension AppSettings {
       skipEmpty = c.decode(.skipEmpty, default: false)
       followAppFocus = c.decode(.followAppFocus, default: true)
       cycleAcrossDisplays = c.decode(.cycleAcrossDisplays, default: false)
-      recentAcrossDisplays = c.decode(.recentAcrossDisplays, default: false)
+      recentAcrossDisplays = c.decode(.recentAcrossDisplays, default: true)
       switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
       cycleSameAppWindows = c.decode(.cycleSameAppWindows, default: false)
       toggleBorrowOnRepeat = c.decode(.toggleBorrowOnRepeat, default: true)
@@ -681,8 +681,10 @@ extension AppSettings {
     /// When `false` (default), cycling stays within the workspaces on the
     /// display under the cursor.
     public var cycleAcrossDisplays: Bool
-    /// Recent-workspace actions use global MRU across displays. Off by
-    /// default to preserve the existing per-display behavior.
+    /// Recent-workspace actions use global MRU across displays. On by
+    /// default: "the workspace I was just in" reads as one idea across the
+    /// whole desk, not one per monitor. Existing configs that wrote the key
+    /// keep whatever they had.
     public var recentAcrossDisplays: Bool
     /// When the active workspace's last window closes (nothing tiled and
     /// no workspace-specific floating window left), switch to the recent

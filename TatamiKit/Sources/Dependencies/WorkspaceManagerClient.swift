@@ -153,8 +153,17 @@ extension WorkspaceManagerClient: DependencyKey {
   /// `applicationShouldHandleReopen`, and the user's cursor then follows that
   /// focus onto another monitor. A running app's windows come back through the
   /// unhide pass regardless, so the reopen buys nothing there.
-  static func shouldReopenRunningApp(setFocus: Bool, isRunning: Bool) -> Bool {
-    setFocus || !isRunning
+  ///
+  /// `summoned` overrides all of it. A Borrow forces auto-open on every app of
+  /// the workspace it summons, and it carries `setFocus: false` only because it
+  /// focuses the borrowed block itself — reading that as "background" left a
+  /// scratchpad's apps unopened.
+  static func shouldReopenRunningApp(
+    summoned: Bool,
+    setFocus: Bool,
+    isRunning: Bool,
+  ) -> Bool {
+    summoned || setFocus || !isRunning
   }
 
   // MARK: Private
@@ -208,7 +217,14 @@ extension WorkspaceManagerClient: DependencyKey {
               )
             }
           let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
-          func autoOpenIfNeeded(_ bundleId: String) {
+          /// `summoned` marks an app the user just asked to come up: a Borrow
+          /// forces auto-open on every app of the workspace it summons. Those
+          /// are exempt from the reopen gate below, because a borrow carries
+          /// `setFocus: false` for an unrelated reason — it focuses the
+          /// borrowed block itself rather than letting the manager pick — and
+          /// reading that as "background restore" left a scratchpad's apps
+          /// unopened.
+          func autoOpenIfNeeded(_ bundleId: String, summoned: Bool = false) {
             let instances = runningByBundle[bundleId] ?? []
             let hasVisibleWindow = instances.contains {
               onScreenOwnerPids.contains($0.processIdentifier)
@@ -234,6 +250,7 @@ extension WorkspaceManagerClient: DependencyKey {
             }
             guard
               Self.shouldReopenRunningApp(
+                summoned: summoned,
                 setFocus: request.setFocus,
                 isRunning: !instances.isEmpty,
               )
@@ -275,7 +292,7 @@ extension WorkspaceManagerClient: DependencyKey {
           // apps up when summoned); performBorrow forces this on for a
           // scratchpad so all of its apps open.
           for app in request.borrowedApps where app.autoOpen {
-            autoOpenIfNeeded(app.bundleIdentifier)
+            autoOpenIfNeeded(app.bundleIdentifier, summoned: true)
           }
           // Shared apps are present in every workspace, so an auto-open one is
           // (re)opened on any activation — this is what restores a minimized

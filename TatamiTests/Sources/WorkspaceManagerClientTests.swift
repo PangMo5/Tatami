@@ -31,17 +31,44 @@ struct WorkspaceManagerClientTests {
     // (and drags the cursor along under mouse-follows-focus) onto the display
     // the user just switched away from.
     #expect(
-      !WorkspaceManagerClient.shouldReopenRunningApp(setFocus: false, isRunning: true)
+      !WorkspaceManagerClient.shouldReopenRunningApp(
+        summoned: false,
+        setFocus: false,
+        isRunning: true,
+      )
     )
     // Not running: nothing to unhide, so launching it is the only way to
     // populate the display, and a fresh launch has no focus to steal yet.
     #expect(
-      WorkspaceManagerClient.shouldReopenRunningApp(setFocus: false, isRunning: false)
+      WorkspaceManagerClient.shouldReopenRunningApp(
+        summoned: false,
+        setFocus: false,
+        isRunning: false,
+      )
     )
     // A deliberate switch is allowed to bring an app forward — the focus block
     // still owns where focus lands.
     #expect(
-      WorkspaceManagerClient.shouldReopenRunningApp(setFocus: true, isRunning: true)
+      WorkspaceManagerClient.shouldReopenRunningApp(
+        summoned: false,
+        setFocus: true,
+        isRunning: true,
+      )
+    )
+  }
+
+  @Test
+  func `a summoned borrow reopens its apps even without focus`() {
+    // A Borrow passes setFocus == false because it focuses the borrowed block
+    // itself, not because it is a background restore. A scratchpad forces
+    // auto-open on every one of its apps precisely so they come up when
+    // summoned, so the background gate must not apply to them.
+    #expect(
+      WorkspaceManagerClient.shouldReopenRunningApp(
+        summoned: true,
+        setFocus: false,
+        isRunning: true,
+      )
     )
   }
 }

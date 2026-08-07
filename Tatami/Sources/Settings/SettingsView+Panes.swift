@@ -90,6 +90,9 @@ extension SettingsView {
       }
       .disabled(!config.settings.general.checkForUpdatesAutomatically)
       Button("Check for Updates…") {
+        // Same as the menu bar item: Sparkle's own activation is conditional,
+        // so assert the foreground from inside the click event.
+        NSApp.activate(ignoringOtherApps: true)
         store.send(.checkForUpdatesTapped)
       }
     }

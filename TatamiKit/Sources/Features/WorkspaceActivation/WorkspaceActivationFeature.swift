@@ -993,7 +993,12 @@ public struct WorkspaceActivationFeature {
         if debugLog.isEnabled() {
           debugLog.log(
             "Display",
-            "reconfigured connected=\(names.map(\.name)) "
+            // UUIDs, not just names: identity here is `uuid ?? name`, so a
+            // display whose UUID fails to resolve silently becomes a different
+            // display to every lookup on this path. Names alone cannot tell
+            // that apart from an ordinary reconfigure.
+            "reconfigured suspended=\(state.isLayoutSuspended) "
+              + "connected=\(names.map { "\($0.uuid ?? "no-uuid")/\($0.name)" }) "
               + "new=\(newlyConnected.map(\.name)) "
               + "activeByDisplay=\(state.activeWorkspacesByDisplay.map { "\($0.key.name)→\($0.value)" }) "
               + "focused=\(state.focusedDisplay?.name ?? "nil")",
@@ -2771,7 +2776,7 @@ public struct WorkspaceActivationFeature {
           {
             debugLog.log("BSP", "focus \(direction) → cross into \(cross.target.bundleId)")
             let warp = settings.focus.mouseFollowsFocus
-            return .run { [mouse = mouse, focus = focusManager] _ in
+            return .run { [mouse = mouse, focus = focusManager, debugLog = debugLog] _ in
               await focus.focusWindow(cross.target)
               if warp {
                 let frames = await MainActor.run {
@@ -2783,6 +2788,12 @@ public struct WorkspaceActivationFeature {
                     targetRect: cross.rect,
                   )
                 }
+                debugLog.log(
+                  "Warp",
+                  "bspFocus \(direction) cross target="
+                    + "\(cross.target.bundleId)#\(cross.target.windowID) "
+                    + "rect=\(frames[cross.target].map { "\(Int($0.midX)),\(Int($0.midY))" } ?? "nil")",
+                )
                 if let rect = frames[cross.target] {
                   mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
                 }
@@ -2802,7 +2813,7 @@ public struct WorkspaceActivationFeature {
         )
         let warpMouse = settings.focus.mouseFollowsFocus
         let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-        return .run { [mouse = mouse, focus = focusManager] _ in
+        return .run { [mouse = mouse, focus = focusManager, debugLog = debugLog] _ in
           await focus.focusWindow(target)
           if warpMouse {
             let frames = await MainActor.run {
@@ -2814,6 +2825,14 @@ public struct WorkspaceActivationFeature {
                 targetRect: workArea,
               )
             }
+            // The only warp site with no trace of its own, which left "MFF
+            // doesn't follow directional focus" undiagnosable: a missing frame
+            // and a warp that lands but gets overridden look identical.
+            debugLog.log(
+              "Warp",
+              "bspFocus \(direction) target=\(target.bundleId)#\(target.windowID) "
+                + "rect=\(frames[target].map { "\(Int($0.midX)),\(Int($0.midY))" } ?? "nil")",
+            )
             if let rect = frames[target] {
               mouse.warp(CGPoint(x: rect.midX, y: rect.midY))
             }
@@ -3057,10 +3076,18 @@ public struct WorkspaceActivationFeature {
           // Global MRU too (reconnect dynamic fallback).
           state.workspaceMRU.removeAll { $0 == id }
           state.workspaceMRU.insert(id, at: 0)
-          let history = state.displayWorkspaceHistory
-          let workspaceMRU = state.workspaceMRU
-          persistWorkspaceSession = .run { [profileSessionStore] _ in
-            await profileSessionStore.saveWorkspaceState(history, workspaceMRU)
+          // Never write session state derived from a suspended layout. Behind
+          // the lock/sleep shield the window server reports whatever it likes —
+          // displays drop out, AX comes back empty — and an activation running
+          // there produces a placement the user never made. Persisting it
+          // overwrites the real one on disk, so the next launch restores the
+          // shield's view of the desk instead of theirs.
+          if !state.isLayoutSuspended {
+            let history = state.displayWorkspaceHistory
+            let workspaceMRU = state.workspaceMRU
+            persistWorkspaceSession = .run { [profileSessionStore] _ in
+              await profileSessionStore.saveWorkspaceState(history, workspaceMRU)
+            }
           }
         }
         // A display a dynamic workspace just vacated gets refilled with what the
@@ -3938,10 +3965,13 @@ public struct WorkspaceActivationFeature {
     let gap = CGFloat(settings.layout.gapInner)
     // Ops with no obvious visual cue of their own attach a HUD here.
     var hud = Effect<Action>.none
-    // Ops that relocate the focused window itself (swap/warp) should carry the
-    // cursor with it under mouse-follows-focus — the directional *focus* paths
-    // already warp, but the swap path moved the window and left the cursor
-    // behind on the now-other tile.
+    // Ops that move the focused window, or resize it to a whole new region,
+    // should carry the cursor with them under mouse-follows-focus — the
+    // directional *focus* paths already warp, but these change the focused
+    // window's own frame and used to leave the cursor behind on the tile the
+    // window no longer occupies. `resize` and `balance` deliberately stay out:
+    // re-centering on every keystroke of a held-down resize fights the user
+    // more than it helps.
     var warpFocused = false
 
     switch op {
@@ -3968,6 +3998,9 @@ public struct WorkspaceActivationFeature {
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)
+      // Flipping the split axis rebuilds the focused window's frame from a
+      // different geometry, not a nudge of the current one.
+      warpFocused = true
 
     case .toggleZoomFullscreen:
       // Tatami-specific multi-window fullscreen. Track in workspace
@@ -3984,6 +4017,9 @@ public struct WorkspaceActivationFeature {
       // Explicit user intent supersedes any cold-start restore still waiting
       // for an absent window occurrence.
       state.unresolvedFullscreenZoomSlots[workspaceId] = nil
+      // Zooming in or out replaces the focused window's frame wholesale, so
+      // the cursor has to follow in both directions.
+      warpFocused = true
       hud = hudEffect(
         state,
         \.fullscreen,

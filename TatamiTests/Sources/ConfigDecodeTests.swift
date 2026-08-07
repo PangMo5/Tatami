@@ -40,7 +40,7 @@ struct ConfigDecodeTests {
       try TOMLDecoder().decode(AppConfig.self, from: "")
     }
     #expect(config.settings.general.launchAtLogin == false)
-    #expect(config.settings.switching.recentAcrossDisplays == false)
+    #expect(config.settings.switching.recentAcrossDisplays)
     #expect(config.settings.switching.toggleBorrowOnRepeat)
     #expect(config.settings.hud.windowCycle)
     #expect(reported.value == 0)

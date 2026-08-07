@@ -1,3 +1,4 @@
+import AppKit
 import ComposableArchitecture
 import DependenciesMacros
 import Sparkle
@@ -25,7 +26,19 @@ extension UpdaterClient: DependencyKey {
     )
     let updater = controller.updater
     return UpdaterClient(
-      checkForUpdates: { updater.checkForUpdates() },
+      checkForUpdates: {
+        // Sparkle's window can end up behind another app without any error, so
+        // record the activation state the check starts from. That is what
+        // distinguishes "Sparkle refused" from "the alert opened out of sight".
+        @Dependency(\.debugLog) var debugLog
+        debugLog.log(
+          "Updater",
+          "checkForUpdates active=\(NSApp.isActive) "
+            + "policy=\(NSApp.activationPolicy().rawValue) "
+            + "canCheck=\(updater.canCheckForUpdates)",
+        )
+        updater.checkForUpdates()
+      },
       configure: { automaticallyChecks, interval in
         updater.automaticallyChecksForUpdates = automaticallyChecks
         updater.updateCheckInterval = interval
