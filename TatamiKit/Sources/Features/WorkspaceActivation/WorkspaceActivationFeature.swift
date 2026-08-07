@@ -268,6 +268,11 @@ public struct WorkspaceActivationFeature {
     public var pendingBorrowCompletionByDisplay = [
       DisplayName: PendingBorrowCompletion
     ]()
+    /// A display topology change arrived while the layout was suspended and
+    /// still has to be reconciled. Behind the lock/sleep shield macOS drops and
+    /// re-adds monitors on its own, so the reconcile is replayed once against
+    /// the settled topology instead of being run per intermediate report.
+    public var pendingDisplayTopologyReconcile = false
     /// Workspace and pointer display awaiting a direction key; nil when not
     /// capturing. Set by the borrow combo; a direction keystroke commits the
     /// borrow at that edge without re-resolving its monitor mid-chord.
@@ -952,6 +957,27 @@ public struct WorkspaceActivationFeature {
         .cancellable(id: CancelID.windowEvents, cancelInFlight: true)
 
       case .displaysReconfigured(let names):
+        // Behind the lock/sleep shield the window server reports whatever it
+        // likes: displays drop out and come back on their own, often more than
+        // once, and AX answers empty. Reconciling there tears down the
+        // display→workspace assignment, can flip the profile on a display-count
+        // rule, and re-activates workspaces against a desk that isn't the
+        // user's. Nothing on the unfreeze path re-plans placement, so that
+        // becomes the final answer. Record the change and replay it once the
+        // topology has settled instead.
+        //
+        // `connectedDisplays` deliberately keeps its pre-suspension value: the
+        // replay diffs against it, so a monitor that merely blinked out and
+        // back produces no topology change at all, and a real unplug produces
+        // exactly one.
+        guard !state.isLayoutSuspended else {
+          state.pendingDisplayTopologyReconcile = true
+          debugLog.log(
+            "Display",
+            "reconfigured while suspended — deferred: \(names.map(\.name))",
+          )
+          return .none
+        }
         let connected = Set(names)
         // DisplayClient emits only when either identity or geometry changed.
         // With an unchanged set this is a resolution/arrangement/work-area

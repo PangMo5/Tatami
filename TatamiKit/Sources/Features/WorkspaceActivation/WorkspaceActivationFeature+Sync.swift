@@ -628,11 +628,24 @@ extension WorkspaceActivationFeature {
       state.suspendedLayoutWindows = [:]
       state.pendingSystemLayoutBundleIds = []
     }
+    // Replay a deferred topology change against the settled display list, and
+    // do it before the window reconcile: placement decides which display each
+    // workspace belongs to, and the reconcile that follows assumes that answer.
+    var topologyReplay = Effect<Action>.none
+    if state.pendingDisplayTopologyReconcile {
+      state.pendingDisplayTopologyReconcile = false
+      let live = displays.all()
+      debugLog.log(
+        "Suspend",
+        "end \(reason): replay deferred topology \(live.map(\.name))",
+      )
+      topologyReplay = .send(.displaysReconfigured(live))
+    }
     debugLog.log(
       "Suspend",
       "end \(reason): reconcile=\(state.isRecoveringSystemLayout)",
     )
-    return .send(.activeSpaceChanged)
+    return .concatenate(topologyReplay, .send(.activeSpaceChanged))
   }
 
   /// Complete one bundle from the wake reconciliation batch. If every

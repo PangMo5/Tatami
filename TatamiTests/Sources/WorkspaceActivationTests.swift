@@ -6215,6 +6215,115 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `a display that blinks out during a lock is restored untouched`() async {
+    let builtIn = DisplayName("Built-in")
+    let external = DisplayName("External")
+    let wsBuiltIn = workspace("Terminal", hint: builtIn)
+    let wsExternal = workspace("Slack", hint: external)
+    let state = Self.makeState(workspaces: [wsBuiltIn, wsExternal]) {
+      $0.isTilingPaused = true
+      $0.connectedDisplays = [builtIn, external]
+      $0.focusedDisplay = external
+      $0.activeWorkspacesByDisplay = [
+        builtIn: wsBuiltIn.id,
+        external: wsExternal.id,
+      ]
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let live = LockIsolated([builtIn, external])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { live.value }
+      $0.displays.current = { external }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.windowTiler.apply = { _ in }
+      $0.windowSnapshot.onScreenWindowFrames = { [:] }
+      $0.sls.isActiveSpaceFullscreen = { false }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.screenWillLock)
+    // macOS drops the external display behind the lock shield, then hands it
+    // back before the user is even authenticated.
+    live.setValue([builtIn])
+    await store.send(.displaysReconfigured([builtIn]))
+    live.setValue([builtIn, external])
+    await store.send(.displaysReconfigured([builtIn, external]))
+
+    // Nothing was torn down or re-activated while the screen was locked.
+    #expect(store.state.activeWorkspacesByDisplay[external] == wsExternal.id)
+    #expect(store.state.focusedDisplay == external)
+    #expect(activations.value.isEmpty)
+    #expect(store.state.pendingDisplayTopologyReconcile)
+
+    await store.send(.screenDidUnlock)
+    await store.receive {
+      guard case .displaysReconfigured(let names) = $0 else { return false }
+      return Set(names) == [builtIn, external]
+    }
+    await store.finish()
+
+    // The replay diffs against the pre-lock topology, which is unchanged, so
+    // the desk comes back exactly as the user left it.
+    #expect(store.state.activeWorkspacesByDisplay[builtIn] == wsBuiltIn.id)
+    #expect(store.state.activeWorkspacesByDisplay[external] == wsExternal.id)
+    #expect(store.state.focusedDisplay == external)
+    #expect(!store.state.pendingDisplayTopologyReconcile)
+  }
+
+  @Test
+  func `a display really unplugged during a lock is reconciled once on unlock`() async {
+    let builtIn = DisplayName("Built-in")
+    let external = DisplayName("External")
+    let wsBuiltIn = workspace("Terminal", hint: builtIn)
+    let wsExternal = workspace("Slack", hint: external)
+    let state = Self.makeState(workspaces: [wsBuiltIn, wsExternal]) {
+      $0.isTilingPaused = true
+      $0.connectedDisplays = [builtIn, external]
+      $0.focusedDisplay = external
+      $0.activeWorkspacesByDisplay = [
+        builtIn: wsBuiltIn.id,
+        external: wsExternal.id,
+      ]
+    }
+    let live = LockIsolated([builtIn, external])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { live.value }
+      $0.displays.current = { builtIn }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.windowTiler.apply = { _ in }
+      $0.windowSnapshot.onScreenWindowFrames = { [:] }
+      $0.sls.isActiveSpaceFullscreen = { false }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.screenWillLock)
+    live.setValue([builtIn])
+    await store.send(.displaysReconfigured([builtIn]))
+    await store.send(.screenDidUnlock)
+    await store.receive {
+      guard case .displaysReconfigured(let names) = $0 else { return false }
+      return names == [builtIn]
+    }
+    await store.finish()
+
+    // The monitor is genuinely gone, so its assignment is dropped — but only
+    // once, on the settled topology, not per intermediate report.
+    #expect(store.state.connectedDisplays == [builtIn])
+    #expect(store.state.activeWorkspacesByDisplay[external] == nil)
+    #expect(store.state.activeWorkspacesByDisplay[builtIn] == wsBuiltIn.id)
+  }
+
+  @Test
   func `vacated display leaves itself empty rather than summon a homeless pin`() {
     let a = DisplayName("A")
     let b = DisplayName("B")
