@@ -6,6 +6,26 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.11.3 (2026-08-07)
+
+### New
+- **The cursor follows an app-driven switch:** With Mouse follows focus on, activating an app from the Dock, Spotlight, or the app switcher now moves the cursor to the window that was actually raised, not just to the workspace. Landing on a workspace holding several windows of that app no longer leaves it ambiguous which one took focus.
+
+### Improvements
+- **Recent workspace spans displays by default:** New installs treat "the workspace I was just in" as one idea across the whole desk rather than one per monitor. Existing configurations keep whatever they already had.
+- **The cursor follows layout commands that reshape the focused window:** Toggling a split's orientation or entering and leaving fullscreen zoom now carries the cursor with the focused window, which previously stayed on the tile the window no longer occupied.
+
+### Fixes
+- **Dynamic workspaces follow the mouse again:** A workspace set to Dynamic (follows mouse) stopped moving once it had been shown anywhere, so it stayed on whichever monitor it last landed on. Activating one now brings it to the display under the pointer, while a workspace already on the pointer's display still keeps a live Borrow composition intact.
+- **Workspaces restore correctly after unlocking with several displays:** macOS drops and re-adds monitors behind the lock shield, and Tatami reconciled every intermediate report — tearing down the display assignment, sometimes switching profiles through a display-count rule, and saving that result. Reconciliation now waits for the topology to settle: a monitor that merely blinked out and back changes nothing, and a real unplug is handled exactly once.
+- **The cursor stays where you release a drag:** Dragging a window to a new tile could teleport the cursor moments after the drop, because repairing the frame some apps restore behind the drag counted as a layout change worth following. A layout the pointer caused no longer moves the pointer, inside a Borrow composition as well.
+- **A summoned Borrow always focuses its block:** Summoning a scratchpad sometimes left the borrowed block on screen with focus and cursor still on the host, depending on whether an unrelated layout write superseded the one carrying the Borrow.
+- **A borrowed workspace is returned when its host moves:** Pulling a Borrow host to another monitor left the borrowed windows behind on the display it came from until something else happened to redraw that display.
+- **Switching to a workspace with no window works:** A workspace whose windows were all closed could swallow the switch entirely — no app activation, no hide pass, no HUD.
+- **Refilling a vacated display no longer steals focus:** When a dynamic workspace leaves a monitor and another takes its place, that background switch no longer pulls keyboard focus (and the cursor with it) away from the workspace the user just moved to.
+- **Check for Updates responds to the first click:** Choosing it from the menu bar opened its window behind whatever was frontmost, so it read as nothing happening until the second click.
+- **The window switcher no longer clips its shadow:** The switcher panel is sized from its shadow, so the drop shadow renders fully at every width.
+
 ## 1.11.2 (2026-08-04)
 
 ### Fixes
