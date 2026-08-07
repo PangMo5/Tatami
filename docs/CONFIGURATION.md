@@ -94,7 +94,7 @@ layout without writing the temporary wake-up state back to disk.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `mouseFollowsFocus` | bool | `false` | Move the cursor to the window Tatami focuses. Directional focus, app/window switching, workspace changes, close refocus, and Swap carry it to the new position; Always on Top and Leave As Is targets use their live window frame. Clicking a window preserves the click position. |
+| `mouseFollowsFocus` | bool | `false` | Move the cursor to the window Tatami focuses. Directional focus, app/window switching, workspace changes, close refocus, Swap, toggling a split's orientation, and fullscreen zoom in either direction carry it to the new position; Always on Top and Leave As Is targets use their live window frame. When the switch came from activating an app outside Tatami — the Dock, Spotlight, the app switcher — the cursor goes to the window the system actually raised rather than the workspace's most recently used one. The pointer is left alone whenever the pointer itself caused the change: clicking a window, releasing a drag, a drag that swaps or splits, and a drag that snaps back. Grow/shrink and Balance stay out too, so holding a key down does not re-center on every repeat. |
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
 | `refocusOnClose` | bool | `true` | When the focused window closes and focus would be stranded on a now-windowless app, move focus to the most recently used remaining window in the workspace (falling back through recency). |
@@ -109,7 +109,7 @@ layout without writing the temporary wake-up state back to disk.
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when switching next/previous. |
 | `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
 | `cycleAcrossDisplays` | bool | `false` | Switch next/previous workspace across every display instead of only the display under the cursor. The key name is retained for compatibility. |
-| `recentAcrossDisplays` | bool | `false` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. |
+| `recentAcrossDisplays` | bool | `true` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. Set it to `false` for a strict per-display history. The default flipped to `true` in 1.11.3, so a fresh install crosses displays; a config that already stores this key keeps its own value. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific always-on-top window, switch to the recent workspace. Shared apps do not count because they join every workspace. |
 | `cycleSameAppWindows` | bool | `false` | Next/previous-window switching granularity. `false` (default) switches app-by-app and recalls each app's most-recent window. `true` visits every window, including multiple windows of the same app. The active workspace's Tiled, Always on Top, and Leave As Is windows participate; while Borrow is active, the host and borrowed tiled blocks form one switching order. The key name is retained for compatibility. |
 | `toggleBorrowOnRepeat` | bool | `true` | Borrowing a workspace already beside the current one returns it and restores the host. `false` moves the borrowed workspace instead. |
@@ -406,7 +406,7 @@ Workspace fields:
 | `borrowEdge` | string? | Override the default borrow edge for this workspace: `top`, `bottom`, `left`, `right`. Omit to use `settings.switching.borrowDefaultEdge` (or the direction-pick when that's unset). |
 | `borrowFraction` | double? | Override the borrowed-block size for this workspace (0.1…0.9). Omit to use `settings.switching.borrowFraction`. |
 | `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation. Omit for most-recently-used. |
-| `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to open the workspace on the display under the mouse. Falls back to the primary display when the pinned monitor is absent. |
+| `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to open the workspace on the display under the mouse. Falls back to the primary display when the pinned monitor is absent. When a dynamic workspace leaves a display, Tatami refills that display from its own history, but only with a workspace pinned to it or a dynamic one no other display is using — a workspace pinned to a monitor that is currently disconnected is never pulled in. When nothing qualifies, the display is left empty on purpose. |
 
 App assignment fields:
 
