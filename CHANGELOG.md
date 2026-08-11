@@ -6,6 +6,11 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.11.4 (2026-08-11)
+
+### Fixes
+- **Shared apps preserve each workspace's last-used window:** Returning to a workspace now restores the window you last focused there, instead of a shared tiled app that was focused while switching through another workspace.
+
 ## 1.11.3 (2026-08-07)
 
 ### New
