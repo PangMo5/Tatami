@@ -1823,33 +1823,88 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `outgoing focus snapshot repairs MRU without restoring the old display`() async {
-    let displayA = DisplayName("A")
+  func `delayed shared outgoing focus snapshot repairs captured workspace MRU`() async {
     let displayB = DisplayName("B")
-    let outgoing = WindowKey(pid: 1, windowID: 101, bundleId: "app.outgoing")
-    let oldWorkspace = Workspace(
-      name: "Old",
-      apps: [AppAssignment(bundleIdentifier: outgoing.bundleId, name: "Outgoing")],
+    let outgoing = WindowKey(pid: 1, windowID: 101, bundleId: "app.shared")
+    let target = WindowKey(pid: 2, windowID: 202, bundleId: "app.target")
+    let oldWorkspace = Workspace(name: "Old")
+    let targetWorkspace = Workspace(
+      name: "Target",
+      apps: [AppAssignment(bundleIdentifier: target.bundleId, name: "Target")],
     )
-    let targetWorkspace = Workspace(name: "Target")
     let state = Self.makeState(workspaces: [oldWorkspace, targetWorkspace]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(bundleIdentifier: outgoing.bundleId, name: "Shared", layout: .tiled)
+        ]
+      }
       $0.focusedDisplay = displayB
-      $0.activeWorkspacesByDisplay = [
-        displayA: oldWorkspace.id,
-        displayB: targetWorkspace.id,
-      ]
+      $0.activeWorkspacesByDisplay = [displayB: targetWorkspace.id]
       $0.tilingTrees[oldWorkspace.id] = .leaf(outgoing)
+      $0.tilingTrees[targetWorkspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(target), right: .leaf(outgoing))
+      )
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     }
 
-    await store.send(.activationFocusSnapshotResolved(outgoing)) {
+    await store.send(.activationFocusSnapshotResolved(
+      workspaceId: oldWorkspace.id,
+      key: outgoing,
+    )) {
       $0.insertionPoint[oldWorkspace.id] = outgoing
       $0.mruWindows[oldWorkspace.id] = [outgoing]
     }
 
     #expect(store.state.focusedDisplay == displayB)
+  }
+
+  @Test
+  func `shared focus during activation updates target workspace MRU`() async {
+    let figma = WindowKey(pid: 1, windowID: 101, bundleId: "com.figma.Desktop")
+    let notion = WindowKey(pid: 2, windowID: 202, bundleId: "notion.id")
+    let pulse = WindowKey(pid: 3, windowID: 303, bundleId: "kean.studio.pulse")
+    let figmaWorkspace = Workspace(
+      name: "Figma",
+      apps: [AppAssignment(bundleIdentifier: figma.bundleId, name: "Figma")],
+    )
+    let notionWorkspace = Workspace(
+      name: "Notion",
+      apps: [AppAssignment(bundleIdentifier: notion.bundleId, name: "Notion")],
+    )
+    let state = Self.makeState(workspaces: [figmaWorkspace, notionWorkspace]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(bundleIdentifier: pulse.bundleId, name: "Pulse", layout: .tiled)
+        ]
+        $0.settings.focus.mouseFollowsFocus = false
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = figmaWorkspace.id
+      $0.tilingTrees[figmaWorkspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(figma), right: .leaf(pulse))
+      )
+      $0.tilingTrees[notionWorkspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(notion), right: .leaf(pulse))
+      )
+      $0.mruWindows[figmaWorkspace.id] = [figma, pulse]
+      $0.mruWindows[notionWorkspace.id] = [notion, pulse]
+      $0.lastObservedFocusedWindow = figma
+      $0.isActivating = true
+      $0.activatingWorkspaceID = notionWorkspace.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(
+      .windowChanged(.windowFocused(bundleId: pulse.bundleId, key: pulse))
+    ) {
+      $0.insertionPoint[notionWorkspace.id] = pulse
+      $0.mruWindows[notionWorkspace.id] = [pulse, notion]
+      $0.lastObservedFocusedWindow = pulse
+    }
   }
 
   @Test

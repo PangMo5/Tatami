@@ -319,12 +319,17 @@ extension WorkspaceActivationFeature {
     // AX callbacks continuously maintain the latest focused key. Never perform
     // a synchronous focus IPC read in the hotkey reducer: one unresponsive app
     // would stall every subsequent menu and hotkey event on the main thread.
+    let outgoingWorkspaceId = state.isActivating
+      ? state.activatingWorkspaceID
+      : state.focusedDisplay.flatMap { state.activeWorkspacesByDisplay[$0] }
+        ?? state.primaryActiveWorkspaceID
     var recordedOutgoingFocus = false
     if
       setFocus,
       let focused = state.lastObservedFocusedWindow,
       let outgoing = state.recordFocusedWindow(
         focused,
+        preferredWorkspaceId: outgoingWorkspaceId,
         requireVisibleTreeMembership: true,
       )
     {
@@ -733,8 +738,11 @@ extension WorkspaceActivationFeature {
           guard !Task.isCancelled else { return }
           await mgr.activate(request)
           guard !Task.isCancelled else { return }
-          if let outgoingFocusedWindow {
-            await send(.activationFocusSnapshotResolved(outgoingFocusedWindow))
+          if let outgoingWorkspaceId, let outgoingFocusedWindow {
+            await send(.activationFocusSnapshotResolved(
+              workspaceId: outgoingWorkspaceId,
+              key: outgoingFocusedWindow,
+            ))
           }
           mark("showHide")
           // Superseded by a newer switch: stop before the tile pass. `send`

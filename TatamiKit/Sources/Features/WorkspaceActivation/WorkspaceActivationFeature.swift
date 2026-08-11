@@ -552,11 +552,24 @@ public struct WorkspaceActivationFeature {
     @discardableResult
     mutating func recordFocusedWindow(
       _ key: WindowKey,
+      preferredWorkspaceId: Workspace.ID? = nil,
       requireVisibleTreeMembership: Bool = false,
       updateFocusedDisplay: Bool = true,
     ) -> Workspace.ID? {
       let workspaceId: Workspace.ID?
-      if requireVisibleTreeMembership {
+      // Activation focuses its target before `activeWorkspacesByDisplay` is
+      // committed. A shared key can belong to both trees during that window,
+      // so prefer the in-flight target when it can legitimately own the key.
+      let preferredWorkspaceContainsKey = preferredWorkspaceId.map { workspaceId in
+        let isInTree = tilingTrees[workspaceId]?.windows.contains(key) == true
+        let isAssigned = config.activeProfile?.workspaces[id: workspaceId]?.apps.contains {
+          $0.bundleIdentifier == key.bundleId
+        } ?? false
+        return isInTree || isAssigned
+      } ?? false
+      if preferredWorkspaceContainsKey {
+        workspaceId = preferredWorkspaceId
+      } else if requireVisibleTreeMembership {
         let visible = visibleWorkspaceIDs
         workspaceId = config.activeProfile?.workspaces.lazy
           .map(\.id)
@@ -807,7 +820,7 @@ public struct WorkspaceActivationFeature {
     case cursorWarpFinished(workspaceId: Workspace.ID, target: WindowKey)
     /// The pre-switch frontmost identity was captured synchronously, then its
     /// timeout-prone focused-window lookup completed on the AX worker.
-    case activationFocusSnapshotResolved(WindowKey)
+    case activationFocusSnapshotResolved(workspaceId: Workspace.ID, key: WindowKey)
     case tilingTreeUpdated(workspaceId: Workspace.ID, tree: BSPNode<WindowKey>?)
     /// Borrow hydration began from `previousTree`. Commit only if no observer-
     /// driven sync has published a newer tree while reveal/discovery was in
@@ -1357,7 +1370,12 @@ public struct WorkspaceActivationFeature {
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
           // didActivateApplication).
-          if let key { state.recordFocusedWindow(key) }
+          let focusOwner = key.flatMap {
+            state.recordFocusedWindow(
+              $0,
+              preferredWorkspaceId: state.activatingWorkspaceID,
+            )
+          }
           // Mouse-follows-focus on a focus change we only *observed* (cmd+`,
           // the app menu's window list, a click): warp to the newly focused
           // tile. `skipIfCursorInside` leaves clicks alone (cursor already
@@ -1369,7 +1387,7 @@ public struct WorkspaceActivationFeature {
             !isPointerDriven,
             isFocusTransition,
             let key,
-            let owner = state.workspaceOwning(key)
+            let owner = focusOwner
           {
             if let tree = state.tilingTrees[owner], tree.windows.contains(key) {
               // A different AX notification can be the delayed echo of the
@@ -2959,9 +2977,10 @@ public struct WorkspaceActivationFeature {
           unresolvedSlots.isEmpty ? nil : unresolvedSlots
         return .none
 
-      case .activationFocusSnapshotResolved(let key):
+      case .activationFocusSnapshotResolved(let workspaceId, let key):
         _ = state.recordFocusedWindow(
           key,
+          preferredWorkspaceId: workspaceId,
           requireVisibleTreeMembership: true,
           // This is the outgoing window captured before activation. Its AX
           // result can arrive after `performActivate` has already moved focus
