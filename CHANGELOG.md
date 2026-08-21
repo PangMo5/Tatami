@@ -6,6 +6,15 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.11.5 (2026-08-22)
+
+### Changed
+- **Tatami is now licensed under AGPL-3.0-only:** This release moves the project from GPL-3.0 to the GNU Affero General Public License v3. Distributions now include the license, project notices, and exact third-party license texts.
+
+### Improvements
+- **Legal documents open inside Tatami:** About now shows the copyright and warranty notice, links to the project source, and presents the license, project notices, and third-party notices in selectable in-app sheets.
+- **Every release exposes its corresponding source:** GitHub release notes and the website now link to the tagged source archive plus the project and third-party notices used for that build.
+
 ## 1.11.4 (2026-08-11)
 
 ### Fixes

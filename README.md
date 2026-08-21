@@ -3,7 +3,7 @@
 [![Latest release](https://img.shields.io/github/v/release/PangMo5/Tatami?sort=semver)](https://github.com/PangMo5/Tatami/releases/latest)
 [![Download](https://img.shields.io/github/downloads/PangMo5/Tatami/total)](https://github.com/PangMo5/Tatami/releases)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue)](LICENSE)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue)](LICENSE)
 
 A macOS workspace manager with BSP window tiling.
 
@@ -128,7 +128,8 @@ brew install --cask pangmo5/tap/tatami
 ```
 
 Or download the signed & notarized `.dmg` from the
-[latest release](https://github.com/PangMo5/Tatami/releases/latest).
+[latest release](https://github.com/PangMo5/Tatami/releases/latest). Each
+release also links its exact corresponding source archive.
 
 ### Build from source
 
@@ -181,11 +182,12 @@ every key, its default, and the shortcut syntax.
 
 Tatami is inspired by [FlashSpace] by Wojciech Kulik (the virtual
 workspace-switching concept) and [yabai] by koekeishiya (the window-tiling
-model). See [NOTICE.md](NOTICE.md) for attribution.
+model). See [NOTICE.md](NOTICE.md) for attribution and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency licenses.
 
 ## License
 
-[GPL-3.0](LICENSE).
+[AGPL-3.0-only](LICENSE).
 
 [FlashSpace]: https://github.com/wojciech-kulik/FlashSpace
 [yabai]: https://github.com/koekeishiya/yabai

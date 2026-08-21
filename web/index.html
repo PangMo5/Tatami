@@ -42,7 +42,7 @@
     <p class="sub">A macOS workspace manager,<br />with BSP window tiling.</p>
     <div class="cta">
       <a class="btn btn-primary download-link" href="https://github.com/PangMo5/Tatami/releases/download/v__VERSION__/Tatami-__VERSION__.dmg">Download for macOS</a>
-      <a class="btn btn-link" href="https://github.com/PangMo5/Tatami">View on GitHub&nbsp;&rsaquo;</a>
+      <a class="btn btn-link source-link" href="https://github.com/PangMo5/Tatami/archive/refs/tags/v__VERSION__.tar.gz">Source code&nbsp;&rsaquo;</a>
     </div>
     <div class="brew">
       <code id="brew-cmd">brew install --cask pangmo5/tap/tatami</code>
@@ -247,6 +247,7 @@
     <div class="cta">
       <a class="btn btn-primary download-link" href="https://github.com/PangMo5/Tatami/releases/download/v__VERSION__/Tatami-__VERSION__.dmg">Download for macOS</a>
       <a class="btn btn-link" href="./releases.html">Release notes&nbsp;&rsaquo;</a>
+      <a class="btn btn-link source-link" href="https://github.com/PangMo5/Tatami/archive/refs/tags/v__VERSION__.tar.gz">Source code&nbsp;&rsaquo;</a>
     </div>
     <div class="brew">
       <code id="brew-cmd-2">brew install --cask pangmo5/tap/tatami</code>
@@ -262,8 +263,10 @@
       <a href="./releases.html">Releases</a>
       <a href="./configuration.html">Configuration</a>
       <a href="https://github.com/PangMo5/Tatami/blob/main/LICENSE">License</a>
+      <a href="https://github.com/PangMo5/Tatami/blob/main/NOTICE.md">Project notices</a>
+      <a href="https://github.com/PangMo5/Tatami/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a>
     </div>
-    <p>Tatami is open source under the GPL-3.0 license and uses a native BSP window engine. Not affiliated with Apple Inc.</p>
+    <p>Tatami is open source under the AGPL-3.0-only license and uses a native BSP window engine. Not affiliated with Apple Inc.</p>
     <p class="footer-apps">Apps by <a href="https://pangmo5.dev/">PangMo5</a>: <a href="https://pangmo5.dev/SwiftyCrow/">SwiftyCrow</a> · <span class="cur" aria-current="page">Tatami</span> · <a href="https://pangmo5.dev/Amado/">Amado</a></p>
   </div>
 </footer>
@@ -378,6 +381,10 @@
       // Only trust an https github.com asset URL before rewriting the button.
       if (dmg && /^https:\/\/github\.com\//.test(dmg.browser_download_url)) {
         document.querySelectorAll("a.download-link").forEach((a) => { a.href = dmg.browser_download_url; });
+      }
+      if (/^v?\d+\.\d+\.\d+$/.test(rel.tag_name || "")) {
+        const sourceURL = "https://github.com/PangMo5/Tatami/archive/refs/tags/" + encodeURIComponent(rel.tag_name) + ".tar.gz";
+        document.querySelectorAll("a.source-link").forEach((a) => { a.href = sourceURL; });
       }
     } catch (e) { /* keep the static fallback */ }
   })();

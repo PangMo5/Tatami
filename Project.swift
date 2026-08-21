@@ -9,7 +9,7 @@ let developmentTeam = Environment.developmentTeam.getString(default: "")
 let sparklePublicEDKey = Environment.sparklePublicEdKey.getString(default: "")
 // Single source of truth for the marketing version. The release workflow
 // verifies the pushed tag matches this before building.
-let appVersion = "1.11.4"
+let appVersion = "1.11.5"
 // Build number is injected by CI (github.run_number); 1 for local builds.
 let buildNumber = Environment.buildNumber.getString(default: "1")
 
@@ -56,14 +56,20 @@ let project = Project(
         // too, otherwise the Debug build still reads as "Tatami" there.
         "CFBundleName": "$(APP_DISPLAY_NAME)",
         "NSHumanReadableCopyright":
-          "© 2026 PangMo5. Released under GPL-3.0.",
+          "© 2026 PangMo5. Released under AGPL-3.0-only.",
         "SUFeedURL": "https://pangmo5.dev/Tatami/appcast.xml",
         "SUEnableAutomaticChecks": true,
         "SUPublicEDKey": "$(SPARKLE_PUBLIC_ED_KEY)",
       ]),
       sources: ["Tatami/Sources/**"],
-      // CHANGELOG.md ships in the bundle so About can show release notes.
-      resources: ["Tatami/Resources/**", "CHANGELOG.md"],
+      // Ship release notes and legal notices with every binary distribution.
+      resources: [
+        "Tatami/Resources/**",
+        "CHANGELOG.md",
+        "LICENSE",
+        "NOTICE.md",
+        "THIRD_PARTY_NOTICES.md",
+      ],
       entitlements: .file(path: "Tatami/Tatami.entitlements"),
       scripts: [
         // Embed the `tatami` CLI (built by the TatamiCLI dependency) into the

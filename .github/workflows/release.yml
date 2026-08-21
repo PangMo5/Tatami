@@ -263,6 +263,8 @@ jobs:
             echo "- Homebrew: \`brew upgrade --cask tatami\`"
             echo "- Direct: [Tatami-${VERSION}.dmg](https://github.com/${REPO}/releases/download/${TAG}/Tatami-${VERSION}.dmg)"
             echo "- In-app: Sparkle will pick this up on its next check."
+            echo "- Corresponding source: [Tatami-${VERSION}.tar.gz](https://github.com/${REPO}/archive/refs/tags/${TAG}.tar.gz)"
+            echo "- Project and third-party notices: [NOTICE.md](https://github.com/${REPO}/blob/${TAG}/NOTICE.md) · [THIRD_PARTY_NOTICES.md](https://github.com/${REPO}/blob/${TAG}/THIRD_PARTY_NOTICES.md)"
           } >> "$NOTES"
 
       - name: Publish GitHub Release

@@ -9,8 +9,11 @@ Tatami is an independent project, not a fork. Its design draws on prior work:
   mirror, fence-based resize) are adapted from [yabai] by koekeishiya, which
   is MIT-licensed. The relevant copyright notice is reproduced below.
 
-Tatami is licensed under [GPL-3.0](LICENSE). It is not affiliated with,
+Tatami is licensed under [AGPL-3.0-only](LICENSE). It is not affiliated with,
 endorsed by, or otherwise connected to FlashSpace, yabai, or their authors.
+
+The licenses and copyright notices for Tatami's package dependencies are
+reproduced in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## yabai (MIT License)
 
