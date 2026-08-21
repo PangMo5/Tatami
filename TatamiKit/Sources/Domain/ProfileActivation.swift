@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import Foundation
 
 /// How the connected-display set must look for a profile to auto-activate.

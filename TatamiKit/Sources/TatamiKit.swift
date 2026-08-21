@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import Foundation
 
 /// TatamiKit umbrella — re-exports the feature surface so the App target imports

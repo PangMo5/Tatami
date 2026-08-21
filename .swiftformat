@@ -1,9 +1,10 @@
 # Exclude checkout directories for common package managers
---exclude Carthage,Pods,.build,Derived,Tuist/.build,.tuist
+--exclude Carthage,Pods,.build,Derived,DerivedData,Tuist/.build,.tuist
 
 # options
 --swift-version 6.2
 --language-mode 5
+--header "SPDX-FileCopyrightText: 2026 PangMo5 and contributors\n// SPDX-License-Identifier: AGPL-3.0-only"
 --self remove # redundantSelf
 --import-grouping testable-bottom # sortedImports
 --trailing-commas multi-element-lists # trailingCommas
@@ -58,6 +59,7 @@
 --max-width 130 # wrap
 
 # rules
+--rules fileHeader
 --rules anyObjectProtocol
 --rules blankLinesBetweenScopes
 --rules consecutiveSpaces

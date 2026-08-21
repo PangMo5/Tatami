@@ -1,4 +1,8 @@
 // swift-tools-version: 6.0
+
+// SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+// SPDX-License-Identifier: AGPL-3.0-only
+
 import PackageDescription
 
 #if TUIST
