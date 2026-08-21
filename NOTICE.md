@@ -15,6 +15,8 @@ endorsed by, or otherwise connected to FlashSpace, yabai, or their authors.
 The licenses and copyright notices for Tatami's package dependencies are
 reproduced in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+<!-- REUSE-IgnoreStart -->
+
 ## yabai (MIT License)
 
 ```
@@ -43,3 +45,5 @@ SOFTWARE.
 
 [FlashSpace]: https://github.com/wojciech-kulik/FlashSpace
 [yabai]: https://github.com/koekeishiya/yabai
+
+<!-- REUSE-IgnoreEnd -->

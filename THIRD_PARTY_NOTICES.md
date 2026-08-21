@@ -4,6 +4,8 @@ Tatami incorporates or is built with the dependencies listed below. Versions and
 revisions are taken from `Tuist/Package.resolved`. Each license notice is
 reproduced verbatim from that resolved checkout.
 
+<!-- REUSE-IgnoreStart -->
+
 ## combine-schedulers 1.2.0
 
 Source: https://github.com/pointfreeco/combine-schedulers
@@ -1312,3 +1314,5 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ~~~~
+
+<!-- REUSE-IgnoreEnd -->
