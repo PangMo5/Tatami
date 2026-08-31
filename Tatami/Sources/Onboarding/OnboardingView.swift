@@ -1245,17 +1245,23 @@ private struct OnboardingBorrowStep: View {
         ) {
           HStack {
             VStack(alignment: .leading, spacing: 3) {
-              Text(store.scratchpads.first?.name ?? "No Scratchpad configured yet")
+              if let scratchpadName = store.scratchpads.first?.name {
+                Text(scratchpadName)
+              } else {
+                Text("No Scratchpad configured yet")
+              }
               let scratchpadAppCount = store.scratchpads.first.map {
                 store.state.apps(in: $0.id).count
               } ?? 0
-              Text(
-                scratchpadAppCount > 1
-                  ? "\(scratchpadAppCount) apps assigned — scratchpads work best with exactly one."
-                  : "Keep exactly one app here—such as a terminal or notes window—then Borrow it only when needed."
-              )
-              .font(.caption)
-              .foregroundStyle(scratchpadAppCount > 1 ? Color.orange : Color.secondary)
+              if scratchpadAppCount > 1 {
+                Text("\(scratchpadAppCount) apps assigned. Scratchpads work best with exactly one.")
+                  .font(.caption)
+                  .foregroundStyle(.orange)
+              } else {
+                Text("Keep exactly one app here, such as a terminal or notes window. Then Borrow it only when needed.")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
             }
             Spacer()
             if store.scratchpads.isEmpty {
@@ -1323,15 +1329,18 @@ private struct OnboardingBorrowStep: View {
     let scratchpadSwitchDetail =
       if workspace.kind == .scratchpad {
         store.state.shortcut(for: .activateWorkspace(workspace.id))
-          .map { " Its \($0.symbols) workspace shortcut takes this same Borrow path." }
-          ?? " Its workspace shortcut takes this same Borrow path."
+          .map {
+            String(localized: "Its \($0.symbols) workspace shortcut takes this same Borrow path.")
+          }
+          ?? String(localized: "Its workspace shortcut takes this same Borrow path.")
       } else {
         ""
       }
     if let edge = workspace.borrowEdge ?? store.draft.settings.switching.borrowDefaultEdge {
-      return "The shortcut docks on the \(edge.rawValue). Repeating it dismisses only when ‘Dismiss when summoned again’ is on.\(scratchpadSwitchDetail)"
+      let edgeName = String(localized: edge.displayName)
+      return "The shortcut docks on the \(edgeName). Repeating it dismisses only when ‘Dismiss when summoned again’ is on. \(scratchpadSwitchDetail)"
     }
-    return "The shortcut arms Borrow first; finish with an arrow or H/J/K/L direction, just like the real command.\(scratchpadSwitchDetail)"
+    return "The shortcut arms Borrow first; finish with an arrow or H/J/K/L direction, just like the real command. \(scratchpadSwitchDetail)"
   }
 
 }
@@ -1536,7 +1545,8 @@ private struct OnboardingFocusCyclingStep: View {
       ) {
         VStack(alignment: .leading, spacing: 13) {
           OnboardingWindowCyclingComparison(
-            tatamiShortcut: store.state.shortcut(for: .cycleNextWindow)?.symbols ?? "Not set"
+            tatamiShortcut: store.state.shortcut(for: .cycleNextWindow)?.symbols
+              ?? String(localized: "Not set")
           )
           Divider()
           OnboardingSettingToggle(
@@ -1844,15 +1854,25 @@ private struct OnboardingCumulativeLayoutStage: View {
     .frame(width: frame.width, height: frame.height)
     .position(x: frame.midX, y: frame.midY)
     .overlay(alignment: .topLeading) {
-      Text(isHost
-        ? (store.activeDemoWorkspace?.name ?? "Host")
-        : (store.demoBorrowWorkspace?.name ?? "Borrowed"))
-        .font(.caption2.weight(.bold))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(.ultraThinMaterial, in: .capsule)
-        .padding(8)
-        .allowsHitTesting(false)
+      Group {
+        if isHost {
+          if let name = store.activeDemoWorkspace?.name {
+            Text(name)
+          } else {
+            Text("Host")
+          }
+        } else if let name = store.demoBorrowWorkspace?.name {
+          Text(name)
+        } else {
+          Text("Borrowed")
+        }
+      }
+      .font(.caption2.weight(.bold))
+      .padding(.horizontal, 8)
+      .padding(.vertical, 5)
+      .background(.ultraThinMaterial, in: .capsule)
+      .padding(8)
+      .allowsHitTesting(false)
     }
   }
 

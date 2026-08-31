@@ -527,7 +527,7 @@ extension SettingsView {
         step: 0.0125,
         minLabel: "Low",
         maxLabel: "High",
-        detail: "How far you must swipe to switch — higher sensitivity needs a shorter swipe.",
+        detail: "How far you must swipe before the bound action runs. Higher sensitivity needs a shorter swipe.",
         readout: { "\(Int(($0 * 100).rounded()))%" },
         commit: { setting(\.gestures.sensitivity).wrappedValue = $0 },
       )

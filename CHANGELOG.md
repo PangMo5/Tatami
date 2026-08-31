@@ -6,6 +6,22 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.12.0 (2026-08-31)
+
+### New
+- **Automate Tatami with a domain-based CLI:** The bundled `tatami` command now groups actions under profile, workspace, window, display, layout, and app subcommands, with hook inspection alongside them. Select profiles and workspaces by name or UUID, target inactive profiles where supported, and request stable JSON for scripts. The CLI exposes all 38 executable actions available to trackpad gestures. Gesture-equivalent commands other than profile and workspace activation reuse the same dispatcher as hotkeys and gestures. Activation commands wait for their activation pipeline to finish before returning. The original flat commands remain available as compatibility aliases.
+- **Run programs from lifecycle hooks:** Run a program when Tatami launches, the active profile changes, or a workspace becomes visible on a display. Add and test hooks in Settings or keep them in `config.toml`; each run receives versioned JSON and convenience environment variables, with explicit argv, working directory, environment, and timeout controls. Failures appear under Problems without blocking the profile or workspace change.
+
+### Improvements
+- **Review profile and workspace duplication before applying it:** Profile and workspace context menus now support Rename, and both kinds of Duplicate use the same selectable preview as Copy from. Choose individual workspaces, apps, settings, and saved layouts. Profile duplicates start without a switch shortcut or auto-activation rule, while same-profile workspace duplicates start without shortcut identities that would immediately conflict.
+- **Keep automation changes transactional:** CLI mutations and reviewed duplication check the current configuration before saving. Layout copies are prepared before the duplicate is published and cleaned up if the configuration cannot be committed.
+- **Keep command documentation close to Tatami:** Open the bundled CLI guide from Settings or read the live reference rendered from `docs/CLI.md` on pangmo5.dev/Tatami. It covers selectors, JSON contracts, hook behavior, exit status, and scripting examples.
+- **Read shortcut conflicts at any width:** Shortcut recorders now show the same compact warning at every size and expose the complete conflicting action in a popover and to VoiceOver.
+
+### Fixes
+- **Workspace shortcuts respect profile boundaries:** The same workspace key or explicit shortcut can now be reused in different profiles without a false conflict. Global shortcuts remain checked against every profile.
+- **Copy and Duplicate cannot silently introduce shortcut conflicts:** Their previews identify conflicting choices and revalidate the current configuration before saving. A real conflict rejects the whole mutation instead of applying a partial copy.
+
 ## 1.11.5 (2026-08-22)
 
 ### Changed

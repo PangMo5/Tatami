@@ -139,8 +139,14 @@ private struct HookSummaryRow: View {
             .truncationMode(.middle)
           let argumentCount = max(0, row.definition.command.count - 1)
           if argumentCount > 0 {
-            Text("· \(argumentCount) arguments")
-              .foregroundStyle(.secondary)
+            Group {
+              if argumentCount == 1 {
+                Text("· 1 argument")
+              } else {
+                Text("· \(argumentCount) arguments")
+              }
+            }
+            .foregroundStyle(.secondary)
           }
         }
         .font(.caption.monospaced())
@@ -525,10 +531,20 @@ private struct HookProgramEditorSection: View {
     } footer: {
       VStack(alignment: .leading, spacing: 4) {
         Text(
-          "Enter the path to a program, an executable script, or a command-line shell such as `/bin/zsh` or `/opt/homebrew/bin/fish`. Shell locations vary, so use the full path returned by `which fish`. For a script without execute permission, choose its command-line shell and add the script path as the first argument."
+          """
+          Enter the path to a program, an executable script, or a command-line shell such as `/bin/zsh` or \
+          `/opt/homebrew/bin/fish`. Shell locations vary, so use the full path returned by `which fish`. For a \
+          script without execute permission, choose its command-line shell and add the script path as the first \
+          argument.
+          """
         )
         Text(
-          "Each argument is passed exactly as one argv value. To use shell syntax, choose a shell executable and add its flags explicitly. To open a macOS app, use `/usr/bin/open` as the executable and add `-a` and the app name as separate arguments."
+          """
+          Each argument is passed exactly as one argv value. To use shell syntax, choose a command-line shell and \
+          add its flags explicitly. For fish, use `/opt/homebrew/bin/fish` and add `-c` and `command ls` as separate \
+          arguments. To open a macOS app, use `/usr/bin/open` as the executable and add `-a` and the app name as \
+          separate arguments.
+          """
         )
       }
     }
@@ -582,7 +598,11 @@ private struct HookExecutionEditorSection: View {
       Text("Execution")
     } footer: {
       Text(
-        "Working Directory is the hook process's current directory. Relative paths used by the program are resolved from it. Leave it empty to use Tatami's configuration directory. Timeout stops the process after the specified number of milliseconds."
+        """
+        Working Directory is the hook process's current directory. Relative paths used by the program are resolved \
+        from it. Leave it empty to use Tatami's configuration directory. Timeout stops the process after the \
+        specified number of milliseconds.
+        """
       )
     }
   }
@@ -646,7 +666,12 @@ private struct HookEnvironmentEditorSection: View {
     } header: {
       Text("Environment")
     } footer: {
-      Text("These values are added to Tatami's inherited environment for this hook.")
+      Text(
+        """
+        These values are added to Tatami's inherited environment for this hook. Tatami event variables take \
+        precedence when names match.
+        """
+      )
     }
   }
 }
@@ -848,22 +873,8 @@ extension HookEditorFeature.Mode {
 extension HookEditorFeature.ValidationIssue.Code {
   fileprivate var localizedMessage: LocalizedStringResource {
     switch self {
-    case .definition(.emptyID):
-      "Enter an identifier."
-    case .definition(.invalidID):
-      "Use only ASCII letters, numbers, period, underscore, or hyphen in the identifier."
-    case .definition(.duplicateID):
-      "Choose a unique identifier."
-    case .definition(.emptyCommand):
-      "Choose an executable."
-    case .definition(.nulCommand):
-      "Executable and arguments cannot contain NUL."
-    case .definition(.timeoutOutOfRange):
-      "Timeout must be between 100 and 300000 milliseconds."
-    case .definition(.invalidWorkingDirectory):
-      "Working directory must be absolute or start with ~/."
-    case .definition(.invalidEnvironment):
-      "Environment variable names must be valid and values cannot contain NUL."
+    case .definition(let code):
+      code.localizedMessage
     case .duplicateEnvironmentKey:
       "Environment variable names must be unique"
     case .noActiveProfile:

@@ -174,14 +174,17 @@ public struct HooksFeature {
   }
 
   private func reportValidation(_ validation: HookConfigurationValidation) {
-    guard let issue = validation.issues.first else {
+    guard !validation.issues.isEmpty else {
       errorReporter.resolve("Hooks")
       return
     }
+    let detail = validation.detailedIssues.first
+      .map { String(localized: $0.code.localizedMessage) }
+      ?? String(localized: "Hook configuration is invalid")
     errorReporter.report(
       "Hooks",
       String(localized: "Hook configuration is invalid"),
-      String(issue.prefix(200)),
+      detail,
     )
   }
 

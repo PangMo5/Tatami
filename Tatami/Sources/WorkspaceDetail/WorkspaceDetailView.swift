@@ -224,7 +224,8 @@ struct WorkspaceDetailView: View {
 
           Section("Borrow Placement") {
             let globalEdge = store.config.settings.switching.borrowDefaultEdge
-            let globalEdgeLabel = globalEdge?.rawValue.capitalized ?? "Ask"
+            let globalEdgeLabel = globalEdge.map { String(localized: $0.displayName) }
+              ?? String(localized: "Ask")
             let globalFraction = store.config.settings.switching.borrowFraction
             Picker(
               selection: Binding(

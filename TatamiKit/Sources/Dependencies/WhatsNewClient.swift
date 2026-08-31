@@ -122,9 +122,14 @@ private struct WhatsNewView: View {
           VStack(alignment: .leading, spacing: 4) {
             Text("What's New in Tatami \(version)")
               .font(.title.weight(.semibold))
-            Text("Tatami is now available in five interface languages, with clearer names and guidance written for each locale.")
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
+            Text(
+              """
+              Tatami 1.12 adds scriptable control and lifecycle hooks, plus safer, more selective profile and \
+              workspace duplication.
+              """
+            )
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
           }
 
           // MARK: Feature highlights
@@ -133,24 +138,28 @@ private struct WhatsNewView: View {
               .font(.headline)
 
             item(
-              icon: "arrow.clockwise.circle",
-              title: "Use Tatami in your language",
-              detail: "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS.",
+              icon: "terminal",
+              title: "Control Tatami from the command line",
+              detail: """
+                Use domain commands for profiles, workspaces, windows, displays, layouts, and apps, with stable JSON \
+                output and every action available to trackpad gestures.
+                """,
             )
             item(
-              icon: "moon.zzz",
-              title: "Clearer names across the app",
-              detail: "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does.",
+              icon: "bolt.circle",
+              title: "Run programs on lifecycle events",
+              detail: """
+                Create and test hooks for Tatami launch, profile changes, and workspaces becoming visible on a \
+                display. Each event includes versioned JSON and useful environment variables.
+                """,
             )
             item(
-              icon: "bolt.horizontal.circle",
-              title: "Your configuration stays compatible",
-              detail: "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed.",
-            )
-            item(
-              icon: "rectangle.3.group",
-              title: "Written for each language",
-              detail: "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word.",
+              icon: "square.on.square",
+              title: "Choose what Duplicate keeps",
+              detail: """
+                Right-click a profile or workspace, review its workspaces, apps, settings, and saved layouts, then \
+                include only what you want.
+                """,
             )
           }
           .padding(.horizontal, 6)

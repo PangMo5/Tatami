@@ -97,18 +97,18 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
   private static func text(before: Bool, _ change: WorkspaceFieldChange) -> String {
     func pick<T>(_ b: T, _ a: T) -> T { before ? b : a }
     switch change {
-    case let .icon(b, a): return pick(b, a) ?? "Default"
-    case let .keyEquivalent(b, a): return pick(b, a).map { "“\($0)”" } ?? "—"
+    case let .icon(b, a): return pick(b, a) ?? String(localized: "Default")
+    case let .keyEquivalent(b, a): return pick(b, a).map { "“\($0)”" } ?? String(localized: "None")
     case let .kind(b, a): return String(localized: pick(b, a).displayName)
-    case let .appToFocus(b, a): return pick(b, a) ?? "Most recent"
-    case let .displayHint(b, a): return pick(b, a)?.name ?? "Dynamic"
+    case let .appToFocus(b, a): return pick(b, a) ?? String(localized: "Most recent")
+    case let .displayHint(b, a): return pick(b, a)?.name ?? String(localized: "Dynamic")
     case let .borrowEdge(b, a):
       return pick(b, a).map { String(localized: $0.displayName) } ?? String(localized: "Global")
     case let .borrowFraction(b, a):
-      guard let v = pick(b, a) else { return "Global" }
+      guard let v = pick(b, a) else { return String(localized: "Global") }
       return "\(Int((v * 100).rounded()))%"
     case let .activateShortcut(b, a), let .assignAppShortcut(b, a), let .borrowShortcut(b, a):
-      return pick(b, a)?.symbols ?? "—"
+      return pick(b, a)?.symbols ?? String(localized: "None")
     }
   }
 }

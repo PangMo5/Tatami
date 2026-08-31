@@ -132,6 +132,8 @@ over a technical transliteration such as `플로팅`.
 - Preserve format placeholders and let each locale reorder them.
 - Use locale-aware `FormatStyle` for user-visible numbers and dates.
 - Do not uppercase localized copy at runtime.
+- Do not use em dashes in interface copy. Split the thought into sentences or
+  use punctuation that fits the locale.
 
 ## Review checklist
 
@@ -149,9 +151,9 @@ over a technical transliteration such as `플로팅`.
 ## Public references
 
 - Toss: <https://toss.tech/article/21022>
-- Apple Human Interface Guidelines — Writing:
+- Apple Human Interface Guidelines: Writing:
   <https://developer.apple.com/design/human-interface-guidelines/writing>
-- Apple WWDC25 — Make a big impact with small writing changes:
+- Apple WWDC25: Make a big impact with small writing changes:
   <https://developer.apple.com/videos/play/wwdc2025/404/>
 - LINE Voice: <https://designsystem.line.me/about/line-voice-ja>
 - SmartHR writing style:

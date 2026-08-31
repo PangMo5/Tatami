@@ -21,7 +21,8 @@ scripting required.
 <p align="center"><sub>Full size:
 <a href="Resources/Marketing/screenshots/guided-setup.png">Guided Setup</a> ·
 <a href="Resources/Marketing/screenshots/workspaces.png">Workspaces</a> ·
-<a href="Resources/Marketing/screenshots/borrow.png">Borrow</a></sub></p>
+<a href="Resources/Marketing/screenshots/borrow.png">Borrow</a><br />
+Captured on an earlier version. Some labels differ in 1.12.</sub></p>
 
 ## Demo
 
@@ -55,6 +56,7 @@ scripting required.
 - **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile, and Tatami returns to the right profile after relaunch.
 - **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
 - **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and profile-switch feedback.
+- **Profile-scoped workspace shortcuts:** Reuse a workspace key or explicit workspace shortcut in another profile. Global shortcuts still remain unique across every profile.
 - **Reviewable copying and duplication:** **Copy from** and **Duplicate** share one preview where you keep or skip each workspace, app, setting, and saved layout before anything changes.
 
 ### Borrow: compose two workspaces
@@ -154,11 +156,12 @@ tatami window focus left
 tatami layout balance
 ```
 
-The CLI covers profile/workspace management, hooks, stable JSON output, and the
-same focus, layout, app, tiling, cycling, and Borrow commands available to
-trackpad gestures, organized under domain subcommands. Tatami must be running.
+The CLI covers profile/workspace management, hook inspection, stable JSON
+output, and the same focus, layout, app, tiling, cycling, and Borrow commands
+available to trackpad gestures, organized under domain subcommands. Tatami must
+be running.
 
-Read the [full CLI reference](docs/CLI.md), or view the same document on
+Read the [full CLI reference](docs/CLI.md), or view its live web rendering on
 [pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/cli.html).
 
 ## Configuration

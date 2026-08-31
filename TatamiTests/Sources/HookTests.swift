@@ -467,6 +467,34 @@ struct HooksFeatureTests {
   // MARK: Internal
 
   @Test
+  func `invalid configuration reports the localized validation detail`() async {
+    let invalid = HookDefinition(
+      id: "missing-command",
+      event: .profileChanged,
+      command: [],
+    )
+    let report = LockIsolated<[String]>([])
+    let state = HooksFeature.State()
+    state.$config = Shared(value: AppConfig(hooks: [invalid]))
+    let store = TestStore(initialState: state) {
+      HooksFeature()
+    } withDependencies: {
+      $0.errorReporter.report = { domain, title, detail in
+        report.withValue { $0 = [domain, title, detail ?? ""] }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.configurationChanged)
+
+    #expect(report.value == [
+      "Hooks",
+      String(localized: "Hook configuration is invalid"),
+      String(localized: HookValidationIssue.Code.emptyCommand.localizedMessage),
+    ])
+  }
+
+  @Test
   func `matching enabled hooks run and failures resolve per hook`() async {
     let matching = HookDefinition(
       id: "matching",

@@ -569,7 +569,7 @@ public struct OnboardingFeature {
     }
 
     public func workspaceName(_ id: Workspace.ID) -> String {
-      draft.workspace(id: id)?.name ?? "Workspace"
+      draft.workspace(id: id)?.name ?? String(localized: "Workspace")
     }
 
     public func shortcut(for action: HotKeyAction) -> HotKey? {
@@ -1790,9 +1790,9 @@ public struct OnboardingFeature {
   ) -> String {
     switch block {
     case .host:
-      state.demoAppBySlot[slot]?.name ?? "the hovered window"
+      state.demoAppBySlot[slot]?.name ?? String(localized: "the hovered window")
     case .borrowed:
-      state.demoBorrowAppBySlot[slot]?.name ?? "the hovered window"
+      state.demoBorrowAppBySlot[slot]?.name ?? String(localized: "the hovered window")
     }
   }
 
