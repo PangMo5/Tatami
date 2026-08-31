@@ -69,7 +69,7 @@ public struct WorkspaceLayoutFeature {
 
     // MARK: Public
 
-    @Shared(.tatamiConfig) public var config = AppConfig()
+    @Shared(.tatamiConfig) public var config
     public var workspaceId: Workspace.ID
 
     /// Persisted layout template, loaded on appear; drives the preview when the

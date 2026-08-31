@@ -488,6 +488,7 @@ struct OnboardingShortcutPracticeRow: View {
       Spacer(minLength: 12)
       ShortcutRecorder(
         hotKey: hotKey,
+        accessibilityLabel: title,
         conflict: { config.shortcutConflict(for: $0, excluding: action) },
         onRecordingChanged: onRecordingChanged,
         onChange: onChange,

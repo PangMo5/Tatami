@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Configuration: Tatami</title>
-<meta name="description" content="Tatami configuration reference: every config.toml key, its default, and the shortcut syntax." />
+<title>Command Line: Tatami</title>
+<meta name="description" content="Tatami CLI reference: profile and workspace management, gesture-equivalent domain commands, JSON output, and scripting." />
 <meta name="theme-color" content="#000000" />
 <link rel="icon" type="image/png" href="./icon.png" />
 <link rel="stylesheet" href="./style.css" />
@@ -17,8 +17,8 @@
     <input type="checkbox" id="nav-toggle" class="nav-toggle" />
     <label for="nav-toggle" class="nav-burger" aria-label="Menu"><span></span></label>
     <div class="nav-links">
-      <a href="./cli.html">CLI</a>
-      <a href="./configuration.html" class="active">Configuration</a>
+      <a href="./cli.html" class="active">CLI</a>
+      <a href="./configuration.html">Configuration</a>
       <a href="./releases.html">Releases</a>
       <a href="https://github.com/PangMo5/Tatami">GitHub</a>
     </div>
@@ -28,13 +28,13 @@
 
 <div class="doc">
   <aside class="doc-side" id="side" hidden>
-    <div class="side-title">Configuration</div>
+    <div class="side-title">Command Line</div>
     <nav id="side-nav"></nav>
   </aside>
   <main class="doc-main">
     <p class="doc-eyebrow">Reference</p>
     <div class="md" id="content">
-      <p class="state">Loading configuration…</p>
+      <p class="state">Loading CLI reference…</p>
     </div>
   </main>
 </div>
@@ -44,13 +44,13 @@
     <div class="footer-links">
       <a href="https://github.com/PangMo5/Tatami">GitHub</a>
       <a href="./releases.html">Releases</a>
-      <a href="./cli.html">CLI</a>
-      <a href="https://github.com/PangMo5/Tatami/blob/main/docs/CONFIGURATION.md">Source (main)</a>
+      <a href="./configuration.html">Configuration</a>
+      <a href="https://github.com/PangMo5/Tatami/blob/main/docs/CLI.md">Source (main)</a>
       <a href="https://github.com/PangMo5/Tatami/blob/main/LICENSE">License</a>
       <a href="https://github.com/PangMo5/Tatami/blob/main/NOTICE.md">Project notices</a>
       <a href="https://github.com/PangMo5/Tatami/blob/main/THIRD_PARTY_NOTICES.md">Third-party notices</a>
     </div>
-    <p>This page renders <code>docs/CONFIGURATION.md</code> from the <code>main</code> branch as the single source of truth. Not affiliated with Apple Inc.</p>
+    <p>This page renders <code>docs/CLI.md</code> from the <code>main</code> branch as the single source of truth. Not affiliated with Apple Inc.</p>
     <p class="footer-apps">Apps by <a href="https://pangmo5.dev/">PangMo5</a>: <a href="https://pangmo5.dev/SwiftyCrow/">SwiftyCrow</a> · <span class="cur" aria-current="page">Tatami</span> · <a href="https://pangmo5.dev/Amado/">Amado</a></p>
   </div>
 </footer>
@@ -62,7 +62,7 @@
   integrity="sha384-XQqX/4yiUGu+oyr87jvWzRuqBUK/adrY0DunhL+tID9m/9dwSpV8h9Fk/Sg6ifVQ"
   crossorigin="anonymous"></script>
 <script>
-  const SRC = "https://raw.githubusercontent.com/PangMo5/Tatami/main/docs/CONFIGURATION.md";
+  const SRC = "https://raw.githubusercontent.com/PangMo5/Tatami/main/docs/CLI.md";
   const content = document.getElementById("content");
 
   function slug(text) {
@@ -85,7 +85,6 @@
 
     content.innerHTML = DOMPurify.sanitize(marked.parse(md));
 
-    // Assign stable ids and build the DocC-style sidebar from headings.
     const sideNav = document.getElementById("side-nav");
     const used = {};
     const headings = content.querySelectorAll("h2, h3");
@@ -102,14 +101,11 @@
     });
     if (headings.length) document.getElementById("side").hidden = false;
 
-    // The markdown renders after load, so the browser's initial jump to a
-    // `#hash` found no target yet. Now that headings have ids, honor it.
     if (location.hash) {
       const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
       if (target) target.scrollIntoView();
     }
 
-    // Scroll-spy: highlight the section currently in view.
     const links = Array.from(sideNav.querySelectorAll("a"));
     const byId = Object.fromEntries(links.map((a) => [a.dataset.target, a]));
     const observer = new IntersectionObserver((entries) => {
@@ -125,8 +121,8 @@
 
   function fail() {
     content.innerHTML =
-      '<p class="state">Couldn\'t load the configuration reference. ' +
-      'Read it on <a href="https://github.com/PangMo5/Tatami/blob/main/docs/CONFIGURATION.md">GitHub</a>.</p>';
+      '<p class="state">Couldn\'t load the CLI reference. ' +
+      'Read it on <a href="https://github.com/PangMo5/Tatami/blob/main/docs/CLI.md">GitHub</a>.</p>';
   }
 
   load();

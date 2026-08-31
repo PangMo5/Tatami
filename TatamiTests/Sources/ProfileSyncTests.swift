@@ -63,6 +63,22 @@ struct ProfileSyncTests {
     #expect(target.displayHint == "Built-in") // display left alone
   }
 
+  @Test
+  func effectiveSelectionDropsStaleAndDisabledChildIDs() {
+    let selected: Set<String> = ["parent", "child", "stale"]
+    let valid: Set<String> = ["parent", "child"]
+    #expect(WorkspaceSync.effectiveSelection(
+      selected: selected,
+      validIDs: valid,
+      parentByItemID: ["child": "parent"]
+    ) == ["parent", "child"])
+    #expect(WorkspaceSync.effectiveSelection(
+      selected: ["child", "stale"],
+      validIDs: valid,
+      parentByItemID: ["child": "parent"]
+    ).isEmpty)
+  }
+
   // MARK: - Profile sync
 
   private func twoProfiles() -> AppConfig {
@@ -119,5 +135,257 @@ struct ProfileSyncTests {
     #expect(ws.apps.map(\.bundleIdentifier) == ["x", "y"])
     #expect(ws.symbolIconName == "star") // pulled
     #expect(ws.displayHint == "Built-in") // excluded, kept
+  }
+
+  // MARK: - Shortcut-safe projections
+
+  @Test
+  func workspaceImportUsesProjectedExplicitOverridePrecedence() throws {
+    let explicit = try #require(HotKey(parsing: "cmd - x"))
+    let derived = try #require(HotKey(parsing: "ctrl + alt - a"))
+    let sourceWorkspace = Workspace(
+      name: "Source",
+      activateShortcut: explicit,
+      keyEquivalent: "a"
+    )
+    let targetWorkspace = Workspace(name: "Target", keyEquivalent: "b")
+    let source = Profile(name: "Source", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Target", workspaces: [targetWorkspace])
+    var settings = AppSettings()
+    settings.shortcuts.assignModifiers = []
+    settings.shortcuts.borrowModifiers = []
+    settings.shortcuts.focusLeft = derived
+    let config = AppConfig(profiles: [target, source], settings: settings)
+
+    let allSelected = try #require(config.workspaceImportProjection(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    ))
+    #expect(allSelected.conflicts.isEmpty)
+    #expect(allSelected.config.workspace(id: targetWorkspace.id)?.keyEquivalent == "a")
+    #expect(allSelected.config.workspace(id: targetWorkspace.id)?.activateShortcut == explicit)
+
+    let withoutOverride = try #require(config.workspaceImportProjection(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id,
+      excludingFields: [WorkspaceShortcutField.activateShortcut.rawValue]
+    ))
+    #expect(withoutOverride.conflicts.map(\.selection.field) == [.keyEquivalent])
+    #expect(withoutOverride.conflicts.map(\.hotKey) == [derived])
+  }
+
+  @Test
+  func profileSyncDetectsConflictsBetweenSelectedWorkspaceKeys() throws {
+    let firstOverride = try #require(HotKey(parsing: "cmd - x"))
+    let secondOverride = try #require(HotKey(parsing: "cmd - y"))
+    let sourceFirst = Workspace(
+      name: "First",
+      activateShortcut: firstOverride,
+      keyEquivalent: "a"
+    )
+    let sourceSecond = Workspace(
+      name: "Second",
+      activateShortcut: secondOverride,
+      keyEquivalent: "a"
+    )
+    let targetFirst = Workspace(name: "First", keyEquivalent: "b")
+    let targetSecond = Workspace(name: "Second", keyEquivalent: "c")
+    let source = Profile(name: "Source", workspaces: [sourceFirst, sourceSecond])
+    let target = Profile(name: "Target", workspaces: [targetFirst, targetSecond])
+    var settings = AppSettings()
+    settings.shortcuts.assignModifiers = []
+    settings.shortcuts.borrowModifiers = []
+    let config = AppConfig(profiles: [target, source], settings: settings)
+
+    let projection = try #require(config.profileSyncProjection(
+      into: target.id,
+      from: source.id,
+      excludedFieldsByWorkspace: [
+        targetFirst.id: [WorkspaceShortcutField.activateShortcut.rawValue],
+        targetSecond.id: [WorkspaceShortcutField.activateShortcut.rawValue],
+      ]
+    ))
+
+    #expect(Set(projection.conflicts.map(\.selection)) == [
+      .init(workspaceId: targetFirst.id, field: .keyEquivalent),
+      .init(workspaceId: targetSecond.id, field: .keyEquivalent),
+    ])
+    #expect(Set(projection.conflicts.map(\.hotKey)).count == 1)
+  }
+
+  @Test
+  func workspaceKeysMayBeReusedAcrossProfiles() throws {
+    let sourceWorkspace = Workspace(name: "Browser", keyEquivalent: "a")
+    let targetWorkspace = Workspace(name: "Browser", keyEquivalent: "b")
+    let source = Profile(name: "Default", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Dual", workspaces: [targetWorkspace])
+    var settings = AppSettings()
+    settings.shortcuts.assignModifiers = []
+    settings.shortcuts.borrowModifiers = []
+    let config = AppConfig(profiles: [source, target], settings: settings)
+
+    let projection = try #require(config.profileSyncProjection(
+      into: target.id,
+      from: source.id
+    ))
+
+    #expect(projection.conflicts.isEmpty)
+    #expect(projection.config.workspace(id: targetWorkspace.id)?.keyEquivalent == "a")
+  }
+
+  @Test
+  func unrelatedLegacyConflictDoesNotBlockNonShortcutCopy() throws {
+    let legacyConflict = try #require(HotKey(parsing: "cmd - h"))
+    let sourceWorkspace = Workspace(name: "Source", symbolIconName: "star")
+    let targetWorkspace = Workspace(name: "Target", symbolIconName: "bolt")
+    let source = Profile(name: "Source", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Target", workspaces: [targetWorkspace])
+    var settings = AppSettings()
+    settings.shortcuts.focusLeft = legacyConflict
+    settings.shortcuts.focusRight = legacyConflict
+    var config = AppConfig(profiles: [target, source], settings: settings)
+
+    let conflicts = config.importWorkspace(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    )
+
+    #expect(conflicts.isEmpty)
+    #expect(config.workspace(id: targetWorkspace.id)?.symbolIconName == "star")
+  }
+
+  @Test
+  func representationOnlyExplicitOverrideDoesNotIntroduceLegacyConflict() throws {
+    let effectiveKey = try #require(HotKey(parsing: "ctrl + alt - a"))
+    let sourceWorkspace = Workspace(
+      name: "Source",
+      activateShortcut: effectiveKey,
+      keyEquivalent: "a"
+    )
+    let targetWorkspace = Workspace(name: "Target", keyEquivalent: "a")
+    let source = Profile(name: "Source", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Target", workspaces: [targetWorkspace])
+    var settings = AppSettings()
+    settings.shortcuts.assignModifiers = []
+    settings.shortcuts.borrowModifiers = []
+    settings.shortcuts.focusLeft = effectiveKey
+    var config = AppConfig(profiles: [target, source], settings: settings)
+
+    let projection = try #require(config.workspaceImportProjection(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    ))
+    #expect(projection.conflicts.isEmpty)
+
+    let conflicts = config.importWorkspace(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    )
+    #expect(conflicts.isEmpty)
+    #expect(config.workspace(id: targetWorkspace.id)?.activateShortcut == effectiveKey)
+  }
+
+  @Test
+  func counterfactualAttributesCombinedCollisionOnlyToCausalField() throws {
+    let effectiveKey = try #require(HotKey(parsing: "ctrl + alt - a"))
+    let sourceWorkspace = Workspace(
+      name: "Source",
+      activateShortcut: effectiveKey,
+      assignAppShortcut: effectiveKey,
+      keyEquivalent: "a"
+    )
+    let targetWorkspace = Workspace(name: "Target", keyEquivalent: "a")
+    let source = Profile(name: "Source", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Target", workspaces: [targetWorkspace])
+    var settings = AppSettings()
+    settings.shortcuts.assignModifiers = []
+    settings.shortcuts.borrowModifiers = []
+    let config = AppConfig(profiles: [target, source], settings: settings)
+
+    let projection = try #require(config.workspaceImportProjection(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    ))
+
+    #expect(projection.conflicts.map(\.selection.field) == [.assignAppShortcut])
+    #expect(projection.conflicts.map(\.hotKey) == [effectiveKey])
+  }
+
+  @Test
+  func jointKeyAndExplicitFieldsCannotHideIntroducedCollision() throws {
+    let conflictingKey = try #require(HotKey(parsing: "ctrl + alt - a"))
+    let sourceWorkspace = Workspace(
+      name: "Source",
+      activateShortcut: conflictingKey,
+      keyEquivalent: "a"
+    )
+    let targetWorkspace = Workspace(name: "Target", keyEquivalent: "b")
+    let source = Profile(name: "Source", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Target", workspaces: [targetWorkspace])
+    var settings = AppSettings()
+    settings.shortcuts.assignModifiers = []
+    settings.shortcuts.borrowModifiers = []
+    settings.shortcuts.focusLeft = conflictingKey
+    var config = AppConfig(profiles: [target, source], settings: settings)
+
+    let projection = try #require(config.workspaceImportProjection(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    ))
+
+    #expect(Set(projection.conflicts.map(\.selection.field)) == [
+      .keyEquivalent,
+      .activateShortcut,
+    ])
+    let conflicts = config.importWorkspace(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    )
+    #expect(!conflicts.isEmpty)
+    #expect(config.workspace(id: targetWorkspace.id)?.keyEquivalent == "b")
+    #expect(config.workspace(id: targetWorkspace.id)?.activateShortcut == nil)
+  }
+
+  @Test
+  func applyRevalidatesCurrentConfigAndRejectsWholeCopy() throws {
+    let derived = try #require(HotKey(parsing: "ctrl + alt - a"))
+    let copiedApp = app("copied")
+    let sourceWorkspace = Workspace(
+      name: "Source",
+      keyEquivalent: "a",
+      apps: [copiedApp]
+    )
+    let targetWorkspace = Workspace(name: "Target", keyEquivalent: "b")
+    let source = Profile(name: "Source", workspaces: [sourceWorkspace])
+    let target = Profile(name: "Target", workspaces: [targetWorkspace])
+    var config = AppConfig(profiles: [target, source])
+
+    let chooserProjection = try #require(config.workspaceImportProjection(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    ))
+    #expect(chooserProjection.conflicts.isEmpty)
+
+    // Simulate a shortcut edit landing after the sheet rendered but before
+    // Apply. The mutation must be validated against this current config.
+    config.settings.shortcuts.focusLeft = derived
+    let conflicts = config.importWorkspace(
+      into: targetWorkspace.id,
+      from: source.id,
+      sourceWorkspace: sourceWorkspace.id
+    )
+
+    #expect(!conflicts.isEmpty)
+    #expect(config.workspace(id: targetWorkspace.id)?.keyEquivalent == "b")
+    #expect(config.workspace(id: targetWorkspace.id)?.apps.isEmpty == true)
   }
 }

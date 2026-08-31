@@ -96,17 +96,17 @@ extension HotKeyAction {
     case .activateWorkspace(let id):
       String(
         localized:
-          "Activate \(config.activeProfile?.workspaces[id: id]?.name ?? String(localized: "workspace"))"
+          "Activate \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
       )
     case .assignFocusedAppToWorkspace(let id):
       String(
         localized:
-          "Assign app to \(config.activeProfile?.workspaces[id: id]?.name ?? String(localized: "workspace"))"
+          "Assign app to \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
       )
     case .borrowWorkspace(let id):
       String(
         localized:
-          "Borrow \(config.activeProfile?.workspaces[id: id]?.name ?? String(localized: "workspace"))"
+          "Borrow \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
       )
     case .switchToNextWorkspace: String(localized: "Next workspace")
     case .switchToPreviousWorkspace: String(localized: "Previous workspace")
@@ -194,6 +194,19 @@ extension HotKeyAction {
     case .borrowNextWorkspace: "borrow-next-workspace"
     case .borrowPreviousWorkspace: "borrow-prev-workspace"
     case .dismissBorrow: "dismiss-borrow"
+    }
+  }
+
+  /// The workspace whose profile scopes this action, or nil for an action that
+  /// is registered regardless of the active profile.
+  var workspaceId: Workspace.ID? {
+    switch self {
+    case .activateWorkspace(let id),
+         .assignFocusedAppToWorkspace(let id),
+         .borrowWorkspace(let id):
+      id
+    default:
+      nil
     }
   }
 

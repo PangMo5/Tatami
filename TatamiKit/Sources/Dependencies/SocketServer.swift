@@ -9,6 +9,8 @@ import OSLog
 import TatamiCLIProtocol
 import YYJSON
 
+// MARK: - SocketServerClient
+
 /// Accepts CLI connections on a Unix domain socket and exposes incoming
 /// `Request`s as an `AsyncStream`. Each request carries a continuation
 /// the caller fulfills with a `Response`; the connection is closed after
@@ -19,38 +21,40 @@ import YYJSON
 /// this is a low-traffic, blocking-accept loop on a background queue.
 @DependencyClient
 struct SocketServerClient: Sendable {
-  /// Start the listener at `path`. Idempotent — calling twice does nothing.
-  var start: @Sendable (_ path: String) async throws -> Void
-  var requests: @Sendable () -> AsyncStream<Incoming> = { AsyncStream { _ in } }
-
   /// A pending CLI request along with a one-shot reply continuation.
   struct Incoming: Sendable {
-    let request: CLIMessage.Request
-    /// Send a response. May only be invoked once.
-    let reply: @Sendable (CLIMessage.Response) -> Void
-
     init(
       request: CLIMessage.Request,
-      reply: @escaping @Sendable (CLIMessage.Response) -> Void
+      reply: CLIReply,
     ) {
       self.request = request
       self.reply = reply
     }
+
+    let request: CLIMessage.Request
+    /// Claim and finish the connection's one-shot response slot.
+    let reply: CLIReply
   }
+
+  /// Start the listener at `path`. Idempotent. Calling twice does nothing.
+  var start: @Sendable (_ path: String) async throws -> Void
+  var requests: @Sendable () -> AsyncStream<Incoming> = { AsyncStream { _ in } }
 }
+
+// MARK: DependencyKey
 
 extension SocketServerClient: DependencyKey {
   static let liveValue: SocketServerClient = {
     let server = SocketServer()
     return SocketServerClient(
       start: { path in try await server.start(path: path) },
-      requests: { server.stream }
+      requests: { server.stream },
     )
   }()
 
   static let testValue = SocketServerClient(
     start: { _ in },
-    requests: { AsyncStream { _ in } }
+    requests: { AsyncStream { _ in } },
   )
 
   static let previewValue = testValue
@@ -63,18 +67,21 @@ extension DependencyValues {
   }
 }
 
-private actor SocketServer {
-  @Dependency(\.debugLog) private var debugLog
+// MARK: - SocketServer
 
-  let stream: AsyncStream<SocketServerClient.Incoming>
-  private let continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
-  private var listenFD: OwnedFileDescriptor?
+private actor SocketServer {
+
+  // MARK: Lifecycle
 
   init() {
     var continuation: AsyncStream<SocketServerClient.Incoming>.Continuation!
-    self.stream = AsyncStream(bufferingPolicy: .unbounded) { continuation = $0 }
+    stream = AsyncStream(bufferingPolicy: .unbounded) { continuation = $0 }
     self.continuation = continuation
   }
+
+  // MARK: Internal
+
+  let stream: AsyncStream<SocketServerClient.Incoming>
 
   func start(path: String) throws {
     guard listenFD == nil else { return }
@@ -128,13 +135,13 @@ private actor SocketServer {
     // accept loop.
     let connections = DispatchQueue(
       label: "dev.PangMo5.Tatami.socket-connections",
-      attributes: .concurrent
+      attributes: .concurrent,
     )
     let acceptThread = Thread {
       Self.acceptLoop(
         listenFD: listenFD,
         continuation: continuation,
-        connections: connections
+        connections: connections,
       )
     }
     acceptThread.name = "dev.PangMo5.Tatami.socket-accept"
@@ -142,10 +149,17 @@ private actor SocketServer {
     acceptThread.start()
   }
 
+  // MARK: Private
+
+  @Dependency(\.debugLog) private var debugLog
+
+  private let continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
+  private var listenFD: OwnedFileDescriptor?
+
   private static func acceptLoop(
     listenFD: Int32,
     continuation: AsyncStream<SocketServerClient.Incoming>.Continuation,
-    connections: DispatchQueue
+    connections: DispatchQueue,
   ) {
     while true {
       let clientFD = Darwin.accept(listenFD, nil, nil)
@@ -162,12 +176,26 @@ private actor SocketServer {
 
   private static func handleConnection(
     clientFD: Int32,
-    continuation: AsyncStream<SocketServerClient.Incoming>.Continuation
+    continuation: AsyncStream<SocketServerClient.Incoming>.Continuation,
   ) {
     let descriptor = OwnedFileDescriptor(rawValue: clientFD)
+    var noSigPipe: Int32 = 1
+    guard
+      Darwin.setsockopt(
+        descriptor.rawValue,
+        SOL_SOCKET,
+        SO_NOSIGPIPE,
+        &noSigPipe,
+        socklen_t(MemoryLayout<Int32>.size),
+      ) == 0
+    else {
+      logger.error("setsockopt(SO_NOSIGPIPE) failed: \(errno)")
+      return
+    }
     guard let line = readLine(fd: descriptor.rawValue), !line.isEmpty else { return }
-    guard let data = line.data(using: .utf8),
-          let request = try? YYJSONDecoder().decode(CLIMessage.Request.self, from: data)
+    guard
+      let data = line.data(using: .utf8),
+      let request = try? YYJSONDecoder().decode(CLIMessage.Request.self, from: data)
     else {
       writeResponse(fd: descriptor.rawValue, response: .failure("Invalid request format"))
       return
@@ -179,15 +207,53 @@ private actor SocketServer {
     // 5s deadline elapses.
     let responseBox = ResponseBox()
     let replied = DispatchSemaphore(value: 0)
-    let incoming = SocketServerClient.Incoming(request: request) { response in
-      responseBox.set(response)
-      replied.signal()
-    }
+    let incoming = SocketServerClient.Incoming(
+      request: request,
+      reply: CLIReply(
+        claim: { responseBox.claim() },
+        finish: { response in
+          if responseBox.finish(response) { replied.signal() }
+        },
+        respond: { response in
+          let responded = responseBox.respond(response)
+          if responded { replied.signal() }
+          return responded
+        },
+      ),
+    )
     continuation.yield(incoming)
 
     if replied.wait(timeout: .now() + 5) == .timedOut {
-      writeResponse(fd: descriptor.rawValue, response: .failure("Timeout"))
-      return
+      switch responseBox.expirePending() {
+      case .expired:
+        writeResponse(fd: descriptor.rawValue, response: .failure("Timeout"))
+        return
+
+      case .claimed:
+        // Config mutations claim only at the final atomic replacement. Allow
+        // a bounded grace period for that syscall and reducer acknowledgment;
+        // if it still does not finish, report an explicitly unknown outcome
+        // instead of leaking this worker forever or claiming a false failure.
+        if replied.wait(timeout: .now() + 15) == .timedOut {
+          switch responseBox.expireClaimed() {
+          case .expired,
+               .claimed:
+            writeResponse(
+              fd: descriptor.rawValue,
+              response: .failure(
+                "Command outcome is unknown; inspect current state before retrying"
+              ),
+            )
+            return
+
+          case .finished:
+            break
+          }
+        }
+
+      case .finished:
+        break
+      }
     }
     writeResponse(fd: descriptor.rawValue, response: responseBox.value ?? .failure("Timeout"))
   }
@@ -225,35 +291,125 @@ private actor SocketServer {
       }
     }
   }
+
 }
+
+// MARK: - OwnedFileDescriptor
 
 /// Sole owner of a POSIX file descriptor. Moving this value transfers close
 /// responsibility; it cannot be copied into two owners that both close the
 /// same descriptor. Scope exit also closes every early-return/error path.
 private struct OwnedFileDescriptor: ~Copyable {
-  let rawValue: Int32
-
   deinit {
     Darwin.close(rawValue)
   }
+
+  let rawValue: Int32
 }
 
+// MARK: - ResponseBox
+
 private final class ResponseBox: @unchecked Sendable {
-  private let lock = NSLock()
-  private var _value: CLIMessage.Response?
+
+  // MARK: Internal
+
+  enum Expiration {
+    case claimed
+    case expired
+    case finished
+  }
 
   var value: CLIMessage.Response? {
     lock.lock()
     defer { lock.unlock() }
-    return _value
+    guard case .finished(let response) = state else { return nil }
+    return response
   }
 
-  func set(_ response: CLIMessage.Response) {
+  func claim() -> Bool {
     lock.lock()
     defer { lock.unlock() }
-    _value = response
+    guard case .pending = state else { return false }
+    state = .claimed
+    return true
   }
+
+  func finish(_ response: CLIMessage.Response) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    guard case .claimed = state else { return false }
+    state = .finished(response)
+    return true
+  }
+
+  func respond(_ response: CLIMessage.Response) -> Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    switch state {
+    case .pending,
+         .claimed:
+      state = .finished(response)
+      return true
+
+    case .expired,
+         .finished:
+      return false
+    }
+  }
+
+  func expirePending() -> Expiration {
+    lock.lock()
+    defer { lock.unlock() }
+    switch state {
+    case .pending:
+      state = .expired
+      return .expired
+
+    case .claimed:
+      return .claimed
+
+    case .finished:
+      return .finished
+
+    case .expired:
+      return .expired
+    }
+  }
+
+  func expireClaimed() -> Expiration {
+    lock.lock()
+    defer { lock.unlock() }
+    switch state {
+    case .claimed:
+      state = .expired
+      return .expired
+
+    case .finished:
+      return .finished
+
+    case .pending:
+      return .claimed
+
+    case .expired:
+      return .expired
+    }
+  }
+
+  // MARK: Private
+
+  private enum State {
+    case claimed
+    case expired
+    case finished(CLIMessage.Response)
+    case pending
+  }
+
+  private let lock = NSLock()
+  private var state = State.pending
+
 }
+
+// MARK: - SocketError
 
 enum SocketError: Error, Sendable {
   case create(Int32)

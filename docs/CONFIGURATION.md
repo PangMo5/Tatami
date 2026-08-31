@@ -11,16 +11,27 @@ The path is XDG-aware. If `$XDG_CONFIG_HOME` is set, the file lives at
 written back whenever you change something in the app. Hand edits are picked up
 live, so you can keep it in your dotfiles and edit it in your editor.
 
+External writers must either participate in `NSFileCoordinator` or write a
+temporary file and atomically replace `config.toml`. Tatami detects and rejects
+an atomic replacement that races one of its own configuration transactions.
+In-place writers that keep the live file descriptor open across a rename (for
+example, opening `config.toml`, then continuing to truncate or write that same
+descriptor while another process replaces the path) are not supported: POSIX
+rename cannot redirect future writes on an already-open descriptor to the new
+file. Editors that save through a temporary file and atomic replace satisfy the
+supported contract.
+
 Prefer a guided start? Tatami's first launch opens **Guided Setup**, which
 builds a draft from app metadata and connected displays and teaches each major
 feature in a safe virtual display. It writes this file only when you choose
 **Apply Setup**. Run it again from **Settings → General → Run Guided Setup**.
 
-The file has three top-level parts:
+The file has four top-level parts:
 
 - **`[settings.*]`:** Global preferences described below
 - **`[[sharedApps]]`:** Apps that are part of every workspace, either tiled or kept on top
 - **`[[profiles]]`:** Workspaces and their app assignments
+- **`[[hooks]]`:** Programs triggered by profile and workspace lifecycle events
 
 ## Shortcut syntax
 
@@ -320,6 +331,86 @@ Editable in the app under **Workspaces → Shared Apps** (Tiled / Always on Top 
 Legacy configs with `[[floatingApps]]` migrate automatically on first load:
 each entry becomes a shared app with `layout = "floating"`. A pre-1.4 `floating`
 bool on any app or shared app also migrates (`true` → `floating`, else `tiled`).
+
+## `[[hooks]]`
+
+Hooks run a program when Tatami publishes one of these lifecycle events:
+
+- `tatamiLaunched`: published once per Tatami process after startup has
+  resolved the active profile. Matching hooks receive that profile;
+  `previousProfile`, `workspace`, and `display` are absent. The event is not
+  replayed for hooks added later in the same process.
+- `profileChanged`: the active profile selection changed. On startup,
+  `previousProfile` is absent.
+- `workspaceActivated`: a workspace activation published its visible state on
+  a display. Failed or timed-out activations do not emit it.
+
+The startup `tatamiLaunched` and `profileChanged` events are separate. Configure
+either or both depending on whether the hook needs process startup or profile
+lifecycle changes.
+
+Open **Settings → Hooks** to add, edit, delete, enable, or disable hooks. The
+editor exposes the executable, each argument, working directory, timeout, and
+environment variables as separate fields. It writes the same `[[hooks]]`
+entries documented below, so editing `config.toml` by hand remains fully
+supported and external changes are still picked up live.
+
+**Run Test** validates and executes the current editor draft once with a sample
+event. It does not add or update the hook and does not write `config.toml`;
+choose **Save** separately to keep the draft.
+
+```toml
+[[hooks]]
+id = "notify-context"
+event = "workspaceActivated"
+enabled = true
+command = ["/Users/me/.config/tatami/hooks/notify-context", "--compact"]
+timeoutMs = 5000
+workingDirectory = "/Users/me"
+environment = { MODE = "desktop" }
+```
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `id` | string | _(required)_ | Unique diagnostic identifier using ASCII letters, numbers, `.`, `_`, or `-` (up to 64 characters). |
+| `event` | string | _(required)_ | `tatamiLaunched`, `profileChanged`, or `workspaceActivated`. |
+| `enabled` | bool | `true` | Whether this hook runs. Disabled hooks remain visible to `tatami hook list`. |
+| `command` | string[] | _(required)_ | Executable followed by its arguments. Each element is one argv value. |
+| `timeoutMs` | int | `5000` | Runtime limit from 100 through 300000 milliseconds. |
+| `workingDirectory` | string? | Tatami config directory | Absolute path, or a path beginning with `~/`. |
+| `environment` | table | `{}` | Values added to the app's inherited environment. Tatami context values below take precedence. |
+
+Tatami executes `command` directly; it does not invoke a shell, split words,
+interpret quotes, or expand variables. The Settings editor preserves the same
+contract: the executable is `command[0]`, and every argument row becomes one
+subsequent argv value. To use shell syntax, opt in explicitly, for example
+`command = ["/bin/zsh", "-lc", "your pipeline"]`. An executable containing `/`
+is treated as a path (with leading `~/` expanded); a bare name is resolved from
+the app's inherited `PATH`. An absolute executable path is the most predictable
+choice when Tatami was opened from Finder.
+
+Each hook receives one versioned JSON object on standard input. The object has
+`schemaVersion`, `event`, `occurredAt`, `profile`, and, when applicable,
+`previousProfile`, `workspace`, and `display`. Tatami also sets these convenience
+variables:
+
+- `TATAMI_HOOK_ID`, `TATAMI_HOOK_EVENT`
+- `TATAMI_PROFILE_ID`, `TATAMI_PROFILE_NAME`
+- `TATAMI_WORKSPACE_ID`, `TATAMI_WORKSPACE_NAME`, `TATAMI_WORKSPACE_KIND`
+  for a workspace event
+- `TATAMI_DISPLAY_UUID`, `TATAMI_DISPLAY_NAME` when a display is known
+
+Standard output and error are each limited to 64 KiB. A nonzero exit, signal,
+spawn error, excessive output, or timeout is reported under Problems and in the
+debug log when debug logging is enabled. Hook failures never roll back or block
+the profile/workspace change. Hook commands run in an isolated process session.
+On timeout or app shutdown, Tatami first sends a graceful termination and then
+force-kills remaining descendants, including shell background-job groups. A
+hook must not detach itself into a new process session. If a newer event arrives
+while the same hook `id` is still running, both published events run
+independently; only the newest invocation updates that hook's standing Problem.
+Changing, disabling, or removing a hook cancels executions of the old definition
+and clears its standing Problem.
 
 ## `[[profiles]]` and workspaces
 

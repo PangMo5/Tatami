@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Foundation
+import TatamiCLIProtocol
 
 // MARK: - GestureDirection
 
@@ -104,6 +105,41 @@ public enum GestureAction: Codable, Hashable, Sendable, Identifiable {
   case borrowWorkspace(Workspace.ID)
   case activateProfile(Profile.ID)
 
+  // MARK: Lifecycle
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    let value = try container.decode(String.self)
+    guard let action = Self(storageValue: value) else {
+      throw DecodingError.dataCorruptedError(
+        in: container,
+        debugDescription: "Unknown gesture action: \(value)",
+      )
+    }
+    self = action
+  }
+
+  private init?(storageValue: String) {
+    if let id = Self.id(after: Self.activateWorkspacePrefix, in: storageValue) {
+      self = .activateWorkspace(id)
+      return
+    }
+    if let id = Self.id(after: Self.assignAppToWorkspacePrefix, in: storageValue) {
+      self = .assignAppToWorkspace(id)
+      return
+    }
+    if let id = Self.id(after: Self.borrowWorkspacePrefix, in: storageValue) {
+      self = .borrowWorkspace(id)
+      return
+    }
+    if let id = Self.id(after: Self.activateProfilePrefix, in: storageValue) {
+      self = .activateProfile(id)
+      return
+    }
+    guard let action = Self.fixedActionByStorageValue[storageValue] else { return nil }
+    self = action
+  }
+
   // MARK: Public
 
   public enum Category: String, CaseIterable, Identifiable, Sendable {
@@ -191,60 +227,12 @@ public enum GestureAction: Codable, Hashable, Sendable, Identifiable {
     }
   }
 
-  public var id: String {
-    storageValue
-  }
-
   /// Fixed commands grouped by `Category`. Workspace/profile-specific actions
   /// are generated from the live config by the Settings picker.
   public static let fixedActions = Category.allCases.flatMap(\.actions)
 
-  public func title(in config: AppConfig) -> LocalizedStringResource {
-    switch self {
-    case .none: "None"
-    case .nextWorkspace: "Next workspace"
-    case .previousWorkspace: "Previous workspace"
-    case .recentWorkspace: "Recent workspace"
-    case .moveAppToNextWorkspace: "Move app to next workspace"
-    case .moveAppToPreviousWorkspace: "Move app to previous workspace"
-    case .assignAppToRecentWorkspace: "Assign app to recent workspace"
-    case .assignAppToNextWorkspace: "Assign app to next workspace"
-    case .assignAppToPreviousWorkspace: "Assign app to previous workspace"
-    case .focusNextDisplay: "Focus next display"
-    case .focusPreviousDisplay: "Focus previous display"
-    case .focusLeft: "Focus left"
-    case .focusRight: "Focus right"
-    case .focusUp: "Focus up"
-    case .focusDown: "Focus down"
-    case .cycleNextWindow: "Cycle next window"
-    case .cyclePreviousWindow: "Cycle previous window"
-    case .growWindow: "Grow window"
-    case .shrinkWindow: "Shrink window"
-    case .swapLeft: "Swap left"
-    case .swapRight: "Swap right"
-    case .swapUp: "Swap up"
-    case .swapDown: "Swap down"
-    case .toggleOrientation: "Toggle orientation"
-    case .toggleFullscreen: "Toggle fullscreen"
-    case .balanceLayout: "Balance layout"
-    case .toggleFloating: "Toggle floating"
-    case .toggleSharedFloating: "Toggle shared floating"
-    case .toggleTiling: "Pause or resume tiling"
-    case .toggleAppInWorkspace: "Toggle app in workspace"
-    case .toggleAppInSharedApps: "Toggle app in Shared Apps"
-    case .borrowRecentWorkspace: "Borrow recent workspace"
-    case .borrowNextWorkspace: "Borrow next workspace"
-    case .borrowPreviousWorkspace: "Borrow previous workspace"
-    case .dismissBorrow: "Dismiss borrow"
-    case .activateWorkspace(let id):
-      "Switch to \(workspaceName(id, in: config))"
-    case .assignAppToWorkspace(let id):
-      "Assign app to \(workspaceName(id, in: config))"
-    case .borrowWorkspace(let id):
-      "Borrow \(workspaceName(id, in: config))"
-    case .activateProfile(let id):
-      "Switch to \(profileName(id, in: config))"
-    }
+  public var id: String {
+    storageValue
   }
 
   public var category: Category {
@@ -300,35 +288,204 @@ public enum GestureAction: Codable, Hashable, Sendable, Identifiable {
     }
   }
 
+  public func title(in config: AppConfig) -> LocalizedStringResource {
+    switch self {
+    case .none: "None"
+    case .nextWorkspace: "Next workspace"
+    case .previousWorkspace: "Previous workspace"
+    case .recentWorkspace: "Recent workspace"
+    case .moveAppToNextWorkspace: "Move app to next workspace"
+    case .moveAppToPreviousWorkspace: "Move app to previous workspace"
+    case .assignAppToRecentWorkspace: "Assign app to recent workspace"
+    case .assignAppToNextWorkspace: "Assign app to next workspace"
+    case .assignAppToPreviousWorkspace: "Assign app to previous workspace"
+    case .focusNextDisplay: "Focus next display"
+    case .focusPreviousDisplay: "Focus previous display"
+    case .focusLeft: "Focus left"
+    case .focusRight: "Focus right"
+    case .focusUp: "Focus up"
+    case .focusDown: "Focus down"
+    case .cycleNextWindow: "Cycle next window"
+    case .cyclePreviousWindow: "Cycle previous window"
+    case .growWindow: "Grow window"
+    case .shrinkWindow: "Shrink window"
+    case .swapLeft: "Swap left"
+    case .swapRight: "Swap right"
+    case .swapUp: "Swap up"
+    case .swapDown: "Swap down"
+    case .toggleOrientation: "Toggle orientation"
+    case .toggleFullscreen: "Toggle fullscreen"
+    case .balanceLayout: "Balance layout"
+    case .toggleFloating: "Toggle floating"
+    case .toggleSharedFloating: "Toggle shared floating"
+    case .toggleTiling: "Pause or resume tiling"
+    case .toggleAppInWorkspace: "Toggle app in workspace"
+    case .toggleAppInSharedApps: "Toggle app in Shared Apps"
+    case .borrowRecentWorkspace: "Borrow recent workspace"
+    case .borrowNextWorkspace: "Borrow next workspace"
+    case .borrowPreviousWorkspace: "Borrow previous workspace"
+    case .dismissBorrow: "Dismiss borrow"
+    case .activateWorkspace(let id):
+      "Switch to \(workspaceName(id, in: config))"
+    case .assignAppToWorkspace(let id):
+      "Assign app to \(workspaceName(id, in: config))"
+    case .borrowWorkspace(let id):
+      "Borrow \(workspaceName(id, in: config))"
+    case .activateProfile(let id):
+      "Switch to \(profileName(id, in: config))"
+    }
+  }
+
   public func isAvailable(in config: AppConfig) -> Bool {
     switch self {
     case .activateWorkspace(let id),
          .assignAppToWorkspace(let id):
-      return config.profiles.contains { $0.workspaces[id: id] != nil }
+      config.profiles.contains { $0.workspaces[id: id] != nil }
     case .borrowWorkspace(let id):
-      return config.activeProfile?.workspaces[id: id] != nil
+      config.activeProfile?.workspaces[id: id] != nil
     case .activateProfile(let id):
-      return config.profiles.contains(where: { $0.id == id })
+      config.profiles.contains(where: { $0.id == id })
     default:
-      return true
+      true
     }
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let value = try container.decode(String.self)
-    guard let action = Self(storageValue: value) else {
-      throw DecodingError.dataCorruptedError(
-        in: container,
-        debugDescription: "Unknown gesture action: \(value)"
-      )
-    }
-    self = action
   }
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
     try container.encode(storageValue)
+  }
+
+  // MARK: Internal
+
+  /// The typed domain command that exposes this behavior through the CLI.
+  /// `.none` is configuration state, not executable behavior.
+  var cliDomainCommand: CLIMessage.DomainCommand? {
+    switch self {
+    case .none: nil
+    case .nextWorkspace: .workspaceNext
+    case .previousWorkspace: .workspacePrevious
+    case .recentWorkspace: .workspaceRecent
+    case .moveAppToNextWorkspace: .workspaceMoveAppNext
+    case .moveAppToPreviousWorkspace: .workspaceMoveAppPrevious
+    case .assignAppToRecentWorkspace: .workspaceAssignAppRecent
+    case .assignAppToNextWorkspace: .workspaceAssignAppNext
+    case .assignAppToPreviousWorkspace: .workspaceAssignAppPrevious
+    case .focusNextDisplay: .displayFocusNext
+    case .focusPreviousDisplay: .displayFocusPrevious
+    case .focusLeft: .windowFocusLeft
+    case .focusRight: .windowFocusRight
+    case .focusUp: .windowFocusUp
+    case .focusDown: .windowFocusDown
+    case .cycleNextWindow: .windowCycleNext
+    case .cyclePreviousWindow: .windowCyclePrevious
+    case .growWindow: .windowResizeGrow
+    case .shrinkWindow: .windowResizeShrink
+    case .swapLeft: .windowSwapLeft
+    case .swapRight: .windowSwapRight
+    case .swapUp: .windowSwapUp
+    case .swapDown: .windowSwapDown
+    case .toggleOrientation: .layoutToggleOrientation
+    case .toggleFullscreen: .windowToggleFullscreen
+    case .balanceLayout: .layoutBalance
+    case .toggleFloating: .windowToggleFloating
+    case .toggleSharedFloating: .windowToggleSharedFloating
+    case .toggleTiling: .layoutToggleTiling
+    case .toggleAppInWorkspace: .appToggleWorkspace
+    case .toggleAppInSharedApps: .appToggleShared
+    case .borrowRecentWorkspace: .workspaceBorrowRecent
+    case .borrowNextWorkspace: .workspaceBorrowNext
+    case .borrowPreviousWorkspace: .workspaceBorrowPrevious
+    case .dismissBorrow: .workspaceDismissBorrow
+    case .activateWorkspace: .workspaceActivate
+    case .assignAppToWorkspace: .workspaceAssignAppTo
+    case .borrowWorkspace: .workspaceBorrowFrom
+    case .activateProfile: .profileActivate
+    }
+  }
+
+  static func cliAction(
+    for command: CLIMessage.DomainCommand,
+    workspaceId: Workspace.ID? = nil,
+    profileId: Profile.ID? = nil,
+  ) -> Self? {
+    switch command {
+    case .profileActivate:
+      profileId.map(Self.activateProfile)
+    case .workspaceActivate:
+      workspaceId.map(Self.activateWorkspace)
+    case .workspaceNext:
+      .nextWorkspace
+    case .workspacePrevious:
+      .previousWorkspace
+    case .workspaceRecent:
+      .recentWorkspace
+    case .workspaceMoveAppNext:
+      .moveAppToNextWorkspace
+    case .workspaceMoveAppPrevious:
+      .moveAppToPreviousWorkspace
+    case .workspaceAssignAppTo:
+      workspaceId.map(Self.assignAppToWorkspace)
+    case .workspaceAssignAppNext:
+      .assignAppToNextWorkspace
+    case .workspaceAssignAppPrevious:
+      .assignAppToPreviousWorkspace
+    case .workspaceAssignAppRecent:
+      .assignAppToRecentWorkspace
+    case .workspaceBorrowFrom:
+      workspaceId.map(Self.borrowWorkspace)
+    case .workspaceBorrowNext:
+      .borrowNextWorkspace
+    case .workspaceBorrowPrevious:
+      .borrowPreviousWorkspace
+    case .workspaceBorrowRecent:
+      .borrowRecentWorkspace
+    case .workspaceDismissBorrow:
+      .dismissBorrow
+    case .windowFocusLeft:
+      .focusLeft
+    case .windowFocusRight:
+      .focusRight
+    case .windowFocusUp:
+      .focusUp
+    case .windowFocusDown:
+      .focusDown
+    case .windowCycleNext:
+      .cycleNextWindow
+    case .windowCyclePrevious:
+      .cyclePreviousWindow
+    case .windowResizeGrow:
+      .growWindow
+    case .windowResizeShrink:
+      .shrinkWindow
+    case .windowSwapLeft:
+      .swapLeft
+    case .windowSwapRight:
+      .swapRight
+    case .windowSwapUp:
+      .swapUp
+    case .windowSwapDown:
+      .swapDown
+    case .windowToggleFullscreen:
+      .toggleFullscreen
+    case .windowToggleFloating:
+      .toggleFloating
+    case .windowToggleSharedFloating:
+      .toggleSharedFloating
+    case .displayFocusNext:
+      .focusNextDisplay
+    case .displayFocusPrevious:
+      .focusPreviousDisplay
+    case .layoutToggleOrientation:
+      .toggleOrientation
+    case .layoutBalance:
+      .balanceLayout
+    case .layoutToggleTiling:
+      .toggleTiling
+    case .appToggleWorkspace:
+      .toggleAppInWorkspace
+    case .appToggleShared:
+      .toggleAppInSharedApps
+    }
   }
 
   // MARK: Private
@@ -338,26 +495,10 @@ public enum GestureAction: Codable, Hashable, Sendable, Identifiable {
   private static let borrowWorkspacePrefix = "borrowWorkspace:"
   private static let activateProfilePrefix = "activateProfile:"
 
-  private init?(storageValue: String) {
-    if let id = Self.id(after: Self.activateWorkspacePrefix, in: storageValue) {
-      self = .activateWorkspace(id)
-      return
-    }
-    if let id = Self.id(after: Self.assignAppToWorkspacePrefix, in: storageValue) {
-      self = .assignAppToWorkspace(id)
-      return
-    }
-    if let id = Self.id(after: Self.borrowWorkspacePrefix, in: storageValue) {
-      self = .borrowWorkspace(id)
-      return
-    }
-    if let id = Self.id(after: Self.activateProfilePrefix, in: storageValue) {
-      self = .activateProfile(id)
-      return
-    }
-    guard let action = Self.fixedActionByStorageValue[storageValue] else { return nil }
-    self = action
-  }
+  private static let fixedActionByStorageValue: [String: Self] = Dictionary(uniqueKeysWithValues: fixedActions.map { (
+    $0.storageValue,
+    $0,
+  ) })
 
   private var storageValue: String {
     switch self {
@@ -402,10 +543,6 @@ public enum GestureAction: Codable, Hashable, Sendable, Identifiable {
     case .activateProfile(let id): Self.activateProfilePrefix + id.uuidString
     }
   }
-
-  private static let fixedActionByStorageValue: [String: Self] = {
-    Dictionary(uniqueKeysWithValues: fixedActions.map { ($0.storageValue, $0) })
-  }()
 
   private static func id(after prefix: String, in value: String) -> UUID? {
     guard value.hasPrefix(prefix) else { return nil }

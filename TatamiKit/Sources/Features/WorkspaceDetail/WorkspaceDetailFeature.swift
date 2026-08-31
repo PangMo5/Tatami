@@ -13,7 +13,7 @@ import Sharing
 public struct WorkspaceDetailFeature {
   @ObservableState
   public struct State: Equatable {
-    @Shared(.tatamiConfig) public var config = AppConfig()
+    @Shared(.tatamiConfig) public var config
     public var workspaceId: Workspace.ID
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
@@ -49,19 +49,27 @@ public struct WorkspaceDetailFeature {
     /// — for the activate-shortcut recorder's conflict message. Lives here
     /// (not the view) so the config read stays in the reducer's state.
     public func activateShortcutConflict(for candidate: HotKey) -> String? {
-      config.shortcutConflict(for: candidate, excluding: .activateWorkspace(workspaceId))
+      shortcutConflict(for: candidate, excluding: .activateWorkspace(workspaceId))
     }
 
     /// Same, for the assign-app-shortcut recorder.
     public func assignShortcutConflict(for candidate: HotKey) -> String? {
-      config.shortcutConflict(
+      shortcutConflict(
         for: candidate, excluding: .assignFocusedAppToWorkspace(workspaceId)
       )
     }
 
     /// Same, for the borrow-shortcut recorder.
     public func borrowShortcutConflict(for candidate: HotKey) -> String? {
-      config.shortcutConflict(for: candidate, excluding: .borrowWorkspace(workspaceId))
+      shortcutConflict(for: candidate, excluding: .borrowWorkspace(workspaceId))
+    }
+
+    private func shortcutConflict(
+      for candidate: HotKey,
+      excluding action: HotKeyAction
+    ) -> String? {
+      guard let profileId = config.profileId(owning: workspaceId) else { return nil }
+      return config.shortcutConflict(for: candidate, excluding: action, in: profileId)
     }
   }
 
@@ -101,16 +109,26 @@ public struct WorkspaceDetailFeature {
     /// Pull a reviewed set of apps / settings from another profile's workspace
     /// into this one; the excluded sets carry what the user unchecked.
     case importWorkspace(
+      targetWorkspace: Workspace.ID,
       sourceProfile: Profile.ID,
       sourceWorkspace: Workspace.ID,
+      baseline: AppConfig,
       excludingApps: Set<String>,
       excludingFields: Set<String>
     )
     case layout(WorkspaceLayoutFeature.Action)
     case alert(PresentationAction<Alert>)
+    case delegate(Delegate)
 
     public enum Alert: Equatable {
       case confirmAppRemoval(bundleIdentifier: String)
+      case dismissConfigurationChanged
+      case dismissCopyFailure
+      case dismissShortcutConflicts
+    }
+
+    public enum Delegate: Equatable {
+      case importApplied(Workspace.ID)
     }
   }
 
@@ -118,6 +136,7 @@ public struct WorkspaceDetailFeature {
   @Dependency(\.displays) var displays
   @Dependency(\.hotKeys) var hotKeys
   @Dependency(\.appChooser) var appChooser
+  @Dependency(\.configPersistence) var configPersistence
 
   public init() {}
 
@@ -127,6 +146,9 @@ public struct WorkspaceDetailFeature {
     Reduce { state, action in
       switch action {
       case .binding:
+        return .none
+
+      case .delegate:
         return .none
 
       case .onAppear:
@@ -326,21 +348,105 @@ public struct WorkspaceDetailFeature {
       case .activateTapped:
         return .none
 
-      case let .importWorkspace(sourceProfile, sourceWorkspace, excludingApps, excludingFields):
-        state.$config.withLock {
-          $0.importWorkspace(
-            into: state.workspaceId,
+      case let .importWorkspace(
+        targetWorkspace,
+        sourceProfile,
+        sourceWorkspace,
+        baseline,
+        excludingApps,
+        excludingFields
+      ):
+        guard
+          state.workspaceId == targetWorkspace,
+          let projection = baseline.workspaceImportProjection(
+            into: targetWorkspace,
             from: sourceProfile,
             sourceWorkspace: sourceWorkspace,
             excludingApps: excludingApps,
             excludingFields: excludingFields
           )
+        else {
+          state.alert = configurationChangedAlert()
+          return .none
         }
-        // AppFeature intercepts to rebind hotkeys (key may have changed) and
-        // re-tile if this is the active workspace (apps may have changed).
-        return .none
+        guard projection.conflicts.isEmpty else {
+          state.alert = shortcutConflictAlert(projection.conflicts)
+          return .none
+        }
+
+        do {
+          let revision = try configPersistence.captureRevision(baseline)
+          try configPersistence.commit(
+            state.$config,
+            baseline,
+            revision,
+            projection.config,
+            { true }
+          )
+          return .send(.delegate(.importApplied(targetWorkspace)))
+        } catch {
+          state.alert = isStaleReview(error)
+            ? configurationChangedAlert()
+            : copyFailedAlert(error)
+          return .none
+        }
       }
     }
     .ifLet(\.$alert, action: \.alert)
+  }
+
+  private func configurationChangedAlert() -> AlertState<Action.Alert> {
+    AlertState {
+      TextState("Configuration changed")
+    } actions: {
+      ButtonState(role: .cancel, action: .dismissConfigurationChanged) {
+        TextState("OK")
+      }
+    } message: {
+      TextState(
+        "Nothing was copied because the configuration changed while the review was open. Reopen Copy and review the latest changes."
+      )
+    }
+  }
+
+  private func copyFailedAlert(_ error: any Error) -> AlertState<Action.Alert> {
+    AlertState {
+      TextState("Copy failed")
+    } actions: {
+      ButtonState(role: .cancel, action: .dismissCopyFailure) {
+        TextState("OK")
+      }
+    } message: {
+      TextState(ErrorReportClient.describe(error))
+    }
+  }
+
+  private func isStaleReview(_ error: any Error) -> Bool {
+    guard let error = error as? ConfigPersistenceError else { return false }
+    return switch error {
+    case .changedInMemory, .changedOnDisk, .transactionExpired:
+      true
+    case .outcomeUnknown:
+      false
+    }
+  }
+
+  private func shortcutConflictAlert(
+    _ conflicts: [WorkspaceShortcutConflict]
+  ) -> AlertState<Action.Alert> {
+    let descriptions = Set(conflicts.map { "\($0.hotKey.symbols): \($0.owner)" })
+      .sorted()
+      .formatted()
+    return AlertState {
+      TextState("Shortcut conflicts")
+    } actions: {
+      ButtonState(role: .cancel, action: .dismissShortcutConflicts) {
+        TextState("OK")
+      }
+    } message: {
+      TextState(
+        "Nothing was copied. Deselect the conflicting shortcut changes and try again: \(descriptions)"
+      )
+    }
   }
 }

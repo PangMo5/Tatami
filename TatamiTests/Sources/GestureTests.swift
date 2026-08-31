@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import CoreGraphics
+import CustomDump
 import Foundation
+import TatamiCLIProtocol
 import Testing
 @testable import TatamiKit
 
@@ -54,6 +56,38 @@ struct GestureTests {
     #expect(categorized.count == Set(categorized).count)
     for category in GestureAction.Category.allCases {
       #expect(category.actions.allSatisfy { $0.category == category })
+    }
+  }
+
+  @Test
+  func `every executable gesture capability has a domain CLI command`() throws {
+    let workspaceID = try #require(
+      UUID(uuidString: "00000000-0000-0000-0000-000000000001")
+    )
+    let profileID = try #require(
+      UUID(uuidString: "00000000-0000-0000-0000-000000000002")
+    )
+    let actions = GestureAction.fixedActions.filter { $0 != .none } + [
+      .activateWorkspace(workspaceID),
+      .assignAppToWorkspace(workspaceID),
+      .borrowWorkspace(workspaceID),
+      .activateProfile(profileID),
+    ]
+    let routes = actions.compactMap(\.cliDomainCommand)
+
+    expectNoDifference(actions.count, 38)
+    expectNoDifference(routes.count, actions.count)
+    expectNoDifference(Set(routes), Set(CLIMessage.DomainCommand.allCases))
+    expectNoDifference(Set(routes).count, routes.count)
+    for (action, route) in zip(actions, routes) {
+      expectNoDifference(
+        GestureAction.cliAction(
+          for: route,
+          workspaceId: workspaceID,
+          profileId: profileID,
+        ),
+        action,
+      )
     }
   }
 

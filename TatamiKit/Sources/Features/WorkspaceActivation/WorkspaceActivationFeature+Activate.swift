@@ -277,11 +277,58 @@ extension WorkspaceActivationFeature {
     return displays.connected(hint) ?? displays.primary() ?? hint
   }
 
+  /// Shared deliberate-switch entry point for hotkeys/UI and CLI completion
+  /// tracking. The CLI wraps this returned effect so its response follows the
+  /// actual focus/layout tail instead of merely following action delivery.
+  func deliberateActivation(
+    workspaceId: Workspace.ID,
+    setFocus: Bool,
+    continuesCLIActivation: Bool = false,
+    state: inout State,
+  ) -> Effect<Action> {
+    // A deliberate switch supersedes any in-flight reconnect restore cascade.
+    // The user's action wins over the display-restore queue.
+    state.pendingDisplayRestores = []
+    // An already-active host that activation would leave exactly where it is
+    // is a display focus transfer. Re-activation would tear down its Borrow.
+    if
+      state.activeActivationGeneration == nil,
+      setFocus,
+      let display = state.activeWorkspacesByDisplay.first(where: {
+        $0.value == workspaceId
+      })?.key,
+      let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+      deliberateActivationDisplay(for: workspace, state: state)?.matches(display) ?? true,
+      // With no focus target, a transfer would silently swallow the switch;
+      // run a real activation so the workspace is raised again.
+      visibleFocusTarget(workspaceId, state: state) != nil
+    {
+      let superseded = continuesCLIActivation
+        ? Effect<Action>.none
+        : supersedePendingCLIActivation(state: &state)
+      return .merge(superseded, focusVisibleWorkspace(
+        workspaceId: workspaceId,
+        display: display,
+        state: &state,
+      ))
+    }
+    return performActivate(
+      workspaceId: workspaceId,
+      setFocus: setFocus,
+      continuesCLIActivation: continuesCLIActivation,
+      state: &state,
+    )
+  }
+
   func performActivate(
     workspaceId: Workspace.ID,
     setFocus: Bool,
     displayOverride: DisplayName? = nil,
     suppressSwitchHUD: Bool = false,
+    /// Planned profile restores and the originating workspace CLI command keep
+    /// ownership of the pending CLI request. Every other activation supersedes
+    /// that request instead of silently rebinding it to unrelated work.
+    continuesCLIActivation: Bool = false,
     // The cursor follows focus even though this activation does not set it.
     // `setFocus` answers "does Tatami pick the focused window", which is not
     // the same question as "did focus move" — an app the user activated from
@@ -297,6 +344,10 @@ extension WorkspaceActivationFeature {
     // (Switching to a borrowed workspace fully activates it — the composition
     // is dropped as the display re-tiles. Moving focus *into* a borrowed block
     // without switching is the directional-focus path, not activation.)
+    let superseded = continuesCLIActivation
+      ? Effect<Action>.none
+      : supersedePendingCLIActivation(state: &state)
+
     // A scratchpad is borrow-only: there's no "switch to" it. Redirect a
     // standalone activate into a borrow on the pointer display's host
     // (re-docks if it's already borrowed there).
@@ -305,16 +356,23 @@ extension WorkspaceActivationFeature {
       let resolved = workspace.borrowEdge ?? state.config.settings.switching.borrowDefaultEdge
       if let resolved {
         // A configured default edge → dock straight there.
-        return performBorrow(targetId: workspaceId, edge: resolved, state: &state)
+        return .merge(
+          superseded,
+          performBorrow(targetId: workspaceId, edge: resolved, state: &state),
+        )
       }
       if setFocus {
         // "Ask" via a deliberate shortcut (switch/borrow): open the direction
         // picker with nothing placed yet, like the borrow shortcut.
-        return .send(.beginBorrowDirection(workspaceId: workspaceId))
+        return .merge(
+          superseded,
+          .send(.beginBorrowDirection(workspaceId: workspaceId)),
+        )
       }
       // "Ask" via focusing the app: dock provisionally at the fallback edge so
       // the window never floats unplaced, then open the picker to re-steer it.
       return .merge(
+        superseded,
         performBorrow(targetId: workspaceId, edge: .right, state: &state),
         .send(.beginBorrowDirection(workspaceId: workspaceId)),
       )
@@ -362,6 +420,15 @@ extension WorkspaceActivationFeature {
     }
     state.isActivating = true
     state.activatingWorkspaceID = workspaceId
+    state.activationGeneration &+= 1
+    let activationGeneration = state.activationGeneration
+    state.activeActivationGeneration = activationGeneration
+    if continuesCLIActivation, let request = state.pendingCLIActivation {
+      state.pendingCLIActivationBinding = CLIActivationBinding(
+        requestID: request.id,
+        activationGeneration: activationGeneration,
+      )
+    }
     let isPaused = state.isTilingPaused
     debugLog.log(
       "Activate",
@@ -664,7 +731,7 @@ extension WorkspaceActivationFeature {
     // by `activationCompleted` on the normal path.
     let watchdog = Effect<Action>.run { [clock] send in
       try await clock.sleep(for: .seconds(10))
-      await send(.activationTimedOut)
+      await send(.activationTimedOut(generation: activationGeneration))
     }
     .cancellable(id: CancelID.activationWatchdog, cancelInFlight: true)
 
@@ -672,383 +739,403 @@ extension WorkspaceActivationFeature {
     // hotkey press. Under system load the default priority leaves our
     // main-actor hops queued behind everything else — exactly when the
     // switch already crawls on slow AX replies.
-    return .concatenate(
-      // Every frame writer targeting this display shares one cancellation
-      // domain. An activation is the authoritative writer, so retire an
-      // in-flight tree/composition flush before its show/hide + tile pass.
-      .cancel(id: CancelID.layout(targetDisplay)),
-      .cancel(id: CancelID.borrowFocus(targetDisplay)),
-      .cancel(id: CancelID.borrowRender(targetDisplay)),
-      .merge(
-        screenRecordingWarning,
-        watchdog,
-        crossMonitorHUD,
-        displacedCompositionReflow,
-        clearedCompositionMarkers,
-        // Arm tiled, floating, and unmanaged apps concurrently with activation.
-        // A first-time installation emits one observation-ready reconcile, so
-        // a state change racing this setup cannot fall through the cache gap.
-        .run { [observer = windowObserver, activationObservedBundleIds] send in
-          await observer.observe(activationObservedBundleIds)
-          await send(
-            .presentationObservationReady(
-              bundleIds: Set(activationObservedBundleIds)
+    return .merge(
+      superseded,
+      .concatenate(
+        // Every frame writer targeting this display shares one cancellation
+        // domain. An activation is the authoritative writer, so retire an
+        // in-flight tree/composition flush before its show/hide + tile pass.
+        .cancel(id: CancelID.layout(targetDisplay)),
+        .cancel(id: CancelID.borrowFocus(targetDisplay)),
+        .cancel(id: CancelID.borrowRender(targetDisplay)),
+        .merge(
+          screenRecordingWarning,
+          watchdog,
+          crossMonitorHUD,
+          displacedCompositionReflow,
+          clearedCompositionMarkers,
+          // Arm tiled, floating, and unmanaged apps concurrently with activation.
+          // A first-time installation emits one observation-ready reconcile, so
+          // a state change racing this setup cannot fall through the cache gap.
+          .run { [observer = windowObserver, activationObservedBundleIds] send in
+            await observer.observe(activationObservedBundleIds)
+            await send(
+              .presentationObservationReady(
+                bundleIds: Set(activationObservedBundleIds)
+              )
             )
-          )
-        },
-        .run(priority: .high) { [
-          mgr = workspaceManager,
-          tiler = windowTiler,
-          store = layoutStore,
-          hud = workspaceHUD,
-          mouse = mouse,
-          overlay = floatingOverlay,
-          snapshot = windowSnapshot,
-          displays = displays,
-          debugLog = debugLog,
-          focus = focusManager,
-          strandedBorrows,
-        ] send in
-          async let outgoingFocus: WindowKey? = {
-            guard let outgoingFrontmostApp else { return nil as WindowKey? }
-            return await snapshot.focusedWindowKeyOffMain(outgoingFrontmostApp)
-          }()
-          // Wall-clock per phase — AX round trips block on *other* apps' run
-          // loops, so when a switch crawls under load this names the phase
-          // (and thus the app set) that ate the time.
-          let timer = ContinuousClock()
-          var phaseStart = timer.now
-          var phases = [(String, Duration)]()
-          var coreCompletionSent = false
-          func mark(_ name: String) {
-            let now = timer.now
-            phases.append((name, now - phaseStart))
-            phaseStart = now
-          }
-          if showHUD {
-            await hud.showOnDisplay(hudName, hudIcon, hudSubtitle, hudDurationMs, hudDisplay)
-          }
-          guard !Task.isCancelled else { return }
-          // Tear down the outgoing workspace's mirrors in the same beat as the
-          // hide pass — leaving them to the post-tile `setFloating` made the
-          // floating windows visibly outlive the windows they mirror.
-          await overlay.retainOnly(Set(presentationFloatingBundleIds))
-          guard !Task.isCancelled else { return }
-          // Resolve the outgoing window before show/hide can focus a different
-          // window in the same process. Merely starting this child task first
-          // does not order its AX read ahead of `mgr.activate`.
-          let outgoingFocusedWindow = await outgoingFocus
-          guard !Task.isCancelled else { return }
-          await mgr.activate(request)
-          guard !Task.isCancelled else { return }
-          if let outgoingWorkspaceId, let outgoingFocusedWindow {
-            await send(.activationFocusSnapshotResolved(
-              workspaceId: outgoingWorkspaceId,
-              key: outgoingFocusedWindow,
-            ))
-          }
-          mark("showHide")
-          // Superseded by a newer switch: stop before the tile pass. `send`
-          // on a cancelled effect is already a no-op, but the AX work below
-          // is not — without these checks a superseded activation would keep
-          // writing the *old* workspace's frames interleaved with the new
-          // activation's main-actor hops.
-          guard !Task.isCancelled else { return }
-          if !isPaused {
-            // Layouts always persist now — restore the saved template whenever
-            // there's no in-memory tree yet (fresh launch / first activation).
-            let persistedSnapshot: LayoutSnapshot? =
-              sessionTree == nil ? await store.load(workspaceId) : nil
-            guard !Task.isCancelled else { return }
-            // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
-            // AX round trips — AX scans block on each target app's run loop
-            // (measured 50 ms–1.2 s per switch), which is what made switching
-            // crawl under system load. Each process has its own serialized AX
-            // lane, so independent apps can resolve concurrently without one
-            // slow app adding its timeout to every following bundle. Preserve
-            // configured order when flattening so fresh-tree placement stays
-            // deterministic.
-            let discovered = await withTaskGroup(
-              of: (Int, [WindowKey]).self,
-              returning: [WindowKey].self,
-            ) { group in
-              for (index, bundleId) in bundleIds.enumerated() {
-                group.addTask {
-                  (index, await snapshot.stableCachedKeysOffMain([bundleId], true))
-                }
-              }
-              var results = [(Int, [WindowKey])]()
-              for await result in group { results.append(result) }
-              return results.sorted { $0.0 < $1.0 }.flatMap(\.1)
+          },
+          .run(priority: .high) { [
+            mgr = workspaceManager,
+            tiler = windowTiler,
+            store = layoutStore,
+            hud = workspaceHUD,
+            mouse = mouse,
+            overlay = floatingOverlay,
+            snapshot = windowSnapshot,
+            displays = displays,
+            debugLog = debugLog,
+            focus = focusManager,
+            strandedBorrows,
+          ] send in
+            async let outgoingFocus: WindowKey? = {
+              guard let outgoingFrontmostApp else { return nil as WindowKey? }
+              return await snapshot.focusedWindowKeyOffMain(outgoingFrontmostApp)
+            }()
+            // Wall-clock per phase. AX round trips block on *other* apps' run
+            // loops, so when a switch crawls under load this names the phase
+            // (and thus the app set) that ate the time.
+            let timer = ContinuousClock()
+            var phaseStart = timer.now
+            var phases = [(String, Duration)]()
+            var coreCompletionSent = false
+            func mark(_ name: String) {
+              let now = timer.now
+              phases.append((name, now - phaseStart))
+              phaseStart = now
+            }
+            if showHUD {
+              await hud.showOnDisplay(hudName, hudIcon, hudSubtitle, hudDurationMs, hudDisplay)
             }
             guard !Task.isCancelled else { return }
-            let onScreenFrames = snapshot.onScreenWindowFrames()
-            let keys = await MainActor.run {
-              Self.scopedWindowKeys(
-                discovered,
-                sharedTiledBundleIds: sharedTiledBundleIds,
-                existingTargetKeys: existingTargetKeys,
-                protectedKeys: protectedWindowKeys,
-                partitionSharedWindows: partitionsSharedWindows,
-                targetWorkArea: displays.workArea(targetDisplay),
-                windowFrame: { onScreenFrames[$0.windowID] },
-              )
-            }
-            mark("discover")
-            let (tree, frames, restoredZoom, unresolvedZoomSlots) = await MainActor.run {
-              () -> (
-                BSPNode<WindowKey>?,
-                [WindowKey: CGRect],
-                Set<WindowKey>,
-                Set<SlotID>
-              ) in
-              let workArea = displays.workArea(targetDisplay).insetBy(
-                dx: CGFloat(settings.layout.gapOuter),
-                dy: CGFloat(settings.layout.gapOuter),
-              )
-              var base = sessionTree
-              var persistedZoomSlots = [SlotID]()
-              if let snapshot = persistedSnapshot {
-                base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
-                persistedZoomSlots = snapshot.fullscreenZoomedSlots
-              }
-              let restoredLayout = base != nil
-              let merged = Self.mergeTree(
-                existing: base,
-                target: keys,
-                focused: { outgoingFocusedWindow },
-                insertionPoint: insertionPoint,
-                workArea: workArea,
-                settings: settings,
-              )
-              let axis = settings.layout.autoBalance
-              // No resident tree and no persisted template (or a template with
-              // zero matching windows) means the old shape is genuinely gone.
-              // Initialize from the same contract as explicit Balance:
-              // Auto-balance axes when enabled, canonical BSP when Off.
-              let tree =
-                if restoredLayout {
-                  axis == .none ? merged : merged?.balanced(axis: axis)
-                } else {
-                  merged?.balancedForCommand(
-                    autoBalance: axis,
-                    in: workArea,
-                    gap: CGFloat(settings.layout.gapInner),
-                    splitAxis: settings.layout.splitType.bspSplitAxis(),
-                  )
-                }
-              let resolvedZoom: Set<WindowKey> = {
-                if !zoomed.isEmpty { return zoomed }
-                guard let tree else { return [] }
-                return Self.resolveFullscreenZoom(
-                  slots: persistedZoomSlots,
-                  keys: keys,
-                  among: tree.windows,
-                )
-              }()
-              let frames = Self.computeFrames(
-                tree: tree,
-                settings: settings,
-                targetDisplay: targetDisplay,
-                fullscreenZoomed: resolvedZoom,
-              )
-              let assignments = slotAssignment(keys)
-              let resolvedSlots = Set(resolvedZoom.compactMap { assignments[$0] })
-              let unresolvedZoomSlots =
-                Set(persistedZoomSlots).subtracting(resolvedSlots)
-              return (tree, frames, resolvedZoom, unresolvedZoomSlots)
-            }
-            mark("layout")
-            // Cancellation can arrive while the main actor computes a large tree.
-            // Do not publish or persist a superseded workspace's layout snapshot.
+            // Tear down the outgoing workspace's mirrors in the same beat as the
+            // hide pass. Leaving them to the post-tile `setFloating` made the
+            // floating windows visibly outlive the windows they mirror.
+            await overlay.retainOnly(Set(presentationFloatingBundleIds))
             guard !Task.isCancelled else { return }
-            await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
-            if persistedSnapshot != nil, zoomed.isEmpty {
-              await send(.persistedFullscreenZoomRestored(
-                workspaceId: workspaceId,
-                keys: restoredZoom,
-                unresolvedSlots: unresolvedZoomSlots,
+            // Resolve the outgoing window before show/hide can focus a different
+            // window in the same process. Merely starting this child task first
+            // does not order its AX read ahead of `mgr.activate`.
+            let outgoingFocusedWindow = await outgoingFocus
+            guard !Task.isCancelled else { return }
+            await mgr.activate(request)
+            guard !Task.isCancelled else { return }
+            if let outgoingWorkspaceId, let outgoingFocusedWindow {
+              await send(.activationFocusSnapshotResolved(
+                workspaceId: outgoingWorkspaceId,
+                key: outgoingFocusedWindow,
               ))
             }
+            mark("showHide")
+            // Superseded by a newer switch: stop before the tile pass. `send`
+            // on a cancelled effect is already a no-op, but the AX work below
+            // is not. Without these checks a superseded activation would keep
+            // writing the *old* workspace's frames interleaved with the new
+            // activation's main-actor hops.
             guard !Task.isCancelled else { return }
-            if let tree {
-              let slots = slotAssignment(tree.windows)
-              await store.save(
-                workspaceId,
-                LayoutSnapshot(
-                  tree: tree.mapWindows { slots[$0]! },
-                  fullscreenZoomedSlots: Set(
-                    restoredZoom.compactMap { slots[$0] }
-                  )
-                  .union(unresolvedZoomSlots)
-                  .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) },
-                ),
-              )
-            }
-            guard !Task.isCancelled else { return }
-            if !frames.isEmpty {
-              await tiler.apply(FrameApplication(windowFrames: frames))
-            }
-            mark("apply")
-            guard !Task.isCancelled else { return }
-            if !frames.isEmpty {
-              await send(
-                .presentationLayoutApplied(
-                  keys: Set(frames.keys),
-                  preservesPointer: false,
-                )
-              )
-            }
-            // Show/hide + the first authoritative tile pass is the visible
-            // switch. Publish it now; floating overlays, markers, focus
-            // validation, and pointer warp are cancellable best-effort
-            // post-layout work and must not hold the activation gate.
-            coreCompletionSent = true
-            await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
-            guard !Task.isCancelled else { return }
-            // Mirror floating windows onto always-on-top panels (the Topit /
-            // Floaty technique): a foreign window's level can't be raised without
-            // SIP, so instead of trying we paint a live mirror above the tiles.
-            // Passing the resolved set (possibly empty) also tears down mirrors
-            // for apps that were just un-floated or belong to another workspace.
-            // Same cache-first, per-bundle worker discovery as the tile pass
-            // above.
-            var floatingDiscovered = Set<WindowKey>()
-            for bundleId in presentationFloatingBundleIds {
+            if !isPaused {
+              // Layouts always persist now. Restore the saved template whenever
+              // there's no in-memory tree yet (fresh launch / first activation).
+              let persistedSnapshot: LayoutSnapshot? =
+                sessionTree == nil ? await store.load(workspaceId) : nil
               guard !Task.isCancelled else { return }
-              floatingDiscovered.formUnion(
-                await snapshot.cachedKeysOffMain([bundleId], false)
-              )
-            }
-            let floatingKeys = floatingDiscovered
-            mark("float")
-            guard !Task.isCancelled else { return }
-            await overlay.setFloating(floatingKeys)
-            guard !Task.isCancelled else { return }
-            // Markers ride the same discovery, but reducer state owns their
-            // categories. Re-derive after `activationCompleted` publishes the
-            // target workspace and cancel any composition-era marker refresh.
-            await send(.activationMarkerKeysResolved(Array(floatingKeys)))
-            guard !Task.isCancelled else { return }
-            if warpMouse {
-              var fallbackFrames = [WindowKey: CGRect]()
-              let liveWindowServerFrames = snapshot.onScreenWindowFrames()
-              if let mruWindow, frames[mruWindow] == nil {
-                if let frame = liveWindowServerFrames[mruWindow.windowID] {
-                  fallbackFrames[mruWindow] = frame
-                } else if let frame = await snapshot.windowFrameOffMain(mruWindow) {
-                  fallbackFrames[mruWindow] = frame
-                }
-              }
-              guard !Task.isCancelled else { return }
-              // Read focus after the potentially blocking MRU geometry lookup,
-              // so a user focus change during that IPC cannot leave a stale
-              // "still focused" proof for the eventual pointer warp.
-              var liveFocused = await snapshot.focusedWindowKeyOffMain()
-              guard !Task.isCancelled else { return }
-              if
-                let candidateFocus = liveFocused,
-                frames[candidateFocus] == nil,
-                fallbackFrames[candidateFocus] == nil
-              {
-                if let frame = liveWindowServerFrames[candidateFocus.windowID] {
-                  fallbackFrames[candidateFocus] = frame
-                } else {
-                  let frame = await snapshot.windowFrameOffMain(candidateFocus)
-                  guard !Task.isCancelled else { return }
-                  // Geometry is another suspension point. Validate focus again
-                  // and accept that frame only if the same window still owns it.
-                  let verifiedFocused = await snapshot.focusedWindowKeyOffMain()
-                  guard !Task.isCancelled else { return }
-                  if verifiedFocused == candidateFocus, let frame {
-                    fallbackFrames[candidateFocus] = frame
+              // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
+              // AX round trips. AX scans block on each target app's run loop
+              // (measured 50 ms–1.2 s per switch), which is what made switching
+              // crawl under system load. Each process has its own serialized AX
+              // lane, so independent apps can resolve concurrently without one
+              // slow app adding its timeout to every following bundle. Preserve
+              // configured order when flattening so fresh-tree placement stays
+              // deterministic.
+              let discovered = await withTaskGroup(
+                of: (Int, [WindowKey]).self,
+                returning: [WindowKey].self,
+              ) { group in
+                for (index, bundleId) in bundleIds.enumerated() {
+                  group.addTask {
+                    (index, await snapshot.stableCachedKeysOffMain([bundleId], true))
                   }
-                  liveFocused = verifiedFocused
                 }
+                var results = [(Int, [WindowKey])]()
+                for await result in group { results.append(result) }
+                return results.sorted { $0.0 < $1.0 }.flatMap(\.1)
               }
               guard !Task.isCancelled else { return }
-              let warp: (key: WindowKey, rect: CGRect, live: WindowKey?)? = {
-                // Warp to the window this activation deliberately focused (the MRU
-                // target), not a live `focusedWindowKey()` read. That read races
-                // the async app activation and can return a *different* frontmost
-                // window (e.g. Siri keeping front while ChatGPT is the target),
-                // sending the cursor to the wrong tile — where focus-follows-mouse
-                // then grabs focus to it. Fall back to the live read only when this
-                // workspace has no MRU target (a pinned-app or empty workspace).
-                let live = liveFocused
-                // Unless focus arrived on its own: then the raised window is
-                // the answer and the MRU pick is a guess about it.
-                if
-                  prefersLiveFocusTarget,
-                  let live,
-                  live.bundleId == expectedFocusBundleId,
-                  let rect = frames[live] ?? fallbackFrames[live]
-                {
-                  return (live, rect, live)
-                }
-                if
-                  let mruWindow,
-                  let rect = frames[mruWindow] ?? fallbackFrames[mruWindow]
-                {
-                  return (mruWindow, rect, live)
-                }
-                // A stale MRU id is allowed to fall back to the app's live main
-                // window (the focus manager does the same). Gate by the expected
-                // bundle so a lagging frontmost read can never warp into the
-                // outgoing workspace. AX geometry also lets MFF follow an owned
-                // floating/unmanaged restore target, which has no tiled frame.
-                guard
-                  let live,
-                  live.bundleId == expectedFocusBundleId,
-                  let rect = frames[live] ?? fallbackFrames[live]
-                else { return nil }
-                return (live, rect, live)
-              }()
-              guard !Task.isCancelled else { return }
-              if let warp {
-                let center = CGPoint(x: warp.rect.midX, y: warp.rect.midY)
-                debugLog.log(
-                  "Warp",
-                  "activate target=\(warp.key.bundleId)#\(warp.key.windowID) "
-                    + "live=\(warp.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil") "
-                    + "→ (\(Int(center.x)),\(Int(center.y)))",
+              let onScreenFrames = snapshot.onScreenWindowFrames()
+              let keys = await MainActor.run {
+                Self.scopedWindowKeys(
+                  discovered,
+                  sharedTiledBundleIds: sharedTiledBundleIds,
+                  existingTargetKeys: existingTargetKeys,
+                  protectedKeys: protectedWindowKeys,
+                  partitionSharedWindows: partitionsSharedWindows,
+                  targetWorkArea: displays.workArea(targetDisplay),
+                  windowFrame: { onScreenFrames[$0.windowID] },
                 )
-                // The deliberate activation focus can be stolen mid-switch — an app
-                // like Siri grabs frontmost as it unhides — leaving the keyboard
-                // focus on the wrong tile while the cursor warps to the intended
-                // one, so directional focus then anchors on the wrong window. When
-                // the live frontmost differs from the window we're warping to,
-                // re-assert the intended focus now that the layout has settled.
-                if warp.live != warp.key {
-                  await focus.focusWindow(warp.key)
+              }
+              mark("discover")
+              let (tree, frames, restoredZoom, unresolvedZoomSlots) = await MainActor.run {
+                () -> (
+                  BSPNode<WindowKey>?,
+                  [WindowKey: CGRect],
+                  Set<WindowKey>,
+                  Set<SlotID>
+                ) in
+                let workArea = displays.workArea(targetDisplay).insetBy(
+                  dx: CGFloat(settings.layout.gapOuter),
+                  dy: CGFloat(settings.layout.gapOuter),
+                )
+                var base = sessionTree
+                var persistedZoomSlots = [SlotID]()
+                if let snapshot = persistedSnapshot {
+                  base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
+                  persistedZoomSlots = snapshot.fullscreenZoomedSlots
+                }
+                let restoredLayout = base != nil
+                let merged = Self.mergeTree(
+                  existing: base,
+                  target: keys,
+                  focused: { outgoingFocusedWindow },
+                  insertionPoint: insertionPoint,
+                  workArea: workArea,
+                  settings: settings,
+                )
+                let axis = settings.layout.autoBalance
+                // No resident tree and no persisted template (or a template with
+                // zero matching windows) means the old shape is genuinely gone.
+                // Initialize from the same contract as explicit Balance:
+                // Auto-balance axes when enabled, canonical BSP when Off.
+                let tree =
+                  if restoredLayout {
+                    axis == .none ? merged : merged?.balanced(axis: axis)
+                  } else {
+                    merged?.balancedForCommand(
+                      autoBalance: axis,
+                      in: workArea,
+                      gap: CGFloat(settings.layout.gapInner),
+                      splitAxis: settings.layout.splitType.bspSplitAxis(),
+                    )
+                  }
+                let resolvedZoom: Set<WindowKey> = {
+                  if !zoomed.isEmpty { return zoomed }
+                  guard let tree else { return [] }
+                  return Self.resolveFullscreenZoom(
+                    slots: persistedZoomSlots,
+                    keys: keys,
+                    among: tree.windows,
+                  )
+                }()
+                let frames = Self.computeFrames(
+                  tree: tree,
+                  settings: settings,
+                  targetDisplay: targetDisplay,
+                  fullscreenZoomed: resolvedZoom,
+                )
+                let assignments = slotAssignment(keys)
+                let resolvedSlots = Set(resolvedZoom.compactMap { assignments[$0] })
+                let unresolvedZoomSlots =
+                  Set(persistedZoomSlots).subtracting(resolvedSlots)
+                return (tree, frames, resolvedZoom, unresolvedZoomSlots)
+              }
+              mark("layout")
+              // Cancellation can arrive while the main actor computes a large tree.
+              // Do not publish or persist a superseded workspace's layout snapshot.
+              guard !Task.isCancelled else { return }
+              await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
+              if persistedSnapshot != nil, zoomed.isEmpty {
+                await send(.persistedFullscreenZoomRestored(
+                  workspaceId: workspaceId,
+                  keys: restoredZoom,
+                  unresolvedSlots: unresolvedZoomSlots,
+                ))
+              }
+              guard !Task.isCancelled else { return }
+              if let tree {
+                let slots = slotAssignment(tree.windows)
+                await store.save(
+                  workspaceId,
+                  LayoutSnapshot(
+                    tree: tree.mapWindows { slots[$0]! },
+                    fullscreenZoomedSlots: Set(
+                      restoredZoom.compactMap { slots[$0] }
+                    )
+                    .union(unresolvedZoomSlots)
+                    .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) },
+                  ),
+                )
+              }
+              guard !Task.isCancelled else { return }
+              if !frames.isEmpty {
+                await tiler.apply(FrameApplication(windowFrames: frames))
+              }
+              mark("apply")
+              guard !Task.isCancelled else { return }
+              if !frames.isEmpty {
+                await send(
+                  .presentationLayoutApplied(
+                    keys: Set(frames.keys),
+                    preservesPointer: false,
+                  )
+                )
+              }
+              // Show/hide + the first authoritative tile pass is the visible
+              // switch. Publish it now; floating overlays, markers, focus
+              // validation, and pointer warp are cancellable best-effort
+              // post-layout work and must not hold the activation gate.
+              coreCompletionSent = true
+              await send(.activationCompleted(
+                workspaceId: workspaceId,
+                display: targetDisplay,
+                generation: activationGeneration,
+              ))
+              guard !Task.isCancelled else { return }
+              // Mirror floating windows onto always-on-top panels (the Topit /
+              // Floaty technique): a foreign window's level can't be raised without
+              // SIP, so instead of trying we paint a live mirror above the tiles.
+              // Passing the resolved set (possibly empty) also tears down mirrors
+              // for apps that were just un-floated or belong to another workspace.
+              // Same cache-first, per-bundle worker discovery as the tile pass
+              // above.
+              var floatingDiscovered = Set<WindowKey>()
+              for bundleId in presentationFloatingBundleIds {
+                guard !Task.isCancelled else { return }
+                floatingDiscovered.formUnion(
+                  await snapshot.cachedKeysOffMain([bundleId], false)
+                )
+              }
+              let floatingKeys = floatingDiscovered
+              mark("float")
+              guard !Task.isCancelled else { return }
+              await overlay.setFloating(floatingKeys)
+              guard !Task.isCancelled else { return }
+              // Markers ride the same discovery, but reducer state owns their
+              // categories. Re-derive after `activationCompleted` publishes the
+              // target workspace and cancel any composition-era marker refresh.
+              await send(.activationMarkerKeysResolved(Array(floatingKeys)))
+              guard !Task.isCancelled else { return }
+              if warpMouse {
+                var fallbackFrames = [WindowKey: CGRect]()
+                let liveWindowServerFrames = snapshot.onScreenWindowFrames()
+                if let mruWindow, frames[mruWindow] == nil {
+                  if let frame = liveWindowServerFrames[mruWindow.windowID] {
+                    fallbackFrames[mruWindow] = frame
+                  } else if let frame = await snapshot.windowFrameOffMain(mruWindow) {
+                    fallbackFrames[mruWindow] = frame
+                  }
                 }
                 guard !Task.isCancelled else { return }
-                mouse.warp(center)
+                // Read focus after the potentially blocking MRU geometry lookup,
+                // so a user focus change during that IPC cannot leave a stale
+                // "still focused" proof for the eventual pointer warp.
+                var liveFocused = await snapshot.focusedWindowKeyOffMain()
+                guard !Task.isCancelled else { return }
+                if
+                  let candidateFocus = liveFocused,
+                  frames[candidateFocus] == nil,
+                  fallbackFrames[candidateFocus] == nil
+                {
+                  if let frame = liveWindowServerFrames[candidateFocus.windowID] {
+                    fallbackFrames[candidateFocus] = frame
+                  } else {
+                    let frame = await snapshot.windowFrameOffMain(candidateFocus)
+                    guard !Task.isCancelled else { return }
+                    // Geometry is another suspension point. Validate focus again
+                    // and accept that frame only if the same window still owns it.
+                    let verifiedFocused = await snapshot.focusedWindowKeyOffMain()
+                    guard !Task.isCancelled else { return }
+                    if verifiedFocused == candidateFocus, let frame {
+                      fallbackFrames[candidateFocus] = frame
+                    }
+                    liveFocused = verifiedFocused
+                  }
+                }
+                guard !Task.isCancelled else { return }
+                let warp: (key: WindowKey, rect: CGRect, live: WindowKey?)? = {
+                  // Warp to the window this activation deliberately focused (the MRU
+                  // target), not a live `focusedWindowKey()` read. That read races
+                  // the async app activation and can return a *different* frontmost
+                  // window (e.g. Siri keeping front while ChatGPT is the target),
+                  // sending the cursor to the wrong tile, where focus-follows-mouse
+                  // then grabs focus to it. Fall back to the live read only when this
+                  // workspace has no MRU target (a pinned-app or empty workspace).
+                  let live = liveFocused
+                  // Unless focus arrived on its own: then the raised window is
+                  // the answer and the MRU pick is a guess about it.
+                  if
+                    prefersLiveFocusTarget,
+                    let live,
+                    live.bundleId == expectedFocusBundleId,
+                    let rect = frames[live] ?? fallbackFrames[live]
+                  {
+                    return (live, rect, live)
+                  }
+                  if
+                    let mruWindow,
+                    let rect = frames[mruWindow] ?? fallbackFrames[mruWindow]
+                  {
+                    return (mruWindow, rect, live)
+                  }
+                  // A stale MRU id is allowed to fall back to the app's live main
+                  // window (the focus manager does the same). Gate by the expected
+                  // bundle so a lagging frontmost read can never warp into the
+                  // outgoing workspace. AX geometry also lets MFF follow an owned
+                  // floating/unmanaged restore target, which has no tiled frame.
+                  guard
+                    let live,
+                    live.bundleId == expectedFocusBundleId,
+                    let rect = frames[live] ?? fallbackFrames[live]
+                  else { return nil }
+                  return (live, rect, live)
+                }()
+                guard !Task.isCancelled else { return }
+                if let warp {
+                  let center = CGPoint(x: warp.rect.midX, y: warp.rect.midY)
+                  debugLog.log(
+                    "Warp",
+                    "activate target=\(warp.key.bundleId)#\(warp.key.windowID) "
+                      + "live=\(warp.live.map { "\($0.bundleId)#\($0.windowID)" } ?? "nil") "
+                      + "→ (\(Int(center.x)),\(Int(center.y)))",
+                  )
+                  // The deliberate activation focus can be stolen mid-switch. An app
+                  // like Siri grabs frontmost as it unhides, leaving the keyboard
+                  // focus on the wrong tile while the cursor warps to the intended
+                  // one, so directional focus then anchors on the wrong window. When
+                  // the live frontmost differs from the window we're warping to,
+                  // re-assert the intended focus now that the layout has settled.
+                  if warp.live != warp.key {
+                    await focus.focusWindow(warp.key)
+                  }
+                  guard !Task.isCancelled else { return }
+                  mouse.warp(center)
+                }
               }
             }
+            debugLog.log(
+              "Activate",
+              "phases " + phases.map { "\($0.0)=\(ms($0.1))ms" }.joined(separator: " "),
+            )
+            if !coreCompletionSent {
+              await send(.activationCompleted(
+                workspaceId: workspaceId,
+                display: targetDisplay,
+                generation: activationGeneration,
+              ))
+            }
+            // Take down blocks borrowed into a display this host just left. Runs
+            // after the tile pass so the host's own windows already count as
+            // living on their new display and aren't hidden along with them.
+            for stranded in strandedBorrows {
+              await mgr.returnBorrowed(stranded.bundleIds, stranded.display)
+            }
+            // The tail survived to the end. Only now is it safe for a queued
+            // display restore to start its own activation, which would cancel
+            // this effect. A cancelled tail never gets here, but cancellation
+            // only happens when another activation is already taking over.
+            await send(.activationTailFinished(generation: activationGeneration))
           }
-          debugLog.log(
-            "Activate",
-            "phases " + phases.map { "\($0.0)=\(ms($0.1))ms" }.joined(separator: " "),
-          )
-          if !coreCompletionSent {
-            await send(.activationCompleted(workspaceId: workspaceId, display: targetDisplay))
-          }
-          // Take down blocks borrowed into a display this host just left. Runs
-          // after the tile pass so the host's own windows already count as
-          // living on their new display and aren't hidden along with them.
-          for stranded in strandedBorrows {
-            await mgr.returnBorrowed(stranded.bundleIds, stranded.display)
-          }
-          // The tail survived to the end. Only now is it safe for a queued
-          // display restore to start its own activation, which would cancel
-          // this effect. A cancelled tail never gets here, but cancellation
-          // only happens when another activation is already taking over.
-          await send(.activationTailFinished)
-        }
-        .cancellable(id: CancelID.activation, cancelInFlight: true),
+          .cancellable(id: CancelID.activation, cancelInFlight: true),
+        ),
       ),
     )
+  }
+
+  func supersedePendingCLIActivation(state: inout State) -> Effect<Action> {
+    guard let request = state.pendingCLIActivation else { return .none }
+    state.pendingCLIActivation = nil
+    state.pendingCLIActivationBinding = nil
+    return .run { _ in
+      request.complete("Activation was superseded by a newer user action")
+    }
   }
 
   func cycle(by direction: Int, state: inout State) -> Effect<Action> {
@@ -1253,14 +1340,15 @@ extension WorkspaceActivationFeature {
         )
         return hf.merging(bf) { current, _ in current }
       }
-      // A Borrow's focus must not ride this writer's cancellation. Superseding
-      // layout writes are routine — a sync folding the borrowed window into the
-      // tree starts one — and they change where the block lands, not whether it
-      // gets focus. Dropping the notification here left the block summoned but
-      // unfocused, with the cursor still on the host. The reducer re-validates
-      // generation, pending completion and composition identity, so a genuinely
-      // stale one is rejected there rather than silently lost here.
-      @Sendable func publishBorrowPhase() async {
+      /// A Borrow's focus must not ride this writer's cancellation. Superseding
+      /// layout writes are routine. A sync folding the borrowed window into the
+      /// tree starts one, and they change where the block lands, not whether it
+      /// gets focus. Dropping the notification here left the block summoned but
+      /// unfocused, with the cursor still on the host. The reducer re-validates
+      /// generation, pending completion and composition identity, so a genuinely
+      /// stale one is rejected there rather than silently lost here.
+      @Sendable
+      func publishBorrowPhase() async {
         guard let phase = borrowPhaseCompletion else { return }
         await send(
           .borrowCompositionLayoutCompleted(

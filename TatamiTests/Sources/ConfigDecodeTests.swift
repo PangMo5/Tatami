@@ -46,7 +46,52 @@ struct ConfigDecodeTests {
     #expect(config.settings.switching.recentAcrossDisplays)
     #expect(config.settings.switching.toggleBorrowOnRepeat)
     #expect(config.settings.hud.windowCycle)
+    #expect(config.hooks.isEmpty)
     #expect(reported.value == 0)
+  }
+
+  @Test
+  func hooksDecodeWithDefaultsAndRoundTrip() throws {
+    let toml = """
+    [[hooks]]
+    id = "notify"
+    event = "workspaceActivated"
+    command = ["/usr/bin/true"]
+
+    [[hooks]]
+    id = "profile-log"
+    event = "profileChanged"
+    enabled = false
+    command = ["/bin/zsh", "-c", "print changed"]
+    timeoutMs = 1234
+    workingDirectory = "~/Documents"
+    environment = { MODE = "test" }
+    """
+
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+
+    #expect(decoded.hooks.count == 2)
+    #expect(decoded.hooks[0].enabled)
+    #expect(decoded.hooks[0].timeoutMs == 5_000)
+    #expect(decoded.hooks[1].environment == ["MODE": "test"])
+
+    let encoder = TOMLEncoder()
+    let encoded = try encoder.encode(decoded)
+    #expect(try TOMLDecoder().decode(AppConfig.self, from: encoded).hooks == decoded.hooks)
+  }
+
+  @Test
+  func unknownHookEventFailsTheWholeConfigDecode() {
+    let toml = """
+    [[hooks]]
+    id = "unknown"
+    event = "windowFocused"
+    command = ["/usr/bin/true"]
+    """
+
+    #expect(throws: (any Error).self) {
+      try TOMLDecoder().decode(AppConfig.self, from: toml)
+    }
   }
 
   @Test

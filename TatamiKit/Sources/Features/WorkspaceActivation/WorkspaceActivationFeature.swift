@@ -24,6 +24,42 @@ public struct WorkspaceActivationFeature {
 
   // MARK: Public
 
+  public struct CLIActivationRequest: Equatable, Sendable {
+
+    // MARK: Lifecycle
+
+    public init(
+      id: UUID = UUID(),
+      target: Target,
+      complete: @escaping @Sendable (_ error: String?) -> Void,
+    ) {
+      self.id = id
+      self.target = target
+      self.complete = complete
+    }
+
+    // MARK: Public
+
+    public enum Target: Equatable, Sendable {
+      case profile(Profile.ID)
+      case workspace(Workspace.ID)
+    }
+
+    public let id: UUID
+    public let target: Target
+    public let complete: @Sendable (_ error: String?) -> Void
+
+    public static func ==(lhs: Self, rhs: Self) -> Bool {
+      lhs.id == rhs.id && lhs.target == rhs.target
+    }
+
+  }
+
+  public struct CLIActivationBinding: Equatable, Sendable {
+    public let requestID: UUID
+    public let activationGeneration: UInt64
+  }
+
   @ObservableState
   public struct State: Equatable {
 
@@ -108,7 +144,7 @@ public struct WorkspaceActivationFeature {
       case systemSleep
     }
 
-    @Shared(.tatamiConfig) public var config = AppConfig()
+    @Shared(.tatamiConfig) public var config
     public var activeWorkspacesByDisplay = [DisplayName: Workspace.ID]()
     /// Per-display "most recent" workspace, for switch-to-recent on the
     /// display the user is currently on (multi-monitor aware).
@@ -141,6 +177,12 @@ public struct WorkspaceActivationFeature {
     /// authoritative interaction context.
     public var focusedDisplay: DisplayName?
     public var isActivating = false
+    public var activationGeneration: UInt64 = 0
+    public var activeActivationGeneration: UInt64?
+    /// CLI activation replies are completed only after the activation tail (and
+    /// every profile display restore) finishes.
+    public var pendingCLIActivation: CLIActivationRequest?
+    public var pendingCLIActivationBinding: CLIActivationBinding?
     /// A work-area change that arrived during activation. The activation owns
     /// its target display's writer, so the global reflow is committed once that
     /// transaction completes instead of polling or racing it.
@@ -641,10 +683,14 @@ public struct WorkspaceActivationFeature {
     /// targets a specific workspace lands on it after the per-display retile,
     /// with no race against the restore cascade.
     case reactivateActiveProfile(focus: Workspace.ID?)
+    case trackCLIActivation(CLIActivationRequest, joinCurrentActivation: Bool)
+    case failCLIActivation(requestID: UUID, error: String)
     /// Startup permission gate: prompt for any missing permission, surfacing
     /// Accessibility + Screen Recording together when both are absent.
     case surfaceMissingPermissions
     case activate(workspaceId: Workspace.ID, setFocus: Bool)
+    case activateFromCLI(workspaceId: Workspace.ID, requestID: UUID)
+    case cliActivationEffectFinished(workspaceId: Workspace.ID, requestID: UUID)
     case activateNext
     case activatePrevious
     case activateRecent
@@ -872,18 +918,22 @@ public struct WorkspaceActivationFeature {
     /// landing on a workspace with two windows of that app otherwise gives no
     /// clue which one was raised.
     case activateFollowingAppFocus(workspaceId: Workspace.ID)
-    case activationCompleted(workspaceId: Workspace.ID, display: DisplayName?)
+    case activationCompleted(
+      workspaceId: Workspace.ID,
+      display: DisplayName?,
+      generation: UInt64,
+    )
     /// The whole activation effect ran out, post-layout tail included.
     /// `activationCompleted` fires early — as soon as the *visible* switch is
     /// published — so anything that starts another activation must wait for
     /// this instead, or it cancels the tail (floating mirrors, markers, the
     /// pointer warp) of the activation that just completed.
-    case activationTailFinished
+    case activationTailFinished(generation: UInt64)
     /// `performActivate` did not report completion within the watchdog
     /// window — release the `isActivating` gate so one wedged activation
     /// (an app stuck past every AX timeout) can't refuse all future
     /// activations and syncs for the rest of the session.
-    case activationTimedOut
+    case activationTimedOut(generation: UInt64)
     /// Bubbled to AppFeature, which owns the profile-switch side effects
     /// (hotkey rebind, session-store save, HUD) the activation feature can't do.
     case delegate(Delegate)
@@ -896,7 +946,7 @@ public struct WorkspaceActivationFeature {
       case profileSwitchRequested(Profile.ID, focus: Workspace.ID?)
       /// A display rule matched and this feature already retiled for it —
       /// AppFeature runs the remaining switch side effects.
-      case profileAutoActivated(Profile.ID)
+      case profileAutoActivated(previous: Profile.ID?, current: Profile.ID)
       /// Startup rejected a missing or condition-mismatched last profile and
       /// resolved another one. AppFeature persists the corrected session id.
       case startupProfileResolved(Profile.ID)
@@ -1070,7 +1120,10 @@ public struct WorkspaceActivationFeature {
           restoreActive = [:]
           restoreNewlyConnected = connected
           didAutoSwitch = true
-          autoSwitch = .send(.delegate(.profileAutoActivated(matched)))
+          autoSwitch = .send(.delegate(.profileAutoActivated(
+            previous: currentActiveProfile,
+            current: matched,
+          )))
           debugLog.log(
             "Profile",
             "auto-activate \(state.config.activeProfile?.name ?? "?") for \(names.map(\.name))",
@@ -1954,17 +2007,69 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         return .send(.delegate(.startupProfileResolved(startupProfileId)))
 
+      case .trackCLIActivation(let request, let joinCurrentActivation):
+        let previous = state.pendingCLIActivation
+        state.pendingCLIActivation = request
+        state.pendingCLIActivationBinding =
+          if
+            joinCurrentActivation,
+            let generation = state.activeActivationGeneration
+          {
+            CLIActivationBinding(
+              requestID: request.id,
+              activationGeneration: generation,
+            )
+          } else {
+            nil
+          }
+        guard let previous else { return .none }
+        return .run { _ in
+          previous.complete("Activation was superseded by a newer CLI command")
+        }
+
+      case .failCLIActivation(let requestID, let error):
+        guard state.pendingCLIActivation?.id == requestID else { return .none }
+        return completeCLIActivation(error: error, state: &state)
+
       case .reactivateActiveProfile(let focus):
-        guard let profile = state.config.activeProfile else { return .none }
+        // A profile switch is authoritative over every workspace activation
+        // from the outgoing profile, even when the new profile has no normal
+        // workspace to start a replacement generation. Invalidate reducer
+        // state synchronously so an already-enqueued completion is stale, and
+        // cancel both effects before starting the new restore cascade.
+        state.isActivating = false
+        state.activatingWorkspaceID = nil
+        state.activeActivationGeneration = nil
+        state.activeWorkspacesByDisplay = [:]
+        state.pendingDisplayRestores = []
+        state.focusWorkspaceOnRestore = nil
+        let cancelOutgoingActivation = Effect<Action>.merge(
+          .cancel(id: CancelID.activation),
+          .cancel(id: CancelID.activationWatchdog),
+        )
+        guard let profile = state.config.activeProfile else {
+          return .concatenate(
+            cancelOutgoingActivation,
+            completeCLIActivation(
+              error: "The requested profile no longer exists",
+              state: &state,
+            ),
+          )
+        }
         let connected = displays.all()
-        guard !connected.isEmpty else { return .send(.activateInitial) }
+        guard !connected.isEmpty else {
+          return .concatenate(
+            cancelOutgoingActivation,
+            .merge(
+              .send(.activateInitial),
+              completeCLIActivationIfSettled(state: &state),
+            ),
+          )
+        }
         // The prior per-display assignments point at the *old* profile's
         // workspace ids (independent per profile), so start fresh and re-fill
         // every display from the new profile — its pinned workspaces land on
         // their monitors, dynamics fill the rest (reuses the reconnect planner).
-        state.activeWorkspacesByDisplay = [:]
-        state.pendingDisplayRestores = []
-        state.focusWorkspaceOnRestore = nil
         var plan = Self.planDisplayRestore(
           connected: connected,
           newlyConnected: Set(connected),
@@ -1997,8 +2102,13 @@ public struct WorkspaceActivationFeature {
         // Empty profile (nothing pinnable) → nothing to tile. Still honor an
         // explicit focus target so the Activate button isn't a no-op.
         guard !plan.isEmpty else {
-          if let focus { return .send(.activate(workspaceId: focus, setFocus: true)) }
-          return .none
+          let completion =
+            if let focus {
+              Effect<Action>.send(.activate(workspaceId: focus, setFocus: true))
+            } else {
+              completeCLIActivationIfSettled(state: &state)
+            }
+          return .concatenate(cancelOutgoingActivation, completion)
         }
         state.pendingDisplayRestores = plan
         let hudEffect = profileSwitchHUDs(
@@ -2007,7 +2117,10 @@ public struct WorkspaceActivationFeature {
           show: state.config.settings.hud.shows(\.profileSwitch),
           durationMs: state.config.settings.hud.durationMs,
         )
-        return .merge(hudEffect, .send(.processDisplayRestores))
+        return .concatenate(
+          cancelOutgoingActivation,
+          .merge(hudEffect, .send(.processDisplayRestores)),
+        )
 
       case .delegate:
         return .none
@@ -2115,44 +2228,32 @@ public struct WorkspaceActivationFeature {
         }
 
       case .activate(let workspaceId, let setFocus):
-        // A deliberate switch supersedes any in-flight reconnect restore cascade
-        // — the user's action wins over the display-restore queue.
-        state.pendingDisplayRestores = []
-        // An already-active host that activation would leave exactly where it
-        // is does not need activation: it is a display focus transfer.
-        // Re-activating it would deliberately tear down that display's Borrow
-        // composition, returning a borrowed workspace merely because the user
-        // visited another monitor and came back. Borrow dismissal remains
-        // explicit through `.dismissBorrow`.
-        //
-        // The comparison against `deliberateActivationDisplay` is what keeps a
-        // dynamic workspace dynamic: it is already visible on *some* monitor
-        // almost always, so shortcutting on visibility alone pinned it to
-        // whichever monitor it last landed on and "follows mouse" stopped
-        // moving anything.
-        if
-          setFocus,
-          let display = state.activeWorkspacesByDisplay.first(where: {
-            $0.value == workspaceId
-          })?.key,
-          let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
-          deliberateActivationDisplay(for: workspace, state: state)?.matches(display) ?? true,
-          // Nothing to focus means the transfer would swallow the switch
-          // whole: no app activation, no hide pass, no HUD. Fall through to a
-          // real activation, which is what raises the workspace back up.
-          visibleFocusTarget(workspaceId, state: state) != nil
-        {
-          return focusVisibleWorkspace(
-            workspaceId: workspaceId,
-            display: display,
-            state: &state,
-          )
-        }
-        return performActivate(
+        return deliberateActivation(
           workspaceId: workspaceId,
           setFocus: setFocus,
           state: &state,
         )
+
+      case .activateFromCLI(let workspaceId, let requestID):
+        return .concatenate(
+          deliberateActivation(
+            workspaceId: workspaceId,
+            setFocus: true,
+            continuesCLIActivation: true,
+            state: &state,
+          ),
+          .send(.cliActivationEffectFinished(
+            workspaceId: workspaceId,
+            requestID: requestID,
+          )),
+        )
+
+      case .cliActivationEffectFinished(let workspaceId, let requestID):
+        guard
+          state.pendingCLIActivation?.id == requestID,
+          state.pendingCLIActivation?.target == .workspace(workspaceId)
+        else { return .none }
+        return completeCLIActivationIfSettled(state: &state)
 
       case .activateFollowingAppFocus(let workspaceId):
         // A deliberate user action, so it outranks any queued display restore
@@ -2170,6 +2271,29 @@ public struct WorkspaceActivationFeature {
         // focus so the profile switch lands on the clicked workspace.
         let takesFocus = state.focusWorkspaceOnRestore == workspaceId
         if takesFocus { state.focusWorkspaceOnRestore = nil }
+        guard state.config.activeProfile?.workspaces[id: workspaceId] != nil else {
+          let completion: Effect<Action>
+          if let request = state.pendingCLIActivation {
+            let error =
+              switch request.target {
+              case .profile(let id) where !state.config.profiles.contains(where: { $0.id == id }):
+                "The requested profile no longer exists"
+
+              case .workspace(let id) where state.config.profileId(owning: id) == nil:
+                "The requested workspace no longer exists"
+
+              default:
+                "Configuration changed while activation was in progress"
+              }
+            completion = completeCLIActivation(error: error, state: &state)
+          } else {
+            completion = .none
+          }
+          let drain = state.pendingDisplayRestores.isEmpty
+            ? Effect<Action>.none
+            : .send(.processDisplayRestores)
+          return .concatenate(completion, drain)
+        }
         return performActivate(
           workspaceId: workspaceId,
           setFocus: takesFocus,
@@ -2177,6 +2301,7 @@ public struct WorkspaceActivationFeature {
           // The profile-switch HUD already announces this workspace as its
           // subtitle; don't let the focused restore raise a second HUD over it.
           suppressSwitchHUD: takesFocus,
+          continuesCLIActivation: true,
           state: &state,
         )
 
@@ -2447,10 +2572,13 @@ public struct WorkspaceActivationFeature {
         // dynamic workspace through the cursor and return its borrowed block.
         state.pendingDisplayRestores = []
         if let display = state.displayShowing(recent) {
-          return focusVisibleWorkspace(
-            workspaceId: recent,
-            display: display,
-            state: &state,
+          return .merge(
+            supersedePendingCLIActivation(state: &state),
+            focusVisibleWorkspace(
+              workspaceId: recent,
+              display: display,
+              state: &state,
+            ),
           )
         }
         return performActivate(
@@ -3109,7 +3237,8 @@ public struct WorkspaceActivationFeature {
           trailing,
         )
 
-      case .activationCompleted(let id, let display):
+      case .activationCompleted(let id, let display, let generation):
+        guard state.activeActivationGeneration == generation else { return .none }
         state.isActivating = false
         state.activatingWorkspaceID = nil
         let reflowDisplayGeometry = state.pendingDisplayGeometryReflow
@@ -3241,17 +3370,32 @@ public struct WorkspaceActivationFeature {
             ),
         )
 
-      case .activationTailFinished:
+      case .activationTailFinished(let generation):
+        guard state.activeActivationGeneration == generation else { return .none }
+        state.activeActivationGeneration = nil
         // Drain the display-restore queue: the activation effect is fully
         // done, so the next display's restore can take the slot without
         // cancelling anyone's post-layout work.
-        guard !state.pendingDisplayRestores.isEmpty else { return .none }
+        guard !state.pendingDisplayRestores.isEmpty else {
+          guard
+            let request = state.pendingCLIActivation,
+            state.pendingCLIActivationBinding == CLIActivationBinding(
+              requestID: request.id,
+              activationGeneration: generation,
+            )
+          else { return .none }
+          return completeCLIActivationIfSettled(state: &state)
+        }
         return .send(.processDisplayRestores)
 
-      case .activationTimedOut:
-        guard state.isActivating else { return .none }
+      case .activationTimedOut(let generation):
+        guard
+          state.isActivating,
+          state.activeActivationGeneration == generation
+        else { return .none }
         state.isActivating = false
         state.activatingWorkspaceID = nil
+        state.activeActivationGeneration = nil
         let reflowDisplayGeometry = state.pendingDisplayGeometryReflow
         state.pendingDisplayGeometryReflow = false
         let pendingWindowSyncBundleIds = state.pendingWindowSyncBundleIds
@@ -3270,6 +3414,7 @@ public struct WorkspaceActivationFeature {
           // The cancelled effect will never report its tail, so drain the
           // restore queue here or a wedged activation strands it for good.
           state.pendingDisplayRestores.isEmpty ? .none : .send(.processDisplayRestores),
+          completeCLIActivation(error: "Workspace activation timed out", state: &state),
         )
       }
     }
@@ -3931,6 +4076,46 @@ public struct WorkspaceActivationFeature {
         cycle.display,
       )
     }
+  }
+
+  private func completeCLIActivation(
+    error: String?,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard let request = state.pendingCLIActivation else { return .none }
+    state.pendingCLIActivation = nil
+    state.pendingCLIActivationBinding = nil
+    return .run { _ in request.complete(error) }
+  }
+
+  private func completeCLIActivationIfSettled(state: inout State) -> Effect<Action> {
+    guard
+      let request = state.pendingCLIActivation,
+      !state.isActivating,
+      state.pendingDisplayRestores.isEmpty
+    else { return .none }
+
+    let error: String? =
+      switch request.target {
+      case .profile(let id):
+        if !state.config.profiles.contains(where: { $0.id == id }) {
+          "The requested profile no longer exists"
+        } else if state.config.activeProfile?.id == id {
+          nil
+        } else {
+          "Profile activation completed on a different profile"
+        }
+
+      case .workspace(let id):
+        if state.config.profileId(owning: id) == nil {
+          "The requested workspace no longer exists"
+        } else if state.activeWorkspacesByDisplay.values.contains(id) {
+          nil
+        } else {
+          "Workspace activation finished without making the workspace active"
+        }
+      }
+    return completeCLIActivation(error: error, state: &state)
   }
 
   private func windowSwitcherIndicators(

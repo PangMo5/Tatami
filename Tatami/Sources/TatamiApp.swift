@@ -2,20 +2,26 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import ComposableArchitecture
+import Darwin
 import SwiftUI
 import TatamiKit
 
+// MARK: - TatamiApp
+
 @main
 struct TatamiApp: App {
+
+  // MARK: Lifecycle
+
   init() {
+    Self.applyProcessPathOverrides()
     try? ConfigLocation.ensureDirectoryExists()
+    _appStore = State(initialValue: Store(initialState: AppFeature.State()) {
+      AppFeature()
+    })
   }
 
-  @State private var appStore = Store(initialState: AppFeature.State()) {
-    AppFeature()
-  }
-
-  @State private var windowActivation = WindowActivationCoordinator()
+  // MARK: Internal
 
   var body: some Scene {
     Window("Tatami", id: "main") {
@@ -47,16 +53,45 @@ struct TatamiApp: App {
     }
     .menuBarExtraStyle(.menu)
   }
+
+  // MARK: Private
+
+  @State private var appStore: StoreOf<AppFeature>
+
+  @State private var windowActivation = WindowActivationCoordinator()
+
+  /// Development-only launch isolation used by side-by-side builds. Applying
+  /// these before `AppFeature.State` is constructed keeps both the config and
+  /// CLI socket away from an installed Tatami instance.
+  private static func applyProcessPathOverrides() {
+    let arguments = CommandLine.arguments
+    for (flag, environmentKey) in [
+      ("--tatami-config-home", "XDG_CONFIG_HOME"),
+      ("--tatami-socket-path", "TATAMI_SOCKET_PATH"),
+    ] {
+      guard
+        let index = arguments.firstIndex(of: flag),
+        arguments.indices.contains(index + 1),
+        arguments[index + 1].hasPrefix("/")
+      else { continue }
+      setenv(environmentKey, arguments[index + 1], 1)
+    }
+  }
+
 }
+
+// MARK: - WindowActivationCoordinator
 
 @MainActor
 private final class WindowActivationCoordinator {
-  private var visibleWindowIDs = Set<String>()
-  private var menuBarActivity: NSObjectProtocol?
+
+  // MARK: Lifecycle
 
   init() {
     beginMenuBarActivity()
   }
+
+  // MARK: Internal
 
   func appeared(_ id: String) {
     visibleWindowIDs.insert(id)
@@ -73,6 +108,11 @@ private final class WindowActivationCoordinator {
     }
   }
 
+  // MARK: Private
+
+  private var visibleWindowIDs = Set<String>()
+  private var menuBarActivity: NSObjectProtocol?
+
   /// An LSUIElement app with no visible window is otherwise a strong App Nap
   /// candidate. Tatami is still an interactive window manager in that state:
   /// global hotkeys and gestures are user-requested work that must begin
@@ -82,7 +122,7 @@ private final class WindowActivationCoordinator {
     guard menuBarActivity == nil else { return }
     menuBarActivity = ProcessInfo.processInfo.beginActivity(
       options: .userInitiatedAllowingIdleSystemSleep,
-      reason: "Tatami is waiting for interactive window-management commands"
+      reason: "Tatami is waiting for interactive window-management commands",
     )
   }
 
@@ -91,7 +131,10 @@ private final class WindowActivationCoordinator {
     ProcessInfo.processInfo.endActivity(menuBarActivity)
     self.menuBarActivity = nil
   }
+
 }
+
+// MARK: - RegularWhileOpen
 
 private struct RegularWhileOpen: ViewModifier {
   let id: String
@@ -107,17 +150,17 @@ private struct RegularWhileOpen: ViewModifier {
 extension View {
   fileprivate func regularWhileOpen(
     id: String,
-    coordinator: WindowActivationCoordinator
+    coordinator: WindowActivationCoordinator,
   ) -> some View {
     modifier(RegularWhileOpen(id: id, coordinator: coordinator))
   }
 }
 
+// MARK: - OpenSettingsButton
+
 /// Opens the main window. A dedicated view so it can read the `openWindow`
 /// environment action from inside `.commands`.
 private struct OpenSettingsButton: View {
-  @Environment(\.openWindow) private var openWindow
-
   var body: some View {
     Button("Settings…") {
       openWindow(id: "main")
@@ -125,4 +168,6 @@ private struct OpenSettingsButton: View {
     }
     .keyboardShortcut(",", modifiers: .command)
   }
+
+  @Environment(\.openWindow) private var openWindow
 }

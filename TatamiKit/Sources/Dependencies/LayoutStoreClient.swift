@@ -18,6 +18,11 @@ struct LayoutStoreClient: Sendable {
   var save: @Sendable (UUID, LayoutSnapshot) async -> Void
   var load: @Sendable (UUID) async -> LayoutSnapshot?
   var clear: @Sendable (UUID) async -> Void
+  /// Copy zero or more workspace snapshots with one atomic map write. A source
+  /// without a saved snapshot is a successful no-op for that pair.
+  var copyLayouts: @Sendable ([UUID: UUID]) async -> Bool = { _ in false }
+  /// Remove multiple snapshots with one atomic map write.
+  var removeLayouts: @Sendable ([UUID]) async -> Bool = { _ in false }
 }
 
 /// On-disk shape of one workspace's tiling memory. Stores the BSP layout keyed
@@ -131,6 +136,8 @@ extension LayoutStoreClient: DependencyKey {
       save: { id, snapshot in await store.save(workspaceId: id, snapshot: snapshot) },
       load: { id in await store.load(workspaceId: id) },
       clear: { id in await store.clear(workspaceId: id) },
+      copyLayouts: { mapping in await store.copyLayouts(mapping) },
+      removeLayouts: { ids in await store.removeLayouts(ids) },
     )
   }()
 
@@ -138,6 +145,8 @@ extension LayoutStoreClient: DependencyKey {
     save: { _, _ in },
     load: { _ in nil },
     clear: { _ in },
+    copyLayouts: { _ in true },
+    removeLayouts: { _ in true },
   )
   static let previewValue = testValue
 }
@@ -170,8 +179,8 @@ private actor LayoutStore {
     var map = loadedMap()
     guard map[workspaceId.uuidString] != snapshot else { return }
     map[workspaceId.uuidString] = snapshot
+    guard writeMap(map) else { return }
     cachedMap = map
-    writeMap(map)
   }
 
   func load(workspaceId: UUID) -> LayoutSnapshot? {
@@ -179,10 +188,33 @@ private actor LayoutStore {
   }
 
   func clear(workspaceId: UUID) {
+    _ = removeLayouts([workspaceId])
+  }
+
+  func removeLayouts(_ workspaceIDs: [UUID]) -> Bool {
     var map = loadedMap()
-    guard map.removeValue(forKey: workspaceId.uuidString) != nil else { return }
+    var changed = false
+    for id in workspaceIDs {
+      changed = map.removeValue(forKey: id.uuidString) != nil || changed
+    }
+    guard changed else { return true }
+    guard writeMap(map) else { return false }
     cachedMap = map
-    writeMap(map)
+    return true
+  }
+
+  func copyLayouts(_ mapping: [UUID: UUID]) -> Bool {
+    let current = loadedMap()
+    var updated = current
+    for (source, destination) in mapping {
+      if let snapshot = current[source.uuidString] {
+        updated[destination.uuidString] = snapshot
+      }
+    }
+    guard updated != current else { return true }
+    guard writeMap(updated) else { return false }
+    cachedMap = updated
+    return true
   }
 
   private func loadedMap() -> [String: LayoutSnapshot] {
@@ -225,13 +257,14 @@ private actor LayoutStore {
     }
   }
 
-  private func writeMap(_ map: [String: LayoutSnapshot]) {
+  private func writeMap(_ map: [String: LayoutSnapshot]) -> Bool {
     @Dependency(\.errorReporter) var reporter
     do {
       try ConfigLocation.ensureDirectoryExists()
       let data = try YYJSONEncoder().encode(map)
       try data.write(to: fileURL, options: .atomic)
       reporter.resolve("Layouts")
+      return true
     } catch {
       logger.error("layout save failed: \(error.localizedDescription, privacy: .public)")
       reporter.report(
@@ -239,6 +272,7 @@ private actor LayoutStore {
         String(localized: "layouts.json could not be saved — layout changes won't persist"),
         ErrorReportClient.describe(error)
       )
+      return false
     }
   }
 }

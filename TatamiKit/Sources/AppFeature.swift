@@ -46,11 +46,12 @@ public struct AppFeature {
 
     // MARK: Public
 
-    @Shared(.tatamiConfig) public var config = AppConfig()
+    @Shared(.tatamiConfig) public var config
     public var workspaceList = WorkspaceListFeature.State()
     public var activation = WorkspaceActivationFeature.State()
     public var hotKeys = HotKeysFeature.State()
     public var cli = CLIServerFeature.State()
+    public var hooks = HooksFeature.State()
     public var onboarding = OnboardingFeature.State()
     /// The selected top-level tab. Driven by the TabView and set
     /// programmatically for deep-links (e.g. jump to a Settings pane).
@@ -69,11 +70,21 @@ public struct AppFeature {
     /// must run once per process: the subscriptions below consume
     /// process-singleton `AsyncStream`s that support a single consumer.
     var didStartUp = false
+    /// Records the process launch event even when no matching hook existed at
+    /// startup, so adding one later cannot replay an event from the past.
+    var didPublishTatamiLaunched = false
+    /// Startup hooks require both the restored profile and a terminal CLI
+    /// listener result. A failed listener still completes Tatami startup.
+    var didRestoreStartupProfile = false
+    var didCompleteCLIStart = false
 
   }
 
   public enum Action {
     case task
+    /// Startup profile reconciliation completed; publish its initial hook
+    /// context without widening WorkspaceActivationFeature's delegate contract.
+    case startupProfileRestored
     /// The top-level tab changed (TabView selection).
     case tabSelected(AppTab)
     /// The Settings view routed to `pendingSettingsSection`; clear it.
@@ -87,6 +98,7 @@ public struct AppFeature {
     case activation(WorkspaceActivationFeature.Action)
     case hotKeys(HotKeysFeature.Action)
     case cli(CLIServerFeature.Action)
+    case hooks(HooksFeature.Action)
     case onboarding(OnboardingFeature.Action)
     case checkForUpdatesTapped
     /// An internal failure was reported or resolved (ErrorReportClient).
@@ -97,8 +109,9 @@ public struct AppFeature {
     /// the focused one after the switch's per-display retile (used by the detail
     /// Activate button on a non-active profile's workspace).
     case activateProfile(Profile.ID, focus: Workspace.ID?)
-    /// Deep-copy a profile (fresh ids + copied layouts) right after it.
-    case duplicateProfile(Profile.ID)
+    /// Switch after deleting the active profile while retaining the outgoing
+    /// profile snapshot for the `profileChanged` hook payload.
+    case activateProfileAfterDeletion(Profile.ID, previousProfile: Profile)
   }
 
   public var body: some ReducerOf<Self> {
@@ -113,6 +126,9 @@ public struct AppFeature {
     }
     Scope(state: \.cli, action: \.cli) {
       CLIServerFeature()
+    }
+    Scope(state: \.hooks, action: \.hooks) {
+      HooksFeature()
     }
     Scope(state: \.onboarding, action: \.onboarding) {
       OnboardingFeature()
@@ -157,8 +173,8 @@ public struct AppFeature {
                 )
               )
             )
+            await send(.startupProfileRestored)
             await send(.hotKeys(.refreshBindings))
-            await send(.activation(.activateInitial))
           },
           .merge(
             .run { [whatsNew] _ in await whatsNew.showIfNeeded(hasExistingConfig) },
@@ -168,6 +184,7 @@ public struct AppFeature {
             ))),
             .send(.hotKeys(.onAppear)),
             .send(.cli(.start)),
+            .send(.hooks(.start)),
             .send(.activation(.startObservingWindowEvents)),
             .send(.activation(.startObservingAppLaunches)),
             .send(.settingsChanged(settings)),
@@ -349,42 +366,19 @@ public struct AppFeature {
         return .send(.onboarding(.demoBorrowChordKey(key)))
 
       case .activateProfile(let id, let focus):
-        guard
-          state.config.activeProfileId != id,
-          state.config.profiles.contains(where: { $0.id == id })
-        else {
-          // Already the active profile — just focus the requested workspace, if any.
-          if let focus { return .send(.activation(.activate(workspaceId: focus, setFocus: true))) }
-          return .none
-        }
-        state.$config.withLock { $0.activeProfileId = id }
-        // The sidebar (col 1) is independent of the active profile, so switching
-        // which profile runs no longer disturbs what's being viewed/edited.
-        return .merge(
-          // Bindings change with the active profile's workspaces; re-register.
-          .send(.hotKeys(.refreshBindings)),
-          // Retile every display for the new profile (all workspaces update). When
-          // `focus` is set, the plan ends on that workspace so it lands active.
-          // The per-display profile-switch HUD is shown from here (it knows the
-          // actual plan) so each monitor names the workspace that lands on it.
-          .send(.activation(.reactivateActiveProfile(focus: focus))),
-          .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
+        return activateProfileEffect(
+          id,
+          focus: focus,
+          previousProfile: nil,
+          state: &state,
         )
 
-      case .duplicateProfile(let id):
-        let remap = state.$config.withLock { $0.duplicateProfile(id) }
-        guard !remap.isEmpty else { return .none }
-        return .merge(
-          .send(.hotKeys(.refreshBindings)),
-          // Copy each source workspace's saved layout onto its fresh id so the
-          // clone opens looking identical (layouts are keyed by workspace id).
-          .run { [layoutStore] _ in
-            for (old, new) in remap {
-              if let snapshot = await layoutStore.load(old) {
-                await layoutStore.save(new, snapshot)
-              }
-            }
-          },
+      case .activateProfileAfterDeletion(let id, let previousProfile):
+        return activateProfileEffect(
+          id,
+          focus: nil,
+          previousProfile: previousProfile,
+          state: &state,
         )
 
       case .onboarding(.delegate(.applyRequested(let baseline, let draft, let activate))):
@@ -440,19 +434,97 @@ public struct AppFeature {
           await hotKeys.setRecording(recording)
         }
 
-      case .cli(.delegate(.activateRequested(let workspaceId))):
-        // The CLI drives the same activation pipeline as hotkeys.
-        return .send(.activation(.activate(workspaceId: workspaceId, setFocus: true)))
+      case .cli(.delegate(.activateProfileRequested(let profileId, let complete))):
+        guard state.config.profiles.contains(where: { $0.id == profileId }) else {
+          return .run { _ in complete("The requested profile no longer exists") }
+        }
+        let request = WorkspaceActivationFeature.CLIActivationRequest(
+          target: .profile(profileId),
+          complete: complete,
+        )
+        guard state.config.activeProfile?.id != profileId else {
+          if
+            state.activation.isActivating
+            || state.activation.activeActivationGeneration != nil
+            || !state.activation.pendingDisplayRestores.isEmpty
+          {
+            return .send(.activation(.trackCLIActivation(
+              request,
+              joinCurrentActivation: true,
+            )))
+          }
+          return .run { _ in complete(nil) }
+        }
+        return .concatenate(
+          .send(.activation(.trackCLIActivation(
+            request,
+            joinCurrentActivation: false,
+          ))),
+          .send(.activateProfile(profileId, focus: nil)),
+        )
+
+      case .cli(.delegate(.activateWorkspaceRequested(let workspaceId, let complete))):
+        // The CLI drives the same cross-profile activation pipeline as hotkeys.
+        guard let owner = state.config.profileId(owning: workspaceId) else {
+          return .run { _ in complete("The requested workspace no longer exists") }
+        }
+        let request = WorkspaceActivationFeature.CLIActivationRequest(
+          target: .workspace(workspaceId),
+          complete: complete,
+        )
+        let activation: Effect<Action> =
+          if owner != state.config.activeProfile?.id {
+            .send(.activateProfile(owner, focus: workspaceId))
+          } else {
+            .send(.activation(.activateFromCLI(
+              workspaceId: workspaceId,
+              requestID: request.id,
+            )))
+          }
+        return .concatenate(
+          .send(.activation(.trackCLIActivation(
+            request,
+            joinCurrentActivation: false,
+          ))),
+          activation,
+        )
+
+      case .cli(.delegate(.dispatchDomainCommandRequested(let action, let complete))):
+        if let error = actionAvailabilityError(action, config: state.config) {
+          return .run { _ in complete(error) }
+        }
+        // The CLI shares the exact dispatcher used by gestures and hotkeys.
+        // Its response is intentionally `accepted`: child reducers can still
+        // decide that changed live window/focus state leaves nothing to do.
+        return .concatenate(
+          route(action, config: state.config),
+          .run { _ in complete(nil) },
+        )
+
+      case .cli(.delegate(.configurationChanged)):
+        return .send(.hotKeys(.refreshBindings))
+
+      case .cli(.startCompleted):
+        state.didCompleteCLIStart = true
+        return publishStartupHooksIfReady(state: &state)
 
       case .workspaceList(.addWorkspaceFormSubmitted),
-           .workspaceList(.workspaceDeleteRequested),
+           .workspaceList(.alert(.presented(.confirmDeletion))),
            .workspaceList(.detail(.activateShortcutChanged)),
-           .workspaceList(.detail(.assignAppShortcutChanged)):
+           .workspaceList(.detail(.assignAppShortcutChanged)),
+           .workspaceList(.detail(.keyEquivalentChanged)),
+           .workspaceList(.detail(.borrowShortcutChanged)):
         return .send(.hotKeys(.refreshBindings))
 
       // Profile management (sidebar toolbar) routes its side-effecting ops here.
       case .workspaceList(.delegate(.activateProfile(let id))):
         return .send(.activateProfile(id, focus: nil))
+
+      case .workspaceList(.delegate(.activateProfileAfterDeletion(
+        let id,
+        previousProfile: let previousProfile,
+      ))):
+        return .send(.activateProfileAfterDeletion(id, previousProfile: previousProfile))
 
       case .workspaceList(.delegate(.profilesChanged)):
         return .send(.hotKeys(.refreshBindings))
@@ -462,20 +534,52 @@ public struct AppFeature {
       case .activation(.delegate(.profileSwitchRequested(let id, let focus))):
         return .send(.activateProfile(id, focus: focus))
 
-      case .activation(.delegate(.profileAutoActivated(let id))):
-        guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
+      case .activation(.delegate(.profileAutoActivated(let previousID, let id))):
+        guard let current = state.config.profiles.first(where: { $0.id == id }) else { return .none }
+        let previous = previousID.flatMap { previousID in
+          state.config.profiles.first(where: { $0.id == previousID })
+        }
         // The per-display HUD is shown from the activation reconfigure path
         // (it has the plan); here we just persist + rebind.
-        return .merge(
+        var effects: [Effect<Action>] = [
           .send(.hotKeys(.refreshBindings)),
           .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
-        )
+        ]
+        if state.config.hasEnabledHook(for: .profileChanged) {
+          effects.append(.send(.hooks(.emit(HookInvocation(
+            event: .profileChanged,
+            occurredAt: now,
+            profile: .init(current),
+            previousProfile: previous.map(HookInvocation.ProfileSnapshot.init),
+          )))))
+        }
+        return .merge(effects)
+
+      case .startupProfileRestored:
+        state.didRestoreStartupProfile = true
+        return publishStartupHooksIfReady(state: &state)
 
       case .activation(.delegate(.startupProfileResolved(let id))):
         guard state.config.profiles.contains(where: { $0.id == id }) else { return .none }
         return .run { [profileSessionStore] _ in
           await profileSessionStore.saveActiveProfileId(id)
         }
+
+      case .activation(.activationCompleted(let workspaceId, let display, let generation)):
+        guard
+          state.activation.activeActivationGeneration == generation,
+          state.config.hasEnabledHook(for: .workspaceActivated),
+          let profileID = state.config.profileId(owning: workspaceId),
+          let profile = state.config.profiles.first(where: { $0.id == profileID }),
+          let workspace = profile.workspaces[id: workspaceId]
+        else { return .none }
+        return .send(.hooks(.emit(HookInvocation(
+          event: .workspaceActivated,
+          occurredAt: now,
+          profile: .init(profile),
+          workspace: .init(workspace),
+          display: display.map(HookInvocation.DisplaySnapshot.init),
+        ))))
 
       case .workspaceList(.detail(.layoutChanged)):
         // Re-tile now if the edited workspace is the active one, so the window
@@ -486,15 +590,12 @@ public struct AppFeature {
         else { return .none }
         return .send(.activation(.activate(workspaceId: wsId, setFocus: false)))
 
-      case .workspaceList(.detail(.importWorkspace)):
-        // An import can change the key equivalent (rebind) and the app set
-        // (re-tile if it's the active workspace).
+      case .workspaceList(.detail(.delegate(.importApplied(let workspaceId)))):
+        // Only a successfully committed import delegates here. A rejected
+        // conflict/stale review must not rebind or re-tile unchanged state.
         var effects: [Effect<Action>] = [.send(.hotKeys(.refreshBindings))]
-        if
-          let wsId = state.workspaceList.detail?.workspaceId,
-          state.activation.activeWorkspacesByDisplay.values.contains(wsId)
-        {
-          effects.append(.send(.activation(.activate(workspaceId: wsId, setFocus: false))))
+        if state.activation.activeWorkspacesByDisplay.values.contains(workspaceId) {
+          effects.append(.send(.activation(.activate(workspaceId: workspaceId, setFocus: false))))
         }
         return .merge(effects)
 
@@ -572,15 +673,117 @@ public struct AppFeature {
   @Dependency(\.debugLog) var debugLog
   @Dependency(\.errorReporter) var errorReporter
   @Dependency(\.workspaceHUD) var workspaceHUD
-  @Dependency(\.layoutStore) var layoutStore
   @Dependency(\.hotKeys) var hotKeys
   @Dependency(\.profileSessionStore) var profileSessionStore
+  @Dependency(\.date.now) var now
 
   // MARK: Private
 
   /// Identifies the app-lifetime subscription bundle so a duplicate
   /// `.task` (defensive; see `didStartUp`) replaces rather than doubles it.
   private enum CancelID { case startupSubscriptions }
+
+  /// Publishes startup work only after profile restoration and the CLI
+  /// listener's terminal result. Launch precedes the initial `profileChanged`
+  /// publication and workspace activation. The CLI is available to the launch
+  /// hook only when that terminal result was successful.
+  private func publishStartupHooksIfReady(state: inout State) -> Effect<Action> {
+    guard
+      state.didRestoreStartupProfile,
+      state.didCompleteCLIStart,
+      !state.didPublishTatamiLaunched
+    else { return .none }
+    state.didPublishTatamiLaunched = true
+
+    // `AppConfig` always seeds at least one profile. Treat an empty profile
+    // list as a broken startup invariant and surface it instead of silently
+    // dropping the launch lifecycle event.
+    guard let profile = state.config.activeProfile else {
+      errorReporter.report(
+        "StartupHooks",
+        String(localized: "Hook configuration is invalid"),
+        "Tatami launch context has no active profile after startup restoration",
+      )
+      return .none
+    }
+
+    let launchEffect: Effect<Action> =
+      if state.config.hasEnabledHook(for: .tatamiLaunched) {
+        .send(.hooks(.emit(HookInvocation(
+          event: .tatamiLaunched,
+          occurredAt: now,
+          profile: .init(profile),
+        ))))
+      } else {
+        .none
+      }
+    let profileChangedEffect: Effect<Action> =
+      if state.config.hasEnabledHook(for: .profileChanged) {
+        .send(.hooks(.emit(HookInvocation(
+          event: .profileChanged,
+          occurredAt: now,
+          profile: .init(profile),
+        ))))
+      } else {
+        .none
+      }
+    return .concatenate(
+      launchEffect,
+      profileChangedEffect,
+      .send(.activation(.activateInitial)),
+    )
+  }
+
+  private func activateProfileEffect(
+    _ id: Profile.ID,
+    focus: Workspace.ID?,
+    previousProfile: Profile?,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard state.config.profiles.contains(where: { $0.id == id }) else {
+      guard
+        let request = state.activation.pendingCLIActivation,
+        request.target == .profile(id)
+      else { return .none }
+      return .send(.activation(.failCLIActivation(
+        requestID: request.id,
+        error: "The requested profile no longer exists",
+      )))
+    }
+    guard state.config.activeProfileId != id else {
+      // Already the active profile. Just focus the requested workspace, if any.
+      if let focus { return .send(.activation(.activate(workspaceId: focus, setFocus: true))) }
+      return .none
+    }
+    let outgoingProfile = previousProfile ?? state.config.activeProfile
+    state.$config.withLock { $0.activeProfileId = id }
+    let currentProfile = state.config.activeProfile
+    let hook: Effect<Action> =
+      if
+        state.config.hasEnabledHook(for: .profileChanged),
+        let currentProfile,
+        outgoingProfile?.id != currentProfile.id
+      {
+        .send(.hooks(.emit(HookInvocation(
+          event: .profileChanged,
+          occurredAt: now,
+          profile: .init(currentProfile),
+          previousProfile: outgoingProfile.map(HookInvocation.ProfileSnapshot.init),
+        ))))
+      } else {
+        .none
+      }
+    // The sidebar is independent of the active profile, so switching which
+    // profile runs does not disturb what is being viewed or edited.
+    return .merge(
+      .send(.hotKeys(.refreshBindings)),
+      // Retile every display for the new profile. When `focus` is set, the
+      // plan ends on that workspace so it lands active.
+      .send(.activation(.reactivateActiveProfile(focus: focus))),
+      .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
+      hook,
+    )
+  }
 
   private func route(
     _ action: HotKeyAction,
@@ -726,6 +929,30 @@ public struct AppFeature {
     }
   }
 
+  private func actionAvailabilityError(
+    _ action: HotKeyAction,
+    config: AppConfig,
+  ) -> String? {
+    switch action {
+    case .activateWorkspace(let id),
+         .assignFocusedAppToWorkspace(let id):
+      config.workspace(id: id) == nil ? "The requested workspace no longer exists" : nil
+
+    case .borrowWorkspace(let id):
+      config.activeProfile?.workspaces[id: id] == nil
+        ? "The requested workspace is no longer available in the active profile"
+        : nil
+
+    case .activateProfile(let id):
+      config.profiles.contains(where: { $0.id == id })
+        ? nil
+        : "The requested profile no longer exists"
+
+    default:
+      nil
+    }
+  }
+
 }
 
 extension GestureAction {
@@ -770,6 +997,14 @@ extension GestureAction {
     case .assignAppToWorkspace(let id): .assignFocusedAppToWorkspace(id)
     case .borrowWorkspace(let id): .borrowWorkspace(id)
     case .activateProfile(let id): .activateProfile(id)
+    }
+  }
+}
+
+extension AppConfig {
+  fileprivate func hasEnabledHook(for event: HookEvent) -> Bool {
+    HookDefinition.validate(hooks).validHooks.contains {
+      $0.enabled && $0.event == event
     }
   }
 }

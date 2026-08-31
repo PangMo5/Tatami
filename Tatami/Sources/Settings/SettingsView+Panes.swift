@@ -121,10 +121,16 @@ extension SettingsView {
         }
       }
       Text(
-        "Symlinks `tatami` into /usr/local/bin so you can script Tatami from the terminal — e.g. `tatami activate <workspace>`, `tatami list-workspaces`."
+        "Symlinks `tatami` into /usr/local/bin for terminal scripting. For example: `tatami workspace list`, `tatami workspace activate <workspace>`."
       )
       .font(.caption)
       .foregroundStyle(.secondary)
+      Button {
+        isCLIReferencePresented = true
+      } label: {
+        Label("View CLI Guide…", systemImage: "book.pages")
+      }
+      .buttonStyle(.link)
     }
 
     Section("Debug") {
@@ -723,13 +729,24 @@ extension SettingsView {
         KeyEquivalentRecorder(
           key: shortcuts[keyPath: keyKP],
           modifierSymbols: "",
-          conflict: { keyEquivalentConflict($0, switch: switchAction, assign: assignAction, borrow: borrowAction) },
+          accessibilityLabel: "Key equivalent: \(String(localized: title))",
+          conflict: {
+            keyEquivalentConflict(
+              $0,
+              switch: switchAction,
+              switchOverride: shortcuts[keyPath: switchOverride],
+              assign: assignAction,
+              assignOverride: shortcuts[keyPath: assignOverride],
+              borrow: borrowAction,
+              borrowOverride: shortcuts[keyPath: borrowOverride],
+            )
+          },
           onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
         ) { newKey in $config.withLock { $0.settings.shortcuts[keyPath: keyKP] = newKey } }
       }
-      navDerivedRow("Switch", \.keyEquivalentModifiers, keyKP, switchOverride, switchAction)
-      navDerivedRow("Assign", \.assignModifiers, keyKP, assignOverride, assignAction)
-      navDerivedRow("Borrow", \.borrowModifiers, keyKP, borrowOverride, borrowAction)
+      navDerivedRow("Switch", context: title, \.keyEquivalentModifiers, keyKP, switchOverride, switchAction)
+      navDerivedRow("Assign", context: title, \.assignModifiers, keyKP, assignOverride, assignAction)
+      navDerivedRow("Borrow", context: title, \.borrowModifiers, keyKP, borrowOverride, borrowAction)
     }
   }
 
@@ -738,6 +755,7 @@ extension SettingsView {
   @ViewBuilder
   func navDerivedRow(
     _ label: LocalizedStringResource,
+    context: LocalizedStringResource,
     _ modifiersKP: WritableKeyPath<AppSettings.Shortcuts, [String]>,
     _ keyKP: WritableKeyPath<AppSettings.Shortcuts, String?>,
     _ overrideKP: WritableKeyPath<AppSettings.Shortcuts, HotKey?>,
@@ -757,6 +775,7 @@ extension SettingsView {
       Text("or").font(.caption).foregroundStyle(.tertiary)
       ShortcutRecorder(
         hotKey: shortcuts[keyPath: overrideKP],
+        accessibilityLabel: "\(String(localized: label)): \(String(localized: context))",
         conflict: { config.shortcutConflict(for: $0, excluding: action) },
         onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
       ) { hotKey in $config.withLock { $0.settings.shortcuts[keyPath: overrideKP] = hotKey } }
@@ -772,22 +791,21 @@ extension SettingsView {
   func keyEquivalentConflict(
     _ char: String,
     switch switchAction: HotKeyAction,
+    switchOverride: HotKey?,
     assign assignAction: HotKeyAction,
+    assignOverride: HotKey?,
     borrow borrowAction: HotKeyAction,
+    borrowOverride: HotKey?,
   ) -> String? {
-    guard let code = HotKey.keyCode(forName: char) else { return nil }
-    let s = config.settings.shortcuts
-    func check(_ tokens: [String], _ exclude: HotKeyAction) -> String? {
-      let mods = HotKey.carbonModifiers(from: tokens)
-      guard mods != 0 else { return nil }
-      return config.shortcutConflict(
-        for: HotKey(carbonKeyCode: code, carbonModifiers: mods),
-        excluding: exclude,
-      )
-    }
-    return check(s.keyEquivalentModifiers, switchAction)
-      ?? check(s.assignModifiers, assignAction)
-      ?? check(s.borrowModifiers, borrowAction)
+    config.navigationKeyEquivalentConflict(
+      for: char,
+      switchAction: switchAction,
+      switchOverride: switchOverride,
+      assignAction: assignAction,
+      assignOverride: assignOverride,
+      borrowAction: borrowAction,
+      borrowOverride: borrowOverride,
+    )
   }
 
   /// A labeled row of modifier toggle buttons (⌃⌥⇧⌘) editing one modifier
@@ -848,6 +866,7 @@ extension SettingsView {
       Spacer(minLength: 16)
       ShortcutRecorder(
         hotKey: config.settings.shortcuts[keyPath: keyPath],
+        accessibilityLabel: title,
         conflict: { config.shortcutConflict(for: $0, excluding: action) },
         onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
       ) { hotKey in

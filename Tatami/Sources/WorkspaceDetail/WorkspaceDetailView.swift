@@ -86,6 +86,7 @@ struct WorkspaceDetailView: View {
                 KeyEquivalentRecorder(
                   key: workspace.keyEquivalent,
                   modifierSymbols: "",
+                  accessibilityLabel: "Key equivalent",
                   conflict: { keyEquivalentConflict($0) },
                   onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
                 ) { store.send(.keyEquivalentChanged($0)) }
@@ -314,16 +315,23 @@ struct WorkspaceDetailView: View {
             onCancel: { store.send(.appPickerDismissed) },
           )
         }
-        .sheet(item: $importSource) { source in
+        .sheet(item: $importReview) { review in
           SyncPreviewSheet(
-            title: "Copy from “\(source.workspaceName)”",
-            message: "Copy each change from “\(source.workspaceName)” (\(source.profileName)) into this workspace. Uncheck anything you'd rather keep.",
+            title: "Copy from “\(review.workspaceName)”",
+            message: "Copy each change from “\(review.workspaceName)” (\(review.profileName)) into this workspace. Uncheck anything you'd rather keep.",
             applyTitle: "Copy",
-            groups: importGroups(source),
-            onApply: { excluded in applyImport(source, excluding: excluded) },
+            groups: importGroups(review),
+            validateSelection: { excluded in
+              importConflicts(review, excluding: excluded)
+            },
+            onApply: { excluded in applyImport(review, excluding: excluded) },
           )
         }
         .onChange(of: workspace.id, initial: true) { _, _ in nameDraft = workspace.name }
+        // A sidebar inline rename keeps the workspace identity. Refresh only
+        // this draft instead of rebuilding the whole detail view (which would
+        // discard its scroll position, sheets, and transient highlighting).
+        .onChange(of: workspace.name) { _, name in nameDraft = name }
         // Keyed on the workspace so re-running per selection re-fetches the
         // display list (a plain `.task` only fires on first appearance, which
         // left later workspaces' pickers showing just their own pinned display).
@@ -367,10 +375,12 @@ struct WorkspaceDetailView: View {
   // MARK: Private
 
   /// A chosen source workspace for the "copy from" review sheet.
-  private struct ImportSource: Identifiable {
+  private struct WorkspaceImportReview: Identifiable {
+    let baseline: AppConfig
     let profileId: Profile.ID
-    let workspaceId: Workspace.ID
     let profileName: String
+    let targetWorkspaceId: Workspace.ID
+    let workspaceId: Workspace.ID
     let workspaceName: String
 
     var id: String {
@@ -384,7 +394,7 @@ struct WorkspaceDetailView: View {
   /// lands on the right row.
   @State private var highlightedApp: String?
   /// The workspace picked to copy from — drives the review sheet.
-  @State private var importSource: ImportSource?
+  @State private var importReview: WorkspaceImportReview?
   @FocusState private var nameFieldFocused: Bool
 
   private let highlightFlash = Duration.seconds(1.6)
@@ -408,28 +418,16 @@ struct WorkspaceDetailView: View {
   /// — so each is checked against every other binding (excluding this
   /// workspace's matching action). Nil when all three are free / unbound.
   private func keyEquivalentConflict(_ char: String) -> String? {
-    guard let code = HotKey.keyCode(forName: char) else { return nil }
-    let s = store.config.settings.shortcuts
-    func combo(_ tokens: [String]) -> HotKey? {
-      let mods = HotKey.carbonModifiers(from: tokens)
-      return mods == 0 ? nil : HotKey(carbonKeyCode: code, carbonModifiers: mods)
-    }
-    if
-      let hk = combo(s.keyEquivalentModifiers),
-      let owner = store.state.activateShortcutConflict(for: hk) { return owner }
-    if
-      let hk = combo(s.assignModifiers),
-      let owner = store.state.assignShortcutConflict(for: hk) { return owner }
-    if
-      let hk = combo(s.borrowModifiers),
-      let owner = store.state.borrowShortcutConflict(for: hk) { return owner }
-    return nil
+    store.config.workspaceKeyEquivalentConflict(
+      for: char,
+      workspaceId: store.state.workspaceId,
+    )
   }
 
   /// A shortcut row whose default is "modifier + the workspace key equivalent"
   /// (shown read-only in a capsule) with an explicit-shortcut override beside.
   private func derivedShortcutRow(
-    _ title: String,
+    _ title: LocalizedStringResource,
     modifiers: [String],
     key: String?,
     override: HotKey?,
@@ -447,6 +445,7 @@ struct WorkspaceDetailView: View {
         .foregroundStyle(.tertiary)
       ShortcutRecorder(
         hotKey: override,
+        accessibilityLabel: title,
         conflict: conflict,
         onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
       ) { onOverride($0) }
@@ -466,11 +465,18 @@ struct WorkspaceDetailView: View {
               Menu(profile.name) {
                 ForEach(sources, id: \.id) { ws in
                   Button(ws.name) {
-                    importSource = ImportSource(
-                      profileId: profile.id,
-                      workspaceId: ws.id,
-                      profileName: profile.name,
-                      workspaceName: ws.name,
+                    let baseline = store.config
+                    guard
+                      let profileSnapshot = baseline.profiles.first(where: { $0.id == profile.id }),
+                      let workspaceSnapshot = profileSnapshot.workspaces[id: ws.id]
+                    else { return }
+                    importReview = WorkspaceImportReview(
+                      baseline: baseline,
+                      profileId: profileSnapshot.id,
+                      profileName: profileSnapshot.name,
+                      targetWorkspaceId: store.workspaceId,
+                      workspaceId: workspaceSnapshot.id,
+                      workspaceName: workspaceSnapshot.name,
                     )
                   }
                 }
@@ -491,45 +497,76 @@ struct WorkspaceDetailView: View {
     }
   }
 
-  private func importGroups(_ source: ImportSource) -> [SyncChangeGroup] {
+  private func importGroups(_ review: WorkspaceImportReview) -> [SyncChangeGroup] {
     guard
-      let sourceWs = store.config.profiles.first(where: { $0.id == source.profileId })?
-        .workspaces[id: source.workspaceId],
-      let target = store.workspace
+      let sourceWorkspace = review.baseline.profiles.first(where: { $0.id == review.profileId })?
+        .workspaces[id: review.workspaceId],
+      let target = review.baseline.workspace(id: review.targetWorkspaceId)
     else { return [] }
     var groups = [SyncChangeGroup]()
-    let appChanges = WorkspaceSync.appChanges(from: sourceWs.apps, to: target.apps)
+    let appChanges = WorkspaceSync.appChanges(from: sourceWorkspace.apps, to: target.apps)
     if !appChanges.isEmpty {
       groups.append(SyncChangeGroup(
         id: "apps",
-        title: "Apps",
+        title: String(localized: "Apps"),
         items: appChanges.map { SyncChangeItem($0, prefix: "") },
       ))
     }
-    let fieldChanges = WorkspaceSync.fieldChanges(from: sourceWs, to: target)
+    let fieldChanges = WorkspaceSync.fieldChanges(from: sourceWorkspace, to: target)
     if !fieldChanges.isEmpty {
       groups.append(SyncChangeGroup(
         id: "settings",
-        title: "Settings",
+        title: String(localized: "Settings"),
         items: fieldChanges.map { SyncChangeItem($0, prefix: "") },
       ))
     }
     return groups
   }
 
-  private func applyImport(_ source: ImportSource, excluding excluded: Set<String>) {
+  private func applyImport(
+    _ review: WorkspaceImportReview,
+    excluding excluded: Set<String>,
+  ) {
+    let exclusions = importExclusions(excluded)
+    store.send(.importWorkspace(
+      targetWorkspace: review.targetWorkspaceId,
+      sourceProfile: review.profileId,
+      sourceWorkspace: review.workspaceId,
+      baseline: review.baseline,
+      excludingApps: exclusions.apps,
+      excludingFields: exclusions.fields,
+    ))
+  }
+
+  private func importConflicts(
+    _ review: WorkspaceImportReview,
+    excluding excluded: Set<String>,
+  ) -> [String: [WorkspaceShortcutConflict]] {
+    let exclusions = importExclusions(excluded)
+    guard
+      let projection = review.baseline.workspaceImportProjection(
+        into: review.targetWorkspaceId,
+        from: review.profileId,
+        sourceWorkspace: review.workspaceId,
+        excludingApps: exclusions.apps,
+        excludingFields: exclusions.fields,
+      )
+    else { return [:] }
+    return Dictionary(grouping: projection.conflicts) { conflict in
+      SyncChangeItem.fieldId("", conflict.selection.field.rawValue)
+    }
+  }
+
+  private func importExclusions(
+    _ excluded: Set<String>
+  ) -> (apps: Set<String>, fields: Set<String>) {
     var excApps = Set<String>()
     var excFields = Set<String>()
     for id in excluded {
       if id.hasPrefix("app:") { excApps.insert(String(id.dropFirst(4))) }
       else if id.hasPrefix("field:") { excFields.insert(String(id.dropFirst(6))) }
     }
-    store.send(.importWorkspace(
-      sourceProfile: source.profileId,
-      sourceWorkspace: source.workspaceId,
-      excludingApps: excApps,
-      excludingFields: excFields,
-    ))
+    return (excApps, excFields)
   }
 
 }

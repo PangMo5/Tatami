@@ -836,7 +836,7 @@ struct WorkspaceActivationFeatureTests {
     let composition = Composition(
       host: browser.id,
       borrowed: [
-        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4),
+        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4)
       ],
     )
     let state = Self.makeState(workspaces: [browser, terminal, figma]) {
@@ -896,7 +896,7 @@ struct WorkspaceActivationFeatureTests {
     let composition = Composition(
       host: browser.id,
       borrowed: [
-        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4),
+        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4)
       ],
     )
     let state = Self.makeState(workspaces: [browser, terminal, figma]) {
@@ -976,7 +976,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
     }
     await store.finish()
@@ -1005,7 +1005,7 @@ struct WorkspaceActivationFeatureTests {
     let composition = Composition(
       host: browser.id,
       borrowed: [
-        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4),
+        BorrowedSlot(workspace: figma.id, edge: .right, fraction: 0.4)
       ],
     )
     let state = Self.makeState(workspaces: [browser, terminal, figma]) {
@@ -1078,7 +1078,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: homeless.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == homeless.id && display == only
     }
     await store.finish()
@@ -1134,7 +1134,7 @@ struct WorkspaceActivationFeatureTests {
     // Browser is dynamic and the pointer is on A, so it leaves B.
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
     }
     await store.finish()
@@ -1295,7 +1295,8 @@ struct WorkspaceActivationFeatureTests {
 
     // Follows the raised window, not the workspace's MRU pick — otherwise a
     // multi-window app gives no clue which window took focus.
-    let target = try? #require(frames[second])
+    let target = frames[second]
+    #expect(target != nil)
     #expect(warps.value == [CGPoint(x: target?.midX ?? 0, y: target?.midY ?? 0)])
   }
 
@@ -1324,7 +1325,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
     }
     await store.finish()
@@ -1404,7 +1405,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activateRecent)
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == localRecent.id && display == displayA
     }
     await store.finish()
@@ -1496,7 +1497,7 @@ struct WorkspaceActivationFeatureTests {
   @Test(arguments: AutoBalanceMode.allCases)
   func `fresh activation initializes a missing layout from auto balance`(
     mode: AutoBalanceMode
-  ) async {
+  ) async throws {
     let keys = [
       WindowKey(pid: 1, windowID: 101, bundleId: "app.one"),
       WindowKey(pid: 2, windowID: 202, bundleId: "app.two"),
@@ -1510,14 +1511,14 @@ struct WorkspaceActivationFeatureTests {
       },
     )
     let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
-    let initial = WorkspaceActivationFeature.mergeTree(
+    let initial = try #require(WorkspaceActivationFeature.mergeTree(
       existing: nil,
       target: keys,
       focused: { nil },
       insertionPoint: nil,
       workArea: workArea,
       settings: AppSettings(),
-    )!
+    ))
     let expected = initial.balancedForCommand(
       autoBalance: mode,
       in: workArea,
@@ -1549,7 +1550,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: workspace.id, setFocus: false))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
       return workspaceId == workspace.id
     }
     await store.finish()
@@ -1564,6 +1565,8 @@ struct WorkspaceActivationFeatureTests {
     let state = Self.makeState(workspaces: [ws1, ws2]) {
       $0.activeWorkspacesByDisplay[Self.display] = ws1.id
       $0.isActivating = true
+      $0.activationGeneration = 1
+      $0.activeActivationGeneration = 1
     }
     let savedHistory = LockIsolated<[DisplayName: [UUID]]?>(nil)
     let savedMRU = LockIsolated<[UUID]?>(nil)
@@ -1577,7 +1580,11 @@ struct WorkspaceActivationFeatureTests {
       }
     }
 
-    await store.send(.activationCompleted(workspaceId: ws2.id, display: Self.display)) {
+    await store.send(.activationCompleted(
+      workspaceId: ws2.id,
+      display: Self.display,
+      generation: 1,
+    )) {
       $0.isActivating = false
       $0.previousWorkspacesByDisplay[Self.display] = ws1.id
       $0.activeWorkspacesByDisplay[Self.display] = ws2.id
@@ -1592,7 +1599,316 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `restored workspace history keeps only valid normal workspaces`() async {
+  func `CLI activation completes only after the activation tail`() async {
+    let workspace = Workspace(name: "CLI")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.isActivating = true
+      $0.activationGeneration = 1
+      $0.activeActivationGeneration = 1
+    }
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(workspace.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.trackCLIActivation(request, joinCurrentActivation: true))
+    await store.send(.activationCompleted(
+      workspaceId: workspace.id,
+      display: Self.display,
+      generation: 1,
+    ))
+    #expect(completions.value.isEmpty)
+
+    await store.send(.activationTailFinished(generation: 1))
+    await store.finish()
+
+    #expect(completions.value == [nil])
+  }
+
+  @Test
+  func `external deliberate activation supersedes profile CLI restore exactly once`() async throws {
+    let display = Self.display
+    let current = Workspace(name: "Current")
+    let target = Workspace(name: "Target")
+    let state = Self.makeState(workspaces: [current, target]) {
+      $0.isActivating = true
+      $0.activationGeneration = 1
+      $0.activeActivationGeneration = 1
+      $0.activeWorkspacesByDisplay[display] = target.id
+      $0.focusedDisplay = display
+      $0.tilingTrees[target.id] = .leaf(
+        WindowKey(pid: 1, windowID: 101, bundleId: "app.target")
+      )
+    }
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .profile(try #require(state.config.activeProfile?.id)),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.current = { display }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.trackCLIActivation(request, joinCurrentActivation: true))
+    await store.send(.activate(workspaceId: target.id, setFocus: true))
+    await store.finish()
+
+    #expect(completions.value.count == 1)
+    #expect(completions.value.compactMap { $0 }.first?.contains("superseded") == true)
+    #expect(store.state.pendingCLIActivation == nil)
+    #expect(store.state.pendingCLIActivationBinding == nil)
+  }
+
+  @Test
+  func `stale completion and watchdog cannot terminate the current activation`() async {
+    let current = Workspace(name: "Current")
+    let stale = Workspace(name: "Stale")
+    let state = Self.makeState(workspaces: [current, stale]) {
+      $0.isActivating = true
+      $0.activationGeneration = 2
+      $0.activeActivationGeneration = 2
+      $0.activatingWorkspaceID = current.id
+      $0.activeWorkspacesByDisplay[Self.display] = current.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(.activationCompleted(
+      workspaceId: stale.id,
+      display: Self.display,
+      generation: 1,
+    ))
+    await store.send(.activationTimedOut(generation: 1))
+
+    #expect(store.state.isActivating)
+    #expect(store.state.activeActivationGeneration == 2)
+    #expect(store.state.activatingWorkspaceID == current.id)
+    #expect(store.state.activeWorkspacesByDisplay[Self.display] == current.id)
+  }
+
+  @Test
+  func `removed workspace cannot complete from a stale active display mapping`() async {
+    let live = Workspace(name: "Live")
+    let removedID = UUID()
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(removedID),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let state = Self.makeState(workspaces: [live]) {
+      $0.activeWorkspacesByDisplay[Self.display] = removedID
+      $0.pendingCLIActivation = request
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cliActivationEffectFinished(
+      workspaceId: removedID,
+      requestID: request.id,
+    ))
+    await store.finish()
+
+    #expect(completions.value == ["The requested workspace no longer exists"])
+    #expect(store.state.pendingCLIActivation == nil)
+  }
+
+  @Test(arguments: [false, true])
+  func `visible CLI activation supersedes an active generation`(
+    coreAlreadyCompleted: Bool
+  ) async {
+    let display = Self.display
+    let visible = Workspace(name: "Visible")
+    let inFlight = Workspace(name: "In Flight")
+    let window = WindowKey(pid: 1, windowID: 101, bundleId: "app.visible")
+    let profile = Profile(name: "Default", workspaces: [visible, inFlight])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [profile],
+      activeProfileId: profile.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.activeWorkspacesByDisplay[display] = visible.id
+    state.focusedDisplay = display
+    state.tilingTrees[visible.id] = .leaf(window)
+    state.isActivating = !coreAlreadyCompleted
+    state.activatingWorkspaceID = coreAlreadyCompleted ? nil : inFlight.id
+    state.activationGeneration = 1
+    state.activeActivationGeneration = 1
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(visible.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let (activationGate, activationGateContinuation) = AsyncStream<Void>.makeStream()
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.current = { display }
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1_000, height: 800) }
+      $0.workspaceManager.activate = { _ in
+        for await _ in activationGate { break }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.trackCLIActivation(request, joinCurrentActivation: false))
+    await store.send(.activateFromCLI(workspaceId: visible.id, requestID: request.id))
+
+    #expect(store.state.activationGeneration == 2)
+    #expect(store.state.activeActivationGeneration == 2)
+    #expect(store.state.activatingWorkspaceID == visible.id)
+    #expect(store.state.pendingCLIActivationBinding == .init(
+      requestID: request.id,
+      activationGeneration: 2,
+    ))
+    #expect(completions.value.isEmpty)
+
+    await store.send(.activationTailFinished(generation: 1))
+    #expect(completions.value.isEmpty)
+    await store.send(.activationTimedOut(generation: 2))
+    activationGateContinuation.finish()
+    await store.finish()
+
+    #expect(completions.value == ["Workspace activation timed out"])
+  }
+
+  @Test(arguments: [false, true])
+  func `missing restore fails its CLI request once and drains valid work`(
+    requestTargetWasRemoved: Bool
+  ) async {
+    let missingID = UUID()
+    let live = Workspace(name: "Live")
+    let profile = Profile(name: "Default", workspaces: [live])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [profile],
+      activeProfileId: profile.id,
+    ))
+    let requestTarget: WorkspaceActivationFeature.CLIActivationRequest.Target =
+      requestTargetWasRemoved ? .workspace(missingID) : .profile(profile.id)
+    let expectedError = requestTargetWasRemoved
+      ? "The requested workspace no longer exists"
+      : "Configuration changed while activation was in progress"
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: requestTarget,
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let liveDisplay = DisplayName("Live Display")
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.pendingCLIActivation = request
+    state.pendingDisplayRestores = [
+      DisplayAssignment(display: liveDisplay, workspace: live.id)
+    ]
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1_000, height: 800) }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.restoreDisplay(workspaceId: missingID, display: Self.display))
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let workspaceID, let display) = $0 else { return false }
+      return workspaceID == live.id && display == liveDisplay
+    }
+    await store.receive {
+      guard case .activationCompleted(let workspaceID, let display, _) = $0 else { return false }
+      return workspaceID == live.id && display == liveDisplay
+    }
+    await store.finish()
+
+    #expect(completions.value == [expectedError])
+    #expect(store.state.pendingCLIActivation == nil)
+    #expect(store.state.pendingDisplayRestores.isEmpty)
+    #expect(store.state.activeWorkspacesByDisplay[liveDisplay] == live.id)
+  }
+
+  @Test(arguments: [false, true])
+  func `empty profile reactivation invalidates the outgoing generation`(
+    hasOnlyScratchpad: Bool
+  ) async {
+    let display = Self.display
+    let removedWorkspaceID = UUID()
+    let scratchpad = Workspace(name: "Scratchpad", kind: .scratchpad)
+    let replacement = Profile(
+      name: "Replacement",
+      workspaces: hasOnlyScratchpad ? [scratchpad] : [],
+    )
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [replacement],
+      activeProfileId: replacement.id,
+    ))
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .profile(replacement.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.isActivating = true
+    state.activatingWorkspaceID = removedWorkspaceID
+    state.activationGeneration = 1
+    state.activeActivationGeneration = 1
+    state.activeWorkspacesByDisplay[display] = removedWorkspaceID
+    state.pendingCLIActivation = request
+    state.pendingDisplayRestores = [
+      DisplayAssignment(display: display, workspace: removedWorkspaceID)
+    ]
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [display] }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.reactivateActiveProfile(focus: nil))
+    await store.finish()
+
+    #expect(completions.value == [nil])
+    #expect(!store.state.isActivating)
+    #expect(store.state.activatingWorkspaceID == nil)
+    #expect(store.state.activeActivationGeneration == nil)
+    #expect(store.state.activeWorkspacesByDisplay.isEmpty)
+    #expect(store.state.pendingDisplayRestores.isEmpty)
+    #expect(store.state.pendingCLIActivation == nil)
+
+    await store.send(.activationCompleted(
+      workspaceId: removedWorkspaceID,
+      display: display,
+      generation: 1,
+    ))
+    await store.send(.activationTailFinished(generation: 1))
+
+    #expect(completions.value == [nil])
+    #expect(store.state.activeWorkspacesByDisplay.isEmpty)
+  }
+
+  @Test
+  func `restored workspace history keeps only valid normal workspaces`() async throws {
     let liveDisplay = DisplayName(uuid: "display-1", name: "Renamed Display")
     let savedDisplay = DisplayName(uuid: "display-1", name: "Old Display Name")
     let first = Workspace(name: "First")
@@ -1605,7 +1921,7 @@ struct WorkspaceActivationFeatureTests {
     } withDependencies: {
       $0.displays.all = { [liveDisplay] }
     }
-    let activeProfileId = store.state.config.activeProfile!.id
+    let activeProfileId = try #require(store.state.config.activeProfile?.id)
 
     await store.send(.restoreStartupSession(
       lastUsedProfileId: activeProfileId,
@@ -1739,7 +2055,7 @@ struct WorkspaceActivationFeatureTests {
       return workspaceId == workspaceA.id && display == displayA
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == workspaceA.id && display == displayA
     }
     await store.receive(\.processDisplayRestores)
@@ -1748,7 +2064,7 @@ struct WorkspaceActivationFeatureTests {
       return workspaceId == workspaceB.id && display == displayB
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == workspaceB.id && display == displayB
     }
     await store.finish()
@@ -1800,7 +2116,7 @@ struct WorkspaceActivationFeatureTests {
       return workspaceId == frontmost.id && owner == display
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let owner) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let owner, _) = $0 else { return false }
       return workspaceId == frontmost.id && owner == display
     }
     await store.finish()
@@ -1813,16 +2129,19 @@ struct WorkspaceActivationFeatureTests {
     let ws1 = Workspace(name: "one")
     let state = Self.makeState(workspaces: [ws1]) {
       $0.isActivating = true
+      $0.activationGeneration = 1
+      $0.activeActivationGeneration = 1
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     }
 
-    await store.send(.activationTimedOut) {
+    await store.send(.activationTimedOut(generation: 1)) {
       $0.isActivating = false
+      $0.activeActivationGeneration = nil
     }
     // Idempotent when nothing is in flight.
-    await store.send(.activationTimedOut)
+    await store.send(.activationTimedOut(generation: 1))
   }
 
   @Test
@@ -3591,7 +3910,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: other.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
       return workspaceId == other.id
     }
     #expect(store.state.mruWindows[browser.id] == [work, personal])
@@ -3599,7 +3918,7 @@ struct WorkspaceActivationFeatureTests {
     liveFocus.withValue { $0 = nil }
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
       return workspaceId == browser.id
     }
     await store.finish()
@@ -3634,7 +3953,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: other.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
       return workspaceId == other.id
     }
     await store.finish()
@@ -3672,7 +3991,7 @@ struct WorkspaceActivationFeatureTests {
     // workspace on B and must not be pulled back to the pointer monitor.
     await store.send(.activate(workspaceId: target.id, setFocus: false))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == target.id && display == displayB
     }
     await store.finish()
@@ -3711,7 +4030,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: target.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == target.id && display == displayA
     }
     await store.finish()
@@ -3752,7 +4071,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.dismissBorrow(display: displayB))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == host.id && display == displayB
     }
     await store.finish()
@@ -3813,7 +4132,7 @@ struct WorkspaceActivationFeatureTests {
 
     activationGate.continuation.yield()
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
       return workspaceId == borrowed.id
     }
     let targetsAfterCompletion = await markerIterator.next()
@@ -3852,7 +4171,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.beginBorrowDirection(workspaceId: borrowed.id))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let owner) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let owner, _) = $0 else { return false }
       return workspaceId == host.id && owner == display
     }
     await store.finish()
