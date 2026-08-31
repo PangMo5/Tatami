@@ -45,10 +45,12 @@ extension FocusFollowsMouseClient: DependencyKey {
     @Dependency(\.debugLog) var debugLog
     @Dependency(\.focusEventOrigin) var focusEventOrigin
     @Dependency(\.managedWindows) var managedWindows
+    @Dependency(\.overlayAwareness) var overlayAwareness
     let controller = LiveFocusFollowsMouseController(
       debugLog: debugLog,
       focusEventOrigin: focusEventOrigin,
       managedWindows: managedWindows,
+      overlayAwareness: overlayAwareness,
     )
     return FocusFollowsMouseClient { config in
       await controller.configure(config)
@@ -83,10 +85,12 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     debugLog: DebugLogClient,
     focusEventOrigin: FocusEventOriginClient,
     managedWindows: ManagedWindowsClient,
+    overlayAwareness: OverlayAwarenessClient,
   ) {
     self.debugLog = debugLog
     self.focusEventOrigin = focusEventOrigin
     self.managedWindows = managedWindows
+    self.overlayAwareness = overlayAwareness
   }
 
   // MARK: Internal
@@ -188,6 +192,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     focusTask = Task { @MainActor in
       guard
         !Task.isCancelled,
+        !overlayAwareness.isBackgroundedProcess(pid),
         ProgrammaticPointerWarpGate.shared.isCurrent(
           generation: warpEvaluation.generation
         )
@@ -216,6 +221,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   private var lastLoggedSuppressedWarpGeneration: UInt64?
   private let focusEventOrigin: FocusEventOriginClient
   private let managedWindows: ManagedWindowsClient
+  private let overlayAwareness: OverlayAwarenessClient
 
   /// Runs on the event-tap thread (via `configure` / the tap callback).
   private func installOrTearDown(_ next: FocusFollowsMouseConfig) {
@@ -319,7 +325,11 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       // not the tile that happens to sit underneath the panel — otherwise
       // FFM and the overlay fight over focus during the hand-off.
       let alpha = (entry[kCGWindowAlpha as String] as? Double) ?? 1
-      if alpha > 0, let target = mirrorTargets[windowNumber] {
+      if
+        alpha > 0,
+        let target = mirrorTargets[windowNumber],
+        !overlayAwareness.isBackgroundedProcess(target.pid)
+      {
         if bounds.contains(point) {
           if debugLog.isEnabled() {
             debugLog.log(
@@ -337,7 +347,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
         // Only follow into a window Tatami manages. An unmanaged window on
         // top (notification banner, our own overlay) means leave focus put
         // — don't focus it, don't punch through to what's beneath it.
-        if managedWindows.isManaged(windowNumber) {
+        if
+          managedWindows.isManaged(windowNumber),
+          !overlayAwareness.isBackgroundedProcess(pidNumber)
+        {
           candidate = (pidNumber, windowNumber, bounds)
         }
         break

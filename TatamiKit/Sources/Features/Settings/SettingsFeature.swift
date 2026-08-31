@@ -23,6 +23,7 @@ public struct SettingsFeature {
 
     public var cli = CLIStatus()
     public var hooks = HookSettingsFeature.State()
+    public var overlayAwareApps = OverlayAwareAppsFeature.State()
     /// Default `true` to avoid a "not granted" flash before the first read.
     public var hasAXPermission = true
     /// Same flash-avoidance default as `hasAXPermission`.
@@ -36,6 +37,7 @@ public struct SettingsFeature {
     case refreshCLIStatus
     case installCLITapped
     case hooks(HookSettingsFeature.Action)
+    case overlayAwareApps(OverlayAwareAppsFeature.Action)
     case uninstallCLITapped
     /// A trust-DB change (or app re-activation) — re-read permission status.
     case accessibilityChanged
@@ -61,20 +63,26 @@ public struct SettingsFeature {
       Scope(state: \.hooks, action: \.hooks) {
         HookSettingsFeature()
       }
+      Scope(state: \.overlayAwareApps, action: \.overlayAwareApps) {
+        OverlayAwareAppsFeature()
+      }
       Reduce { state, action in
         switch action {
         case .task:
           state.cli = cliInstaller.status()
           state.hasAXPermission = accessibility.isTrusted()
           state.hasScreenRecordingPermission = screenRecording.isGranted()
-          return .run { [accessibility] send in
-            // Trust-DB change / app re-activation → re-read permission
-            // status (the re-activation tick also covers coming back from
-            // the Screen Recording pane of System Settings).
-            for await _ in accessibility.changes() {
-              await send(.accessibilityChanged)
-            }
-          }
+          return .merge(
+            .send(.overlayAwareApps(.onAppear)),
+            .run { [accessibility] send in
+              // Trust-DB change / app re-activation → re-read permission
+              // status (the re-activation tick also covers coming back from
+              // the Screen Recording pane of System Settings).
+              for await _ in accessibility.changes() {
+                await send(.accessibilityChanged)
+              }
+            },
+          )
 
         case .refreshCLIStatus:
           state.cli = cliInstaller.status()
@@ -143,6 +151,9 @@ public struct SettingsFeature {
           return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
 
         case .hooks:
+          return .none
+
+        case .overlayAwareApps:
           return .none
         }
       }

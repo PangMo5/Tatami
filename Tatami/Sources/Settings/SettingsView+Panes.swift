@@ -435,6 +435,57 @@ extension SettingsView {
         description: "Return the borrowed workspace and restore the current one to full screen.",
       )
     }
+
+    Section {
+      ForEach(store.overlayAwareApps.apps, id: \.bundleIdentifier) { app in
+        HStack {
+          AppIcon(bundleIdentifier: app.bundleIdentifier, iconPath: app.iconPath)
+            .frame(width: 22, height: 22)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(app.name)
+              .font(.body)
+            if app.name != app.bundleIdentifier {
+              Text(app.bundleIdentifier)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+          Spacer()
+          Button(role: .destructive) {
+            store.send(
+              .overlayAwareApps(
+                .appRemoveRequested(bundleIdentifier: app.bundleIdentifier)
+              )
+            )
+          } label: {
+            Image(systemName: "minus.circle.fill")
+              .foregroundStyle(.red)
+          }
+          .buttonStyle(.borderless)
+        }
+      }
+    } header: {
+      HStack {
+        Text("Apps With Floating Controls")
+        Spacer()
+        Button {
+          store.send(.overlayAwareApps(.addAppButtonTapped))
+        } label: {
+          Label("Add", systemImage: "plus.circle")
+            .labelStyle(.iconOnly)
+        }
+        .buttonStyle(.borderless)
+      }
+    } footer: {
+      VStack(alignment: .leading, spacing: 4) {
+        if store.overlayAwareApps.apps.isEmpty {
+          Text("No apps yet. Tap + to assign one.")
+        }
+        Text(
+          "Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you activate that workspace again. They may remain visible in Mission Control."
+        )
+      }
+    }
   }
 
   @ViewBuilder

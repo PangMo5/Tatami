@@ -175,6 +175,7 @@ extension WorkspaceManagerClient: DependencyKey {
     WorkspaceManagerClient(
       activate: { request in
         @Dependency(\.debugLog) var debugLog
+        @Dependency(\.overlayAwareness) var overlayAwareness
         let workspaceBundleIds = Set(request.workspace.apps.map(\.bundleIdentifier))
         let sharedBundleIds = Set(request.sharedApps.map(\.bundleIdentifier))
         let borrowedBundleIds = Set(request.borrowedApps.map(\.bundleIdentifier))
@@ -185,6 +186,12 @@ extension WorkspaceManagerClient: DependencyKey {
         func activateOnMain() async {
           let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
+          }
+          // A target/shared/borrowed app is an ordinary visible member again.
+          // Clear the background exclusion before unhide/focus can emit AX or
+          // NSWorkspace activation notifications for it.
+          for bundleId in keepVisible {
+            overlayAwareness.clearBackgroundedBundle(bundleId)
           }
           let isAnyWorkspaceAppRunning = running.contains {
             workspaceBundleIds.contains($0.bundleIdentifier ?? "")
@@ -397,6 +404,8 @@ extension WorkspaceManagerClient: DependencyKey {
           }()
 
           var hiddenCount = 0
+          var overlayPreserved = [String]()
+          var hideCandidates = [(NSRunningApplication, OverlayAwareProcess)]()
           for app in running {
             guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { continue }
             if MacApp.isTatami(bundleId) {
@@ -416,9 +425,58 @@ extension WorkspaceManagerClient: DependencyKey {
             {
               continue
             }
-            if !app.isHidden {
-              app.hide()
-              hiddenCount += 1
+            let process = OverlayAwareProcess(
+              bundleId: bundleId,
+              pid: app.processIdentifier,
+            )
+            if app.isHidden {
+              overlayAwareness.setBackgrounded(process, false)
+              continue
+            }
+            hideCandidates.append((app, process))
+          }
+
+          // Suppress interaction before the async evidence read. The lease is
+          // transaction-scoped so cancellation cannot leave a stale process
+          // excluded after a newer workspace switch supersedes this one.
+          let evaluation = overlayAwareness.beginEvaluation(hideCandidates.map(\.1))
+          defer { overlayAwareness.endEvaluation(evaluation) }
+          let processesToPreserve = await overlayAwareness.processesToKeepVisible(
+            evaluation,
+            hideCandidates.map(\.1),
+          )
+          guard !Task.isCancelled else { return }
+          let committedPreserves = overlayAwareness.commitEvaluation(
+            evaluation,
+            processesToPreserve,
+          )
+          for (app, process) in hideCandidates {
+            if app.isTerminated {
+              overlayAwareness.clearBackgroundedProcess(process.pid)
+              continue
+            }
+            if app.isHidden {
+              overlayAwareness.setBackgrounded(process, false)
+              continue
+            }
+            if committedPreserves.contains(process) {
+              overlayPreserved.append(process.bundleId)
+              continue
+            }
+            // Hide first, then re-enable automation. Reversing these two steps
+            // creates a brief FFM path onto the stray layer-zero window.
+            let didHide = app.hide()
+            hiddenCount += 1
+            if didHide || app.isHidden {
+              overlayAwareness.setBackgrounded(process, false)
+            } else if overlayAwareness.promoteBackgrounded(evaluation, process) {
+              // `hide()` can complete asynchronously. Promote this process to
+              // persistent suppression before the evaluation lease ends; the
+              // next visibility transaction or termination clears it.
+              debugLog.log(
+                "OverlayAware",
+                "hide pending \(process.bundleId) pid=\(process.pid); retain suppression until the next visibility transaction",
+              )
             }
           }
 
@@ -431,6 +489,7 @@ extension WorkspaceManagerClient: DependencyKey {
             "showHide ws=\(request.workspace.name) "
               + "display=\(request.targetDisplay?.name ?? "all") "
               + "shown=\(appsToShow.compactMap(\.bundleIdentifier)) hide=\(hiddenCount) "
+              + "overlayPreserved=\(overlayPreserved.sorted()) "
               + "displayScoped=\(pidsOnTargetDisplay != nil)",
           )
         }
@@ -439,10 +498,11 @@ extension WorkspaceManagerClient: DependencyKey {
       },
       returnBorrowed: { bundleIds, display in
         @Dependency(\.debugLog) var debugLog
+        @Dependency(\.overlayAwareness) var overlayAwareness
         guard !bundleIds.isEmpty else { return }
 
         @MainActor
-        func returnOnMain() {
+        func returnOnMain() async {
           let onScreenWindows = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID,
@@ -454,6 +514,7 @@ extension WorkspaceManagerClient: DependencyKey {
           // host app still looks exclusive to the display it just left.
           let exclusive = Self.pidsExclusively(onDisplay: display, in: onScreenWindows)
           var hiddenCount = 0
+          var hideCandidates = [(NSRunningApplication, OverlayAwareProcess)]()
           for app in NSWorkspace.shared.runningApplications
             where app.activationPolicy == .regular && !app.isTerminated
           {
@@ -464,8 +525,45 @@ extension WorkspaceManagerClient: DependencyKey {
               exclusive.contains(app.processIdentifier),
               !app.isHidden
             else { continue }
-            app.hide()
+            let process = OverlayAwareProcess(
+              bundleId: bundleId,
+              pid: app.processIdentifier,
+            )
+            hideCandidates.append((app, process))
+          }
+          let evaluation = overlayAwareness.beginEvaluation(hideCandidates.map(\.1))
+          defer { overlayAwareness.endEvaluation(evaluation) }
+          let processesToPreserve = await overlayAwareness.processesToKeepVisible(
+            evaluation,
+            hideCandidates.map(\.1),
+          )
+          guard !Task.isCancelled else { return }
+          let committedPreserves = overlayAwareness.commitEvaluation(
+            evaluation,
+            processesToPreserve,
+          )
+          for (app, process) in hideCandidates {
+            if app.isTerminated {
+              overlayAwareness.clearBackgroundedProcess(process.pid)
+              continue
+            }
+            if app.isHidden {
+              overlayAwareness.setBackgrounded(process, false)
+              continue
+            }
+            if committedPreserves.contains(process) {
+              continue
+            }
+            let didHide = app.hide()
             hiddenCount += 1
+            if didHide || app.isHidden {
+              overlayAwareness.setBackgrounded(process, false)
+            } else if overlayAwareness.promoteBackgrounded(evaluation, process) {
+              debugLog.log(
+                "OverlayAware",
+                "return hide pending \(process.bundleId) pid=\(process.pid); retain suppression until the next visibility transaction",
+              )
+            }
           }
           debugLog.log(
             "Manager",
@@ -475,7 +573,7 @@ extension WorkspaceManagerClient: DependencyKey {
         }
 
         await returnOnMain()
-      }
+      },
     )
   }
 

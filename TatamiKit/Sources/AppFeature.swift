@@ -158,6 +158,29 @@ public struct AppFeature {
           .run { _ in
             await MainActor.run { boundGlobalAXMessagingTimeout() }
           },
+          // Seed overlay awareness before profile restoration can trigger the
+          // first workspace activation. Keeping this in the sequential prefix
+          // avoids a startup race with `.settingsChanged`, which intentionally
+          // joins the later subscription merge.
+          .run { [overlayAwareness, windowSnapshot] _ in
+            overlayAwareness.configure(settings.visibility.overlayAwareApps)
+            let frontmost = await MainActor.run {
+              windowSnapshot.frontmostApp()
+            }
+            guard let frontmost else { return }
+            let process = OverlayAwareProcess(
+              bundleId: frontmost.bundleId,
+              pid: frontmost.pid,
+            )
+            let evaluation = overlayAwareness.beginEvaluation([process])
+            defer { overlayAwareness.endEvaluation(evaluation) }
+            let preserved = await overlayAwareness.processesToKeepVisible(
+              evaluation,
+              [process],
+            )
+            guard !Task.isCancelled else { return }
+            _ = overlayAwareness.commitEvaluation(evaluation, preserved)
+          },
           // Resolve the persisted profile and workspace session before any
           // display observer can emit its initial topology. Otherwise that
           // first event can auto-select a profile from the empty startup state
@@ -299,6 +322,10 @@ public struct AppFeature {
         return .none
 
       case .settingsChanged(let settings):
+        // This registry is synchronous state. Commit it in reducer order so a
+        // delayed effect from an older settings snapshot cannot restore a
+        // removed allowlist entry.
+        overlayAwareness.configure(settings.visibility.overlayAwareApps)
         let ffm = FocusFollowsMouseConfig(
           enabled: settings.focus.focusFollowsMouse,
           disableModifier: settings.focus.focusFollowsMouseDisableHotkey,
@@ -664,6 +691,8 @@ public struct AppFeature {
   // MARK: Internal
 
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
+  @Dependency(\.overlayAwareness) var overlayAwareness
+  @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.floatingOverlay) var floatingOverlay
   @Dependency(\.borrowChord) var borrowChord
   @Dependency(\.gestures) var gestures

@@ -3,9 +3,11 @@
 
 import Dependencies
 import Foundation
-import TOML
 import Testing
+import TOML
 @testable import TatamiKit
+
+// MARK: - ConfigDecodeTests
 
 /// Decode policy: missing keys default quietly; present-but-corrupt
 /// values are surfaced — a typo'd settings field reports and defaults,
@@ -13,11 +15,11 @@ import Testing
 /// containment keeps the previous config instead of silently resetting.
 struct ConfigDecodeTests {
   @Test
-  func typoedSettingsFieldReportsAndUsesDefault() throws {
+  func `typoed settings field reports and uses default`() throws {
     let toml = """
-    [settings.general]
-    launchAtLogin = "yes"
-    """
+      [settings.general]
+      launchAtLogin = "yes"
+      """
     let reported = LockIsolated<[String]>([])
     let config = try withDependencies {
       $0.errorReporter.report = { domain, message, _ in
@@ -28,6 +30,7 @@ struct ConfigDecodeTests {
     }
     // The typo'd field falls back to its default…
     #expect(config.settings.general.launchAtLogin == false)
+    #expect(config.settings.visibility.overlayAwareApps.isEmpty)
     // …and the user is told, instead of a silent reset.
     #expect(
       reported.value.contains { $0.hasPrefix("Settings:") && $0.contains("launchAtLogin") }
@@ -35,7 +38,7 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func missingKeysDefaultWithoutReporting() throws {
+  func `missing keys default without reporting`() throws {
     let reported = LockIsolated(0)
     let config = try withDependencies {
       $0.errorReporter.report = { _, _, _ in reported.withValue { $0 += 1 } }
@@ -51,22 +54,61 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func hooksDecodeWithDefaultsAndRoundTrip() throws {
+  func `overlay aware apps normalize and round trip`() throws {
     let toml = """
-    [[hooks]]
-    id = "notify"
-    event = "workspaceActivated"
-    command = ["/usr/bin/true"]
+      [settings.visibility]
+      overlayAwareApps = [" notion.id ", "", "notion.id", "Com.Example.App"]
+      """
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
 
-    [[hooks]]
-    id = "profile-log"
-    event = "profileChanged"
-    enabled = false
-    command = ["/bin/zsh", "-c", "print changed"]
-    timeoutMs = 1234
-    workingDirectory = "~/Documents"
-    environment = { MODE = "test" }
-    """
+    #expect(
+      decoded.settings.visibility.overlayAwareApps
+        == ["notion.id", "Com.Example.App"]
+    )
+
+    let encoded = try TOMLEncoder().encode(decoded)
+    let roundTripped = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    #expect(roundTripped.settings.visibility == decoded.settings.visibility)
+  }
+
+  @Test
+  func `invalid overlay aware apps reports and uses default`() throws {
+    let reported = LockIsolated<[String]>([])
+    let config = try withDependencies {
+      $0.errorReporter.report = { domain, message, _ in
+        reported.withValue { $0.append("\(domain): \(message)") }
+      }
+    } operation: {
+      try TOMLDecoder().decode(
+        AppConfig.self,
+        from: """
+          [settings.visibility]
+          overlayAwareApps = "notion.id"
+          """,
+      )
+    }
+
+    #expect(config.settings.visibility.overlayAwareApps.isEmpty)
+    #expect(reported.value.contains { $0.contains("visibility.overlayAwareApps") })
+  }
+
+  @Test
+  func `hooks decode with defaults and round trip`() throws {
+    let toml = """
+      [[hooks]]
+      id = "notify"
+      event = "workspaceActivated"
+      command = ["/usr/bin/true"]
+
+      [[hooks]]
+      id = "profile-log"
+      event = "profileChanged"
+      enabled = false
+      command = ["/bin/zsh", "-c", "print changed"]
+      timeoutMs = 1234
+      workingDirectory = "~/Documents"
+      environment = { MODE = "test" }
+      """
 
     let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
 
@@ -81,13 +123,13 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func unknownHookEventFailsTheWholeConfigDecode() {
+  func `unknown hook event fails the whole config decode`() {
     let toml = """
-    [[hooks]]
-    id = "unknown"
-    event = "windowFocused"
-    command = ["/usr/bin/true"]
-    """
+      [[hooks]]
+      id = "unknown"
+      event = "windowFocused"
+      command = ["/usr/bin/true"]
+      """
 
     #expect(throws: (any Error).self) {
       try TOMLDecoder().decode(AppConfig.self, from: toml)
@@ -95,13 +137,13 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func legacyGestureFingerCountMigratesToDirectionalBindings() throws {
+  func `legacy gesture finger count migrates to directional bindings`() throws {
     let toml = """
-    [settings.gestures]
-    enabled = true
-    fingerCount = 4
-    threshold = 0.42
-    """
+      [settings.gestures]
+      enabled = true
+      fingerCount = 4
+      threshold = 0.42
+      """
     let config = try TOMLDecoder().decode(AppConfig.self, from: toml)
     let gestures = config.settings.gestures
 
@@ -115,17 +157,17 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func directionalGestureBindingsDecodeWithoutLegacyDefaults() throws {
+  func `directional gesture bindings decode without legacy defaults`() throws {
     let toml = """
-    [settings.gestures]
-    enabled = true
+      [settings.gestures]
+      enabled = true
 
-    [settings.gestures.threeFinger]
-    up = "toggleFullscreen"
+      [settings.gestures.threeFinger]
+      up = "toggleFullscreen"
 
-    [settings.gestures.fourFinger]
-    down = "dismissBorrow"
-    """
+      [settings.gestures.fourFinger]
+      down = "dismissBorrow"
+      """
     let config = try TOMLDecoder().decode(AppConfig.self, from: toml)
     let gestures = config.settings.gestures
 
@@ -135,15 +177,15 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func workspaceSpecificGestureBindingUsesStableIDCoding() throws {
+  func `workspace specific gesture binding uses stable ID coding`() throws {
     let id = try #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF"))
     let toml = """
-    [settings.gestures.threeFinger]
-    up = "activateWorkspace:\(id.uuidString)"
+      [settings.gestures.threeFinger]
+      up = "activateWorkspace:\(id.uuidString)"
 
-    [settings.gestures.fourFinger]
-    down = "borrowWorkspace:\(id.uuidString)"
-    """
+      [settings.gestures.fourFinger]
+      down = "borrowWorkspace:\(id.uuidString)"
+      """
     let gestures = try TOMLDecoder().decode(AppConfig.self, from: toml).settings.gestures
 
     #expect(gestures.threeFinger.up == .activateWorkspace(id))
@@ -151,7 +193,7 @@ struct ConfigDecodeTests {
   }
 
   @Test
-  func corruptProfilesSectionFailsTheDecode() {
+  func `corrupt profiles section fails the decode`() {
     // `profiles` present but not an array of tables: defaulting here
     // would wipe the user's workspaces on the next write.
     #expect(throws: (any Error).self) {
@@ -160,31 +202,48 @@ struct ConfigDecodeTests {
   }
 }
 
+// MARK: - RecommendedShortcutsTests
+
 /// The recommended starter shortcuts seed a fresh install (`TatamiConfigKey`).
 /// They're built from skhd strings via `HotKey(parsing:)`, which fails soft to
 /// nil — so a typo'd string would silently ship an unbound action. Guard both
 /// the parse and the resulting bindings being conflict-free.
 struct RecommendedShortcutsTests {
   @Test
-  func everyIntendedBindingParses() {
+  func `every intended binding parses`() {
     let s = AppSettings.Shortcuts.recommended
     let bound: [HotKey?] = [
-      s.focusLeft, s.focusRight, s.focusUp, s.focusDown,
-      s.moveToNextWorkspace, s.moveToPreviousWorkspace,
-      s.focusNextDisplay, s.focusPreviousDisplay,
-      s.cycleNextWindow, s.cyclePreviousWindow,
-      s.resizeGrow, s.resizeShrink,
-      s.swapLeft, s.swapRight, s.swapUp, s.swapDown,
-      s.toggleOrientation, s.toggleFullscreen, s.balance,
-      s.toggleFloating, s.toggleSharedFloating, s.toggleSpaceActivated,
-      s.toggleFocusedAppInActiveWorkspace, s.toggleAppInSharedApps,
+      s.focusLeft,
+      s.focusRight,
+      s.focusUp,
+      s.focusDown,
+      s.moveToNextWorkspace,
+      s.moveToPreviousWorkspace,
+      s.focusNextDisplay,
+      s.focusPreviousDisplay,
+      s.cycleNextWindow,
+      s.cyclePreviousWindow,
+      s.resizeGrow,
+      s.resizeShrink,
+      s.swapLeft,
+      s.swapRight,
+      s.swapUp,
+      s.swapDown,
+      s.toggleOrientation,
+      s.toggleFullscreen,
+      s.balance,
+      s.toggleFloating,
+      s.toggleSharedFloating,
+      s.toggleSpaceActivated,
+      s.toggleFocusedAppInActiveWorkspace,
+      s.toggleAppInSharedApps,
       s.dismissBorrow,
     ]
     #expect(bound.allSatisfy { $0 != nil })
   }
 
   @Test
-  func seededConfigHasNoConflictingBindings() {
+  func `seeded config has no conflicting bindings`() {
     // The exact fresh-install seed used by `@Shared(.tatamiConfig)`.
     let config = AppConfig(settings: AppSettings(shortcuts: .recommended))
     let bindings = config.hotKeyBindings
@@ -194,7 +253,7 @@ struct RecommendedShortcutsTests {
       .filter { Set($0.value.map(\.action)).count > 1 }
     #expect(
       clashes.isEmpty,
-      "conflicting recommended shortcuts: \(clashes.keys.map(\.displayString))"
+      "conflicting recommended shortcuts: \(clashes.keys.map(\.displayString))",
     )
   }
 }

@@ -361,6 +361,24 @@ struct WindowEventSequenceTests {
   }
 
   @Test
+  func `same bundle membership events stay distinct by process`() async {
+    let bundleId = "notion.id"
+    let buffer = CoalescingWindowEventBuffer()
+    let sequence = buffer.makeSequence()
+
+    buffer.yield(.windowCreated(bundleId: bundleId, pid: 41))
+    buffer.yield(.windowCreated(bundleId: bundleId, pid: 42))
+    buffer.finish()
+
+    let events = await collect(sequence)
+
+    #expect(events == [
+      .windowCreated(bundleId: bundleId, pid: 41),
+      .windowCreated(bundleId: bundleId, pid: 42),
+    ])
+  }
+
+  @Test
   func `successful observer installation publishes a readiness edge`() async {
     let candidate = RunningAppSnapshot(pid: 4242, bundleId: "app.ready")
     let eventSink = CoalescingWindowEventBuffer()
@@ -387,7 +405,9 @@ struct WindowEventSequenceTests {
     eventSink.finish()
 
     let events = await collect(sequence)
-    #expect(events == [.observationReady(bundleId: candidate.bundleId)])
+    #expect(events == [
+      .observationReady(bundleId: candidate.bundleId, pid: candidate.pid)
+    ])
   }
 
   @Test

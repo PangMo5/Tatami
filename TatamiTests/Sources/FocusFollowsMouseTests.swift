@@ -134,6 +134,24 @@ struct FocusFollowsMouseTests {
   }
 
   @Test
+  func `overlay evaluation rejects final focus mutation`() {
+    let overlay = OverlayAwarenessState()
+    let process = OverlayAwareProcess(bundleId: "notion.id", pid: 41)
+    overlay.configure([process.bundleId])
+    let evaluation = overlay.beginEvaluation([process])
+    defer { overlay.endEvaluation(evaluation) }
+    let recorded = OSAllocatedUnfairLock(initialState: 0)
+
+    let admitted = beginAXFocusMutationIfCurrent(
+      isCancelled: { overlay.isBackgrounded(pid: process.pid) },
+      willPerformAXFocus: { recorded.withLock { $0 += 1 } },
+    )
+
+    #expect(!admitted)
+    #expect(recorded.withLock { $0 } == 0)
+  }
+
+  @Test
   func `AX lanes preserve same PID order without blocking another PID`() {
     let lanes = AXPIDSerialQueueRegistry(
       label: "dev.PangMo5.TatamiTests.ax-pid-lane"

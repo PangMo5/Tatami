@@ -17,6 +17,253 @@ struct WorkspaceActivationFeatureTests {
   // MARK: Internal
 
   @Test
+  func `background overlay focus cannot change MRU or follow app focus`() async {
+    let activeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.active")
+    let notionWindow = WindowKey(pid: 935, windowID: 70, bundleId: "notion.id")
+    let active = Workspace(
+      name: "Active",
+      apps: [AppAssignment(bundleIdentifier: activeWindow.bundleId, name: "Active")],
+    )
+    let notion = Workspace(
+      name: "Notion",
+      apps: [AppAssignment(bundleIdentifier: notionWindow.bundleId, name: "Notion")],
+    )
+    let state = Self.makeState(workspaces: [active, notion]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = active.id
+      $0.tilingTrees[active.id] = .leaf(activeWindow)
+      $0.tilingTrees[notion.id] = .leaf(notionWindow)
+      $0.lastObservedFocusedWindow = activeWindow
+      $0.mruWindows[active.id] = [activeWindow]
+    }
+    let markerUpdates = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.overlayAwareness.isBackgroundedBundle = { $0 == notionWindow.bundleId }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == notionWindow.pid }
+      $0.windowSnapshot.frontmostApp = {
+        FrontmostApp(pid: notionWindow.pid, bundleId: notionWindow.bundleId, name: "Notion")
+      }
+      $0.marker.setFocused = { _ in markerUpdates.withValue { $0 += 1 } }
+    }
+
+    await store.send(
+      .windowChanged(
+        .windowFocused(bundleId: notionWindow.bundleId, key: notionWindow)
+      )
+    )
+    await store.send(.appActivated(bundleId: notionWindow.bundleId))
+
+    #expect(store.state.lastObservedFocusedWindow == activeWindow)
+    #expect(store.state.mruWindows[active.id] == [activeWindow])
+    #expect(store.state.mruWindows[notion.id] == nil)
+    #expect(markerUpdates.value == 0)
+  }
+
+  @Test
+  func `background overlay process is excluded from interaction commands`() async {
+    let activeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.active")
+    let notionWindow = WindowKey(pid: 935, windowID: 70, bundleId: "notion.id")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(activeWindow),
+          right: .leaf(notionWindow),
+        )
+      )
+    }
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.overlayAwareness.isBackgroundedBundle = { $0 == notionWindow.bundleId }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == notionWindow.pid }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+    }
+
+    await store.send(.cycleWindowResolved(windowKey: activeWindow, direction: .next))
+    await store.send(.bspFocusResolved(windowKey: notionWindow, direction: .west))
+    await store.send(
+      .membershipEditResolved(
+        bundleId: notionWindow.bundleId,
+        name: "Notion",
+        edit: .toggleInActiveWorkspace,
+        pid: notionWindow.pid,
+      )
+    )
+    await store.send(
+      .windowChanged(
+        .windowMoved(
+          key: notionWindow,
+          frame: CGRect(x: 0, y: 0, width: 600, height: 500),
+        )
+      )
+    )
+
+    #expect(focused.value.isEmpty)
+    #expect(store.state.drag == .idle)
+    #expect(
+      store.state.config.activeProfile?.workspaces[id: workspace.id]?.apps.isEmpty == true
+    )
+  }
+
+  @Test
+  func `foreground sibling process focus is not excluded by background bundle`() async {
+    let background = WindowKey(pid: 41, windowID: 410, bundleId: "notion.id")
+    let foreground = WindowKey(pid: 42, windowID: 420, bundleId: background.bundleId)
+    let previous = WindowKey(pid: 1, windowID: 101, bundleId: "app.previous")
+    let workspace = Workspace(
+      name: "Work",
+      apps: [AppAssignment(bundleIdentifier: foreground.bundleId, name: "Notion")],
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.lastObservedFocusedWindow = previous
+      $0.isTilingPaused = true
+    }
+    let markerUpdates = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.overlayAwareness.isBackgroundedBundle = { $0 == background.bundleId }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == background.pid }
+      $0.marker.setFocused = { _ in markerUpdates.withValue { $0 += 1 } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .windowChanged(
+        .windowDestroyed(bundleId: background.bundleId, pid: background.pid)
+      )
+    )
+    await store.send(
+      .windowChanged(
+        .windowFocused(bundleId: foreground.bundleId, pid: foreground.pid, key: nil)
+      )
+    )
+    await store.finish()
+
+    #expect(store.state.lastObservedFocusedWindow == nil)
+    #expect(markerUpdates.value == 1)
+  }
+
+  @Test
+  func `same bundle sync admits foreground pid but not background pid`() async {
+    let background = WindowKey(pid: 41, windowID: 410, bundleId: "notion.id")
+    let foreground = WindowKey(pid: 42, windowID: 420, bundleId: background.bundleId)
+    let anchor = WindowKey(pid: 1, windowID: 101, bundleId: "app.anchor")
+    let workspace = Workspace(
+      name: "Work",
+      apps: [
+        AppAssignment(bundleIdentifier: anchor.bundleId, name: "Anchor"),
+        AppAssignment(bundleIdentifier: foreground.bundleId, name: "Notion"),
+      ],
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(anchor)
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.overlayAwareness.isBackgroundedBundle = { $0 == background.bundleId }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == background.pid }
+      $0.displays.workArea = { _ in
+        CGRect(x: 0, y: 0, width: 1_000, height: 800)
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: foreground.bundleId,
+      resizableKeys: [background, foreground],
+      onScreenFrames: [
+        background.windowID: CGRect(x: 0, y: 0, width: 500, height: 800),
+        foreground.windowID: CGRect(x: 500, y: 0, width: 500, height: 800),
+      ],
+    ))
+    await store.finish()
+
+    let windows = store.state.tilingTrees[workspace.id]?.windows ?? []
+    #expect(windows.contains(foreground))
+    #expect(!windows.contains(background))
+  }
+
+  @Test
+  func `delayed background activation cannot impersonate foreground sibling`() async {
+    let background = WindowKey(pid: 41, windowID: 410, bundleId: "notion.id")
+    let foreground = WindowKey(pid: 42, windowID: 420, bundleId: background.bundleId)
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+    }
+    let markerUpdates = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == background.pid }
+      $0.windowSnapshot.frontmostApp = {
+        FrontmostApp(
+          pid: foreground.pid,
+          bundleId: foreground.bundleId,
+          name: "Notion",
+        )
+      }
+      $0.marker.setFocused = { _ in markerUpdates.withValue { $0 += 1 } }
+    }
+
+    await store.send(
+      .appActivated(bundleId: background.bundleId, pid: background.pid)
+    )
+
+    #expect(markerUpdates.value == 0)
+  }
+
+  @Test
+  func `termination removes only the exact process from shared bundle state`() async {
+    let terminated = WindowKey(pid: 41, windowID: 410, bundleId: "notion.id")
+    let survivor = WindowKey(pid: 42, windowID: 420, bundleId: terminated.bundleId)
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.mruWindows[workspace.id] = [terminated, survivor]
+      $0.windowServerHiddenWindows = [terminated, survivor]
+      $0.pendingWindowServerPresentationWindows = [terminated, survivor]
+      $0.layoutSuspensionReasons = [.systemSleep]
+    }
+    let invalidated = LockIsolated<[(pid_t, String)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.invalidateProcess = { pid, bundleId in
+        invalidated.withValue { $0.append((pid, bundleId)) }
+      }
+    }
+
+    await store.send(
+      .appTerminated(bundleId: terminated.bundleId, pid: terminated.pid)
+    ) {
+      $0.mruWindows[workspace.id] = [survivor]
+      $0.windowServerHiddenWindows = [survivor]
+      $0.pendingWindowServerPresentationWindows = [survivor]
+    }
+
+    #expect(invalidated.value.count == 1)
+    #expect(invalidated.value.first?.0 == terminated.pid)
+    #expect(invalidated.value.first?.1 == terminated.bundleId)
+  }
+
+  @Test
   func `cycle next loops past the last workspace`() async {
     let ws1 = Workspace(name: "one")
     let ws2 = Workspace(name: "two")
@@ -2397,7 +2644,7 @@ struct WorkspaceActivationFeatureTests {
     await store.receive {
       guard
         case .windowChanged(
-          .windowFocused(bundleId: let bundleId, key: let key)
+          .windowFocused(bundleId: let bundleId, pid: _, key: let key)
         ) = $0
       else { return false }
       return bundleId == notion.bundleId && key == notion

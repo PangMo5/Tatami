@@ -29,9 +29,9 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// AX notifications are now armed for this app. The app may already have
   /// become focused while installation was in flight, so consumers must
   /// reconcile both membership and the current global focus once.
-  case observationReady(bundleId: String)
-  case windowCreated(bundleId: String)
-  case windowDestroyed(bundleId: String)
+  case observationReady(bundleId: String, pid: pid_t = 0)
+  case windowCreated(bundleId: String, pid: pid_t = 0)
+  case windowDestroyed(bundleId: String, pid: pid_t = 0)
   /// A non-pointer geometry change. Apps can restore their remembered frame
   /// after Tatami reveals them; unlike a user drag this should converge back
   /// to the current tile immediately, without waiting on a settlement timer.
@@ -49,7 +49,7 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// `WindowKey` (e.g. AX-hidden windows opened via Notification Center
   /// dispatches). The bundle id is still emitted so the reducer can
   /// re-reconcile that app's windows — the front-switch reconcile path.
-  case windowFocused(bundleId: String, key: WindowKey?)
+  case windowFocused(bundleId: String, pid: pid_t = 0, key: WindowKey?)
   /// The primary mouse button was released. The optional final WindowServer
   /// geometry lets the reducer recover a short drag whose AX callbacks were
   /// delayed or dropped, then flush it exactly at mouse-up without a time
@@ -269,12 +269,12 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
   // MARK: Fileprivate
 
   fileprivate enum Key: Hashable {
-    case observation(String)
-    case membership(String)
+    case observation(bundleId: String, pid: pid_t)
+    case membership(bundleId: String, pid: pid_t)
     case frame(WindowKey)
     case resized(WindowKey)
     case moved(WindowKey)
-    case focus(bundleId: String, key: WindowKey?)
+    case focus(bundleId: String, pid: pid_t, key: WindowKey?)
     case title(String)
   }
 
@@ -381,19 +381,19 @@ final class CoalescingWindowEventBuffer: @unchecked Sendable {
 extension WindowChangeEvent {
   fileprivate var coalescingKey: CoalescingWindowEventBuffer.Key? {
     switch self {
-    case .observationReady(let bundleId):
-      .observation(bundleId)
-    case .windowCreated(let bundleId),
-         .windowDestroyed(let bundleId):
-      .membership(bundleId)
+    case .observationReady(let bundleId, let pid):
+      .observation(bundleId: bundleId, pid: pid)
+    case .windowCreated(let bundleId, let pid),
+         .windowDestroyed(let bundleId, let pid):
+      .membership(bundleId: bundleId, pid: pid)
     case .windowFrameChanged(let key, _):
       .frame(key)
     case .windowResized(let key, _):
       .resized(key)
     case .windowMoved(let key, _):
       .moved(key)
-    case .windowFocused(let bundleId, let key):
-      .focus(bundleId: bundleId, key: key)
+    case .windowFocused(let bundleId, let pid, let key):
+      .focus(bundleId: bundleId, pid: pid, key: key)
     case .windowTitleChanged(let bundleId):
       .title(bundleId)
     case .windowDragEnded:
@@ -891,7 +891,7 @@ actor WindowObserverRegistry {
           // moment notifications become armed. Replay one bundle-level
           // reconcile after the source is installed; subsequent changes are
           // carried by real notifications.
-          eventSink.yield(.observationReady(bundleId: bundleId))
+          eventSink.yield(.observationReady(bundleId: bundleId, pid: app.pid))
         } else {
           debugLog.log(
             "Observer",
@@ -1193,7 +1193,7 @@ private final class ObservedApp: @unchecked Sendable {
       )
       retryTask = nil
       if lastSubscribedWindowCount > 0 {
-        eventSink.yield(.observationReady(bundleId: bundleId))
+        eventSink.yield(.observationReady(bundleId: bundleId, pid: pid))
       }
       return
     }
@@ -1241,7 +1241,7 @@ private func axObserverCallback(
       "AX",
       "windowCreated pid=\(app.pid) bundle=\(app.bundleId)",
     )
-    app.eventSink.yield(.windowCreated(bundleId: app.bundleId))
+    app.eventSink.yield(.windowCreated(bundleId: app.bundleId, pid: app.pid))
     // A brand-new window can answer CannotComplete just like a brand-new
     // app. Subscribe on the next run-loop turn so the C callback returns
     // before any timeout-prone AX refresh.
@@ -1252,7 +1252,7 @@ private func axObserverCallback(
       "AX",
       "windowDestroyed pid=\(app.pid) bundle=\(app.bundleId)",
     )
-    app.eventSink.yield(.windowDestroyed(bundleId: app.bundleId))
+    app.eventSink.yield(.windowDestroyed(bundleId: app.bundleId, pid: app.pid))
 
   case AXNotificationName.windowResized:
     routeGeometryNotification(element, app: app, kind: .resized)
@@ -1276,7 +1276,9 @@ private func axObserverCallback(
       "AX",
       "windowFocused pid=\(app.pid) bundle=\(app.bundleId) key=\(key?.windowID.description ?? "nil")",
     )
-    app.eventSink.yield(.windowFocused(bundleId: app.bundleId, key: key))
+    app.eventSink.yield(
+      .windowFocused(bundleId: app.bundleId, pid: app.pid, key: key)
+    )
 
   case AXNotificationName.windowMiniaturized,
        AXNotificationName.windowDeminiaturized:
@@ -1287,7 +1289,7 @@ private func axObserverCallback(
       "AX",
       "miniaturizeChange pid=\(app.pid) bundle=\(app.bundleId) name=\(name)",
     )
-    app.eventSink.yield(.windowCreated(bundleId: app.bundleId))
+    app.eventSink.yield(.windowCreated(bundleId: app.bundleId, pid: app.pid))
 
   case AXNotificationName.menuOpened:
     app.isMenuOpen = true
