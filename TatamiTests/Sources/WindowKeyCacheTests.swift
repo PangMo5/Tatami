@@ -48,6 +48,33 @@ struct WindowKeyCacheTests {
   }
 
   @Test
+  func `process invalidation preserves same bundle sibling`() {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let terminated = WindowKey(pid: 41, windowID: 410, bundleId: "notion.id")
+      let survivor = WindowKey(pid: 42, windowID: 420, bundleId: terminated.bundleId)
+      let discovery = WindowDiscovery(keys: [terminated, survivor])
+      cache.store(
+        discovery,
+        bundleIds: [terminated.bundleId],
+        requireResizable: true,
+      )
+      cache.store(
+        discovery,
+        bundleIds: [terminated.bundleId],
+        requireResizable: false,
+      )
+      let generation = cache.invalidationGeneration(for: [terminated.bundleId])
+
+      cache.invalidate(pid: terminated.pid, bundleId: terminated.bundleId)
+
+      #expect(cache.invalidationGeneration(for: [terminated.bundleId]) > generation)
+      #expect(cache.cached(terminated.bundleId, requireResizable: true) == [survivor])
+      #expect(cache.cached(terminated.bundleId, requireResizable: false) == [survivor])
+    }
+  }
+
+  @Test
   func `unrelated bundle invalidation does not discard valid discovery`() {
     withNoopPublicationDependencies {
       let cache = WindowKeyCache()

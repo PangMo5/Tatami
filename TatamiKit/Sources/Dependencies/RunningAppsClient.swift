@@ -6,20 +6,27 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 
+// MARK: - RunningAppsClient
+
 /// Snapshot of the macOS apps currently runnable by the user. Wrapping
 /// `NSWorkspace.shared.runningApplications` behind a `@Dependency` lets
 /// reducers stay testable.
 @DependencyClient
 struct RunningAppsClient: Sendable {
   var current: @Sendable () -> [MacApp] = { [] }
+  var resolveInstalled: @Sendable ([String]) -> [MacApp] = { bundleIds in
+    bundleIds.map { MacApp(bundleIdentifier: $0, name: $0) }
+  }
 }
 
+// MARK: DependencyKey
+
 extension RunningAppsClient: DependencyKey {
-  // `NSWorkspace.runningApplications` and `NSRunningApplication`'s
-  // `localizedName`/`bundleURL` are main-thread AppKit; the sibling snapshot
-  // clients (WindowSnapshotClient.runningBundleIds/frontmostApp) wrap the same
-  // access this way. Both call sites (`.addAppButtonTapped` in the detail /
-  // shared-apps reducers) are UI-driven, so the main-actor contract holds.
+  /// `NSWorkspace.runningApplications` and `NSRunningApplication`'s
+  /// `localizedName`/`bundleURL` are main-thread AppKit; the sibling snapshot
+  /// clients (WindowSnapshotClient.runningBundleIds/frontmostApp) wrap the same
+  /// access this way. Both call sites (`.addAppButtonTapped` in the detail /
+  /// shared-apps reducers) are UI-driven, so the main-actor contract holds.
   static let liveValue = RunningAppsClient(
     current: {
       MainActor.assumeIsolated {
@@ -32,15 +39,42 @@ extension RunningAppsClient: DependencyKey {
             return MacApp(
               bundleIdentifier: bundleId,
               name: app.localizedName ?? bundleId,
-              iconPath: app.bundleURL?.path
+              iconPath: app.bundleURL?.path,
             )
           }
           .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
       }
-    }
+    },
+    resolveInstalled: { bundleIds in
+      MainActor.assumeIsolated {
+        bundleIds.map { bundleId in
+          guard
+            let url = NSWorkspace.shared.urlForApplication(
+              withBundleIdentifier: bundleId
+            )
+          else {
+            return MacApp(bundleIdentifier: bundleId, name: bundleId)
+          }
+          let bundle = Bundle(url: url)
+          let name = bundle?.infoDictionary?["CFBundleDisplayName"] as? String
+            ?? bundle?.infoDictionary?["CFBundleName"] as? String
+            ?? url.deletingPathExtension().lastPathComponent
+          return MacApp(
+            bundleIdentifier: bundleId,
+            name: name,
+            iconPath: url.path,
+          )
+        }
+      }
+    },
   )
 
-  static let testValue = RunningAppsClient(current: { [] })
+  static let testValue = RunningAppsClient(
+    current: { [] },
+    resolveInstalled: { bundleIds in
+      bundleIds.map { MacApp(bundleIdentifier: $0, name: $0) }
+    },
+  )
   static let previewValue = RunningAppsClient(
     current: {
       [
@@ -48,7 +82,10 @@ extension RunningAppsClient: DependencyKey {
         MacApp(bundleIdentifier: "com.apple.dt.Xcode", name: "Xcode"),
         MacApp(bundleIdentifier: "com.apple.Terminal", name: "Terminal"),
       ]
-    }
+    },
+    resolveInstalled: { bundleIds in
+      bundleIds.map { MacApp(bundleIdentifier: $0, name: $0) }
+    },
   )
 }
 

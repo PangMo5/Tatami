@@ -122,6 +122,29 @@ struct SettingsView: View {
     .sheet(isPresented: $isCLIReferencePresented) {
       CLIReferenceView()
     }
+    .sheet(
+      isPresented: Binding(
+        get: { store.overlayAwareApps.isAppPickerPresented },
+        set: {
+          if !$0 {
+            store.send(.overlayAwareApps(.appPickerDismissed))
+          }
+        },
+      )
+    ) {
+      AppPickerSheet(
+        apps: store.overlayAwareApps.availableRunningApps,
+        onSelect: {
+          store.send(.overlayAwareApps(.appPickerAppSelected($0)))
+        },
+        onChooseFile: {
+          store.send(.overlayAwareApps(.chooseAppFileTapped))
+        },
+        onCancel: {
+          store.send(.overlayAwareApps(.appPickerDismissed))
+        },
+      )
+    }
     .frame(minWidth: 680, minHeight: 540)
     // All side effects (status reads, permission/CLI/update streams, the AX
     // change subscription) live in the reducer — the view just starts it.

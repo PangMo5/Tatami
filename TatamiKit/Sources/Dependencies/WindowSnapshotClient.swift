@@ -627,6 +627,9 @@ struct WindowSnapshotClient: Sendable {
   /// authoritative lifecycle signal, so activation must not serve its stale
   /// window ids while a later discovery catches up.
   var invalidateBundle: @Sendable (_ bundleId: String) -> Void = { _ in }
+  /// Remove only one terminated process while preserving cached windows owned
+  /// by another live process with the same bundle identifier.
+  var invalidateProcess: @Sendable (_ pid: pid_t, _ bundleId: String) -> Void = { _, _ in }
   /// Advance one bundle's discovery generation without discarding its
   /// last-known keys. Visibility edges use this to force an in-flight stale
   /// scan to run one trailing pass while preserving timeout fallback.
@@ -978,6 +981,11 @@ extension WindowSnapshotClient: DependencyKey {
       invalidateBundle: { bundleId in
         MainActor.assumeIsolated { cache.invalidate(bundleId: bundleId) }
       },
+      invalidateProcess: { pid, bundleId in
+        MainActor.assumeIsolated {
+          cache.invalidate(pid: pid, bundleId: bundleId)
+        }
+      },
       markBundleDirty: { bundleId in
         MainActor.assumeIsolated { cache.markDirty(bundleId: bundleId) }
       },
@@ -1058,6 +1066,7 @@ extension WindowSnapshotClient: DependencyKey {
     cachedKeysOnlyAsync: { _, _ in .miss },
     cachedKeysAsync: { _, _ in .unavailable },
     invalidateBundle: { _ in },
+    invalidateProcess: { _, _ in },
     markBundleDirty: { _ in },
     invalidateWindowIDs: { _ in },
     cachedWindowKey: { _ in nil },
@@ -1165,6 +1174,20 @@ final class WindowKeyCache {
     guard !keys.isEmpty else { return }
     for key in keys { entries[key] = nil }
     publishManagedWindows()
+  }
+
+  func invalidate(pid: pid_t, bundleId: String) {
+    currentInvalidationEpoch &+= 1
+    bundleInvalidationEpoch[bundleId] = currentInvalidationEpoch
+    var changed = false
+    for key in Array(entries.keys) where key.bundleId == bundleId {
+      guard let cached = entries[key] else { continue }
+      let filtered = cached.filter { $0.pid != pid }
+      guard filtered.count != cached.count else { continue }
+      entries[key] = filtered.isEmpty ? nil : filtered
+      changed = true
+    }
+    if changed { publishManagedWindows() }
   }
 
   /// Record a visibility/membership edge without throwing away last-known

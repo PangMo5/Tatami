@@ -142,7 +142,11 @@ private func focusWindow(
   forceFront: Bool,
   willPerformAXFocus: (@Sendable () -> Void)?,
 ) async {
-  guard !Task.isCancelled else { return }
+  @Dependency(\.overlayAwareness) var overlayAwareness
+  let isEligible: @Sendable () -> Bool = {
+    !overlayAwareness.isBackgroundedProcess(pid)
+  }
+  guard !Task.isCancelled, isEligible() else { return }
   // Capture user-intent order on MainActor before the mirror commit suspension
   // or the hop to the generic AX worker. Issuing this token inside the worker
   // lets an older suspended request start later and invalidate a newer focus.
@@ -170,7 +174,8 @@ private func focusWindow(
   }
   guard
     !Task.isCancelled,
-    focusAXLatestRequest.isCurrent(request)
+    focusAXLatestRequest.isCurrent(request),
+    isEligible()
   else { return }
 
   // AppKit activation stays on the main actor. All timeout-prone AX lookup,
@@ -178,7 +183,8 @@ private func focusWindow(
   if !forceFront {
     guard
       !Task.isCancelled,
-      focusAXLatestRequest.isCurrent(request)
+      focusAXLatestRequest.isCurrent(request),
+      isEligible()
     else { return }
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
@@ -190,11 +196,13 @@ private func focusWindow(
     fallbackToAppFront: true,
     sls: sls,
     request: request,
+    isEligible: isEligible,
     willPerformAXFocus: willPerformAXFocus,
   )
   guard
     !Task.isCancelled,
-    focusAXLatestRequest.isCurrent(request)
+    focusAXLatestRequest.isCurrent(request),
+    isEligible()
   else { return }
   if case .activateApp = result {
     NSRunningApplication(processIdentifier: pid)?.activate()
@@ -242,17 +250,23 @@ func focusWindowFollowingMouse(
 /// to a best-effort `activate()` only if no AX window can be resolved.
 @MainActor
 public func focusAppFront(pid: pid_t) async {
-  guard !Task.isCancelled else { return }
+  @Dependency(\.overlayAwareness) var overlayAwareness
+  let isEligible: @Sendable () -> Bool = {
+    !overlayAwareness.isBackgroundedProcess(pid)
+  }
+  guard !Task.isCancelled, isEligible() else { return }
   let request = focusAXLatestRequest.begin()
   @Dependency(\.sls) var sls
   let result = await focusAppFrontOffMain(
     pid: pid,
     sls: sls,
     request: request,
+    isEligible: isEligible,
   )
   guard
     !Task.isCancelled,
-    focusAXLatestRequest.isCurrent(request)
+    focusAXLatestRequest.isCurrent(request),
+    isEligible()
   else { return }
   if case .activateApp = result {
     NSRunningApplication(processIdentifier: pid)?.activate()
@@ -284,6 +298,16 @@ private let focusAXQueues = AXPIDSerialQueueRegistry(
 private let focusAXLatestRequest = FocusAXLatestRequest()
 private let focusAXMutationLock = NSLock()
 private let focusAXMessagingTimeout: Float = 0.25
+
+/// Invalidate queued focus reads and serialize that invalidation with the final
+/// AX mutation admission edge. Overlay evaluation calls this after publishing
+/// its provisional PID set, so a focus that wins the lock happened before the
+/// process became backgrounded; one that runs later observes the exclusion.
+func invalidatePendingWindowFocus() {
+  focusAXMutationLock.withLock {
+    _ = focusAXLatestRequest.begin()
+  }
+}
 
 // MARK: - AXPIDSerialQueueRegistry
 
@@ -385,6 +409,7 @@ private func performFocusOffMain(
   fallbackToAppFront: Bool,
   sls: SLSClient,
   request: UInt64,
+  isEligible: @escaping @Sendable () -> Bool,
   willPerformAXFocus: (@Sendable () -> Void)?,
 ) async -> FocusAXResult {
   let cancellation = FocusAXCancellationFlag()
@@ -401,6 +426,7 @@ private func performFocusOffMain(
             isCancelled: {
               cancellation.isCancelled
                 || !focusAXLatestRequest.isCurrent(request)
+                || !isEligible()
             },
             willPerformAXFocus: willPerformAXFocus,
           )
@@ -416,6 +442,7 @@ private func focusAppFrontOffMain(
   pid: pid_t,
   sls: SLSClient,
   request: UInt64,
+  isEligible: @escaping @Sendable () -> Bool,
 ) async -> FocusAXResult {
   let cancellation = FocusAXCancellationFlag()
   return await withTaskCancellationHandler {
@@ -428,6 +455,7 @@ private func focusAppFrontOffMain(
             isCancelled: {
               cancellation.isCancelled
                 || !focusAXLatestRequest.isCurrent(request)
+                || !isEligible()
             },
           )
         )

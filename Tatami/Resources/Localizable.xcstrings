@@ -1,6 +1,24 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Apps With Floating Controls": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "플로팅 컨트롤이 있는 앱" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "フローティングコントロールのあるアプリ" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "带浮动控件的 App" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "具有浮動控制項目的 App" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Apps With Floating Controls" } }
+      }
+    },
+    "Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you activate that workspace again. They may remain visible in Mission Control.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "앱이 일반 창 레이어가 아닌 곳에 화면 표시 중인 플로팅 컨트롤을 가진 동안에만 숨기지 않습니다. 해당 워크스페이스를 다시 활성화할 때까지 일반 창은 Tatami의 포커스, 순환, 레이아웃 및 멤버십 동작에서 제외됩니다. Mission Control에는 계속 보일 수 있습니다." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "通常のウインドウレイヤー以外に画面表示中のフローティングコントロールがある間だけ、アプリを非表示にしません。そのワークスペースを再び有効にするまで、通常のウインドウはTatamiのフォーカス、切り替え、レイアウト、メンバーシップ操作から除外されます。Mission Controlには引き続き表示される場合があります。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅当 App 在普通窗口层之外拥有屏幕上可见的浮动控件时，才保持其不被隐藏。在再次激活该工作区之前，其普通窗口不会参与 Tatami 的聚焦、循环、布局和成员管理操作。它们仍可能显示在调度中心中。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "僅當 App 在一般視窗圖層之外擁有螢幕上可見的浮動控制項目時，才保持其不被隱藏。在再次啟用該工作空間之前，其一般視窗不會參與 Tatami 的聚焦、循環、佈局與成員管理操作。它們仍可能顯示在「指揮中心」中。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you activate that workspace again. They may remain visible in Mission Control." } }
+      }
+    },
     "· 1 argument": {
       "localizations": {
         "ko": { "stringUnit": { "state": "translated", "value": "· 인자 1개" } },

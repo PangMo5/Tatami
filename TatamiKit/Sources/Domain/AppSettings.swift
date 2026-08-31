@@ -50,6 +50,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   public init(
     general: General = General(),
+    visibility: Visibility = Visibility(),
     menuBar: MenuBar = MenuBar(),
     hud: HUD = HUD(),
     marker: Marker = Marker(),
@@ -60,6 +61,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     shortcuts: Shortcuts = Shortcuts(),
   ) {
     self.general = general
+    self.visibility = visibility
     self.menuBar = menuBar
     self.hud = hud
     self.marker = marker
@@ -73,6 +75,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     general = c.decode(.general, default: General())
+    visibility = c.decode(.visibility, default: Visibility())
     menuBar = c.decode(.menuBar, default: MenuBar())
     hud = c.decode(.hud, default: HUD())
     marker = c.decode(.marker, default: Marker())
@@ -86,6 +89,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   // MARK: Public
 
   public var general: General
+  public var visibility: Visibility
   public var menuBar: MenuBar
   public var hud: HUD
   public var marker: Marker
@@ -99,6 +103,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   private enum CodingKeys: String, CodingKey {
     case general
+    case visibility
     case menuBar
     case hud
     case marker
@@ -109,6 +114,63 @@ public struct AppSettings: Hashable, Sendable, Codable {
     case shortcuts
   }
 
+}
+
+// MARK: AppSettings.Visibility
+
+extension AppSettings {
+  /// App-level visibility exceptions for utilities that own a persistent
+  /// elevated overlay alongside ordinary layer-zero document windows.
+  public struct Visibility: Hashable, Sendable, Codable {
+
+    // MARK: Lifecycle
+
+    public init(overlayAwareApps: [String] = []) {
+      self.overlayAwareApps = Self.normalized(overlayAwareApps)
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      overlayAwareApps = Self.normalized(c.decode(.overlayAwareApps, default: []))
+    }
+
+    // MARK: Public
+
+    /// Bundle identifiers whose ordinary windows may stay unhidden while the
+    /// same process owns an on-screen, non-layer-zero top-level AX window.
+    /// Tatami still excludes those background windows from focus automation.
+    public private(set) var overlayAwareApps: [String]
+
+    /// Adds one exact bundle identifier after trimming surrounding whitespace.
+    /// Returns `false` for an empty or already-registered identifier.
+    @discardableResult
+    public mutating func addOverlayAwareApp(bundleId: String) -> Bool {
+      let normalized = bundleId.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !normalized.isEmpty, !overlayAwareApps.contains(normalized) else { return false }
+      overlayAwareApps.append(normalized)
+      return true
+    }
+
+    public mutating func removeOverlayAwareApp(bundleId: String) {
+      overlayAwareApps.removeAll { $0 == bundleId }
+    }
+
+    // MARK: Private
+
+    private enum CodingKeys: String, CodingKey {
+      case overlayAwareApps
+    }
+
+    private static func normalized(_ bundleIds: [String]) -> [String] {
+      var seen = Set<String>()
+      return bundleIds.compactMap { raw in
+        let bundleId = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bundleId.isEmpty, seen.insert(bundleId).inserted else { return nil }
+        return bundleId
+      }
+    }
+
+  }
 }
 
 // MARK: AppSettings.General

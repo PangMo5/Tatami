@@ -56,6 +56,22 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `checkInterval` | string | `"daily"` | Background update-check frequency: `hourly`, `daily`, or `weekly`. |
 | `debugLogging` | bool | `false` | Append diagnostic events to `~/.config/tatami/tatami.log`. Truncated when first enabled. |
 
+## `[settings.visibility]`
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `overlayAwareApps` | string[] | `[]` | Bundle IDs of apps that own persistent elevated controls. When a registered process has an on-screen top-level AX window on a nonzero WindowServer layer, Tatami leaves the process unhidden but excludes its ordinary windows from focus, cycling, layout, drag, and membership actions. The windows can still appear in Mission Control. |
+
+This is an explicit per-app exception, not a blanket floating-window rule. A
+registered app follows normal hide behavior whenever no matching elevated
+top-level window is present. Tatami re-evaluates it during each workspace or
+Borrow visibility transaction.
+
+```toml
+[settings.visibility]
+overlayAwareApps = ["notion.id"]
+```
+
 ## `[settings.menuBar]`
 
 | Key | Type | Default | Description |

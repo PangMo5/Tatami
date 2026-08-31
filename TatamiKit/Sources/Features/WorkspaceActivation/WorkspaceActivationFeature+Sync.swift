@@ -899,8 +899,11 @@ extension WorkspaceActivationFeature {
     }
     let existingTargetKeys = Set(existing?.windows ?? [])
     let targetWorkArea = displays.workArea(targetDisplay)
+    let interactiveDiscovered = discovered.filter {
+      !overlayAwareness.isBackgroundedProcess($0.pid)
+    }
     let scoped = Self.scopedWindowKeys(
-      discovered,
+      interactiveDiscovered,
       sharedTiledBundleIds: sharedTiledSet,
       existingTargetKeys: existingTargetKeys,
       protectedKeys: protectedKeys,
@@ -918,7 +921,15 @@ extension WorkspaceActivationFeature {
     // block, else the workspace's full work area. New windows insert into it.
     let (_, workArea) = tilingContext(for: workspaceId, state: state)
     let treeWindows = existing?.windows ?? []
-    let currentSet = Set(current)
+    // A backgrounded overlay-aware process remains live and cached, but its
+    // ordinary layer-zero windows must neither receive interaction nor be
+    // mistaken for destroyed membership while another process with the same
+    // bundle id reconciles. Preserve existing keys without admitting newly
+    // discovered keys from the suppressed PID.
+    let backgroundedExisting = existingTargetKeys.filter {
+      $0.bundleId == bundleId && overlayAwareness.isBackgroundedProcess($0.pid)
+    }
+    let currentSet = Set(current).union(backgroundedExisting)
     let staleBundleKeys = treeWindows.filter {
       $0.bundleId == bundleId && !currentSet.contains($0)
     }

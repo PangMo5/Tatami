@@ -27,13 +27,13 @@ struct AppLaunchObserverClient: Sendable {
 // MARK: - AppLaunchEvent
 
 enum AppLaunchEvent: Sendable, Hashable {
-  case launched(bundleId: String, name: String)
-  case activated(bundleId: String)
+  case launched(bundleId: String, name: String, pid: pid_t)
+  case activated(bundleId: String, pid: pid_t)
   /// A running app became visible again without necessarily becoming
   /// frontmost. Borrow intentionally uses `setFocus: false`, so this is a
   /// membership edge, not an activation/follow-focus edge.
-  case unhidden(bundleId: String)
-  case terminated(bundleId: String)
+  case unhidden(bundleId: String, pid: pid_t)
+  case terminated(bundleId: String, pid: pid_t)
   /// User switched to a different native macOS Space, or the system
   /// just woke from sleep. Either way the on-screen window set may
   /// have changed without any per-app notification firing — so the
@@ -97,7 +97,13 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      self?.broadcast(.launched(bundleId: bundleId, name: app.localizedName ?? bundleId))
+      self?.broadcast(
+        .launched(
+          bundleId: bundleId,
+          name: app.localizedName ?? bundleId,
+          pid: app.processIdentifier,
+        )
+      )
     }
     nc.addObserver(
       forName: NSWorkspace.didActivateApplicationNotification,
@@ -110,7 +116,7 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      self?.broadcast(.activated(bundleId: bundleId))
+      self?.broadcast(.activated(bundleId: bundleId, pid: app.processIdentifier))
     }
     // Unhide fires when a previously-hidden app's windows come back —
     // e.g. a Borrow reveals KakaoTalk while deliberately leaving the host
@@ -127,7 +133,7 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      self?.broadcast(.unhidden(bundleId: bundleId))
+      self?.broadcast(.unhidden(bundleId: bundleId, pid: app.processIdentifier))
     }
     nc.addObserver(
       forName: NSWorkspace.didTerminateApplicationNotification,
@@ -139,7 +145,7 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         as? NSRunningApplication,
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty
       else { return }
-      self?.broadcast(.terminated(bundleId: bundleId))
+      self?.broadcast(.terminated(bundleId: bundleId, pid: app.processIdentifier))
     }
     // Native macOS Space changes don't fire any per-app notification.
     // Without this the on-screen window set silently drifts away from

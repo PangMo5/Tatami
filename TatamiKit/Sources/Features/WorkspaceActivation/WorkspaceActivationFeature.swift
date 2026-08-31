@@ -545,6 +545,14 @@ public struct WorkspaceActivationFeature {
       }
     }
 
+    mutating func removeProcessFromWindowMRU(_ pid: pid_t) {
+      for workspaceId in Array(mruWindows.keys) {
+        guard var mru = mruWindows[workspaceId] else { continue }
+        mru.removeAll { $0.pid == pid }
+        mruWindows[workspaceId] = mru.isEmpty ? nil : mru
+      }
+    }
+
     /// Consume exact evidence that an 816-hidden WindowServer surface is live
     /// again. SLS 815 is not guaranteed for hide-on-close Electron windows;
     /// their AX observer can instead report the same focused window id when the
@@ -769,7 +777,12 @@ public struct WorkspaceActivationFeature {
     /// mutate and which HUD they show — that's data, not control flow, so
     /// one action pair carries all six instead of six near-identical pairs.
     case membershipEdit(MembershipEdit)
-    case membershipEditResolved(bundleId: String, name: String, edit: MembershipEdit)
+    case membershipEditResolved(
+      bundleId: String,
+      name: String,
+      edit: MembershipEdit,
+      pid: pid_t = 0,
+    )
     case togglePaused
     case bspFocus(BSPDirection)
     case bspFocusResolved(windowKey: WindowKey, direction: BSPDirection)
@@ -852,10 +865,10 @@ public struct WorkspaceActivationFeature {
     case sessionDidBecomeActive
     case systemLayoutBundleReconciled(bundleId: String)
     case startObservingAppLaunches
-    case appLaunched(bundleId: String, name: String)
-    case appActivated(bundleId: String)
-    case appUnhidden(bundleId: String)
-    case appTerminated(bundleId: String)
+    case appLaunched(bundleId: String, name: String, pid: pid_t = 0)
+    case appActivated(bundleId: String, pid: pid_t = 0)
+    case appUnhidden(bundleId: String, pid: pid_t = 0)
+    case appTerminated(bundleId: String, pid: pid_t = 0)
     /// A floating-window scan completed. The reducer commits the overlay from
     /// this exact result, then derives marker targets from current state so a
     /// marker-only refresh can never cancel the authoritative mirror update.
@@ -1188,6 +1201,7 @@ public struct WorkspaceActivationFeature {
       case .windowChanged(let event):
         switch event {
         case .windowFrameChanged(let key, let frame):
+          guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
           guard state.presentationConvergenceWindows.contains(key) else { return .none }
           guard
             !state.isActivating,
@@ -1206,6 +1220,7 @@ public struct WorkspaceActivationFeature {
           )
 
         case .windowResized(let key, let frame):
+          guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
           // Defer to drag-end: AX fires continuously during the drag, and
           // committing mid-drag re-tiles the siblings under the cursor.
           // Record the latest geometry; `.windowDragEnded` (mouse-up) flushes
@@ -1214,6 +1229,7 @@ public struct WorkspaceActivationFeature {
           return .none
 
         case .windowMoved(let key, _):
+          guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
           // A top-left resize fires Moved and Resized interleaved; once a
           // resize is pending it stays the commit — a move event must not
           // demote it to a drop/snap-back.
@@ -1263,6 +1279,15 @@ public struct WorkspaceActivationFeature {
             case .moving(let key):
               key
             }
+          if
+            let interactionKey = completedKey ?? currentKey,
+            overlayAwareness.isBackgroundedProcess(interactionKey.pid)
+          {
+            state.drag = .idle
+            let preview = dragPreview
+            return .run { _ in await preview.hide() }
+              .cancellable(id: CancelID.dragPreview, cancelInFlight: true)
+          }
           let authoritativeWindowID =
             completedKey?.windowID ?? trackedWindowID
           if
@@ -1384,7 +1409,11 @@ public struct WorkspaceActivationFeature {
           }
           return .merge(effects)
 
-        case .observationReady(let bundleId):
+        case .observationReady(let bundleId, let pid):
+          let isBackgrounded = pid == 0
+            ? overlayAwareness.isBackgroundedBundle(bundleId)
+            : overlayAwareness.isBackgroundedProcess(pid)
+          guard !isBackgrounded else { return .none }
           let snapshot = windowSnapshot
           let log = debugLog
           return .merge(
@@ -1400,20 +1429,40 @@ public struct WorkspaceActivationFeature {
               )
               await send(
                 .windowChanged(
-                  .windowFocused(bundleId: bundleId, key: key)
+                  .windowFocused(bundleId: bundleId, pid: key.pid, key: key)
                 )
               )
             },
           )
 
-        case .windowCreated(let bundleId):
+        case .windowCreated(let bundleId, let pid):
+          let isBackgrounded = pid == 0
+            ? overlayAwareness.isBackgroundedBundle(bundleId)
+            : overlayAwareness.isBackgroundedProcess(pid)
+          guard !isBackgrounded else { return .none }
           return requestWindowSync(bundleId)
 
-        case .windowDestroyed(let bundleId):
+        case .windowDestroyed(let bundleId, let pid):
+          let isBackgrounded = pid == 0
+            ? overlayAwareness.isBackgroundedBundle(bundleId)
+            : overlayAwareness.isBackgroundedProcess(pid)
+          guard !isBackgrounded else { return .none }
           return requestWindowSync(bundleId)
 
-        case .windowFocused(let bundleId, let key):
+        case .windowFocused(let bundleId, let pid, let key):
           let isPointerDriven = focusEventOrigin.consumePointerDrivenFocus(key?.windowID)
+          let isBackgrounded = key.map {
+            overlayAwareness.isBackgroundedProcess($0.pid)
+          } ?? (pid == 0
+            ? overlayAwareness.isBackgroundedBundle(bundleId)
+            : overlayAwareness.isBackgroundedProcess(pid))
+          if isBackgrounded {
+            debugLog.log(
+              "OverlayAware",
+              "ignore background focus \(bundleId)#\(key?.windowID ?? 0)",
+            )
+            return .none
+          }
           if isPointerDriven, let key {
             debugLog.log(
               "FocusDiag",
@@ -1591,14 +1640,14 @@ public struct WorkspaceActivationFeature {
         return .run { [client = appLaunch] send in
           for await event in client.events() {
             switch event {
-            case .launched(let bundleId, let name):
-              await send(.appLaunched(bundleId: bundleId, name: name))
-            case .activated(let bundleId):
-              await send(.appActivated(bundleId: bundleId))
-            case .unhidden(let bundleId):
-              await send(.appUnhidden(bundleId: bundleId))
-            case .terminated(let bundleId):
-              await send(.appTerminated(bundleId: bundleId))
+            case .launched(let bundleId, let name, let pid):
+              await send(.appLaunched(bundleId: bundleId, name: name, pid: pid))
+            case .activated(let bundleId, let pid):
+              await send(.appActivated(bundleId: bundleId, pid: pid))
+            case .unhidden(let bundleId, let pid):
+              await send(.appUnhidden(bundleId: bundleId, pid: pid))
+            case .terminated(let bundleId, let pid):
+              await send(.appTerminated(bundleId: bundleId, pid: pid))
             case .activeSpaceChanged:
               await send(.activeSpaceChanged)
             case .willSleep,
@@ -1674,7 +1723,8 @@ public struct WorkspaceActivationFeature {
         }
         return .merge(bundleIds.map { requestWindowSync($0) })
 
-      case .appLaunched(let bundleId, _):
+      case .appLaunched(let bundleId, _, let pid):
+        if pid != 0 { overlayAwareness.clearBackgroundedProcess(pid) }
         // Observe the new app immediately — even before it's in any tree.
         // A transient (unregistered) app's first window can appear seconds after
         // launch with AX not yet ready; the initial sync then discovers nothing,
@@ -1688,8 +1738,15 @@ public struct WorkspaceActivationFeature {
           .run { [observer = windowObserver] _ in await observer.observe([bundleId]) },
         )
 
-      case .appUnhidden(let bundleId):
+      case .appUnhidden(let bundleId, let pid):
         guard !MacApp.isTatami(bundleId) else { return .none }
+        let isBackgrounded = pid == 0
+          ? overlayAwareness.isBackgroundedBundle(bundleId)
+          : overlayAwareness.isBackgroundedProcess(pid)
+        guard !isBackgrounded else {
+          debugLog.log("OverlayAware", "ignore background unhide \(bundleId)")
+          return .none
+        }
         // Borrow deliberately keeps the host frontmost, so this visibility
         // edge must never pass through `appActivated`'s stale-frontmost gate.
         // Advance the discovery generation but preserve last-known identities:
@@ -1704,8 +1761,17 @@ public struct WorkspaceActivationFeature {
           },
         )
 
-      case .appActivated(let bundleId):
+      case .appActivated(let bundleId, let pid):
         if MacApp.isTatami(bundleId) {
+          return .none
+        }
+        let currentFrontmost = windowSnapshot.frontmostApp()
+        let activationPID = pid == 0 ? currentFrontmost?.pid : pid
+        if
+          let activationPID,
+          overlayAwareness.isBackgroundedProcess(activationPID)
+        {
+          debugLog.log("OverlayAware", "ignore background activation \(bundleId)")
           return .none
         }
         // Refresh marker focus on every app activation. AX
@@ -1722,8 +1788,10 @@ public struct WorkspaceActivationFeature {
         // auto-open during a fast Borrow → dismiss). Never switch workspaces
         // from that stale historical event; AppKit frontmost identity is a
         // cheap synchronous proof and requires no AX round trip or timer.
-        let currentFrontmost = windowSnapshot.frontmostApp()
-        if currentFrontmost?.bundleId != bundleId {
+        if
+          currentFrontmost?.bundleId != bundleId
+          || (pid != 0 && currentFrontmost?.pid != pid)
+        {
           debugLog.log(
             "Activate",
             "ignore unverified didActivate \(bundleId); "
@@ -1789,7 +1857,11 @@ public struct WorkspaceActivationFeature {
         return .merge(
           .run { [snapshot = windowSnapshot] send in
             let key = await snapshot.focusedWindowKeyOffMain()
-            await send(.windowChanged(.windowFocused(bundleId: bundleId, key: key)))
+            await send(
+              .windowChanged(
+                .windowFocused(bundleId: bundleId, pid: key?.pid ?? pid, key: key)
+              )
+            )
           }
         )
 
@@ -1799,6 +1871,19 @@ public struct WorkspaceActivationFeature {
         // frame boundary and asking CGWindowList whether it has caught up.
         // Presentation convergence handles any later app-owned survivor reset.
         debugLog.log("SLS", "window terminated wid=\(wid)")
+        let terminatedKey = state.tilingTrees.values.lazy.compactMap { tree in
+          tree.windows.first(where: { $0.windowID == wid })
+        }.first ?? windowSnapshot.cachedWindowKey(wid)
+        if
+          let terminatedKey,
+          overlayAwareness.isBackgroundedProcess(terminatedKey.pid)
+        {
+          debugLog.log(
+            "OverlayAware",
+            "ignore background terminated surface \(terminatedKey.bundleId)#\(wid)",
+          )
+          return .none
+        }
         // NOTE: we deliberately do NOT strip `wid` from `fullscreenZoomed` here.
         // 804 also fires when the WindowServer merely recycles a surface (deep
         // sleep / clamshell / display wake) for a window that isn't really
@@ -1851,6 +1936,16 @@ public struct WorkspaceActivationFeature {
           }
         if let eventKey {
           state.pendingWindowServerPresentationWindows.remove(eventKey)
+        }
+        if
+          let eventKey,
+          overlayAwareness.isBackgroundedProcess(eventKey.pid)
+        {
+          debugLog.log(
+            "OverlayAware",
+            "ignore background invisible surface \(eventKey.bundleId)#\(wid)",
+          )
+          return .none
         }
         if
           !state.isTilingPaused,
@@ -1906,6 +2001,13 @@ public struct WorkspaceActivationFeature {
           debugLog.log("SLS", "window visible wid=\(wid) — no cached owner")
           return .none
         }
+        guard !overlayAwareness.isBackgroundedProcess(key.pid) else {
+          debugLog.log(
+            "OverlayAware",
+            "ignore background visible surface \(key.bundleId)#\(wid)",
+          )
+          return .none
+        }
         state.markWindowServerSurfaceVisible(key)
         windowSnapshot.markBundleDirty(key.bundleId)
         debugLog.log(
@@ -1917,19 +2019,28 @@ public struct WorkspaceActivationFeature {
       case .pruneOffscreenWindows:
         return pruneOffscreenWindows(state: &state)
 
-      case .appTerminated(let bundleId):
-        state.removeBundleFromWindowMRU(bundleId)
+      case .appTerminated(let bundleId, let pid):
+        if pid != 0 {
+          overlayAwareness.clearBackgroundedProcess(pid)
+          state.removeProcessFromWindowMRU(pid)
+        } else {
+          state.removeBundleFromWindowMRU(bundleId)
+        }
         for key in Array(state.windowServerHiddenWindows)
-          where key.bundleId == bundleId
+          where pid == 0 ? key.bundleId == bundleId : key.pid == pid
         {
           state.windowServerHiddenWindows.remove(key)
         }
         for key in Array(state.pendingWindowServerPresentationWindows)
-          where key.bundleId == bundleId
+          where pid == 0 ? key.bundleId == bundleId : key.pid == pid
         {
           state.pendingWindowServerPresentationWindows.remove(key)
         }
-        windowSnapshot.invalidateBundle(bundleId)
+        if pid == 0 {
+          windowSnapshot.invalidateBundle(bundleId)
+        } else {
+          windowSnapshot.invalidateProcess(pid, bundleId)
+        }
         if state.isLayoutSuspended || state.isRecoveringSystemLayout {
           return .none
         }
@@ -2139,7 +2250,10 @@ public struct WorkspaceActivationFeature {
         // Scratchpads are borrow-only — never auto-activate one on launch.
         let candidates = profile.workspaces.filter { $0.kind != .scratchpad }
         guard !candidates.isEmpty else { return .none }
-        let frontBundle = windowSnapshot.frontmostApp()?.bundleId
+        let frontmost = windowSnapshot.frontmostApp()
+        let frontBundle = frontmost.flatMap {
+          overlayAwareness.isBackgroundedProcess($0.pid) ? nil : $0.bundleId
+        }
         let frontmostCandidate = candidates.first { ws in
           guard let frontBundle else { return false }
           return ws.apps.contains { $0.bundleIdentifier == frontBundle }
@@ -2623,13 +2737,14 @@ public struct WorkspaceActivationFeature {
         if case .toggleInActiveWorkspace = edit, state.primaryActiveWorkspaceID == nil {
           return .none
         }
-        return resolveFrontmostApp { bundleId, name in
-          .membershipEditResolved(bundleId: bundleId, name: name, edit: edit)
+        return resolveFrontmostApp { bundleId, name, pid in
+          .membershipEditResolved(bundleId: bundleId, name: name, edit: edit, pid: pid)
         }
 
-      case .membershipEditResolved(let bundleId, let name, let edit):
+      case .membershipEditResolved(let bundleId, let name, let edit, let pid):
         // Tatami must never enter its own membership sets.
         if MacApp.isTatami(bundleId) { return .none }
+        if pid != 0, overlayAwareness.isBackgroundedProcess(pid) { return .none }
         debugLog.log("App", "membership \(String(describing: edit)) bundle=\(bundleId)")
         let displayName = name.isEmpty ? bundleId : name
         switch edit {
@@ -2935,6 +3050,7 @@ public struct WorkspaceActivationFeature {
         }
 
       case .bspFocusResolved(let key, let direction):
+        guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
         guard
           let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
           let tree = state.tilingTrees[workspaceId]
@@ -2968,7 +3084,9 @@ public struct WorkspaceActivationFeature {
           {
             debugLog.log("BSP", "focus \(direction) → cross into \(cross.target.bundleId)")
             let warp = settings.focus.mouseFollowsFocus
-            return .run { [mouse = mouse, focus = focusManager, debugLog = debugLog] _ in
+            return .run {
+              [mouse = mouse, focus = focusManager, overlayAwareness, debugLog = debugLog] _ in
+              guard !overlayAwareness.isBackgroundedProcess(cross.target.pid) else { return }
               await focus.focusWindow(cross.target)
               if warp {
                 let frames = await MainActor.run {
@@ -3005,7 +3123,9 @@ public struct WorkspaceActivationFeature {
         )
         let warpMouse = settings.focus.mouseFollowsFocus
         let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-        return .run { [mouse = mouse, focus = focusManager, debugLog = debugLog] _ in
+        return .run {
+          [mouse = mouse, focus = focusManager, overlayAwareness, debugLog = debugLog] _ in
+          guard !overlayAwareness.isBackgroundedProcess(target.pid) else { return }
           await focus.focusWindow(target)
           if warpMouse {
             let frames = await MainActor.run {
@@ -3504,6 +3624,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.focusManager) var focusManager
   @Dependency(\.focusEventOrigin) var focusEventOrigin
+  @Dependency(\.overlayAwareness) var overlayAwareness
   @Dependency(\.continuousClock) var clock
   @Dependency(\.modifierKeys) var modifierKeys
   @Dependency(\.borrowChord) var borrowChord
@@ -3914,6 +4035,7 @@ public struct WorkspaceActivationFeature {
     focusedWindow: WindowKey? = nil,
     state: State,
   ) -> State.WindowCycleSession? {
+    guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return nil }
     guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID
     else { return nil }
 
@@ -3946,6 +4068,7 @@ public struct WorkspaceActivationFeature {
         allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
       }
     }
+    allWindows.removeAll { overlayAwareness.isBackgroundedProcess($0.pid) }
     guard !allWindows.isEmpty else { return nil }
 
     let byWindow = state.config.settings.switching.cycleSameAppWindows
@@ -4007,7 +4130,8 @@ public struct WorkspaceActivationFeature {
     let tree = state.tilingTrees[cycle.workspaceId]
     let zoomed = state.fullscreenZoomed[cycle.workspaceId] ?? []
     let targetRect = tilingContext(for: cycle.workspaceId, state: state).rect
-    return .run { [mouse, focusManager, windowSnapshot] _ in
+    return .run { [mouse, focusManager, windowSnapshot, overlayAwareness] _ in
+      guard !overlayAwareness.isBackgroundedProcess(target.pid) else { return }
       await focusManager.focusWindow(target)
       if shouldWarp {
         let tiledFrame = await MainActor.run {
@@ -4172,11 +4296,18 @@ public struct WorkspaceActivationFeature {
   private func resolveFocusedWindowKey(
     _ continuation: @escaping @Sendable (WindowKey) -> Action
   ) -> Effect<Action> {
-    .run { [snapshot = windowSnapshot, debugLog] send in
+    .run { [snapshot = windowSnapshot, overlayAwareness, debugLog] send in
       let key = await snapshot.focusedWindowKeyOffMain()
       guard let key else {
         // Silent-drop tell for "the BSP hotkey did nothing".
         debugLog.log("BSP", "no focused window — op dropped")
+        return
+      }
+      guard !overlayAwareness.isBackgroundedProcess(key.pid) else {
+        debugLog.log(
+          "OverlayAware",
+          "ignore focused-key command \(key.bundleId)#\(key.windowID)",
+        )
         return
       }
       await send(continuation(key))
@@ -4184,15 +4315,26 @@ public struct WorkspaceActivationFeature {
   }
 
   private func resolveFrontmostApp(
-    _ continuation: @escaping @Sendable (_ bundleId: String, _ name: String) -> Action
+    _ continuation: @escaping @Sendable (
+      _ bundleId: String,
+      _ name: String,
+      _ pid: pid_t,
+    ) -> Action
   ) -> Effect<Action> {
-    .run { [snapshot = windowSnapshot, debugLog] send in
+    .run { [snapshot = windowSnapshot, overlayAwareness, debugLog] send in
       let resolved = await MainActor.run { snapshot.frontmostApp() }
       guard let resolved else {
         debugLog.log("App", "no frontmost app — membership edit dropped")
         return
       }
-      await send(continuation(resolved.bundleId, resolved.name))
+      guard !overlayAwareness.isBackgroundedProcess(resolved.pid) else {
+        debugLog.log(
+          "OverlayAware",
+          "ignore frontmost membership command \(resolved.bundleId) pid=\(resolved.pid)",
+        )
+        return
+      }
+      await send(continuation(resolved.bundleId, resolved.name, resolved.pid))
     }
   }
 
@@ -4201,6 +4343,7 @@ public struct WorkspaceActivationFeature {
     op: BSPOp,
     state: inout State,
   ) -> Effect<Action> {
+    guard !overlayAwareness.isBackgroundedProcess(windowKey.pid) else { return .none }
     // Resolve to the block that owns the focused window — the borrowed
     // workspace when composed, else the single active one. Every mutation
     // runs on this one tree, so directional ops can't cross the boundary.
