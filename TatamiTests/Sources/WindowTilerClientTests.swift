@@ -10,6 +10,63 @@ import Testing
 // MARK: - WindowTilerClientTests
 
 struct WindowTilerClientTests {
+  @Test(arguments: [
+    (
+      WindowServerLayerEvidence.value(0),
+      "AXStandardWindow",
+      WindowDiscoveryIdentityDisposition.inspectCapabilities,
+    ),
+    (
+      WindowServerLayerEvidence.value(3),
+      "AXStandardWindow",
+      WindowDiscoveryIdentityDisposition.reject(reason: "layer=3"),
+    ),
+    (
+      WindowServerLayerEvidence.value(3),
+      "AXSystemDialog",
+      WindowDiscoveryIdentityDisposition.reject(reason: "layer=3"),
+    ),
+    (
+      WindowServerLayerEvidence.value(0),
+      "AXSystemDialog",
+      WindowDiscoveryIdentityDisposition.retain(subrole: "AXSystemDialog"),
+    ),
+    (
+      WindowServerLayerEvidence.unavailable,
+      "AXStandardWindow",
+      WindowDiscoveryIdentityDisposition.inspectCapabilities,
+    ),
+    (
+      WindowServerLayerEvidence.missing,
+      "AXStandardWindow",
+      WindowDiscoveryIdentityDisposition.reject(reason: "noWindowServerDescription"),
+    ),
+  ])
+  func `window identity gates distinguish normal windows from PiP surfaces`(
+    _ layer: WindowServerLayerEvidence,
+    _ subrole: String,
+    _ expected: WindowDiscoveryIdentityDisposition,
+  ) {
+    #expect(
+      classifyWindowIdentity(
+        minimized: false,
+        layer: layer,
+        subrole: subrole,
+      ) == expected
+    )
+  }
+
+  @Test
+  func `minimized identity is rejected before capability inspection`() {
+    #expect(
+      classifyWindowIdentity(
+        minimized: true,
+        layer: .value(0),
+        subrole: "AXStandardWindow",
+      ) == .reject(reason: "minimized")
+    )
+  }
+
   @Test
   func `one capability result derives movable and resizable discoveries`() {
     let fixedSize = WindowKey(pid: 1, windowID: 10, bundleId: "app.fixed")
