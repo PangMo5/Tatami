@@ -91,6 +91,7 @@ struct AboutView: View {
     ("swift-collections", "https://github.com/apple/swift-collections"),
     ("Magnet", "https://github.com/Clipy/Magnet"),
     ("swift-toml", "https://github.com/mattt/swift-toml"),
+    ("swift-subprocess", "https://github.com/swiftlang/swift-subprocess"),
     ("swift-yyjson", "https://github.com/mattt/swift-yyjson"),
     ("SFSafeSymbols", "https://github.com/SFSafeSymbols/SFSafeSymbols"),
     ("swift-argument-parser", "https://github.com/apple/swift-argument-parser"),

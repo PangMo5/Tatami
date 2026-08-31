@@ -22,7 +22,7 @@ scripting required.
 <a href="Resources/Marketing/screenshots/guided-setup.png">Guided Setup</a> ·
 <a href="Resources/Marketing/screenshots/workspaces.png">Workspaces</a> ·
 <a href="Resources/Marketing/screenshots/borrow.png">Borrow</a><br />
-Captured on an earlier version. Some labels differ in 1.12.</sub></p>
+Captured on an earlier version. Some labels have changed since these screenshots.</sub></p>
 
 ## Demo
 
@@ -50,24 +50,6 @@ Captured on an earlier version. Some labels differ in 1.12.</sub></p>
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
 
-### Profiles
-
-- **Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.
-- **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile, and Tatami returns to the right profile after relaunch.
-- **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
-- **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and profile-switch feedback.
-- **Profile-scoped workspace shortcuts:** Reuse a workspace key or explicit workspace shortcut in another profile. Global shortcuts still remain unique across every profile.
-- **Reviewable copying and duplication:** **Copy from** and **Duplicate** share one preview where you keep or skip each workspace, app, setting, and saved layout before anything changes.
-
-### Borrow: compose two workspaces
-
-- **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
-- **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
-- **Directional placement:** Press the borrow modifier with a workspace key, then use `h`, `j`, `k`, `l`, or an arrow. You can also set a default edge and size globally or per workspace.
-- **Cross-boundary focus and switching:** Directional focus and MFF move between blocks. Host and borrowed tiled windows share one app / window switching order until the borrowed workspace is returned. Activating a borrowed workspace switches to it fully, borrowing it again returns it by default, and `esc` cancels placement.
-- **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
-- **Scratchpads:** Borrow-only workspaces stay out of regular switching, never activate alone, and auto-open their apps when summoned.
-
 ### Window tiling (BSP)
 
 - **Automatic BSP layout:** Insert new windows at the shallowest tile.
@@ -78,6 +60,23 @@ Captured on an earlier version. Some labels differ in 1.12.</sub></p>
 - **Drag editing:** Swap or re-insert a window with a live placement preview. Manual edge resizing synchronizes back into the tree.
 - **Persistent layouts:** Keep each workspace's tree and ratios across workspace switches, relaunches, and system sleep.
 - **Configurable spacing:** Set inner and outer gaps.
+
+### Profiles
+
+- **Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.
+- **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile, and Tatami returns to the right profile after relaunch.
+- **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
+- **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and profile-switch feedback.
+- **Reuse an existing setup:** **Copy from** and **Duplicate** share one preview where you keep or skip each workspace, app, setting, and saved layout before anything changes.
+
+### Borrow: compose two workspaces
+
+- **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
+- **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
+- **Directional placement:** Press the borrow modifier with a workspace key, then use `h`, `j`, `k`, `l`, or an arrow. You can also set a default edge and size globally or per workspace.
+- **Cross-boundary focus and switching:** Directional focus and MFF move between blocks. Host and borrowed tiled windows share one app / window switching order until the borrowed workspace is returned. Activating a borrowed workspace switches to it fully, borrowing it again returns it by default, and `esc` cancels placement.
+- **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
+- **Scratchpads:** Borrow-only workspaces stay out of regular switching, never activate alone, and auto-open their apps when summoned.
 
 ### Always on Top
 
@@ -142,7 +141,22 @@ tuist install && tuist generate --no-open
 open Tatami.xcworkspace
 ```
 
-## Command line
+## Configuration and automation
+
+### Configuration
+
+Settings live in `~/.config/tatami/config.toml`, grouped into tables such as
+`[settings.layout]`, `[settings.focus]`, `[settings.gestures]`,
+`[settings.shortcuts]`, and so on. Workspaces, their app assignments, and
+shared apps are stored in the same file. Lifecycle hooks can be managed in
+**Settings → Hooks** or as `[[hooks]]` entries in the file. The GUI keeps the
+executable and each argv value separate rather than treating `command` as a
+shell string. Edits made in the app or by hand are picked up live.
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference:
+every key, its default, and the shortcut syntax.
+
+### Command line
 
 Tatami ships a `tatami` CLI inside the app bundle. Install it from
 **Settings → General → Command Line → Install**. This symlinks `tatami` into
@@ -163,19 +177,6 @@ be running.
 
 Read the [full CLI reference](docs/CLI.md), or view its live web rendering on
 [pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/cli.html).
-
-## Configuration
-
-Settings live in `~/.config/tatami/config.toml`, grouped into tables such as
-`[settings.layout]`, `[settings.focus]`, `[settings.gestures]`,
-`[settings.shortcuts]`, and so on. Workspaces, their app assignments, and
-shared apps are stored in the same file. Lifecycle hooks can be managed in
-**Settings → Hooks** or as `[[hooks]]` entries in the file. The GUI keeps the
-executable and each argv value separate rather than treating `command` as a
-shell string. Edits made in the app or by hand are picked up live.
-
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference:
-every key, its default, and the shortcut syntax.
 
 ## Tech stack
 

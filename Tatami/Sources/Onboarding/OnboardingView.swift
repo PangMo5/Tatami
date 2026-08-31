@@ -252,7 +252,7 @@ private struct OnboardingWelcomeStep: View {
         OnboardingPhilosophyCard(
           icon: "lock.shield",
           title: "Native and inspectable",
-          detail: "Keep SIP enabled, avoid shell scripts, and retain a readable TOML configuration.",
+          detail: "Keep SIP enabled, use native controls, and retain a readable TOML configuration.",
         )
       }
 
@@ -262,7 +262,7 @@ private struct OnboardingWelcomeStep: View {
             store.displays.count == 1
               ? "\(store.displays.count) display"
               : "\(store.displays.count) displays",
-            systemImage: "display"
+            systemImage: "display",
           )
           Label("\(store.runningApps.count) running apps", systemImage: "app.badge")
           Label("No screen contents captured", systemImage: "eye.slash")
@@ -1030,7 +1030,7 @@ private struct OnboardingTilingStep: View {
     step: LocalizedStringResource,
     title: LocalizedStringResource,
     detail: LocalizedStringResource,
-    completed: Bool
+    completed: Bool,
   ) {
     let lessons: [(OnboardingPractice, LocalizedStringResource, LocalizedStringResource)] = [
       (
@@ -1282,7 +1282,7 @@ private struct OnboardingBorrowStep: View {
     step: LocalizedStringResource,
     title: LocalizedStringResource,
     detail: LocalizedStringResource,
-    completed: Bool
+    completed: Bool,
   ) {
     if !store.demoBorrowed, !store.practices.contains(.borrowDismiss) {
       return (
@@ -1493,7 +1493,7 @@ private struct OnboardingFloatingStep: View {
     step: LocalizedStringResource,
     title: LocalizedStringResource,
     detail: LocalizedStringResource,
-    completed: Bool
+    completed: Bool,
   ) {
     if !store.practices.contains(.floating) {
       return (
@@ -1690,7 +1690,7 @@ private struct OnboardingFocusCyclingStep: View {
     let borrow = store.demoBorrowed
       ? String(
         localized:
-          "Borrowed \(store.demoBorrowWorkspace?.name ?? String(localized: "workspace"))"
+        "Borrowed \(store.demoBorrowWorkspace?.name ?? String(localized: "workspace"))"
       )
       : String(localized: store.demoLayoutMode.displayName)
     let mff = store.draft.settings.focus.mouseFollowsFocus
@@ -1706,7 +1706,7 @@ private struct OnboardingFocusCyclingStep: View {
     step: LocalizedStringResource,
     title: LocalizedStringResource,
     detail: LocalizedStringResource,
-    completed: Bool
+    completed: Bool,
   ) {
     if !store.practices.contains(.mouseFollowsFocus) {
       return (

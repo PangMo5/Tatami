@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tatami: macOS workspace manager with BSP window tiling</title>
-<meta name="description" content="Tatami is a macOS workspace manager with BSP window tiling, profiles, CLI automation, lifecycle hooks, and reviewable duplication." />
+<meta name="description" content="Tatami is a native macOS workspace manager with BSP window tiling. Group apps into virtual workspaces, switch instantly, and restore each layout automatically." />
 <meta name="theme-color" content="#000000" />
 <link rel="icon" type="image/png" href="./icon.png" />
 <link rel="stylesheet" href="./style.css" />
 <meta property="og:title" content="Tatami" />
-<meta property="og:description" content="A macOS workspace manager with BSP window tiling, CLI automation, and lifecycle hooks." />
+<meta property="og:description" content="A macOS workspace manager for switching and restoring virtual workspaces with native BSP window tiling." />
 <meta property="og:image" content="./icon.png" />
 <meta property="og:type" content="website" />
 </head>
@@ -27,8 +27,6 @@
       <a href="#tiling">Tiling</a>
       <a href="#floating">Always on Top</a>
       <a href="#guided-setup">Guided Setup</a>
-      <a href="#automation">Automation</a>
-      <a href="./cli.html">CLI</a>
       <a href="./configuration.html">Configuration</a>
       <a href="./releases.html">Releases</a>
       <a href="https://github.com/PangMo5/Tatami">GitHub</a>
@@ -89,7 +87,7 @@
     >
       <source src="tatami-demo.mp4" type="video/mp4" />
     </video>
-    <p class="sub">Recorded on an earlier version. Commands and some labels differ in 1.12. See the <a href="./cli.html">current CLI reference</a>.</p>
+    <p class="sub">Recorded on an earlier version. Some labels and controls have changed since this recording.</p>
   </div>
 </section>
 
@@ -127,7 +125,7 @@
       <div class="feature">
         <div class="ico">🗄️</div>
         <h3>A setup for every situation</h3>
-        <p>Each profile has its own workspaces, app assignments, and shortcuts. Workspace shortcuts can reuse the same keys across profiles, while global shortcuts stay unique. Switch by hotkey or from the menu bar, then return to the setup that fits your connected displays after relaunch.</p>
+        <p>Each profile has its own workspaces, app assignments, and shortcuts. Switch by hotkey or from the menu bar, then return to the setup that fits your connected displays after relaunch.</p>
       </div>
       <div class="feature">
         <div class="ico">🔌</div>
@@ -136,8 +134,8 @@
       </div>
       <div class="feature">
         <div class="ico">📋</div>
-        <h3>Review copies and duplicates</h3>
-        <p>Copy from or duplicate a profile or workspace through the same preview. Choose its workspaces, apps, settings, and saved layouts, with shortcuts checked before anything changes.</p>
+        <h3>Start from an existing setup</h3>
+        <p>Copy selected workspaces and settings from another profile, or duplicate one as a starting point. Review what will be brought over before applying.</p>
       </div>
     </div>
   </div>
@@ -243,26 +241,23 @@
   </div>
 </section>
 
-<section class="section-gray" id="automation">
+<section class="supporting-section" id="automation">
   <div class="wrap">
-    <p class="eyebrow">Automation</p>
-    <h2>Control Tatami beyond the app.</h2>
-    <p class="sub">Use the bundled command-line tool or run your own programs when Tatami launches, changes profile, or activates a workspace.</p>
-    <div class="features">
-      <div class="feature">
-        <div class="ico">⌨️</div>
-        <h3>One CLI, organized by domain</h3>
-        <p>Manage profiles and workspaces, run every action available to trackpad gestures, and request stable JSON for scripts.</p>
+    <div class="supporting-panel">
+      <div class="supporting-copy">
+        <p class="eyebrow">For power users</p>
+        <h2>Optional automation for custom workflows.</h2>
+        <p>Use Tatami's CLI in scripts, or run a hook when Tatami launches, changes profile, or makes a workspace visible.</p>
       </div>
-      <div class="feature">
-        <div class="ico">⚡</div>
-        <h3>Lifecycle hooks</h3>
-        <p>Configure and test hooks in Settings. Every run receives versioned JSON, useful environment variables, an explicit working directory, and a bounded timeout.</p>
-      </div>
-      <div class="feature">
-        <div class="ico">📖</div>
-        <h3>Reference where you need it</h3>
-        <p>Open the bundled CLI guide inside Tatami or read the live reference rendered from <code>docs/CLI.md</code> on this site.</p>
+      <div class="supporting-links">
+        <a href="./cli.html">
+          <strong>Command line</strong>
+          <span>Run workspace and window commands or request JSON.</span>
+        </a>
+        <a href="./configuration.html#hooks">
+          <strong>Lifecycle hooks</strong>
+          <span>Run a program when Tatami launches, profiles change, or workspaces appear.</span>
+        </a>
       </div>
     </div>
   </div>
