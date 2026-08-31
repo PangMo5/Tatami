@@ -69,6 +69,7 @@ let project = Project(
       resources: [
         "Tatami/Resources/**",
         "CHANGELOG.md",
+        "docs/CLI.md",
         "LICENSE",
         "NOTICE.md",
         "THIRD_PARTY_NOTICES.md",
@@ -150,6 +151,7 @@ let project = Project(
         .external(name: "Magnet"),
         .external(name: "TOML"),
         .external(name: "Sparkle"),
+        .external(name: "Subprocess"),
         .external(name: "YYJSON"),
         .external(name: "OrderedCollections"),
         .external(name: "DequeModule"),
@@ -196,6 +198,7 @@ let project = Project(
       sources: ["TatamiTests/Sources/**"],
       dependencies: [
         .target(name: "TatamiKit"),
+        .target(name: "TatamiCLIProtocol"),
         .external(name: "ComposableArchitecture"),
       ]
     ),

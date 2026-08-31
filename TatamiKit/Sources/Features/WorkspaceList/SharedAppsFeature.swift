@@ -16,7 +16,7 @@ import Sharing
 public struct SharedAppsFeature {
   @ObservableState
   public struct State: Equatable {
-    @Shared(.tatamiConfig) public var config = AppConfig()
+    @Shared(.tatamiConfig) public var config
     public var isAppPickerPresented = false
     public var availableRunningApps: [MacApp] = []
     @Presents public var alert: AlertState<Action.Alert>?

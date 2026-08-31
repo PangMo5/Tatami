@@ -11,7 +11,7 @@ import Sharing
 public struct HotKeysFeature {
   @ObservableState
   public struct State: Equatable {
-    @Shared(.tatamiConfig) public var config = AppConfig()
+    @Shared(.tatamiConfig) public var config
     public init() {}
 
     // Derived from the config — see `AppConfig.hotKeyBindings`, shared with

@@ -10,16 +10,24 @@ import Foundation
 /// only the logic that talks to the system (install, permission, relaunch).
 @Reducer
 public struct SettingsFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
+    public init() { }
+
     public var cli = CLIStatus()
+    public var hooks = HookSettingsFeature.State()
     /// Default `true` to avoid a "not granted" flash before the first read.
     public var hasAXPermission = true
     /// Same flash-avoidance default as `hasAXPermission`.
     public var hasScreenRecordingPermission = true
     @Presents public var alert: AlertState<Action.Alert>?
-
-    public init() {}
   }
 
   public enum Action {
@@ -27,6 +35,7 @@ public struct SettingsFeature {
     case task
     case refreshCLIStatus
     case installCLITapped
+    case hooks(HookSettingsFeature.Action)
     case uninstallCLITapped
     /// A trust-DB change (or app re-activation) — re-read permission status.
     case accessibilityChanged
@@ -40,10 +49,108 @@ public struct SettingsFeature {
     case shortcutRecordingChanged(Bool)
     case alert(PresentationAction<Alert>)
 
+    // MARK: Public
+
     public enum Alert: Equatable {
       case confirmUninstall
     }
   }
+
+  public var body: some ReducerOf<Self> {
+    CombineReducers {
+      Scope(state: \.hooks, action: \.hooks) {
+        HookSettingsFeature()
+      }
+      Reduce { state, action in
+        switch action {
+        case .task:
+          state.cli = cliInstaller.status()
+          state.hasAXPermission = accessibility.isTrusted()
+          state.hasScreenRecordingPermission = screenRecording.isGranted()
+          return .run { [accessibility] send in
+            // Trust-DB change / app re-activation → re-read permission
+            // status (the re-activation tick also covers coming back from
+            // the Screen Recording pane of System Settings).
+            for await _ in accessibility.changes() {
+              await send(.accessibilityChanged)
+            }
+          }
+
+        case .refreshCLIStatus:
+          state.cli = cliInstaller.status()
+          return .none
+
+        case .installCLITapped:
+          return .run { [cliInstaller] send in
+            await cliInstaller.install()
+            await send(.refreshCLIStatus)
+          }
+
+        case .uninstallCLITapped:
+          state.alert = AlertState {
+            TextState("Uninstall tatami CLI?")
+          } actions: {
+            ButtonState(role: .destructive, action: .confirmUninstall) {
+              TextState("Uninstall")
+            }
+            ButtonState(role: .cancel) {
+              TextState("Cancel")
+            }
+          } message: {
+            TextState("Removes the tatami symlink from /usr/local/bin. You can reinstall it anytime from here.")
+          }
+          return .none
+
+        case .alert(.presented(.confirmUninstall)):
+          return .run { [cliInstaller] send in
+            await cliInstaller.uninstall()
+            await send(.refreshCLIStatus)
+          }
+
+        case .alert:
+          return .none
+
+        case .accessibilityChanged:
+          state.hasAXPermission = accessibility.isTrusted()
+          state.hasScreenRecordingPermission = screenRecording.isGranted()
+          return .none
+
+        case .grantAccessibilityTapped:
+          return .run { [accessibility] _ in
+            await accessibility.requestAccess()
+            await accessibility.openSettings()
+          }
+
+        case .openAccessibilitySettingsTapped:
+          return .run { [accessibility] _ in await accessibility.openSettings() }
+
+        case .grantScreenRecordingTapped:
+          return .run { [screenRecording] _ in
+            await screenRecording.requestAccess()
+            await screenRecording.openSettings()
+          }
+
+        case .openScreenRecordingSettingsTapped:
+          return .run { [screenRecording] _ in await screenRecording.openSettings() }
+
+        case .relaunchTapped:
+          return .run { [accessibility] _ in await accessibility.relaunch() }
+
+        case .checkForUpdatesTapped:
+          return .run { [updater] _ in await updater.checkForUpdates() }
+
+        case .shortcutRecordingChanged(let recording):
+          return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
+
+        case .hooks:
+          return .none
+        }
+      }
+    }
+    .ifLet(\.$alert, action: \.alert)
+  }
+
+  // MARK: Internal
 
   @Dependency(\.cliInstaller) var cliInstaller
   @Dependency(\.accessibility) var accessibility
@@ -51,91 +158,4 @@ public struct SettingsFeature {
   @Dependency(\.updater) var updater
   @Dependency(\.hotKeys) var hotKeys
 
-  public init() {}
-
-  public var body: some ReducerOf<Self> {
-    Reduce { state, action in
-      switch action {
-      case .task:
-        state.cli = cliInstaller.status()
-        state.hasAXPermission = accessibility.isTrusted()
-        state.hasScreenRecordingPermission = screenRecording.isGranted()
-        return .run { [accessibility] send in
-          // Trust-DB change / app re-activation → re-read permission
-          // status (the re-activation tick also covers coming back from
-          // the Screen Recording pane of System Settings).
-          for await _ in accessibility.changes() {
-            await send(.accessibilityChanged)
-          }
-        }
-
-      case .refreshCLIStatus:
-        state.cli = cliInstaller.status()
-        return .none
-
-      case .installCLITapped:
-        return .run { [cliInstaller] send in
-          await cliInstaller.install()
-          await send(.refreshCLIStatus)
-        }
-
-      case .uninstallCLITapped:
-        state.alert = AlertState {
-          TextState("Uninstall tatami CLI?")
-        } actions: {
-          ButtonState(role: .destructive, action: .confirmUninstall) {
-            TextState("Uninstall")
-          }
-          ButtonState(role: .cancel) {
-            TextState("Cancel")
-          }
-        } message: {
-          TextState("Removes the tatami symlink from /usr/local/bin. You can reinstall it anytime from here.")
-        }
-        return .none
-
-      case .alert(.presented(.confirmUninstall)):
-        return .run { [cliInstaller] send in
-          await cliInstaller.uninstall()
-          await send(.refreshCLIStatus)
-        }
-
-      case .alert:
-        return .none
-
-      case .accessibilityChanged:
-        state.hasAXPermission = accessibility.isTrusted()
-        state.hasScreenRecordingPermission = screenRecording.isGranted()
-        return .none
-
-      case .grantAccessibilityTapped:
-        return .run { [accessibility] _ in
-          await accessibility.requestAccess()
-          await accessibility.openSettings()
-        }
-
-      case .openAccessibilitySettingsTapped:
-        return .run { [accessibility] _ in await accessibility.openSettings() }
-
-      case .grantScreenRecordingTapped:
-        return .run { [screenRecording] _ in
-          await screenRecording.requestAccess()
-          await screenRecording.openSettings()
-        }
-
-      case .openScreenRecordingSettingsTapped:
-        return .run { [screenRecording] _ in await screenRecording.openSettings() }
-
-      case .relaunchTapped:
-        return .run { [accessibility] _ in await accessibility.relaunch() }
-
-      case .checkForUpdatesTapped:
-        return .run { [updater] _ in await updater.checkForUpdates() }
-
-      case .shortcutRecordingChanged(let recording):
-        return .run { [hotKeys] _ in await hotKeys.setRecording(recording) }
-      }
-    }
-    .ifLet(\.$alert, action: \.alert)
-  }
 }

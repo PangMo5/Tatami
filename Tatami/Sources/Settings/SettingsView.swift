@@ -13,20 +13,8 @@ import TatamiKit
 /// System-Settings-style layout: a sidebar of panes on the left, one
 /// grouped form per pane on the right.
 struct SettingsView: View {
-  /// A deep-link from elsewhere in the app (e.g. a workspace's derived
-  /// shortcut) requesting a specific pane. Routed into `pane`, then cleared
-  /// via `onSectionConsumed`.
-  var pendingSection: SettingsSection? = nil
-  var onSectionConsumed: () -> Void = {}
-  var onStartOnboarding: () -> Void = {}
 
-  @Shared(.tatamiConfig) var config = AppConfig()
-  // Not `private`: the pane bodies live in SettingsView+Panes.swift, a
-  // cross-file extension of this view.
-  @State var store = Store(initialState: SettingsFeature.State()) {
-    SettingsFeature()
-  }
-  @State private var pane: Pane? = .general
+  // MARK: Internal
 
   enum Pane: String, CaseIterable, Identifiable {
     case general
@@ -35,9 +23,14 @@ struct SettingsView: View {
     case workspaceKeys
     case focusMouse
     case gestures
+    case hooks
     case appearance
 
-    var id: String { rawValue }
+    // MARK: Internal
+
+    var id: String {
+      rawValue
+    }
 
     var title: LocalizedStringResource {
       switch self {
@@ -47,6 +40,7 @@ struct SettingsView: View {
       case .workspaceKeys: "Workspace Keys"
       case .focusMouse: "Focus & Mouse"
       case .gestures: "Gestures"
+      case .hooks: "Hooks"
       case .appearance: "Appearance"
       }
     }
@@ -59,10 +53,28 @@ struct SettingsView: View {
       case .workspaceKeys: "keyboard"
       case .focusMouse: "cursorarrow.motionlines"
       case .gestures: "hand.draw"
+      case .hooks: "bolt.circle"
       case .appearance: "paintbrush"
       }
     }
   }
+
+  /// A deep-link from elsewhere in the app (e.g. a workspace's derived
+  /// shortcut) requesting a specific pane. Routed into `pane`, then cleared
+  /// via `onSectionConsumed`.
+  var pendingSection: SettingsSection? = nil
+  var onSectionConsumed: () -> Void = { }
+  var onStartOnboarding: () -> Void = { }
+
+  @Shared(.tatamiConfig) var config
+
+  /// Not `private`: the pane bodies live in SettingsView+Panes.swift, a
+  /// cross-file extension of this view.
+  @State var store = Store(initialState: SettingsFeature.State()) {
+    SettingsFeature()
+  }
+
+  @State var isCLIReferencePresented = false
 
   var body: some View {
     NavigationSplitView {
@@ -77,11 +89,22 @@ struct SettingsView: View {
       Form {
         switch pane ?? .general {
         case .general: generalPane
+
         case .tiling: tilingPane
+
         case .workspaces: workspacesPane
+
         case .workspaceKeys: workspaceKeysPane
+
         case .focusMouse: focusMousePane
+
         case .gestures: gesturesPane
+
+        case .hooks:
+          HooksSettingsPane(
+            store: store.scope(state: \.hooks, action: \.hooks)
+          )
+
         case .appearance: appearancePane
         }
       }
@@ -89,6 +112,9 @@ struct SettingsView: View {
       .navigationTitle((pane ?? .general).title)
     }
     .alert($store.scope(state: \.alert, action: \.alert))
+    .sheet(isPresented: $isCLIReferencePresented) {
+      CLIReferenceView()
+    }
     .frame(minWidth: 680, minHeight: 540)
     // All side effects (status reads, permission/CLI/update streams, the AX
     // change subscription) live in the reducer — the view just starts it.
@@ -102,8 +128,6 @@ struct SettingsView: View {
     }
   }
 
-  // MARK: - Helpers
-
   /// SwiftUI `Color` binding backed by a hex-string field in settings.
   func borderColorBinding(
     _ keyPath: WritableKeyPath<AppSettings, String>
@@ -113,7 +137,7 @@ struct SettingsView: View {
       set: { newColor in
         guard let hex = newColor.toHex() else { return }
         $config.withLock { $0.settings[keyPath: keyPath] = hex }
-      }
+      },
     )
   }
 
@@ -126,7 +150,12 @@ struct SettingsView: View {
       get: { config.settings[keyPath: keyPath] },
       set: { newValue in
         $config.withLock { $0.settings[keyPath: keyPath] = newValue }
-      }
+      },
     )
   }
+
+  // MARK: Private
+
+  @State private var pane: Pane? = .general
+
 }

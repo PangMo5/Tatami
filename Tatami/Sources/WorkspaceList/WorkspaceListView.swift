@@ -5,9 +5,11 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
+// MARK: - WorkspaceListView
+
 struct WorkspaceListView: View {
-  @Bindable var store: StoreOf<WorkspaceListFeature>
-  let activationStore: StoreOf<WorkspaceActivationFeature>
+
+  // MARK: Internal
 
   /// Where the in-flight drag would land: a row + which edge (below when
   /// `after`). Drives the insertion line the row overlays draw. Set/cleared by
@@ -19,7 +21,9 @@ struct WorkspaceListView: View {
     let after: Bool
   }
 
-  @State private var dropIndicator: DropIndicator?
+  @Bindable var store: StoreOf<WorkspaceListFeature>
+
+  let activationStore: StoreOf<WorkspaceActivationFeature>
 
   var body: some View {
     NavigationSplitView {
@@ -32,11 +36,27 @@ struct WorkspaceListView: View {
     .sheet(isPresented: $store.isAddSheetPresented) {
       AddWorkspaceForm(store: store)
     }
+    .sheet(item: $store.duplicationReview) { review in
+      DuplicationReviewSheet(review: review) { excluded in
+        store.send(.duplicationReviewConfirmed(excluding: excluded))
+      }
+    }
     .alert($store.scope(state: \.alert, action: \.alert))
     .task { store.send(.sidebarAppeared) }
+    .onChange(of: focusedRenameTarget) { oldTarget, newTarget in
+      guard
+        let oldTarget,
+        newTarget != oldTarget,
+        store.renameSession?.target == oldTarget
+      else { return }
+      store.send(.renameSubmitted)
+    }
   }
 
-  // MARK: - Column 1: Profiles
+  // MARK: Private
+
+  @State private var dropIndicator: DropIndicator?
+  @FocusState private var focusedRenameTarget: WorkspaceListFeature.NameTarget?
 
   /// The profile whose contents col 2 lists. Its green dot in col 1 marks the
   /// *active* (running) profile, which need not be the selected one.
@@ -44,7 +64,6 @@ struct WorkspaceListView: View {
     store.config.activeProfileId ?? store.config.profiles.first?.id
   }
 
-  @ViewBuilder
   private var profilesColumn: some View {
     List(selection: $store.topSelection.sending(\.topSelected)) {
       Section("Profiles") {
@@ -55,6 +74,7 @@ struct WorkspaceListView: View {
           profileRow(profile)
             .tag(profile.sidebarTop as WorkspaceListFeature.SidebarTop?)
             .contextMenu {
+              RenameButton()
               Button("Duplicate") { store.send(.duplicateProfileTapped(profile.id)) }
               if store.config.profiles.count > 1 {
                 Divider()
@@ -62,6 +82,9 @@ struct WorkspaceListView: View {
                   store.send(.deleteProfileRequested(profile.id))
                 }
               }
+            }
+            .renameAction {
+              store.send(.renameRequested(.profile(profile.id)))
             }
         }
         .onMove { source, destination in
@@ -89,30 +112,6 @@ struct WorkspaceListView: View {
     .navigationTitle("Tatami")
   }
 
-  /// A profile row: icon + name, an overlap-conflict badge, and a green dot on
-  /// the *active* profile (distinct from the selected/highlighted one).
-  @ViewBuilder
-  private func profileRow(_ profile: Profile) -> some View {
-    HStack {
-      Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
-      Spacer()
-      if store.config.autoActivationDiagnostic(for: profile.id).hasConflict {
-        Image(systemName: "exclamationmark.triangle.fill")
-          .foregroundStyle(.orange)
-          .imageScale(.small)
-          .help("Auto-activation overlaps another profile at the same priority — order decides which one activates.")
-      }
-      if profile.id == activeProfileId {
-        Image(systemName: "circle.fill")
-          .foregroundStyle(.green)
-          .imageScale(.small)
-          .help("Active profile")
-      }
-    }
-  }
-
-  // MARK: - Column 2: the selected profile's contents
-
   @ViewBuilder
   private var contentColumn: some View {
     if store.isViewingShared {
@@ -121,7 +120,7 @@ struct WorkspaceListView: View {
       ContentUnavailableView(
         "Shared Apps",
         systemImage: "square.on.square",
-        description: Text("These apps join every workspace in every profile. Edit them in the detail pane.")
+        description: Text("These apps join every workspace in every profile. Edit them in the detail pane."),
       )
       .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
       .navigationTitle("Everywhere")
@@ -130,7 +129,6 @@ struct WorkspaceListView: View {
     }
   }
 
-  @ViewBuilder
   private var profileContentList: some View {
     List(selection: $store.selection.sending(\.sidebarSelected)) {
       // The profile's own settings (name, icon, auto-activation, copy) — the
@@ -198,8 +196,6 @@ struct WorkspaceListView: View {
     }
   }
 
-  // MARK: - Column 3: detail
-
   @ViewBuilder
   private var detailColumn: some View {
     if let detailStore = store.scope(state: \.detail, action: \.detail) {
@@ -212,12 +208,10 @@ struct WorkspaceListView: View {
       ContentUnavailableView(
         "Nothing Selected",
         systemImage: "square.stack.3d.up",
-        description: Text("Pick a profile's settings or a workspace from the sidebar, or add one with ⌘N.")
+        description: Text("Pick a profile's settings or a workspace from the sidebar, or add one with ⌘N."),
       )
     }
   }
-
-  // MARK: - Workspace rows
 
   /// Whether col 2 is showing the *active* profile — gates the Activate / Borrow
   /// row actions, which only make sense for workspaces of the running profile.
@@ -225,10 +219,38 @@ struct WorkspaceListView: View {
     store.selectedProfileResolvedId == activeProfileId
   }
 
-  @ViewBuilder
+  /// A profile row: icon + name, an overlap-conflict badge, and a green dot on
+  /// the *active* profile (distinct from the selected/highlighted one).
+  private func profileRow(_ profile: Profile) -> some View {
+    HStack {
+      Label {
+        editableName(profile.name, target: .profile(profile.id))
+      } icon: {
+        Image(systemName: profile.symbolIconName ?? "rectangle.stack")
+      }
+      Spacer()
+      if store.config.autoActivationDiagnostic(for: profile.id).hasConflict {
+        Image(systemName: "exclamationmark.triangle.fill")
+          .foregroundStyle(.orange)
+          .imageScale(.small)
+          .help("Auto-activation overlaps another profile at the same priority. Order decides which one activates.")
+      }
+      if profile.id == activeProfileId {
+        Image(systemName: "circle.fill")
+          .foregroundStyle(.green)
+          .imageScale(.small)
+          .help("Active profile")
+      }
+    }
+  }
+
   private func row(for workspace: Workspace) -> some View {
     HStack(spacing: 6) {
-      Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.stack.3d.up")
+      Label {
+        editableName(workspace.name, target: .workspace(workspace.id))
+      } icon: {
+        Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
+      }
       Spacer()
       WorkspaceRuntimeStatusView(
         workspaceID: workspace.id,
@@ -254,9 +276,46 @@ struct WorkspaceListView: View {
         }
         Divider()
       }
+      RenameButton()
+      Button("Duplicate") {
+        store.send(.duplicateWorkspaceTapped(workspace.id))
+      }
+      Divider()
       Button("Delete", role: .destructive) {
         store.send(.workspaceDeleteRequested(workspace.id))
       }
+    }
+    .renameAction {
+      store.send(.renameRequested(.workspace(workspace.id)))
+    }
+  }
+
+  @ViewBuilder
+  private func editableName(
+    _ name: String,
+    target: WorkspaceListFeature.NameTarget,
+  ) -> some View {
+    if store.renameSession?.target == target {
+      TextField(
+        "Name",
+        text: Binding(
+          get: { store.renameSession?.draft ?? name },
+          set: { store.send(.renameDraftChanged($0)) },
+        ),
+      )
+      .textFieldStyle(.plain)
+      .focused($focusedRenameTarget, equals: target)
+      .onAppear { focusedRenameTarget = target }
+      .onSubmit {
+        store.send(.renameSubmitted)
+        focusedRenameTarget = nil
+      }
+      .onExitCommand {
+        store.send(.renameCancelled)
+        focusedRenameTarget = nil
+      }
+    } else {
+      Text(name)
     }
   }
 
@@ -265,7 +324,6 @@ struct WorkspaceListView: View {
   /// id, and two stacked half-height drop zones split it into an above/below
   /// target so the insertion line follows the cursor and the drop lands there
   /// (`workspace.kind` picks the destination section).
-  @ViewBuilder
   private func draggableRow(_ workspace: Workspace) -> some View {
     row(for: workspace)
       .draggable(workspace.id.uuidString) {
@@ -328,7 +386,7 @@ struct WorkspaceListView: View {
     _ ids: [String],
     kind: WorkspaceKind,
     relativeTo targetId: Workspace.ID?,
-    after: Bool
+    after: Bool,
   ) -> Bool {
     guard let first = ids.first, let draggedId = UUID(uuidString: first) else { return false }
     dropIndicator = nil
@@ -338,9 +396,186 @@ struct WorkspaceListView: View {
 
 }
 
+// MARK: - DuplicationReviewSheet
+
+/// Adapts a reducer-owned duplicate snapshot into the same grouped, toggleable
+/// review surface used by Profile/Workspace "Copy from…". Keeping this out of
+/// `WorkspaceListView` prevents option construction from widening the sidebar's
+/// normal invalidation boundary.
+private struct DuplicationReviewSheet: View {
+  let review: WorkspaceListFeature.DuplicationReview
+  let onConfirm: (Set<String>) -> Void
+
+  var body: some View {
+    switch review.source {
+    case .profile(let profile):
+      SyncPreviewSheet(
+        title: "Duplicate “\(profile.name)”",
+        message: "Choose which workspaces and content to include. The profile switch shortcut and auto-activation are left off; workspace shortcuts can be copied because the new profile is independently scoped.",
+        applyTitle: "Duplicate",
+        groups: profileGroups(profile),
+        allowsEmptySelection: true,
+        validateSelection: { excluded in
+          WorkspaceListFeature.duplicationShortcutConflicts(
+            review: review,
+            excluding: excluded
+          )
+        },
+        onApply: onConfirm,
+      )
+
+    case .workspace(let workspace):
+      SyncPreviewSheet(
+        title: "Duplicate “\(workspace.name)”",
+        message: "Choose the apps, settings, and saved layout to include. Workspace keys and explicit shortcuts are always left blank to avoid conflicts.",
+        applyTitle: "Duplicate",
+        groups: workspaceGroups(workspace),
+        allowsEmptySelection: true,
+        validateSelection: { excluded in
+          WorkspaceListFeature.duplicationShortcutConflicts(
+            review: review,
+            excluding: excluded
+          )
+        },
+        onApply: onConfirm,
+      )
+    }
+  }
+
+  /// A profile chooser keeps each workspace in one group. Its first toggle is
+  /// the parent of that workspace's content and layout rows, so excluding a
+  /// workspace also excludes every subordinate option without losing the
+  /// user's individual choices if it is turned back on.
+  private func profileGroups(_ profile: Profile) -> [SyncChangeGroup] {
+    var groups = [SyncChangeGroup]()
+    if let symbol = profile.symbolIconName {
+      groups.append(SyncChangeGroup(
+        id: "profile",
+        title: String(localized: "Profile"),
+        symbol: symbol,
+        items: [SyncChangeItem(
+          id: WorkspaceListFeature.DuplicationOptionID.profileIcon,
+          title: String(localized: "Profile icon"),
+          detail: String(localized: "Copy the profile's appearance."),
+          detailTint: .secondary,
+          symbol: symbol,
+          symbolTint: .accentColor,
+          appBundleId: nil,
+          appIconPath: nil,
+        )],
+      ))
+    }
+
+    for workspace in profile.workspaces {
+      let parentId = WorkspaceListFeature.DuplicationOptionID.includeWorkspace(workspace.id)
+      var items = [SyncChangeItem(
+        id: parentId,
+        title: String(localized: "Include workspace"),
+        detail: workspace.apps.isEmpty
+          ? String(localized: "Copy its settings and saved layout.")
+          : String(localized: "Copy its apps, settings, and saved layout."),
+        detailTint: .secondary,
+        symbol: "checkmark.circle",
+        symbolTint: .accentColor,
+        appBundleId: nil,
+        appIconPath: nil,
+      )]
+      items.append(contentsOf: appItems(workspace, parentId: parentId))
+      items.append(contentsOf: settingItems(
+        workspace,
+        parentId: parentId,
+        includeShortcuts: true,
+      ))
+      items.append(layoutItem(workspace, parentId: parentId))
+      groups.append(SyncChangeGroup(
+        id: workspace.id.uuidString,
+        title: workspace.name,
+        symbol: workspace.symbolIconName ?? "square.stack.3d.up",
+        items: items,
+      ))
+    }
+    return groups
+  }
+
+  private func workspaceGroups(_ workspace: Workspace) -> [SyncChangeGroup] {
+    var groups = [SyncChangeGroup]()
+    let apps = appItems(workspace)
+    if !apps.isEmpty {
+      groups.append(SyncChangeGroup(id: "apps", title: String(localized: "Apps"), items: apps))
+    }
+    let settings = settingItems(workspace)
+    if !settings.isEmpty {
+      groups.append(SyncChangeGroup(
+        id: "settings",
+        title: String(localized: "Settings"),
+        items: settings,
+      ))
+    }
+    groups.append(SyncChangeGroup(
+      id: "layout",
+      title: String(localized: "Layout"),
+      items: [layoutItem(workspace)],
+    ))
+    return groups
+  }
+
+  private func appItems(
+    _ workspace: Workspace,
+    parentId: String? = nil
+  ) -> [SyncChangeItem] {
+    let prefix = "\(workspace.id.uuidString):"
+    return WorkspaceSync.appChanges(from: workspace.apps, to: []).map {
+      SyncChangeItem($0, prefix: prefix, parentId: parentId)
+    }
+  }
+
+  private func settingItems(
+    _ workspace: Workspace,
+    parentId: String? = nil,
+    includeShortcuts: Bool = false
+  ) -> [SyncChangeItem] {
+    let empty = Workspace(name: workspace.name)
+    let prefix = "\(workspace.id.uuidString):"
+    return WorkspaceSync.fieldChanges(from: workspace, to: empty)
+      .filter { includeShortcuts || !isShortcutIdentity($0) }
+      .map { SyncChangeItem($0, prefix: prefix, parentId: parentId) }
+  }
+
+  private func layoutItem(
+    _ workspace: Workspace,
+    parentId: String? = nil
+  ) -> SyncChangeItem {
+    SyncChangeItem(
+      id: WorkspaceListFeature.DuplicationOptionID.layout(workspace.id),
+      parentId: parentId,
+      title: String(localized: "Saved layout"),
+      detail: String(localized: "Copy the saved tiling tree, if one exists."),
+      detailTint: .secondary,
+      symbol: "rectangle.split.2x1",
+      symbolTint: .accentColor,
+      appBundleId: nil,
+      appIconPath: nil,
+    )
+  }
+
+  private func isShortcutIdentity(_ change: WorkspaceFieldChange) -> Bool {
+    switch change {
+    case .keyEquivalent, .activateShortcut, .assignAppShortcut, .borrowShortcut:
+      true
+    case .icon, .kind, .appToFocus, .displayHint, .borrowEdge, .borrowFraction:
+      false
+    }
+  }
+}
+
+// MARK: - WorkspaceRuntimeStatusView
+
 /// Keeps fast-changing runtime badges in their own observation boundary so a
 /// Borrow toggle does not invalidate the entire three-column settings view.
 private struct WorkspaceRuntimeStatusView: View {
+
+  // MARK: Internal
+
   let workspaceID: Workspace.ID
   let activationStore: StoreOf<WorkspaceActivationFeature>
 
@@ -366,6 +601,8 @@ private struct WorkspaceRuntimeStatusView: View {
     }
   }
 
+  // MARK: Private
+
   /// The display this workspace is currently active on, if any.
   private var activeDisplay: DisplayName? {
     activationStore.activeWorkspacesByDisplay.first { $0.value == workspaceID }?.key
@@ -375,7 +612,8 @@ private struct WorkspaceRuntimeStatusView: View {
   /// a live composition, else nil.
   private var borrowedHostName: String? {
     for (_, composition) in activationStore.compositionsByDisplay
-    where composition.borrowed.contains(where: { $0.workspace == workspaceID }) {
+      where composition.borrowed.contains(where: { $0.workspace == workspaceID })
+    {
       return activationStore.config.activeProfile?.workspaces[id: composition.host]?.name
         ?? "another workspace"
     }
@@ -391,23 +629,32 @@ private struct WorkspaceRuntimeStatusView: View {
     let palette: [Color] = [.green, .blue, .orange, .purple, .pink, .teal]
     return palette[index % palette.count]
   }
+
 }
 
-private extension Workspace {
+extension Workspace {
   /// Sidebar row identity — must be the List's selection type for macOS to make
   /// the row selectable (see the ForEach above).
-  var sidebarItem: WorkspaceListFeature.SidebarItem { .workspace(id) }
+  fileprivate var sidebarItem: WorkspaceListFeature.SidebarItem {
+    .workspace(id)
+  }
 }
 
-private extension Profile {
+extension Profile {
   /// Col 1 row identity — must match the sidebar List's selection type
   /// (SidebarTop) for macOS to wire the row's selection gesture.
-  var sidebarTop: WorkspaceListFeature.SidebarTop { .profile(id) }
+  fileprivate var sidebarTop: WorkspaceListFeature.SidebarTop {
+    .profile(id)
+  }
 }
 
+// MARK: - AddWorkspaceForm
+
 private struct AddWorkspaceForm: View {
+
+  // MARK: Internal
+
   @Bindable var store: StoreOf<WorkspaceListFeature>
-  @FocusState private var nameFieldFocused: Bool
 
   var body: some View {
     Form {
@@ -435,4 +682,9 @@ private struct AddWorkspaceForm: View {
     .padding()
     .onAppear { nameFieldFocused = true }
   }
+
+  // MARK: Private
+
+  @FocusState private var nameFieldFocused: Bool
+
 }

@@ -15,6 +15,8 @@ import TatamiKit
 /// recording down whenever the Settings window wasn't key.
 struct ShortcutRecorder: View {
   let hotKey: HotKey?
+  /// Action-specific VoiceOver label supplied by the row that owns this field.
+  let accessibilityLabel: LocalizedStringResource
   /// Returns the name of another action already bound to a candidate combo,
   /// or nil if it's free (the recorder's own current key reads as free).
   var conflict: (HotKey) -> String? = { _ in nil }
@@ -24,10 +26,13 @@ struct ShortcutRecorder: View {
   var onRecordingChanged: (Bool) -> Void = { _ in }
   let onChange: (HotKey?) -> Void
 
+  @State private var presentedConflict: ShortcutConflictPresentation?
+
   var body: some View {
     HStack(spacing: 4) {
       field
         .frame(width: 150, height: 24)
+        .shortcutConflictPopover(item: $presentedConflict)
 
       Button {
         onChange(nil)
@@ -49,7 +54,12 @@ struct ShortcutRecorder: View {
   private var field: some View {
     let representable = RecorderRepresentable(
       hotKey: hotKey,
+      accessibilityLabel: String(localized: accessibilityLabel),
       conflict: conflict,
+      isConflictPresented: presentedConflict != nil,
+      onConflictPresentationChanged: { owner in
+        presentedConflict = owner.map { ShortcutConflictPresentation(owner: $0) }
+      },
       onRecordingChanged: onRecordingChanged,
       onChange: onChange
     )
@@ -74,7 +84,7 @@ struct ComboCapsule: View {
   var dimmed = false
 
   var body: some View {
-    Text(text.isEmpty ? "—" : text)
+    Text(text.isEmpty ? String(localized: "None") : text)
       .font(.system(size: 12, weight: .medium))
       .foregroundStyle(.secondary)
       .frame(width: 96, height: 24)
@@ -92,15 +102,20 @@ struct KeyEquivalentRecorder: View {
   let key: String?
   /// The switch-modifier glyphs shown before the key (e.g. `⌃⌥`).
   let modifierSymbols: String
+  /// Target-specific VoiceOver label supplied by the row that owns this field.
+  let accessibilityLabel: LocalizedStringResource
   /// Conflict title for a candidate key char, or nil if free.
   var conflict: (String) -> String? = { _ in nil }
   var onRecordingChanged: (Bool) -> Void = { _ in }
   let onChange: (String?) -> Void
 
+  @State private var presentedConflict: ShortcutConflictPresentation?
+
   var body: some View {
     HStack(spacing: 4) {
       field
         .frame(width: 96, height: 24)
+        .shortcutConflictPopover(item: $presentedConflict)
 
       Button {
         onChange(nil)
@@ -121,7 +136,12 @@ struct KeyEquivalentRecorder: View {
     let representable = KeyCapRepresentable(
       key: key,
       modifierSymbols: modifierSymbols,
+      accessibilityLabel: String(localized: accessibilityLabel),
       conflict: conflict,
+      isConflictPresented: presentedConflict != nil,
+      onConflictPresentationChanged: { owner in
+        presentedConflict = owner.map { ShortcutConflictPresentation(owner: $0) }
+      },
       onRecordingChanged: onRecordingChanged,
       onChange: onChange
     )
@@ -136,25 +156,38 @@ struct KeyEquivalentRecorder: View {
 private struct KeyCapRepresentable: NSViewRepresentable {
   let key: String?
   let modifierSymbols: String
+  let accessibilityLabel: String
   let conflict: (String) -> String?
+  let isConflictPresented: Bool
+  let onConflictPresentationChanged: (String?) -> Void
   let onRecordingChanged: (Bool) -> Void
   let onChange: (String?) -> Void
 
   func makeNSView(context _: Context) -> KeyCapField {
     let field = KeyCapField()
+    field.setAccessibilityElement(true)
+    field.setAccessibilityRole(.button)
+    field.setAccessibilityLabel(accessibilityLabel)
     field.onChange = onChange
     field.conflict = conflict
+    field.setConflictPresentationHandler(onConflictPresentationChanged)
     field.onRecordingChanged = onRecordingChanged
     field.modifierSymbols = modifierSymbols
     field.key = key
+    field.updateAccessibilityValue(announce: false)
     return field
   }
 
   func updateNSView(_ field: KeyCapField, context _: Context) {
     field.onChange = onChange
     field.conflict = conflict
+    field.setConflictPresentationHandler(onConflictPresentationChanged)
     field.onRecordingChanged = onRecordingChanged
+    field.setAccessibilityLabel(accessibilityLabel)
     field.modifierSymbols = modifierSymbols
+    if !isConflictPresented {
+      field.clearConflictFeedback()
+    }
     if !field.isRecording {
       field.key = key
     }
@@ -165,20 +198,34 @@ final class KeyCapField: NSView {
   var onChange: ((String?) -> Void)?
   var conflict: ((String) -> String?)?
   var onRecordingChanged: ((Bool) -> Void)?
-  var modifierSymbols = "" { didSet { needsDisplay = true } }
+  var modifierSymbols = "" {
+    didSet {
+      guard modifierSymbols != oldValue else { return }
+      needsDisplay = true
+      updateAccessibilityValue()
+    }
+  }
 
-  var key: String? { didSet { needsDisplay = true } }
+  var key: String? {
+    didSet {
+      guard key != oldValue else { return }
+      needsDisplay = true
+      updateAccessibilityValue()
+    }
+  }
 
   /// Local keyDown monitor active only while recording. A bare special key
   /// (Delete, arrows…) inside a SwiftUI Form/List is otherwise eaten by the
   /// responder chain before reaching `keyDown`; the monitor intercepts every
   /// keyDown app-wide and consumes the captured one.
   private var monitor: Any?
+  private lazy var conflictPresenter = ShortcutConflictPresenter(view: self)
 
   private(set) var isRecording = false {
     didSet {
       guard isRecording != oldValue else { return }
       needsDisplay = true
+      updateAccessibilityValue()
       onRecordingChanged?(isRecording)
     }
   }
@@ -188,13 +235,22 @@ final class KeyCapField: NSView {
   override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
   override func becomeFirstResponder() -> Bool { true }
 
+  override func accessibilityPerformPress() -> Bool {
+    window?.makeFirstResponder(self)
+    startRecording()
+    return true
+  }
+
   override func resignFirstResponder() -> Bool {
     stopRecording()
     return true
   }
 
   override func viewWillMove(toWindow newWindow: NSWindow?) {
-    if newWindow == nil { stopRecording() }
+    if newWindow == nil {
+      stopRecording()
+      conflictPresenter.clear()
+    }
     super.viewWillMove(toWindow: newWindow)
   }
 
@@ -205,10 +261,23 @@ final class KeyCapField: NSView {
 
   private func startRecording() {
     guard monitor == nil else { return }
+    conflictPresenter.clear()
     isRecording = true
     monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
       guard let self, self.isRecording else { return event }
       return self.record(event) ? nil : event
+    }
+  }
+
+  fileprivate func updateAccessibilityValue(announce: Bool = true) {
+    let value = if isRecording {
+      String(localized: "Recording")
+    } else {
+      key.map { modifierSymbols + HotKey.keySymbol(forName: $0) } ?? String(localized: "None")
+    }
+    setAccessibilityValue(value)
+    if announce, window != nil {
+      NSAccessibility.post(element: self, notification: .valueChanged)
     }
   }
 
@@ -240,17 +309,16 @@ final class KeyCapField: NSView {
     return true
   }
 
-  private var conflictResetTask: Task<Void, Never>?
-  private var conflictText: String? { didSet { needsDisplay = true } }
-
   private func showConflict(_ owner: String) {
-    conflictText = "In use: \(owner)"
-    conflictResetTask?.cancel()
-    conflictResetTask = Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .seconds(1.8))
-      guard !Task.isCancelled, let self else { return }
-      conflictText = nil
-    }
+    conflictPresenter.show(owner: owner)
+  }
+
+  fileprivate func setConflictPresentationHandler(_ handler: @escaping (String?) -> Void) {
+    conflictPresenter.onPresentationChanged = handler
+  }
+
+  fileprivate func clearConflictFeedback() {
+    conflictPresenter.clear()
   }
 
   override func draw(_: NSRect) {
@@ -268,37 +336,36 @@ final class KeyCapField: NSView {
     let text: String
     let color: NSColor
     let bold: Bool
-    if let conflictText {
-      text = conflictText
+    let leadingSymbol: String?
+    if conflictPresenter.isPresenting {
+      text = String(localized: "In use")
       color = .systemOrange
       bold = true
+      leadingSymbol = "exclamationmark.triangle.fill"
     } else if isRecording {
       text = "Press a key\u{2026}"
       color = .secondaryLabelColor
       bold = false
+      leadingSymbol = nil
     } else if let key {
       text = modifierSymbols + HotKey.keySymbol(forName: key)
       color = .labelColor
       bold = true
+      leadingSymbol = nil
     } else {
       text = "Set key"
       color = .secondaryLabelColor
       bold = false
+      leadingSymbol = nil
     }
 
-    let style = NSMutableParagraphStyle()
-    style.alignment = .center
-    style.lineBreakMode = .byTruncatingTail
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: 12, weight: bold ? .semibold : .regular),
-      .foregroundColor: color,
-      .paragraphStyle: style,
-    ]
-    let nsText = text as NSString
-    let height = nsText.size(withAttributes: attributes).height
-    nsText.draw(
-      in: NSRect(x: 6, y: (bounds.height - height) / 2, width: bounds.width - 12, height: height),
-      withAttributes: attributes
+    drawRecorderStatus(
+      in: bounds,
+      text: text,
+      color: color,
+      bold: bold,
+      leadingSymbol: leadingSymbol,
+      horizontalInset: 6
     )
   }
 }
@@ -307,23 +374,36 @@ final class KeyCapField: NSView {
 
 private struct RecorderRepresentable: NSViewRepresentable {
   let hotKey: HotKey?
+  let accessibilityLabel: String
   let conflict: (HotKey) -> String?
+  let isConflictPresented: Bool
+  let onConflictPresentationChanged: (String?) -> Void
   let onRecordingChanged: (Bool) -> Void
   let onChange: (HotKey?) -> Void
 
   func makeNSView(context _: Context) -> RecorderField {
     let field = RecorderField()
+    field.setAccessibilityElement(true)
+    field.setAccessibilityRole(.button)
+    field.setAccessibilityLabel(accessibilityLabel)
     field.onChange = onChange
     field.conflict = conflict
+    field.setConflictPresentationHandler(onConflictPresentationChanged)
     field.onRecordingChanged = onRecordingChanged
     field.hotKey = hotKey
+    field.updateAccessibilityValue(announce: false)
     return field
   }
 
   func updateNSView(_ field: RecorderField, context _: Context) {
     field.onChange = onChange
     field.conflict = conflict
+    field.setConflictPresentationHandler(onConflictPresentationChanged)
     field.onRecordingChanged = onRecordingChanged
+    field.setAccessibilityLabel(accessibilityLabel)
+    if !isConflictPresented {
+      field.clearConflictFeedback()
+    }
     // Don't clobber an in-progress recording with the bound value.
     if !field.isRecording {
       field.hotKey = hotKey
@@ -342,7 +422,14 @@ final class RecorderField: NSView {
   var onRecordingChanged: ((Bool) -> Void)?
 
   var hotKey: HotKey? {
-    didSet { needsDisplay = true }
+    didSet {
+      guard hotKey != oldValue else { return }
+      needsDisplay = true
+      setAccessibilityValue(hotKey?.symbols ?? String(localized: "None"))
+      if window != nil {
+        NSAccessibility.post(element: self, notification: .valueChanged)
+      }
+    }
   }
 
   /// Local keyDown monitor active only while recording. Capturing through a
@@ -350,11 +437,13 @@ final class RecorderField: NSView {
   /// (Backspace, arrows, Return…) the SwiftUI responder chain would otherwise
   /// swallow still reach the recorder.
   private var monitor: Any?
+  private lazy var conflictPresenter = ShortcutConflictPresenter(view: self)
 
   private(set) var isRecording = false {
     didSet {
       guard isRecording != oldValue else { return }
       needsDisplay = true
+      updateAccessibilityValue()
       onRecordingChanged?(isRecording)
     }
   }
@@ -373,23 +462,47 @@ final class RecorderField: NSView {
     true
   }
 
+  override func accessibilityPerformPress() -> Bool {
+    window?.makeFirstResponder(self)
+    startRecording()
+    return true
+  }
+
   override func resignFirstResponder() -> Bool {
     stopRecording()
     return true
   }
 
   override func viewWillMove(toWindow newWindow: NSWindow?) {
-    if newWindow == nil { stopRecording() }
+    if newWindow == nil {
+      stopRecording()
+      conflictPresenter.clear()
+    }
     super.viewWillMove(toWindow: newWindow)
   }
 
   override func mouseDown(with _: NSEvent) {
     window?.makeFirstResponder(self)
+    startRecording()
+  }
+
+  private func startRecording() {
     guard monitor == nil else { return }
+    conflictPresenter.clear()
     isRecording = true
     monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
       guard let self, self.isRecording else { return event }
       return self.record(event) ? nil : event
+    }
+  }
+
+  fileprivate func updateAccessibilityValue(announce: Bool = true) {
+    let value = isRecording
+      ? String(localized: "Recording")
+      : hotKey?.symbols ?? String(localized: "None")
+    setAccessibilityValue(value)
+    if announce, window != nil {
+      NSAccessibility.post(element: self, notification: .valueChanged)
     }
   }
 
@@ -415,47 +528,40 @@ final class RecorderField: NSView {
     let text: String
     let color: NSColor
     let bold: Bool
-    if let conflictText {
-      text = conflictText
+    let leadingSymbol: String?
+    if conflictPresenter.isPresenting {
+      text = String(localized: "In use")
       color = .systemOrange
       bold = true
+      leadingSymbol = "exclamationmark.triangle.fill"
     } else if isRecording {
       text = "Press shortcut\u{2026}"
       color = .secondaryLabelColor
       bold = false
+      leadingSymbol = nil
     } else if let hotKey {
       text = hotKey.symbols
       color = .labelColor
       bold = true
+      leadingSymbol = nil
     } else {
       text = "Set shortcut"
       color = .secondaryLabelColor
       bold = false
+      leadingSymbol = nil
     }
 
-    let style = NSMutableParagraphStyle()
-    style.alignment = .center
-    style.lineBreakMode = .byTruncatingTail
-    let attributes: [NSAttributedString.Key: Any] = [
-      .font: NSFont.systemFont(ofSize: 12, weight: bold ? .semibold : .regular),
-      .foregroundColor: color,
-      .paragraphStyle: style,
-    ]
-    let nsText = text as NSString
-    let height = nsText.size(withAttributes: attributes).height
-    nsText.draw(
-      in: NSRect(x: 8, y: (bounds.height - height) / 2, width: bounds.width - 16, height: height),
-      withAttributes: attributes
+    drawRecorderStatus(
+      in: bounds,
+      text: text,
+      color: color,
+      bold: bold,
+      leadingSymbol: leadingSymbol,
+      horizontalInset: 8
     )
   }
 
   // MARK: Private
-
-  private var conflictResetTask: Task<Void, Never>?
-
-  private var conflictText: String? {
-    didSet { needsDisplay = true }
-  }
 
   /// Carbon modifier masks (cmd 256, shift 512, option 2048, control 4096).
   private func carbonModifiers(_ flags: NSEvent.ModifierFlags) -> Int {
@@ -497,12 +603,179 @@ final class RecorderField: NSView {
   }
 
   private func showConflict(_ owner: String) {
-    conflictText = "In use: \(owner)"
-    conflictResetTask?.cancel()
-    conflictResetTask = Task { @MainActor [weak self] in
-      try? await Task.sleep(for: .seconds(1.8))
-      guard !Task.isCancelled, let self else { return }
-      conflictText = nil
+    conflictPresenter.show(owner: owner)
+  }
+
+  fileprivate func setConflictPresentationHandler(_ handler: @escaping (String?) -> Void) {
+    conflictPresenter.onPresentationChanged = handler
+  }
+
+  fileprivate func clearConflictFeedback() {
+    conflictPresenter.clear()
+  }
+}
+
+// MARK: - ShortcutConflictPresenter
+
+/// Keeps conflict feedback compact at every width while making the complete
+/// owner immediately readable. The recorder itself always shows the same short
+/// warning; the popover and hover/VoiceOver help carry the untruncated detail.
+@MainActor
+private final class ShortcutConflictPresenter {
+  init(view: NSView) {
+    self.view = view
+  }
+
+  private(set) var isPresenting = false
+  var onPresentationChanged: ((String?) -> Void)?
+
+  func show(owner: String) {
+    clear()
+    guard let view else { return }
+
+    let message = String(localized: "This shortcut is already used by \(owner).")
+    isPresenting = true
+    previousAccessibilityValue = view.accessibilityValue()
+    view.toolTip = message
+    view.setAccessibilityHelp(message)
+    view.setAccessibilityValue(message)
+    view.needsDisplay = true
+    NSAccessibility.post(
+      element: NSApp as Any,
+      notification: .announcementRequested,
+      userInfo: [
+        .announcement: message,
+        .priority: NSAccessibilityPriorityLevel.high.rawValue,
+      ]
+    )
+    onPresentationChanged?(owner)
+
+    resetTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(4))
+      guard !Task.isCancelled else { return }
+      self?.clear()
     }
   }
+
+  func clear() {
+    let wasPresenting = isPresenting
+    resetTask?.cancel()
+    resetTask = nil
+    isPresenting = false
+    view?.toolTip = nil
+    view?.setAccessibilityHelp(nil)
+    if wasPresenting {
+      view?.setAccessibilityValue(previousAccessibilityValue)
+    }
+    previousAccessibilityValue = nil
+    view?.needsDisplay = true
+    if wasPresenting {
+      onPresentationChanged?(nil)
+    }
+  }
+
+  private weak var view: NSView?
+  private var previousAccessibilityValue: Any?
+  private var resetTask: Task<Void, Never>?
+}
+
+// MARK: - ShortcutConflictPopover
+
+private struct ShortcutConflictPresentation: Identifiable {
+  let id = UUID()
+  let owner: String
+}
+
+private extension View {
+  func shortcutConflictPopover(
+    item: Binding<ShortcutConflictPresentation?>
+  ) -> some View {
+    popover(
+      item: item,
+      attachmentAnchor: .rect(.bounds),
+      arrowEdge: .trailing,
+    ) { presentation in
+      ShortcutConflictPopover(owner: presentation.owner)
+    }
+  }
+}
+
+private struct ShortcutConflictPopover: View {
+  let owner: String
+
+  var body: some View {
+    Label {
+      Text(
+        "This shortcut is already used by \(owner).",
+        comment: "Shortcut recorder conflict. The variable is the action already using the shortcut."
+      )
+      .fixedSize(horizontal: false, vertical: true)
+    } icon: {
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundStyle(.orange)
+    }
+    .padding(12)
+    .frame(width: 280, alignment: .leading)
+  }
+}
+
+@MainActor
+private func drawRecorderStatus(
+  in bounds: NSRect,
+  text: String,
+  color: NSColor,
+  bold: Bool,
+  leadingSymbol: String?,
+  horizontalInset: CGFloat
+) {
+  let style = NSMutableParagraphStyle()
+  style.alignment = .center
+  style.lineBreakMode = .byTruncatingTail
+  let attributes: [NSAttributedString.Key: Any] = [
+    .font: NSFont.systemFont(ofSize: 12, weight: bold ? .semibold : .regular),
+    .foregroundColor: color,
+    .paragraphStyle: style,
+  ]
+  let nsText = text as NSString
+  let textSize = nsText.size(withAttributes: attributes)
+  let iconSize: CGFloat = leadingSymbol == nil ? 0 : 12
+  let spacing: CGFloat = leadingSymbol == nil ? 0 : 4
+  let availableWidth = max(0, bounds.width - horizontalInset * 2)
+  let textWidth = min(textSize.width, max(0, availableWidth - iconSize - spacing))
+  let totalWidth = iconSize + spacing + textWidth
+  let originX = max(horizontalInset, (bounds.width - totalWidth) / 2)
+
+  if
+    let leadingSymbol,
+    let image = NSImage(systemSymbolName: leadingSymbol, accessibilityDescription: nil)?
+      .withSymbolConfiguration(
+        NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+          .applying(.init(hierarchicalColor: color))
+      )
+  {
+    image.draw(
+      in: NSRect(
+        x: originX,
+        y: (bounds.height - iconSize) / 2,
+        width: iconSize,
+        height: iconSize
+      ),
+      from: .zero,
+      operation: .sourceOver,
+      fraction: 1,
+      respectFlipped: true,
+      hints: nil
+    )
+  }
+
+  let textX = originX + iconSize + spacing
+  nsText.draw(
+    in: NSRect(
+      x: textX,
+      y: (bounds.height - textSize.height) / 2,
+      width: textWidth,
+      height: textSize.height
+    ),
+    withAttributes: attributes
+  )
 }

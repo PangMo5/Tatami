@@ -28,6 +28,7 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-collections", from: "1.5.1"),
     .package(url: "https://github.com/mattt/swift-toml", from: "2.0.0"),
     .package(url: "https://github.com/SFSafeSymbols/SFSafeSymbols", from: "5.3.0"),
+    .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "1.0.0"),
     .package(url: "https://github.com/mattt/swift-yyjson", from: "0.6.0"),
   ]
 )

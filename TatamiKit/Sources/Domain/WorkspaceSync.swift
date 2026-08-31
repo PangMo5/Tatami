@@ -80,6 +80,20 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
   public var beforeText: String { Self.text(before: true, self) }
   public var afterText: String { Self.text(before: false, self) }
 
+  /// The hotkey-producing workspace field this change controls, if any.
+  /// Keeping this semantic identity beside the diff prevents Copy/Duplicate
+  /// callers from maintaining a second, drifting list of shortcut fields.
+  public var shortcutField: WorkspaceShortcutField? {
+    switch self {
+    case .keyEquivalent: .keyEquivalent
+    case .activateShortcut: .activateShortcut
+    case .assignAppShortcut: .assignAppShortcut
+    case .borrowShortcut: .borrowShortcut
+    case .icon, .kind, .appToFocus, .displayHint, .borrowEdge, .borrowFraction:
+      nil
+    }
+  }
+
   private static func text(before: Bool, _ change: WorkspaceFieldChange) -> String {
     func pick<T>(_ b: T, _ a: T) -> T { before ? b : a }
     switch change {
@@ -99,11 +113,75 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
   }
 }
 
+/// A workspace field that can change one or more registered hotkeys.
+public enum WorkspaceShortcutField: String, Hashable, Sendable {
+  case keyEquivalent
+  case activateShortcut
+  case assignAppShortcut
+  case borrowShortcut
+}
+
+/// One selected Copy/Duplicate field in the destination configuration.
+/// `workspaceId` always identifies the destination workspace, even when the
+/// chooser row is namespaced by a source workspace id.
+public struct WorkspaceShortcutSelection: Hashable, Sendable {
+  public var field: WorkspaceShortcutField
+  public var workspaceId: Workspace.ID
+
+  public init(workspaceId: Workspace.ID, field: WorkspaceShortcutField) {
+    self.workspaceId = workspaceId
+    self.field = field
+  }
+}
+
+/// A concrete collision caused by a selected Copy/Duplicate field after all
+/// selected changes have been projected together.
+public struct WorkspaceShortcutConflict: Hashable, Sendable {
+  public var hotKey: HotKey
+  public var owner: String
+  public var selection: WorkspaceShortcutSelection
+
+  public init(
+    selection: WorkspaceShortcutSelection,
+    hotKey: HotKey,
+    owner: String
+  ) {
+    self.selection = selection
+    self.hotKey = hotKey
+    self.owner = owner
+  }
+}
+
+/// The all-or-nothing result of projecting a reviewed Copy operation.
+public struct WorkspaceSyncProjection: Equatable, Sendable {
+  public var conflicts: [WorkspaceShortcutConflict]
+  public var config: AppConfig
+
+  public init(config: AppConfig, conflicts: [WorkspaceShortcutConflict]) {
+    self.config = config
+    self.conflicts = conflicts
+  }
+}
+
 /// Pure diff + apply for copying one workspace's apps / settings onto another.
 /// The direction is always "make the target look like the source" — changes
 /// transform the target toward the source, and the caller applies only the
 /// ones the user kept selected (by excluding the rest).
 public enum WorkspaceSync {
+  /// Resolve the current chooser selection against the rows that still exist.
+  /// A stale id must never keep Apply enabled after a live group disappears;
+  /// child rows also become ineffective while their parent is unselected.
+  public static func effectiveSelection(
+    selected: Set<String>,
+    validIDs: Set<String>,
+    parentByItemID: [String: String]
+  ) -> Set<String> {
+    selected.intersection(validIDs).filter { id in
+      guard let parentID = parentByItemID[id] else { return true }
+      return selected.contains(parentID) && validIDs.contains(parentID)
+    }
+  }
+
   /// App changes that would transform `target`'s apps toward `source`'s. Adds
   /// and modifies follow the source's order (stable); removes trail. `modify`
   /// fires only on a `layout` / `autoOpen` difference (name / iconPath ignored).

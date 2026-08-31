@@ -19,6 +19,9 @@ public struct AppConfig: Hashable, Sendable, Codable {
   /// into each workspace's layout when `false`, untiled + on top when `true`.
   public var sharedApps: [SharedApp]
   public var settings: AppSettings
+  /// User-authored lifecycle commands. Invalid entries remain visible but are
+  /// skipped by `HooksFeature` with a persistent diagnostic.
+  public var hooks: [HookDefinition]
   /// The active profile. `nil` → the first profile (back-compat with
   /// single-profile configs). Changed by a profile-switch hotkey or a
   /// display-activation rule.
@@ -28,16 +31,18 @@ public struct AppConfig: Hashable, Sendable, Codable {
     profiles: [Profile] = [Profile.makeDefault()],
     sharedApps: [SharedApp] = [],
     settings: AppSettings = AppSettings(),
+    hooks: [HookDefinition] = [],
     activeProfileId: Profile.ID? = nil
   ) {
     self.profiles = profiles
     self.sharedApps = sharedApps
     self.settings = settings
+    self.hooks = hooks
     self.activeProfileId = activeProfileId
   }
 
   private enum CodingKeys: String, CodingKey {
-    case profiles, sharedApps, settings
+    case profiles, sharedApps, settings, hooks
     // DEPRECATED: legacy key, read once to migrate into `sharedApps`. The
     // first GUI/CLI write re-serializes as `sharedApps`, so it disappears.
     // Remove after a few releases.
@@ -57,6 +62,9 @@ public struct AppConfig: Hashable, Sendable, Codable {
     self.settings = c.contains(.settings)
       ? try c.decode(AppSettings.self, forKey: .settings)
       : AppSettings()
+    self.hooks = c.contains(.hooks)
+      ? try c.decode([HookDefinition].self, forKey: .hooks)
+      : []
     if c.contains(.sharedApps) {
       self.sharedApps = try c.decode([SharedApp].self, forKey: .sharedApps)
     } else if c.contains(.floatingApps) {
@@ -80,6 +88,7 @@ public struct AppConfig: Hashable, Sendable, Codable {
     try c.encode(profiles, forKey: .profiles)
     try c.encode(sharedApps, forKey: .sharedApps)
     try c.encode(settings, forKey: .settings)
+    try c.encode(hooks, forKey: .hooks)
     // `activeProfileId` is intentionally not written — session state lives in
     // ProfileSessionStore (see the decode note above).
     // Legacy `floatingApps` is intentionally never written.
@@ -87,6 +96,30 @@ public struct AppConfig: Hashable, Sendable, Codable {
 }
 
 extension AppConfig {
+  /// Compare the configuration that is actually encoded to `config.toml`.
+  /// `activeProfileId` is session state and must not create false conflicts
+  /// while an asynchronous mutation prepares external data such as layouts.
+  func hasSamePersistedContent(as other: AppConfig) -> Bool {
+    var lhs = self
+    var rhs = other
+    lhs.activeProfileId = nil
+    rhs.activeProfileId = nil
+    return lhs == rhs
+  }
+
+  public struct ProfileDuplication: Equatable, Sendable {
+    public let profileId: Profile.ID
+    public let workspaceIdMap: [Workspace.ID: Workspace.ID]
+
+    public init(
+      profileId: Profile.ID,
+      workspaceIdMap: [Workspace.ID: Workspace.ID]
+    ) {
+      self.profileId = profileId
+      self.workspaceIdMap = workspaceIdMap
+    }
+  }
+
   /// The active profile: the one `activeProfileId` points at, falling back to
   /// the first by encounter order (back-compat with single-profile configs).
   public var activeProfile: Profile? {
@@ -191,11 +224,12 @@ extension AppConfig {
   /// old→new workspace-id remap so the caller can copy each workspace's saved
   /// layout (layouts are keyed by workspace id, which must be fresh here so
   /// the clone's tiling is independent). The clone drops its switch shortcut
-  /// and (future) auto-activation rule so it can't collide with the source.
-  /// Returns an empty map when `id` is unknown.
+  /// and auto-activation rule so it can't collide with the source.
+  /// Optionality distinguishes an unknown source from an empty profile, whose
+  /// valid workspace-id map is also empty.
   @discardableResult
-  public mutating func duplicateProfile(_ id: Profile.ID) -> [Workspace.ID: Workspace.ID] {
-    guard let srcIdx = profiles.firstIndex(where: { $0.id == id }) else { return [:] }
+  public mutating func duplicateProfile(_ id: Profile.ID) -> ProfileDuplication? {
+    guard let srcIdx = profiles.firstIndex(where: { $0.id == id }) else { return nil }
     let src = profiles[srcIdx]
     var remap: [Workspace.ID: Workspace.ID] = [:]
     var clonedWorkspaces: [Workspace] = []
@@ -207,14 +241,42 @@ extension AppConfig {
     }
     var clone = src
     clone.id = UUID()
-    clone.name = "\(src.name) copy"
+    clone.name = Self.duplicateName(
+      for: src.name,
+      existingNames: profiles.lazy.map(\.name)
+    )
     clone.shortcut = nil
     // Don't inherit the source's switch shortcut or auto-activation rule — two
     // profiles firing on the same hotkey / display set would collide.
     clone.autoActivation = nil
     clone.workspaces = IdentifiedArray(uniqueElements: clonedWorkspaces)
     profiles.insert(clone, at: srcIdx + 1)
-    return remap
+    return ProfileDuplication(profileId: clone.id, workspaceIdMap: remap)
+  }
+
+  /// Deep-copy a workspace beside its source. A same-profile clone drops all
+  /// direct and derived shortcut inputs so it cannot register duplicate global
+  /// bindings alongside the original.
+  @discardableResult
+  public mutating func duplicateWorkspace(_ id: Workspace.ID) -> Workspace.ID? {
+    guard
+      let profileIndex = profiles.firstIndex(where: { $0.workspaces[id: id] != nil }),
+      let sourceIndex = profiles[profileIndex].workspaces.firstIndex(where: { $0.id == id })
+    else { return nil }
+
+    let source = profiles[profileIndex].workspaces[sourceIndex]
+    var clone = source
+    clone.id = UUID()
+    clone.name = Self.duplicateName(
+      for: source.name,
+      existingNames: profiles[profileIndex].workspaces.lazy.map(\.name)
+    )
+    clone.keyEquivalent = nil
+    clone.activateShortcut = nil
+    clone.assignAppShortcut = nil
+    clone.borrowShortcut = nil
+    profiles[profileIndex].workspaces.insert(clone, at: sourceIndex + 1)
+    return clone.id
   }
 
   /// Names of workspaces in `targetId` that differ from the same-named
@@ -237,60 +299,147 @@ extension AppConfig {
     return diverged
   }
 
-  /// Copy a source profile's workspaces onto the target's, matched by name —
-  /// applying only the per-workspace app / field changes the user kept
-  /// (`excluded*ByWorkspace` map a workspace id to the app bundle ids / field
-  /// ids to skip). Nothing is hard-excluded, including the display pin: the
-  /// preview shows every difference and the user unchecks what to leave alone.
-  /// Profiles stay independent.
+  /// Project a source profile's reviewed changes onto the target, matched by
+  /// workspace name. The returned config is not published. Shortcut conflicts
+  /// are computed from the complete projected binding set, so selected fields
+  /// can conflict with either existing bindings or one another.
+  public func profileSyncProjection(
+    into targetId: Profile.ID,
+    from sourceId: Profile.ID,
+    excludedAppsByWorkspace: [Workspace.ID: Set<String>] = [:],
+    excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:]
+  ) -> WorkspaceSyncProjection? {
+    guard targetId != sourceId,
+          let sourceIdx = profiles.firstIndex(where: { $0.id == sourceId }),
+          let targetIdx = profiles.firstIndex(where: { $0.id == targetId })
+    else { return nil }
+
+    let source = profiles[sourceIdx]
+    var projected = self
+    var shortcutSelections = Set<WorkspaceShortcutSelection>()
+    for workspace in profiles[targetIdx].workspaces {
+      guard
+        let match = source.workspaces.first(where: { $0.name == workspace.name }),
+        var updated = projected.profiles[targetIdx].workspaces[id: workspace.id]
+      else { continue }
+      let appChanges = WorkspaceSync.appChanges(from: match.apps, to: workspace.apps)
+      let fieldChanges = WorkspaceSync.fieldChanges(from: match, to: workspace)
+      guard !appChanges.isEmpty || !fieldChanges.isEmpty else { continue }
+      let excludedFields = excludedFieldsByWorkspace[workspace.id] ?? []
+      for change in fieldChanges where !excludedFields.contains(change.id) {
+        if let field = change.shortcutField {
+          shortcutSelections.insert(.init(workspaceId: workspace.id, field: field))
+        }
+      }
+      updated.apps = WorkspaceSync.apply(
+        appChanges,
+        to: updated.apps,
+        excluding: excludedAppsByWorkspace[workspace.id] ?? []
+      )
+      WorkspaceSync.apply(fieldChanges, to: &updated, excluding: excludedFields)
+      projected.profiles[targetIdx].workspaces[id: workspace.id] = updated
+    }
+    return WorkspaceSyncProjection(
+      config: projected,
+      conflicts: projected.shortcutCopyConflicts(
+        for: shortcutSelections,
+        comparedTo: self
+      )
+    )
+  }
+
+  /// Copy a source profile's workspaces onto the target's, matched by name,
+  /// applying only the per-workspace app / field changes the user kept.
+  /// The mutation is atomic: if any selected shortcut field conflicts after
+  /// the full selection is projected, nothing is copied and every collision
+  /// is returned to the caller.
+  @discardableResult
   public mutating func applyProfileSync(
     into targetId: Profile.ID,
     from sourceId: Profile.ID,
     excludedAppsByWorkspace: [Workspace.ID: Set<String>] = [:],
     excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:]
-  ) {
-    guard targetId != sourceId,
-          let sourceIdx = profiles.firstIndex(where: { $0.id == sourceId }),
-          let targetIdx = profiles.firstIndex(where: { $0.id == targetId })
-    else { return }
-    let source = profiles[sourceIdx]
-    for ws in profiles[targetIdx].workspaces {
-      guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
-      let appChanges = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
-      let fieldChanges = WorkspaceSync.fieldChanges(from: match, to: ws)
-      guard !appChanges.isEmpty || !fieldChanges.isEmpty,
-            var updated = profiles[targetIdx].workspaces[id: ws.id]
-      else { continue }
-      updated.apps = WorkspaceSync.apply(
-        appChanges, to: updated.apps, excluding: excludedAppsByWorkspace[ws.id] ?? []
-      )
-      WorkspaceSync.apply(
-        fieldChanges, to: &updated, excluding: excludedFieldsByWorkspace[ws.id] ?? []
-      )
-      profiles[targetIdx].workspaces[id: ws.id] = updated
-    }
+  ) -> [WorkspaceShortcutConflict] {
+    guard let projection = profileSyncProjection(
+      into: targetId,
+      from: sourceId,
+      excludedAppsByWorkspace: excludedAppsByWorkspace,
+      excludedFieldsByWorkspace: excludedFieldsByWorkspace
+    ) else { return [] }
+    guard projection.conflicts.isEmpty else { return projection.conflicts }
+    self = projection.config
+    return []
   }
 
-  /// Copy a source profile's workspace onto the target workspace: apply the app
-  /// changes (by bundle id) and setting changes (by field id) the user kept,
-  /// never touching the target's display pin. `targetWsId` is resolved in
-  /// whichever profile owns it (workspace ids are unique).
+  /// Project one source workspace's reviewed changes onto a target workspace.
+  /// The target workspace determines the profile scope used for validation.
+  public func workspaceImportProjection(
+    into targetWorkspaceId: Workspace.ID,
+    from sourceProfileId: Profile.ID,
+    sourceWorkspace sourceWorkspaceId: Workspace.ID,
+    excludingApps: Set<String> = [],
+    excludingFields: Set<String> = []
+  ) -> WorkspaceSyncProjection? {
+    guard
+      let sourceWorkspace = profiles.first(where: { $0.id == sourceProfileId })?
+        .workspaces[id: sourceWorkspaceId],
+      let targetWorkspace = workspace(id: targetWorkspaceId)
+    else { return nil }
+
+    let appChanges = WorkspaceSync.appChanges(
+      from: sourceWorkspace.apps,
+      to: targetWorkspace.apps
+    )
+    let fieldChanges = WorkspaceSync.fieldChanges(
+      from: sourceWorkspace,
+      to: targetWorkspace
+    )
+    var shortcutSelections = Set<WorkspaceShortcutSelection>()
+    for change in fieldChanges where !excludingFields.contains(change.id) {
+      if let field = change.shortcutField {
+        shortcutSelections.insert(.init(workspaceId: targetWorkspaceId, field: field))
+      }
+    }
+
+    var projected = self
+    projected.mutateWorkspace(targetWorkspaceId) { workspace in
+      workspace.apps = WorkspaceSync.apply(
+        appChanges,
+        to: workspace.apps,
+        excluding: excludingApps
+      )
+      WorkspaceSync.apply(fieldChanges, to: &workspace, excluding: excludingFields)
+    }
+    return WorkspaceSyncProjection(
+      config: projected,
+      conflicts: projected.shortcutCopyConflicts(
+        for: shortcutSelections,
+        comparedTo: self
+      )
+    )
+  }
+
+  /// Copy one source workspace onto the target. Like profile Copy, this is an
+  /// all-or-nothing validated mutation; a caller must resolve returned
+  /// conflicts instead of silently publishing duplicate bindings.
+  @discardableResult
   public mutating func importWorkspace(
     into targetWsId: Workspace.ID,
     from sourceProfileId: Profile.ID,
     sourceWorkspace sourceWsId: Workspace.ID,
     excludingApps: Set<String> = [],
     excludingFields: Set<String> = []
-  ) {
-    guard let sourceWs = profiles.first(where: { $0.id == sourceProfileId })?
-      .workspaces[id: sourceWsId]
-    else { return }
-    mutateWorkspace(targetWsId) { ws in
-      let appChanges = WorkspaceSync.appChanges(from: sourceWs.apps, to: ws.apps)
-      ws.apps = WorkspaceSync.apply(appChanges, to: ws.apps, excluding: excludingApps)
-      let fieldChanges = WorkspaceSync.fieldChanges(from: sourceWs, to: ws)
-      WorkspaceSync.apply(fieldChanges, to: &ws, excluding: excludingFields)
-    }
+  ) -> [WorkspaceShortcutConflict] {
+    guard let projection = workspaceImportProjection(
+      into: targetWsId,
+      from: sourceProfileId,
+      sourceWorkspace: sourceWsId,
+      excludingApps: excludingApps,
+      excludingFields: excludingFields
+    ) else { return [] }
+    guard projection.conflicts.isEmpty else { return projection.conflicts }
+    self = projection.config
+    return []
   }
 
   /// Mutate the workspace with `id` in whichever profile owns it — not just the
@@ -339,5 +488,38 @@ extension AppConfig {
       rest.insert(moved, at: insertionIndex)
       profile.workspaces = IdentifiedArray(uniqueElements: rest)
     }
+  }
+
+  /// Finder-style duplicate names: `Name copy`, then `Name copy 2`, while
+  /// continuing an existing suffix instead of producing `copy copy`.
+  private static func duplicateName(
+    for sourceName: String,
+    existingNames: some Sequence<String>
+  ) -> String {
+    let (baseName, firstIndex) = duplicateNameComponents(sourceName)
+    let existingNames = Set(existingNames)
+    var index = firstIndex
+    while true {
+      let candidate = index == 1
+        ? "\(baseName) copy"
+        : "\(baseName) copy \(index)"
+      if !existingNames.contains(candidate) { return candidate }
+      index += 1
+    }
+  }
+
+  private static func duplicateNameComponents(_ name: String) -> (baseName: String, index: Int) {
+    let copySuffix = " copy"
+    if name.hasSuffix(copySuffix) {
+      return (String(name.dropLast(copySuffix.count)), 2)
+    }
+    if
+      let range = name.range(of: " copy ", options: .backwards),
+      let suffix = Int(name[range.upperBound...]),
+      suffix >= 2
+    {
+      return (String(name[..<range.lowerBound]), suffix + 1)
+    }
+    return (name, 1)
   }
 }

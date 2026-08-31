@@ -55,7 +55,7 @@ scripting required.
 - **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile, and Tatami returns to the right profile after relaunch.
 - **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
 - **Profile identity:** Give each profile an SF Symbol shown in the sidebar, menu bar, and profile-switch feedback.
-- **Reviewable copying:** Use **Copy from** to compare another profile or workspace, then keep or skip each app and settings change.
+- **Reviewable copying and duplication:** **Copy from** and **Duplicate** share one preview where you keep or skip each workspace, app, setting, and saved layout before anything changes.
 
 ### Borrow: compose two workspaces
 
@@ -99,7 +99,8 @@ scripting required.
 - **Native settings:** Configure Tatami in SwiftUI.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.
 - **Plain TOML:** Edit `~/.config/tatami/config.toml` with XDG support and live reloads.
-- **Scriptable CLI:** Run commands such as `tatami activate <workspace>` and `tatami list-workspaces`.
+- **Native hook editor:** Add, edit, delete, enable, or disable lifecycle hooks in **Settings → Hooks**, including their executable, argv, environment, working directory, and timeout.
+- **Scriptable CLI:** Use domain commands such as `tatami workspace activate <workspace>` and `tatami workspace list`.
 - **Automatic updates:** Receive releases through Sparkle.
 
 ### Guided setup
@@ -146,22 +147,29 @@ Tatami ships a `tatami` CLI inside the app bundle. Install it from
 `/usr/local/bin` (you'll be asked for your password once). Then:
 
 ```sh
-tatami list-workspaces          # workspace names in the active profile
-tatami list-apps <workspace>    # bundle IDs assigned to a workspace
-tatami activate <workspace>     # activate a workspace
-tatami version                  # version of the running app
+tatami workspace list
+tatami workspace activate "Browser"
+tatami profile activate "Dual"
+tatami window focus left
+tatami layout balance
 ```
 
-The CLI talks to the running app over a local socket, so Tatami must be
-running. (Homebrew installs are detected automatically.)
+The CLI covers profile/workspace management, hooks, stable JSON output, and the
+same focus, layout, app, tiling, cycling, and Borrow commands available to
+trackpad gestures, organized under domain subcommands. Tatami must be running.
+
+Read the [full CLI reference](docs/CLI.md), or view the same document on
+[pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/cli.html).
 
 ## Configuration
 
 Settings live in `~/.config/tatami/config.toml`, grouped into tables such as
 `[settings.layout]`, `[settings.focus]`, `[settings.gestures]`,
 `[settings.shortcuts]`, and so on. Workspaces, their app assignments, and
-shared apps are stored in the same file. Edits made in the app or by hand are
-picked up live.
+shared apps are stored in the same file. Lifecycle hooks can be managed in
+**Settings → Hooks** or as `[[hooks]]` entries in the file. The GUI keeps the
+executable and each argv value separate rather than treating `command` as a
+shell string. Edits made in the app or by hand are picked up live.
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference:
 every key, its default, and the shortcut syntax.
@@ -173,6 +181,7 @@ every key, its default, and the shortcut syntax.
 - **swift-sharing:** Cross-feature state sharing
 - **swift-collections:** Ordered sets, dictionaries, and deques on tiling hot paths
 - **swift-toml:** Config persistence
+- **swift-subprocess:** Cancellable, bounded hook execution
 - **swift-yyjson:** Fast JSON for the layout store and CLI protocol
 - **Magnet:** Carbon-based global hotkeys
 - **SFSafeSymbols:** Type-safe SF Symbol catalog

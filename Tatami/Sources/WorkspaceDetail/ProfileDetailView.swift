@@ -14,7 +14,7 @@ private enum DisplayReq: Hashable { case any, required, excluded }
 struct ProfileDetailView: View {
   @Bindable var store: StoreOf<ProfileDetailFeature>
   @State private var symbolPickerPresented = false
-  @State private var syncSource: Profile?
+  @State private var syncReview: ProfileSyncReview?
 
   var body: some View {
     if let profile = store.profile {
@@ -43,15 +43,23 @@ struct ProfileDetailView: View {
             }
           }
 
-          TextField("Name", text: Binding(
-            get: { profile.name },
-            set: { store.send(.nameChanged($0)) }
-          ))
+          HStack {
+            Text("Name")
+            Spacer(minLength: 16)
+            TextField("", text: Binding(
+              get: { profile.name },
+              set: { store.send(.nameChanged($0)) },
+            ))
+            .textFieldStyle(.roundedBorder)
+            .frame(maxWidth: 360)
+            .accessibilityLabel("Name")
+          }
         }
 
         Section {
           ShortcutRecorder(
             hotKey: profile.shortcut,
+            accessibilityLabel: "Switch Shortcut",
             conflict: { store.state.shortcutConflict(for: $0) },
             onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
             onChange: { store.send(.shortcutChanged($0)) }
@@ -88,15 +96,19 @@ struct ProfileDetailView: View {
       // pane view is reused, just re-scoped to a fresh state). Mirrors
       // WorkspaceDetailView.
       .task(id: store.profileId) { store.send(.onAppear) }
-      .sheet(item: $syncSource) { source in
+      .sheet(item: $syncReview) { review in
         SyncPreviewSheet(
-          title: "Copy from “\(source.name)”",
-          message: "Copy each change from “\(source.name)” into this profile's matching workspaces (by name). Uncheck anything you'd rather keep.",
+          title: "Copy from “\(review.source.name)”",
+          message: "Copy each change from “\(review.source.name)” into this profile's matching workspaces (by name). Uncheck anything you'd rather keep.",
           applyTitle: "Copy",
-          groups: profileSyncGroups(from: source),
-          onApply: { excluded in applyProfileSync(from: source, excluding: excluded) }
+          groups: profileSyncGroups(review),
+          validateSelection: { excluded in
+            profileSyncConflicts(review, excluding: excluded)
+          },
+          onApply: { excluded in applyProfileSync(review, excluding: excluded) }
         )
       }
+      .alert($store.scope(state: \.alert, action: \.alert))
     } else {
       ContentUnavailableView(
         "Profile Unavailable",
@@ -108,9 +120,9 @@ struct ProfileDetailView: View {
 
   // MARK: - Sync apps from another profile
 
-  /// Profiles keep independent workspaces, so app assignments can drift between
-  /// them. This copies another profile's apps into the same-named workspaces
-  /// here, leaving each workspace's display / key / layout untouched.
+  /// Profiles keep independent workspaces, so assignments and settings can
+  /// drift. This previews another profile's apps and workspace settings for
+  /// same-named workspaces, then copies only the changes the user selects.
   @ViewBuilder
   private var syncSection: some View {
     let others = store.config.profiles.filter { $0.id != store.profileId }
@@ -143,7 +155,16 @@ struct ProfileDetailView: View {
           .foregroundStyle(diverged.isEmpty ? Color.secondary : Color.orange)
       }
       Spacer()
-      Button("Copy from…") { syncSource = source }
+      Button("Copy from…") {
+        let baseline = store.config
+        guard let snapshot = baseline.profiles.first(where: { $0.id == source.id })
+        else { return }
+        syncReview = ProfileSyncReview(
+          baseline: baseline,
+          source: snapshot,
+          targetProfileId: store.profileId
+        )
+      }
         .disabled(diverged.isEmpty)
     }
   }
@@ -151,11 +172,12 @@ struct ProfileDetailView: View {
   /// One group per this-profile workspace that has changes vs the same-named
   /// source workspace; items are namespaced by workspace id so `onApply` can
   /// map excluded ids back per workspace.
-  private func profileSyncGroups(from source: Profile) -> [SyncChangeGroup] {
-    guard let target = store.config.profiles.first(where: { $0.id == store.profileId }) else { return [] }
+  private func profileSyncGroups(_ review: ProfileSyncReview) -> [SyncChangeGroup] {
+    guard let target = review.baseline.profiles.first(where: { $0.id == review.targetProfileId })
+    else { return [] }
     var groups: [SyncChangeGroup] = []
     for ws in target.workspaces {
-      guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
+      guard let match = review.source.workspaces.first(where: { $0.name == ws.name }) else { continue }
       let appChanges = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
       let fieldChanges = WorkspaceSync.fieldChanges(from: match, to: ws)
       guard !appChanges.isEmpty || !fieldChanges.isEmpty else { continue }
@@ -170,7 +192,43 @@ struct ProfileDetailView: View {
     return groups
   }
 
-  private func applyProfileSync(from source: Profile, excluding excluded: Set<String>) {
+  private func applyProfileSync(
+    _ review: ProfileSyncReview,
+    excluding excluded: Set<String>
+  ) {
+    let exclusions = profileSyncExclusions(excluded)
+    store.send(.applyProfileSync(
+      target: review.targetProfileId,
+      source: review.source.id,
+      baseline: review.baseline,
+      excludedApps: exclusions.apps,
+      excludedFields: exclusions.fields
+    ))
+  }
+
+  /// Validate exactly the options currently effective in the sheet by applying
+  /// them to a temporary config. Grouping by the chooser's namespaced field id
+  /// lets a conflict involving two selected workspaces highlight both rows.
+  private func profileSyncConflicts(
+    _ review: ProfileSyncReview,
+    excluding excluded: Set<String>
+  ) -> [String: [WorkspaceShortcutConflict]] {
+    let exclusions = profileSyncExclusions(excluded)
+    guard let projection = review.baseline.profileSyncProjection(
+      into: review.targetProfileId,
+      from: review.source.id,
+      excludedAppsByWorkspace: exclusions.apps,
+      excludedFieldsByWorkspace: exclusions.fields
+    ) else { return [:] }
+    return Dictionary(grouping: projection.conflicts) { conflict in
+      let prefix = "\(conflict.selection.workspaceId.uuidString):"
+      return SyncChangeItem.fieldId(prefix, conflict.selection.field.rawValue)
+    }
+  }
+
+  private func profileSyncExclusions(
+    _ excluded: Set<String>
+  ) -> (apps: [Workspace.ID: Set<String>], fields: [Workspace.ID: Set<String>]) {
     var excApps: [Workspace.ID: Set<String>] = [:]
     var excFields: [Workspace.ID: Set<String>] = [:]
     for id in excluded {
@@ -181,7 +239,17 @@ struct ProfileDetailView: View {
       if parts[1] == "app" { excApps[wsId, default: []].insert(key) }
       else if parts[1] == "field" { excFields[wsId, default: []].insert(key) }
     }
-    store.send(.applyProfileSync(source: source.id, excludedApps: excApps, excludedFields: excFields))
+    return (excApps, excFields)
+  }
+
+  private struct ProfileSyncReview: Identifiable {
+    let baseline: AppConfig
+    let source: Profile
+    let targetProfileId: Profile.ID
+
+    var id: String {
+      "\(targetProfileId.uuidString):\(source.id.uuidString)"
+    }
   }
 
   // MARK: - Auto-activation editor
