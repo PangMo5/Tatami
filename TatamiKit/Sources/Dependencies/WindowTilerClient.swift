@@ -704,6 +704,97 @@ struct WindowServerSurface: Equatable, Sendable {
   var frame: CGRect
 }
 
+// MARK: - WindowServerLayerEvidence
+
+enum WindowServerLayerEvidence: Equatable, Sendable {
+  /// The whole CoreGraphics query failed. Preserve the existing AX path: a
+  /// transient service outage is not evidence that a regular window changed.
+  case unavailable
+  /// The query succeeded but this AX window had no matching surface. It raced
+  /// out of WindowServer (or changed owner) and must not enter a fresh tree.
+  case missing
+  case value(Int)
+}
+
+// MARK: - WindowDiscoveryIdentityDisposition
+
+enum WindowDiscoveryIdentityDisposition: Equatable, Sendable {
+  case inspectCapabilities
+  case reject(reason: String)
+  case retain(subrole: String)
+}
+
+/// Apply cheap identity gates before the per-window AX capability round trips.
+/// Layer zero is the ordinary application-window plane. Elevated surfaces such
+/// as browser picture-in-picture windows can still advertise themselves as
+/// movable, resizable `AXStandardWindow`s, so AX capabilities alone are not a
+/// sufficient tiling contract. The layer gate intentionally precedes subrole
+/// retention: a known PiP surface must not survive as a transient dialog flap.
+func classifyWindowIdentity(
+  minimized: Bool,
+  layer: WindowServerLayerEvidence,
+  subrole: String?,
+) -> WindowDiscoveryIdentityDisposition {
+  if minimized { return .reject(reason: "minimized") }
+  switch layer {
+  case .missing:
+    return .reject(reason: "noWindowServerDescription")
+  case .value(let value) where value != 0:
+    return .reject(reason: "layer=\(value)")
+  case .unavailable,
+       .value:
+    break
+  }
+  if let subrole, subrole != kAXStandardWindowSubrole as String {
+    return .retain(subrole: subrole)
+  }
+  return .inspectCapabilities
+}
+
+/// Resolve only the AX-enumerated windows instead of materializing every
+/// WindowServer surface on each per-process discovery task. CoreGraphics uses
+/// an unretained CFArray of opaque `CGWindowID` values for this API rather than
+/// ordinary `CFNumber` elements, hence the nil callbacks below.
+private func windowServerLayers(
+  for windowIDs: [CGWindowID],
+  ownerPID: pid_t,
+) -> [CGWindowID: Int]? {
+  let requested = Set(windowIDs.filter { $0 != kCGNullWindowID })
+  guard !requested.isEmpty else { return [:] }
+
+  var opaqueIDs: [UnsafeRawPointer?] = requested.map {
+    UnsafeRawPointer(bitPattern: UInt($0))
+  }
+  let descriptions: [[String: Any]]? = opaqueIDs.withUnsafeMutableBufferPointer {
+    values -> [[String: Any]]? in
+    guard
+      let windowArray = CFArrayCreate(
+        kCFAllocatorDefault,
+        values.baseAddress,
+        values.count,
+        nil,
+      ),
+      let raw = CGWindowListCreateDescriptionFromArray(windowArray)
+    else { return nil }
+    return raw as? [[String: Any]]
+  }
+  guard let descriptions else { return nil }
+
+  var layers = [CGWindowID: Int]()
+  layers.reserveCapacity(descriptions.count)
+  for entry in descriptions {
+    guard
+      let windowID = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+      let describedPID = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+      describedPID == ownerPID,
+      let layer = (entry[kCGWindowLayer as String] as? NSNumber)?.intValue
+    else { continue }
+    guard requested.contains(windowID) else { continue }
+    layers[windowID] = layer
+  }
+  return layers
+}
+
 /// One local WindowServer snapshot with enough ownership metadata to
 /// distinguish a native-tab surface replacement from an ordinary hide/close.
 /// Native tabs swap CGWindowIDs inside the same process; popup/menu layers are
@@ -948,14 +1039,29 @@ func discoverWindowCapabilities(
       }
       let movableBefore = movableKeys.count
       let resizableBefore = resizableKeys.count
+      var identifiedWindows = [(element: AXUIElement, windowID: CGWindowID)]()
+      identifiedWindows.reserveCapacity(windows.count)
+      for window in windows {
+        var windowID: CGWindowID = 0
+        _ = _AXUIElementGetWindow(window, &windowID)
+        identifiedWindows.append((window, windowID))
+      }
+      let windowServerLayers = windowServerLayers(
+        for: identifiedWindows.map { $0.windowID },
+        ownerPID: pid,
+      )
+      if windowServerLayers == nil {
+        debugLog.log(
+          "Tiler",
+          "discover \(bundleId) pid=\(pid): WindowServer layer snapshot unavailable; preserving AX eligibility",
+        )
+      }
       var rejected = [String]()
       func reject(_ widProbe: CGWindowID, _ reason: @autoclosure () -> String) {
         if logging { rejected.append("\(widProbe):\(reason())") }
       }
-      for window in windows {
+      for (window, widProbe) in identifiedWindows {
         if isCancelled() { break }
-        var widProbe: CGWindowID = 0
-        _ = _AXUIElementGetWindow(window, &widProbe)
         var valuesRef: CFArray?
         var minimized = false
         var subrole: String?
@@ -977,16 +1083,35 @@ func discoverWindowCapabilities(
           minimized = (values[0] as? Bool) ?? false
           subrole = values[1] as? String
         }
-        if minimized {
-          reject(widProbe, "minimized")
+        if widProbe == kCGNullWindowID {
+          reject(widProbe, "noWid")
           continue
         }
-        // Standard windows only. Dialogs / IME indicators / tooltips
-        // fall outside this set, so they never enter the tree.
-        if let subrole, subrole != kAXStandardWindowSubrole as String {
+        let layerEvidence: WindowServerLayerEvidence =
+          if let windowServerLayers {
+            windowServerLayers[widProbe].map {
+              .value($0)
+            } ?? .missing
+          } else {
+            .unavailable
+          }
+        switch classifyWindowIdentity(
+          minimized: minimized,
+          layer: layerEvidence,
+          subrole: subrole,
+        ) {
+        case .inspectCapabilities:
+          break
+
+        case .reject(let reason):
+          reject(widProbe, reason)
+          continue
+
+        case .retain(let subrole):
           // A subrole flap is transient (see `WindowDiscovery.retained`):
           // record the id so consumers keep tracking a window that's still
-          // enumerated, rather than dropping it as closed.
+          // enumerated, rather than dropping it as closed. Known nonzero-layer
+          // surfaces were rejected above and never receive this grace.
           if widProbe != 0 { retainedIDs.insert(widProbe) }
           reject(widProbe, "subrole=\(subrole)")
           continue
