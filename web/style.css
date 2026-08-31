@@ -178,6 +178,31 @@ footer p { line-height: 1.5; }
 .feature p { font-size: 16px; color: var(--text-secondary); margin-top: 8px; line-height: 1.4; }
 @media (max-width: 760px) { .features { grid-template-columns: 1fr; } }
 
+/* Automation is an optional extension point, so it stays visible without
+   competing with the primary workspace and tiling sections. */
+.supporting-section { padding: 56px 22px; background: var(--bg-gray); text-align: left; }
+.supporting-panel {
+  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr); gap: 48px;
+  align-items: center; padding: 34px 38px; border: 1px solid var(--card-border);
+  border-radius: var(--radius); background: var(--card-bg); box-shadow: var(--card-shadow);
+}
+.supporting-copy .eyebrow { font-size: 15px; margin-bottom: 5px; }
+.supporting-copy h2 { font-size: clamp(26px, 3.4vw, 36px); }
+.supporting-copy > p:last-child {
+  max-width: 620px; margin-top: 12px; color: var(--text-secondary); font-size: 17px; line-height: 1.45;
+}
+.supporting-links { display: grid; gap: 10px; }
+.supporting-links a {
+  display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px;
+  color: var(--text); background: var(--pill-bg);
+}
+.supporting-links a:hover { text-decoration: none; }
+.supporting-links strong { font-size: 15px; font-weight: 600; }
+.supporting-links span { color: var(--text-secondary); font-size: 13px; line-height: 1.35; }
+@media (max-width: 760px) {
+  .supporting-panel { grid-template-columns: 1fr; gap: 24px; padding: 28px 24px; }
+}
+
 /* Animated showcase: a looping product demo that walks through tiling,
 directional focus, swap, zoom, workspace switching, and always-on-top windows.
    A small JS state machine in index.html drives the stages; CSS transitions

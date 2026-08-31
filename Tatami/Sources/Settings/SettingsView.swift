@@ -23,8 +23,8 @@ struct SettingsView: View {
     case workspaceKeys
     case focusMouse
     case gestures
-    case hooks
     case appearance
+    case hooks
 
     // MARK: Internal
 
@@ -80,8 +80,15 @@ struct SettingsView: View {
     NavigationSplitView {
       // `id: \.self` so the ForEach id type matches the selection type —
       // macOS only wires the selection gesture when they line up.
-      List(Pane.allCases, id: \.self, selection: $pane) { pane in
-        Label(pane.title, systemImage: pane.icon)
+      List(selection: $pane) {
+        ForEach(Pane.allCases.filter { $0 != .hooks }, id: \.self) { pane in
+          Label(pane.title, systemImage: pane.icon)
+            .tag(pane)
+        }
+        Section("Advanced") {
+          Label(Pane.hooks.title, systemImage: Pane.hooks.icon)
+            .tag(Pane.hooks)
+        }
       }
       .listStyle(.sidebar)
       .navigationSplitViewColumnWidth(min: 180, ideal: 200)

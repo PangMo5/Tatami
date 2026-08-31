@@ -134,7 +134,7 @@ private struct WhatsNewView: View {
 
           // MARK: Feature highlights
           VStack(alignment: .leading, spacing: 14) {
-            Label("New", systemImage: "sparkles")
+            Label("Highlights", systemImage: "sparkles")
               .font(.headline)
 
             item(

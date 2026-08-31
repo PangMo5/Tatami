@@ -5381,6 +5381,40 @@
         }
       }
     },
+    "Advanced": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "고급"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "詳細設定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高级"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "進階"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced"
+          }
+        }
+      }
+    },
     "Accessibility": {
       "localizations": {
         "ko": {
@@ -19015,36 +19049,36 @@
         }
       }
     },
-    "Keep SIP enabled, avoid shell scripts, and retain a readable TOML configuration.": {
+    "Keep SIP enabled, use native controls, and retain a readable TOML configuration.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "SIP은 켜둔 채로 셸 스크립트 없이, 읽기 쉬운 TOML 설정을 유지해요."
+            "value": "SIP을 켜둔 채로 네이티브 제어 기능을 사용하고, 읽기 쉬운 TOML 설정을 유지해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "SIPを有効に保ち、シェルスクリプトを使わず、読みやすいTOML設定を維持します。"
+            "value": "SIPを有効に保ち、ネイティブの操作を使い、読みやすいTOML設定を維持します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "保持 SIP 启用，不依赖 shell 脚本，并保留易读的 TOML 配置。"
+            "value": "保持 SIP 启用，使用原生控制，并保留易读的 TOML 配置。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "保持 SIP 啟用，不依賴 shell script，並保留易讀的 TOML 設定。"
+            "value": "保持 SIP 啟用，使用原生控制，並保留易讀的 TOML 設定。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep SIP enabled, avoid shell scripts, and retain a readable TOML configuration."
+            "value": "Keep SIP enabled, use native controls, and retain a readable TOML configuration."
           }
         }
       }
@@ -21429,36 +21463,37 @@
         }
       }
     },
-    "New": {
+    "Highlights": {
+      "comment": "Section title for the feature highlights in What's New.",
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "새로 만들기"
+            "value": "주요 변경 사항"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新規"
+            "value": "主な変更点"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "新建"
+            "value": "主要更新"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "新增"
+            "value": "主要更新"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "New"
+            "value": "Highlights"
           }
         }
       }
