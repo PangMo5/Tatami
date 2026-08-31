@@ -1,6 +1,521 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "· 1 argument": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "· 인자 1개" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "· 引数1個" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "· 1 个参数" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "· 1 個引數" } },
+        "en": { "stringUnit": { "state": "translated", "value": "· 1 argument" } }
+      }
+    },
+    "Ask": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "물어보기" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "毎回確認" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "每次询问" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "每次詢問" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Ask" } }
+      }
+    },
+    "Not set": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "설정 안 됨" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "未設定" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未设置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "未設定" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Not set" } }
+      }
+    },
+    "another workspace": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "다른 작업 공간" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "別のワークスペース" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "其他工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "其他工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "another workspace" } }
+      }
+    },
+    "the hovered window": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "가리킨 창" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ポインタを合わせたウインドウ" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "指针悬停的窗口" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "游標停留的視窗" } },
+        "en": { "stringUnit": { "state": "translated", "value": "the hovered window" } }
+      }
+    },
+    "this workspace": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペース" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "this workspace" } }
+      }
+    },
+    "Its %@ workspace shortcut takes this same Borrow path.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 작업 공간 단축키도 같은 빌려오기 방식으로 동작해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@ のワークスペースショートカットも同じ借りる操作になります。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "%@ 工作区快捷键也使用相同的借用流程。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ 工作空間快速鍵也使用相同的借用流程。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Its %@ workspace shortcut takes this same Borrow path." } }
+      }
+    },
+    "Its workspace shortcut takes this same Borrow path.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 단축키도 같은 빌려오기 방식으로 동작해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースショートカットも同じ借りる操作になります。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区快捷键也使用相同的借用流程。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間快速鍵也使用相同的借用流程。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Its workspace shortcut takes this same Borrow path." } }
+      }
+    },
+    "Command is empty": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "명령이 비어 있어요" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コマンドが空です" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "命令为空" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "指令是空的" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Command is empty" } }
+      }
+    },
+    "Timed out after %@ ms": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ms 시간 제한을 초과했어요" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "制限時間の%@msを超えました" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "超过 %@ 毫秒后超时" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "超過 %@ 毫秒後逾時" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Timed out after %@ ms" } }
+      }
+    },
+    "Exited with status %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "종료 상태: %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "終了ステータス: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "退出状态：%@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "結束狀態：%@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Exited with status %@" } }
+      }
+    },
+    "Terminated by signal %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "신호로 종료됨: %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "シグナルで終了: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "被信号终止：%@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已被訊號終止：%@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Terminated by signal %@" } }
+      }
+    },
+    "Always on Top. Kept above the tiles and shared with every workspace.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "항상 위에 둬요. 모든 작업 공간에서 타일 위에 표시돼요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "常に手前に表示します。すべてのワークスペースでタイルより手前に表示されます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保持置顶，并在每个工作区中显示于平铺窗口上方。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "保持置頂，並在每個工作空間中顯示於並排視窗上方。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Always on Top. Kept above the tiles and shared with every workspace." } }
+      }
+    },
+    "Always on Top. Kept above the tiles in this workspace.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "항상 위에 둬요. 이 작업 공간의 타일 위에 표시돼요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "常に手前に表示します。このワークスペースでタイルより手前に表示されます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保持置顶，并在此工作区中显示于平铺窗口上方。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "保持置頂，並在此工作空間中顯示於並排視窗上方。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Always on Top. Kept above the tiles in this workspace." } }
+      }
+    },
+    "Leave As Is. Kept in place and shared with every workspace.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "그대로 둬요. 모든 작업 공간에 속하지만 창 위치는 바꾸지 않아요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "そのままにします。すべてのワークスペースに所属したまま、ウインドウの位置は変えません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保持原样。窗口属于每个工作区，但不会改变位置。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "維持原狀。視窗屬於每個工作空間，但不會變更位置。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Leave As Is. Kept in place and shared with every workspace." } }
+      }
+    },
+    "Leave As Is. Kept in place in this workspace.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "그대로 둬요. 이 작업 공간에 속하지만 창 위치는 바꾸지 않아요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "そのままにします。このワークスペースに所属したまま、ウインドウの位置は変えません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保持原样。窗口属于此工作区，但不会改变位置。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "維持原狀。視窗屬於此工作空間，但不會變更位置。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Leave As Is. Kept in place in this workspace." } }
+      }
+    },
+    "Rotate 90°": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "90° 회전" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "90°回転" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "旋转 90°" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "旋轉 90°" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Rotate 90°" } }
+      }
+    },
+    "Flip left ↔ right": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "좌우 뒤집기" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "左右反転" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "左右翻转" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "左右翻轉" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Flip left ↔ right" } }
+      }
+    },
+    "Flip top ↔ bottom": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "상하 뒤집기" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "上下反転" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "上下翻转" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "上下翻轉" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Flip top ↔ bottom" } }
+      }
+    },
+    "Balance all splits equally": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "모든 분할을 같은 크기로 맞추기" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "すべての分割を均等にする" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "均衡所有分区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "平均調整所有分割" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Balance all splits equally" } }
+      }
+    },
+    "Toggle split orientation of the selected tile": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "선택한 타일의 분할 방향 전환" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "選択したタイルの分割方向を切り替え" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "切换所选分区的拆分方向" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "切換所選區塊的分割方向" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Toggle split orientation of the selected tile" } }
+      }
+    },
+    "Fullscreen the selected tile": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "선택한 타일을 전체 화면으로 표시" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "選択したタイルをフルスクリーン表示" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "全屏显示所选分区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "以全螢幕顯示所選區塊" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Fullscreen the selected tile" } }
+      }
+    },
+    "Borrowed": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "빌려온 작업 공간" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "借りたワークスペース" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已借用的工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已借用的工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Borrowed" } }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "기본값" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "デフォルト" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "默认值" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "預設值" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Default" } }
+      }
+    },
+    "Most recent": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "가장 최근" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "最近使った項目" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "最近使用" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "最近使用" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Most recent" } }
+      }
+    },
+    "No Scratchpad configured yet": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "아직 임시 공간을 설정하지 않았어요" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "一時スペースがまだ設定されていません" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未设置暂存区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "尚未設定暫存區" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No Scratchpad configured yet" } }
+      }
+    },
+    "Window": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "창" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ウインドウ" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "窗口" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "視窗" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Window" } }
+      }
+    },
+    "Assign focused app here": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "포커스된 앱을 여기에 할당"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォーカス中のAppをここに割り当て"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将当前聚焦的应用分配到这里"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將目前聚焦的 App 指派到這裡"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assign focused app here"
+          }
+        }
+      }
+    },
+    "Configuration changed before duplication finished": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복제가 끝나기 전에 구성이 변경되었어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製が完了する前に設定が変更されました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制完成前，配置已发生变化"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製完成前，設定已發生變更"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration changed before duplication finished"
+          }
+        }
+      }
+    },
+    "Configuration changed before duplication started": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복제를 시작하기 전에 구성이 변경되었어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製を開始する前に設定が変更されました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始复制前，配置已发生变化"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始複製前，設定已發生變更"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration changed before duplication started"
+          }
+        }
+      }
+    },
+    "Hook \"%@\" failed": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"%@\" 훅이 실패했어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フック「%@」が失敗しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钩子“%@”执行失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hook「%@」執行失敗"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hook \"%@\" failed"
+          }
+        }
+      }
+    },
+    "Hook configuration is invalid": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "훅 구성이 올바르지 않아요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フックの設定が無効です"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钩子配置无效"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hook 設定無效"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hook configuration is invalid"
+          }
+        }
+      }
+    },
+    "Hooks": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "훅"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钩子"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hook"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hooks"
+          }
+        }
+      }
+    },
+    "Incomplete duplicate layout cleanup": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복제 레이아웃 정리를 완료하지 못했어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製したレイアウトを完全に消去できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完整清理复制的布局"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完整清理複製的版面"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Incomplete duplicate layout cleanup"
+          }
+        }
+      }
+    },
+    "The duplicate was not added to the configuration.": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "복제 항목은 구성에 추가되지 않았어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製した項目は設定に追加されませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制项未添加到配置中。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "複製項目未加入設定。"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The duplicate was not added to the configuration."
+          }
+        }
+      }
+    },
     "Enter an identifier.": {
       "localizations": {
         "ko": {
@@ -1293,36 +1808,36 @@
         }
       }
     },
-    "Each argument is passed exactly as one argv value. To use shell syntax, choose a shell executable and add its flags explicitly. To open a macOS app, use `/usr/bin/open` as the executable and add `-a` and the app name as separate arguments.": {
+    "Each argument is passed exactly as one argv value. To use shell syntax, choose a command-line shell and add its flags explicitly. For fish, use `/opt/homebrew/bin/fish` and add `-c` and `command ls` as separate arguments. To open a macOS app, use `/usr/bin/open` as the executable and add `-a` and the app name as separate arguments.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "각 인자는 정확히 하나의 argv 값으로 전달돼요. 셸 문법을 사용하려면 셸 실행 파일을 선택하고 플래그를 직접 추가하세요. macOS 앱을 열려면 실행 파일로 `/usr/bin/open`을 사용하고 `-a`와 앱 이름을 각각 별도 인자로 추가하세요."
+            "value": "각 인자는 정확히 하나의 argv 값으로 전달돼요. 셸 문법을 사용하려면 명령줄 셸을 선택하고 플래그를 직접 추가하세요. fish는 `/opt/homebrew/bin/fish`를 실행 파일로 지정하고 `-c`와 `command ls`를 각각 별도 인자로 추가하세요. macOS 앱을 열려면 실행 파일로 `/usr/bin/open`을 사용하고 `-a`와 앱 이름을 각각 별도 인자로 추가하세요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "各引数は正確に1つのargv値として渡されます。シェル構文を使う場合はシェルの実行ファイルを選び、フラグを明示的に追加してください。macOSアプリを開くには、実行ファイルに`/usr/bin/open`を指定し、`-a`とアプリ名を別々の引数として追加してください。"
+            "value": "各引数は正確に1つのargv値として渡されます。シェル構文を使う場合はコマンドラインシェルを選び、フラグを明示的に追加してください。fishでは実行ファイルに`/opt/homebrew/bin/fish`を指定し、`-c`と`command ls`を別々の引数として追加します。macOSアプリを開くには、実行ファイルに`/usr/bin/open`を指定し、`-a`とアプリ名を別々の引数として追加してください。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每个参数都会原样作为一个 argv 值传递。如需使用 shell 语法，请选择 shell 可执行文件并明确添加其选项。如需打开 macOS App，请将 `/usr/bin/open` 设为可执行文件，并把 `-a` 和 App 名称分别添加为参数。"
+            "value": "每个参数都会原样作为一个 argv 值传递。如需使用 shell 语法，请选择命令行 shell 并明确添加其选项。使用 fish 时，请将 `/opt/homebrew/bin/fish` 设为可执行文件，并把 `-c` 和 `command ls` 分别添加为参数。如需打开 macOS App，请将 `/usr/bin/open` 设为可执行文件，并把 `-a` 和 App 名称分别添加为参数。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "每個引數都會原樣作為一個 argv 值傳入。如需使用 shell 語法，請選擇 shell 執行檔並明確加入其選項。如需開啟 macOS App，請將 `/usr/bin/open` 設為執行檔，並把 `-a` 與 App 名稱分別加入為引數。"
+            "value": "每個引數都會原樣作為一個 argv 值傳入。如需使用 shell 語法，請選擇命令列 shell 並明確加入其選項。使用 fish 時，請將 `/opt/homebrew/bin/fish` 設為執行檔，並把 `-c` 與 `command ls` 分別加入為引數。如需開啟 macOS App，請將 `/usr/bin/open` 設為執行檔，並把 `-a` 與 App 名稱分別加入為引數。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Each argument is passed exactly as one argv value. To use shell syntax, choose a shell executable and add its flags explicitly. To open a macOS app, use `/usr/bin/open` as the executable and add `-a` and the app name as separate arguments."
+            "value": "Each argument is passed exactly as one argv value. To use shell syntax, choose a command-line shell and add its flags explicitly. For fish, use `/opt/homebrew/bin/fish` and add `-c` and `command ls` as separate arguments. To open a macOS app, use `/usr/bin/open` as the executable and add `-a` and the app name as separate arguments."
           }
         }
       }
@@ -1633,36 +2148,36 @@
         }
       }
     },
-    "These values are added to Tatami's inherited environment for this hook.": {
+    "These values are added to Tatami's inherited environment for this hook. Tatami event variables take precedence when names match.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 값들은 이 훅을 위해 Tatami가 상속한 환경에 추가돼요."
+            "value": "이 값들은 이 훅을 위해 Tatami가 상속한 환경에 추가돼요. 이름이 같으면 Tatami 이벤트 변수가 우선해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "これらの値は、このフック用にTatamiが継承した環境へ追加されます。"
+            "value": "これらの値は、このフック用にTatamiが継承した環境へ追加されます。同じ名前の場合はTatamiのイベント変数が優先されます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这些值会添加到 Tatami 为此钩子继承的环境中。"
+            "value": "这些值会添加到 Tatami 为此钩子继承的环境中。名称相同时，Tatami 事件变量优先。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這些值會加入 Tatami 為這個 Hook 繼承的環境。"
+            "value": "這些值會加入 Tatami 為這個 Hook 繼承的環境。名稱相同時，以 Tatami 事件變數為準。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "These values are added to Tatami's inherited environment for this hook."
+            "value": "These values are added to Tatami's inherited environment for this hook. Tatami event variables take precedence when names match."
           }
         }
       }
@@ -3506,7 +4021,7 @@
         }
       }
     },
-    "%lld apps assigned — scratchpads work best with exactly one.": {
+    "%lld apps assigned. Scratchpads work best with exactly one.": {
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -3535,7 +4050,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld apps assigned — scratchpads work best with exactly one."
+            "value": "%lld apps assigned. Scratchpads work best with exactly one."
           }
         }
       }
@@ -6221,7 +6736,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Also matches %@ at the same priority — profile order decides which one activates. Make one more specific, or reorder them in the sidebar."
+            "value": "Also matches %@ at the same priority. Profile order decides which one activates. Make one more specific, or reorder them in the sidebar."
           }
         }
       }
@@ -10267,7 +10782,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Choose Ignore. The app still belongs to this workspace, but Tatami stops writing its frame or replacing it with a mirror."
+            "value": "Choose Leave As Is. The app still belongs to this workspace, but Tatami stops changing its position or replacing it with a mirror."
           }
         }
       }
@@ -12987,7 +13502,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Display the active profile's icon — only when you have more than one profile."
+            "value": "Display the active profile's icon only when you have more than one profile."
           }
         }
       }
@@ -13021,7 +13536,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Display the active profile's name — only when you have more than one profile."
+            "value": "Display the active profile's name only when you have more than one profile."
           }
         }
       }
@@ -13701,7 +14216,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Each new tiled window splits one region into two. Tatami stores that structure as a BSP tree, using the apps you assigned—not a canned demo."
+            "value": "Each new tiled window splits one region into two. Tatami stores that structure as a BSP tree, using the apps you assigned, not a canned demo."
           }
         }
       }
@@ -13735,7 +14250,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Each uses its modifier (Settings → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one — then a direction key places it unless a default is set below."
+            "value": "Each uses its modifier (Settings → Workspace Keys) + this workspace's key equivalent; record a shortcut to override. Borrow pulls this workspace in beside the current one. A direction key then places it unless a default is set below."
           }
         }
       }
@@ -16947,25 +17462,25 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "許可済み — ウインドウをタイル表示より手前に表示できます。"
+            "value": "許可済み。ウインドウをタイル表示より手前に表示できます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已授权 — 可以将窗口镜像置顶到平铺布局上方。"
+            "value": "已授权。可以将窗口镜像置顶到平铺布局上方。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已允許 — 可以將視窗鏡像置頂至並排佈局上方。"
+            "value": "已允許。可以將視窗鏡像置頂至並排佈局上方。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Allowed — Tatami can keep mirrored windows above the tiled layout."
+            "value": "Allowed. Tatami can keep mirrored windows above the tiled layout."
           }
         }
       }
@@ -16981,25 +17496,25 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "許可済み — このMacで「常に手前」を使用できます。"
+            "value": "許可済み。このMacで「常に手前」を使用できます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已授权 — 可以在这台 Mac 上使用置顶窗口。"
+            "value": "已授权。可以在这台 Mac 上使用置顶窗口。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已允許 — 可以在這台 Mac 上使用置頂視窗。"
+            "value": "已允許。可以在這台 Mac 上使用置頂視窗。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Allowed — always-on-top windows are available on this Mac."
+            "value": "Allowed. Always-on-top windows are available on this Mac."
           }
         }
       }
@@ -17015,25 +17530,25 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "許可済み — Tatamiでウインドウの移動、サイズ変更、フォーカスができます。"
+            "value": "許可済み。Tatamiでウインドウの移動、サイズ変更、フォーカスができます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已授权 — Tatami 可以移动、调整窗口大小并聚焦窗口。"
+            "value": "已授权。Tatami 可以移动、调整窗口大小并聚焦窗口。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已允許 — Tatami 可以移動、調整視窗大小並聚焦視窗。"
+            "value": "已允許。Tatami 可以移動、調整視窗大小並聚焦視窗。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Granted — Tatami can move, resize, and focus windows."
+            "value": "Granted. Tatami can move, resize, and focus windows."
           }
         }
       }
@@ -17441,7 +17956,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it."
+            "value": "Held with a workspace's key equivalent to borrow it into the current screen. A direction key then places it."
           }
         }
       }
@@ -17718,36 +18233,36 @@
         }
       }
     },
-    "How far you must swipe to switch — higher sensitivity needs a shorter swipe.": {
+    "How far you must swipe before the bound action runs. Higher sensitivity needs a shorter swipe.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전환에 필요한 스와이프 거리예요. 민감도가 높을수록 짧게 밀어도 전환돼요."
+            "value": "지정한 동작을 실행하는 데 필요한 스와이프 거리예요. 민감도가 높을수록 짧게 밀어도 실행돼요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "切り替えに必要なスワイプ距離です。感度を上げるほど、短いスワイプで切り替わります。"
+            "value": "割り当てた操作を実行するために必要なスワイプ距離です。感度を上げるほど、短いスワイプで実行できます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "切换所需的轻扫距离。灵敏度越高，轻扫越短也能切换。"
+            "value": "运行所绑定操作所需的轻扫距离。灵敏度越高，轻扫越短也能运行。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "切換所需的滑動距離。靈敏度越高，滑動越短也能切換。"
+            "value": "執行所綁定操作所需的滑動距離。靈敏度越高，滑動越短也能執行。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "How far you must swipe to switch — higher sensitivity needs a shorter swipe."
+            "value": "How far you must swipe before the bound action runs. Higher sensitivity needs a shorter swipe."
           }
         }
       }
@@ -17951,7 +18466,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ignore"
+            "value": "Leave As Is"
           }
         }
       }
@@ -18432,7 +18947,7 @@
         }
       }
     },
-    "Keep exactly one app here—such as a terminal or notes window—then Borrow it only when needed.": {
+    "Keep exactly one app here, such as a terminal or notes window. Then Borrow it only when needed.": {
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -18461,7 +18976,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep exactly one app here—such as a terminal or notes window—then Borrow it only when needed."
+            "value": "Keep exactly one app here, such as a terminal or notes window. Then Borrow it only when needed."
           }
         }
       }
@@ -19384,36 +19899,36 @@
         }
       }
     },
-    "Live — edits re-tile your windows now.": {
+    "Live. Edits re-tile your windows now.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "실시간 — 편집하면 창이 바로 다시 배치돼요."
+            "value": "실시간으로 편집 내용을 창에 바로 반영해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ライブ — 編集内容がすぐにウインドウへ反映されます。"
+            "value": "ライブです。編集内容がすぐにウインドウへ反映されます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "实时 — 编辑会立即重新平铺窗口。"
+            "value": "实时编辑会立即重新平铺窗口。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "即時 — 編輯會立即重新排列視窗。"
+            "value": "即時編輯會立即重新排列視窗。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Live — edits re-tile your windows now."
+            "value": "Live. Edits re-tile your windows now."
           }
         }
       }
@@ -20433,7 +20948,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Move focus to a remaining window in the workspace when the focused one closes — so closing a chat window hands focus back to your editor instead of stranding it."
+            "value": "Move focus to a remaining window in the workspace when the focused one closes, so closing a chat window hands focus back to your editor instead of stranding it."
           }
         }
       }
@@ -21351,7 +21866,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No conditions — activates on any configuration. Add a monitor condition below to narrow it."
+            "value": "No conditions. Activates on any configuration. Add a monitor condition below to narrow it."
           }
         }
       }
@@ -21929,7 +22444,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No shared apps yet. Tap + to add one — it will tile into every workspace."
+            "value": "No shared apps yet. Tap + to add one. It will tile into every workspace."
           }
         }
       }
@@ -22251,25 +22766,25 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "未インストール — %@へシンボリックリンクを作成します"
+            "value": "未インストール。%@へシンボリックリンクを作成します"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "未安装 — 将创建符号链接到%@"
+            "value": "未安装。将创建符号链接到%@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "未安裝 — 將建立符號連結至%@"
+            "value": "未安裝。將建立符號連結至%@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not installed — will symlink to %@"
+            "value": "Not installed. Will symlink to %@"
           }
         }
       }
@@ -22575,7 +23090,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing shared—recommended"
+            "value": "Nothing shared (recommended)"
           }
         }
       }
@@ -22881,7 +23396,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "One key for this workspace — hold it with the switch / assign / borrow modifier (Settings → Workspace Keys) to run each action."
+            "value": "One key for this workspace. Hold it with the switch / assign / borrow modifier (Settings → Workspace Keys) to run each action."
           }
         }
       }
@@ -23187,7 +23702,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Overlaps %@ — more specific, so it wins where both match."
+            "value": "Overlaps %@. It is more specific, so it wins where both match."
           }
         }
       }
@@ -23629,7 +24144,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pick the closest example. Notice that workspaces follow recurring activities—not broad app categories. Nothing here is applied to your draft."
+            "value": "Pick the closest example. Notice that workspaces follow recurring activities, not broad app categories. Nothing here is applied to your draft."
           }
         }
       }
@@ -24513,7 +25028,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pull another workspace's apps and settings into this one — you'll review and pick each change. The display pin is included, so uncheck it to keep this workspace's own."
+            "value": "Pull another workspace's apps and settings into this one. You'll review and pick each change. The display pin is included, so uncheck it to keep this workspace's own."
           }
         }
       }
@@ -26694,7 +27209,7 @@
         }
       }
     },
-    "Saved layout — edits apply on next activation.": {
+    "Saved layout. Edits apply on next activation.": {
       "localizations": {
         "ko": {
           "stringUnit": {
@@ -26705,25 +27220,25 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "保存済みレイアウト — 次回の有効化時に編集内容を適用します。"
+            "value": "保存済みレイアウトです。次回の有効化時に編集内容を適用します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "已保存布局 — 下次启用时应用编辑内容。"
+            "value": "已保存布局。下次启用时应用编辑内容。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "已儲存佈局 — 下次啟用時套用編輯內容。"
+            "value": "已儲存版面。下次啟用時套用編輯內容。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saved layout — edits apply on next activation."
+            "value": "Saved layout. Edits apply on next activation."
           }
         }
       }
@@ -27521,25 +28036,25 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "共有アプリ — すべてのワークスペースに表示"
+            "value": "共有アプリ。すべてのワークスペースに表示"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "共享应用 — 出现在每个工作区"
+            "value": "共享应用。出现在每个工作区"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "共用 App — 出現在每個工作空間"
+            "value": "共用 App。出現在每個工作空間"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Shared app — in every workspace"
+            "value": "Shared app in every workspace"
           }
         }
       }
@@ -28967,7 +29482,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Step through the visible Tatami workspace—not the global ⌘Tab list or one app's ⌘` list."
+            "value": "Step through the visible Tatami workspace, not the global ⌘Tab list or one app's ⌘` list."
           }
         }
       }
@@ -29001,7 +29516,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Still in Shared Apps — %@ removes it"
+            "value": "Still in Shared Apps. %@ removes it"
           }
         }
       }
@@ -29035,7 +29550,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Still in this workspace — %@ removes it"
+            "value": "Still in this workspace. %@ removes it"
           }
         }
       }
@@ -30157,7 +30672,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami prepares the prompt and validates the result. You choose ChatGPT, Claude, Gemini, or another AI — no account connection required."
+            "value": "Tatami prepares the prompt and validates the result. You choose ChatGPT, Claude, Gemini, or another AI. No account connection is required."
           }
         }
       }
@@ -30191,7 +30706,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami uses it only for per-window always-on-top mirrors. Ignore needs no capture permission."
+            "value": "Tatami uses it only for per-window always-on-top mirrors. Leave As Is needs no capture permission."
           }
         }
       }
@@ -30701,7 +31216,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The prompt contains only these answers, app metadata, and connected display names and sizes — never screen contents."
+            "value": "The prompt contains only these answers, app metadata, and connected display names and sizes, never screen contents."
           }
         }
       }
@@ -30740,70 +31255,70 @@
         }
       }
     },
-    "The shortcut arms Borrow first; finish with an arrow or H/J/K/L direction, just like the real command.%@": {
+    "The shortcut arms Borrow first; finish with an arrow or H/J/K/L direction, just like the real command. %@": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "단축키를 누르면 먼저 빌려오기 모드가 시작돼요. 실제 명령처럼 방향키나 H/J/K/L로 위치를 정하세요.%@"
+            "value": "단축키를 누르면 먼저 빌려오기 모드가 시작돼요. 실제 명령처럼 방향키나 H/J/K/L로 위치를 정하세요. %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ショートカットでまず「借りる」を開始します。実際のコマンドと同じように、矢印キーまたはH/J/K/Lで方向を決めてください。%@"
+            "value": "ショートカットでまず「借りる」を開始します。実際のコマンドと同じように、矢印キーまたはH/J/K/Lで方向を決めてください。 %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷键会先进入借用模式；再像真实命令一样，用方向键或 H/J/K/L 完成放置。%@"
+            "value": "快捷键会先进入借用模式；再像真实命令一样，用方向键或 H/J/K/L 完成放置。 %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快速鍵會先進入借用模式；再像實際指令一樣，用方向鍵或 H/J/K/L 完成放置。%@"
+            "value": "快速鍵會先進入借用模式；再像實際指令一樣，用方向鍵或 H/J/K/L 完成放置。 %@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The shortcut arms Borrow first; finish with an arrow or H/J/K/L direction, just like the real command.%@"
+            "value": "The shortcut arms Borrow first; finish with an arrow or H/J/K/L direction, just like the real command. %@"
           }
         }
       }
     },
-    "The shortcut docks on the %@. Repeating it dismisses only when ‘Dismiss when summoned again’ is on.%@": {
+    "The shortcut docks on the %@. Repeating it dismisses only when ‘Dismiss when summoned again’ is on. %@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The shortcut docks on the %1$@. Repeating it returns the workspace only when ‘Return When Borrowed Again’ is on.%2$@"
+            "value": "The shortcut docks on the %1$@. Repeating it returns the workspace only when ‘Return When Borrowed Again’ is on. %2$@"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "단축키를 누르면 %@에 바로 붙어요. ‘다시 빌려오면 돌려보내기’를 켠 경우에만 같은 단축키를 다시 눌러 돌려보낼 수 있어요.%@"
+            "value": "단축키를 누르면 %@에 바로 붙어요. ‘다시 빌려오면 돌려보내기’를 켠 경우에만 같은 단축키를 다시 눌러 돌려보낼 수 있어요. %@"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ショートカットですぐに%@へ配置します。「もう一度呼ぶと元へ戻す」がオンの場合だけ、同じショートカットを繰り返すと元へ戻します。%@"
+            "value": "ショートカットですぐに%@へ配置します。「もう一度呼ぶと元へ戻す」がオンの場合だけ、同じショートカットを繰り返すと元へ戻します。 %@"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "快捷键会停靠到%@。只有开启“再次借用时归还”后，重复按下才会归还工作区。%@"
+            "value": "快捷键会停靠到%@。只有开启“再次借用时归还”后，重复按下才会归还工作区。 %@"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "快速鍵會停靠至%@。只有開啟「再次借用時歸還」後，重複按下才會歸還工作空間。%@"
+            "value": "快速鍵會停靠至%@。只有開啟「再次借用時歸還」後，重複按下才會歸還工作空間。 %@"
           }
         }
       }
@@ -33966,7 +34481,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Walk through this Tatami workspace—not the global ⌘Tab list or only one app like ⌘`"
+            "value": "Walk through this Tatami workspace, not the global ⌘Tab list or only one app like ⌘`"
           }
         }
       }
@@ -34136,7 +34651,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When on, auto-switch to this profile as the monitors match — all conditions apply together. Per monitor: Required = must be connected, Excluded = must be unplugged."
+            "value": "When on, auto-switch to this profile as the monitors match. All conditions apply together. Per monitor: Required = must be connected, Excluded = must be unplugged."
           }
         }
       }
@@ -34170,7 +34685,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When Tatami changes the focused managed window, the pointer follows it—even between the host and a borrowed block. Directional Focus and Window Switching move it to the new window. Swap keeps it with the same window in its new tile."
+            "value": "When Tatami changes the focused managed window, the pointer follows it, even between the host and a borrowed block. Directional Focus and Window Switching move it to the new window. Swap keeps it with the same window in its new tile."
           }
         }
       }
@@ -34238,7 +34753,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway."
+            "value": "When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count because they join every workspace anyway."
           }
         }
       }
@@ -34884,7 +35399,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When there’s a neighboring window, Swap exchanges their positions. At an outer edge, it changes the split direction—for example, from side by side to stacked."
+            "value": "When there’s a neighboring window, Swap exchanges their positions. At an outer edge, it changes the split direction, for example, from side by side to stacked."
           }
         }
       }
@@ -35875,308 +36390,240 @@
         }
       }
     },
-    "Tatami is now available in five interface languages, with clearer names and guidance written for each locale.": {
+    "Tatami 1.12 adds scriptable control and lifecycle hooks, plus safer, more selective profile and workspace duplication.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami를 다시 열면 각 디스플레이에서 마지막 프로필과 작업 공간으로 돌아가요. 앱 상태가 바뀌거나 잠자기 후에도 창을 더 빠르고 안정적으로 맞춰요."
+            "value": "Tatami 1.12에서는 CLI와 수명 주기 훅으로 작업을 자동화하고, 더 안전한 검토 화면에서 프로필과 작업 공간을 필요한 내용만 골라 복제할 수 있어요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami を開き直すと、各ディスプレイで最後に使ったプロファイルとワークスペースに戻ります。App の変化やスリープ後も、ウインドウをすばやく安定して整えます。"
+            "value": "Tatami 1.12 では、CLI とライフサイクルフックで作業を自動化し、より安全な確認画面で必要な内容だけを選んでプロファイルやワークスペースを複製できます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "重新打开 Tatami 后，每台显示器都会恢复上次使用的配置方案和工作区。应用状态变化或睡眠唤醒后，窗口也能更快、更稳定地归位。"
+            "value": "Tatami 1.12 新增了 CLI 自动化和生命周期钩子，并提供更安全、更灵活的配置方案与工作区复制流程。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "重新開啟 Tatami 時，每部顯示器都會回到上次使用的設定組合和工作空間。App 狀態變更或睡眠喚醒後，視窗也能更快、更穩定地回到正確位置。"
+            "value": "Tatami 1.12 新增 CLI 自動化與生命週期 Hook，並提供更安全、更彈性的設定組合與工作空間複製流程。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami now returns to the right profile and workspace on every display, while window tracking stays responsive and resilient through app changes and sleep."
+            "value": "Tatami 1.12 adds scriptable control and lifecycle hooks, plus safer, more selective profile and workspace duplication."
           }
         }
       }
     },
-    "Use Tatami in your language": {
+    "Control Tatami from the command line": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "마지막으로 사용한 구성으로 돌아가요"
+            "value": "명령줄에서 Tatami를 제어해요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "前回の作業環境から再開"
+            "value": "コマンドラインから Tatami を操作"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从上次的位置继续"
+            "value": "从命令行控制 Tatami"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "從上次的狀態繼續"
+            "value": "從命令列控制 Tatami"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Resume where you left off"
+            "value": "Control Tatami from the command line"
           }
         }
       }
     },
-    "Choose English, Korean, Japanese, Simplified Chinese, or Traditional Chinese. Tatami follows the language selected for the app in macOS.": {
+    "Use domain commands for profiles, workspaces, windows, displays, layouts, and apps, with stable JSON output and every action available to trackpad gestures.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "마지막으로 사용한 조건에 맞는 프로필과 디스플레이별 작업 공간을 복원해요. 디스플레이 조건이 달라졌다면 현재 구성에 맞는 프로필을 선택해요."
+            "value": "프로필, 작업 공간, 윈도우, 디스플레이, 레이아웃, 앱 명령을 기능별로 사용하고, 제스처에서 지원하는 모든 동작을 안정적인 JSON 출력과 함께 실행할 수 있어요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "最後に使った、現在の条件に合うプロファイルと、各ディスプレイのワークスペースを復元します。ディスプレイ条件が変わった場合は、今の構成に合うプロファイルを選びます。"
+            "value": "プロファイル、ワークスペース、ウインドウ、ディスプレイ、レイアウト、App のコマンドを機能別に使い、トラックパッドジェスチャで使えるすべての操作を安定した JSON 出力とともに実行できます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 会恢复上次使用且仍符合条件的配置方案，以及每台显示器的工作区。显示器条件发生变化时，会选择适合当前设备组合的配置方案。"
+            "value": "按配置方案、工作区、窗口、显示器、布局和应用分类使用命令，并通过稳定的 JSON 输出执行触控板手势支持的全部操作。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 會還原上次使用且仍符合條件的設定組合，以及每部顯示器的工作空間。顯示器條件變更時，會選擇符合目前組合的設定。"
+            "value": "依設定組合、工作空間、視窗、顯示器、版面與 App 分類使用指令，並透過穩定的 JSON 輸出執行觸控板手勢支援的所有操作。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami restores the last eligible profile and each display's workspace. If a display rule no longer matches, it chooses the correct profile for the current setup."
+            "value": "Use domain commands for profiles, workspaces, windows, displays, layouts, and apps, with stable JSON output and every action available to trackpad gestures."
           }
         }
       }
     },
-    "Clearer names across the app": {
+    "Run programs on lifecycle events": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "잠자기 후에도 배치를 유지해요"
+            "value": "수명 주기 이벤트에서 프로그램을 실행해요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "スリープ後もレイアウトを維持"
+            "value": "ライフサイクルイベントでプログラムを実行"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "睡眠唤醒后保留布局"
+            "value": "在生命周期事件中运行程序"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "睡眠喚醒後保留版面"
+            "value": "在生命週期事件中執行程式"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Keep layouts through sleep"
+            "value": "Run programs on lifecycle events"
           }
         }
       }
     },
-    "Always on Top, Leave As Is, Window Switching, and On-Screen Feedback now describe what each control does.": {
+    "Create and test hooks for Tatami launch, profile changes, and workspaces becoming visible on a display. Each event includes versioned JSON and useful environment variables.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "잠자기와 깨우기 후에도 BSP 배치를 유지해요. macOS가 창을 새로 만들면 새 배치로 인식하지 않고 저장된 위치에 다시 연결해요."
+            "value": "Tatami 실행, 프로필 변경, 작업 공간이 디스플레이에 표시될 때 실행할 훅을 만들고 테스트하세요. 각 이벤트에는 버전이 지정된 JSON과 유용한 환경 변수가 포함돼요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "スリープと復帰をまたいでも BSP レイアウトを維持します。macOS がウインドウを作り直しても、新しいレイアウトとして扱わず、保存済みの位置に戻します。"
+            "value": "Tatami の起動、プロファイルの変更、ワークスペースがディスプレイに表示されたときのフックを作成、テストできます。各イベントにはバージョン付き JSON と便利な環境変数が含まれます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "BSP 布局会在睡眠和唤醒后保留。即使 macOS 重新创建窗口，Tatami 也会将它放回已保存的位置，而不会当作新布局。"
+            "value": "为 Tatami 启动、配置方案变更和工作区显示在屏幕上创建并测试钩子。每个事件都包含带版本的 JSON 和实用的环境变量。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "BSP 版面會在睡眠與喚醒後保留。即使 macOS 重新建立視窗，Tatami 也會將它放回已儲存的位置，不會當成新的版面。"
+            "value": "為 Tatami 啟動、設定組合變更及工作空間顯示在螢幕上建立並測試 Hook。每個事件都包含有版本的 JSON 與實用的環境變數。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your BSP layout survives sleep and wake. If macOS recreates a window, Tatami reconnects it to its saved place instead of treating it as a new layout."
+            "value": "Create and test hooks for Tatami launch, profile changes, and workspaces becoming visible on a display. Each event includes versioned JSON and useful environment variables."
           }
         }
       }
     },
-    "Your configuration stays compatible": {
+    "Choose what Duplicate keeps": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "기다림 없이 창 변화를 따라가요"
+            "value": "복제할 내용을 직접 골라요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "待たずにウインドウの変化を反映"
+            "value": "複製する内容を選択"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "更快跟上窗口变化"
+            "value": "选择要复制的内容"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "更快跟上視窗變化"
+            "value": "選擇要複製的內容"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Track windows without the wait"
+            "value": "Choose what Duplicate keeps"
           }
         }
       }
     },
-    "Your workspaces, profiles, shortcuts, and existing `config.toml` continue to work. Stable configuration keys have not changed.": {
+    "Right-click a profile or workspace, review its workspaces, apps, settings, and saved layouts, then include only what you want.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "중복된 손쉬운 사용 조회를 줄였어요. 늦게 열리거나 숨었다 다시 나타난 창도 빌려오기 안을 포함해 알맞은 타일과 포커스로 더 안정적으로 돌아가요."
+            "value": "프로필이나 작업 공간을 우클릭하고 작업 공간, 앱, 설정, 저장된 레이아웃을 검토한 다음 필요한 항목만 포함하세요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "重複するアクセシビリティ処理を減らしました。遅れて開くウインドウや、非表示から戻ったウインドウも、借りている間を含めて正しいタイルとフォーカスへより安定して戻ります。"
+            "value": "プロファイルやワークスペースを右クリックし、ワークスペース、App、設定、保存済みレイアウトを確認して、必要な項目だけを含められます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "减少了重复的辅助功能查询。延迟打开、隐藏后重新出现的窗口也能更稳定地回到正确的分区和焦点位置，包括借用中的窗口。"
+            "value": "右键点按配置方案或工作区，检查其中的工作区、应用、设置和已存布局，然后仅包含需要的项目。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "減少了重複的輔助使用查詢。較晚開啟、隱藏後再次出現的視窗，也能更穩定地回到正確的並排區域和焦點位置，包括借用中的視窗。"
+            "value": "在設定組合或工作空間上按右鍵，檢查其中的工作空間、App、設定與已儲存版面，然後只包含需要的項目。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Window discovery and updates now avoid redundant Accessibility work. Late-opening, hidden, and reappearing windows return to the right tile and focus more reliably, including inside Borrow."
-          }
-        }
-      }
-    },
-    "Written for each language": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "상태가 잘 보이는 창 전환과 예측 가능한 균형"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "状態が見える切り替えと分かりやすい均等化"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "状态更清晰的窗口切换与可预测的均衡"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "狀態更清楚的視窗切換與可預期的均衡"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A clearer switcher and predictable Balance"
-          }
-        }
-      }
-    },
-    "Instructions, empty states, errors, and confirmations are written around the task and next action instead of translated word for word.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "창 전환기에서 포커스, 빌려오기, 공용 앱, 항상 위, 전체 화면 상태를 확인하고 마우스로 정확한 창을 선택할 수 있어요. 균형 맞추기는 자동 균형 설정을 따르며, 끔에서는 기본 BSP 배치를 다시 구성해요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "切り替え画面で、フォーカス、借りる、共有アプリ、常に手前、フルスクリーンの状態を確認し、ポインタで目的のウインドウを正確に選べます。均等化は自動均等配置に従い、「オフ」では標準の BSP レイアウトに組み直します。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "窗口切换器会显示焦点、借用、共享应用、置顶和全屏状态，并可用指针准确选择窗口。均衡会遵循自动均衡设置；关闭时会重建标准 BSP 布局。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "視窗切換器會顯示焦點、借用、共用 App、置頂和全螢幕狀態，並可用游標準確選取視窗。均衡會遵循自動均衡設定；關閉時會重建標準 BSP 版面。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The switcher shows focus, Borrow, Shared Apps, Always on Top, and fullscreen status, and hover selects the exact window. Balance follows Auto-balance; with it off, Balance rebuilds the canonical BSP layout."
+            "value": "Right-click a profile or workspace, review its workspaces, apps, settings, and saved layouts, then include only what you want."
           }
         }
       }

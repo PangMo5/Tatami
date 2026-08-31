@@ -197,6 +197,29 @@ public struct HookValidationIssue: Equatable, Hashable, Sendable {
     case timeoutOutOfRange
     case invalidWorkingDirectory
     case invalidEnvironment
+
+    // MARK: Public
+
+    public var localizedMessage: LocalizedStringResource {
+      switch self {
+      case .emptyID:
+        "Enter an identifier."
+      case .invalidID:
+        "Use only ASCII letters, numbers, period, underscore, or hyphen in the identifier."
+      case .duplicateID:
+        "Choose a unique identifier."
+      case .emptyCommand:
+        "Choose an executable."
+      case .nulCommand:
+        "Executable and arguments cannot contain NUL."
+      case .timeoutOutOfRange:
+        "Timeout must be between 100 and 300000 milliseconds."
+      case .invalidWorkingDirectory:
+        "Working directory must be absolute or start with ~/."
+      case .invalidEnvironment:
+        "Environment variable names must be valid and values cannot contain NUL."
+      }
+    }
   }
 
   public let hookIndex: Int

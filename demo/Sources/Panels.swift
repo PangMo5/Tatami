@@ -85,7 +85,7 @@ private struct TerminalPanel: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      line("~/Tatami", "tatami list-workspaces")
+      line("~/Tatami", "tatami workspace list")
       Group {
         plain("Browser")
         plain("Coding")
@@ -93,7 +93,7 @@ private struct TerminalPanel: View {
         plain("Figma")
         plain("Notion")
       }
-      line("~/Tatami", "tatami activate Coding")
+      line("~/Tatami", "tatami workspace activate Coding")
       (Text("Activated: ").foregroundStyle(.secondary) + Text("Coding").foregroundStyle(.green))
         .font(font)
       HStack(spacing: 0) {
@@ -502,7 +502,7 @@ private struct MessagesPanel: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       bubble("Did Tatami tile that for you?", incoming: true)
-      bubble("Yep — opened the window and it just snapped in", incoming: false)
+      bubble("Yep. Opened the window and it just snapped in", incoming: false)
       bubble("⌘ a couple keys and it's a full BSP layout", incoming: false)
       bubble("No SIP, no scripting?", incoming: true)
       bubble("None. Native app.", incoming: false)
@@ -557,11 +557,11 @@ private struct MailPanel: View {
       .background(Color(nsColor: .windowBackgroundColor))
       Divider()
       VStack(alignment: .leading, spacing: 12) {
-        Text("Tatami 1.11.0 is out").font(.system(size: 20, weight: .semibold))
+        Text("Tatami 1.12.0 is out").font(.system(size: 20, weight: .semibold))
         Text("from  Sparkle Updates").font(.system(size: 12)).foregroundStyle(.secondary)
         Divider()
-        Text("This release restores each display's last workspace and keeps hidden or "
-          + "reappearing windows in sync. Update from the menu bar.")
+        Text("This release adds the domain-based CLI, lifecycle hooks, and reviewable "
+          + "profile and workspace duplication. Update from the menu bar.")
           .font(.system(size: 14)).foregroundStyle(.primary.opacity(0.85))
         Spacer()
       }
@@ -574,9 +574,9 @@ private struct MailPanel: View {
   // MARK: Private
 
   private let rows: [(String, String)] = [
-    ("Sparkle Updates", "Tatami 1.11.0 is out"),
-    ("GitHub", "Your release v1.11.0 published"),
-    ("Homebrew", "tatami 1.11.0 cask updated"),
+    ("Sparkle Updates", "Tatami 1.12.0 is out"),
+    ("GitHub", "Your release v1.12.0 published"),
+    ("Homebrew", "tatami 1.12.0 cask updated"),
     ("PangMo5", "Re: demo footage"),
   ]
 
@@ -604,7 +604,7 @@ private struct CalendarPanel: View {
           Color(nsColor: .textBackgroundColor)
           event("Standup", colW * 0 + 4, 24, colW - 8, 50, .blue)
           event("Record demo", colW * 2 + 4, 70, colW - 8, 110, .orange)
-          event("Ship 1.11.0", colW * 4 + 4, 40, colW - 8, 80, .green)
+          event("Ship 1.12.0", colW * 4 + 4, 40, colW - 8, 80, .green)
           event("Review", colW * 1 + 4, 150, colW - 8, 60, .purple)
         }
       }

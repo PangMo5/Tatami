@@ -63,7 +63,9 @@ ArgumentParser's current usage text.
 Every `<profile>` and `<workspace>` selector accepts either its current name or
 UUID. A workspace name is resolved inside the active profile unless
 `--profile` is supplied. A workspace UUID is globally unique and can therefore
-select an inactive profile without `--profile`.
+select an inactive profile without `--profile`. `workspace borrow from` is the
+exception: Borrow only accepts a workspace in the active profile, so switch
+profiles first when necessary.
 
 If a name is duplicated in the search scope, Tatami fails without changing
 anything and prints every candidate UUID. Use one of those UUIDs to retry.
@@ -120,8 +122,8 @@ undo the first invocation.
 | `workspace activate <workspace> [--profile …]` | Activate the workspace and its owning profile when necessary, then wait for completion. |
 | `workspace next` / `previous` / `recent` | Switch relative to workspace history/order. |
 | `workspace move-app next` / `previous` | Move the focused app to an adjacent workspace and switch. |
-| `workspace assign-app to <workspace> [--profile …]` | Assign the focused app, switch profiles when necessary, and activate the workspace. |
-| `workspace assign-app next` / `previous` / `recent` | Assign the focused app to a relative workspace and switch. |
+| `workspace assign-app to <workspace> [--profile …]` | Add the focused app without removing its existing workspace memberships, switch profiles when necessary, and activate the target. |
+| `workspace assign-app next` / `previous` / `recent` | Add the focused app without removing existing memberships, then switch to the relative workspace. |
 | `workspace borrow from <workspace>` | Start the interactive Borrow direction picker for a workspace in the active profile. |
 | `workspace borrow next` / `previous` / `recent` | Borrow a relative workspace. |
 | `workspace dismiss-borrow` | Dismiss Borrow on the pointer display. |
@@ -153,8 +155,8 @@ is specific to a real global shortcut.
 
 | Command | Behavior |
 | --- | --- |
-| `app toggle-workspace` | Add or remove the focused app in the active workspace. |
-| `app toggle-shared` | Add or remove the focused app in Shared Apps. |
+| `app toggle-workspace` | Remove the focused app if it is already in the active workspace. Otherwise move it from any other workspace in the active profile into this one as Tiled. |
+| `app toggle-shared` | Add the focused app to Shared Apps as Tiled, or remove it if it is already shared. |
 
 ### Hooks
 
@@ -175,7 +177,10 @@ fields. They map directly to `command[0]` and its remaining argv values. Tatami
 does not combine them into a shell command, split arguments on spaces,
 interpret quotes, or expand variables. Choose a shell explicitly when shell
 syntax is required, such as an executable of `/bin/zsh` with separate `-lc`
-and script arguments.
+and script arguments. For fish, use the path returned by `which fish`, then add
+`-c` and the command text as separate arguments. For example, `command ls`
+bypasses a user-defined `ls` function. Tatami sends the hook event on standard
+input, so a command that consumes standard input receives that JSON event.
 
 The full event, standard-input, environment, working-directory, and timeout
 contracts are documented in the

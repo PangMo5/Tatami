@@ -31,7 +31,7 @@ The file has four top-level parts:
 - **`[settings.*]`:** Global preferences described below
 - **`[[sharedApps]]`:** Apps that are part of every workspace, either tiled or kept on top
 - **`[[profiles]]`:** Workspaces and their app assignments
-- **`[[hooks]]`:** Programs triggered by profile and workspace lifecycle events
+- **`[[hooks]]`:** Programs triggered by Tatami, profile, and workspace lifecycle events
 
 ## Shortcut syntax
 
@@ -132,7 +132,7 @@ layout without writing the temporary wake-up state back to disk.
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` | bool | `false` | Recognize configured three- and four-finger trackpad swipes. |
-| `threshold` | double | `0.3` | Swipe distance required to trigger a switch (lower = more sensitive). Kept to two decimal places. |
+| `threshold` | double | `0.3` | Swipe distance required before the bound action runs (lower = more sensitive). Kept to two decimal places. |
 | `threeFinger` | table | left → `nextWorkspace`, right → `previousWorkspace` | Actions for three-finger `left`, `right`, `up`, and `down` swipes. Missing directions are `none`. |
 | `fourFinger` | table | all directions → `none` | Actions for four-finger `left`, `right`, `up`, and `down` swipes. |
 
@@ -236,6 +236,12 @@ the modifier + key combo:
 
 - Per workspace: `activateShortcut`, `assignAppShortcut`, `borrowShortcut` (see workspaces below).
 - **Per navigation target:** `switchTo{Recent,Next,Previous}Workspace`, `assign{Recent,Next,Previous}Workspace`, and `borrow{Recent,Next,Previous}Workspace`. All use skhd strings.
+
+Workspace key equivalents and explicit workspace shortcuts are active only in
+their profile, so different profiles may reuse the same keys. Global shortcuts
+remain global and are checked against every profile. Copy and Duplicate also
+validate the selected shortcut changes before saving them into the target
+profile.
 
 Borrowing waits for a direction key (h/j/k/l or arrows) to place the workspace,
 unless a default edge is set (`settings.switching.borrowDefaultEdge` or the
@@ -384,10 +390,14 @@ Tatami executes `command` directly; it does not invoke a shell, split words,
 interpret quotes, or expand variables. The Settings editor preserves the same
 contract: the executable is `command[0]`, and every argument row becomes one
 subsequent argv value. To use shell syntax, opt in explicitly, for example
-`command = ["/bin/zsh", "-lc", "your pipeline"]`. An executable containing `/`
-is treated as a path (with leading `~/` expanded); a bare name is resolved from
-the app's inherited `PATH`. An absolute executable path is the most predictable
-choice when Tatami was opened from Finder.
+`command = ["/bin/zsh", "-lc", "your pipeline"]`. With fish, use the path from
+`which fish` and keep the flag and command separate, such as
+`command = ["/opt/homebrew/bin/fish", "-c", "command ls"]`. Tatami sends the
+event JSON on standard input, so a command that reads standard input receives
+that event. An executable containing `/` is treated as a path (with leading
+`~/` expanded); a bare name is resolved from the app's inherited `PATH`. An
+absolute executable path is the most predictable choice when Tatami was opened
+from Finder.
 
 Each hook receives one versioned JSON object on standard input. The object has
 `schemaVersion`, `event`, `occurredAt`, `profile`, and, when applicable,

@@ -131,7 +131,7 @@ struct WorkspaceLayoutPreview: View {
     .padding(.horizontal, 8)
     .padding(.vertical, 5)
     .background(Capsule().fill(Color.secondary.opacity(0.12)))
-    .help(nonTiledHelp(app))
+    .help(String(localized: nonTiledHelp(app)))
     .contextMenu {
       Button {
         store.send(.revealApp(bundleId: app.bundleId, isShared: app.isShared))
@@ -144,9 +144,17 @@ struct WorkspaceLayoutPreview: View {
     }
   }
 
-  private func nonTiledHelp(_ app: NonTiledApp) -> String {
-    let mode = app.mode == .floating ? "Floating — kept above the tiles" : "Ignored — left where it is"
-    return app.isShared ? "\(mode) · Shared (in every workspace)" : mode
+  private func nonTiledHelp(_ app: NonTiledApp) -> LocalizedStringResource {
+    switch (app.mode, app.isShared) {
+    case (.floating, true):
+      "Always on Top. Kept above the tiles and shared with every workspace."
+    case (.floating, false):
+      "Always on Top. Kept above the tiles in this workspace."
+    case (_, true):
+      "Leave As Is. Kept in place and shared with every workspace."
+    case (_, false):
+      "Leave As Is. Kept in place in this workspace."
+    }
   }
 
   private func isShared(_ bundleId: String) -> Bool {
@@ -177,7 +185,7 @@ struct WorkspaceLayoutPreview: View {
       toolButton("arrow.up.and.down.righttriangle.up.righttriangle.down", help: "Flip top ↔ bottom") {
         store.send(.mirror(axis: .horizontal))
       }
-      toolButton("square.grid.2x2", help: "Balance — equalize splits") { store.send(.balance) }
+      toolButton("square.grid.2x2", help: "Balance all splits equally") { store.send(.balance) }
 
       Divider().frame(height: 16)
 
@@ -204,7 +212,7 @@ struct WorkspaceLayoutPreview: View {
 
   private func toolButton(
     _ symbol: String,
-    help: String,
+    help: LocalizedStringResource,
     enabled: Bool = true,
     action: @escaping () -> Void
   ) -> some View {
@@ -213,7 +221,7 @@ struct WorkspaceLayoutPreview: View {
     }
     .buttonStyle(.borderless)
     .disabled(!enabled)
-    .help(help)
+    .help(String(localized: help))
   }
 
   // MARK: Canvas (fullscreen band + tile area share one coordinate space)
@@ -302,10 +310,13 @@ struct WorkspaceLayoutPreview: View {
     HStack(spacing: 6) {
       Image(systemName: (resolved?.isLive == true) ? "dot.radiowaves.left.and.right" : "clock.arrow.circlepath")
         .font(.caption2)
-      Text((resolved?.isLive == true)
-        ? "Live — edits re-tile your windows now."
-        : "Saved layout — edits apply on next activation.")
-        .font(.caption)
+      if resolved?.isLive == true {
+        Text("Live. Edits re-tile your windows now.")
+          .font(.caption)
+      } else {
+        Text("Saved layout. Edits apply on next activation.")
+          .font(.caption)
+      }
     }
     .foregroundStyle(.secondary)
   }

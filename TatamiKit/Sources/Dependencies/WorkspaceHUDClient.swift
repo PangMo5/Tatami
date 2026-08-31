@@ -1267,10 +1267,16 @@ private struct WindowSwitcherItemView: View {
           .foregroundStyle(isSelected ? .primary : .secondary)
           .lineLimit(1)
         if showsWindowTitle {
-          Text(item.windowTitle ?? "Window")
-            .font(.caption2)
-            .foregroundStyle(isSelected ? .secondary : .tertiary)
-            .lineLimit(1)
+          Group {
+            if let windowTitle = item.windowTitle {
+              Text(windowTitle)
+            } else {
+              Text("Window")
+            }
+          }
+          .font(.caption2)
+          .foregroundStyle(isSelected ? .secondary : .tertiary)
+          .lineLimit(1)
         }
       }
       .frame(width: 84, height: showsWindowTitle ? 110 : 90)

@@ -91,7 +91,7 @@ private func runHook(
     let input = String(decoding: try encoder.encode(invocation), as: UTF8.self) + "\n"
 
     guard let executableValue = hook.command.first else {
-      return .failure(message: "Command is empty", stdout: "", stderr: "")
+      return .failure(message: String(localized: "Command is empty"), stdout: "", stderr: "")
     }
     let expandedExecutable = expandHome(in: executableValue)
     let executable: Executable = executableValue.contains("/")
@@ -133,7 +133,9 @@ private func runHook(
     if result.closureResult == .cancelled { return .cancelled }
     if result.closureResult == .timedOut {
       return .failure(
-        message: "Timed out after \(hook.timeoutMs) ms",
+        message: String(
+          localized: "Timed out after \(hook.timeoutMs, format: .number.grouping(.never)) ms"
+        ),
         stdout: result.standardOutput,
         stderr: result.standardError,
       )
@@ -155,14 +157,14 @@ private func runHook(
 
     case .exited(let code):
       return .failure(
-        message: "Exited with status \(code)",
+        message: String(localized: "Exited with status \(code, format: .number.grouping(.never))"),
         stdout: process.stdout,
         stderr: process.stderr,
       )
 
     case .signaled(let signal):
       return .failure(
-        message: "Terminated by signal \(signal)",
+        message: String(localized: "Terminated by signal \(signal, format: .number.grouping(.never))"),
         stdout: process.stdout,
         stderr: process.stderr,
       )

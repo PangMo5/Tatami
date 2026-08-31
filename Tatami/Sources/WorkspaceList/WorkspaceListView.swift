@@ -182,7 +182,7 @@ struct WorkspaceListView: View {
     }
     .listStyle(.sidebar)
     .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
-    .navigationTitle(store.selectedProfile?.name ?? "Workspaces")
+    .navigationTitle(store.selectedProfile?.name ?? String(localized: "Workspaces"))
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
@@ -615,7 +615,7 @@ private struct WorkspaceRuntimeStatusView: View {
       where composition.borrowed.contains(where: { $0.workspace == workspaceID })
     {
       return activationStore.config.activeProfile?.workspaces[id: composition.host]?.name
-        ?? "another workspace"
+        ?? String(localized: "another workspace")
     }
     return nil
   }

@@ -30,7 +30,7 @@ Tatami can assign each to a workspace, keep it always on top, and so on.
 open demo/build/Terminal.app demo/build/Code.app demo/build/Safari.app
 ```
 
-(Builds with `swiftc` into hand-assembled `.app` bundles — no Xcode/Tuist
+(Builds with `swiftc` into hand-assembled `.app` bundles. No Xcode/Tuist
 project. `build/` is git-ignored.)
 
 ## Config (keeps YOUR settings)
@@ -55,18 +55,18 @@ Borrow **Chat** with **⌃⌥⌘3**. Summon the **AI Assistant** scratchpad with
 
 ## Recording the demo (mirrors the website animation)
 
-1. **Tiling reveal** — on **Code**, open the apps one at a time
+1. **Tiling reveal:** On **Code**, open the apps one at a time
    (`open …/Terminal.app`, then Code, Safari). Each new window splits off
-   the focused tile — the dwindle layout keeps the first window largest.
+   the focused tile. The dwindle layout keeps the first window largest.
    (**⌘N** in an app adds another of its own windows; **⌘W** closes one and the
    rest re-tile.)
-2. **Manipulate** — directional focus, swap into a bigger tile, zoom to fill,
-   rotate — with your own Tatami keybindings.
-3. **Borrow** — borrow **Chat** on the right. Its three-window BSP stays separate
+2. **Manipulate:** Use directional focus, swap into a bigger tile, zoom to fill,
+   and rotate with your own Tatami keybindings.
+3. **Borrow:** Borrow **Chat** on the right. Its three-window BSP stays separate
    from Code while directional focus crosses the shared edge.
-4. **Shared + scratchpad** — keep Notes above both layouts, then summon and
+4. **Shared + scratchpad:** Keep Notes above both layouts, then summon and
    dismiss the **AI Assistant** without replacing Code.
-5. **Workspaces** — switch to **Design** (Figma, Photos), then show the Work and
+5. **Workspaces:** Switch to **Design** (Figma, Photos), then show the Work and
    Personal profiles in Tatami's settings.
 
 Open each workspace's apps (above) before switching to it so there's something

@@ -1035,7 +1035,7 @@ struct OnboardingSwitchingDemo: View {
           .frame(width: 44, height: 44)
           .background(Color.accentColor.opacity(0.12), in: .rect(cornerRadius: 12))
         VStack(alignment: .leading, spacing: 3) {
-          Text(activeWorkspace?.name ?? "Workspace")
+          Text(activeWorkspace?.name ?? String(localized: "Workspace"))
             .font(.headline)
           Text(activeApps.isEmpty ? "No assigned apps yet" : "\(activeApps.count) apps arrive together")
             .font(.caption)
@@ -1738,7 +1738,7 @@ private struct OnboardingGestureConsole: View {
       }
 
       Label(
-        "3 fingers · cycle the focused window inside \(activeWorkspace?.name ?? "this workspace")",
+        "3 fingers · cycle the focused window inside \(activeWorkspace?.name ?? String(localized: "this workspace"))",
         systemImage: "macwindow",
       )
       .font(.caption.weight(.semibold))
