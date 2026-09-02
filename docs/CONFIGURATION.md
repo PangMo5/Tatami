@@ -72,6 +72,9 @@ Borrow visibility transaction.
 overlayAwareApps = ["notion.id"]
 ```
 
+For symptoms, app examples, and the Settings UI workflow, see
+[Troubleshooting](TROUBLESHOOTING.md#a-floating-control-disappears-or-brings-its-app-back).
+
 ## `[settings.menuBar]`
 
 | Key | Type | Default | Description |
