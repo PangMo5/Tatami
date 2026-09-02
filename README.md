@@ -156,6 +156,10 @@ shell string. Edits made in the app or by hand are picked up live.
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference:
 every key, its default, and the shortcut syntax.
 
+For app-specific window behavior, including floating meeting controls and
+Picture-in-Picture across workspace switches, see
+[Troubleshooting](docs/TROUBLESHOOTING.md).
+
 ### Command line
 
 Tatami ships a `tatami` CLI inside the app bundle. Install it from
