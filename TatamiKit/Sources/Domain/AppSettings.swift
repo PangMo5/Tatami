@@ -703,6 +703,7 @@ extension AppSettings {
       recentAcrossDisplays: Bool = true,
       switchToRecentWhenEmpty: Bool = false,
       cycleSameAppWindows: Bool = false,
+      includeSharedAppsInWindowSwitcher: Bool = true,
       toggleBorrowOnRepeat: Bool = true,
       borrowDefaultEdge: BorrowEdge? = nil,
       borrowFraction: Double = 0.4,
@@ -714,6 +715,7 @@ extension AppSettings {
       self.recentAcrossDisplays = recentAcrossDisplays
       self.switchToRecentWhenEmpty = switchToRecentWhenEmpty
       self.cycleSameAppWindows = cycleSameAppWindows
+      self.includeSharedAppsInWindowSwitcher = includeSharedAppsInWindowSwitcher
       self.toggleBorrowOnRepeat = toggleBorrowOnRepeat
       self.borrowDefaultEdge = borrowDefaultEdge
       self.borrowFraction = borrowFraction
@@ -728,6 +730,10 @@ extension AppSettings {
       recentAcrossDisplays = c.decode(.recentAcrossDisplays, default: true)
       switchToRecentWhenEmpty = c.decode(.switchToRecentWhenEmpty, default: false)
       cycleSameAppWindows = c.decode(.cycleSameAppWindows, default: false)
+      includeSharedAppsInWindowSwitcher = c.decode(
+        .includeSharedAppsInWindowSwitcher,
+        default: true,
+      )
       toggleBorrowOnRepeat = c.decode(.toggleBorrowOnRepeat, default: true)
       borrowDefaultEdge = c.decodeIfValid(.borrowDefaultEdge)
       borrowFraction = c.decode(.borrowFraction, default: 0.4)
@@ -761,6 +767,9 @@ extension AppSettings {
     /// press lands on the next app. When `true`, it visits every window
     /// individually, including multiple windows of the same app.
     public var cycleSameAppWindows: Bool
+    /// Keep Shared Apps in the app/window switcher. During a Borrow composition
+    /// their non-tiled windows join the host and borrowed tiled blocks.
+    public var includeSharedAppsInWindowSwitcher: Bool
     /// Summoning the same workspace already borrowed on the interaction
     /// display dismisses that borrow instead of re-docking it.
     public var toggleBorrowOnRepeat: Bool
@@ -781,6 +790,7 @@ extension AppSettings {
       case recentAcrossDisplays
       case switchToRecentWhenEmpty
       case cycleSameAppWindows
+      case includeSharedAppsInWindowSwitcher
       case toggleBorrowOnRepeat
       case borrowDefaultEdge
       case borrowFraction

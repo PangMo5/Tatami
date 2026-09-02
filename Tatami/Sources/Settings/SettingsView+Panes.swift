@@ -338,6 +338,12 @@ extension SettingsView {
           "Step through each window individually, including multiple windows of the same app. Off cycles app-by-app and recalls each app's most-recent window inside the visible Tatami context."
         )
       }
+      Toggle(isOn: setting(\.switching.includeSharedAppsInWindowSwitcher)) {
+        Text("Include Shared Apps")
+        Text(
+          "Keep Shared Apps in the app/window switcher. During Borrow, they join the host and borrowed tiled blocks."
+        )
+      }
       shortcut(
         "Cycle next window",
         .cycleNextWindow,

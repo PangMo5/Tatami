@@ -4036,21 +4036,55 @@ public struct WorkspaceActivationFeature {
     state: State,
   ) -> State.WindowCycleSession? {
     guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return nil }
-    guard let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID
+    let treeWorkspaceId = state.workspaceContaining(key)
+    var cachedOnScreenFrames: [CGWindowID: CGRect]?
+    let keyDisplay: DisplayName?
+    if
+      treeWorkspaceId == nil,
+      state.config.sharedApps.contains(where: {
+        $0.bundleIdentifier == key.bundleId
+      })
+    {
+      let frames = windowSnapshot.onScreenWindowFrames()
+      cachedOnScreenFrames = frames
+      keyDisplay = frames[key.windowID].flatMap { frame in
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        return displays.all().first {
+          displays.workArea($0).contains(center)
+        }
+      }
+    } else {
+      keyDisplay = nil
+    }
+    let displayWorkspaceId = keyDisplay.flatMap { display in
+      state.compositionsByDisplay[display]?.host
+        ?? state.activeWorkspacesByDisplay[display]
+    }
+    guard
+      let workspaceId = treeWorkspaceId
+      ?? displayWorkspaceId
+      ?? state.workspaceOwning(key)
+      ?? state.primaryActiveWorkspaceID
     else { return nil }
 
     // Borrow is one visible task surface, so cycling spans every tiled tree in
     // that display's composition. Keep the host first for deterministic HUD
     // order; the current key still determines the next/previous wrap point.
-    let display = state.displayShowing(workspaceId)
+    let display = keyDisplay ?? state.displayShowing(workspaceId)
     let composition = display.flatMap { state.compositionsByDisplay[$0] }
     let workspaceIds = composition.map {
       [$0.host] + $0.borrowed.map(\.workspace)
     } ?? [workspaceId]
     var allWindows = workspaceIds.flatMap { state.tilingTrees[$0]?.windows ?? [] }
+    let sharedBundleIds = Set(state.config.sharedApps.map(\.bundleIdentifier))
+    let includesSharedApps = state.config.settings.switching
+      .includeSharedAppsInWindowSwitcher
 
-    // Floating/unmanaged join only when uncomposed. A borrowed workspace's
-    // non-tiled assignments are intentionally not part of the borrowed block.
+    // Workspace-local Floating/Leave As Is assignments join only when
+    // uncomposed: a borrowed workspace's non-tiled assignments are not part of
+    // its borrowed block. Shared Apps are already visible across the whole
+    // composition, so the default policy adds their non-tiled windows
+    // back to the switcher; shared tiled windows are already in the BSP trees.
     let isComposed = composition != nil
     if !isComposed {
       let floatingBundles = Self.floatingBundleIds(
@@ -4067,8 +4101,41 @@ public struct WorkspaceActivationFeature {
       if !unmanagedBundles.isEmpty {
         allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
       }
+    } else if includesSharedApps {
+      // Match the uncomposed ordering: floating first, then unmanaged.
+      let sharedNonTiledBundles = Self.floatingBundleIds(
+        state: state,
+        workspaceIDs: [],
+      ) + Self.unmanagedBundleIds(
+        state: state,
+        workspaceIDs: [],
+      )
+      if !sharedNonTiledBundles.isEmpty, let display {
+        let sharedWindows = windowSnapshot.cachedKeys(
+          sharedNonTiledBundles,
+          false,
+        )
+        if !sharedWindows.isEmpty {
+          let onScreenFrames = cachedOnScreenFrames
+            ?? windowSnapshot.onScreenWindowFrames()
+          let workArea = displays.workArea(display)
+          allWindows += sharedWindows.filter { key in
+            guard let frame = onScreenFrames[key.windowID] else { return false }
+            return workArea.contains(
+              CGPoint(x: frame.midX, y: frame.midY)
+            )
+          }
+        }
+      }
     }
-    allWindows.removeAll { overlayAwareness.isBackgroundedProcess($0.pid) }
+    if !includesSharedApps {
+      allWindows.removeAll { sharedBundleIds.contains($0.bundleId) }
+    }
+    var seenWindows = Set<WindowKey>()
+    allWindows.removeAll {
+      overlayAwareness.isBackgroundedProcess($0.pid)
+        || !seenWindows.insert($0).inserted
+    }
     guard !allWindows.isEmpty else { return nil }
 
     let byWindow = state.config.settings.switching.cycleSameAppWindows
@@ -4077,13 +4144,17 @@ public struct WorkspaceActivationFeature {
       var seenApps = Set<String>()
       ordered = allWindows.filter { seenApps.insert($0.bundleId).inserted }
     }
-    guard ordered.count > 1 else { return nil }
+    let currentIndex = byWindow
+      ? ordered.firstIndex(of: key)
+      : ordered.firstIndex { $0.bundleId == key.bundleId }
+    guard ordered.count > 1 || currentIndex == nil else { return nil }
 
     let count = ordered.count
     let step = direction == .next ? 1 : -1
-    let index = byWindow
-      ? (ordered.firstIndex(of: key) ?? -1)
-      : (ordered.firstIndex { $0.bundleId == key.bundleId } ?? -1)
+    // The focused key can be a Shared App deliberately excluded by the option.
+    // Enter the remaining order from its directional edge instead of
+    // treating both directions as though they started before index zero.
+    let index = currentIndex ?? (direction == .next ? -1 : 0)
     var target = ordered[((index + step) % count + count) % count]
 
     // App-level cycle lands on that app's most-recently-focused window rather

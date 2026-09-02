@@ -10,6 +10,24 @@
         "en": { "stringUnit": { "state": "translated", "value": "Apps With Floating Controls" } }
       }
     },
+    "Include Shared Apps": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "공용 앱 포함" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "共有アプリを含める" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "包含共享应用" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "包含共用 App" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Include Shared Apps" } }
+      }
+    },
+    "Keep Shared Apps in the app/window switcher. During Borrow, they join the host and borrowed tiled blocks.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "앱/창 전환 화면에 공용 앱을 포함해요. 빌려오기 중에도 호스트와 빌려온 타일 블록을 함께 전환해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "アプリ／ウインドウ切り替えに共有アプリを含めます。借りている間も、ホストと借りたタイルブロックを一緒に切り替えます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "在 App/窗口切换器中包含共享应用。借用期间，它们会与主工作区和借用的平铺区域一起参与切换。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "在 App/視窗切換器中包含共用 App。借用期間，它們會與主工作區和借用的平鋪區域一起參與切換。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Keep Shared Apps in the app/window switcher. During Borrow, they join the host and borrowed tiled blocks." } }
+      }
+    },
     "Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you activate that workspace again. They may remain visible in Mission Control.": {
       "localizations": {
         "ko": { "stringUnit": { "state": "translated", "value": "앱이 일반 창 레이어가 아닌 곳에 화면 표시 중인 플로팅 컨트롤을 가진 동안에만 숨기지 않습니다. 해당 워크스페이스를 다시 활성화할 때까지 일반 창은 Tatami의 포커스, 순환, 레이아웃 및 멤버십 동작에서 제외됩니다. Mission Control에는 계속 보일 수 있습니다." } },
