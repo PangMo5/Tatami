@@ -1321,6 +1321,10 @@ struct WorkspaceActivationFeatureTests {
       $0.activeWorkspacesByDisplay = [displayA: wsA.id, displayB: wsB.id]
       $0.tilingTrees = [wsA.id: .leaf(windowA), wsB.id: .leaf(windowB)]
     }
+    state.$config.withLock {
+      $0.settings.hud.position = .bottomTrailing
+      $0.settings.hud.size = .large
+    }
     let requests = LockIsolated<[ActivationRequest]>([])
     let focused = LockIsolated<[WindowKey]>([])
     let hudCalls = LockIsolated<Set<String>>([])
@@ -1335,9 +1339,12 @@ struct WorkspaceActivationFeatureTests {
       $0.focusManager.focusWindow = { key in
         focused.withValue { $0.append(key) }
       }
-      $0.workspaceHUD.showOnDisplay = { name, _, subtitle, _, display in
+      $0.workspaceHUD.showAction = { request in
         hudCalls.withValue {
-          _ = $0.insert("\(display?.name ?? "nil")|\(name)|\(subtitle ?? "nil")")
+          _ = $0.insert(
+            "\(request.display?.name ?? "nil")|\(request.name)|"
+              + "\(request.subtitle ?? "nil")|\(request.position.rawValue)|\(request.size.rawValue)"
+          )
         }
       }
     }
@@ -1352,9 +1359,10 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
     #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
     #expect(hudCalls.value == [
-      "\(displayB.name)|\(wsB.name)|nil",
+      "\(displayB.name)|\(wsB.name)|nil|bottomTrailing|large",
       "\(displayA.name)|\(String(localized: "Focus moved"))|"
-        + String(localized: "\(wsB.name) is on \(displayB.name)"),
+        + String(localized: "\(wsB.name) is on \(displayB.name)")
+        + "|bottomTrailing|large",
     ])
   }
 

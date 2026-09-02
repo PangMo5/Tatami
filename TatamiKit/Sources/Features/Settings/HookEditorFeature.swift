@@ -474,11 +474,25 @@ public struct HookEditorFeature {
         nil
       }
     if state.draft.event == .workspaceActivated, workspace == nil { return nil }
+    let hud: HookInvocation.HUDSnapshot? =
+      if state.draft.event == .hud {
+        .init(
+          title: profile.name,
+          symbolIconName: "rectangle.inset.filled",
+          subtitle: nil,
+          durationMs: state.baseline.settings.hud.durationMs,
+          position: state.baseline.settings.hud.position,
+          size: state.baseline.settings.hud.size,
+        )
+      } else {
+        nil
+      }
     return HookInvocation(
       event: state.draft.event,
       occurredAt: occurredAt,
       profile: .init(profile),
       workspace: workspace.map(HookInvocation.WorkspaceSnapshot.init),
+      hud: hud,
     )
   }
 

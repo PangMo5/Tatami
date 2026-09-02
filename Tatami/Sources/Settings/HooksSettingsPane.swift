@@ -45,7 +45,7 @@ private struct HooksIntroductionSection: View {
     Section {
       HStack(alignment: .center, spacing: 16) {
         VStack(alignment: .leading, spacing: 4) {
-          Text("Run a program when Tatami launches, changes profile, or activates a workspace.")
+          Text("Run a program when Tatami launches, changes profile, activates a workspace, or presents action feedback.")
           Text("Commands run directly with the arguments and environment shown below. A shell is never added automatically.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -804,6 +804,8 @@ extension HookEvent {
       "Tatami Launched"
     case .workspaceActivated:
       "Workspace Activated"
+    case .hud:
+      "HUD Published"
     }
   }
 
@@ -815,6 +817,8 @@ extension HookEvent {
       "power"
     case .workspaceActivated:
       "square.stack.3d.up"
+    case .hud:
+      "rectangle.inset.filled"
     }
   }
 
@@ -826,6 +830,8 @@ extension HookEvent {
       "Provides the current profile when Tatami finishes launching."
     case .workspaceActivated:
       "Provides the profile, workspace, and, when available, the display."
+    case .hud:
+      "Provides the exact title, symbol, subtitle, duration, position, size, and display published to compact action feedback."
     }
   }
 
@@ -838,6 +844,10 @@ extension HookEvent {
       return base
     case .workspaceActivated:
       return base + ", workspace { id, name, kind }, display? { uuid?, name }"
+    case .hud:
+      return base
+        + ", hud { title, symbolIconName?, subtitle?, durationMs, position, size }"
+        + ", display? { uuid?, name }"
     }
   }
 
@@ -847,9 +857,16 @@ extension HookEvent {
     case .profileChanged,
          .tatamiLaunched:
       return base
+
     case .workspaceActivated:
       return base
         + ", TATAMI_WORKSPACE_ID, TATAMI_WORKSPACE_NAME, TATAMI_WORKSPACE_KIND"
+        + ", TATAMI_DISPLAY_NAME?, TATAMI_DISPLAY_UUID?"
+
+    case .hud:
+      return base
+        + ", TATAMI_HUD_TITLE, TATAMI_HUD_SYMBOL_ICON_NAME?, TATAMI_HUD_SUBTITLE?"
+        + ", TATAMI_HUD_DURATION_MS, TATAMI_HUD_POSITION, TATAMI_HUD_SIZE"
         + ", TATAMI_DISPLAY_NAME?, TATAMI_DISPLAY_UUID?"
     }
   }

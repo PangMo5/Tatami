@@ -144,6 +144,87 @@ struct HookIntegrationTests {
   }
 
   @Test
+  func `presented action HUD emits its effective external presentation once`() async {
+    let profile = Profile(name: "Default")
+    let hook = HookDefinition(
+      id: "external-hud",
+      event: .hud,
+      command: ["/usr/bin/true"],
+    )
+    let display = DisplayName(uuid: "display-a", name: "Built-in")
+    let (store, invocations, _) = makeStore(AppConfig(
+      profiles: [profile],
+      hooks: [hook],
+      activeProfileId: profile.id,
+    ))
+    let presentation = ActionHUDPresentation(
+      title: "Borrow Work",
+      symbolIconName: "rectangle.split.2x1",
+      subtitle: "press a direction",
+      durationMs: 8_000,
+      position: .bottomTrailing,
+      size: .large,
+      display: display,
+    )
+
+    await store.send(.actionHUDPresented(presentation))
+    await store.receive {
+      guard case .hooks(.emit(let invocation)) = $0 else { return false }
+      return invocation.event == .hud
+        && invocation.profile == .init(profile)
+        && invocation.display == .init(display)
+        && invocation.hud == .init(
+          title: presentation.title,
+          symbolIconName: presentation.symbolIconName,
+          subtitle: presentation.subtitle,
+          durationMs: presentation.durationMs,
+          position: presentation.position,
+          size: presentation.size,
+        )
+    }
+    await store.finish()
+
+    #expect(invocations.value.count == 1)
+  }
+
+  @Test
+  func `hook failure HUD suppresses recursive HUD hook publication`() async {
+    let profile = Profile(name: "Default")
+    let shared = Shared(value: AppConfig(
+      profiles: [profile],
+      hooks: [HookDefinition(
+        id: "external-hud",
+        event: .hud,
+        command: ["/usr/bin/false"],
+      )],
+      activeProfileId: profile.id,
+    ))
+    let state = AppFeature.State()
+    state.$config = shared
+    state.activation.$config = shared
+    state.hooks.$config = shared
+    let requests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.workspaceHUD.showAction = { request in
+        requests.withValue { $0.append(request) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.errorReportEvent(.reported(ErrorReport(
+      domain: "Hook:external-hud",
+      message: "Hook failed",
+      detail: "Exited with status 1",
+    ))))
+    await store.finish()
+
+    #expect(requests.value.count == 1)
+    #expect(requests.value.first?.emitsHookEvent == false)
+  }
+
+  @Test
   func `CLI readiness publishes tatami launched once before startup profile changed`() async {
     let profile = Profile(name: "Default")
     let profileHook = HookDefinition(

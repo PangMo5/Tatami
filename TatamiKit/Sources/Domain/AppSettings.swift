@@ -380,6 +380,66 @@ public enum MarkerCorner: String, Codable, Hashable, Sendable, CaseIterable, Ide
   }
 }
 
+// MARK: - HUDPosition
+
+/// Where compact action feedback is anchored within each display's visible
+/// frame. The interactive app/window switcher intentionally remains centered.
+public enum HUDPosition: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case topLeading
+  case top
+  case topTrailing
+  case leading
+  case center
+  case trailing
+  case bottomLeading
+  case bottom
+  case bottomTrailing
+
+  // MARK: Public
+
+  public var id: String {
+    rawValue
+  }
+
+  public var displayName: LocalizedStringResource {
+    switch self {
+    case .topLeading: "Top-left"
+    case .top: "Top"
+    case .topTrailing: "Top-right"
+    case .leading: "Left"
+    case .center: "Center"
+    case .trailing: "Right"
+    case .bottomLeading: "Bottom-left"
+    case .bottom: "Bottom"
+    case .bottomTrailing: "Bottom-right"
+    }
+  }
+}
+
+// MARK: - HUDSize
+
+/// Overall scale used by compact action feedback. `standard` maps to the
+/// historical HUD dimensions so existing configurations keep their appearance.
+public enum HUDSize: String, Codable, Hashable, Sendable, CaseIterable, Identifiable {
+  case small
+  case standard = "default"
+  case large
+
+  // MARK: Public
+
+  public var id: String {
+    rawValue
+  }
+
+  public var displayName: LocalizedStringResource {
+    switch self {
+    case .small: "Small"
+    case .standard: "Default"
+    case .large: "Large"
+    }
+  }
+}
+
 // MARK: - AppSettings.HUD
 
 extension AppSettings {
@@ -398,6 +458,8 @@ extension AppSettings {
       fullscreen: Bool = true,
       layout: Bool = true,
       borrow: Bool = true,
+      position: HUDPosition = .top,
+      size: HUDSize = .standard,
       durationMs: Int = 900,
     ) {
       self.enabled = enabled
@@ -410,6 +472,8 @@ extension AppSettings {
       self.fullscreen = fullscreen
       self.layout = layout
       self.borrow = borrow
+      self.position = position
+      self.size = size
       self.durationMs = durationMs
     }
 
@@ -425,6 +489,8 @@ extension AppSettings {
       fullscreen = c.decode(.fullscreen, default: true)
       layout = c.decode(.layout, default: true)
       borrow = c.decode(.borrow, default: true)
+      position = c.decode(.position, default: .top)
+      size = c.decode(.size, default: .standard)
       durationMs = c.decode(.durationMs, default: 900)
     }
 
@@ -451,8 +517,15 @@ extension AppSettings {
     public var layout: Bool
     /// Borrowing a workspace into / out of the current composition.
     public var borrow: Bool
-    /// How long the overlay stays up, in milliseconds. HUDs that carry a
-    /// follow-up hint line linger twice as long.
+    /// Screen position used by compact action feedback. The interactive
+    /// app/window switcher keeps its native centered placement.
+    public var position: HUDPosition
+    /// Overall scale of compact action feedback. The app/window switcher keeps
+    /// its own fixed dimensions.
+    public var size: HUDSize
+    /// How long the overlay remains fully visible between its entrance and
+    /// exit animations, in milliseconds. HUDs that carry a follow-up hint line
+    /// linger twice as long.
     public var durationMs: Int
 
     /// Effective visibility for one HUD category — the master switch
@@ -474,6 +547,8 @@ extension AppSettings {
       case fullscreen
       case layout
       case borrow
+      case position
+      case size
       case durationMs
     }
 

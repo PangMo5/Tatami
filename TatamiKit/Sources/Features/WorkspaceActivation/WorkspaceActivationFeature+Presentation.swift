@@ -258,10 +258,21 @@ extension WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard state.config.settings.hud.shows(category) else { return .none }
     let durationMs = state.config.settings.hud.durationMs
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
     let title = String(localized: title)
     let subtitle = subtitle.map { String(localized: $0) }
     return .run { [hud = workspaceHUD] _ in
-      await hud.show(title, icon, subtitle, durationMs)
+      await hud.showAction(
+        ActionHUDRequest(
+          name: title,
+          symbolIconName: icon,
+          subtitle: subtitle,
+          durationMs: durationMs,
+          position: position,
+          size: size,
+        )
+      )
     }
   }
 

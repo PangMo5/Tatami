@@ -5,7 +5,7 @@ import Foundation
 
 // MARK: - HookEvent
 
-/// Stable lifecycle events that can launch a configured hook.
+/// Stable events that can launch a configured hook.
 public enum HookEvent: String, Codable, Sendable, CaseIterable {
   /// Tatami finished restoring its startup profile for this process.
   case tatamiLaunched
@@ -13,6 +13,8 @@ public enum HookEvent: String, Codable, Sendable, CaseIterable {
   case profileChanged
   /// A workspace activation published its visible state on a display.
   case workspaceActivated
+  /// Compact action feedback was published to the on-screen HUD.
+  case hud
 }
 
 // MARK: - HookDefinition
@@ -94,6 +96,7 @@ public struct HookInvocation: Hashable, Sendable, Codable {
     previousProfile: ProfileSnapshot? = nil,
     workspace: WorkspaceSnapshot? = nil,
     display: DisplaySnapshot? = nil,
+    hud: HUDSnapshot? = nil,
   ) {
     self.schemaVersion = schemaVersion
     self.event = event
@@ -102,6 +105,7 @@ public struct HookInvocation: Hashable, Sendable, Codable {
     self.previousProfile = previousProfile
     self.workspace = workspace
     self.display = display
+    self.hud = hud
   }
 
   // MARK: Public
@@ -150,6 +154,41 @@ public struct HookInvocation: Hashable, Sendable, Codable {
     public var name: String
   }
 
+  /// The same stable, presentation-ready values sent to Tatami's compact
+  /// action HUD. External bars can render these without reproducing Tatami's
+  /// workspace/action naming logic.
+  public struct HUDSnapshot: Hashable, Sendable, Codable {
+
+    // MARK: Lifecycle
+
+    public init(
+      title: String,
+      symbolIconName: String?,
+      subtitle: String?,
+      durationMs: Int,
+      position: HUDPosition,
+      size: HUDSize,
+    ) {
+      self.title = title
+      self.symbolIconName = symbolIconName
+      self.subtitle = subtitle
+      self.durationMs = durationMs
+      self.position = position
+      self.size = size
+    }
+
+    // MARK: Public
+
+    public var title: String
+    public var symbolIconName: String?
+    public var subtitle: String?
+    /// Settled dwell time; the rendering surface owns its entrance and exit.
+    public var durationMs: Int
+    public var position: HUDPosition
+    public var size: HUDSize
+
+  }
+
   public var schemaVersion: Int
   public var event: HookEvent
   public var occurredAt: Date
@@ -157,6 +196,7 @@ public struct HookInvocation: Hashable, Sendable, Codable {
   public var previousProfile: ProfileSnapshot?
   public var workspace: WorkspaceSnapshot?
   public var display: DisplaySnapshot?
+  public var hud: HUDSnapshot?
 
 }
 

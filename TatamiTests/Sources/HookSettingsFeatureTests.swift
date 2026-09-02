@@ -322,6 +322,63 @@ struct HookSettingsFeatureTests {
   }
 
   @Test
+  func `Run Test gives a HUD hook the current presentation settings without a workspace`() async throws {
+    let profile = Profile(name: "Default")
+    let baseline = AppConfig(
+      profiles: [profile],
+      settings: AppSettings(hud: .init(
+        position: .bottomLeading,
+        size: .large,
+        durationMs: 1_200,
+      )),
+      activeProfileId: profile.id,
+    )
+    let hook = HookDefinition(
+      id: "external-hud",
+      event: .hud,
+      command: ["/usr/bin/true"],
+    )
+    let state = HookEditorFeature.State(
+      mode: .add,
+      baseline: baseline,
+      hook: hook,
+      makeUUID: { UUID() },
+    )
+    let received = LockIsolated<HookInvocation?>(nil)
+    let date = Date(timeIntervalSince1970: 1_700_000_000)
+    let store = TestStore(initialState: state) {
+      HookEditorFeature()
+    } withDependencies: {
+      $0.date.now = date
+      $0.hookRunner.run = { _, invocation in
+        received.setValue(invocation)
+        return .success(stdout: "", stderr: "")
+      }
+      $0.uuid = .incrementing
+    }
+    store.exhaustivity = .off
+
+    await store.send(.testButtonTapped)
+    await store.receive {
+      guard case .testResponse(_, .success) = $0 else { return false }
+      return true
+    }
+    await store.finish()
+
+    let invocation = try #require(received.value)
+    #expect(invocation.event == .hud)
+    #expect(invocation.workspace == nil)
+    #expect(invocation.hud == .init(
+      title: profile.name,
+      symbolIconName: "rectangle.inset.filled",
+      subtitle: nil,
+      durationMs: 1_200,
+      position: .bottomLeading,
+      size: .large,
+    ))
+  }
+
+  @Test
   func `Run Test rejects a scratchpad even when its id is selected`() async {
     let scratchpad = Workspace(name: "Scratch", kind: .scratchpad)
     let workspace = Workspace(name: "Work")

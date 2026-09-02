@@ -31,7 +31,7 @@ The file has four top-level parts:
 - **`[settings.*]`:** Global preferences described below
 - **`[[sharedApps]]`:** Apps that are part of every workspace, either tiled or kept on top
 - **`[[profiles]]`:** Workspaces and their app assignments
-- **`[[hooks]]`:** Programs triggered by Tatami, profile, and workspace lifecycle events
+- **`[[hooks]]`:** Programs triggered by Tatami lifecycle and action-feedback events
 
 ## Shortcut syntax
 
@@ -103,7 +103,9 @@ actions show feedback.
 | `fullscreen` | bool | `true` | Fullscreen zoom entered / exited. |
 | `borrow` | bool | `true` | Borrow or return a workspace, plus the direction-pick hint. |
 | `layout` | bool | `true` | Layout commands without a visual cue of their own (balance). |
-| `durationMs` | int | `900` | How long feedback stays visible, in milliseconds. Feedback with a follow-up hint stays twice as long. |
+| `position` | string | `"top"` | Screen position for compact action feedback: `topLeading`, `top`, `topTrailing`, `leading`, `center`, `trailing`, `bottomLeading`, `bottom`, or `bottomTrailing`. The interactive app/window switcher stays centered independently. |
+| `size` | string | `"default"` | Overall size of compact action feedback: `small`, `default`, or `large`. The interactive app/window switcher keeps its fixed size. |
+| `durationMs` | int | `900` | How long feedback remains fully visible between its entrance and exit animations, in milliseconds. Feedback with a follow-up hint stays twice as long. |
 
 ## `[settings.layout]`
 
@@ -360,7 +362,7 @@ bool on any app or shared app also migrates (`true` → `floating`, else `tiled`
 
 ## `[[hooks]]`
 
-Hooks run a program when Tatami publishes one of these lifecycle events:
+Hooks run a program when Tatami publishes one of these events:
 
 - `tatamiLaunched`: published once per Tatami process after startup has
   resolved the active profile. Matching hooks receive that profile;
@@ -370,6 +372,10 @@ Hooks run a program when Tatami publishes one of these lifecycle events:
   `previousProfile` is absent.
 - `workspaceActivated`: a workspace activation published its visible state on
   a display. Failed or timed-out activations do not emit it.
+- `hud`: compact action feedback was published. It carries the exact localized
+  title, SF Symbol name, optional subtitle, duration, position, size, and
+  optional target display sent to Tatami's HUD, so external surfaces such as
+  SketchyBar can render the same feedback.
 
 The startup `tatamiLaunched` and `profileChanged` events are separate. Configure
 either or both depending on whether the hook needs process startup or profile
@@ -399,7 +405,7 @@ environment = { MODE = "desktop" }
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `id` | string | _(required)_ | Unique diagnostic identifier using ASCII letters, numbers, `.`, `_`, or `-` (up to 64 characters). |
-| `event` | string | _(required)_ | `tatamiLaunched`, `profileChanged`, or `workspaceActivated`. |
+| `event` | string | _(required)_ | `tatamiLaunched`, `profileChanged`, `workspaceActivated`, or `hud`. |
 | `enabled` | bool | `true` | Whether this hook runs. Disabled hooks remain visible to `tatami hook list`. |
 | `command` | string[] | _(required)_ | Executable followed by its arguments. Each element is one argv value. |
 | `timeoutMs` | int | `5000` | Runtime limit from 100 through 300000 milliseconds. |
@@ -421,7 +427,10 @@ from Finder.
 
 Each hook receives one versioned JSON object on standard input. The object has
 `schemaVersion`, `event`, `occurredAt`, `profile`, and, when applicable,
-`previousProfile`, `workspace`, and `display`. Tatami also sets these convenience
+`previousProfile`, `workspace`, `display`, and `hud`. The `hud` object contains
+`title`, `symbolIconName`, `subtitle`, `durationMs`, `position`, and `size`.
+`durationMs` is the fully visible dwell interval; an external surface adds its
+own entrance and exit outside that interval. Tatami also sets these convenience
 variables:
 
 - `TATAMI_HOOK_ID`, `TATAMI_HOOK_EVENT`
@@ -429,6 +438,17 @@ variables:
 - `TATAMI_WORKSPACE_ID`, `TATAMI_WORKSPACE_NAME`, `TATAMI_WORKSPACE_KIND`
   for a workspace event
 - `TATAMI_DISPLAY_UUID`, `TATAMI_DISPLAY_NAME` when a display is known
+- `TATAMI_HUD_TITLE`, `TATAMI_HUD_SYMBOL_ICON_NAME`, `TATAMI_HUD_SUBTITLE`,
+  `TATAMI_HUD_DURATION_MS`, `TATAMI_HUD_POSITION`, and `TATAMI_HUD_SIZE` for a
+  `hud` event. Optional values are omitted rather than set to an empty string.
+
+For example, a SketchyBar bridge can subscribe with `event = "hud"` and point
+`command` at a small executable script that forwards these `TATAMI_HUD_*`
+variables to a custom SketchyBar event. Because the values are also available
+as JSON on standard input, integrations that need structured optional fields do
+not have to parse environment-variable conventions. HUDs reporting a hook's
+own failure or recovery are intentionally not republished as `hud` events; this
+prevents a failing HUD hook from recursively launching itself.
 
 Standard output and error are each limited to 64 KiB. A nonzero exit, signal,
 spawn error, excessive output, or timeout is reported under Problems and in the

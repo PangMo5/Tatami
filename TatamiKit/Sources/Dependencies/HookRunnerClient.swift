@@ -345,6 +345,16 @@ extension HookInvocation {
       values["TATAMI_DISPLAY_NAME"] = display.name
       if let uuid = display.uuid { values["TATAMI_DISPLAY_UUID"] = uuid }
     }
+    if let hud {
+      values["TATAMI_HUD_TITLE"] = hud.title
+      values["TATAMI_HUD_DURATION_MS"] = String(hud.durationMs)
+      values["TATAMI_HUD_POSITION"] = hud.position.rawValue
+      values["TATAMI_HUD_SIZE"] = hud.size.rawValue
+      if let symbolIconName = hud.symbolIconName {
+        values["TATAMI_HUD_SYMBOL_ICON_NAME"] = symbolIconName
+      }
+      if let subtitle = hud.subtitle { values["TATAMI_HUD_SUBTITLE"] = subtitle }
+    }
     return values
   }
 }

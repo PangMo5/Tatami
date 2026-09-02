@@ -100,7 +100,7 @@ Captured on an earlier version. Some labels have changed since these screenshots
 - **Native settings:** Configure Tatami in SwiftUI.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.
 - **Plain TOML:** Edit `~/.config/tatami/config.toml` with XDG support and live reloads.
-- **Native hook editor:** Add, edit, delete, enable, or disable lifecycle hooks in **Settings → Hooks**, including their executable, argv, environment, working directory, and timeout.
+- **Native hook editor:** Add, edit, delete, enable, or disable lifecycle and action-feedback hooks in **Settings → Hooks**, including their executable, argv, environment, working directory, and timeout.
 - **Scriptable CLI:** Use domain commands such as `tatami workspace activate <workspace>` and `tatami workspace list`.
 - **Automatic updates:** Receive releases through Sparkle.
 
