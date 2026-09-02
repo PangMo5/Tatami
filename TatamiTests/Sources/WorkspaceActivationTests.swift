@@ -579,6 +579,294 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `borrow app cycle includes shared non tiled apps by default`() async {
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let sharedWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.shared")
+    let sharedFloatingWindow = WindowKey(
+      pid: 4,
+      windowID: 401,
+      bundleId: "app.shared-floating",
+    )
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let workArea = CGRect(x: 0, y: 0, width: 1_200, height: 800)
+    let expectedDisplay = Self.display
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(
+            bundleIdentifier: sharedWindow.bundleId,
+            name: "Shared",
+            layout: .unmanaged,
+          ),
+          SharedApp(
+            bundleIdentifier: sharedFloatingWindow.bundleId,
+            name: "Shared Floating",
+            layout: .floating,
+          ),
+        ]
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)],
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudIndicators = LockIsolated<[WindowKey: WindowSwitcherIndicators]>([:])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { display in
+        #expect(display == expectedDisplay)
+        return workArea
+      }
+      $0.windowSnapshot.cachedKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [
+          sharedFloatingWindow.bundleId,
+          sharedWindow.bundleId,
+        ])
+        #expect(!requireResizable)
+        return [sharedFloatingWindow, sharedWindow]
+      }
+      $0.windowSnapshot.onScreenWindowFrames = {
+        [
+          sharedFloatingWindow.windowID: CGRect(
+            x: 600,
+            y: 100,
+            width: 400,
+            height: 300,
+          ),
+          sharedWindow.windowID: CGRect(
+            x: 100,
+            y: 100,
+            width: 400,
+            height: 300,
+          ),
+        ]
+      }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, indicators, _, _ in
+        hudWindows.withValue { $0 = windows }
+        hudIndicators.withValue { $0 = indicators }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(windowKey: hostWindow, direction: .previous))
+    await store.finish()
+
+    #expect(focused.value == sharedWindow)
+    #expect(hudWindows.value == [
+      hostWindow,
+      borrowedWindow,
+      sharedFloatingWindow,
+      sharedWindow,
+    ])
+    #expect(hudIndicators.value[sharedFloatingWindow]?.isShared == true)
+    #expect(hudIndicators.value[sharedWindow]?.isShared == true)
+  }
+
+  @Test
+  func `shared non tiled focus resolves the physical borrow display`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let windowA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let hostWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.borrowed")
+    let sharedWindow = WindowKey(pid: 4, windowID: 401, bundleId: "app.shared")
+    let otherDisplaySharedWindow = WindowKey(
+      pid: 5,
+      windowID: 402,
+      bundleId: sharedWindow.bundleId,
+    )
+    let workspaceA = Workspace(name: "A")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let workAreaA = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let workAreaB = CGRect(x: 1_000, y: 0, width: 1_000, height: 800)
+    let state = Self.makeState(workspaces: [workspaceA, host, borrowed]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(
+            bundleIdentifier: sharedWindow.bundleId,
+            name: "Shared",
+            layout: .unmanaged,
+          )
+        ]
+      }
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [
+        displayA: workspaceA.id,
+        displayB: host.id,
+      ]
+      $0.tilingTrees[workspaceA.id] = .leaf(windowA)
+      $0.tilingTrees[host.id] = .leaf(hostWindow)
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[displayB] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)],
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudDisplay = LockIsolated<DisplayName?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.workArea = { display in
+        display == displayB ? workAreaB : workAreaA
+      }
+      $0.windowSnapshot.cachedKeys = { bundleIds, requireResizable in
+        #expect(bundleIds == [sharedWindow.bundleId])
+        #expect(!requireResizable)
+        return [otherDisplaySharedWindow, sharedWindow]
+      }
+      $0.windowSnapshot.onScreenWindowFrames = {
+        [
+          otherDisplaySharedWindow.windowID: CGRect(
+            x: 100,
+            y: 100,
+            width: 400,
+            height: 300,
+          ),
+          sharedWindow.windowID: CGRect(
+            x: 1_100,
+            y: 100,
+            width: 400,
+            height: 300,
+          ),
+        ]
+      }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _, display in
+        hudWindows.withValue { $0 = windows }
+        hudDisplay.withValue { $0 = display }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .cycleWindowResolved(windowKey: sharedWindow, direction: .previous)
+    )
+    await store.finish()
+
+    #expect(focused.value == borrowedWindow)
+    #expect(hudWindows.value == [hostWindow, borrowedWindow, sharedWindow])
+    #expect(hudDisplay.value == displayB)
+  }
+
+  @Test
+  func `window switcher option excludes shared tiled app during borrow`() async {
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let borrowedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.borrowed")
+    let sharedWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.shared")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock {
+        $0.settings.switching.includeSharedAppsInWindowSwitcher = false
+        $0.sharedApps = [
+          SharedApp(
+            bundleIdentifier: sharedWindow.bundleId,
+            name: "Shared",
+            layout: .tiled,
+          )
+        ]
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(hostWindow),
+          right: .leaf(sharedWindow),
+        )
+      )
+      $0.tilingTrees[borrowed.id] = .leaf(borrowedWindow)
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)],
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _, _ in
+        hudWindows.withValue { $0 = windows }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(windowKey: hostWindow, direction: .previous))
+    await store.finish()
+
+    #expect(focused.value == borrowedWindow)
+    #expect(hudWindows.value == [hostWindow, borrowedWindow])
+  }
+
+  @Test(arguments: [
+    (direction: CycleDirection.next, expectsFirst: true),
+    (direction: CycleDirection.previous, expectsFirst: false),
+  ])
+  func `window switcher option enters remaining apps from directional edge`(
+    direction: CycleDirection,
+    expectsFirst: Bool,
+  ) async {
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let last = WindowKey(pid: 2, windowID: 201, bundleId: "app.last")
+    let sharedWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.shared")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.switching.includeSharedAppsInWindowSwitcher = false
+        $0.sharedApps = [
+          SharedApp(
+            bundleIdentifier: sharedWindow.bundleId,
+            name: "Shared",
+            layout: .floating,
+          )
+        ]
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(first),
+          right: .leaf(last),
+        )
+      )
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.cachedKeys = { _, _ in [sharedWindow] }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(
+      .cycleWindowResolved(windowKey: sharedWindow, direction: direction)
+    )
+    await store.finish()
+
+    #expect(focused.value == (expectsFirst ? first : last))
+  }
+
+  @Test
   func `window cycle preserves borrowed windows from the same app`() async {
     let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.shared")
     let borrowedWindow = WindowKey(pid: 1, windowID: 102, bundleId: "app.shared")

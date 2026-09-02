@@ -47,10 +47,26 @@ struct ConfigDecodeTests {
     }
     #expect(config.settings.general.launchAtLogin == false)
     #expect(config.settings.switching.recentAcrossDisplays)
+    #expect(config.settings.switching.includeSharedAppsInWindowSwitcher)
     #expect(config.settings.switching.toggleBorrowOnRepeat)
     #expect(config.settings.hud.windowCycle)
     #expect(config.hooks.isEmpty)
     #expect(reported.value == 0)
+  }
+
+  @Test
+  func `shared app switcher option decodes and round trips`() throws {
+    let toml = """
+      [settings.switching]
+      includeSharedAppsInWindowSwitcher = false
+      """
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+
+    #expect(!decoded.settings.switching.includeSharedAppsInWindowSwitcher)
+
+    let encoded = try TOMLEncoder().encode(decoded)
+    let roundTripped = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    #expect(roundTripped.settings.switching == decoded.settings.switching)
   }
 
   @Test
