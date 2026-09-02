@@ -3546,6 +3546,217 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `no-op sync preserves a resized ratio with auto balance enabled`() async {
+    let slack = WindowKey(pid: 1, windowID: 101, bundleId: "app.slack")
+    let discord = WindowKey(pid: 2, windowID: 202, bundleId: "app.discord")
+    let workspace = Workspace(
+      name: "Chat",
+      apps: [
+        AppAssignment(bundleIdentifier: slack.bundleId, name: "Slack"),
+        AppAssignment(bundleIdentifier: discord.bundleId, name: "Discord"),
+      ],
+    )
+    let tree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.6,
+        left: .leaf(slack),
+        right: .leaf(discord),
+      )
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = .both
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = tree
+    }
+    let applications = LockIsolated<[FrameApplication]>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: slack.bundleId,
+      resizableKeys: [slack],
+      onScreenFrames: [
+        slack.windowID: CGRect(x: 0, y: 0, width: 600, height: 800),
+        discord.windowID: CGRect(x: 600, y: 0, width: 400, height: 800),
+      ],
+    ))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == tree)
+    #expect(applications.value.isEmpty)
+    #expect(saved.value.isEmpty)
+  }
+
+  @Test
+  func `surface replacement preserves a resized ratio with auto balance enabled`() async throws {
+    let survivor = WindowKey(pid: 1, windowID: 101, bundleId: "app.survivor")
+    let retired = WindowKey(pid: 2, windowID: 202, bundleId: "app.tabs")
+    let replacement = WindowKey(pid: 2, windowID: 303, bundleId: retired.bundleId)
+    let workspace = Workspace(
+      name: "Work",
+      apps: [
+        AppAssignment(bundleIdentifier: survivor.bundleId, name: "Survivor"),
+        AppAssignment(bundleIdentifier: retired.bundleId, name: "Tabs"),
+      ],
+    )
+    let oldTree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.37,
+        left: .leaf(survivor),
+        right: .leaf(retired),
+      )
+    )
+    let expectedTree = oldTree.mapWindows { $0 == retired ? replacement : $0 }
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = .both
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = oldTree
+      $0.insertionPoint[workspace.id] = retired
+      $0.mruWindows[workspace.id] = [retired, survivor]
+    }
+    let applications = LockIsolated<[FrameApplication]>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: retired.bundleId,
+      resizableKeys: [replacement],
+      onScreenFrames: [
+        survivor.windowID: CGRect(x: 0, y: 0, width: 370, height: 800),
+        replacement.windowID: CGRect(x: 370, y: 0, width: 630, height: 800),
+      ],
+    ))
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == expectedTree)
+    #expect(store.state.insertionPoint[workspace.id] == replacement)
+    #expect(store.state.mruWindows[workspace.id] == [replacement, survivor])
+    #expect(applications.value.count == 1)
+    let application = try #require(applications.value.last)
+    let survivorFrame = try #require(application.windowFrames[survivor])
+    let replacementFrame = try #require(application.windowFrames[replacement])
+    let totalWidth = survivorFrame.width + replacementFrame.width
+    #expect(abs(survivorFrame.width / totalWidth - 0.37) < 0.001)
+    let slots = slotAssignment(expectedTree.windows)
+    #expect(saved.value.count == 1)
+    #expect(saved.value.last?.tree == expectedTree.mapWindows { slots[$0]! })
+  }
+
+  @Test
+  func `new window sync still applies auto balance`() async {
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")
+    let inserted = WindowKey(pid: 3, windowID: 303, bundleId: "app.inserted")
+    let workspace = Workspace(
+      name: "Work",
+      apps: [
+        AppAssignment(bundleIdentifier: first.bundleId, name: "First"),
+        AppAssignment(bundleIdentifier: second.bundleId, name: "Second"),
+        AppAssignment(bundleIdentifier: inserted.bundleId, name: "Inserted"),
+      ],
+    )
+    let oldTree = BSPNode<WindowKey>.branch(
+      BSPBranch(
+        split: .vertical,
+        ratio: 0.8,
+        left: .leaf(first),
+        right: .leaf(second),
+      )
+    )
+    let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let unbalancedTree = oldTree.inserting(
+      inserted,
+      near: second,
+      in: workArea,
+      viewSplitType: .vertical,
+      globalPlacement: .second,
+    )
+    let expectedTree = unbalancedTree.balanced(axis: .both)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = .both
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.layout.splitType = .vertical
+        $0.settings.layout.windowPlacement = .second
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = oldTree
+      $0.insertionPoint[workspace.id] = second
+      $0.lastObservedFocusedWindow = second
+    }
+    let applications = LockIsolated<[FrameApplication]>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowTiler.apply = { application in
+        applications.withValue { $0.append(application) }
+      }
+      $0.layoutStore.save = { _, snapshot in
+        saved.withValue { $0.append(snapshot) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: inserted.bundleId,
+      resizableKeys: [inserted],
+      onScreenFrames: [
+        first.windowID: CGRect(x: 0, y: 0, width: 800, height: 800),
+        second.windowID: CGRect(x: 800, y: 0, width: 200, height: 800),
+        inserted.windowID: CGRect(x: 800, y: 0, width: 200, height: 800),
+      ],
+    ))
+    await store.finish()
+
+    #expect(unbalancedTree != expectedTree)
+    #expect(store.state.tilingTrees[workspace.id] == expectedTree)
+    #expect(applications.value.count == 1)
+    let slots = slotAssignment(expectedTree.windows)
+    #expect(saved.value.count == 1)
+    #expect(saved.value.last?.tree == expectedTree.mapWindows { slots[$0]! })
+  }
+
+  @Test
   func `system suspend preserves the live tree through WindowServer teardown`() async {
     let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
     let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")

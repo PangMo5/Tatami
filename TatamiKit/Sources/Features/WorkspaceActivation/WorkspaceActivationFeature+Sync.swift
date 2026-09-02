@@ -973,7 +973,8 @@ extension WorkspaceActivationFeature {
         + "discovered=\(current.map { $0.windowID }) treeBefore=\(treeBefore)",
     )
 
-    var tree = existing?.mapWindows { replacements[$0] ?? $0 }
+    let replacementBaseline = existing?.mapWindows { replacements[$0] ?? $0 }
+    var tree = replacementBaseline
     if
       let insertionPoint = state.insertionPoint[workspaceId],
       let replacement = replacements[insertionPoint]
@@ -1021,8 +1022,16 @@ extension WorkspaceActivationFeature {
       }
     }
 
+    // Auto-balance belongs to logical insert/remove transitions. A no-op sync
+    // must preserve user-resized ratios, and a WindowServer identity swap is
+    // still the same logical slot. Compare against the replacement-normalized
+    // baseline so neither reconciliation path silently re-equalizes the tree.
+    let membershipChanged = Set(replacementBaseline?.windows ?? [])
+      != Set(tree?.windows ?? [])
     let axis = settings.layout.autoBalance
-    let balanced = axis == .none ? tree : tree?.balanced(axis: axis)
+    let balanced = axis == .none || !membershipChanged
+      ? tree
+      : tree?.balanced(axis: axis)
     let oldWindows = Set(existing?.windows ?? [])
     let newWindows = Set(balanced?.windows ?? [])
     let addedKeys = newWindows.subtracting(oldWindows)
