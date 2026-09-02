@@ -1172,6 +1172,8 @@ public struct WorkspaceActivationFeature {
             plan: plan,
             show: state.config.settings.hud.shows(\.profileSwitch),
             durationMs: state.config.settings.hud.durationMs,
+            position: state.config.settings.hud.position,
+            size: state.config.settings.hud.size,
           )
           : .none
         return .merge(autoSwitch, autoHUD, .send(.processDisplayRestores))
@@ -2227,6 +2229,8 @@ public struct WorkspaceActivationFeature {
           plan: plan,
           show: state.config.settings.hud.shows(\.profileSwitch),
           durationMs: state.config.settings.hud.durationMs,
+          position: state.config.settings.hud.position,
+          size: state.config.settings.hud.size,
         )
         return .concatenate(
           cancelOutgoingActivation,
@@ -2313,6 +2317,8 @@ public struct WorkspaceActivationFeature {
         // floating window. (When AX is missing the app can't tile, so the lazy
         // floating warning never fires before relaunch — no double prompt.)
         let permsHudMs = max(state.config.settings.hud.durationMs * 2, 4000)
+        let hudPosition = state.config.settings.hud.position
+        let hudSize = state.config.settings.hud.size
         return .run { [screenRecording, workspaceHUD] _ in
           let axTrusted = await MainActor.run { isAccessibilityTrusted() }
           guard !axTrusted else { return }
@@ -2333,11 +2339,15 @@ public struct WorkspaceActivationFeature {
               "Grant Accessibility and Screen Recording in System Settings → Privacy & Security, then relaunch Tatami"
             )
           }
-          await workspaceHUD.show(
-            String(localized: "Permissions Needed"),
-            "exclamationmark.triangle.fill",
-            subtitle,
-            permsHudMs,
+          await workspaceHUD.showAction(
+            ActionHUDRequest(
+              name: String(localized: "Permissions Needed"),
+              symbolIconName: "exclamationmark.triangle.fill",
+              subtitle: subtitle,
+              durationMs: permsHudMs,
+              position: hudPosition,
+              size: hudSize,
+            )
           )
         }
 

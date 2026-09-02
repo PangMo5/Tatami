@@ -253,14 +253,20 @@ extension WorkspaceActivationFeature {
       !oldDisplay.matches(targetDisplay)
     else { return .none }
     let durationMs = state.config.settings.hud.durationMs
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
     let subtitle = String(localized: "\(workspace.name) is on \(targetDisplay.name)")
     return .run { [workspaceHUD] _ in
-      await workspaceHUD.showOnDisplay(
-        String(localized: "Focus moved"),
-        "arrow.right.to.line",
-        subtitle,
-        durationMs,
-        oldDisplay,
+      await workspaceHUD.showAction(
+        ActionHUDRequest(
+          name: String(localized: "Focus moved"),
+          symbolIconName: "arrow.right.to.line",
+          subtitle: subtitle,
+          durationMs: durationMs,
+          position: position,
+          size: size,
+          display: oldDisplay,
+        )
       )
     }
   }
@@ -680,6 +686,8 @@ extension WorkspaceActivationFeature {
     // same-monitor switch with no resolved target it falls back to the cursor.
     let hudDisplay = targetDisplay
     let hudDurationMs = state.config.settings.hud.durationMs
+    let hudPosition = state.config.settings.hud.position
+    let hudSize = state.config.settings.hud.size
 
     // On a cross-monitor switch, a second HUD on the monitor being left names
     // where focus went. Separate panel (the controller tracks one per screen),
@@ -795,7 +803,17 @@ extension WorkspaceActivationFeature {
               phaseStart = now
             }
             if showHUD {
-              await hud.showOnDisplay(hudName, hudIcon, hudSubtitle, hudDurationMs, hudDisplay)
+              await hud.showAction(
+                ActionHUDRequest(
+                  name: hudName,
+                  symbolIconName: hudIcon,
+                  subtitle: hudSubtitle,
+                  durationMs: hudDurationMs,
+                  position: hudPosition,
+                  size: hudSize,
+                  display: hudDisplay,
+                )
+              )
             }
             guard !Task.isCancelled else { return }
             // Tear down the outgoing workspace's mirrors in the same beat as the
@@ -1250,6 +1268,8 @@ extension WorkspaceActivationFeature {
     plan: [DisplayAssignment],
     show: Bool,
     durationMs: Int,
+    position: HUDPosition,
+    size: HUDSize,
   ) -> Effect<Action> {
     guard show else { return .none }
     let name = profile.name
@@ -1260,7 +1280,17 @@ extension WorkspaceActivationFeature {
     guard !entries.isEmpty else { return .none }
     return .run { [workspaceHUD] _ in
       for (display, workspaceName) in entries {
-        await workspaceHUD.showOnDisplay(name, symbol, workspaceName, durationMs, display)
+        await workspaceHUD.showAction(
+          ActionHUDRequest(
+            name: name,
+            symbolIconName: symbol,
+            subtitle: workspaceName,
+            durationMs: durationMs,
+            position: position,
+            size: size,
+            display: display,
+          )
+        )
       }
     }
   }
@@ -1756,13 +1786,19 @@ extension WorkspaceActivationFeature {
       let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
     else { return focus }
     let durationMs = state.config.settings.hud.durationMs
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
     let targetHUD = Effect<Action>.run { [hud = workspaceHUD] _ in
-      await hud.showOnDisplay(
-        workspace.name,
-        workspace.symbolIconName,
-        nil,
-        durationMs,
-        display,
+      await hud.showAction(
+        ActionHUDRequest(
+          name: workspace.name,
+          symbolIconName: workspace.symbolIconName,
+          subtitle: nil,
+          durationMs: durationMs,
+          position: position,
+          size: size,
+          display: display,
+        )
       )
     }
     return .merge(
@@ -1829,12 +1865,18 @@ extension WorkspaceActivationFeature {
       let name = state.config.activeProfile?.workspaces[id: capture.workspaceId]?.name
     else { return .none }
     let durationMs = max(state.config.settings.hud.durationMs, 4000)
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
     return .run { [workspaceHUD] _ in
-      await workspaceHUD.show(
-        String(localized: "Borrow \(name)"),
-        "rectangle.split.2x1",
-        String(localized: "press a direction · h j k l / arrows · esc"),
-        durationMs,
+      await workspaceHUD.showAction(
+        ActionHUDRequest(
+          name: String(localized: "Borrow \(name)"),
+          symbolIconName: "rectangle.split.2x1",
+          subtitle: String(localized: "press a direction · h j k l / arrows · esc"),
+          durationMs: durationMs,
+          position: position,
+          size: size,
+        )
       )
     }
   }

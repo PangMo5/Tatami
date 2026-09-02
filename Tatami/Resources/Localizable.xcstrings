@@ -1,6 +1,15 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Adjust the overall size of action feedback.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "동작 결과를 보여 주는 화면 알림의 전체 크기를 조절해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "操作フィードバック全体のサイズを調整します。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "调整操作反馈的整体大小。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "調整操作回饋的整體大小。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Adjust the overall size of action feedback." } }
+      }
+    },
     "Apps With Floating Controls": {
       "localizations": {
         "ko": { "stringUnit": { "state": "translated", "value": "플로팅 컨트롤이 있는 앱" } },
@@ -8,6 +17,78 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "带浮动控件的 App" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "具有浮動控制項目的 App" } },
         "en": { "stringUnit": { "state": "translated", "value": "Apps With Floating Controls" } }
+      }
+    },
+    "Center": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "가운데" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "中央" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "中央" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "中央" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Center" } }
+      }
+    },
+    "Choose where action feedback appears on each display. The app/window switcher stays centered.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "각 디스플레이에서 동작 결과를 표시할 위치를 골라요. 앱/창 전환 화면은 중앙에 유지돼요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "各ディスプレイで操作フィードバックを表示する位置を選びます。アプリ／ウインドウ切り替えは中央に表示されます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择操作反馈在每台显示器上的显示位置。应用/窗口切换器仍显示在中央。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "選擇操作回饋在每部顯示器上的顯示位置。App/視窗切換器會維持在中央。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Choose where action feedback appears on each display. The app/window switcher stays centered." } }
+      }
+    },
+    "Feedback position": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "화면 알림 위치" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "操作フィードバックの位置" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "操作反馈位置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "操作回饋位置" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Feedback position" } }
+      }
+    },
+    "Feedback size": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "화면 알림 크기" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "操作フィードバックのサイズ" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "操作反馈大小" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "操作回饋大小" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Feedback size" } }
+      }
+    },
+    "HUD Published": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "HUD 알림" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "HUDフィードバック" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "HUD 反馈" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "HUD 回饋" } },
+        "en": { "stringUnit": { "state": "translated", "value": "HUD Published" } }
+      }
+    },
+    "Large": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "크게" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "大" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "大" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "大" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Large" } }
+      }
+    },
+    "Provides the exact title, symbol, subtitle, duration, position, size, and display published to compact action feedback.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "간단한 화면 알림으로 게시된 정확한 제목, 심볼, 부제목, 표시 시간, 위치, 크기와 디스플레이를 제공해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コンパクトな操作フィードバックとして公開された正確なタイトル、シンボル、サブタイトル、表示時間、位置、サイズ、ディスプレイを提供します。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "提供发布到紧凑操作反馈的准确标题、符号、副标题、显示时长、位置、大小和显示器。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "提供發佈至精簡操作回饋的確切標題、符號、副標題、顯示時間、位置、大小與顯示器。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Provides the exact title, symbol, subtitle, duration, position, size, and display published to compact action feedback." } }
+      }
+    },
+    "Small": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작게" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "小" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "小" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "小" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Small" } }
       }
     },
     "Include Shared Apps": {
@@ -824,36 +905,36 @@
         }
       }
     },
-    "Run a program when Tatami launches, changes profile, or activates a workspace.": {
+    "Run a program when Tatami launches, changes profile, activates a workspace, or presents action feedback.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami가 실행되거나 프로필을 변경하거나 작업 공간을 활성화할 때 프로그램을 실행해요."
+            "value": "Tatami가 실행되거나 프로필을 변경하거나 작업 공간을 활성화하거나 동작 알림을 표시할 때 프로그램을 실행해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatamiの起動時、プロファイルの変更時、またはワークスペースの有効化時にプログラムを実行します。"
+            "value": "Tatamiの起動時、プロファイルの変更時、ワークスペースの有効化時、または操作フィードバックの表示時にプログラムを実行します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 Tatami 启动、更改配置方案或启用工作区时运行程序。"
+            "value": "在 Tatami 启动、更改配置方案、启用工作区或显示操作反馈时运行程序。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在 Tatami 啟動、變更設定組合或啟用工作空間時執行程式。"
+            "value": "在 Tatami 啟動、變更設定組合、啟用工作空間或顯示操作回饋時執行程式。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Run a program when Tatami launches, changes profile, or activates a workspace."
+            "value": "Run a program when Tatami launches, changes profile, activates a workspace, or presents action feedback."
           }
         }
       }
@@ -18337,36 +18418,36 @@
         }
       }
     },
-    "How long the overlay stays up. HUDs with a follow-up hint stay twice as long.": {
+    "How long the overlay remains fully visible. Entrance and exit animations are not counted. HUDs with a follow-up hint stay twice as long.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "화면 알림이 표시되는 시간이에요. 다음 동작 안내가 있으면 두 배 더 오래 보여줘요."
+            "value": "화면 알림이 완전히 나타난 상태로 유지되는 시간이에요. 등장·퇴장 애니메이션은 포함하지 않아요. 다음 동작 안내가 있으면 두 배 더 오래 보여줘요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "画面上の通知を表示する時間です。次の操作ヒントがある通知は2倍長く表示されます。"
+            "value": "画面上の通知が完全に表示された状態で維持される時間です。表示・終了アニメーションは含みません。次の操作ヒントがある通知は2倍長く表示されます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作反馈在屏幕上的显示时长。包含下一步提示时，显示时间会延长一倍。"
+            "value": "操作反馈完全显示后的停留时长，不包含出现和退出动画。包含下一步提示时，停留时间会延长一倍。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "操作回饋在畫面上的顯示時間。包含下一步提示時，顯示時間會延長一倍。"
+            "value": "操作回饋完全顯示後的停留時間，不包含出現與退出動畫。包含下一步提示時，停留時間會延長一倍。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "How long on-screen feedback remains visible. Feedback with a next-step hint stays twice as long."
+            "value": "How long on-screen feedback remains fully visible. Entrance and exit animations are not counted. Feedback with a next-step hint stays twice as long."
           }
         }
       }

@@ -103,6 +103,8 @@ public struct AppFeature {
     case checkForUpdatesTapped
     /// An internal failure was reported or resolved (ErrorReportClient).
     case errorReportEvent(ErrorReportEvent)
+    /// A compact HUD publication captured centrally by WorkspaceHUDClient.
+    case actionHUDPresented(ActionHUDPresentation)
     case errorReportsDismissed
     /// Switch to (activate) a profile — from the menu or a profile hotkey.
     /// Switch the active profile. `focus`, when set, is a workspace to land as
@@ -228,6 +230,14 @@ public struct AppFeature {
                 await send(.activation(.windowCycleHUDInteraction(interaction)))
               }
             },
+            // Bridge the exact localized action feedback sent to the visual HUD
+            // into the configured `hud` hooks. Keeping this at the client
+            // boundary covers every producer, including errors and permissions.
+            .run { [workspaceHUD] send in
+              for await presentation in workspaceHUD.actionPresentations() {
+                await send(.actionHUDPresented(presentation))
+              }
+            },
             // React to live settings edits (Settings tab writes the shared
             // config) so launch-time integrations reconfigure immediately.
             // `Perceptions` is Perception's back-port of Swift's
@@ -284,6 +294,26 @@ public struct AppFeature {
       case .checkForUpdatesTapped:
         return .run { [updater] _ in await updater.checkForUpdates() }
 
+      case .actionHUDPresented(let presentation):
+        guard
+          state.config.hasEnabledHook(for: .hud),
+          let profile = state.config.activeProfile
+        else { return .none }
+        return .send(.hooks(.emit(HookInvocation(
+          event: .hud,
+          occurredAt: now,
+          profile: .init(profile),
+          display: presentation.display.map(HookInvocation.DisplaySnapshot.init),
+          hud: .init(
+            title: presentation.title,
+            symbolIconName: presentation.symbolIconName,
+            subtitle: presentation.subtitle,
+            durationMs: presentation.durationMs,
+            position: presentation.position,
+            size: presentation.size,
+          ),
+        ))))
+
       case .errorReportEvent(.reported(let report)):
         // Skip redundant state churn + a duplicate HUD when an identical
         // report is re-emitted (the Hub replays standing reports on every
@@ -294,12 +324,19 @@ public struct AppFeature {
         // gating them would hide exactly what the user asked to see.
         // Linger longer than action HUDs so the detail is readable.
         let duration = max(state.config.settings.hud.durationMs * 2, 2400)
+        let position = state.config.settings.hud.position
+        let size = state.config.settings.hud.size
         return .run { [workspaceHUD] _ in
-          await workspaceHUD.show(
-            report.message,
-            "exclamationmark.triangle.fill",
-            report.detail,
-            duration,
+          await workspaceHUD.showAction(
+            ActionHUDRequest(
+              name: report.message,
+              symbolIconName: "exclamationmark.triangle.fill",
+              subtitle: report.detail,
+              durationMs: duration,
+              position: position,
+              size: size,
+              emitsHookEvent: !report.domain.hasPrefix("Hook"),
+            )
           )
         }
 
@@ -308,12 +345,19 @@ public struct AppFeature {
         state.errorReports.remove(id: domain)
         // Confirm the recovery (e.g. the config edit that fixed the parse).
         let duration = max(state.config.settings.hud.durationMs, 900)
+        let position = state.config.settings.hud.position
+        let size = state.config.settings.hud.size
         return .run { [workspaceHUD] _ in
-          await workspaceHUD.show(
-            String(localized: "\(domain) issue resolved"),
-            "checkmark.circle",
-            nil,
-            duration,
+          await workspaceHUD.showAction(
+            ActionHUDRequest(
+              name: String(localized: "\(domain) issue resolved"),
+              symbolIconName: "checkmark.circle",
+              subtitle: nil,
+              durationMs: duration,
+              position: position,
+              size: size,
+              emitsHookEvent: !domain.hasPrefix("Hook"),
+            )
           )
         }
 

@@ -32,6 +32,69 @@ struct HookDefinitionTests {
   }
 
   @Test
+  func `HUD event and payload encode optional fields without placeholders`() throws {
+    let hookData = Data(#"{"id":"bar","event":"hud","command":["/usr/bin/true"]}"#.utf8)
+    let hook = try JSONDecoder().decode(HookDefinition.self, from: hookData)
+    #expect(hook.event == .hud)
+
+    let profileID = try #require(UUID(
+      uuidString: "00000000-0000-0000-0000-000000000001"
+    ))
+    let invocation = HookInvocation(
+      event: .hud,
+      occurredAt: Date(timeIntervalSince1970: 0),
+      profile: .init(
+        id: profileID,
+        name: "Default",
+      ),
+      hud: .init(
+        title: "Layout Balanced",
+        symbolIconName: nil,
+        subtitle: nil,
+        durationMs: 900,
+        position: .bottomTrailing,
+        size: .large,
+      ),
+    )
+    let data = try JSONEncoder().encode(invocation)
+    let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let hud = try #require(object["hud"] as? [String: Any])
+
+    #expect(object["event"] as? String == "hud")
+    #expect(object["display"] == nil)
+    #expect(hud["title"] as? String == "Layout Balanced")
+    #expect(hud["durationMs"] as? Int == 900)
+    #expect(hud["position"] as? String == "bottomTrailing")
+    #expect(hud["size"] as? String == "large")
+    #expect(hud["symbolIconName"] == nil)
+    #expect(hud["subtitle"] == nil)
+    #expect(try JSONDecoder().decode(HookInvocation.self, from: data) == invocation)
+  }
+
+  @Test
+  func `legacy schema one invocation decodes without HUD payload`() throws {
+    let data = Data(#"""
+      {
+        "schemaVersion": 1,
+        "event": "profileChanged",
+        "occurredAt": "1970-01-01T00:00:00Z",
+        "profile": {
+          "id": "00000000-0000-0000-0000-000000000001",
+          "name": "Default"
+        }
+      }
+      """#.utf8)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let invocation = try decoder.decode(HookInvocation.self, from: data)
+
+    #expect(invocation.schemaVersion == 1)
+    #expect(invocation.event == .profileChanged)
+    #expect(invocation.hud == nil)
+  }
+
+  @Test
   func `semantic validation rejects only invalid entries`() {
     let valid = HookDefinition(
       id: "valid-hook",
@@ -320,6 +383,53 @@ struct HookRunnerTests {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
     #expect(try decoder.decode(HookInvocation.self, from: payload) == invocation)
+    #expect(stderr.isEmpty)
+  }
+
+  @Test
+  func `HUD hook receives presentation environment`() async throws {
+    let profileID = try #require(UUID(
+      uuidString: "00000000-0000-0000-0000-000000000001"
+    ))
+    let invocation = HookInvocation(
+      event: .hud,
+      occurredAt: Date(timeIntervalSince1970: 0),
+      profile: .init(
+        id: profileID,
+        name: "Default",
+      ),
+      display: .init(uuid: "display-a", name: "Built-in"),
+      hud: .init(
+        title: "Focus moved",
+        symbolIconName: "arrow.right.to.line",
+        subtitle: "Work is on Built-in",
+        durationMs: 1_800,
+        position: .topLeading,
+        size: .small,
+      ),
+    )
+    let script = #"""
+      printf '%s\n' "$TATAMI_HUD_TITLE"
+      printf '%s\n' "$TATAMI_HUD_SYMBOL_ICON_NAME"
+      printf '%s\n' "$TATAMI_HUD_SUBTITLE"
+      printf '%s\n' "$TATAMI_HUD_DURATION_MS"
+      printf '%s\n' "$TATAMI_HUD_POSITION"
+      printf '%s\n' "$TATAMI_HUD_SIZE"
+      printf '%s\n' "$TATAMI_DISPLAY_UUID"
+      """#
+    let hook = HookDefinition(
+      id: "hud-environment",
+      event: .hud,
+      command: ["/bin/zsh", "-c", script],
+    )
+
+    let result = await HookRunnerClient.liveValue.run(hook, invocation)
+
+    guard case .success(let stdout, let stderr) = result else {
+      Issue.record("Expected hook success, got \(result)")
+      return
+    }
+    #expect(stdout == "Focus moved\narrow.right.to.line\nWork is on Built-in\n1800\ntopLeading\nsmall\ndisplay-a\n")
     #expect(stderr.isEmpty)
   }
 

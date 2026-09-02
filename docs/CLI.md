@@ -165,12 +165,13 @@ invalid entries. Add, edit, delete, enable, or disable hooks from
 **Settings → Hooks**, or edit `[[hooks]]` directly in `config.toml`. Hand edits
 remain supported and are picked up live.
 
-Supported events are `tatamiLaunched`, `profileChanged`, and
-`workspaceActivated`. `tatamiLaunched` is published once per Tatami process
-after startup has resolved the active profile. Its payload contains that
-profile and omits `previousProfile`, `workspace`, and `display`. It is separate
-from the startup `profileChanged` event, so hooks can subscribe to either or
-both.
+Supported events are `tatamiLaunched`, `profileChanged`, `workspaceActivated`,
+and `hud`. `tatamiLaunched` is published once per Tatami process after startup
+has resolved the active profile. Its payload contains that profile and omits
+`previousProfile`, `workspace`, `display`, and `hud`. It is separate from the
+startup `profileChanged` event, so hooks can subscribe to either or both. The
+`hud` event mirrors compact action-feedback content for integrations such as
+SketchyBar.
 
 The Settings editor keeps the executable and every argument in separate
 fields. They map directly to `command[0]` and its remaining argv values. Tatami

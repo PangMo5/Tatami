@@ -42,37 +42,157 @@ public struct WindowSwitcherIndicators: Equatable, Sendable {
   public var isFullscreen: Bool
 }
 
+// MARK: - ActionHUDRequest
+
+/// One compact action-feedback presentation. Carrying placement with the
+/// content keeps the reducer's current settings snapshot authoritative and
+/// avoids a separate controller configuration lifecycle.
+struct ActionHUDRequest: Equatable, Sendable {
+
+  // MARK: Lifecycle
+
+  init(
+    name: String,
+    symbolIconName: String?,
+    subtitle: String?,
+    durationMs: Int,
+    position: HUDPosition,
+    size: HUDSize,
+    display: DisplayName? = nil,
+    emitsHookEvent: Bool = true,
+  ) {
+    self.name = name
+    self.symbolIconName = symbolIconName
+    self.subtitle = subtitle
+    self.durationMs = durationMs
+    self.position = position
+    self.size = size
+    self.display = display
+    self.emitsHookEvent = emitsHookEvent
+  }
+
+  // MARK: Internal
+
+  let name: String
+  let symbolIconName: String?
+  let subtitle: String?
+  let durationMs: Int
+  let position: HUDPosition
+  let size: HUDSize
+  let display: DisplayName?
+  let emitsHookEvent: Bool
+
+}
+
+// MARK: - ActionHUDPresentation
+
+/// The effective, successfully presented action HUD bridged to external hooks.
+/// Unlike the request, its duration includes the readable-subtitle extension
+/// and its display is the screen Tatami actually resolved.
+public struct ActionHUDPresentation: Equatable, Sendable {
+
+  // MARK: Lifecycle
+
+  init(
+    title: String,
+    symbolIconName: String?,
+    subtitle: String?,
+    durationMs: Int,
+    position: HUDPosition,
+    size: HUDSize,
+    display: DisplayName?,
+  ) {
+    self.title = title
+    self.symbolIconName = symbolIconName
+    self.subtitle = subtitle
+    self.durationMs = durationMs
+    self.position = position
+    self.size = size
+    self.display = display
+  }
+
+  init(request: ActionHUDRequest, display: DisplayName?) {
+    self.init(
+      title: request.name,
+      symbolIconName: request.symbolIconName,
+      subtitle: request.subtitle,
+      durationMs: max(
+        100,
+        request.subtitle == nil ? request.durationMs : request.durationMs * 2,
+      ),
+      position: request.position,
+      size: request.size,
+      display: display,
+    )
+  }
+
+  // MARK: Public
+
+  public let title: String
+  public let symbolIconName: String?
+  public let subtitle: String?
+  public let durationMs: Int
+  public let position: HUDPosition
+  public let size: HUDSize
+  public let display: DisplayName?
+
+}
+
+// MARK: - ActionHUDPresentationBridge
+
+/// Couples the one presentation side effect to its buffered event stream.
+/// A request still presents when hook emission is suppressed; only a
+/// successfully resolved presentation is eligible for publication.
+struct ActionHUDPresentationBridge: Sendable {
+
+  // MARK: Lifecycle
+
+  init(
+    present: @escaping @Sendable (ActionHUDRequest) async -> ActionHUDPresentation?
+  ) {
+    let (presentations, continuation) =
+      AsyncStream<ActionHUDPresentation>.makeStream()
+    self.presentations = presentations
+    show = { request in
+      let presentation = await present(request)
+      guard request.emitsHookEvent, let presentation else { return }
+      continuation.yield(presentation)
+    }
+    finish = { continuation.finish() }
+  }
+
+  // MARK: Internal
+
+  let presentations: AsyncStream<ActionHUDPresentation>
+  let show: @Sendable (ActionHUDRequest) async -> Void
+  let finish: @Sendable () -> Void
+
+}
+
 // MARK: - WorkspaceHUDClient
 
-/// Shows a brief, centered overlay with a title and icon — visual feedback
+/// Shows a brief, positionable overlay with a title and icon — visual feedback
 /// for hotkey/menu actions. An optional subtitle carries a follow-up hint
 /// (e.g. the shortcut that removes a just-unfloated app from Shared Apps);
 /// HUDs with a subtitle linger a little longer so the hint is readable.
 /// Auto-dismisses; re-showing resets the timer.
 @DependencyClient
 struct WorkspaceHUDClient: Sendable {
+  /// Every compact action-feedback publication, carrying the exact localized
+  /// values rendered by the HUD. AppFeature bridges this stream to `hud` hooks.
+  var actionPresentations: @Sendable () -> AsyncStream<ActionHUDPresentation> = {
+    .finished
+  }
+
   /// Arrow/Return/Escape and pointer selections from an active held-modifier
   /// switcher. The activation reducer remains the owner of selection + commit.
   var windowSwitcherEvents: @Sendable () -> AsyncStream<WindowSwitcherInteraction> = {
     .finished
   }
 
-  var show: @Sendable (
-    _ name: String,
-    _ symbolIconName: String?,
-    _ subtitle: String?,
-    _ durationMs: Int,
-  ) async -> Void
-  /// Like `show`, but anchored to a specific display instead of the cursor's
-  /// screen (`nil` → cursor's screen, same as `show`). Used to announce a
-  /// focus move on the *old* monitor when a switch crosses displays.
-  var showOnDisplay: @Sendable (
-    _ name: String,
-    _ symbolIconName: String?,
-    _ subtitle: String?,
-    _ durationMs: Int,
-    _ display: DisplayName?,
-  ) async -> Void
+  /// Compact action feedback. `display == nil` targets the cursor's screen;
+  /// an explicit display pins cross-monitor feedback to that screen.
+  var showAction: @Sendable (_ request: ActionHUDRequest) async -> Void
   /// Native Cmd-Tab-style switcher for Tatami's app/window cycle. App-level
   /// mode highlights by bundle id; window-level mode highlights the exact
   /// `WindowKey`, so multiple windows from one app remain distinguishable.
@@ -102,26 +222,13 @@ extension WorkspaceHUDClient: DependencyKey {
       debugLog: debugLog,
       emitWindowSwitcherInteraction: { continuation.yield($0) },
     )
+    let actionBridge = ActionHUDPresentationBridge { request in
+      await controller.showAction(request)
+    }
     return WorkspaceHUDClient(
+      actionPresentations: { actionBridge.presentations },
       windowSwitcherEvents: { windowSwitcherEvents },
-      show: { name, icon, subtitle, durationMs in
-        await controller.show(
-          name: name,
-          symbolIconName: icon,
-          subtitle: subtitle,
-          durationMs: durationMs,
-          display: nil,
-        )
-      },
-      showOnDisplay: { name, icon, subtitle, durationMs, display in
-        await controller.show(
-          name: name,
-          symbolIconName: icon,
-          subtitle: subtitle,
-          durationMs: durationMs,
-          display: display,
-        )
-      },
+      showAction: actionBridge.show,
       showWindowSwitcher: { windows, selected, byWindow, indicators, autoDismissAfterMs, display in
         await controller.showWindowSwitcher(
           windows: windows,
@@ -140,9 +247,9 @@ extension WorkspaceHUDClient: DependencyKey {
   }()
 
   static let testValue = WorkspaceHUDClient(
+    actionPresentations: { .finished },
     windowSwitcherEvents: { .finished },
-    show: { _, _, _, _ in },
-    showOnDisplay: { _, _, _, _, _ in },
+    showAction: { _ in },
     showWindowSwitcher: { _, _, _, _, _, _ in },
     dismissWindowSwitcher: { _ in },
     dismiss: { },
@@ -159,11 +266,20 @@ extension DependencyValues {
 
 // MARK: - HUDLayout
 
-private enum HUDLayout {
+enum HUDLayout {
 
   // MARK: Internal
 
-  static let actionShadowPadding: CGFloat = 12
+  /// Covers the 12pt shadow + 6pt y offset and the entrance spring's small
+  /// overshoot without letting `NSHostingView` clip either one.
+  static let actionShadowPadding: CGFloat = 22
+  /// Outset reserved for the largest position-directed entrance/exit offset.
+  /// It stays outside the animated view so a visible edge or shadow cannot be
+  /// clipped while the HUD grows in from off-edge.
+  static let actionMotionPadding: CGFloat = 16
+  /// Combined with both transparent outsets, preserves the established 34pt
+  /// visual distance from the visible screen edge.
+  static let actionVisualEdgeInset: CGFloat = 34
   static let windowSwitcherShadowRadius: CGFloat = 8
   static let windowSwitcherShadowYOffset: CGFloat = 4
   static let maximumActionSurfaceSize = NSSize(width: 404, height: 70)
@@ -175,11 +291,64 @@ private enum HUDLayout {
     windowSwitcherShadowRadius + abs(windowSwitcherShadowYOffset)
   }
 
-  static var actionPanelSize: NSSize {
-    NSSize(
-      width: maximumActionSurfaceSize.width + actionShadowPadding * 2,
-      height: maximumActionSurfaceSize.height + actionShadowPadding * 2,
+  static func actionPanelSize(for size: HUDSize) -> NSSize {
+    let scale = size.actionScale
+    let basePadding = actionShadowPadding + actionMotionPadding
+    return NSSize(
+      width: (maximumActionSurfaceSize.width + basePadding * 2) * scale,
+      height: (maximumActionSurfaceSize.height + basePadding * 2) * scale,
     )
+  }
+
+  /// Fixed-canvas panel frame for one action HUD. `visibleFrame` is already
+  /// inset around the menu bar and Dock and may have a negative origin on a
+  /// secondary display, so all placement is relative to that exact rectangle.
+  static func actionPanelFrame(
+    in visibleFrame: CGRect,
+    position: HUDPosition,
+    size hudSize: HUDSize,
+  ) -> CGRect {
+    let size = actionPanelSize(for: hudSize)
+    // The panel includes transparent shadow padding, which scales with the
+    // HUD. Compensate its origin so the visible capsule remains 34pt from a
+    // chosen screen edge at every size.
+    let panelEdgeInset = actionVisualEdgeInset
+      - (actionShadowPadding + actionMotionPadding) * hudSize.actionScale
+    let x: CGFloat =
+      switch position {
+      case .topLeading,
+           .leading,
+           .bottomLeading:
+        visibleFrame.minX + panelEdgeInset
+
+      case .top,
+           .center,
+           .bottom:
+        visibleFrame.midX - size.width / 2
+
+      case .topTrailing,
+           .trailing,
+           .bottomTrailing:
+        visibleFrame.maxX - size.width - panelEdgeInset
+      }
+    let y: CGFloat =
+      switch position {
+      case .bottomLeading,
+           .bottom,
+           .bottomTrailing:
+        visibleFrame.minY + panelEdgeInset
+
+      case .leading,
+           .center,
+           .trailing:
+        visibleFrame.midY - size.height / 2
+
+      case .topLeading,
+           .top,
+           .topTrailing:
+        visibleFrame.maxY - size.height - panelEdgeInset
+      }
+    return CGRect(origin: CGPoint(x: x, y: y), size: size)
   }
 
   static func actionSurfaceSize(name: String, subtitle: String?) -> NSSize {
@@ -282,17 +451,108 @@ private final class ActionHUDContentModel {
 
 }
 
+// MARK: - HUDPresentationPhase
+
+enum HUDPresentationPhase: Equatable, Sendable {
+  /// Fully transparent and visually collapsed at the starting position.
+  case hidden
+  /// Full-size, readable action feedback (and the switcher's visible state).
+  case expanded
+  /// Critically damped spring collapse to a fully transparent point.
+  case collapsing
+}
+
+// MARK: - HUDPresentationTransition
+
+struct HUDPresentationTransition: Equatable, Sendable {
+  let revision: UInt
+  let phase: HUDPresentationPhase
+}
+
+// MARK: - HUDPresentationTransitionHandle
+
+struct HUDPresentationTransitionHandle: Sendable {
+  let transition: HUDPresentationTransition
+  let completion: AsyncStream<Void>
+}
+
+// MARK: - HUDPresentationTiming
+
+enum HUDPresentationTiming {
+  static let actionEntryDurationMs = 400
+  static let actionOpacityEntryDurationMs = 300
+  static let actionExitDurationMs = 300
+  static let actionExitOpacityDelayMs = 200
+  static let actionExitOpacityDurationMs = 240
+  static let reducedMotionDurationMs = 120
+  static let windowSwitcherFadeDurationMs = 140
+
+  static func seconds(_ milliseconds: Int) -> TimeInterval {
+    TimeInterval(milliseconds) / 1_000
+  }
+}
+
 // MARK: - HUDPresentationModel
 
 @MainActor
 @Observable
-private final class HUDPresentationModel {
+final class HUDPresentationModel {
 
-  private(set) var isPresented = false
+  // MARK: Lifecycle
 
-  func setPresented(_ isPresented: Bool) {
-    self.isPresented = isPresented
+  init() { }
+
+  // MARK: Internal
+
+  private(set) var transition = HUDPresentationTransition(
+    revision: 0,
+    phase: .hidden,
+  )
+
+  var phase: HUDPresentationPhase {
+    transition.phase
   }
+
+  @discardableResult
+  func setPhase(_ phase: HUDPresentationPhase) -> HUDPresentationTransitionHandle {
+    finishPendingTransitions()
+    let transition = HUDPresentationTransition(
+      revision: transition.revision &+ 1,
+      phase: phase,
+    )
+    let (completion, continuation) = AsyncStream<Void>.makeStream(
+      bufferingPolicy: .bufferingNewest(1)
+    )
+    completionContinuations[transition.revision] = continuation
+    self.transition = transition
+    return HUDPresentationTransitionHandle(
+      transition: transition,
+      completion: completion,
+    )
+  }
+
+  func animationDidComplete(_ transition: HUDPresentationTransition) {
+    guard
+      let continuation = completionContinuations.removeValue(
+        forKey: transition.revision
+      )
+    else { return }
+    continuation.yield(())
+    continuation.finish()
+  }
+
+  func finishPendingTransitions() {
+    for continuation in completionContinuations.values {
+      continuation.finish()
+    }
+    completionContinuations.removeAll()
+  }
+
+  // MARK: Private
+
+  @ObservationIgnored private var completionContinuations = [
+    UInt: AsyncStream<Void>.Continuation
+  ]()
 
 }
 
@@ -368,74 +628,105 @@ private final class WorkspaceHUDController {
 
   // MARK: Internal
 
-  func show(
-    name: String,
-    symbolIconName: String?,
-    subtitle: String?,
-    durationMs: Int,
-    display: DisplayName?,
-  ) {
+  func showAction(_ request: ActionHUDRequest) -> ActionHUDPresentation? {
     debugLog.log(
       "HUDDiag",
-      "show title=\(name) hint=\(subtitle != nil) durationMs=\(durationMs) "
-        + "display=\(display?.name ?? "cursor")",
+      "show title=\(request.name) hint=\(request.subtitle != nil) "
+        + "durationMs=\(request.durationMs) position=\(request.position.rawValue) "
+        + "size=\(request.size.rawValue) "
+        + "display=\(request.display?.name ?? "cursor")",
     )
-    guard let screen = resolveScreen(display), let screenID = screen.displayID else { return }
+    guard
+      let screen = resolveScreen(request.display),
+      let screenID = screen.displayID
+    else { return nil }
     let entry: Entry
     if
       let current = entries[screenID],
-      current.kind == .action,
+      current.kind == .action(request.position, request.size),
       let currentContent = current.actionContent
     {
       current.hideTask?.cancel()
+      current.hideRevision &+= 1
       current.dismissTask?.cancel()
+      current.dismissRevision &+= 1
       current.dismissTask = nil
-      currentContent.update(name: name, symbolIconName: symbolIconName, subtitle: subtitle)
+      currentContent.update(
+        name: request.name,
+        symbolIconName: request.symbolIconName,
+        subtitle: request.subtitle,
+      )
       entry = current
     } else {
       retireEntry(on: screenID)
       let panel = makePanel(acceptsMouseEvents: false)
       let content = ActionHUDContentModel(
-        name: name,
-        symbolIconName: symbolIconName,
-        subtitle: subtitle,
+        name: request.name,
+        symbolIconName: request.symbolIconName,
+        subtitle: request.subtitle,
       )
       let presentation = HUDPresentationModel()
-      layoutActionHUD(panel, on: screen)
+      layoutActionHUD(panel, position: request.position, size: request.size, on: screen)
       let hostingView = makeHostingView(
         rootView: WorkspaceHUDView(
           content: content,
           presentation: presentation,
+          position: request.position,
+          size: request.size,
         )
       )
       panel.contentView = hostingView
       entry = Entry(
         panel: panel,
-        kind: .action,
+        kind: .action(request.position, request.size),
         presentation: presentation,
         actionContent: content,
         windowSwitcherContent: nil,
       )
       entries[screenID] = entry
     }
-    layoutActionHUD(entry.panel, on: screen)
+    layoutActionHUD(entry.panel, position: request.position, size: request.size, on: screen)
     entry.panel.alphaValue = 1
     entry.panel.orderFrontRegardless()
-    if !entry.isPresented {
+    let wasPresented = entry.isPresented
+    if !wasPresented {
       entry.isPresented = true
-      present(entry, on: screenID)
     }
 
-    entry.hideTask = Task { [weak self] in
-      // A hint line takes longer to read than a glanceable title.
-      let duration = max(100, subtitle == nil ? durationMs : durationMs * 2)
+    let effectivePresentation = ActionHUDPresentation(
+      request: request,
+      display: screen.displayName ?? request.display,
+    )
+    if !wasPresented {
+      presentAction(entry, on: screenID)
+    }
+    let presentationTask = entry.presentationTask
+    entry.hideRevision &+= 1
+    let hideRevision = entry.hideRevision
+    entry.hideTask = Task { @MainActor [weak self, weak entry] in
+      await presentationTask?.value
+      guard
+        !Task.isCancelled,
+        let self,
+        let entry,
+        entries[screenID] === entry,
+        entry.hideRevision == hideRevision,
+        entry.isPresented
+      else { return }
       do {
-        try await Task.sleep(for: .milliseconds(duration))
+        try await Task.sleep(for: .milliseconds(effectivePresentation.durationMs))
       } catch {
         return
       }
-      self?.fadeOut(screenID)
+      guard
+        !Task.isCancelled,
+        entries[screenID] === entry,
+        entry.hideRevision == hideRevision,
+        entry.isPresented
+      else { return }
+      fadeOut(screenID)
     }
+    return effectivePresentation
   }
 
   func showWindowSwitcher(
@@ -478,7 +769,9 @@ private final class WorkspaceHUDController {
       let content = current.windowSwitcherContent
     {
       current.hideTask?.cancel()
+      current.hideRevision &+= 1
       current.dismissTask?.cancel()
+      current.dismissRevision &+= 1
       current.dismissTask = nil
       content.update(
         items: items,
@@ -523,19 +816,39 @@ private final class WorkspaceHUDController {
     layoutWindowSwitcher(entry.panel, size: panelSize, on: screen)
     entry.panel.alphaValue = 1
     entry.panel.orderFrontRegardless()
-    if !entry.isPresented {
+    let wasPresented = entry.isPresented
+    if !wasPresented {
       entry.isPresented = true
-      present(entry, on: screenID)
+      presentWindowSwitcher(entry, on: screenID)
     }
 
     entry.hideTask = autoDismissAfterMs.map { durationMs in
-      Task { [weak self] in
+      let dwellDurationMs = max(300, durationMs)
+      let presentationTask = entry.presentationTask
+      entry.hideRevision &+= 1
+      let hideRevision = entry.hideRevision
+      return Task { @MainActor [weak self, weak entry] in
+        await presentationTask?.value
+        guard
+          !Task.isCancelled,
+          let self,
+          let entry,
+          entries[screenID] === entry,
+          entry.hideRevision == hideRevision,
+          entry.isPresented
+        else { return }
         do {
-          try await Task.sleep(for: .milliseconds(max(300, durationMs)))
+          try await Task.sleep(for: .milliseconds(dwellDurationMs))
         } catch {
           return
         }
-        self?.fadeOut(screenID)
+        guard
+          !Task.isCancelled,
+          entries[screenID] === entry,
+          entry.hideRevision == hideRevision,
+          entry.isPresented
+        else { return }
+        fadeOut(screenID)
       }
     }
   }
@@ -578,14 +891,18 @@ private final class WorkspaceHUDController {
 
     // MARK: Internal
 
-    enum Kind {
-      case action
+    enum Kind: Equatable {
+      case action(HUDPosition, HUDSize)
       case windowSwitcher
     }
 
     let panel: NSPanel
     var hideTask: Task<Void, Never>?
+    var hideRevision: UInt = 0
+    var presentationTask: Task<Void, Never>?
+    var presentationRevision: UInt = 0
     var dismissTask: Task<Void, Never>?
+    var dismissRevision: UInt = 0
     var isPresented = false
     let kind: Kind
     let presentation: HUDPresentationModel
@@ -607,27 +924,34 @@ private final class WorkspaceHUDController {
   private func fadeOut(_ screenID: CGDirectDisplayID) {
     guard let entry = entries[screenID], entry.isPresented else { return }
     entry.hideTask?.cancel()
+    entry.hideRevision &+= 1
     entry.hideTask = nil
+    entry.presentationTask?.cancel()
+    entry.presentationRevision &+= 1
+    entry.presentationTask = nil
     entry.dismissTask?.cancel()
+    entry.dismissRevision &+= 1
+    let dismissRevision = entry.dismissRevision
     if entry.kind == .windowSwitcher {
       setWindowSwitcherInputEnabled(false, on: screenID)
     }
     debugLog.log("HUDDiag", "dismiss animation start")
     entry.isPresented = false
-    entry.presentation.setPresented(false)
+    let transition = entry.presentation.setPhase(
+      entry.kind == .windowSwitcher ? .hidden : .collapsing
+    )
     entry.dismissTask = Task { @MainActor [weak self, weak entry] in
-      do {
-        let delayMs = entry?.kind == .windowSwitcher ? 180 : 320
-        try await Task.sleep(for: .milliseconds(delayMs))
-      } catch {
-        return
-      }
+      for await _ in transition.completion { break }
       guard
         let self,
         let entry,
-        entries[screenID] === entry
+        !Task.isCancelled,
+        entries[screenID] === entry,
+        entry.dismissRevision == dismissRevision,
+        !entry.isPresented
       else { return }
       debugLog.log("HUDDiag", "dismiss animation done")
+      entry.presentation.setPhase(.hidden)
       entry.panel.orderOut(nil)
       entry.dismissTask = nil
       if entry.kind == .windowSwitcher {
@@ -639,28 +963,72 @@ private final class WorkspaceHUDController {
   private func retireEntry(on screenID: CGDirectDisplayID) {
     guard let entry = entries.removeValue(forKey: screenID) else { return }
     entry.hideTask?.cancel()
+    entry.hideRevision &+= 1
+    entry.presentationTask?.cancel()
+    entry.presentationRevision &+= 1
     entry.dismissTask?.cancel()
+    entry.dismissRevision &+= 1
+    entry.presentation.finishPendingTransitions()
     if entry.kind == .windowSwitcher {
       setWindowSwitcherInputEnabled(false, on: screenID)
     }
     entry.panel.orderOut(nil)
   }
 
-  private func present(_ entry: Entry, on screenID: CGDirectDisplayID) {
+  private func presentAction(_ entry: Entry, on screenID: CGDirectDisplayID) {
     // Let the hosting view commit its initial hidden state before toggling the
-    // observable presentation flag. Updating it in the construction pass can
-    // make SwiftUI render only the final state, which drops the entrance
-    // spring entirely.
+    // observable phase. Updating it in the construction pass can make SwiftUI
+    // render only the final state, which drops the entrance motion entirely.
     entry.panel.contentView?.layoutSubtreeIfNeeded()
-    Task { @MainActor [weak self, weak entry] in
+    entry.presentationTask?.cancel()
+    entry.presentationRevision &+= 1
+    let presentationRevision = entry.presentationRevision
+    entry.presentationTask = Task { @MainActor [weak self, weak entry] in
       await Task.yield()
       guard
         let self,
         let entry,
         entries[screenID] === entry,
+        entry.presentationRevision == presentationRevision,
         entry.isPresented
       else { return }
-      entry.presentation.setPresented(true)
+      // Keep this task alive until SwiftUI reports the entrance animation as
+      // removed, so the configured dwell interval starts on settled content.
+      let transition = entry.presentation.setPhase(.expanded)
+      for await _ in transition.completion { break }
+      guard
+        entries[screenID] === entry,
+        entry.presentationRevision == presentationRevision,
+        entry.isPresented
+      else { return }
+      entry.presentationTask = nil
+    }
+  }
+
+  private func presentWindowSwitcher(_ entry: Entry, on screenID: CGDirectDisplayID) {
+    // Preserve the switcher's existing one-beat fade and delayed initial-state
+    // commit; only compact action feedback uses the phased edge motion.
+    entry.panel.contentView?.layoutSubtreeIfNeeded()
+    entry.presentationTask?.cancel()
+    entry.presentationRevision &+= 1
+    let presentationRevision = entry.presentationRevision
+    entry.presentationTask = Task { @MainActor [weak self, weak entry] in
+      await Task.yield()
+      guard
+        let self,
+        let entry,
+        entries[screenID] === entry,
+        entry.presentationRevision == presentationRevision,
+        entry.isPresented
+      else { return }
+      let transition = entry.presentation.setPhase(.expanded)
+      for await _ in transition.completion { break }
+      guard
+        entries[screenID] === entry,
+        entry.presentationRevision == presentationRevision,
+        entry.isPresented
+      else { return }
+      entry.presentationTask = nil
     }
   }
 
@@ -710,16 +1078,20 @@ private final class WorkspaceHUDController {
     NSHostingView(rootView: rootView)
   }
 
-  private func layoutActionHUD(_ panel: NSPanel, on screen: NSScreen) {
-    let size = HUDLayout.actionPanelSize
-    let visible = screen.visibleFrame
-    // The compact island drops from the top edge, close to where macOS places
-    // transient system feedback without covering the user's working content.
-    let origin = NSPoint(
-      x: visible.midX - size.width / 2,
-      y: visible.maxY - size.height - 22,
+  private func layoutActionHUD(
+    _ panel: NSPanel,
+    position: HUDPosition,
+    size: HUDSize,
+    on screen: NSScreen,
+  ) {
+    panel.setFrame(
+      HUDLayout.actionPanelFrame(
+        in: screen.visibleFrame,
+        position: position,
+        size: size,
+      ),
+      display: false,
     )
-    panel.setFrame(NSRect(origin: origin, size: size), display: false)
   }
 
   private func layoutWindowSwitcher(
@@ -937,6 +1309,65 @@ private func windowSwitcherInputTapCallback(
   }
 }
 
+// MARK: - HUDPosition + Action Presentation
+
+extension HUDPosition {
+  fileprivate var actionContentAlignment: Alignment {
+    switch self {
+    case .topLeading: .topLeading
+    case .top: .top
+    case .topTrailing: .topTrailing
+    case .leading: .leading
+    case .center: .center
+    case .trailing: .trailing
+    case .bottomLeading: .bottomLeading
+    case .bottom: .bottom
+    case .bottomTrailing: .bottomTrailing
+    }
+  }
+
+  fileprivate var actionMotionAnchor: UnitPoint {
+    switch self {
+    case .topLeading: .topLeading
+    case .top: .top
+    case .topTrailing: .topTrailing
+    case .leading: .leading
+    case .center: .center
+    case .trailing: .trailing
+    case .bottomLeading: .bottomLeading
+    case .bottom: .bottom
+    case .bottomTrailing: .bottomTrailing
+    }
+  }
+
+  /// Edge positions begin just outside the chosen edge; the center stays put.
+  /// Corners use a diagonal vector with the same perceived travel as the
+  /// 16-point cardinal motion.
+  fileprivate var actionHiddenOffset: CGSize {
+    switch self {
+    case .topLeading: CGSize(width: -12, height: -12)
+    case .top: CGSize(width: 0, height: -16)
+    case .topTrailing: CGSize(width: 12, height: -12)
+    case .leading: CGSize(width: -16, height: 0)
+    case .center: .zero
+    case .trailing: CGSize(width: 16, height: 0)
+    case .bottomLeading: CGSize(width: -12, height: 12)
+    case .bottom: CGSize(width: 0, height: 16)
+    case .bottomTrailing: CGSize(width: 12, height: 12)
+    }
+  }
+}
+
+extension HUDSize {
+  fileprivate var actionScale: CGFloat {
+    switch self {
+    case .small: 0.84
+    case .standard: 1
+    case .large: 1.18
+    }
+  }
+}
+
 // MARK: - WorkspaceHUDView
 
 @MainActor
@@ -946,9 +1377,12 @@ private struct WorkspaceHUDView: View {
 
   let content: ActionHUDContentModel
   let presentation: HUDPresentationModel
+  let position: HUDPosition
+  let size: HUDSize
 
   var body: some View {
     let value = content.value
+    let transition = presentation.transition
     let surfaceSize = HUDLayout.actionSurfaceSize(
       name: value.name,
       subtitle: value.subtitle,
@@ -1010,14 +1444,33 @@ private struct WorkspaceHUDView: View {
     .frame(
       width: HUDLayout.maximumActionSurfaceSize.width,
       height: HUDLayout.maximumActionSurfaceSize.height,
-      alignment: .top,
+      alignment: position.actionContentAlignment,
     )
     .padding(HUDLayout.actionShadowPadding)
-    .frame(width: HUDLayout.actionPanelSize.width, height: HUDLayout.actionPanelSize.height)
+    .frame(
+      width: HUDLayout.maximumActionSurfaceSize.width + HUDLayout.actionShadowPadding * 2,
+      height: HUDLayout.maximumActionSurfaceSize.height + HUDLayout.actionShadowPadding * 2,
+    )
     .modifier(
-      ActionHUDPresentationModifier(isPresented: presentation.isPresented)
+      ActionHUDPresentationModifier(
+        phase: transition.phase,
+        position: position,
+      )
+    )
+    .padding(HUDLayout.actionMotionPadding)
+    .scaleEffect(size.actionScale)
+    .frame(
+      width: HUDLayout.actionPanelSize(for: size).width,
+      height: HUDLayout.actionPanelSize(for: size).height,
     )
     .accessibilityElement(children: .combine)
+    .transaction(value: transition) { transaction in
+      transaction.addAnimationCompletion(criteria: .removed) {
+        Task { @MainActor [weak presentation] in
+          presentation?.animationDidComplete(transition)
+        }
+      }
+    }
   }
 
   // MARK: Private
@@ -1032,31 +1485,127 @@ private struct ActionHUDPresentationModifier: ViewModifier {
 
   // MARK: Internal
 
-  let isPresented: Bool
+  let phase: HUDPresentationPhase
+  let position: HUDPosition
 
   func body(content: Content) -> some View {
+    let transform = transform
     content
-      .opacity(isPresented ? 1 : 0)
-      .offset(y: isPresented ? 0 : -10)
+      .offset(transform.offset)
       .scaleEffect(
-        x: isPresented ? 1 : 0.97,
-        y: isPresented ? 1 : 0.94,
-        anchor: .top,
+        transform.scale,
+        anchor: position.actionMotionAnchor,
       )
       .animation(
-        reduceMotion
-          ? nil
-          : .spring(
-            response: 0.28,
-            dampingFraction: 0.78,
-          ),
-        value: isPresented,
+        transformAnimation,
+        value: phase,
+      )
+      .opacity(transform.opacity)
+      .animation(
+        opacityAnimation,
+        value: phase,
       )
   }
 
   // MARK: Private
 
+  private struct Transform {
+    let opacity: Double
+    let scale: CGFloat
+    let offset: CGSize
+  }
+
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private var transform: Transform {
+    if reduceMotion {
+      return Transform(
+        opacity: phase == .expanded ? 1 : 0,
+        scale: 1,
+        offset: .zero,
+      )
+    }
+    return switch phase {
+    case .hidden:
+      Transform(opacity: 0, scale: 0, offset: position.actionHiddenOffset)
+    case .expanded:
+      Transform(opacity: 1, scale: 1, offset: .zero)
+    case .collapsing:
+      Transform(opacity: 0, scale: 0, offset: position.actionHiddenOffset)
+    }
+  }
+
+  private var transformAnimation: Animation {
+    if reduceMotion {
+      return .easeOut(
+        duration: HUDPresentationTiming.seconds(
+          HUDPresentationTiming.reducedMotionDurationMs
+        )
+      )
+    }
+    return switch phase {
+    case .hidden:
+      .linear(duration: 0)
+
+    case .expanded:
+      .spring(
+        response: HUDPresentationTiming.seconds(
+          HUDPresentationTiming.actionEntryDurationMs
+        ),
+        dampingFraction: 0.78,
+        blendDuration: 0.06,
+      )
+
+    case .collapsing:
+      // The reference animation contracts with a monotonic spring tail. A
+      // critically damped exit keeps that shape without crossing through zero
+      // and exposing a tiny mirrored rebound.
+      .spring(
+        response: HUDPresentationTiming.seconds(
+          HUDPresentationTiming.actionExitDurationMs
+        ),
+        dampingFraction: 1,
+        blendDuration: 0.06,
+      )
+    }
+  }
+
+  private var opacityAnimation: Animation {
+    if reduceMotion {
+      return .easeOut(
+        duration: HUDPresentationTiming.seconds(
+          HUDPresentationTiming.reducedMotionDurationMs
+        )
+      )
+    }
+    return switch phase {
+    case .hidden:
+      .linear(duration: 0)
+
+    case .expanded:
+      // Beta 6 keeps filling the surface while geometry grows. A longer,
+      // continuous reveal avoids the previous 150ms jump to full opacity.
+      .easeOut(
+        duration: HUDPresentationTiming.seconds(
+          HUDPresentationTiming.actionOpacityEntryDurationMs
+        )
+      )
+
+    case .collapsing:
+      // Keep the notification solid through the first half of its contraction,
+      // then finish the fade alongside the spring's final visible tail.
+      .easeIn(
+        duration: HUDPresentationTiming.seconds(
+          HUDPresentationTiming.actionExitOpacityDurationMs
+        )
+      )
+      .delay(
+        HUDPresentationTiming.seconds(
+          HUDPresentationTiming.actionExitOpacityDelayMs
+        )
+      )
+    }
+  }
 
 }
 
@@ -1066,14 +1615,20 @@ private struct WindowSwitcherPresentationModifier: ViewModifier {
 
   // MARK: Internal
 
-  let isPresented: Bool
+  let phase: HUDPresentationPhase
 
   func body(content: Content) -> some View {
     content
-      .opacity(isPresented ? 1 : 0)
+      .opacity(phase == .hidden ? 0 : 1)
       .animation(
-        reduceMotion ? nil : .easeInOut(duration: 0.14),
-        value: isPresented,
+        reduceMotion
+          ? nil
+          : .easeInOut(
+            duration: HUDPresentationTiming.seconds(
+              HUDPresentationTiming.windowSwitcherFadeDurationMs
+            )
+          ),
+        value: phase,
       )
   }
 
@@ -1128,6 +1683,7 @@ private struct WindowSwitcherHUDView: View {
 
   var body: some View {
     let value = content.value
+    let transition = presentation.transition
     let selectedItem = value.items.first {
       value.byWindow
         ? $0.key == value.selected
@@ -1175,8 +1731,15 @@ private struct WindowSwitcherHUDView: View {
     )
     .padding(HUDLayout.windowSwitcherShadowPadding)
     .modifier(
-      WindowSwitcherPresentationModifier(isPresented: presentation.isPresented)
+      WindowSwitcherPresentationModifier(phase: transition.phase)
     )
+    .transaction(value: transition) { transaction in
+      transaction.addAnimationCompletion(criteria: .removed) {
+        Task { @MainActor [weak presentation] in
+          presentation?.animationDidComplete(transition)
+        }
+      }
+    }
   }
 }
 

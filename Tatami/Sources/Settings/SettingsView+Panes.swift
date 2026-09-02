@@ -638,6 +638,16 @@ extension SettingsView {
         Text("Brief on-screen overlay confirming actions. The toggles below pick which.")
       }
       Group {
+        HUDPositionPicker(selection: setting(\.hud.position))
+        Picker(selection: setting(\.hud.size)) {
+          ForEach(HUDSize.allCases) { size in
+            Text(size.displayName).tag(size)
+          }
+        } label: {
+          Text("Feedback size")
+          Text("Adjust the overall size of action feedback.")
+        }
+        .pickerStyle(.segmented)
         Toggle(isOn: setting(\.hud.workspaceSwitch)) {
           Text("Workspace switch")
           Text("The workspace's name when you switch to it.")
@@ -680,7 +690,7 @@ extension SettingsView {
           external: config.settings.hud.durationMs,
           range: 300 ... 3000,
           step: 100,
-          detail: "How long the overlay stays up. HUDs with a follow-up hint stay twice as long.",
+          detail: "How long the overlay remains fully visible. Entrance and exit animations are not counted. HUDs with a follow-up hint stay twice as long.",
           label: { "Duration: \($0) ms" },
           commit: { v in $config.withLock { $0.settings.hud.durationMs = v } },
         )
@@ -1060,6 +1070,104 @@ private struct GestureBindingPicker: View {
       } else {
         Text(action.title(in: config))
       }
+    }
+  }
+
+}
+
+// MARK: - HUDPositionPicker
+
+/// A miniature display makes the nine screen positions spatially clear
+/// without turning a compact Settings row into a nine-item text menu.
+private struct HUDPositionPicker: View {
+
+  // MARK: Internal
+
+  @Binding var selection: HUDPosition
+
+  var body: some View {
+    LabeledContent {
+      Grid(horizontalSpacing: 4, verticalSpacing: 4) {
+        GridRow {
+          positionButton(.topLeading)
+          positionButton(.top)
+          positionButton(.topTrailing)
+        }
+        GridRow {
+          positionButton(.leading)
+          positionButton(.center)
+          positionButton(.trailing)
+        }
+        GridRow {
+          positionButton(.bottomLeading)
+          positionButton(.bottom)
+          positionButton(.bottomTrailing)
+        }
+      }
+      .padding(6)
+      .background(
+        Color.primary.opacity(0.035),
+        in: RoundedRectangle(cornerRadius: 8, style: .continuous),
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+          .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+      }
+    } label: {
+      VStack(alignment: .leading, spacing: 2) {
+        Text("Feedback position")
+        Text(
+          "Choose where action feedback appears on each display. The app/window switcher stays centered."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+      }
+    }
+  }
+
+  // MARK: Private
+
+  private func positionButton(_ position: HUDPosition) -> some View {
+    let isSelected = selection == position
+    return Button {
+      selection = position
+    } label: {
+      Image(systemName: symbolName(for: position))
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .frame(width: 30, height: 24)
+        .contentShape(.rect)
+        .background(
+          isSelected
+            ? Color.accentColor.opacity(0.18)
+            : Color.primary.opacity(0.045),
+          in: RoundedRectangle(cornerRadius: 5, style: .continuous),
+        )
+        .overlay {
+          RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .strokeBorder(
+              isSelected ? Color.accentColor.opacity(0.48) : Color.clear,
+              lineWidth: 1,
+            )
+        }
+    }
+    .buttonStyle(.plain)
+    .help(String(localized: position.displayName))
+    .accessibilityLabel(Text(position.displayName))
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
+  }
+
+  private func symbolName(for position: HUDPosition) -> String {
+    switch position {
+    case .topLeading: "arrow.up.left"
+    case .top: "arrow.up"
+    case .topTrailing: "arrow.up.right"
+    case .leading: "arrow.left"
+    case .center: "circle.fill"
+    case .trailing: "arrow.right"
+    case .bottomLeading: "arrow.down.left"
+    case .bottom: "arrow.down"
+    case .bottomTrailing: "arrow.down.right"
     }
   }
 

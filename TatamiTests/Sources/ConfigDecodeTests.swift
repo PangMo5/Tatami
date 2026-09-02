@@ -50,8 +50,82 @@ struct ConfigDecodeTests {
     #expect(config.settings.switching.includeSharedAppsInWindowSwitcher)
     #expect(config.settings.switching.toggleBorrowOnRepeat)
     #expect(config.settings.hud.windowCycle)
+    #expect(config.settings.hud.position == .top)
+    #expect(config.settings.hud.size == .standard)
     #expect(config.hooks.isEmpty)
     #expect(reported.value == 0)
+  }
+
+  @Test(arguments: HUDPosition.allCases)
+  func `HUD position decodes and round trips`(_ position: HUDPosition) throws {
+    let toml = """
+      [settings.hud]
+      position = "\(position.rawValue)"
+      """
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+
+    #expect(decoded.settings.hud.position == position)
+
+    let encoded = try TOMLEncoder().encode(decoded)
+    let roundTripped = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    #expect(roundTripped.settings.hud == decoded.settings.hud)
+  }
+
+  @Test
+  func `invalid HUD position reports and uses top`() throws {
+    let reported = LockIsolated<[String]>([])
+    let config = try withDependencies {
+      $0.errorReporter.report = { domain, message, _ in
+        reported.withValue { $0.append("\(domain): \(message)") }
+      }
+    } operation: {
+      try TOMLDecoder().decode(
+        AppConfig.self,
+        from: """
+          [settings.hud]
+          position = "middle"
+          """,
+      )
+    }
+
+    #expect(config.settings.hud.position == .top)
+    #expect(reported.value.contains { $0.contains("settings.hud.position") })
+  }
+
+  @Test(arguments: HUDSize.allCases)
+  func `HUD size decodes and round trips`(_ size: HUDSize) throws {
+    let toml = """
+      [settings.hud]
+      size = "\(size.rawValue)"
+      """
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+
+    #expect(decoded.settings.hud.size == size)
+
+    let encoded = try TOMLEncoder().encode(decoded)
+    let roundTripped = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    #expect(roundTripped.settings.hud == decoded.settings.hud)
+  }
+
+  @Test
+  func `invalid HUD size reports and uses default`() throws {
+    let reported = LockIsolated<[String]>([])
+    let config = try withDependencies {
+      $0.errorReporter.report = { domain, message, _ in
+        reported.withValue { $0.append("\(domain): \(message)") }
+      }
+    } operation: {
+      try TOMLDecoder().decode(
+        AppConfig.self,
+        from: """
+          [settings.hud]
+          size = "huge"
+          """,
+      )
+    }
+
+    #expect(config.settings.hud.size == .standard)
+    #expect(reported.value.contains { $0.contains("settings.hud.size") })
   }
 
   @Test
@@ -124,14 +198,20 @@ struct ConfigDecodeTests {
       timeoutMs = 1234
       workingDirectory = "~/Documents"
       environment = { MODE = "test" }
+
+      [[hooks]]
+      id = "external-hud"
+      event = "hud"
+      command = ["/usr/bin/true"]
       """
 
     let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
 
-    #expect(decoded.hooks.count == 2)
+    #expect(decoded.hooks.count == 3)
     #expect(decoded.hooks[0].enabled)
     #expect(decoded.hooks[0].timeoutMs == 5_000)
     #expect(decoded.hooks[1].environment == ["MODE": "test"])
+    #expect(decoded.hooks[2].event == .hud)
 
     let encoder = TOMLEncoder()
     let encoded = try encoder.encode(decoded)
