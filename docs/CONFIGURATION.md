@@ -73,7 +73,7 @@ overlayAwareApps = ["notion.id"]
 ```
 
 For symptoms, app examples, and the Settings UI workflow, see
-[Troubleshooting](TROUBLESHOOTING.md#a-floating-control-disappears-or-brings-its-app-back).
+[Troubleshooting](https://github.com/PangMo5/Tatami/blob/main/docs/TROUBLESHOOTING.md#a-floating-control-disappears-or-brings-its-app-back).
 
 ## `[settings.menuBar]`
 

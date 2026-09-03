@@ -828,7 +828,7 @@ private struct WorkspaceChainPlacementLabel: View {
       if let displayHint {
         Text("Pinned to \(displayHint.name)")
       } else {
-        Label("Dynamic — follows the pointer", systemImage: "cursorarrow.motionlines")
+        Label("Dynamic · follows the pointer", systemImage: "cursorarrow.motionlines")
       }
     }
     .font(.caption)

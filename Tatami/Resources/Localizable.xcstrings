@@ -14,8 +14,8 @@
       "localizations": {
         "ko": { "stringUnit": { "state": "translated", "value": "플로팅 컨트롤이 있는 앱" } },
         "ja": { "stringUnit": { "state": "translated", "value": "フローティングコントロールのあるアプリ" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "带浮动控件的 App" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "具有浮動控制項目的 App" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "带浮动控件的应用" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "有浮動控制項的 App" } },
         "en": { "stringUnit": { "state": "translated", "value": "Apps With Floating Controls" } }
       }
     },
@@ -111,10 +111,10 @@
     },
     "Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you activate that workspace again. They may remain visible in Mission Control.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "앱이 일반 창 레이어가 아닌 곳에 화면 표시 중인 플로팅 컨트롤을 가진 동안에만 숨기지 않습니다. 해당 워크스페이스를 다시 활성화할 때까지 일반 창은 Tatami의 포커스, 순환, 레이아웃 및 멤버십 동작에서 제외됩니다. Mission Control에는 계속 보일 수 있습니다." } },
-        "ja": { "stringUnit": { "state": "translated", "value": "通常のウインドウレイヤー以外に画面表示中のフローティングコントロールがある間だけ、アプリを非表示にしません。そのワークスペースを再び有効にするまで、通常のウインドウはTatamiのフォーカス、切り替え、レイアウト、メンバーシップ操作から除外されます。Mission Controlには引き続き表示される場合があります。" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅当 App 在普通窗口层之外拥有屏幕上可见的浮动控件时，才保持其不被隐藏。在再次激活该工作区之前，其普通窗口不会参与 Tatami 的聚焦、循环、布局和成员管理操作。它们仍可能显示在调度中心中。" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "僅當 App 在一般視窗圖層之外擁有螢幕上可見的浮動控制項目時，才保持其不被隱藏。在再次啟用該工作空間之前，其一般視窗不會參與 Tatami 的聚焦、循環、佈局與成員管理操作。它們仍可能顯示在「指揮中心」中。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "일반 창 레이어 밖에 화면 표시 중인 플로팅 컨트롤이 있는 동안만 앱을 숨기지 않아요. 해당 작업 공간을 다시 활성화할 때까지 일반 창은 Tatami의 포커스, 창 전환, 레이아웃, 소속 변경 동작에서 제외돼요. Mission Control에는 계속 보일 수 있어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "通常のウインドウレイヤー以外に画面表示中のフローティングコントロールがある間だけ、アプリを非表示にしません。そのワークスペースを再び有効にするまで、通常のウインドウは Tatami のフォーカス、ウインドウ切り替え、レイアウト、メンバーシップ操作から除外されます。Mission Control には引き続き表示される場合があります。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅当应用在普通窗口层之外拥有屏幕上可见的浮动控件时，才保持其不被隐藏。在再次激活该工作区之前，其普通窗口不会参与 Tatami 的聚焦、窗口切换、布局和成员管理操作。它们仍可能显示在调度中心中。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "僅當 App 在一般視窗圖層之外有螢幕上可見的浮動控制項時，才保持其不被隱藏。在再次啟用該工作空間之前，其一般視窗不會參與 Tatami 的聚焦、視窗切換、版面與成員管理操作。它們仍可能顯示在「指揮中心」中。" } },
         "en": { "stringUnit": { "state": "translated", "value": "Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you activate that workspace again. They may remain visible in Mission Control." } }
       }
     },
@@ -36576,240 +36576,138 @@
         }
       }
     },
-    "Tatami 1.12 adds scriptable control and lifecycle hooks, plus safer, more selective profile and workspace duplication.": {
+    "Tatami 1.13 links workspaces across displays, keeps floating controls visible, and makes action feedback more flexible.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 1.12에서는 CLI와 수명 주기 훅으로 작업을 자동화하고, 더 안전한 검토 화면에서 프로필과 작업 공간을 필요한 내용만 골라 복제할 수 있어요."
+            "value": "Tatami 1.13에서는 여러 디스플레이의 작업 공간을 함께 전환하고, 플로팅 컨트롤을 계속 표시하며, 화면 알림을 더 유연하게 활용할 수 있어요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 1.12 では、CLI とライフサイクルフックで作業を自動化し、より安全な確認画面で必要な内容だけを選んでプロファイルやワークスペースを複製できます。"
+            "value": "Tatami 1.13 では、複数ディスプレイのワークスペースを連動して切り替え、フローティングコントロールを表示したままにし、操作フィードバックをより柔軟に活用できます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 1.12 新增了 CLI 自动化和生命周期钩子，并提供更安全、更灵活的配置方案与工作区复制流程。"
+            "value": "Tatami 1.13 可联动切换多个显示器上的工作区，让浮动控件保持可见，并以更灵活的方式使用操作反馈。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 1.12 新增 CLI 自動化與生命週期 Hook，並提供更安全、更彈性的設定組合與工作空間複製流程。"
+            "value": "Tatami 1.13 可連動切換多部顯示器上的工作空間，讓浮動控制項保持可見，並以更靈活的方式使用操作回饋。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami 1.12 adds scriptable control and lifecycle hooks, plus safer, more selective profile and workspace duplication."
+            "value": "Tatami 1.13 links workspaces across displays, keeps floating controls visible, and makes action feedback more flexible."
           }
         }
       }
     },
-    "Control Tatami from the command line": {
+    "Keep the workspace you choose active while Tatami restores available chain members across connected displays in priority order.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "명령줄에서 Tatami를 제어해요"
+            "value": "선택한 작업 공간은 그대로 활성화하고, 사용 가능한 체인 구성원은 연결된 디스플레이에 우선순위대로 복원해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "コマンドラインから Tatami を操作"
+            "value": "選んだワークスペースをアクティブに保ちながら、利用可能なチェーンのメンバーを接続中のディスプレイへ優先順に復元します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "从命令行控制 Tatami"
+            "value": "保持所选工作区处于活动状态，同时按优先顺序将可用的链成员恢复到已连接的显示器。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "從命令列控制 Tatami"
+            "value": "讓所選工作空間保持啟用，同時依優先順序將可用的鏈成員還原到已連接的顯示器。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Control Tatami from the command line"
+            "value": "Keep the workspace you choose active while Tatami restores available chain members across connected displays in priority order."
           }
         }
       }
     },
-    "Use domain commands for profiles, workspaces, windows, displays, layouts, and apps, with stable JSON output and every action available to trackpad gestures.": {
+    "Customize and share action feedback": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "프로필, 작업 공간, 윈도우, 디스플레이, 레이아웃, 앱 명령을 기능별로 사용하고, 제스처에서 지원하는 모든 동작을 안정적인 JSON 출력과 함께 실행할 수 있어요."
+            "value": "화면 알림을 꾸미고 공유해요"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "プロファイル、ワークスペース、ウインドウ、ディスプレイ、レイアウト、App のコマンドを機能別に使い、トラックパッドジェスチャで使えるすべての操作を安定した JSON 出力とともに実行できます。"
+            "value": "操作フィードバックをカスタマイズして共有"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "按配置方案、工作区、窗口、显示器、布局和应用分类使用命令，并通过稳定的 JSON 输出执行触控板手势支持的全部操作。"
+            "value": "自定义并共享操作反馈"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "依設定組合、工作空間、視窗、顯示器、版面與 App 分類使用指令，並透過穩定的 JSON 輸出執行觸控板手勢支援的所有操作。"
+            "value": "自訂並分享操作回饋"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use domain commands for profiles, workspaces, windows, displays, layouts, and apps, with stable JSON output and every action available to trackpad gestures."
+            "value": "Customize and share action feedback"
           }
         }
       }
     },
-    "Run programs on lifecycle events": {
+    "Choose one of nine HUD positions and three sizes. Each affected display gets its own feedback, and HUD hooks can mirror the same localized payload to tools such as SketchyBar.": {
       "localizations": {
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "수명 주기 이벤트에서 프로그램을 실행해요"
+            "value": "화면 알림 위치 9곳과 크기 3단계 중에서 선택하세요. 영향을 받은 각 디스플레이에 맞는 알림이 표시되고, `hud` 훅으로 동일한 현지화 정보를 SketchyBar 같은 도구에 전달할 수 있어요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ライフサイクルイベントでプログラムを実行"
+            "value": "HUD の9つの表示位置と3つのサイズから選べます。影響を受けた各ディスプレイに対応するフィードバックが表示され、HUD フックで同じローカライズ済み情報を SketchyBar などのツールに渡せます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在生命周期事件中运行程序"
+            "value": "可从 9 个 HUD 位置和 3 种尺寸中选择。每个受影响的显示器都会显示对应反馈，HUD 钩子还能将相同的本地化信息传递给 SketchyBar 等工具。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在生命週期事件中執行程式"
+            "value": "可從 9 個 HUD 位置和 3 種尺寸中選擇。每部受影響的顯示器都會顯示對應回饋，HUD Hook 也能將相同的本地化資訊傳遞給 SketchyBar 等工具。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Run programs on lifecycle events"
-          }
-        }
-      }
-    },
-    "Create and test hooks for Tatami launch, profile changes, and workspaces becoming visible on a display. Each event includes versioned JSON and useful environment variables.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami 실행, 프로필 변경, 작업 공간이 디스플레이에 표시될 때 실행할 훅을 만들고 테스트하세요. 각 이벤트에는 버전이 지정된 JSON과 유용한 환경 변수가 포함돼요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami の起動、プロファイルの変更、ワークスペースがディスプレイに表示されたときのフックを作成、テストできます。各イベントにはバージョン付き JSON と便利な環境変数が含まれます。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "为 Tatami 启动、配置方案变更和工作区显示在屏幕上创建并测试钩子。每个事件都包含带版本的 JSON 和实用的环境变量。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "為 Tatami 啟動、設定組合變更及工作空間顯示在螢幕上建立並測試 Hook。每個事件都包含有版本的 JSON 與實用的環境變數。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create and test hooks for Tatami launch, profile changes, and workspaces becoming visible on a display. Each event includes versioned JSON and useful environment variables."
-          }
-        }
-      }
-    },
-    "Choose what Duplicate keeps": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "복제할 내용을 직접 골라요"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "複製する内容を選択"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择要复制的内容"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選擇要複製的內容"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose what Duplicate keeps"
-          }
-        }
-      }
-    },
-    "Right-click a profile or workspace, review its workspaces, apps, settings, and saved layouts, then include only what you want.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "프로필이나 작업 공간을 우클릭하고 작업 공간, 앱, 설정, 저장된 레이아웃을 검토한 다음 필요한 항목만 포함하세요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プロファイルやワークスペースを右クリックし、ワークスペース、App、設定、保存済みレイアウトを確認して、必要な項目だけを含められます。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "右键点按配置方案或工作区，检查其中的工作区、应用、设置和已存布局，然后仅包含需要的项目。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在設定組合或工作空間上按右鍵，檢查其中的工作空間、App、設定與已儲存版面，然後只包含需要的項目。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Right-click a profile or workspace, review its workspaces, apps, settings, and saved layouts, then include only what you want."
+            "value": "Choose one of nine HUD positions and three sizes. Each affected display gets its own feedback, and HUD hooks can mirror the same localized payload to tools such as SketchyBar."
           }
         }
       }
@@ -37539,7 +37437,7 @@
     },
     "Add Workspace Chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인 추가" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인 추가" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンを追加" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "添加工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "加入工作空間鏈" } },
@@ -37566,7 +37464,7 @@
     },
     "Already used by another workspace chain. Remove it here or edit the other chain.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "이미 다른 워크스페이스 체인에서 사용 중이에요. 여기서 제거하거나 다른 체인을 편집해 주세요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미 다른 작업 공간 체인에서 사용 중이에요. 여기서 제거하거나 다른 체인을 편집해 주세요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "すでに別のワークスペースチェーンで使われています。ここから削除するか、もう一方のチェーンを編集してください。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "已用于另一个工作区链。请在此移除，或编辑另一个链。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "已用於另一個工作空間鏈。請在這裡移除，或編輯另一個鏈。" } },
@@ -37575,7 +37473,7 @@
     },
     "Another workspace chain has the same identifier.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "다른 워크스페이스 체인과 내부 식별자가 같아요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "다른 작업 공간 체인과 내부 식별자가 같아요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "別のワークスペースチェーンと内部識別子が重複しています。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "另一个工作区链使用了相同的内部标识符。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "另一個工作空間鏈使用了相同的內部識別碼。" } },
@@ -37584,7 +37482,7 @@
     },
     "Create a normal workspace, or remove one from another workspace chain.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "일반 작업 공간을 만들거나 다른 워크스페이스 체인에서 하나를 제거해 주세요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "일반 작업 공간을 만들거나 다른 작업 공간 체인에서 하나를 제거해 주세요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "通常のワークスペースを作成するか、別のワークスペースチェーンから1つ削除してください。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "请创建普通工作区，或从另一个工作区链中移除一个。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "請建立一般工作空間，或從另一個工作空間鏈移除一個。" } },
@@ -37602,7 +37500,7 @@
     },
     "Delete this workspace chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인 삭제" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간 체인 삭제" } },
         "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンを削除" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除此工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "刪除此工作空間鏈" } },
@@ -37611,7 +37509,7 @@
     },
     "Delete workspace chain?": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인을 삭제할까요?" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인을 삭제할까요?" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンを削除しますか？" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除工作区链？" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "要刪除工作空間鏈嗎？" } },
@@ -37636,18 +37534,18 @@
         "en": { "stringUnit": { "state": "translated", "value": "Drag to reorder" } }
       }
     },
-    "Dynamic — follows the pointer": {
+    "Dynamic · follows the pointer": {
       "localizations": {
         "ko": { "stringUnit": { "state": "translated", "value": "동적 · 포인터를 따라감" } },
-        "ja": { "stringUnit": { "state": "translated", "value": "動的 — ポインタに追従" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "动态 — 跟随指针" } },
-        "zh-Hant": { "stringUnit": { "state": "translated", "value": "動態 — 跟隨游標" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Dynamic — follows the pointer" } }
+        "ja": { "stringUnit": { "state": "translated", "value": "動的 · ポインタに追従" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "动态 · 跟随指针" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "動態 · 跟隨游標" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Dynamic · follows the pointer" } }
       }
     },
     "Edit this workspace chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인 편집" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간 체인 편집" } },
         "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンを編集" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑此工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "編輯此工作空間鏈" } },
@@ -37656,7 +37554,7 @@
     },
     "Edit Workspace Chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인 편집" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인 편집" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンを編集" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "編輯工作空間鏈" } },
@@ -37710,7 +37608,7 @@
     },
     "New Workspace Chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "새 워크스페이스 체인" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "새 작업 공간 체인" } },
         "ja": { "stringUnit": { "state": "translated", "value": "新しいワークスペースチェーン" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "新建工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增工作空間鏈" } },
@@ -37728,7 +37626,7 @@
     },
     "No workspace chains yet.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "아직 워크스페이스 체인이 없어요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "아직 작업 공간 체인이 없어요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンはまだありません。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未创建工作区链。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "尚未建立工作空間鏈。" } },
@@ -37764,7 +37662,7 @@
     },
     "One of these workspaces already belongs to another workspace chain.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "선택한 작업 공간 중 하나가 이미 다른 워크스페이스 체인에 들어 있어요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "선택한 작업 공간 중 하나가 이미 다른 작업 공간 체인에 들어 있어요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "選択したワークスペースの1つは、すでに別のワークスペースチェーンに含まれています。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "其中一个工作区已属于另一个工作区链。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "其中一個工作空間已屬於另一個工作空間鏈。" } },
@@ -37872,7 +37770,7 @@
     },
     "Remove %@ from workspace chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인에서 제거 · %@" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인에서 제거 · %@" } },
         "ja": { "stringUnit": { "state": "translated", "value": "%@をワークスペースチェーンから削除" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "从工作区链中移除 %@" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "從工作空間鏈移除 %@" } },
@@ -37881,7 +37779,7 @@
     },
     "Remove from workspace chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인에서 제거" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인에서 제거" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンから削除" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "从工作区链中移除" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "從工作空間鏈移除" } },
@@ -37890,7 +37788,7 @@
     },
     "Save this workspace chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인 저장" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간 체인 저장" } },
         "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンを保存" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "保存此工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "儲存此工作空間鏈" } },
@@ -37899,7 +37797,7 @@
     },
     "Scratchpads cannot join workspace chains.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "임시 공간은 워크스페이스 체인에 넣을 수 없어요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "임시 공간은 작업 공간 체인에 넣을 수 없어요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "一時スペースはワークスペースチェーンに追加できません。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂存区无法加入工作区链。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "暫存區無法加入工作空間鏈。" } },
@@ -37908,7 +37806,7 @@
     },
     "Scratchpads cannot join workspace chains. Remove it to repair the chain.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "임시 공간은 워크스페이스 체인에 넣을 수 없어요. 제거해서 체인을 복구해 주세요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "임시 공간은 작업 공간 체인에 넣을 수 없어요. 제거해서 체인을 복구해 주세요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "一時スペースはワークスペースチェーンに追加できません。削除してチェーンを修正してください。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂存区无法加入工作区链。请将其移除以修复此链。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "暫存區無法加入工作空間鏈。請將它移除以修復此鏈。" } },
@@ -37962,7 +37860,7 @@
     },
     "This workspace chain changed. Close the editor and open it again.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인이 변경됐어요. 편집기를 닫고 다시 열어 주세요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인이 변경됐어요. 편집기를 닫고 다시 열어 주세요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンが変更されました。編集画面を閉じて、もう一度開いてください。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链已更改。请关闭编辑器后重新打开。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈已變更。請關閉編輯器後重新開啟。" } },
@@ -37971,7 +37869,7 @@
     },
     "This workspace chain shares an internal identifier. Saving will repair it.": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인의 내부 식별자가 다른 체인과 같아요. 저장하면 자동으로 복구해요." } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간 체인의 내부 식별자가 다른 체인과 같아요. 저장하면 자동으로 복구해요." } },
         "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンの内部識別子が別のチェーンと重複しています。保存すると自動で修正します。" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "此工作区链与另一个链使用相同的内部标识符。保存时会自动修复。" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "此工作空間鏈與另一個鏈使用相同的內部識別碼。儲存時會自動修復。" } },
@@ -37989,7 +37887,7 @@
     },
     "Untitled Workspace Chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "이름 없는 워크스페이스 체인" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이름 없는 작업 공간 체인" } },
         "ja": { "stringUnit": { "state": "translated", "value": "名称未設定のワークスペースチェーン" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "未命名工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "未命名工作空間鏈" } },
@@ -37998,7 +37896,7 @@
     },
     "Workspace Chain": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーン" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈" } },
@@ -38007,7 +37905,7 @@
     },
     "Workspace chain conflict": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인 충돌" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인 충돌" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンの競合" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链冲突" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈衝突" } },
@@ -38016,7 +37914,7 @@
     },
     "Workspace Chains": {
       "localizations": {
-        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 체인" } },
         "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーン" } },
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈" } },
