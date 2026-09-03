@@ -59,4 +59,33 @@ struct WorkspaceHUDLayoutTests {
     #expect(abs(frame.minX - expectedOrigin.x) < 0.001)
     #expect(abs(frame.minY - expectedOrigin.y) < 0.001)
   }
+
+  @Test
+  func `multiline action HUD reserves the link width on the chain line only`() {
+    let longSecondLine = "Focus moved: Browser is on Built-in Retina Display"
+    let secondLineDominates = HUDLayout.actionSurfaceSize(
+      name: "Slack",
+      subtitle: "Test\n\(longSecondLine)",
+      subtitleSymbolIconName: "link",
+    )
+    let secondLineWithoutLink = HUDLayout.actionSurfaceSize(
+      name: "Slack",
+      subtitle: "Test\n\(longSecondLine)",
+    )
+
+    #expect(secondLineDominates.width == secondLineWithoutLink.width)
+
+    let longFirstLine = "Workspace Chain for Browser and Coding"
+    let firstLineDominates = HUDLayout.actionSurfaceSize(
+      name: "Slack",
+      subtitle: "\(longFirstLine)\nMoved",
+      subtitleSymbolIconName: "link",
+    )
+    let firstLineWithoutLink = HUDLayout.actionSurfaceSize(
+      name: "Slack",
+      subtitle: "\(longFirstLine)\nMoved",
+    )
+
+    #expect(firstLineDominates.width > firstLineWithoutLink.width)
+  }
 }

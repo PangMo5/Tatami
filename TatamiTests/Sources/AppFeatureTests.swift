@@ -1054,23 +1054,45 @@ struct WorkspaceDetailActivationRoutingTests {
 @MainActor
 @Suite(.serialized)
 struct WindowCycleShortcutRoutingTests {
-  @Test
-  func `hot key preserves its hold modifier for the cycle session`() async {
-    let state = AppFeature.State()
+  @Test(arguments: [
+    (action: HotKeyAction.cycleNextWindow, direction: CycleDirection.next),
+    (action: HotKeyAction.cyclePreviousWindow, direction: CycleDirection.previous),
+  ])
+  func `window cycle hot key freezes pointer display and preserves hold modifier`(
+    action: HotKeyAction,
+    direction: CycleDirection,
+  ) async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    var state = AppFeature.State()
+    state.activation.focusedDisplay = displayB
     state.$config.withLock {
       $0.settings.shortcuts.cycleNextWindow = HotKey(parsing: "alt - tab")
+      $0.settings.shortcuts.cyclePreviousWindow = HotKey(parsing: "alt + shift - tab")
     }
+    let pointerDisplay = LockIsolated(displayA)
     let store = TestStore(initialState: state) {
       AppFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
     }
     store.exhaustivity = .off
 
-    await store.send(.hotKeys(.actionTriggered(.cycleNextWindow)))
+    await store.send(.hotKeys(.actionTriggered(action)))
+    pointerDisplay.setValue(displayB)
     await store.receive {
-      guard case .activation(.cycleWindowShortcut(.next, let modifiers)) = $0 else {
+      guard
+        case .activation(.cycleWindowShortcut(
+          let receivedDirection,
+          let modifiers,
+          let interactionDisplay,
+        )) = $0
+      else {
         return false
       }
-      return modifiers == .option
+      return receivedDirection == direction
+        && modifiers == .option
+        && interactionDisplay == displayA
     }
   }
 

@@ -255,6 +255,7 @@ extension WorkspaceActivationFeature {
     _ title: LocalizedStringResource,
     _ icon: String?,
     subtitle: LocalizedStringResource? = nil,
+    display: DisplayName? = nil,
   ) -> Effect<Action> {
     guard state.config.settings.hud.shows(category) else { return .none }
     let durationMs = state.config.settings.hud.durationMs
@@ -271,6 +272,7 @@ extension WorkspaceActivationFeature {
           durationMs: durationMs,
           position: position,
           size: size,
+          display: display,
         )
       )
     }

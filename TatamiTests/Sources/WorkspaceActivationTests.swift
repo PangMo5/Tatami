@@ -1078,6 +1078,253 @@ struct WorkspaceActivationFeatureTests {
     #expect(hudIndicators.value[appA2]?.isFocused == false)
   }
 
+  @Test(arguments: [
+    (direction: CycleDirection.next, expectsFirst: true),
+    (direction: CycleDirection.previous, expectsFirst: false),
+  ])
+  func `window cycle scopes candidates and HUD to the pointer display`(
+    direction: CycleDirection,
+    expectsFirst: Bool,
+  ) async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let firstA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a.first")
+    let lastA = WindowKey(pid: 2, windowID: 201, bundleId: "app.a.last")
+    let keyboardFocusedB = WindowKey(pid: 3, windowID: 301, bundleId: "app.b")
+    let workspaceA = Workspace(name: "A")
+    let workspaceB = Workspace(name: "B")
+    let state = Self.makeState(workspaces: [workspaceA, workspaceB]) {
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [
+        displayA: workspaceA.id,
+        displayB: workspaceB.id,
+      ]
+      $0.tilingTrees[workspaceA.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(firstA),
+          right: .leaf(lastA),
+        )
+      )
+      $0.tilingTrees[workspaceB.id] = .leaf(keyboardFocusedB)
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudDisplay = LockIsolated<DisplayName?>(nil)
+    let hudIndicators = LockIsolated<[WindowKey: WindowSwitcherIndicators]>([:])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, indicators, _, display in
+        hudWindows.withValue { $0 = windows }
+        hudDisplay.withValue { $0 = display }
+        hudIndicators.withValue { $0 = indicators }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(
+      windowKey: keyboardFocusedB,
+      direction: direction,
+      interactionDisplay: displayA,
+    ))
+    await store.finish()
+
+    #expect(focused.value == (expectsFirst ? firstA : lastA))
+    #expect(hudWindows.value == [firstA, lastA])
+    #expect(hudDisplay.value == displayA)
+    #expect(hudIndicators.value.values.allSatisfy { !$0.isFocused })
+  }
+
+  @Test
+  func `late window cycle resolution keeps the existing session display`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let firstA = WindowKey(pid: 1, windowID: 101, bundleId: "app.a.first")
+    let lastA = WindowKey(pid: 2, windowID: 201, bundleId: "app.a.last")
+    let staleAnchorB = WindowKey(pid: 3, windowID: 301, bundleId: "app.b")
+    let workspaceA = Workspace(name: "A")
+    let workspaceB = Workspace(name: "B")
+    let state = Self.makeState(workspaces: [workspaceA, workspaceB]) {
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [
+        displayA: workspaceA.id,
+        displayB: workspaceB.id,
+      ]
+      $0.tilingTrees[workspaceA.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(firstA),
+          right: .leaf(lastA),
+        )
+      )
+      $0.tilingTrees[workspaceB.id] = .leaf(staleAnchorB)
+      $0.windowCycleSession = WorkspaceActivationFeature.State.WindowCycleSession(
+        workspaceId: workspaceA.id,
+        windows: [firstA, lastA],
+        selected: firstA,
+        focusedWindow: staleAnchorB,
+        byWindow: false,
+        display: displayA,
+        holdModifiers: .option,
+        isHUDVisible: false,
+      )
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowShortcutResolved(
+      windowKey: staleAnchorB,
+      direction: .next,
+      holdModifiers: .option,
+      interactionDisplay: displayB,
+    ))
+    await store.receive {
+      guard
+        case .cycleWindowShortcut(
+          .next,
+          holdModifiers: .option,
+          interactionDisplay: displayA,
+        ) = $0
+      else {
+        return false
+      }
+      return true
+    }
+    await store.finish()
+
+    #expect(store.state.windowCycleSession?.selected == lastA)
+    #expect(store.state.windowCycleSession?.display == displayA)
+    #expect(store.state.windowCycleSession?.windows == [firstA, lastA])
+  }
+
+  @Test
+  func `window cycle does not fall back when the pointer display is empty`() async {
+    let emptyDisplay = DisplayName(uuid: "display-a", name: "Empty")
+    let occupiedDisplay = DisplayName(uuid: "display-b", name: "Occupied")
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let second = WindowKey(pid: 2, windowID: 201, bundleId: "app.second")
+    let workspace = Workspace(name: "Occupied")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = occupiedDisplay
+      $0.activeWorkspacesByDisplay[occupiedDisplay] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(
+        BSPBranch(
+          split: .vertical,
+          ratio: 0.5,
+          left: .leaf(first),
+          right: .leaf(second),
+        )
+      )
+    }
+    let focused = LockIsolated<[WindowKey]>([])
+    let hudShows = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0.append(key) } }
+      $0.workspaceHUD.showWindowSwitcher = { _, _, _, _, _, _ in
+        hudShows.withValue { $0 += 1 }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(
+      windowKey: first,
+      direction: .next,
+      interactionDisplay: emptyDisplay,
+    ))
+    await store.finish()
+
+    #expect(focused.value.isEmpty)
+    #expect(hudShows.value == 0)
+  }
+
+  @Test
+  func `uncomposed window cycle excludes shared non tiled windows on other displays`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let tiledA = WindowKey(pid: 1, windowID: 101, bundleId: "app.tiled")
+    let floatingA = WindowKey(pid: 2, windowID: 201, bundleId: "app.floating")
+    let floatingB = WindowKey(pid: 3, windowID: 202, bundleId: floatingA.bundleId)
+    let unmanagedA = WindowKey(pid: 4, windowID: 301, bundleId: "app.unmanaged")
+    let unmanagedB = WindowKey(pid: 5, windowID: 302, bundleId: unmanagedA.bundleId)
+    let workspaceA = Workspace(name: "A")
+    let workAreaA = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let workAreaB = CGRect(x: 1_000, y: 0, width: 1_000, height: 800)
+    let state = Self.makeState(workspaces: [workspaceA]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(
+            bundleIdentifier: floatingA.bundleId,
+            name: "Floating",
+            layout: .floating,
+          ),
+          SharedApp(
+            bundleIdentifier: unmanagedA.bundleId,
+            name: "Unmanaged",
+            layout: .unmanaged,
+          ),
+        ]
+      }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay[displayA] = workspaceA.id
+      $0.tilingTrees[workspaceA.id] = .leaf(tiledA)
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let hudWindows = LockIsolated<[WindowKey]>([])
+    let hudDisplay = LockIsolated<DisplayName?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.workArea = { display in
+        display == displayA ? workAreaA : workAreaB
+      }
+      $0.windowSnapshot.cachedKeys = { bundleIds, requireResizable in
+        #expect(!requireResizable)
+        switch bundleIds {
+        case [floatingA.bundleId]:
+          return [floatingB, floatingA]
+        case [unmanagedA.bundleId]:
+          return [unmanagedB, unmanagedA]
+        default:
+          Issue.record("Unexpected bundle lookup: \(bundleIds)")
+          return []
+        }
+      }
+      $0.windowSnapshot.onScreenWindowFrames = {
+        [
+          floatingA.windowID: CGRect(x: 100, y: 100, width: 300, height: 300),
+          floatingB.windowID: CGRect(x: 1_100, y: 100, width: 300, height: 300),
+          unmanagedA.windowID: CGRect(x: 500, y: 100, width: 300, height: 300),
+          unmanagedB.windowID: CGRect(x: 1_500, y: 100, width: 300, height: 300),
+        ]
+      }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0 = key } }
+      $0.workspaceHUD.showWindowSwitcher = { windows, _, _, _, _, display in
+        hudWindows.withValue { $0 = windows }
+        hudDisplay.withValue { $0 = display }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowResolved(
+      windowKey: tiledA,
+      direction: .next,
+      interactionDisplay: displayA,
+    ))
+    await store.finish()
+
+    #expect(focused.value == floatingA)
+    #expect(hudWindows.value == [tiledA, floatingA, unmanagedA])
+    #expect(hudDisplay.value == displayA)
+  }
+
   @Test
   func `window cycle MFF follows a shared floating window using its live frame`() async {
     let tiled = WindowKey(pid: 1, windowID: 101, bundleId: "app.tiled")
@@ -1109,6 +1356,9 @@ struct WorkspaceActivationFeatureTests {
         #expect(bundleIds == [floating.bundleId])
         #expect(requireResizable == false)
         return [floating]
+      }
+      $0.windowSnapshot.onScreenWindowFrames = {
+        [floating.windowID: floatingFrame]
       }
       $0.windowSnapshot.windowFrame = { key in
         #expect(key == floating)
@@ -2096,6 +2346,72 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `workspace chain subtitle keeps visible chain identity as the first fact`() {
+    let feature = WorkspaceActivationFeature()
+
+    let visibleChain = feature.workspaceChainHUDSubtitle(
+      visibleChainName: "Test",
+      resultFacts: ["Coding", "Returned KakaoTalk"],
+      secondLine: "Focus moved: Browser is on Display B",
+    )
+    let hiddenChain = feature.workspaceChainHUDSubtitle(
+      visibleChainName: nil,
+      resultFacts: ["Coding", "Returned KakaoTalk"],
+      secondLine: "Focus moved: Browser is on Display B",
+    )
+
+    #expect(
+      visibleChain.text
+        == "Test · Coding · Returned KakaoTalk\nFocus moved: Browser is on Display B"
+    )
+    #expect(visibleChain.symbolIconName == "link")
+    #expect(
+      hiddenChain.text
+        == "Coding · Returned KakaoTalk\nFocus moved: Browser is on Display B"
+    )
+    #expect(hiddenChain.symbolIconName == nil)
+  }
+
+  @Test
+  func `uncovered chain focus HUD includes the visible chain name and link`() throws {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let workspace = Workspace(name: "Browser")
+    let context = WorkspaceChainHUDContext(
+      name: "Test",
+      role: .chainMember,
+      profileSwitch: nil,
+      coveredDisplays: [displayB],
+      focusTransfer: WorkspaceChainFocusTransfer(
+        from: displayA,
+        to: displayB,
+        workspaceName: workspace.name,
+      ),
+      destinationReturnedBorrowNames: [],
+      sourceCompositionHUDs: [],
+      deferredCleanupHUDs: [],
+      vacatedHUDs: [],
+      cleanupTransaction: nil,
+    )
+
+    let request = try #require(
+      WorkspaceActivationFeature().uncoveredWorkspaceChainFocusMovedHUDRequest(
+        workspace: workspace,
+        context: context,
+        state: Self.makeState(workspaces: [workspace]),
+      )
+    )
+
+    #expect(request.name == String(localized: "Focus moved"))
+    #expect(
+      request.subtitle
+        == "Test · \(String(localized: "\(workspace.name) is on \(displayB.name)"))"
+    )
+    #expect(request.subtitleSymbolIconName == "link")
+    #expect(request.display == displayA)
+  }
+
+  @Test
   func `workspace chain restores peers before returning focus to selected workspace`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
@@ -2593,7 +2909,7 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `silent chain companion reports borrow return when workspace switch HUD is off`() async {
+  func `borrow-only chain result omits hidden chain identity`() async {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
     let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
@@ -2655,7 +2971,7 @@ struct WorkspaceActivationFeatureTests {
       hudRequests.value.first?.subtitle
         == String(localized: "Returned \(borrowed.name)")
     )
-    #expect(hudRequests.value.first?.subtitleSymbolIconName == "link")
+    #expect(hudRequests.value.first?.subtitleSymbolIconName == nil)
     #expect(hudRequests.value.first?.subtitleExtendsDuration == true)
   }
 
@@ -3193,6 +3509,68 @@ struct WorkspaceActivationFeatureTests {
     #expect(returns.value.count == 1)
     #expect(returns.value.first?.0 == ["app.skipped"])
     #expect(returns.value.first?.1 == displayC)
+  }
+
+  @Test
+  func `app focus freezes its pointer display before child activation`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let oldWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.old")
+    let slackWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.slack")
+    let old = Workspace(
+      name: "Old",
+      apps: [AppAssignment(bundleIdentifier: oldWindow.bundleId, name: "Old")],
+    )
+    let slack = Workspace(
+      name: "Slack",
+      apps: [AppAssignment(bundleIdentifier: slackWindow.bundleId, name: "Slack")],
+    )
+    let state = Self.makeState(workspaces: [old, slack]) {
+      $0.$config.withLock { $0.settings.switching.followAppFocus = true }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay[displayB] = old.id
+      $0.tilingTrees[old.id] = .leaf(oldWindow)
+    }
+    let pointerDisplay = LockIsolated(displayA)
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { pointerDisplay.value }
+      $0.continuousClock = TestClock()
+      $0.windowSnapshot.frontmostApp = {
+        FrontmostApp(
+          pid: slackWindow.pid,
+          bundleId: slackWindow.bundleId,
+          name: slack.name,
+        )
+      }
+      $0.windowSnapshot.focusedWindowKey = { nil }
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.appActivated(
+      bundleId: slackWindow.bundleId,
+      pid: slackWindow.pid,
+    ))
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard
+        case .activateFollowingAppFocus(let workspaceID, let interactionDisplay) = $0
+      else { return false }
+      return workspaceID == slack.id && interactionDisplay == displayA
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.targetDisplay) == [displayA])
   }
 
   @Test
@@ -4758,8 +5136,10 @@ struct WorkspaceActivationFeatureTests {
     ])
   }
 
-  @Test
-  func `focused profile chain publishes one complete HUD per affected display`() async throws {
+  @Test(arguments: [false, true])
+  func `focused profile chain publishes one complete HUD per affected display`(
+    showsWorkspaceSwitchHUD: Bool
+  ) async throws {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
     let displayC = DisplayName("C")
@@ -4794,6 +5174,9 @@ struct WorkspaceActivationFeatureTests {
     ))
     var state = WorkspaceActivationFeature.State()
     state.$config = sharedConfig
+    state.$config.withLock {
+      $0.settings.hud.workspaceSwitch = showsWorkspaceSwitchHUD
+    }
     state.isTilingPaused = true
     state.connectedDisplays = [displayA, displayB, displayC]
     state.focusedDisplay = displayC
@@ -4877,20 +5260,25 @@ struct WorkspaceActivationFeatureTests {
     })
     #expect(codingHUD.name == incoming.name)
     #expect(codingHUD.symbolIconName == incoming.symbolIconName)
+    let focusMoved = "\(String(localized: "Focus moved")): "
+      + String(localized: "\(browser.name) is on \(displayB.name)")
     #expect(
       codingHUD.subtitle
-        == "\(coding.name) · \(chain.name!)"
-        + "\n\(String(localized: "Focus moved")): "
-        + String(localized: "\(browser.name) is on \(displayB.name)")
+        == (showsWorkspaceSwitchHUD
+          ? "\(chain.name!) · \(coding.name)\n\(focusMoved)"
+          : coding.name)
     )
-    #expect(codingHUD.subtitleSymbolIconName == "link")
+    #expect(codingHUD.subtitleSymbolIconName == (showsWorkspaceSwitchHUD ? "link" : nil))
     let browserHUD = try #require(hudRequests.value.first {
       $0.display?.matches(displayB) == true
     })
     #expect(browserHUD.name == incoming.name)
     #expect(browserHUD.symbolIconName == incoming.symbolIconName)
-    #expect(browserHUD.subtitle == "\(browser.name) · \(chain.name!)")
-    #expect(browserHUD.subtitleSymbolIconName == "link")
+    #expect(
+      browserHUD.subtitle
+        == (showsWorkspaceSwitchHUD ? "\(chain.name!) · \(browser.name)" : browser.name)
+    )
+    #expect(browserHUD.subtitleSymbolIconName == (showsWorkspaceSwitchHUD ? "link" : nil))
     let sourceHUDs = hudRequests.value.filter {
       $0.display?.matches(displayC) == true
     }

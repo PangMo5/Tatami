@@ -86,13 +86,6 @@ struct WorkspaceChainPlan: Equatable, Sendable {
 enum WorkspaceChainHUDRole: Equatable, Sendable {
   case chainMember
   case nonChain
-
-  var subtitleSymbolIconName: String? {
-    switch self {
-    case .chainMember: "link"
-    case .nonChain: nil
-    }
-  }
 }
 
 // MARK: - WorkspaceChainHUDContext
@@ -1579,6 +1572,25 @@ extension WorkspaceActivationFeature {
     names.map { String(localized: "Returned \($0)") }
   }
 
+  /// Compose at most two subtitle lines while keeping the link semantically
+  /// attached to a visible chain name. The chain is always the first fact, so
+  /// the HUD's leading symbol and external hook payload describe the same text.
+  func workspaceChainHUDSubtitle(
+    visibleChainName: String?,
+    resultFacts: [String],
+    secondLine: String? = nil,
+  ) -> (text: String?, symbolIconName: String?) {
+    let firstLine = ([visibleChainName].compactMap { $0 } + resultFacts)
+      .joined(separator: " · ")
+    let text = [firstLine.isEmpty ? nil : firstLine, secondLine]
+      .compactMap { $0 }
+      .joined(separator: "\n")
+    return (
+      text: text.isEmpty ? nil : text,
+      symbolIconName: visibleChainName == nil ? nil : "link",
+    )
+  }
+
   func workspaceChainCleanupEffect(
     transaction: WorkspaceChainCleanupTransaction?,
     cleanups: [WorkspaceChainVisibilityCleanup],
@@ -1646,25 +1658,26 @@ extension WorkspaceActivationFeature {
     let size = state.config.settings.hud.size
     return context.vacatedHUDs.compactMap { vacatedHUD in
       let hasChainIdentity = context.role == .chainMember
+      let visibleChainName = showsWorkspaceSwitch && hasChainIdentity
+        ? context.name
+        : nil
       let returned = showsBorrow
         ? returnedBorrowSubtitles(vacatedHUD.returnedBorrowNames)
         : []
       guard showsProfileSwitch || showsWorkspaceSwitch || !returned.isEmpty else { return nil }
       let movedWorkspace = String(localized: "\(workspace.name) is on \(targetDisplay.name)")
-      var resultFacts = showsWorkspaceSwitch && hasChainIdentity ? [context.name] : []
+      var resultFacts = [String]()
       if showsProfileSwitch || showsWorkspaceSwitch {
         resultFacts.append(movedWorkspace)
       }
       resultFacts.append(contentsOf: returned)
-      let resultLine = resultFacts.joined(separator: " · ")
-      let subtitle = [
-        resultLine,
-        showsWorkspaceSwitch
+      let subtitle = workspaceChainHUDSubtitle(
+        visibleChainName: visibleChainName,
+        resultFacts: resultFacts,
+        secondLine: showsWorkspaceSwitch
           ? workspaceChainFocusTransferSubtitle(on: vacatedHUD.display, context: context)
           : nil,
-      ]
-      .compactMap { $0 }
-      .joined(separator: "\n")
+      )
       return ActionHUDRequest(
         name: visibleProfileSwitch?.name ?? (
           showsWorkspaceSwitch ? String(localized: "Workspace moved") : workspace.name
@@ -1672,10 +1685,8 @@ extension WorkspaceActivationFeature {
         symbolIconName: visibleProfileSwitch?.symbolIconName ?? (
           showsWorkspaceSwitch ? "arrow.right.to.line" : workspace.symbolIconName
         ),
-        subtitle: subtitle,
-        subtitleSymbolIconName: hasChainIdentity
-          ? context.role.subtitleSymbolIconName
-          : nil,
+        subtitle: subtitle.text,
+        subtitleSymbolIconName: subtitle.symbolIconName,
         subtitleExtendsDuration: !returned.isEmpty,
         durationMs: durationMs,
         position: position,
@@ -1688,32 +1699,11 @@ extension WorkspaceActivationFeature {
   /// On the display being left, identify both where focus went and which
   /// workspace now owns it. The destination display shows the regular
   /// workspace-switch HUD separately.
-  func focusMovedHUDEffect(
-    workspace: Workspace,
-    from oldDisplay: DisplayName?,
-    to targetDisplay: DisplayName?,
-    subtitleSymbolIconName: String? = nil,
-    state: State,
-  ) -> Effect<Action> {
-    guard
-      let request = focusMovedHUDRequest(
-        workspace: workspace,
-        from: oldDisplay,
-        to: targetDisplay,
-        subtitleSymbolIconName: subtitleSymbolIconName,
-        state: state,
-      )
-    else { return .none }
-    return .run { [workspaceHUD] _ in
-      await workspaceHUD.showAction(request)
-    }
-  }
-
   func focusMovedHUDRequest(
     workspace: Workspace,
     from oldDisplay: DisplayName?,
     to targetDisplay: DisplayName?,
-    subtitleSymbolIconName: String? = nil,
+    visibleChainName: String? = nil,
     state: State,
   ) -> ActionHUDRequest? {
     guard
@@ -1725,13 +1715,16 @@ extension WorkspaceActivationFeature {
     let durationMs = state.config.settings.hud.durationMs
     let position = state.config.settings.hud.position
     let size = state.config.settings.hud.size
-    let subtitle = String(localized: "\(workspace.name) is on \(targetDisplay.name)")
+    let subtitle = workspaceChainHUDSubtitle(
+      visibleChainName: visibleChainName,
+      resultFacts: [String(localized: "\(workspace.name) is on \(targetDisplay.name)")],
+    )
     return ActionHUDRequest(
       name: String(localized: "Focus moved"),
       symbolIconName: "arrow.right.to.line",
-      subtitle: subtitle,
-      subtitleSymbolIconName: subtitleSymbolIconName,
-      subtitleExtendsDuration: subtitleSymbolIconName == nil,
+      subtitle: subtitle.text,
+      subtitleSymbolIconName: subtitle.symbolIconName,
+      subtitleExtendsDuration: subtitle.symbolIconName == nil,
       durationMs: durationMs,
       position: position,
       size: size,
@@ -1755,7 +1748,7 @@ extension WorkspaceActivationFeature {
       workspace: workspace,
       from: transfer.from,
       to: transfer.to,
-      subtitleSymbolIconName: context.role.subtitleSymbolIconName,
+      visibleChainName: context.role == .chainMember ? context.name : nil,
       state: state,
     )
   }
@@ -2403,21 +2396,12 @@ extension WorkspaceActivationFeature {
     let visibleWorkspaceChainName = showsWorkspaceSwitchHUD && hasWorkspaceChainIdentity
       ? workspaceChainHUD?.name
       : nil
-    let hudResultLine = (
-      (visibleProfileSwitch == nil ? [] : [workspace.name])
-        + [visibleWorkspaceChainName].compactMap { $0 }
-        + returnedBorrowFacts
-    ).joined(separator: " · ")
-    let hudSubtitle = [
-      hudResultLine.isEmpty ? nil : hudResultLine,
-      focusTransferSubtitle,
-    ]
-    .compactMap { $0 }
-    .joined(separator: "\n")
-    let effectiveHUDSubtitle = hudSubtitle.isEmpty ? nil : hudSubtitle
-    let hudSubtitleIcon = hasWorkspaceChainIdentity
-      ? workspaceChainHUD?.role.subtitleSymbolIconName
-      : nil
+    let hudSubtitle = workspaceChainHUDSubtitle(
+      visibleChainName: visibleWorkspaceChainName,
+      resultFacts: (visibleProfileSwitch == nil ? [] : [workspace.name])
+        + returnedBorrowFacts,
+      secondLine: focusTransferSubtitle,
+    )
     // The switch HUD shows on the display focus landed on (the target). On a
     // same-monitor switch with no resolved target it falls back to the cursor.
     let hudDisplay = targetDisplay
@@ -2574,8 +2558,8 @@ extension WorkspaceActivationFeature {
                 ActionHUDRequest(
                   name: hudName,
                   symbolIconName: hudIcon,
-                  subtitle: effectiveHUDSubtitle,
-                  subtitleSymbolIconName: hudSubtitleIcon,
+                  subtitle: hudSubtitle.text,
+                  subtitleSymbolIconName: hudSubtitle.symbolIconName,
                   subtitleExtendsDuration: !returnedBorrowFacts.isEmpty,
                   durationMs: hudDurationMs,
                   position: hudPosition,
@@ -3345,6 +3329,7 @@ extension WorkspaceActivationFeature {
         "Already visible",
         "rectangle.on.rectangle.slash",
         subtitle: "\(target.name) is on \(sourceDisplay.name)",
+        display: display,
       )
     }
     let fraction = target.borrowFraction ?? state.config.settings.switching.borrowFraction
@@ -3385,6 +3370,7 @@ extension WorkspaceActivationFeature {
       \.borrow,
       "Borrowed \(target.name)",
       Self.borrowEdgeIcon(edge),
+      display: display,
     )
     let render = Effect<Action>.run {
       [
@@ -3636,12 +3622,11 @@ extension WorkspaceActivationFeature {
     let visibleWorkspaceChainName = showsWorkspaceSwitchHUD && hasWorkspaceChainIdentity
       ? workspaceChainHUD?.name
       : nil
-    let resultLine = (
-      (visibleProfileSwitch == nil ? [] : [workspace.name])
-        + [visibleWorkspaceChainName].compactMap { $0 }
-        + returnedBorrowFacts
-    ).joined(separator: " · ")
-    let subtitle = resultLine
+    let subtitle = workspaceChainHUDSubtitle(
+      visibleChainName: visibleWorkspaceChainName,
+      resultFacts: (visibleProfileSwitch == nil ? [] : [workspace.name])
+        + returnedBorrowFacts,
+    )
     var hudRequests = [ActionHUDRequest]()
     if
       !deferredCleanupOwnsTargetHUD,
@@ -3650,10 +3635,8 @@ extension WorkspaceActivationFeature {
       hudRequests.append(ActionHUDRequest(
         name: visibleProfileSwitch?.name ?? workspace.name,
         symbolIconName: visibleProfileSwitch?.symbolIconName ?? workspace.symbolIconName,
-        subtitle: subtitle.isEmpty ? nil : subtitle,
-        subtitleSymbolIconName: hasWorkspaceChainIdentity
-          ? workspaceChainHUD?.role.subtitleSymbolIconName
-          : nil,
+        subtitle: subtitle.text,
+        subtitleSymbolIconName: subtitle.symbolIconName,
         subtitleExtendsDuration: !returnedBorrowFacts.isEmpty,
         durationMs: durationMs,
         position: position,
@@ -3762,6 +3745,7 @@ extension WorkspaceActivationFeature {
           durationMs: durationMs,
           position: position,
           size: size,
+          display: capture.display,
         )
       )
     }
@@ -3874,6 +3858,9 @@ extension WorkspaceActivationFeature {
     let size = state.config.settings.hud.size
     return sources.compactMap { source in
       let hasChainIdentity = source.role == .chainMember
+      let visibleChainName = showsWorkspaceSwitch && hasChainIdentity
+        ? context.name
+        : nil
       let returned = showsBorrow
         ? returnedBorrowSubtitles(source.returnedBorrowNames)
         : []
@@ -3881,9 +3868,6 @@ extension WorkspaceActivationFeature {
       var resultFacts = showsProfileSwitch && source.movedWorkspaceDestination == nil
         ? [source.hostName]
         : []
-      if showsWorkspaceSwitch && hasChainIdentity {
-        resultFacts.append(context.name)
-      }
       if
         showsProfileSwitch || showsWorkspaceSwitch,
         let destination = source.movedWorkspaceDestination
@@ -3897,13 +3881,14 @@ extension WorkspaceActivationFeature {
         resultFacts.append(String(localized: "Skipped by chain priority: \(skipped)"))
       }
       resultFacts.append(contentsOf: returned)
-      let resultLine = resultFacts.joined(separator: " · ")
       let focusTransfer = showsWorkspaceSwitch
         ? workspaceChainFocusTransferSubtitle(on: source.display, context: context)
         : nil
-      let subtitle = [resultLine.isEmpty ? nil : resultLine, focusTransfer]
-        .compactMap { $0 }
-        .joined(separator: "\n")
+      let subtitle = workspaceChainHUDSubtitle(
+        visibleChainName: visibleChainName,
+        resultFacts: resultFacts,
+        secondLine: focusTransfer,
+      )
       return ActionHUDRequest(
         name: visibleProfileSwitch?.name ?? (
           source.movedWorkspaceDestination == nil
@@ -3915,10 +3900,8 @@ extension WorkspaceActivationFeature {
             ? source.hostSymbolIconName
             : "arrow.right.to.line"
         ),
-        subtitle: subtitle.isEmpty ? nil : subtitle,
-        subtitleSymbolIconName: hasChainIdentity
-          ? source.role.subtitleSymbolIconName
-          : nil,
+        subtitle: subtitle.text,
+        subtitleSymbolIconName: subtitle.symbolIconName,
         subtitleExtendsDuration: !returned.isEmpty
           || source.prioritySkippedWorkspaceName != nil,
         durationMs: durationMs,

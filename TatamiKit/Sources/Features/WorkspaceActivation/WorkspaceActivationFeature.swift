@@ -113,7 +113,10 @@ public struct WorkspaceActivationFeature {
       public var workspaceId: Workspace.ID
       public var windows: [WindowKey]
       public var selected: WindowKey
-      public var focusedWindow: WindowKey
+      /// The system-focused window when the session began, when it belongs to
+      /// the scoped display. Nil is valid when focus is on Desktop, Tatami, or
+      /// another display; the directional edge then seeds the first selection.
+      public var focusedWindow: WindowKey?
       public var byWindow: Bool
       public var display: DisplayName?
       public var holdModifiers: HotKeyModifiers
@@ -336,6 +339,10 @@ public struct WorkspaceActivationFeature {
     /// borrow at that edge without re-resolving its monitor mid-chord.
     public var borrowCapture: BorrowCapture?
     public var windowCycleSession: WindowCycleSession?
+    /// The first held shortcut owns its pointer display even while the
+    /// asynchronous focused-window lookup is still in flight. Later presses
+    /// reuse this value instead of racing to retarget the session.
+    public var pendingWindowCycleDisplay: DisplayName?
 
     /// Warned about missing Screen Recording once already (per session) —
     /// floating windows silently lose their always-on-top mirrors without
@@ -403,6 +410,17 @@ public struct WorkspaceActivationFeature {
     /// was restored from a legacy name-only configuration.
     func activeWorkspace(on display: DisplayName?) -> Workspace.ID? {
       workspace(on: display, in: activeWorkspacesByDisplay)
+    }
+
+    /// Resolve the Borrow composition on one physical display. Runtime pointer
+    /// identities can carry a UUID while restored state still uses the legacy
+    /// name-only key, so exact dictionary lookup alone is not sufficient.
+    func composition(on display: DisplayName?) -> Composition? {
+      guard let display else { return nil }
+      if let exact = compositionsByDisplay[display] { return exact }
+      let matches = compositionsByDisplay.filter { key, _ in key.matches(display) }
+      guard matches.count == 1 else { return nil }
+      return matches.first?.value
     }
 
     func previousWorkspace(on display: DisplayName?) -> Workspace.ID? {
@@ -1151,15 +1169,27 @@ public struct WorkspaceActivationFeature {
     /// (host + borrowed block; otherwise the active workspace). Same-app
     /// windows cycle individually, and off-screen / other-space / minimized
     /// windows are excluded.
-    case cycleWindow(CycleDirection)
-    case cycleWindowResolved(windowKey: WindowKey, direction: CycleDirection)
+    case cycleWindow(
+      CycleDirection,
+      interactionDisplay: DisplayName? = nil,
+    )
+    case cycleWindowResolved(
+      windowKey: WindowKey?,
+      direction: CycleDirection,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Keyboard-only entry path with Cmd-Tab semantics. Gesture/menu actions
     /// continue through `cycleWindow` and commit immediately.
-    case cycleWindowShortcut(CycleDirection, holdModifiers: HotKeyModifiers)
+    case cycleWindowShortcut(
+      CycleDirection,
+      holdModifiers: HotKeyModifiers,
+      interactionDisplay: DisplayName? = nil,
+    )
     case cycleWindowShortcutResolved(
-      windowKey: WindowKey,
+      windowKey: WindowKey?,
       direction: CycleDirection,
       holdModifiers: HotKeyModifiers,
+      interactionDisplay: DisplayName? = nil,
     )
     case windowCycleHUDDelayElapsed
     case windowCycleModifierReleased
@@ -1291,7 +1321,10 @@ public struct WorkspaceActivationFeature {
     /// this must not re-pick a focus target, but the cursor still follows it:
     /// landing on a workspace with two windows of that app otherwise gives no
     /// clue which one was raised.
-    case activateFollowingAppFocus(workspaceId: Workspace.ID)
+    case activateFollowingAppFocus(
+      workspaceId: Workspace.ID,
+      interactionDisplay: DisplayName? = nil,
+    )
     case activationCompleted(
       workspaceId: Workspace.ID,
       display: DisplayName?,
@@ -2195,11 +2228,15 @@ public struct WorkspaceActivationFeature {
             "Activate",
             "followAppFocus jump: didActivate \(bundleId) → ws=\(owner.name)",
           )
+          let capturedInteractionDisplay = interactionDisplay(state: state)
           return .merge(
             markerEffect,
             .concatenate(
               .cancel(id: CancelID.workspaceChainCleanup),
-              .send(.activateFollowingAppFocus(workspaceId: owner.id)),
+              .send(.activateFollowingAppFocus(
+                workspaceId: owner.id,
+                interactionDisplay: capturedInteractionDisplay,
+              )),
             ),
           )
         }
@@ -2857,7 +2894,7 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         return completeCLIActivationIfSettled(state: &state)
 
-      case .activateFollowingAppFocus(let workspaceId):
+      case .activateFollowingAppFocus(let workspaceId, let interactionDisplay):
         // App focus is user-originated and may select a chain member too. Its
         // companion restores never take focus; the originating workspace is
         // restored last so the already-established app focus remains final.
@@ -2866,6 +2903,7 @@ public struct WorkspaceActivationFeature {
           deliberateActivation(
             workspaceId: workspaceId,
             setFocus: false,
+            interactionDisplayOverride: interactionDisplay,
             followsCursor: true,
             state: &state,
           ),
@@ -3665,17 +3703,22 @@ public struct WorkspaceActivationFeature {
         }
         return hud
 
-      case .cycleWindow(let direction):
-        return resolveFocusedWindowKey { key in
-          .cycleWindowResolved(windowKey: key, direction: direction)
+      case .cycleWindow(let direction, let interactionDisplay):
+        return resolveWindowCycleAnchor { key in
+          .cycleWindowResolved(
+            windowKey: key,
+            direction: direction,
+            interactionDisplay: interactionDisplay,
+          )
         }
 
-      case .cycleWindowResolved(let key, let direction):
+      case .cycleWindowResolved(let key, let direction, let interactionDisplay):
         guard
           let cycle = windowCycle(
             from: key,
             direction: direction,
             holdModifiers: [],
+            interactionDisplay: interactionDisplay,
             state: state,
           )
         else { return .none }
@@ -3690,8 +3733,17 @@ public struct WorkspaceActivationFeature {
             : .none,
         )
 
-      case .cycleWindowShortcut(let direction, let holdModifiers):
-        guard !holdModifiers.isEmpty else { return .send(.cycleWindow(direction)) }
+      case .cycleWindowShortcut(
+        let direction,
+        let holdModifiers,
+        let interactionDisplay,
+      ):
+        guard !holdModifiers.isEmpty else {
+          return .send(.cycleWindow(
+            direction,
+            interactionDisplay: interactionDisplay,
+          ))
+        }
         if let current = state.windowCycleSession {
           guard
             var next = windowCycle(
@@ -3699,6 +3751,7 @@ public struct WorkspaceActivationFeature {
               direction: direction,
               holdModifiers: current.holdModifiers,
               focusedWindow: current.focusedWindow,
+              interactionDisplay: current.display,
               state: state,
             )
           else { return .none }
@@ -3708,26 +3761,41 @@ public struct WorkspaceActivationFeature {
             ? showWindowCycleHUD(next, autoDismissAfterMs: nil, state: state)
             : .none
         }
-        return resolveFocusedWindowKey { key in
+        let capturedDisplay = state.pendingWindowCycleDisplay ?? interactionDisplay
+        state.pendingWindowCycleDisplay = capturedDisplay
+        return resolveWindowCycleAnchor { key in
           .cycleWindowShortcutResolved(
             windowKey: key,
             direction: direction,
             holdModifiers: holdModifiers,
+            interactionDisplay: capturedDisplay,
           )
         }
 
-      case .cycleWindowShortcutResolved(let key, let direction, let holdModifiers):
+      case .cycleWindowShortcutResolved(
+        let key,
+        let direction,
+        let holdModifiers,
+        let interactionDisplay,
+      ):
         // Two key presses can resolve their focused window concurrently. Once
         // the first created the session, replay the later press against its
         // logical selection instead of the still-physically-focused window.
-        if state.windowCycleSession != nil {
-          return .send(.cycleWindowShortcut(direction, holdModifiers: holdModifiers))
+        if let current = state.windowCycleSession {
+          return .send(.cycleWindowShortcut(
+            direction,
+            holdModifiers: holdModifiers,
+            interactionDisplay: current.display,
+          ))
         }
+        let capturedDisplay = state.pendingWindowCycleDisplay ?? interactionDisplay
+        state.pendingWindowCycleDisplay = nil
         guard
           let cycle = windowCycle(
             from: key,
             direction: direction,
             holdModifiers: holdModifiers,
+            interactionDisplay: capturedDisplay,
             state: state,
           )
         else { return .none }
@@ -3779,6 +3847,7 @@ public struct WorkspaceActivationFeature {
             direction: direction,
             holdModifiers: current.holdModifiers,
             focusedWindow: current.focusedWindow,
+            interactionDisplay: current.display,
             state: state,
           )
         else { return .none }
@@ -4866,17 +4935,21 @@ public struct WorkspaceActivationFeature {
   /// cycling and held-modifier keyboard sessions share this ordering/MRU path,
   /// so their app-level and window-level behavior cannot drift.
   private func windowCycle(
-    from key: WindowKey,
+    from key: WindowKey?,
     direction: CycleDirection,
     holdModifiers: HotKeyModifiers,
     focusedWindow: WindowKey? = nil,
+    interactionDisplay: DisplayName? = nil,
     state: State,
   ) -> State.WindowCycleSession? {
-    guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return nil }
-    let treeWorkspaceId = state.workspaceContaining(key)
+    guard key.map({ !overlayAwareness.isBackgroundedProcess($0.pid) }) ?? true else {
+      return nil
+    }
+    let treeWorkspaceId = key.flatMap { state.workspaceContaining($0) }
     var cachedOnScreenFrames: [CGWindowID: CGRect]?
     let keyDisplay: DisplayName?
     if
+      let key,
       treeWorkspaceId == nil,
       state.config.sharedApps.contains(where: {
         $0.bundleIdentifier == key.bundleId
@@ -4884,31 +4957,48 @@ public struct WorkspaceActivationFeature {
     {
       let frames = windowSnapshot.onScreenWindowFrames()
       cachedOnScreenFrames = frames
-      keyDisplay = frames[key.windowID].flatMap { frame in
-        let center = CGPoint(x: frame.midX, y: frame.midY)
-        return displays.all().first {
-          displays.workArea($0).contains(center)
+      keyDisplay = interactionDisplay == nil
+        ? frames[key.windowID].flatMap { frame in
+          let center = CGPoint(x: frame.midX, y: frame.midY)
+          return displays.all().first {
+            displays.workArea($0).contains(center)
+          }
         }
-      }
+        : nil
     } else {
       keyDisplay = nil
     }
-    let displayWorkspaceId = keyDisplay.flatMap { display in
-      state.compositionsByDisplay[display]?.host
-        ?? state.activeWorkspacesByDisplay[display]
+    let keyDisplayWorkspaceId = keyDisplay.flatMap { display in
+      state.composition(on: display)?.host
+        ?? state.activeWorkspace(on: display)
     }
+    let interactionWorkspaceId: Workspace.ID?
+    if let interactionDisplay {
+      guard let workspaceId = state.activeWorkspace(on: interactionDisplay) else {
+        debugLog.log(
+          "BSP",
+          "cycle \(direction) on \(interactionDisplay.name): no active workspace",
+        )
+        return nil
+      }
+      interactionWorkspaceId = workspaceId
+    } else {
+      interactionWorkspaceId = nil
+    }
+    let owningWorkspaceId = key.flatMap { state.workspaceOwning($0) }
     guard
-      let workspaceId = treeWorkspaceId
-      ?? displayWorkspaceId
-      ?? state.workspaceOwning(key)
+      let workspaceId = interactionWorkspaceId
+      ?? treeWorkspaceId
+      ?? keyDisplayWorkspaceId
+      ?? owningWorkspaceId
       ?? state.primaryActiveWorkspaceID
     else { return nil }
 
     // Borrow is one visible task surface, so cycling spans every tiled tree in
     // that display's composition. Keep the host first for deterministic HUD
     // order; the current key still determines the next/previous wrap point.
-    let display = keyDisplay ?? state.displayShowing(workspaceId)
-    let composition = display.flatMap { state.compositionsByDisplay[$0] }
+    let display = interactionDisplay ?? keyDisplay ?? state.displayShowing(workspaceId)
+    let composition = state.composition(on: display)
     let workspaceIds = composition.map {
       [$0.host] + $0.borrowed.map(\.workspace)
     } ?? [workspaceId]
@@ -4923,20 +5013,36 @@ public struct WorkspaceActivationFeature {
     // composition, so the default policy adds their non-tiled windows
     // back to the switcher; shared tiled windows are already in the BSP trees.
     let isComposed = composition != nil
+    func keysOnDisplay(_ keys: [WindowKey]) -> [WindowKey] {
+      guard let display else { return keys }
+      let onScreenFrames = cachedOnScreenFrames
+        ?? windowSnapshot.onScreenWindowFrames()
+      cachedOnScreenFrames = onScreenFrames
+      let workArea = displays.workArea(display)
+      return keys.filter { key in
+        guard let frame = onScreenFrames[key.windowID] else { return false }
+        return workArea.contains(CGPoint(x: frame.midX, y: frame.midY))
+      }
+    }
+
     if !isComposed {
       let floatingBundles = Self.floatingBundleIds(
         state: state,
         workspaceIDs: [workspaceId],
       )
       if !floatingBundles.isEmpty {
-        allWindows += windowSnapshot.cachedKeys(floatingBundles, false)
+        allWindows += keysOnDisplay(
+          windowSnapshot.cachedKeys(floatingBundles, false)
+        )
       }
       let unmanagedBundles = Self.unmanagedBundleIds(
         state: state,
         workspaceIDs: [workspaceId],
       )
       if !unmanagedBundles.isEmpty {
-        allWindows += windowSnapshot.cachedKeys(unmanagedBundles, false)
+        allWindows += keysOnDisplay(
+          windowSnapshot.cachedKeys(unmanagedBundles, false)
+        )
       }
     } else if includesSharedApps {
       // Match the uncomposed ordering: floating first, then unmanaged.
@@ -4947,22 +5053,12 @@ public struct WorkspaceActivationFeature {
         state: state,
         workspaceIDs: [],
       )
-      if !sharedNonTiledBundles.isEmpty, let display {
+      if !sharedNonTiledBundles.isEmpty, display != nil {
         let sharedWindows = windowSnapshot.cachedKeys(
           sharedNonTiledBundles,
           false,
         )
-        if !sharedWindows.isEmpty {
-          let onScreenFrames = cachedOnScreenFrames
-            ?? windowSnapshot.onScreenWindowFrames()
-          let workArea = displays.workArea(display)
-          allWindows += sharedWindows.filter { key in
-            guard let frame = onScreenFrames[key.windowID] else { return false }
-            return workArea.contains(
-              CGPoint(x: frame.midX, y: frame.midY)
-            )
-          }
-        }
+        if !sharedWindows.isEmpty { allWindows += keysOnDisplay(sharedWindows) }
       }
     }
     if !includesSharedApps {
@@ -4981,9 +5077,15 @@ public struct WorkspaceActivationFeature {
       var seenApps = Set<String>()
       ordered = allWindows.filter { seenApps.insert($0.bundleId).inserted }
     }
-    let currentIndex = byWindow
-      ? ordered.firstIndex(of: key)
-      : ordered.firstIndex { $0.bundleId == key.bundleId }
+    let focusedWindowIsInScope = key.map(allWindows.contains) ?? false
+    let currentIndex: Int? =
+      if focusedWindowIsInScope, let key {
+        byWindow
+          ? ordered.firstIndex(of: key)
+          : ordered.firstIndex { $0.bundleId == key.bundleId }
+      } else {
+        nil
+      }
     guard ordered.count > 1 || currentIndex == nil else { return nil }
 
     let count = ordered.count
@@ -5008,12 +5110,16 @@ public struct WorkspaceActivationFeature {
         target = recent
       }
     }
-    guard target != key else { return nil }
+    guard key.map({ target != $0 }) ?? true else { return nil }
 
+    let sourceDescription = key.map {
+      "\($0.bundleId)#\($0.windowID)"
+    } ?? "none"
     debugLog.log(
       "BSP",
-      "cycle \(direction) \(key.bundleId)#\(key.windowID) "
-        + "→ \(target.bundleId)#\(target.windowID)",
+      "cycle \(direction) \(sourceDescription) "
+        + "→ \(target.bundleId)#\(target.windowID) "
+        + "display=\(display?.name ?? "nil")",
     )
     let targetWorkspaceId = state.workspaceOwning(target) ?? workspaceId
     return State.WindowCycleSession(
@@ -5075,6 +5181,7 @@ public struct WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action> {
     state.windowCycleSession = nil
+    state.pendingWindowCycleDisplay = nil
     var effects: [Effect<Action>] = [
       .cancel(id: CancelID.windowCycleHUDDelay),
       .cancel(id: CancelID.windowCycleModifier),
@@ -5171,7 +5278,7 @@ public struct WorkspaceActivationFeature {
     _ cycle: State.WindowCycleSession,
     state: State,
   ) -> [WindowKey: WindowSwitcherIndicators] {
-    let composition = cycle.display.flatMap { state.compositionsByDisplay[$0] }
+    let composition = state.composition(on: cycle.display)
     let workspaceIds = Set(
       composition.map { [$0.host] + $0.borrowed.map(\.workspace) }
         ?? [cycle.workspaceId]
@@ -5209,9 +5316,12 @@ public struct WorkspaceActivationFeature {
           isFloating: floatingBundleIds.contains(key.bundleId),
           isShared: sharedBundleIds.contains(key.bundleId),
           isBorrowed: isBorrowed,
-          isFocused: cycle.byWindow
-            ? key == cycle.focusedWindow
-            : key.bundleId == cycle.focusedWindow.bundleId,
+          isFocused: cycle.focusedWindow.map { focused in
+            cycle.windows.contains(focused)
+              && (cycle.byWindow
+                ? key == focused
+                : key.bundleId == focused.bundleId)
+          } ?? false,
           isFullscreen: isFullscreen,
         ),
       )
@@ -5236,6 +5346,28 @@ public struct WorkspaceActivationFeature {
         return
       }
       await send(continuation(key))
+    }
+  }
+
+  /// Window cycling is scoped by the pointer display, not by global keyboard
+  /// focus. A missing or Tatami-owned focused window is therefore an empty
+  /// anchor rather than a reason to drop an otherwise valid display surface.
+  private func resolveWindowCycleAnchor(
+    _ continuation: @escaping @Sendable (WindowKey?) -> Action
+  ) -> Effect<Action> {
+    .run { [snapshot = windowSnapshot, overlayAwareness, debugLog] send in
+      let focused = await snapshot.focusedWindowKeyOffMain()
+      let anchor: WindowKey? = focused.flatMap { key in
+        guard !overlayAwareness.isBackgroundedProcess(key.pid) else {
+          debugLog.log(
+            "OverlayAware",
+            "ignore window-cycle anchor \(key.bundleId)#\(key.windowID)",
+          )
+          return nil
+        }
+        return key
+      }
+      await send(continuation(anchor))
     }
   }
 

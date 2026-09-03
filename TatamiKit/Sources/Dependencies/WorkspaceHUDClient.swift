@@ -375,13 +375,17 @@ enum HUDLayout {
     let contentSpacing: CGFloat = 28 + 32 + 11
     let width: CGFloat
     if let subtitle {
-      let subtitleWidth = textWidth(
-        subtitle,
-        font: .systemFont(ofSize: NSFont.smallSystemFontSize),
-      )
-      let subtitleIconWidth: CGFloat = subtitleSymbolIconName == nil ? 0 : 14
+      let subtitleWidth = subtitle.components(separatedBy: "\n")
+        .enumerated()
+        .map { index, line in
+          textWidth(
+            line,
+            font: .systemFont(ofSize: NSFont.smallSystemFontSize),
+          ) + (index == 0 && subtitleSymbolIconName != nil ? 14 : 0)
+        }
+        .max() ?? 0
       width = min(
-        max(max(titleWidth, subtitleWidth + subtitleIconWidth) + contentSpacing, 240),
+        max(max(titleWidth, subtitleWidth) + contentSpacing, 240),
         404,
       )
     } else {
@@ -1404,6 +1408,62 @@ extension HUDSize {
   }
 }
 
+// MARK: - WorkspaceHUDSubtitleView
+
+@MainActor
+private struct WorkspaceHUDSubtitleView: View {
+
+  // MARK: Internal
+
+  let subtitle: String
+  let symbolIconName: String?
+
+  var body: some View {
+    Group {
+      if let symbolIconName {
+        let lines = subtitle.split(
+          separator: "\n",
+          maxSplits: 1,
+          omittingEmptySubsequences: false,
+        )
+        if lines.count == 2 {
+          VStack(alignment: .leading, spacing: 0) {
+            symbolLine(String(lines[0]), symbolIconName: symbolIconName)
+              .lineLimit(1)
+            Text(String(lines[1]))
+              .lineLimit(1)
+          }
+        } else {
+          symbolLine(subtitle, symbolIconName: symbolIconName)
+            .lineLimit(2)
+        }
+      } else {
+        Text(subtitle)
+          .lineLimit(2)
+      }
+    }
+    .font(.caption2)
+    .foregroundStyle(.secondary)
+    .multilineTextAlignment(.leading)
+  }
+
+  // MARK: Private
+
+  private func symbolLine(
+    _ text: String,
+    symbolIconName: String,
+  ) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 4) {
+      Image(systemName: symbolIconName)
+        .font(.caption2.weight(.semibold))
+        .accessibilityLabel("Workspace Chain")
+        .accessibilityHidden(symbolIconName != "link")
+      Text(text)
+    }
+  }
+
+}
+
 // MARK: - WorkspaceHUDView
 
 @MainActor
@@ -1454,19 +1514,10 @@ private struct WorkspaceHUDView: View {
               .font(.callout.weight(.semibold))
               .lineLimit(1)
             if let subtitle = value.subtitle {
-              HStack(spacing: 4) {
-                if let subtitleSymbolIconName = value.subtitleSymbolIconName {
-                  Image(systemName: subtitleSymbolIconName)
-                    .font(.caption2.weight(.semibold))
-                    .accessibilityLabel("Workspace Chain")
-                    .accessibilityHidden(subtitleSymbolIconName != "link")
-                }
-                Text(subtitle)
-                  .lineLimit(2)
-                  .multilineTextAlignment(.leading)
-              }
-              .font(.caption2)
-              .foregroundStyle(.secondary)
+              WorkspaceHUDSubtitleView(
+                subtitle: subtitle,
+                symbolIconName: value.subtitleSymbolIconName,
+              )
             }
           }
           .frame(maxWidth: .infinity, alignment: .leading)
