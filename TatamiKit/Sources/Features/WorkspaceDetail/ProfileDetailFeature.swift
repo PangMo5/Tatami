@@ -9,38 +9,53 @@ import Foundation
 /// profile *edits* it here; switching to it is the explicit "Activate" button.
 @Reducer
 public struct ProfileDetailFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
-    @Shared(.tatamiConfig) public var config
-    public var profileId: Profile.ID
-    /// Displays offered in the auto-activation editor: currently connected plus
-    /// any referenced by a workspace's `displayHint`. Loaded on appear.
-    public var availableDisplays: [DisplayName] = []
-    @Presents public var alert: AlertState<Action.Alert>?
+
+    // MARK: Lifecycle
 
     public init(profileId: Profile.ID) {
       self.profileId = profileId
     }
 
-    public var profile: Profile? { config.profiles.first { $0.id == profileId } }
+    // MARK: Public
+
+    @Shared(.tatamiConfig) public var config
+    public var profileId: Profile.ID
+    /// Displays offered in the auto-activation editor: currently connected plus
+    /// any referenced by a workspace's `displayHint`. Loaded on appear.
+    public var availableDisplays = [DisplayName]()
+    @Presents public var alert: AlertState<Action.Alert>?
+
+    public var profile: Profile? {
+      config.profiles.first { $0.id == profileId }
+    }
 
     /// The active (running) profile — distinct from the selected/edited one.
     public var isActive: Bool {
       (config.activeProfileId ?? config.profiles.first?.id) == profileId
     }
 
-    /// Conflict title for the profile switch shortcut (this profile excluded).
-    public func shortcutConflict(for candidate: HotKey) -> String? {
-      config.shortcutConflictAcrossProfiles(
-        for: candidate,
-        excluding: .activateProfile(profileId)
-      )
-    }
-
     /// How this profile's auto-activation rule overlaps the other profiles'.
     public var autoActivationDiagnostic: ProfileActivationDiagnostic {
       config.autoActivationDiagnostic(for: profileId)
     }
+
+    /// Conflict title for the profile switch shortcut (this profile excluded).
+    public func shortcutConflict(for candidate: HotKey) -> String? {
+      config.shortcutConflictAcrossProfiles(
+        for: candidate,
+        excluding: .activateProfile(profileId),
+      )
+    }
+
   }
 
   public enum Action: BindableAction {
@@ -50,6 +65,11 @@ public struct ProfileDetailFeature {
     case shortcutChanged(HotKey?)
     case shortcutRecordingChanged(Bool)
     case autoActivationChanged(ProfileActivation?)
+    case saveWorkspaceChain(
+      original: WorkspaceChain?,
+      updated: WorkspaceChain,
+    )
+    case deleteWorkspaceChainRequested(WorkspaceChain)
     case activateTapped
     /// Apply a reviewed sync from `source` into this profile — the excluded
     /// maps carry the app bundle ids / field ids the user unchecked, per
@@ -59,16 +79,20 @@ public struct ProfileDetailFeature {
       source: Profile.ID,
       baseline: AppConfig,
       excludedApps: [Workspace.ID: Set<String>],
-      excludedFields: [Workspace.ID: Set<String>]
+      excludedFields: [Workspace.ID: Set<String>],
     )
     case binding(BindingAction<State>)
     case delegate(Delegate)
     case alert(PresentationAction<Alert>)
 
+    // MARK: Public
+
     public enum Alert: Equatable {
       case dismissConfigurationChanged
       case dismissCopyFailure
       case dismissShortcutConflicts
+      case dismissWorkspaceChainConflict
+      case confirmWorkspaceChainDeletion(WorkspaceChain)
     }
 
     public enum Delegate: Equatable {
@@ -78,12 +102,6 @@ public struct ProfileDetailFeature {
     }
   }
 
-  @Dependency(\.hotKeys) var hotKeys
-  @Dependency(\.displays) var displays
-  @Dependency(\.configPersistence) var configPersistence
-
-  public init() {}
-
   public var body: some ReducerOf<Self> {
     CombineReducers {
       BindingReducer()
@@ -91,10 +109,13 @@ public struct ProfileDetailFeature {
         switch action {
         case .onAppear:
           // Connected displays + any pinned-to by a workspace, de-duplicated.
+          let liveDisplays = displays.all()
           var seen = Set<DisplayName>()
-          var out: [DisplayName] = []
-          func add(_ d: DisplayName) { if seen.insert(d).inserted { out.append(d) } }
-          displays.all().forEach(add)
+          var out = [DisplayName]()
+          func add(_ d: DisplayName) {
+            if seen.insert(d).inserted { out.append(d) }
+          }
+          liveDisplays.forEach(add)
           for profile in state.config.profiles {
             for ws in profile.workspaces { if let hint = ws.displayHint { add(hint) } }
           }
@@ -124,17 +145,76 @@ public struct ProfileDetailFeature {
           mutate(state) { $0.autoActivation = rule }
           return .send(.delegate(.profilesChanged))
 
+        case .saveWorkspaceChain(let original, var chain):
+          guard var profile = state.profile else { return .none }
+          let trimmedName = chain.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+          chain.name = trimmedName?.isEmpty == false ? trimmedName : nil
+          chain.normalizeDynamicWorkspaceIDs()
+
+          if let original {
+            guard let index = profile.workspaceChains.firstIndex(of: original) else {
+              state.alert = workspaceChainConflictAlert()
+              return .none
+            }
+            let otherIDs = Set(profile.workspaceChains.enumerated().compactMap { offset, existing in
+              offset == index ? nil : existing.id
+            })
+            while otherIDs.contains(chain.id) { chain.id = uuid() }
+            profile.workspaceChains[index] = chain
+          } else {
+            let existingIDs = Set(profile.workspaceChains.map(\.id))
+            while existingIDs.contains(chain.id) { chain.id = uuid() }
+            profile.workspaceChains.append(chain)
+          }
+
+          let invalid = profile.validateWorkspaceChains().issues.contains {
+            $0.affectedChainIDs.contains(chain.id)
+          }
+          guard !invalid else {
+            state.alert = workspaceChainConflictAlert()
+            return .none
+          }
+          mutate(state) { $0 = profile }
+          return .send(.delegate(.profilesChanged))
+
+        case .deleteWorkspaceChainRequested(let chain):
+          guard state.profile?.workspaceChains.contains(chain) == true else { return .none }
+          let name = workspaceChainName(chain)
+          state.alert = AlertState {
+            TextState("Delete workspace chain?")
+          } actions: {
+            ButtonState(role: .destructive, action: .confirmWorkspaceChainDeletion(chain)) {
+              TextState("Delete")
+            }
+            ButtonState(role: .cancel) {
+              TextState("Cancel")
+            }
+          } message: {
+            TextState(
+              "“\(name)” will stop switching its linked workspaces together. This can't be undone."
+            )
+          }
+          return .none
+
+        case .alert(.presented(.confirmWorkspaceChainDeletion(let chain))):
+          guard state.profile?.workspaceChains.contains(chain) == true else { return .none }
+          mutate(state) { profile in
+            guard let index = profile.workspaceChains.firstIndex(of: chain) else { return }
+            profile.workspaceChains.remove(at: index)
+          }
+          return .send(.delegate(.profilesChanged))
+
         case .activateTapped:
           return .send(.delegate(.activateProfile(state.profileId)))
 
-        case let .applyProfileSync(target, source, baseline, excludedApps, excludedFields):
+        case .applyProfileSync(let target, let source, let baseline, let excludedApps, let excludedFields):
           guard
             state.profileId == target,
             let projection = baseline.profileSyncProjection(
               into: target,
               from: source,
               excludedAppsByWorkspace: excludedApps,
-              excludedFieldsByWorkspace: excludedFields
+              excludedFieldsByWorkspace: excludedFields,
             )
           else {
             state.alert = configurationChangedAlert()
@@ -152,7 +232,7 @@ public struct ProfileDetailFeature {
               baseline,
               revision,
               projection.config,
-              { true }
+              { true },
             )
             return .send(.delegate(.profilesChanged))
           } catch {
@@ -162,13 +242,24 @@ public struct ProfileDetailFeature {
             return .none
           }
 
-        case .alert, .binding, .delegate:
+        case .alert,
+             .binding,
+             .delegate:
           return .none
         }
       }
     }
     .ifLet(\.$alert, action: \.alert)
   }
+
+  // MARK: Internal
+
+  @Dependency(\.hotKeys) var hotKeys
+  @Dependency(\.displays) var displays
+  @Dependency(\.configPersistence) var configPersistence
+  @Dependency(\.uuid) var uuid
+
+  // MARK: Private
 
   private func configurationChangedAlert() -> AlertState<Action.Alert> {
     AlertState {
@@ -199,7 +290,9 @@ public struct ProfileDetailFeature {
   private func isStaleReview(_ error: any Error) -> Bool {
     guard let error = error as? ConfigPersistenceError else { return false }
     return switch error {
-    case .changedInMemory, .changedOnDisk, .transactionExpired:
+    case .changedInMemory,
+         .changedOnDisk,
+         .transactionExpired:
       true
     case .outcomeUnknown:
       false
@@ -225,10 +318,31 @@ public struct ProfileDetailFeature {
     }
   }
 
+  private func workspaceChainConflictAlert() -> AlertState<Action.Alert> {
+    AlertState {
+      TextState("Workspace chain conflict")
+    } actions: {
+      ButtonState(role: .cancel, action: .dismissWorkspaceChainConflict) {
+        TextState("OK")
+      }
+    } message: {
+      TextState(
+        "The chain was not saved because one of its workspaces conflicts with another chain or is unavailable. Review the latest profile settings and try again."
+      )
+    }
+  }
+
+  private func workspaceChainName(_ chain: WorkspaceChain) -> String {
+    let name = chain.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let name, !name.isEmpty { return name }
+    return String(localized: "Untitled Workspace Chain")
+  }
+
   private func mutate(_ state: State, _ body: (inout Profile) -> Void) {
     state.$config.withLock { config in
       guard let idx = config.profiles.firstIndex(where: { $0.id == state.profileId }) else { return }
       body(&config.profiles[idx])
     }
   }
+
 }

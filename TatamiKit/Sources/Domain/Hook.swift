@@ -165,6 +165,7 @@ public struct HookInvocation: Hashable, Sendable, Codable {
       title: String,
       symbolIconName: String?,
       subtitle: String?,
+      subtitleSymbolIconName: String? = nil,
       durationMs: Int,
       position: HUDPosition,
       size: HUDSize,
@@ -172,6 +173,7 @@ public struct HookInvocation: Hashable, Sendable, Codable {
       self.title = title
       self.symbolIconName = symbolIconName
       self.subtitle = subtitle
+      self.subtitleSymbolIconName = subtitleSymbolIconName
       self.durationMs = durationMs
       self.position = position
       self.size = size
@@ -182,6 +184,9 @@ public struct HookInvocation: Hashable, Sendable, Codable {
     public var title: String
     public var symbolIconName: String?
     public var subtitle: String?
+    /// Optional SF Symbol rendered before the subtitle (for example `link`
+    /// when a workspace chain caused this display's change).
+    public var subtitleSymbolIconName: String?
     /// Settled dwell time; the rendering surface owns its entrance and exit.
     public var durationMs: Int
     public var position: HUDPosition

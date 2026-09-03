@@ -168,9 +168,18 @@ public struct WorkspaceActivationFeature {
     /// activation slot — dequeued as each activation completes.
     public var pendingDisplayRestores = [DisplayAssignment]()
     /// The workspace to focus once its restore lands — set by a focused
-    /// `reactivateActiveProfile` so the last plan entry activates with focus.
-    /// Cleared as soon as that restore is processed.
+    /// profile restore or workspace-chain switch so the user's chosen workspace
+    /// is the last plan entry. Cleared as soon as that restore is processed.
     public var focusWorkspaceOnRestore: Workspace.ID?
+    /// A hotkey/menu switch asks Tatami to focus the final member. App-focus
+    /// activation already owns keyboard focus, so its chain preserves that
+    /// focus while still restoring the same member last.
+    public var finalRestoreTakesFocus = true
+    public var finalRestoreFollowsCursor = false
+    /// Profile switches already present a summary HUD, while a workspace-chain
+    /// switch still needs the ordinary workspace HUD on its final focused
+    /// member. This flag distinguishes those two users of the same queue.
+    public var suppressFocusedRestoreHUD = false
     /// The display that owns keyboard focus (or the latest explicit display
     /// focus transfer). The cursor is used only while this is unknown: once an
     /// exact managed window focuses, its workspace/display ownership is the
@@ -244,6 +253,10 @@ public struct WorkspaceActivationFeature {
     /// anchoring at the completed one re-targeted the same slow workspace
     /// on every press, which read as the cycle being stuck on it.
     public var activatingWorkspaceID: Workspace.ID?
+    /// Physical display provenance captured for `activatingWorkspaceID`.
+    /// Rapid navigation only anchors at an in-flight workspace when that
+    /// activation belongs to the same pointer display as the new command.
+    public var activatingDisplay: DisplayName?
     /// Runtime-only "pause tiling" flag. Workspace switching keeps
     /// running while tiling is paused; flipped by `togglePaused`.
     public var isTilingPaused = false
@@ -336,12 +349,12 @@ public struct WorkspaceActivationFeature {
       !layoutSuspensionReasons.isEmpty
     }
 
-    /// The active workspace on the display the user is currently on. Falls
+    /// The active workspace on the keyboard-focused display. Falls
     /// back to any active workspace (single-display, or before `focusedDisplay`
-    /// is known). Hotkey ops resolve their target through this, so they act on
-    /// the focused monitor rather than an arbitrary one.
+    /// is known). Focused-window operations resolve through this; pointer-scoped
+    /// workspace navigation uses `interactionDisplay` at its entry action.
     public var primaryActiveWorkspaceID: Workspace.ID? {
-      if let focusedDisplay, let id = activeWorkspacesByDisplay[focusedDisplay] {
+      if let id = activeWorkspace(on: focusedDisplay) {
         return id
       }
       return activeWorkspacesByDisplay.values.first
@@ -383,6 +396,272 @@ public struct WorkspaceActivationFeature {
         composition.host == workspaceId
           || composition.borrowed.contains(where: { $0.workspace == workspaceId })
       })?.key
+    }
+
+    /// Match a physical display rather than relying on `DisplayName`'s exact
+    /// dictionary key. Runtime display identities may gain a UUID after state
+    /// was restored from a legacy name-only configuration.
+    func activeWorkspace(on display: DisplayName?) -> Workspace.ID? {
+      workspace(on: display, in: activeWorkspacesByDisplay)
+    }
+
+    func previousWorkspace(on display: DisplayName?) -> Workspace.ID? {
+      workspace(on: display, in: previousWorkspacesByDisplay)
+    }
+
+    /// The in-flight target only participates in navigation on the display
+    /// where its activation started. Without this provenance, a slow switch
+    /// on monitor B can become the cycle anchor for a new command on monitor A.
+    func activatingWorkspace(on display: DisplayName?) -> Workspace.ID? {
+      guard let activatingWorkspaceID else { return nil }
+      guard let display else { return activatingWorkspaceID }
+      guard let activatingDisplay, activatingDisplay.matches(display) else {
+        return nil
+      }
+      return activatingWorkspaceID
+    }
+
+    /// Publish one completed activation under the current live display key.
+    /// Restored session state can still be keyed by a legacy name-only display;
+    /// keeping both that key and the later UUID key makes dictionary iteration
+    /// choose an arbitrary active/recent workspace for the same monitor.
+    /// Collapse every matching key before writing the canonical live identity.
+    mutating func recordCompletedActivation(
+      workspaceId: Workspace.ID,
+      display: DisplayName,
+    ) -> [DisplayName] {
+      var knownDisplays = Set(activeWorkspacesByDisplay.keys)
+      knownDisplays.formUnion(previousWorkspacesByDisplay.keys)
+      knownDisplays.formUnion(displayWorkspaceHistory.keys)
+      knownDisplays.formUnion(lastActiveDisplay.values)
+      knownDisplays.formUnion(connectedDisplays)
+      knownDisplays.insert(display)
+      let knownUUIDDisplaysWithName = knownDisplays.filter {
+        $0.uuid != nil && $0.name == display.name
+      }
+      let canonicalDisplay =
+        if display.uuid != nil {
+          display
+        } else if
+          knownUUIDDisplaysWithName.count == 1,
+          let known = knownUUIDDisplaysWithName.first
+        {
+          known
+        } else {
+          display
+        }
+      // Name fallback is intentionally non-transitive: uuid-A matches a
+      // name-only key, and that key matches uuid-B, while A and B are distinct.
+      // Merge a legacy key only when its name identifies at most one known
+      // UUID display; otherwise preserving the ambiguous key is safer than
+      // collapsing two identical-model monitors into one dictionary entry.
+      let isAlias: (DisplayName) -> Bool = { key in
+        if key == canonicalDisplay { return true }
+        guard key.name == canonicalDisplay.name else { return false }
+        guard key.uuid == nil || canonicalDisplay.uuid == nil else { return false }
+        return knownUUIDDisplaysWithName.count <= 1
+      }
+      let priority: (DisplayName) -> Int = { key in
+        if key == canonicalDisplay { return 0 }
+        if key.uuid == nil { return 1 }
+        return 2
+      }
+      let matchingActiveKeys = activeWorkspacesByDisplay.keys
+        .filter(isAlias)
+        .sorted { priority($0) < priority($1) }
+      let eligibleWorkspaceIDs = config.activeProfile.map { profile in
+        Set(profile.workspaces.filter { $0.kind != .scratchpad }.map(\.id))
+      }
+      let isEligible: (Workspace.ID) -> Bool = { id in
+        eligibleWorkspaceIDs?.contains(id) ?? true
+      }
+      let previousActive = matchingActiveKeys
+        .compactMap { activeWorkspacesByDisplay[$0] }
+        .first(where: isEligible)
+
+      let matchingPreviousKeys = previousWorkspacesByDisplay.keys
+        .filter(isAlias)
+        .sorted { priority($0) < priority($1) }
+      let preservedPrevious = matchingPreviousKeys
+        .compactMap { previousWorkspacesByDisplay[$0] }
+        .first { $0 != workspaceId && isEligible($0) }
+
+      let matchingHistoryKeys = displayWorkspaceHistory.keys
+        .filter(isAlias)
+        .sorted { priority($0) < priority($1) }
+      var mergedHistory = [Workspace.ID]()
+      for key in matchingHistoryKeys {
+        for id in displayWorkspaceHistory[key] ?? [] where !mergedHistory.contains(id) {
+          mergedHistory.append(id)
+        }
+      }
+
+      for key in matchingActiveKeys {
+        activeWorkspacesByDisplay.removeValue(forKey: key)
+      }
+      for key in matchingPreviousKeys {
+        previousWorkspacesByDisplay.removeValue(forKey: key)
+      }
+      for key in matchingHistoryKeys {
+        displayWorkspaceHistory.removeValue(forKey: key)
+      }
+
+      if let previous = previousActive, previous != workspaceId {
+        previousWorkspacesByDisplay[canonicalDisplay] = previous
+      } else if let preservedPrevious {
+        previousWorkspacesByDisplay[canonicalDisplay] = preservedPrevious
+      }
+
+      // Invariant: a workspace is on exactly one physical display. Matching
+      // keys above were aliases for this display; only non-matching owners are
+      // real displays vacated by a dynamic workspace move.
+      let emptiedByMove = activeWorkspacesByDisplay.compactMap { other, id in
+        id == workspaceId && !isAlias(other) ? other : nil
+      }
+      for other in emptiedByMove {
+        activeWorkspacesByDisplay.removeValue(forKey: other)
+      }
+
+      activeWorkspacesByDisplay[canonicalDisplay] = workspaceId
+      lastActiveDisplay[workspaceId] = canonicalDisplay
+      let matchingLastActiveIDs = lastActiveDisplay.compactMap { id, lastDisplay in
+        isAlias(lastDisplay) ? id : nil
+      }
+      for id in matchingLastActiveIDs {
+        lastActiveDisplay[id] = canonicalDisplay
+      }
+
+      mergedHistory.removeAll { $0 == workspaceId }
+      mergedHistory.insert(workspaceId, at: 0)
+      displayWorkspaceHistory[canonicalDisplay] = mergedHistory
+      workspaceMRU.removeAll { $0 == workspaceId }
+      workspaceMRU.insert(workspaceId, at: 0)
+      return emptiedByMove
+    }
+
+    /// Reconcile runtime display keys onto the latest live identities before
+    /// deciding whether the physical topology changed. A display whose legacy
+    /// name-only identity gains a UUID is the same monitor, not an unplug/plug.
+    /// Name fallback is accepted only when it is unambiguous on both sides, so
+    /// two identical-model displays are never collapsed into one key.
+    mutating func reconcileDisplayTopology(
+      liveDisplays: [DisplayName]
+    ) -> (
+      changed: Bool,
+      newlyConnected: Set<DisplayName>,
+      disconnectedBorrowedWorkspaceIDs: [Workspace.ID],
+    ) {
+      let previousConnected = connectedDisplays
+      let liveConnected = Set(liveDisplays)
+
+      let canonicalLiveDisplay: (DisplayName) -> DisplayName? = { display in
+        if let exact = liveDisplays.first(where: { $0 == display }) {
+          return exact
+        }
+        let candidates = liveDisplays.filter { $0.matches(display) }
+        guard candidates.count == 1, let candidate = candidates.first else {
+          return nil
+        }
+        if display.uuid == nil || candidate.uuid == nil {
+          let previousUUIDCount = previousConnected.count {
+            $0.uuid != nil && $0.name == display.name
+          }
+          let liveUUIDCount = liveDisplays.count {
+            $0.uuid != nil && $0.name == display.name
+          }
+          guard previousUUIDCount <= 1, liveUUIDCount <= 1 else { return nil }
+        }
+        return candidate
+      }
+
+      let resolvedPrevious = previousConnected.compactMap(canonicalLiveDisplay)
+      let changed = resolvedPrevious.count != previousConnected.count
+        || Set(resolvedPrevious) != liveConnected
+      let newlyConnected = liveConnected.subtracting(resolvedPrevious)
+
+      func rekeyConnected<Value>(
+        _ source: [DisplayName: Value]
+      ) -> [DisplayName: Value] {
+        var result = [DisplayName: Value]()
+        for (key, value) in source {
+          guard let live = canonicalLiveDisplay(key) else { continue }
+          if result[live] == nil || key == live {
+            result[live] = value
+          }
+        }
+        return result
+      }
+
+      activeWorkspacesByDisplay = rekeyConnected(activeWorkspacesByDisplay)
+      previousWorkspacesByDisplay = rekeyConnected(previousWorkspacesByDisplay)
+
+      // Connected aliases merge into one live MRU while disconnected entries
+      // remain persisted for a later reconnect.
+      let oldHistory = displayWorkspaceHistory
+      var canonicalHistory = oldHistory.filter {
+        canonicalLiveDisplay($0.key) == nil
+      }
+      for live in liveDisplays {
+        let matchingKeys = oldHistory.keys
+          .filter { canonicalLiveDisplay($0) == live }
+          .sorted { lhs, rhs in
+            if lhs == live { return true }
+            if rhs == live { return false }
+            return lhs.description < rhs.description
+          }
+        var merged = [Workspace.ID]()
+        for key in matchingKeys {
+          for id in oldHistory[key] ?? [] where !merged.contains(id) {
+            merged.append(id)
+          }
+        }
+        if !merged.isEmpty {
+          canonicalHistory[live] = merged
+        }
+      }
+      displayWorkspaceHistory = canonicalHistory
+
+      lastActiveDisplay = lastActiveDisplay.compactMapValues(canonicalLiveDisplay)
+
+      let disconnectedBorrowedWorkspaceIDs = compositionsByDisplay
+        .filter { canonicalLiveDisplay($0.key) == nil }
+        .values
+        .flatMap { $0.borrowed.map(\.workspace) }
+      compositionsByDisplay = rekeyConnected(compositionsByDisplay)
+      pendingBorrowCompletionByDisplay = rekeyConnected(
+        pendingBorrowCompletionByDisplay
+      )
+      var canonicalBorrowGenerations = [DisplayName: UInt64]()
+      for (display, generation) in borrowGenerationByDisplay {
+        guard let live = canonicalLiveDisplay(display) else { continue }
+        canonicalBorrowGenerations[live] = max(
+          canonicalBorrowGenerations[live, default: 0],
+          generation,
+        )
+      }
+      borrowGenerationByDisplay = canonicalBorrowGenerations
+
+      focusedDisplay = focusedDisplay.flatMap(canonicalLiveDisplay)
+      activatingDisplay = activatingDisplay.flatMap(canonicalLiveDisplay)
+      if var capture = borrowCapture {
+        if let live = canonicalLiveDisplay(capture.display) {
+          capture.display = live
+          borrowCapture = capture
+        }
+      }
+      if var session = windowCycleSession, let display = session.display {
+        session.display = canonicalLiveDisplay(display)
+        windowCycleSession = session
+      }
+      pendingDisplayRestores = pendingDisplayRestores.compactMap { assignment in
+        guard let live = canonicalLiveDisplay(assignment.display) else { return nil }
+        var assignment = assignment
+        assignment.display = live
+        return assignment
+      }
+
+      connectedDisplays = liveConnected
+      return (changed, newlyConnected, disconnectedBorrowedWorkspaceIDs)
     }
 
     /// The composed workspace (borrowed block or host) that should own a
@@ -635,8 +914,19 @@ public struct WorkspaceActivationFeature {
       }
       guard let workspaceId else { return nil }
 
-      if updateFocusedDisplay, let display = displayShowing(workspaceId) {
-        focusedDisplay = display
+      if updateFocusedDisplay {
+        // The target window can focus before the serial activation commits its
+        // new display assignment. Preserve the command's captured destination
+        // instead of resolving the workspace through its still-stale old slot.
+        if
+          preferredWorkspaceContainsKey,
+          workspaceId == activatingWorkspaceID,
+          let activatingDisplay
+        {
+          focusedDisplay = activatingDisplay
+        } else if let display = displayShowing(workspaceId) {
+          focusedDisplay = display
+        }
       }
       let treeWindows = tilingTrees[workspaceId]?.windows ?? []
       let inTree = treeWindows.contains(key)
@@ -657,6 +947,21 @@ public struct WorkspaceActivationFeature {
       mru.removeAll { $0 != key && !treeWindows.contains($0) }
       mruWindows[workspaceId] = mru
       return workspaceId
+    }
+
+    // MARK: Private
+
+    private func workspace(
+      on display: DisplayName?,
+      in placements: [DisplayName: Workspace.ID],
+    ) -> Workspace.ID? {
+      guard let display else { return nil }
+      if let exact = placements[display] { return exact }
+      let connectedUUIDsWithSameName = Set(connectedDisplays.compactMap { candidate in
+        candidate.name == display.name ? candidate.uuid : nil
+      })
+      guard connectedUUIDsWithSameName.count <= 1 else { return nil }
+      return placements.first { key, _ in key.matches(display) }?.value
     }
 
   }
@@ -689,23 +994,60 @@ public struct WorkspaceActivationFeature {
     /// `focus`, when set, is a workspace forced to the end of the restore plan
     /// (on its display) and activated with focus — so a profile switch that
     /// targets a specific workspace lands on it after the per-display retile,
-    /// with no race against the restore cascade.
-    case reactivateActiveProfile(focus: Workspace.ID?)
+    /// with no race against the restore cascade. `interactionDisplay` is the
+    /// pointer display captured when the profile-switch command began; carrying
+    /// it across the parent reducer keeps an async app lookup from moving a
+    /// dynamic target to whichever display the pointer reaches later.
+    case reactivateActiveProfile(
+      focus: Workspace.ID?,
+      interactionDisplay: DisplayName? = nil,
+    )
     case trackCLIActivation(CLIActivationRequest, joinCurrentActivation: Bool)
     case failCLIActivation(requestID: UUID, error: String)
     /// Startup permission gate: prompt for any missing permission, surfacing
     /// Accessibility + Screen Recording together when both are absent.
     case surfaceMissingPermissions
-    case activate(workspaceId: Workspace.ID, setFocus: Bool)
-    case activateFromCLI(workspaceId: Workspace.ID, requestID: UUID)
+    case activate(
+      workspaceId: Workspace.ID,
+      setFocus: Bool,
+      interactionDisplay: DisplayName? = nil,
+    )
+    case activateFromCLI(
+      workspaceId: Workspace.ID,
+      requestID: UUID,
+      interactionDisplay: DisplayName? = nil,
+    )
     case cliActivationEffectFinished(workspaceId: Workspace.ID, requestID: UUID)
-    case activateNext
-    case activatePrevious
-    case activateRecent
+    case activateNext(interactionDisplay: DisplayName? = nil)
+    case activatePrevious(interactionDisplay: DisplayName? = nil)
+    case activateRecent(interactionDisplay: DisplayName? = nil)
     /// Restore a workspace onto a specific display (silent, no focus steal) —
     /// used when a monitor is reconnected. Dynamic workspaces are pinned to the
     /// display for this activation via `displayOverride`.
-    case restoreDisplay(workspaceId: Workspace.ID, display: DisplayName)
+    case restoreDisplay(DisplayAssignment)
+    /// Finalize visibility/state removal for one priority-skipped display.
+    /// The reducer revalidates the exact source snapshot before committing,
+    /// then acknowledges only after its layout/HUD effects have drained.
+    case commitWorkspaceChainCleanup(
+      WorkspaceChainCleanupTransaction,
+      display: DisplayName,
+      reply: WorkspaceChainCleanupReply,
+    )
+    /// Run a complete ordered cleanup transaction. Primarily an orchestration
+    /// entry point for non-activation callers and reducer tests; activation and
+    /// focus paths invoke the same awaited effect directly.
+    case processWorkspaceChainCleanup(
+      WorkspaceChainCleanupTransaction,
+      cleanups: [WorkspaceChainVisibilityCleanup],
+    )
+    /// Validate the latest placement before starting one display's physical
+    /// return. The one-shot reply keeps the parent activation/focus effect
+    /// suspended until the matching commit has completed.
+    case processWorkspaceChainCleanupStep(
+      WorkspaceChainCleanupTransaction,
+      cleanup: WorkspaceChainVisibilityCleanup,
+      reply: WorkspaceChainCleanupReply,
+    )
     /// Drain the reconnect-restore queue one activation at a time through the
     /// single (latest-wins) activation slot.
     case processDisplayRestores
@@ -717,15 +1059,24 @@ public struct WorkspaceActivationFeature {
     /// Start borrowing `workspaceId`: with a default edge, borrow immediately;
     /// otherwise arm a one-key direction pick (h/j/k/l or arrows). Re-firing
     /// for the same pending target cancels.
-    case beginBorrowDirection(workspaceId: Workspace.ID)
+    case beginBorrowDirection(
+      workspaceId: Workspace.ID,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Assign the focused app to the recent / adjacent workspace + switch
     /// there — the recent/next/previous key with the assign modifier.
-    case assignFocusedAppToRecentWorkspace
-    case assignFocusedAppToAdjacentWorkspace(direction: Int)
+    case assignFocusedAppToRecentWorkspace(interactionDisplay: DisplayName? = nil)
+    case assignFocusedAppToAdjacentWorkspace(
+      direction: Int,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Borrow the recent / adjacent workspace — the recent/next/previous key
     /// with the borrow modifier.
-    case borrowRecentWorkspace
-    case borrowAdjacentWorkspace(direction: Int)
+    case borrowRecentWorkspace(interactionDisplay: DisplayName? = nil)
+    case borrowAdjacentWorkspace(
+      direction: Int,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Internal: a decoded direction keystroke from the borrow direction pick.
     case borrowChordKey(BorrowChordKey)
     /// Internal: re-flush a display's composition after its trees change.
@@ -768,20 +1119,30 @@ public struct WorkspaceActivationFeature {
     )
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
     /// connected display, looping around.
-    case focusAdjacentDisplay(direction: Int)
+    case focusAdjacentDisplay(
+      direction: Int,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Relocate the focused app to the next (`+1`) / previous (`-1`)
     /// workspace and switch to it — honors loop / skip-empty like cycling.
-    case moveFocusedAppToAdjacent(direction: Int)
+    case moveFocusedAppToAdjacent(
+      direction: Int,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Hotkey entry point for every membership mutation of the focused
     /// window's app. The edits differ in which config collection they
     /// mutate and which HUD they show — that's data, not control flow, so
     /// one action pair carries all six instead of six near-identical pairs.
-    case membershipEdit(MembershipEdit)
+    case membershipEdit(
+      MembershipEdit,
+      interactionDisplay: DisplayName? = nil,
+    )
     case membershipEditResolved(
       bundleId: String,
       name: String,
       edit: MembershipEdit,
       pid: pid_t = 0,
+      interactionDisplay: DisplayName? = nil,
     )
     case togglePaused
     case bspFocus(BSPDirection)
@@ -956,7 +1317,11 @@ public struct WorkspaceActivationFeature {
     public enum Delegate: Equatable {
       /// A gesture assigned an app into a workspace owned by another
       /// profile. AppFeature owns the actual profile switch transaction.
-      case profileSwitchRequested(Profile.ID, focus: Workspace.ID?)
+      case profileSwitchRequested(
+        Profile.ID,
+        focus: Workspace.ID?,
+        interactionDisplay: DisplayName? = nil,
+      )
       /// A display rule matched and this feature already retiled for it —
       /// AppFeature runs the remaining switch side effects.
       case profileAutoActivated(previous: Profile.ID?, current: Profile.ID)
@@ -1002,11 +1367,10 @@ public struct WorkspaceActivationFeature {
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
-      // The focused window's physical workspace is the interaction owner.
-      // Consult the cursor only until that owner is known (startup / empty
-      // desktop). Re-reading it on every hotkey overwrote a secondary-display
-      // focus immediately before MRU/cycle/activation resolution and sent the
-      // operation back to the cursor monitor.
+      // Focused-window operations belong to the window's physical workspace.
+      // Seed that owner from the cursor only until it is known (startup / empty
+      // desktop). Pointer-scoped workspace navigation resolves
+      // `interactionDisplay` explicitly without mutating keyboard-focus state.
       if Self.refreshesFocusedDisplay(action), state.focusedDisplay == nil {
         state.focusedDisplay = displays.current()
       }
@@ -1063,44 +1427,25 @@ public struct WorkspaceActivationFeature {
           )
           return .none
         }
-        let connected = Set(names)
+        let reconciliation = state.reconcileDisplayTopology(liveDisplays: names)
+        let connected = state.connectedDisplays
         // DisplayClient emits only when either identity or geometry changed.
         // With an unchanged set this is a resolution/arrangement/work-area
-        // update: preserve assignment state and reflow every visible display.
-        guard connected != state.connectedDisplays else {
+        // update: runtime keys have already been promoted to the latest live
+        // UUID identities, so preserve assignment state and only reflow.
+        guard reconciliation.changed else {
           return .send(.displayGeometryChanged)
         }
         // Displays present now but not at the last reconfigure = freshly plugged
         // in. (Empty `connectedDisplays` is the pre-startup state; seed it in
         // `activateInitial` so a first *unplug* isn't mistaken for a plug-in.)
-        let newlyConnected = Set(names.filter { !state.connectedDisplays.contains($0) })
-        state.connectedDisplays = connected
-        state.activeWorkspacesByDisplay = state.activeWorkspacesByDisplay
-          .filter { connected.contains($0.key) }
-        state.previousWorkspacesByDisplay = state.previousWorkspacesByDisplay
-          .filter { connected.contains($0.key) }
-        // Drop last-display records for displays that are gone so dynamic
-        // workspaces aren't stranded off-screen in the cycle.
-        state.lastActiveDisplay = state.lastActiveDisplay
-          .filter { connected.contains($0.value) }
-        let disconnectedBorrowedWorkspaceIDs = state.compositionsByDisplay
-          .filter { !connected.contains($0.key) }
-          .values
-          .flatMap { $0.borrowed.map(\.workspace) }
-        for workspaceId in disconnectedBorrowedWorkspaceIDs {
+        let newlyConnected = reconciliation.newlyConnected
+        for workspaceId in reconciliation.disconnectedBorrowedWorkspaceIDs {
           state.pendingCenterWarps[workspaceId] = nil
         }
-        state.compositionsByDisplay = state.compositionsByDisplay
-          .filter { connected.contains($0.key) }
-        state.pendingBorrowCompletionByDisplay =
-          state.pendingBorrowCompletionByDisplay
-            .filter { connected.contains($0.key) }
         // `displayWorkspaceHistory` is deliberately NOT filtered — it must
         // survive a disconnect so a reconnect can restore the monitor's last
         // workspace.
-        if let focused = state.focusedDisplay, !connected.contains(focused) {
-          state.focusedDisplay = nil
-        }
         if debugLog.isEnabled() {
           debugLog.log(
             "Display",
@@ -1165,6 +1510,10 @@ public struct WorkspaceActivationFeature {
           "restore plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })",
         )
         state.pendingDisplayRestores = plan
+        state.focusWorkspaceOnRestore = nil
+        state.finalRestoreTakesFocus = true
+        state.finalRestoreFollowsCursor = false
+        state.suppressFocusedRestoreHUD = false
         // An auto-switch is a profile change — announce it per display too.
         let autoHUD = didAutoSwitch
           ? profileSwitchHUDs(
@@ -1848,7 +2197,10 @@ public struct WorkspaceActivationFeature {
           )
           return .merge(
             markerEffect,
-            .send(.activateFollowingAppFocus(workspaceId: owner.id)),
+            .concatenate(
+              .cancel(id: CancelID.workspaceChainCleanup),
+              .send(.activateFollowingAppFocus(workspaceId: owner.id)),
+            ),
           )
         }
         // One focused-window resolution serves marker focus, insertion-
@@ -2144,7 +2496,7 @@ public struct WorkspaceActivationFeature {
         guard state.pendingCLIActivation?.id == requestID else { return .none }
         return completeCLIActivation(error: error, state: &state)
 
-      case .reactivateActiveProfile(let focus):
+      case .reactivateActiveProfile(let focus, let capturedInteractionDisplay):
         // A profile switch is authoritative over every workspace activation
         // from the outgoing profile, even when the new profile has no normal
         // workspace to start a replacement generation. Invalidate reducer
@@ -2152,13 +2504,18 @@ public struct WorkspaceActivationFeature {
         // cancel both effects before starting the new restore cascade.
         state.isActivating = false
         state.activatingWorkspaceID = nil
+        state.activatingDisplay = nil
         state.activeActivationGeneration = nil
-        state.activeWorkspacesByDisplay = [:]
         state.pendingDisplayRestores = []
         state.focusWorkspaceOnRestore = nil
+        state.finalRestoreTakesFocus = true
+        state.finalRestoreFollowsCursor = false
+        state.suppressFocusedRestoreHUD = false
         let cancelOutgoingActivation = Effect<Action>.merge(
           .cancel(id: CancelID.activation),
+          .cancel(id: CancelID.activationHUD),
           .cancel(id: CancelID.activationWatchdog),
+          .cancel(id: CancelID.workspaceChainCleanup),
         )
         guard let profile = state.config.activeProfile else {
           return .concatenate(
@@ -2191,22 +2548,84 @@ public struct WorkspaceActivationFeature {
           history: state.displayWorkspaceHistory,
           workspaceMRU: state.workspaceMRU,
         )
+        var focusedChainSkippedWorkspaceIDs = Set<Workspace.ID>()
+        var hasFocusedChainPresentation = false
         // A focused switch (detail Activate on a non-active profile) forces its
         // workspace to the *end* of the plan — the cascade processes in order,
         // so it lands last, and its restore sets focus. This makes the clicked
         // workspace the final active one deterministically, without racing the
         // per-display retile.
-        if let focus, profile.workspaces[id: focus] != nil {
-          if let idx = plan.firstIndex(where: { $0.workspace == focus }) {
-            plan.append(plan.remove(at: idx))
+        let focusInteractionDisplay = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        if let focus, let focusWorkspace = profile.workspaces[id: focus] {
+          let pointerOrFocusedDisplay = focusInteractionDisplay
+          let targetDisplay = (
+            focusWorkspace.isDynamic
+              ? pointerOrFocusedDisplay
+              : deliberateActivationDisplay(for: focusWorkspace, state: state)
+          ) ?? plan.first(where: { $0.workspace == focus })?.display
+            ?? plan.last?.display ?? connected[0]
+
+          if let chain = profile.validWorkspaceChain(containing: focus) {
+            let chainResult = Self.planWorkspaceChain(
+              chain,
+              triggeredBy: DisplayAssignment(display: targetDisplay, workspace: focus),
+              dynamicPreferredDisplay: pointerOrFocusedDisplay,
+              connected: connected,
+              primaryDisplay: displays.primary(),
+              workspaces: profile.workspaces.elements,
+              active: [:],
+              history: state.displayWorkspaceHistory,
+              workspaceMRU: state.workspaceMRU,
+            )
+            switch chainResult {
+            case .success(let chainPlan):
+              focusedChainSkippedWorkspaceIDs = Set(chain.workspaceIDs)
+                .subtracting(chainPlan.selectedWorkspaceIDs)
+              var outgoingWorkspaceIDs = Set(state.activeWorkspacesByDisplay.values)
+              for composition in state.compositionsByDisplay.values {
+                outgoingWorkspaceIDs.insert(composition.host)
+                outgoingWorkspaceIDs.formUnion(composition.borrowed.map(\.workspace))
+              }
+              outgoingWorkspaceIDs.subtract(Set(profile.workspaces.ids))
+              plan = workspaceChainHUDAssignments(
+                chain: chain,
+                assignments: chainPlan.assignments,
+                selectedWorkspaceIDs: chainPlan.selectedWorkspaceIDs,
+                skippedWorkspaceIDs: focusedChainSkippedWorkspaceIDs,
+                cleanupWorkspaceIDs: focusedChainSkippedWorkspaceIDs
+                  .union(outgoingWorkspaceIDs),
+                profileSwitch: WorkspaceChainProfileSwitchHUD(
+                  name: profile.name,
+                  symbolIconName: profile.symbolIconName ?? "rectangle.stack.fill",
+                ),
+                focusSourceDisplay: focusInteractionDisplay,
+                connected: connected,
+                state: state,
+              )
+              hasFocusedChainPresentation = true
+
+            case .failure(let failure):
+              debugLog.log(
+                "WorkspaceChain",
+                "reject chain=\(chain.id) trigger=\(focusWorkspace.name): \(failure.description)",
+              )
+              plan = Self.focusedProfileRestorePlan(
+                plan,
+                workspaceID: focus,
+                targetDisplay: targetDisplay,
+              )
+            }
           } else {
-            let hint = profile.workspaces[id: focus]?.displayHint
-            let targetDisplay = connected.first { hint?.matches($0) ?? false }
-              ?? plan.last?.display ?? connected[0]
-            plan.removeAll { $0.display == targetDisplay }
-            plan.append(DisplayAssignment(display: targetDisplay, workspace: focus))
+            plan = Self.focusedProfileRestorePlan(
+              plan,
+              workspaceID: focus,
+              targetDisplay: targetDisplay,
+            )
           }
           state.focusWorkspaceOnRestore = focus
+          state.finalRestoreTakesFocus = true
+          state.finalRestoreFollowsCursor = false
+          state.suppressFocusedRestoreHUD = !hasFocusedChainPresentation
         }
         debugLog.log(
           "Profile",
@@ -2215,23 +2634,65 @@ public struct WorkspaceActivationFeature {
         // Empty profile (nothing pinnable) → nothing to tile. Still honor an
         // explicit focus target so the Activate button isn't a no-op.
         guard !plan.isEmpty else {
+          state.activeWorkspacesByDisplay = [:]
+          for (display, composition) in state.compositionsByDisplay {
+            state.borrowGenerationByDisplay[display, default: 0] &+= 1
+            state.pendingBorrowCompletionByDisplay[display] = nil
+            for slot in composition.borrowed {
+              state.pendingCenterWarps[slot.workspace] = nil
+            }
+          }
+          state.compositionsByDisplay = [:]
           let completion =
             if let focus {
-              Effect<Action>.send(.activate(workspaceId: focus, setFocus: true))
+              Effect<Action>.send(.activate(
+                workspaceId: focus,
+                setFocus: true,
+                interactionDisplay: focusInteractionDisplay,
+              ))
             } else {
               completeCLIActivationIfSettled(state: &state)
             }
           return .concatenate(cancelOutgoingActivation, completion)
         }
+        let incomingPlanWorkspaceIDs = Set(plan.map(\.workspace))
+        let cleanupHUDRequests: [ActionHUDRequest] =
+          if
+            let finalIndex = plan.indices.last,
+            case .workspaceChain(let context)? = plan[finalIndex].presentation
+          {
+            workspaceChainDeferredCleanupHUDRequests(context: context, state: state)
+          } else {
+            []
+          }
+        if
+          let transaction = makeWorkspaceCleanupTransaction(
+            prioritySkippedWorkspaceIDs: focusedChainSkippedWorkspaceIDs,
+            retainedWorkspaceIDs: incomingPlanWorkspaceIDs,
+            assignments: plan,
+            cleanupHUDRequests: cleanupHUDRequests,
+            state: state,
+          ),
+          let finalIndex = plan.indices.last
+        {
+          if case .workspaceChain(var context)? = plan[finalIndex].presentation {
+            context.cleanupTransaction = transaction
+            plan[finalIndex].presentation = .workspaceChain(context)
+          } else {
+            plan[finalIndex].presentation = .workspaceCleanup(transaction)
+          }
+        }
         state.pendingDisplayRestores = plan
-        let hudEffect = profileSwitchHUDs(
-          profile: profile,
-          plan: plan,
-          show: state.config.settings.hud.shows(\.profileSwitch),
-          durationMs: state.config.settings.hud.durationMs,
-          position: state.config.settings.hud.position,
-          size: state.config.settings.hud.size,
-        )
+        let hudEffect = hasFocusedChainPresentation
+          ? Effect<Action>.none
+          : profileSwitchHUDs(
+            profile: profile,
+            plan: plan,
+            show: state.config.settings.hud.shows(\.profileSwitch),
+            durationMs: state.config.settings.hud.durationMs,
+            position: state.config.settings.hud.position,
+            size: state.config.settings.hud.size,
+          )
         return .concatenate(
           cancelOutgoingActivation,
           .merge(hudEffect, .send(.processDisplayRestores)),
@@ -2289,6 +2750,9 @@ public struct WorkspaceActivationFeature {
             state.activeWorkspacesByDisplay = [:]
             state.pendingDisplayRestores = plan
             state.focusWorkspaceOnRestore = nil
+            state.finalRestoreTakesFocus = true
+            state.finalRestoreFollowsCursor = false
+            state.suppressFocusedRestoreHUD = false
             debugLog.log(
               "Activate",
               "initial restore plan="
@@ -2351,18 +2815,32 @@ public struct WorkspaceActivationFeature {
           )
         }
 
-      case .activate(let workspaceId, let setFocus):
-        return deliberateActivation(
-          workspaceId: workspaceId,
-          setFocus: setFocus,
-          state: &state,
+      case .activate(let workspaceId, let setFocus, let capturedInteractionDisplay):
+        // The cancellation must be ordered before the next deliberate
+        // activation is allowed to start. Keeping it only as one branch of
+        // `deliberateActivation`'s merge let a physical return on another
+        // display race ahead and commit after the user had switched again.
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          deliberateActivation(
+            workspaceId: workspaceId,
+            setFocus: setFocus,
+            interactionDisplayOverride: capturedInteractionDisplay,
+            state: &state,
+          ),
         )
 
-      case .activateFromCLI(let workspaceId, let requestID):
+      case .activateFromCLI(
+        let workspaceId,
+        let requestID,
+        let capturedInteractionDisplay,
+      ):
         return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
           deliberateActivation(
             workspaceId: workspaceId,
             setFocus: true,
+            interactionDisplayOverride: capturedInteractionDisplay,
             continuesCLIActivation: true,
             state: &state,
           ),
@@ -2380,21 +2858,52 @@ public struct WorkspaceActivationFeature {
         return completeCLIActivationIfSettled(state: &state)
 
       case .activateFollowingAppFocus(let workspaceId):
-        // A deliberate user action, so it outranks any queued display restore
-        // exactly like a hotkey switch does.
-        state.pendingDisplayRestores = []
-        return performActivate(
-          workspaceId: workspaceId,
-          setFocus: false,
-          followsCursor: true,
-          state: &state,
+        // App focus is user-originated and may select a chain member too. Its
+        // companion restores never take focus; the originating workspace is
+        // restored last so the already-established app focus remains final.
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          deliberateActivation(
+            workspaceId: workspaceId,
+            setFocus: false,
+            followsCursor: true,
+            state: &state,
+          ),
         )
 
-      case .restoreDisplay(let workspaceId, let display):
-        // The focused-switch target (forced last in the plan) activates with
-        // focus so the profile switch lands on the clicked workspace.
-        let takesFocus = state.focusWorkspaceOnRestore == workspaceId
-        if takesFocus { state.focusWorkspaceOnRestore = nil }
+      case .restoreDisplay(let assignment):
+        let workspaceId = assignment.workspace
+        let display = assignment.display
+        // The user's selected member (forced last in a profile/chain plan)
+        // activates with focus after every silent display restore settles.
+        let workspaceChainHUD: WorkspaceChainHUDContext? =
+          switch assignment.presentation {
+          case .workspaceChain(let context)?: context
+          case .workspaceCleanup?: nil
+          case nil: nil
+          }
+        let workspaceChainCleanup: WorkspaceChainCleanupTransaction? =
+          switch assignment.presentation {
+          case .workspaceChain(let context)?: context.cleanupTransaction
+          case .workspaceCleanup(let transaction)?: transaction
+          case nil: nil
+          }
+        let isFinalRestore = state.focusWorkspaceOnRestore == workspaceId
+        let ownsProfileCleanup =
+          if case .workspaceCleanup? = assignment.presentation { true } else { false }
+        let takesFocus = (isFinalRestore && state.finalRestoreTakesFocus)
+          || (ownsProfileCleanup
+            && !isFinalRestore
+            && workspaceChainCleanup?.requiresFocusSuccessor == true)
+        let followsCursor = isFinalRestore && state.finalRestoreFollowsCursor
+        let suppressFocusedHUD = takesFocus
+          && (state.suppressFocusedRestoreHUD || ownsProfileCleanup)
+        if isFinalRestore {
+          state.focusWorkspaceOnRestore = nil
+          state.finalRestoreTakesFocus = true
+          state.finalRestoreFollowsCursor = false
+          state.suppressFocusedRestoreHUD = false
+        }
         guard state.config.activeProfile?.workspaces[id: workspaceId] != nil else {
           let completion: Effect<Action>
           if let request = state.pendingCLIActivation {
@@ -2418,82 +2927,216 @@ public struct WorkspaceActivationFeature {
             : .send(.processDisplayRestores)
           return .concatenate(completion, drain)
         }
+        // A chain can leave the selected active host exactly where it already
+        // is. Preserve that host's live Borrow/layout and transfer focus instead
+        // of reactivating solely to make it the queue's final entry. Merely
+        // visible borrowed members must not take this path: selecting one
+        // promotes it and dismisses the composition through `performActivate`.
+        if
+          takesFocus,
+          state.activeActivationGeneration == nil,
+          state.activeWorkspacesByDisplay.first(where: {
+            $0.value == workspaceId && $0.key.matches(display)
+          }) != nil,
+          visibleFocusTarget(workspaceId, state: state) != nil
+        {
+          let focus = focusVisibleWorkspace(
+            workspaceId: workspaceId,
+            display: display,
+            workspaceChainHUD: workspaceChainHUD,
+            workspaceChainCleanup: workspaceChainCleanup,
+            state: &state,
+          )
+          let completion = completeCLIActivationIfSettled(state: &state)
+          return .concatenate(focus, completion)
+        }
         return performActivate(
           workspaceId: workspaceId,
           setFocus: takesFocus,
           displayOverride: display,
           // The profile-switch HUD already announces this workspace as its
           // subtitle; don't let the focused restore raise a second HUD over it.
-          suppressSwitchHUD: takesFocus,
+          suppressSwitchHUD: suppressFocusedHUD,
+          workspaceChainHUD: workspaceChainHUD,
+          workspaceChainCleanup: workspaceChainCleanup,
           continuesCLIActivation: true,
+          followsCursor: followsCursor,
           state: &state,
         )
+
+      case .commitWorkspaceChainCleanup(let transaction, let display, let reply):
+        guard
+          isWorkspaceChainCleanupCurrent(
+            transaction,
+            displays: [display],
+            state: state,
+          )
+        else {
+          debugLog.log("WorkspaceChain", "skip stale priority cleanup commit")
+          return .run { _ in reply.complete(false) }
+        }
+        reply.acceptCommit()
+        let commit = commitWorkspaceChainCleanup(
+          transaction,
+          displays: [display],
+          state: &state,
+        )
+        // Once the physical hide reports success, state + feedback for this
+        // display form an uninterruptible reducer commit. Acknowledge only
+        // after the inout state mutation above has completed; this lets the
+        // serial runner start the next display from the committed snapshot.
+        // The returned effects retain layout/HUD delivery on this transaction's
+        // cancellation domain without exposing a pre-commit state window.
+        reply.complete(true)
+        return commit
+
+      case .processWorkspaceChainCleanup(let transaction, let cleanups):
+        return workspaceChainCleanupEffect(
+          transaction: transaction,
+          cleanups: cleanups,
+        )
+
+      case .processWorkspaceChainCleanupStep(let transaction, let cleanup, let reply):
+        guard
+          isWorkspaceChainCleanupCurrent(
+            transaction,
+            displays: [cleanup.display],
+            state: state,
+          )
+        else {
+          debugLog.log("WorkspaceChain", "skip stale priority cleanup before return")
+          return .run { _ in reply.complete(false) }
+        }
+        guard !cleanup.bundleIDs.isEmpty else {
+          return .send(.commitWorkspaceChainCleanup(
+            transaction,
+            display: cleanup.display,
+            reply: reply,
+          ))
+        }
+        return .run { [workspaceManager] send in
+          guard !Task.isCancelled else {
+            reply.complete(false)
+            return
+          }
+          let didHide = await workspaceManager.returnBorrowed(
+            cleanup.bundleIDs,
+            cleanup.display,
+          )
+          guard didHide else {
+            reply.complete(false)
+            return
+          }
+          // `true` means the manager's synchronous hide phase completed. Do
+          // not consult cancellation again: even if a newer action arrived at
+          // this boundary, the corresponding reducer state must be committed
+          // (or rejected by its second snapshot validation) before returning.
+          await send(.commitWorkspaceChainCleanup(
+            transaction,
+            display: cleanup.display,
+            reply: reply,
+          ))
+          // A canceled TCA effect may drop this final send. Unblock the parent
+          // runner in that case; the reply is one-shot, so a delivered commit
+          // and its later `true` acknowledgement still win exactly once.
+          if Task.isCancelled, !reply.wasCommitAccepted {
+            reply.complete(false)
+          }
+        }
+        // Join the transaction cancellation domain without replacing the
+        // runner or an earlier display step. A later cleanup display must not
+        // cancel an already-committed sibling, while a new user action must
+        // still interrupt the physical return currently in flight.
+        .cancellable(id: CancelID.workspaceChainCleanup, cancelInFlight: false)
 
       case .processDisplayRestores:
         guard !state.pendingDisplayRestores.isEmpty else { return .none }
         let next = state.pendingDisplayRestores.removeFirst()
-        return .send(.restoreDisplay(workspaceId: next.workspace, display: next.display))
+        return .send(.restoreDisplay(next))
 
       case .borrow(let workspaceId, let edge):
-        return performBorrow(
-          targetId: workspaceId,
-          edge: edge,
-          displayOverride: displays.current(),
-          state: &state,
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          performBorrow(
+            targetId: workspaceId,
+            edge: edge,
+            displayOverride: interactionDisplay(state: state),
+            state: &state,
+          ),
         )
 
       case .dismissBorrow(let display):
-        return dismissBorrow(display: display, state: &state)
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          dismissBorrow(display: display, state: &state),
+        )
 
-      case .beginBorrowDirection(let workspaceId):
+      case .beginBorrowDirection(let workspaceId, let capturedInteractionDisplay):
+        let cancelCleanup = Effect<Action>.cancel(id: CancelID.workspaceChainCleanup)
         // Re-firing for the same pending target cancels.
         if state.borrowCapture?.workspaceId == workspaceId {
-          return endBorrowCapture(state: &state)
+          return .concatenate(cancelCleanup, endBorrowCapture(state: &state))
         }
         guard let ws = state.config.activeProfile?.workspaces[id: workspaceId]
-        else { return .none }
+        else { return cancelCleanup }
         guard
-          let display = displays.current() ?? state.focusedDisplay
+          let display = capturedInteractionDisplay
+          ?? interactionDisplay(state: state)
           ?? state.activeWorkspacesByDisplay.keys.first
-        else { return .none }
+        else { return cancelCleanup }
         // A repeated summon is a toggle by default. Resolve it before the
         // direction picker so an "Ask" configuration can dismiss immediately
         // instead of requiring a meaningless re-dock direction first.
         if
           state.config.settings.switching.toggleBorrowOnRepeat,
-          state.compositionsByDisplay[display]?.borrowed.contains(where: {
+          let compositionDisplay = state.compositionsByDisplay.keys.first(where: {
+            $0.matches(display)
+          }),
+          state.compositionsByDisplay[compositionDisplay]?.borrowed.contains(where: {
             $0.workspace == workspaceId
           }) == true
         {
-          return dismissBorrow(display: display, state: &state)
+          return .concatenate(
+            cancelCleanup,
+            dismissBorrow(display: compositionDisplay, state: &state),
+          )
         }
         // Can't borrow the workspace that's already active on this display.
-        if state.activeWorkspacesByDisplay[display] == workspaceId {
+        if state.activeWorkspace(on: display) == workspaceId {
           debugLog.log("Borrow", "skip borrow of current workspace \(ws.name)")
-          return hudEffect(
-            state,
-            \.borrow,
-            "Already here",
-            "rectangle",
-            subtitle: "Can't borrow the current workspace",
+          return .concatenate(
+            cancelCleanup,
+            hudEffect(
+              state,
+              \.borrow,
+              "Already here",
+              "rectangle",
+              subtitle: "Can't borrow the current workspace",
+            ),
           )
         }
         // A configured default edge (per-workspace override, else global)
         // borrows immediately; otherwise arm the direction pick.
         if let edge = ws.borrowEdge ?? state.config.settings.switching.borrowDefaultEdge {
-          return performBorrow(
-            targetId: workspaceId,
-            edge: edge,
-            displayOverride: display,
-            state: &state,
+          return .concatenate(
+            cancelCleanup,
+            performBorrow(
+              targetId: workspaceId,
+              edge: edge,
+              displayOverride: display,
+              state: &state,
+            ),
           )
         }
         state.borrowCapture = State.BorrowCapture(display: display, workspaceId: workspaceId)
         debugLog.log("BorrowChord", "begin borrow direction for \(ws.name) on \(display.name)")
-        return .merge(
-          .run { [borrowChord] _ in await borrowChord.setArmed(true) },
-          borrowChordTimeout(),
-          borrowChordHint(state: state),
+        return .concatenate(
+          cancelCleanup,
+          .merge(
+            .run { [borrowChord] _ in await borrowChord.setArmed(true) },
+            borrowChordTimeout(),
+            borrowChordHint(state: state),
+          ),
         )
 
       case .borrowChordKey(let key):
@@ -2501,13 +3144,16 @@ public struct WorkspaceActivationFeature {
         switch key {
         case .edge(let edge):
           let end = endBorrowCapture(state: &state)
-          return .merge(
-            end,
-            performBorrow(
-              targetId: capture.workspaceId,
-              edge: edge,
-              displayOverride: capture.display,
-              state: &state,
+          return .concatenate(
+            .cancel(id: CancelID.workspaceChainCleanup),
+            .merge(
+              end,
+              performBorrow(
+                targetId: capture.workspaceId,
+                edge: edge,
+                displayOverride: capture.display,
+                state: &state,
+              ),
             ),
           )
 
@@ -2519,25 +3165,50 @@ public struct WorkspaceActivationFeature {
           )
         }
 
-      case .assignFocusedAppToRecentWorkspace:
-        guard let id = recentWorkspaceId(state: state) else { return .none }
-        return .send(.membershipEdit(.assign(to: id)))
-
-      case .assignFocusedAppToAdjacentWorkspace(let direction):
-        guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
-        return .send(.membershipEdit(.assign(to: id)))
-
-      case .borrowRecentWorkspace:
-        let display = displays.current() ?? state.focusedDisplay
+      case .assignFocusedAppToRecentWorkspace(let capturedInteractionDisplay):
+        let display = capturedInteractionDisplay ?? interactionDisplay(state: state)
         guard let id = recentWorkspaceId(state: state, display: display) else { return .none }
-        return .send(.beginBorrowDirection(workspaceId: id))
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          .send(.membershipEdit(.assign(to: id), interactionDisplay: display)),
+        )
 
-      case .borrowAdjacentWorkspace(let direction):
-        let display = displays.current() ?? state.focusedDisplay
+      case .assignFocusedAppToAdjacentWorkspace(
+        let direction,
+        let capturedInteractionDisplay,
+      ):
+        let display = capturedInteractionDisplay ?? interactionDisplay(state: state)
         guard
           let id = adjacentWorkspaceId(by: direction, state: state, display: display)
         else { return .none }
-        return .send(.beginBorrowDirection(workspaceId: id))
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          .send(.membershipEdit(.assign(to: id), interactionDisplay: display)),
+        )
+
+      case .borrowRecentWorkspace(let capturedInteractionDisplay):
+        let display = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        guard let id = recentWorkspaceId(state: state, display: display) else { return .none }
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          .send(.beginBorrowDirection(
+            workspaceId: id,
+            interactionDisplay: display,
+          )),
+        )
+
+      case .borrowAdjacentWorkspace(let direction, let capturedInteractionDisplay):
+        let display = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        guard
+          let id = adjacentWorkspaceId(by: direction, state: state, display: display)
+        else { return .none }
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          .send(.beginBorrowDirection(
+            workspaceId: id,
+            interactionDisplay: display,
+          )),
+        )
 
       case .flushComposition(let display):
         // Re-tile the composition and (re)push markers — the borrowed block's
@@ -2674,47 +3345,112 @@ public struct WorkspaceActivationFeature {
           state: &state,
         )
 
-      case .activateNext:
-        return cycle(by: 1, state: &state)
+      case .activateNext(let capturedInteractionDisplay):
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          cycle(
+            by: 1,
+            display: capturedInteractionDisplay ?? interactionDisplay(state: state),
+            state: &state,
+          ),
+        )
 
-      case .activatePrevious:
-        return cycle(by: -1, state: &state)
+      case .activatePrevious(let capturedInteractionDisplay):
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          cycle(
+            by: -1,
+            display: capturedInteractionDisplay ?? interactionDisplay(state: state),
+            state: &state,
+          ),
+        )
 
-      case .activateRecent:
+      case .activateRecent(let capturedInteractionDisplay):
         let switching = state.config.settings.switching
-        let recent = recentWorkspaceId(state: state, display: state.focusedDisplay)
+        let interactionDisplay = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        let recent = recentWorkspaceId(
+          state: state,
+          display: interactionDisplay,
+        )
         guard let recent else {
           debugLog.log("Activate", "recent: no previous workspace recorded")
           return .none
         }
+        let cancelCleanup = Effect<Action>.cancel(id: CancelID.workspaceChainCleanup)
         guard switching.recentAcrossDisplays else {
-          return .send(.activate(workspaceId: recent, setFocus: true))
+          return .concatenate(
+            cancelCleanup,
+            .send(.activate(
+              workspaceId: recent,
+              setFocus: true,
+              interactionDisplay: interactionDisplay,
+            )),
+          )
+        }
+        // A chain switch is authoritative over the global-recent visible
+        // shortcut: even when this member is already on another display, its
+        // peers may be stale and must be restored through deliberateActivation.
+        if
+          let profile = state.config.activeProfile,
+          let recentWorkspace = profile.workspaces[id: recent],
+          profile.validWorkspaceChain(containing: recent) != nil
+        {
+          return .concatenate(
+            cancelCleanup,
+            deliberateActivation(
+              workspaceId: recent,
+              setFocus: true,
+              // Global recent promises that a visible dynamic workspace stays on
+              // its current display. Fix both the trigger and the chain's dynamic
+              // preference to that live owner; an invisible dynamic target and
+              // every pinned target keep ordinary pointer/pin resolution.
+              targetDisplayOverride: recentWorkspace.isDynamic
+                ? state.displayShowing(recent)
+                : nil,
+              interactionDisplayOverride: interactionDisplay,
+              state: &state,
+            ),
+          )
         }
         // If the global recent workspace is already on another display, this
         // is a focus transfer — keep it there and preserve any Borrow
         // composition on that display. A plain activation would both pull a
         // dynamic workspace through the cursor and return its borrowed block.
         state.pendingDisplayRestores = []
+        state.focusWorkspaceOnRestore = nil
+        state.finalRestoreTakesFocus = true
+        state.finalRestoreFollowsCursor = false
+        state.suppressFocusedRestoreHUD = false
         if let display = state.displayShowing(recent) {
-          return .merge(
-            supersedePendingCLIActivation(state: &state),
-            focusVisibleWorkspace(
-              workspaceId: recent,
-              display: display,
-              state: &state,
+          return .concatenate(
+            cancelCleanup,
+            .merge(
+              supersedePendingCLIActivation(state: &state),
+              focusVisibleWorkspace(
+                workspaceId: recent,
+                display: display,
+                state: &state,
+              ),
             ),
           )
         }
-        return performActivate(
-          workspaceId: recent,
-          setFocus: true,
-          state: &state,
+        return .concatenate(
+          cancelCleanup,
+          performActivate(
+            workspaceId: recent,
+            setFocus: true,
+            displayOverride: state.config.activeProfile?.workspaces[id: recent]?.isDynamic == true
+              ? interactionDisplay
+              : nil,
+            state: &state,
+          ),
         )
 
-      case .focusAdjacentDisplay(let direction):
+      case .focusAdjacentDisplay(let direction, let capturedInteractionDisplay):
         let ordered = displays.all()
         guard ordered.count > 1 else { return .none }
-        let startIndex = state.focusedDisplay
+        let originDisplay = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        let startIndex = originDisplay
           .flatMap { f in ordered.firstIndex { $0.matches(f) } } ?? 0
         let nextDisplay = ordered[(startIndex + direction + ordered.count) % ordered.count]
         // The workspace currently active on that display, if any.
@@ -2733,25 +3469,54 @@ public struct WorkspaceActivationFeature {
         // activation here returned any workspace borrowed into the target
         // monitor because host activation deliberately clears its composition.
         state.pendingDisplayRestores = []
-        return focusVisibleWorkspace(
-          workspaceId: wsId,
-          display: nextDisplay,
-          state: &state,
+        state.focusWorkspaceOnRestore = nil
+        state.finalRestoreTakesFocus = true
+        state.finalRestoreFollowsCursor = false
+        state.suppressFocusedRestoreHUD = false
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          focusVisibleWorkspace(
+            workspaceId: wsId,
+            display: nextDisplay,
+            state: &state,
+          ),
         )
 
-      case .moveFocusedAppToAdjacent(let direction):
-        guard let id = adjacentWorkspaceId(by: direction, state: state) else { return .none }
-        return .send(.membershipEdit(.move(to: id)))
+      case .moveFocusedAppToAdjacent(let direction, let capturedInteractionDisplay):
+        let display = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        guard
+          let id = adjacentWorkspaceId(by: direction, state: state, display: display)
+        else { return .none }
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          .send(.membershipEdit(.move(to: id), interactionDisplay: display)),
+        )
 
-      case .membershipEdit(let edit):
+      case .membershipEdit(let edit, let capturedInteractionDisplay):
         if case .toggleInActiveWorkspace = edit, state.primaryActiveWorkspaceID == nil {
           return .none
         }
-        return resolveFrontmostApp { bundleId, name, pid in
-          .membershipEditResolved(bundleId: bundleId, name: name, edit: edit, pid: pid)
-        }
+        let commandDisplay = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        return .concatenate(
+          .cancel(id: CancelID.workspaceChainCleanup),
+          resolveFrontmostApp { bundleId, name, pid in
+            .membershipEditResolved(
+              bundleId: bundleId,
+              name: name,
+              edit: edit,
+              pid: pid,
+              interactionDisplay: commandDisplay,
+            )
+          },
+        )
 
-      case .membershipEditResolved(let bundleId, let name, let edit, let pid):
+      case .membershipEditResolved(
+        let bundleId,
+        let name,
+        let edit,
+        let pid,
+        let capturedInteractionDisplay,
+      ):
         // Tatami must never enter its own membership sets.
         if MacApp.isTatami(bundleId) { return .none }
         if pid != 0, overlayAwareness.isBackgroundedProcess(pid) { return .none }
@@ -2853,7 +3618,11 @@ public struct WorkspaceActivationFeature {
             $0.moveApp(bundleId: bundleId, name: name, to: workspaceId)
           }
           state.tilingTrees[workspaceId] = nil
-          return .send(.activate(workspaceId: workspaceId, setFocus: true))
+          return .send(.activate(
+            workspaceId: workspaceId,
+            setFocus: true,
+            interactionDisplay: capturedInteractionDisplay,
+          ))
 
         case .assign(let workspaceId):
           state.$config.withLock {
@@ -2864,10 +3633,18 @@ public struct WorkspaceActivationFeature {
             let owner = state.config.profileId(owning: workspaceId),
             owner != state.config.activeProfile?.id
           {
-            return .send(.delegate(.profileSwitchRequested(owner, focus: workspaceId)))
+            return .send(.delegate(.profileSwitchRequested(
+              owner,
+              focus: workspaceId,
+              interactionDisplay: capturedInteractionDisplay,
+            )))
           }
           // Switch to the target so the just-assigned app is visible there.
-          return .send(.activate(workspaceId: workspaceId, setFocus: true))
+          return .send(.activate(
+            workspaceId: workspaceId,
+            setFocus: true,
+            interactionDisplay: capturedInteractionDisplay,
+          ))
         }
 
       case .togglePaused:
@@ -3371,6 +4148,7 @@ public struct WorkspaceActivationFeature {
         guard state.activeActivationGeneration == generation else { return .none }
         state.isActivating = false
         state.activatingWorkspaceID = nil
+        state.activatingDisplay = nil
         let reflowDisplayGeometry = state.pendingDisplayGeometryReflow
         state.pendingDisplayGeometryReflow = false
         let pendingWindowSyncBundleIds = state.pendingWindowSyncBundleIds
@@ -3378,28 +4156,12 @@ public struct WorkspaceActivationFeature {
         let pendingWindowServerPrune = state.pendingWindowServerPrune
         state.pendingWindowServerPrune = false
         var persistWorkspaceSession = Effect<Action>.none
-        if let display, let previous = state.activeWorkspacesByDisplay[display], previous != id {
-          state.previousWorkspacesByDisplay[display] = previous
-        }
         var emptiedByMove = [DisplayName]()
         if let display {
-          // Invariant: a workspace is on exactly one display. Clear stale copies
-          // so a dynamic workspace that just moved here doesn't stay recorded on
-          // the display it left (which would strand that monitor "occupied").
-          for (other, ws) in state.activeWorkspacesByDisplay where other != display && ws == id {
-            state.activeWorkspacesByDisplay[other] = nil
-            emptiedByMove.append(other)
-          }
-          state.activeWorkspacesByDisplay[display] = id
-          state.lastActiveDisplay[id] = display
-          // Per-display MRU (survives disconnect): most recent first, deduped.
-          var mru = state.displayWorkspaceHistory[display] ?? []
-          mru.removeAll { $0 == id }
-          mru.insert(id, at: 0)
-          state.displayWorkspaceHistory[display] = mru
-          // Global MRU too (reconnect dynamic fallback).
-          state.workspaceMRU.removeAll { $0 == id }
-          state.workspaceMRU.insert(id, at: 0)
+          emptiedByMove = state.recordCompletedActivation(
+            workspaceId: id,
+            display: display,
+          )
           // Never write session state derived from a suspended layout. Behind
           // the lock/sleep shield the window server reports whatever it likes —
           // displays drop out, AX comes back empty — and an activation running
@@ -3424,7 +4186,9 @@ public struct WorkspaceActivationFeature {
           var byId = [Workspace.ID: Workspace]()
           for w in profile.workspaces.elements where w.kind != .scratchpad { byId[w.id] = w }
           let fills = emptiedByMove
-            .filter { state.connectedDisplays.contains($0) }
+            .filter { vacated in
+              state.connectedDisplays.contains { $0.matches(vacated) }
+            }
             .compactMap { vacated -> DisplayAssignment? in
               Self.chooseWorkspaceForDisplay(
                 vacated,
@@ -3525,6 +4289,7 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         state.isActivating = false
         state.activatingWorkspaceID = nil
+        state.activatingDisplay = nil
         state.activeActivationGeneration = nil
         let reflowDisplayGeometry = state.pendingDisplayGeometryReflow
         state.pendingDisplayGeometryReflow = false
@@ -3605,6 +4370,15 @@ public struct WorkspaceActivationFeature {
     /// a slow activation runs (an app being slow to launch, AX waits
     /// under load) is never swallowed.
     case activation
+    /// Priority-skipped chain members may require an explicit display-scoped
+    /// hide before the restore queue starts. A newer deliberate switch owns the
+    /// screen and must cancel that stale cleanup before it can hide newly shown
+    /// apps.
+    case workspaceChainCleanup
+    /// A visible-workspace focus transfer has no activation task to own its
+    /// HUD publication. Keep that feedback latest-wins with the next transfer
+    /// or full activation.
+    case activationHUD
     /// The delayed HUD reveal and modifier polling have distinct lifetimes:
     /// a quick tap cancels the reveal, while the polling task owns the session.
     case windowCycleHUDDelay
@@ -4003,9 +4777,66 @@ public struct WorkspaceActivationFeature {
     return .run { [store = layoutStore] _ in await store.save(id, snapshot) }
   }
 
+  /// Resolve the screen a pointer-scoped user command belongs to at the
+  /// command's entry beat. `focusedDisplay` tracks keyboard/window focus and
+  /// can legitimately point at another monitor, so it is only a fallback when
+  /// macOS cannot currently resolve the pointer screen.
+  func interactionDisplay(state: State) -> DisplayName? {
+    displays.current() ?? state.focusedDisplay
+  }
+
   // MARK: Private
 
   private static let maximumPresentationRepairAttempts = 3
+
+  /// Put an explicitly focused workspace on the display chosen at command
+  /// entry while preserving the profile restore's other display assignment.
+  /// When both displays already have planned workspaces this is a swap: simply
+  /// deleting the target display's occupant would leave the focus workspace's
+  /// former display blank and make profile switching depend on workspace order.
+  private static func focusedProfileRestorePlan(
+    _ plan: [DisplayAssignment],
+    workspaceID: Workspace.ID,
+    targetDisplay: DisplayName,
+  ) -> [DisplayAssignment] {
+    var adjusted = plan
+
+    func displayIndex(
+      matching display: DisplayName,
+      in assignments: [DisplayAssignment],
+    ) -> Int? {
+      if let exact = assignments.firstIndex(where: { $0.display == display }) {
+        return exact
+      }
+      let matches = assignments.indices.filter {
+        assignments[$0].display.matches(display)
+      }
+      return matches.count == 1 ? matches[0] : nil
+    }
+
+    guard let focusIndex = adjusted.firstIndex(where: { $0.workspace == workspaceID }) else {
+      if let targetIndex = displayIndex(matching: targetDisplay, in: adjusted) {
+        adjusted.remove(at: targetIndex)
+      }
+      adjusted.append(DisplayAssignment(display: targetDisplay, workspace: workspaceID))
+      return adjusted
+    }
+
+    var focusAssignment = adjusted.remove(at: focusIndex)
+    let sourceDisplay = focusAssignment.display
+    guard let targetIndex = displayIndex(matching: targetDisplay, in: adjusted) else {
+      // Either this is already the focused workspace's display, or the target
+      // was not part of the base plan. In both cases it can be appended last.
+      focusAssignment.display = targetDisplay
+      adjusted.append(focusAssignment)
+      return adjusted
+    }
+
+    adjusted[targetIndex].display = sourceDisplay
+    focusAssignment.display = targetDisplay
+    adjusted.append(focusAssignment)
+    return adjusted
+  }
 
   /// User-intent entry actions that may need a cursor-screen fallback before
   /// the first focused-window owner is known. The `*Resolved` continuations
@@ -4015,11 +4846,7 @@ public struct WorkspaceActivationFeature {
     switch action {
     case .activateInitial,
          .activate,
-         .activateNext,
-         .activatePrevious,
-         .activateRecent,
          .focusAdjacentDisplay,
-         .moveFocusedAppToAdjacent,
          .membershipEdit,
          .togglePaused,
          .bspFocus,
@@ -4294,10 +5121,23 @@ public struct WorkspaceActivationFeature {
   }
 
   private func completeCLIActivationIfSettled(state: inout State) -> Effect<Action> {
+    if let request = state.pendingCLIActivation {
+      debugLog.log(
+        "CLIActivation",
+        "check target=\(String(describing: request.target)) "
+          + "activating=\(state.isActivating) queued=\(state.pendingDisplayRestores.count) "
+          + "final=\(state.focusWorkspaceOnRestore?.uuidString ?? "nil") "
+          + "active=\(state.activeWorkspacesByDisplay.values.map(\.uuidString))",
+      )
+    }
     guard
       let request = state.pendingCLIActivation,
       !state.isActivating,
-      state.pendingDisplayRestores.isEmpty
+      state.pendingDisplayRestores.isEmpty,
+      // A queued chain removes its final assignment before `restoreDisplay`
+      // starts the activation. Keep this marker as the ownership hand-off so
+      // the outer CLI effect cannot mistake that brief gap for completion.
+      state.focusWorkspaceOnRestore == nil
     else { return .none }
 
     let error: String? =
@@ -4320,6 +5160,10 @@ public struct WorkspaceActivationFeature {
           "Workspace activation finished without making the workspace active"
         }
       }
+    debugLog.log(
+      "CLIActivation",
+      "complete target=\(String(describing: request.target)) error=\(error ?? "nil")",
+    )
     return completeCLIActivation(error: error, state: &state)
   }
 

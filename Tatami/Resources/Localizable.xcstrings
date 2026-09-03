@@ -28959,6 +28959,40 @@
         }
       }
     },
+    "Skipped by chain priority: %@": {
+      "localizations": {
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "체인 우선순위에서 제외됨: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チェーンの優先順位により除外: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "因链优先级跳过：%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "因鏈結優先順序略過：%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped by chain priority: %@"
+          }
+        }
+      }
+    },
     "Software": {
       "localizations": {
         "ko": {
@@ -37492,6 +37526,519 @@
             "value": "Key equivalent: %@"
           }
         }
+      }
+    },
+    "A workspace appears more than once in this chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "같은 작업 공간이 이 체인에 두 번 이상 들어 있어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "同じワークスペースがこのチェーンに複数含まれています。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此链中多次出现了同一个工作区。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此鏈中重複出現同一個工作空間。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "A workspace appears more than once in this chain." } }
+      }
+    },
+    "Add Workspace Chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인 추가" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンを追加" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "添加工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "加入工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Add Workspace Chain" } }
+      }
+    },
+    "Add at least two workspaces.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간을 두 개 이상 추가해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースを2つ以上追加してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请至少添加两个工作区。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "請至少加入兩個工作空間。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Add at least two workspaces." } }
+      }
+    },
+    "Add at least two workspaces. Switching to any one applies this priority order.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간을 두 개 이상 추가해 주세요. 어느 작업 공간으로 전환해도 이 우선순위가 적용돼요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースを2つ以上追加してください。どれに切り替えてもこの優先順位が適用されます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请至少添加两个工作区。切换到任意工作区时都会应用此优先顺序。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "請至少加入兩個工作空間。切換至任一工作空間時都會套用此優先順序。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Add at least two workspaces. Switching to any one applies this priority order." } }
+      }
+    },
+    "Already used by another workspace chain. Remove it here or edit the other chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이미 다른 워크스페이스 체인에서 사용 중이에요. 여기서 제거하거나 다른 체인을 편집해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "すでに別のワークスペースチェーンで使われています。ここから削除するか、もう一方のチェーンを編集してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已用于另一个工作区链。请在此移除，或编辑另一个链。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已用於另一個工作空間鏈。請在這裡移除，或編輯另一個鏈。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Already used by another workspace chain. Remove it here or edit the other chain." } }
+      }
+    },
+    "Another workspace chain has the same identifier.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "다른 워크스페이스 체인과 내부 식별자가 같아요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "別のワークスペースチェーンと内部識別子が重複しています。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "另一个工作区链使用了相同的内部标识符。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "另一個工作空間鏈使用了相同的內部識別碼。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Another workspace chain has the same identifier." } }
+      }
+    },
+    "Create a normal workspace, or remove one from another workspace chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "일반 작업 공간을 만들거나 다른 워크스페이스 체인에서 하나를 제거해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "通常のワークスペースを作成するか、別のワークスペースチェーンから1つ削除してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "请创建普通工作区，或从另一个工作区链中移除一个。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "請建立一般工作空間，或從另一個工作空間鏈移除一個。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Create a normal workspace, or remove one from another workspace chain." } }
+      }
+    },
+    "Delete %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 삭제" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@を削除" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除 %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "刪除 %@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Delete %@" } }
+      }
+    },
+    "Delete this workspace chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인 삭제" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンを削除" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除此工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "刪除此工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Delete this workspace chain" } }
+      }
+    },
+    "Delete workspace chain?": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인을 삭제할까요?" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンを削除しますか？" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "删除工作区链？" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "要刪除工作空間鏈嗎？" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Delete workspace chain?" } }
+      }
+    },
+    "Drag to change the workspace order": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "드래그하여 작업 공간 순서를 변경" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ドラッグしてワークスペースの順序を変更" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "拖动以更改工作区顺序" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "拖移以更改工作空間順序" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Drag to change the workspace order" } }
+      }
+    },
+    "Drag to reorder": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "드래그하여 순서 변경" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ドラッグして並べ替え" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "拖动以重新排序" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "拖移以重新排序" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Drag to reorder" } }
+      }
+    },
+    "Dynamic — follows the pointer": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "동적 · 포인터를 따라감" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "動的 — ポインタに追従" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "动态 — 跟随指针" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "動態 — 跟隨游標" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Dynamic — follows the pointer" } }
+      }
+    },
+    "Edit this workspace chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인 편집" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンを編集" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑此工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "編輯此工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Edit this workspace chain" } }
+      }
+    },
+    "Edit Workspace Chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인 편집" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンを編集" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "编辑工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "編輯工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Edit Workspace Chain" } }
+      }
+    },
+    "Linked workspaces: %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "연결된 작업 공간: %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "連携ワークスペース: %@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "已连接的工作区：%@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已連結的工作空間：%@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Linked workspaces: %@" } }
+      }
+    },
+    "Missing workspace": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "찾을 수 없는 작업 공간" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "見つからないワークスペース" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "找不到工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "找不到工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Missing workspace" } }
+      }
+    },
+    "Move earlier": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "앞으로 이동" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "前へ移動" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "前移" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "向前移動" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Move earlier" } }
+      }
+    },
+    "Move later": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "뒤로 이동" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "後ろへ移動" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "后移" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "向後移動" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Move later" } }
+      }
+    },
+    "Needs repair. %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "수리가 필요해요. %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "修正が必要です。%@" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "需要修复。%@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "需要修復。%@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Needs repair. %@" } }
+      }
+    },
+    "New Workspace Chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "새 워크스페이스 체인" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "新しいワークスペースチェーン" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "新建工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "New Workspace Chain" } }
+      }
+    },
+    "No linked workspaces": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "연결된 작업 공간이 없어요" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "連携したワークスペースはありません" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "没有已连接的工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "沒有已連結的工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No linked workspaces" } }
+      }
+    },
+    "No workspace chains yet.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "아직 워크스페이스 체인이 없어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンはまだありません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未创建工作区链。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "尚未建立工作空間鏈。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No workspace chains yet." } }
+      }
+    },
+    "No Workspaces Available": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "추가할 수 있는 작업 공간이 없어요" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "追加できるワークスペースがありません" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "没有可添加的工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "沒有可加入的工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No Workspaces Available" } }
+      }
+    },
+    "No workspace matches “%@”.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "일치하는 작업 공간이 없어요. · “%@”" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "「%@」に一致するワークスペースはありません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "没有与“%@”匹配的工作区。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "沒有符合「%@」的工作空間。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No workspace matches “%@”." } }
+      }
+    },
+    "No workspaces yet. Tap + to add one.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "아직 작업 공간이 없어요. +를 눌러 추가해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースはまだありません。+をクリックして追加してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未添加工作区。点按 + 即可添加。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "尚未加入工作空間。點按 + 即可加入。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "No workspaces yet. Tap + to add one." } }
+      }
+    },
+    "One of these workspaces already belongs to another workspace chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "선택한 작업 공간 중 하나가 이미 다른 워크스페이스 체인에 들어 있어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "選択したワークスペースの1つは、すでに別のワークスペースチェーンに含まれています。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "其中一个工作区已属于另一个工作区链。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "其中一個工作空間已屬於另一個工作空間鏈。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "One of these workspaces already belongs to another workspace chain." } }
+      }
+    },
+    "One of these workspaces no longer exists.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "선택한 작업 공간 중 하나를 더 이상 찾을 수 없어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "選択したワークスペースの1つはもう存在しません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "其中一个工作区已不存在。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "其中一個工作空間已不存在。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "One of these workspaces no longer exists." } }
+      }
+    },
+    "A workspace appears more than once in the Chain Dynamic list.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "체인 동적 목록에 같은 작업 공간이 두 번 이상 있어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "チェーン動的リストに同じワークスペースが複数含まれています。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "链动态列表中多次出现同一工作区。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "鏈動態清單中多次出現同一工作空間。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "A workspace appears more than once in the Chain Dynamic list." } }
+      }
+    },
+    "Chain Dynamic references a workspace outside this chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "체인 동적 설정이 이 체인에 없는 작업 공간을 참조해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "チェーン動的設定が、このチェーンに含まれないワークスペースを参照しています。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "链动态设置引用了此链之外的工作区。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "鏈動態設定參照了此鏈之外的工作空間。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Chain Dynamic references a workspace outside this chain." } }
+      }
+    },
+    "Choose how this workspace is placed when the chain runs": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "체인 실행 시 이 작업 공간의 배치 방식을 선택해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "チェーン実行時のこのワークスペースの配置方法を選択します。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "选择运行此链时该工作区的放置方式。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "選擇執行此鏈時該工作空間的放置方式。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Choose how this workspace is placed when the chain runs" } }
+      }
+    },
+    "Dynamic in this chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 체인에서 동적" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このチェーンでは動的" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "在此链中动态放置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "在此鏈中動態放置" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Dynamic in this chain" } }
+      }
+    },
+    "Placement in this chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "체인 내 배치" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "チェーン内の配置" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "链内放置" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "鏈內放置" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Placement in this chain" } }
+      }
+    },
+    "Saving will repair the Chain Dynamic references.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "저장하면 체인 동적 참조를 복구해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "保存するとチェーン動的の参照が修復されます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保存时会修复链动态引用。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "儲存時會修復鏈動態參照。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Saving will repair the Chain Dynamic references." } }
+      }
+    },
+    "Pinned to %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "고정된 디스플레이 · %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@に固定" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "固定到 %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "固定至 %@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Pinned to %@" } }
+      }
+    },
+    "A pinned companion is skipped when its display is unavailable. Dynamic in this chain uses the next free display before Tatami applies the ordinary fallback.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "체인에서 함께 배치할 고정 작업 공간은 대상 디스플레이가 없으면 건너뛰어요. ‘이 체인에서 동적’을 선택하면 타타미가 기존 대체 채우기를 적용하기 전에 다음 빈 디스플레이를 사용해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "チェーンで一緒に配置する固定ワークスペースは、対象ディスプレイが使用できない場合にスキップされます。「このチェーンでは動的」は、通常のフォールバックより先に次の空きディスプレイを使用します。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "链中一同放置的固定工作区在目标显示器不可用时会被跳过。“在此链中动态放置”会先使用下一个空闲显示器，然后 Tatami 才应用常规回退。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "鏈中一同放置的固定工作空間在目標顯示器無法使用時會被略過。「在此鏈中動態放置」會先使用下一部空閒顯示器，之後 Tatami 才套用一般後援。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "A pinned companion is skipped when its display is unavailable. Dynamic in this chain uses the next free display before Tatami applies the ordinary fallback." } }
+      }
+    },
+    "Position %lld of %lld": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "%2$lld개 중 %1$lld번째" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%2$lld件中%1$lld番目" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "第 %1$lld 项，共 %2$lld 项" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "第 %1$lld 項，共 %2$lld 項" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Position %1$lld of %2$lld" } }
+      }
+    },
+    "Reorder %@": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 순서 변경" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@を並べ替え" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "重新排序 %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新排序 %@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Reorder %@" } }
+      }
+    },
+    "Remove %@ from workspace chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인에서 제거 · %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@をワークスペースチェーンから削除" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "从工作区链中移除 %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "從工作空間鏈移除 %@" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Remove %@ from workspace chain" } }
+      }
+    },
+    "Remove from workspace chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인에서 제거" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンから削除" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "从工作区链中移除" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "從工作空間鏈移除" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Remove from workspace chain" } }
+      }
+    },
+    "Save this workspace chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인 저장" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンを保存" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "保存此工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "儲存此工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Save this workspace chain" } }
+      }
+    },
+    "Scratchpads cannot join workspace chains.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "임시 공간은 워크스페이스 체인에 넣을 수 없어요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "一時スペースはワークスペースチェーンに追加できません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂存区无法加入工作区链。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "暫存區無法加入工作空間鏈。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Scratchpads cannot join workspace chains." } }
+      }
+    },
+    "Scratchpads cannot join workspace chains. Remove it to repair the chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "임시 공간은 워크스페이스 체인에 넣을 수 없어요. 제거해서 체인을 복구해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "一時スペースはワークスペースチェーンに追加できません。削除してチェーンを修正してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "暂存区无法加入工作区链。请将其移除以修复此链。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "暫存區無法加入工作空間鏈。請將它移除以修復此鏈。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Scratchpads cannot join workspace chains. Remove it to repair the chain." } }
+      }
+    },
+    "Search workspaces": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 검색" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースを検索" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索工作区" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "搜尋工作空間" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Search workspaces" } }
+      }
+    },
+    "Switching to any member always keeps that workspace active. Tatami considers the rest in list order: connected pins and Chain Dynamic workspaces run before the ordinary empty-display fallback.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "체인의 어느 작업 공간으로 전환해도 그 작업 공간은 항상 활성화돼요. 나머지는 목록 순서대로 검토하며, 연결된 고정 위치와 체인 동적 작업 공간을 기존 빈 디스플레이 채우기보다 먼저 적용해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "チェーン内のどのワークスペースに切り替えても、そのワークスペースは常にアクティブになります。残りはリスト順に処理され、接続済みの固定先とチェーン動的ワークスペースが通常の空きディスプレイのフォールバックより先に適用されます。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "切换到链中的任意工作区时，该工作区始终保持活动。Tatami 按列表顺序处理其余工作区，并优先应用已连接的固定位置和链动态工作区，然后再执行常规的空显示器回退。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "切換至鏈中的任一工作空間時，該工作空間始終保持啟用。Tatami 會依清單順序處理其餘工作空間，先套用已連接的固定位置與鏈動態工作空間，再執行一般的空白顯示器後援。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Switching to any member always keeps that workspace active. Tatami considers the rest in list order: connected pins and Chain Dynamic workspaces run before the ordinary empty-display fallback." } }
+      }
+    },
+    "The workspace you switch to is always included. The order below sets the priority for the rest: Tatami places them from top to bottom on displays they can use.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "전환한 작업 공간은 항상 포함돼요. 아래 순서가 나머지 작업 공간의 우선순위예요. 타타미가 위에서부터 사용할 수 있는 디스플레이에 배치해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "切り替えたワークスペースは必ず含まれます。以下の順序が残りの優先順位です。Tatami は上から使用可能なディスプレイに配置します。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "您切换到的工作区始终会被包含。下方顺序决定其余工作区的优先级：Tatami 从上到下将它们放置到可用显示器上。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "您切換到的工作空間始終會被包含。下方順序決定其餘工作空間的優先順位：Tatami 從上到下將它們放置到可用顯示器上。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "The workspace you switch to is always included. The order below sets the priority for the rest: Tatami places them from top to bottom on displays they can use." } }
+      }
+    },
+    "The chain was not saved because one of its workspaces conflicts with another chain or is unavailable. Review the latest profile settings and try again.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간이 다른 체인과 충돌하거나 사용할 수 없어서 체인을 저장하지 않았어요. 최신 프로필 설정을 확인하고 다시 시도해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースが別のチェーンと競合しているか利用できないため、チェーンを保存しませんでした。最新のプロファイル設定を確認して、もう一度お試しください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "某个工作区与另一个链冲突或不可用，因此未保存此链。请检查最新的配置方案设置后重试。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "某個工作空間與另一個鏈衝突或無法使用，因此未儲存此鏈。請檢查最新的設定組合後再試一次。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "The chain was not saved because one of its workspaces conflicts with another chain or is unavailable. Review the latest profile settings and try again." } }
+      }
+    },
+    "This workspace appears more than once. Remove the duplicate.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간이 두 번 이상 들어 있어요. 중복 항목을 제거해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースが複数含まれています。重複した項目を削除してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此工作区出现了多次。请移除重复项。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此工作空間出現多次。請移除重複項目。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "This workspace appears more than once. Remove the duplicate." } }
+      }
+    },
+    "This workspace chain changed. Close the editor and open it again.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인이 변경됐어요. 편집기를 닫고 다시 열어 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンが変更されました。編集画面を閉じて、もう一度開いてください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链已更改。请关闭编辑器后重新打开。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈已變更。請關閉編輯器後重新開啟。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "This workspace chain changed. Close the editor and open it again." } }
+      }
+    },
+    "This workspace chain shares an internal identifier. Saving will repair it.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 워크스페이스 체인의 내부 식별자가 다른 체인과 같아요. 저장하면 자동으로 복구해요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースチェーンの内部識別子が別のチェーンと重複しています。保存すると自動で修正します。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此工作区链与另一个链使用相同的内部标识符。保存时会自动修复。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此工作空間鏈與另一個鏈使用相同的內部識別碼。儲存時會自動修復。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "This workspace chain shares an internal identifier. Saving will repair it." } }
+      }
+    },
+    "This workspace no longer exists. Remove it to repair the chain.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이 작업 공간을 더 이상 찾을 수 없어요. 제거해서 체인을 복구해 주세요." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このワークスペースはもう存在しません。削除してチェーンを修正してください。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "此工作区已不存在。请将其移除以修复此链。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此工作空間已不存在。請將它移除以修復此鏈。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "This workspace no longer exists. Remove it to repair the chain." } }
+      }
+    },
+    "Untitled Workspace Chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "이름 없는 워크스페이스 체인" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "名称未設定のワークスペースチェーン" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "未命名工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "未命名工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Untitled Workspace Chain" } }
+      }
+    },
+    "Workspace Chain": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーン" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Workspace Chain" } }
+      }
+    },
+    "Workspace chain conflict": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인 충돌" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーンの競合" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链冲突" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈衝突" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Workspace chain conflict" } }
+      }
+    },
+    "Workspace Chains": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "워크스페이스 체인" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースチェーン" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区链" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間鏈" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Workspace Chains" } }
+      }
+    },
+    "Workspace moved": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "작업 공간 이동됨" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ワークスペースを移動しました" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "工作区已移动" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "工作空間已移動" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Workspace moved" } }
+      }
+    },
+    "“%@” will stop switching its linked workspaces together. This can't be undone.": {
+      "localizations": {
+        "ko": { "stringUnit": { "state": "translated", "value": "연결된 작업 공간을 함께 전환하지 않게 돼요. 되돌릴 수 없어요. · “%@”" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "「%@」で連携したワークスペースは一緒に切り替わらなくなります。この操作は取り消せません。" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "“%@” 中连接的工作区将不再一起切换。此操作无法撤销。" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "「%@」中連結的工作空間將不再一起切換。此操作無法還原。" } },
+        "en": { "stringUnit": { "state": "translated", "value": "“%@” will stop switching its linked workspaces together. This can't be undone." } }
       }
     },
     "Recording": {

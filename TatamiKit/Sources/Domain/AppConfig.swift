@@ -250,6 +250,29 @@ extension AppConfig {
     // profiles firing on the same hotkey / display set would collide.
     clone.autoActivation = nil
     clone.workspaces = IdentifiedArray(uniqueElements: clonedWorkspaces)
+    // Workspace chains are internal to a profile, so they are safe to retain
+    // after every sibling workspace reference and chain identity is remapped.
+    // A malformed source chain containing a foreign workspace is omitted
+    // instead of turning into a different partial group.
+    clone.workspaceChains = src.workspaceChains.compactMap { sourceChain in
+      var chain = sourceChain
+      chain.id = UUID()
+      var workspaceIDs = [Workspace.ID]()
+      workspaceIDs.reserveCapacity(sourceChain.workspaceIDs.count)
+      for sourceWorkspaceID in sourceChain.workspaceIDs {
+        guard let workspaceId = remap[sourceWorkspaceID] else { return nil }
+        workspaceIDs.append(workspaceId)
+      }
+      chain.workspaceIDs = workspaceIDs
+      var dynamicWorkspaceIDs = [Workspace.ID]()
+      dynamicWorkspaceIDs.reserveCapacity(sourceChain.dynamicWorkspaceIDs.count)
+      for sourceWorkspaceID in sourceChain.dynamicWorkspaceIDs {
+        guard let workspaceId = remap[sourceWorkspaceID] else { return nil }
+        dynamicWorkspaceIDs.append(workspaceId)
+      }
+      chain.dynamicWorkspaceIDs = dynamicWorkspaceIDs
+      return chain
+    }
     profiles.insert(clone, at: srcIdx + 1)
     return ProfileDuplication(profileId: clone.id, workspaceIdMap: remap)
   }
@@ -338,6 +361,9 @@ extension AppConfig {
       )
       WorkspaceSync.apply(fieldChanges, to: &updated, excluding: excludedFields)
       projected.profiles[targetIdx].workspaces[id: workspace.id] = updated
+    }
+    for workspace in projected.profiles[targetIdx].workspaces where workspace.kind == .scratchpad {
+      projected.profiles[targetIdx].removeWorkspaceFromWorkspaceChains(workspace.id)
     }
     return WorkspaceSyncProjection(
       config: projected,
@@ -454,6 +480,18 @@ extension AppConfig {
     else { return }
     body(&workspace)
     profiles[pIdx].workspaces[id: id] = workspace
+    if workspace.kind == .scratchpad {
+      profiles[pIdx].removeWorkspaceFromWorkspaceChains(id)
+    }
+  }
+
+  /// Remove a workspace and every workspace-chain reference to it as one domain
+  /// mutation. Callers still own external state such as `layouts.json`.
+  public mutating func removeWorkspace(_ id: Workspace.ID) {
+    guard let profileIndex = profiles.firstIndex(where: { $0.workspaces[id: id] != nil })
+    else { return }
+    profiles[profileIndex].workspaces.remove(id: id)
+    profiles[profileIndex].removeWorkspaceFromWorkspaceChains(id)
   }
 
   /// Place `draggedId` — the effect of a sidebar drag-and-drop that both
@@ -487,6 +525,9 @@ extension AppConfig {
       }
       rest.insert(moved, at: insertionIndex)
       profile.workspaces = IdentifiedArray(uniqueElements: rest)
+      if moved.kind == .scratchpad {
+        profile.removeWorkspaceFromWorkspaceChains(draggedId)
+      }
     }
   }
 

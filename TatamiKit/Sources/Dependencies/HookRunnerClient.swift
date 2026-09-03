@@ -100,7 +100,7 @@ private func runHook(
     let arguments = Arguments(Array(hook.command.dropFirst()))
 
     var environment = Subprocess.Environment.inherit
-      .updating(environmentOverrides(hook.environment))
+      .updating(environmentOverrides(hook.environment.mapValues { Optional($0) }))
     environment = environment.updating(environmentOverrides(invocation.environment(hookID: hook.id)))
     let processEnvironment = environment
 
@@ -315,7 +315,7 @@ private final class ProcessExitMonitor: @unchecked Sendable {
 
 }
 
-private func environmentOverrides(_ values: [String: String]) -> [Subprocess.Environment.Key: String?] {
+private func environmentOverrides(_ values: [String: String?]) -> [Subprocess.Environment.Key: String?] {
   Dictionary(uniqueKeysWithValues: values.compactMap { key, value in
     guard let environmentKey = Subprocess.Environment.Key(rawValue: key) else { return nil }
     return (environmentKey, value)
@@ -329,13 +329,33 @@ private func expandHome(in path: String) -> String {
 }
 
 extension HookInvocation {
-  fileprivate func environment(hookID: String) -> [String: String] {
-    var values = [
-      "TATAMI_HOOK_ID": hookID,
-      "TATAMI_HOOK_EVENT": event.rawValue,
-      "TATAMI_PROFILE_ID": profile.id.uuidString,
-      "TATAMI_PROFILE_NAME": profile.name,
-    ]
+  fileprivate func environment(hookID: String) -> [String: String?] {
+    // Clear every reserved optional key after applying inherited/configured
+    // values, then populate only this invocation's context. Otherwise a stale
+    // TATAMI_* value supplied by the parent process or hook configuration can
+    // masquerade as data from an unrelated event.
+    var values = Dictionary(uniqueKeysWithValues: [
+      "TATAMI_HOOK_ID",
+      "TATAMI_HOOK_EVENT",
+      "TATAMI_PROFILE_ID",
+      "TATAMI_PROFILE_NAME",
+      "TATAMI_WORKSPACE_ID",
+      "TATAMI_WORKSPACE_NAME",
+      "TATAMI_WORKSPACE_KIND",
+      "TATAMI_DISPLAY_NAME",
+      "TATAMI_DISPLAY_UUID",
+      "TATAMI_HUD_TITLE",
+      "TATAMI_HUD_SYMBOL_ICON_NAME",
+      "TATAMI_HUD_SUBTITLE",
+      "TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME",
+      "TATAMI_HUD_DURATION_MS",
+      "TATAMI_HUD_POSITION",
+      "TATAMI_HUD_SIZE",
+    ].map { ($0, String?.none) })
+    values["TATAMI_HOOK_ID"] = hookID
+    values["TATAMI_HOOK_EVENT"] = event.rawValue
+    values["TATAMI_PROFILE_ID"] = profile.id.uuidString
+    values["TATAMI_PROFILE_NAME"] = profile.name
     if let workspace {
       values["TATAMI_WORKSPACE_ID"] = workspace.id.uuidString
       values["TATAMI_WORKSPACE_NAME"] = workspace.name
@@ -354,6 +374,9 @@ extension HookInvocation {
         values["TATAMI_HUD_SYMBOL_ICON_NAME"] = symbolIconName
       }
       if let subtitle = hud.subtitle { values["TATAMI_HUD_SUBTITLE"] = subtitle }
+      if let subtitleSymbolIconName = hud.subtitleSymbolIconName {
+        values["TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME"] = subtitleSymbolIconName
+      }
     }
     return values
   }

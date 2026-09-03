@@ -783,11 +783,15 @@ extension WorkspaceActivationFeature {
         return .none
       }
       let display = tilingContext(for: workspaceId, state: state).display
-      let recent = display.flatMap { state.previousWorkspacesByDisplay[$0] }
+      let recent = state.previousWorkspace(on: display)
         ?? state.previousWorkspacesByDisplay.values.first
       guard let recent, recent != workspaceId else { return .none }
       debugLog.log("Sync", "ws=\(workspace.name) empty → switch to recent")
-      return .send(.activate(workspaceId: recent, setFocus: true))
+      return .send(.activate(
+        workspaceId: recent,
+        setFocus: true,
+        interactionDisplay: display,
+      ))
     }
 
     guard !hasOnScreenMembers else { return .none }

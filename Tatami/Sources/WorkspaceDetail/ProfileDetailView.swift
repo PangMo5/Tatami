@@ -15,6 +15,7 @@ struct ProfileDetailView: View {
   @Bindable var store: StoreOf<ProfileDetailFeature>
   @State private var symbolPickerPresented = false
   @State private var syncReview: ProfileSyncReview?
+  @State private var workspaceChainEditor: WorkspaceChainEditorPresentation?
 
   var body: some View {
     if let profile = store.profile {
@@ -72,6 +73,10 @@ struct ProfileDetailView: View {
         }
 
         autoActivationSection(profile)
+        ProfileWorkspaceChainsSection(
+          store: store,
+          editor: $workspaceChainEditor,
+        )
         syncSection
       }
       .formStyle(.grouped)
@@ -96,6 +101,13 @@ struct ProfileDetailView: View {
       // pane view is reused, just re-scoped to a fresh state). Mirrors
       // WorkspaceDetailView.
       .task(id: store.profileId) { store.send(.onAppear) }
+      .sheet(item: $workspaceChainEditor) { presentation in
+        WorkspaceChainEditorView(
+          store: store,
+          chain: presentation.chain,
+          original: presentation.original,
+        )
+      }
       .sheet(item: $syncReview) { review in
         SyncPreviewSheet(
           title: "Copy from “\(review.source.name)”",
@@ -326,6 +338,7 @@ struct ProfileDetailView: View {
             ),
             in: 1 ... 8
           )
+          .padding(.leading, 12)
         }
 
         // Per-monitor requirement: Required (must be connected) / Excluded

@@ -33,7 +33,12 @@ struct WorkspaceManagerClient: Sendable {
   /// the vacated display with nothing to ever take them down. This returns
   /// them explicitly instead of relying on the vacated display happening to
   /// be refilled.
-  var returnBorrowed: @Sendable (_ bundleIds: Set<String>, _ display: DisplayName) async -> Void
+  /// Returns true only after the display's hide phase reached a committed end.
+  /// Cancellation before that point returns false so reducer state remains
+  /// paired with the still-visible windows.
+  var returnBorrowed: @Sendable (_ bundleIds: Set<String>, _ display: DisplayName) async -> Bool = {
+    _, _ in true
+  }
 }
 
 // MARK: - CursorHideSink
@@ -117,7 +122,7 @@ extension WorkspaceManagerClient: DependencyKey {
 
   static let testValue = WorkspaceManagerClient(
     activate: { _ in },
-    returnBorrowed: { _, _ in },
+    returnBorrowed: { _, _ in true },
   )
   static let previewValue = WorkspaceManagerClient(
     activate: { request in
@@ -125,6 +130,7 @@ extension WorkspaceManagerClient: DependencyKey {
     },
     returnBorrowed: { bundleIds, display in
       logger.debug("[preview] returnBorrowed \(bundleIds) from \(display.name)")
+      return true
     },
   )
 
@@ -499,10 +505,11 @@ extension WorkspaceManagerClient: DependencyKey {
       returnBorrowed: { bundleIds, display in
         @Dependency(\.debugLog) var debugLog
         @Dependency(\.overlayAwareness) var overlayAwareness
-        guard !bundleIds.isEmpty else { return }
+        guard !bundleIds.isEmpty else { return true }
 
         @MainActor
-        func returnOnMain() async {
+        func returnOnMain() async -> Bool {
+          guard !Task.isCancelled else { return false }
           let onScreenWindows = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID,
@@ -537,7 +544,7 @@ extension WorkspaceManagerClient: DependencyKey {
             evaluation,
             hideCandidates.map(\.1),
           )
-          guard !Task.isCancelled else { return }
+          guard !Task.isCancelled else { return false }
           let committedPreserves = overlayAwareness.commitEvaluation(
             evaluation,
             processesToPreserve,
@@ -570,9 +577,10 @@ extension WorkspaceManagerClient: DependencyKey {
             "returnBorrowed display=\(display.name) "
               + "bundles=\(bundleIds.sorted()) hide=\(hiddenCount)",
           )
+          return true
         }
 
-        await returnOnMain()
+        return await returnOnMain()
       },
     )
   }

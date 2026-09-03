@@ -428,7 +428,10 @@ from Finder.
 Each hook receives one versioned JSON object on standard input. The object has
 `schemaVersion`, `event`, `occurredAt`, `profile`, and, when applicable,
 `previousProfile`, `workspace`, `display`, and `hud`. The `hud` object contains
-`title`, `symbolIconName`, `subtitle`, `durationMs`, `position`, and `size`.
+`title`, `symbolIconName`, `subtitle`, optional `subtitleSymbolIconName`,
+`durationMs`, `position`, and `size`. Every HUD event carries the resolved
+`display` when Tatami can identify its screen; a workspace-chain switch emits
+one event per affected display, with that display's own workspace feedback.
 `durationMs` is the fully visible dwell interval; an external surface adds its
 own entrance and exit outside that interval. Tatami also sets these convenience
 variables:
@@ -439,8 +442,9 @@ variables:
   for a workspace event
 - `TATAMI_DISPLAY_UUID`, `TATAMI_DISPLAY_NAME` when a display is known
 - `TATAMI_HUD_TITLE`, `TATAMI_HUD_SYMBOL_ICON_NAME`, `TATAMI_HUD_SUBTITLE`,
-  `TATAMI_HUD_DURATION_MS`, `TATAMI_HUD_POSITION`, and `TATAMI_HUD_SIZE` for a
-  `hud` event. Optional values are omitted rather than set to an empty string.
+  `TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME`, `TATAMI_HUD_DURATION_MS`,
+  `TATAMI_HUD_POSITION`, and `TATAMI_HUD_SIZE` for a `hud` event. Optional
+  values are omitted rather than set to an empty string.
 
 For example, a SketchyBar bridge can subscribe with `event = "hud"` and point
 `command` at a small executable script that forwards these `TATAMI_HUD_*`
@@ -509,6 +513,25 @@ bundleIdentifier = "app.zen-browser.zen"
 name = "Zen Browser"
 autoOpen = false                       # launch on activation if not running
 layout = "tiled"                       # "tiled" | "floating" | "unmanaged"
+
+[[profiles.workspaces]]
+id = "00000000-0000-0000-0000-000000000011"
+name = "Code"
+kind = "normal"
+displayHint = "37D8832A-…::Studio Display"
+
+# Optional symmetric workspace chain. It stores workspace identity only;
+# destinations come from each workspace's pin and the pointer at switch time.
+[[profiles.workspaceChains]]
+id = "00000000-0000-0000-0000-000000000100"
+name = "Coding"                        # optional, for the Settings UI
+workspaceIds = [
+  "00000000-0000-0000-0000-000000000010",
+  "00000000-0000-0000-0000-000000000011",
+]
+# Optional: ignore this pinned workspace's pin when it is placed as a
+# companion by this chain. The workspace's ordinary activation is unchanged.
+dynamicWorkspaceIds = ["00000000-0000-0000-0000-000000000011"]
 ```
 
 Profile fields:
@@ -520,6 +543,7 @@ Profile fields:
 | `symbolIconName` | string? | SF Symbol shown for the profile in the sidebar, menu bar, and profile-switch feedback. Omit for the default `rectangle.stack`. |
 | `shortcut` | string? | skhd-style hotkey that switches to this profile. |
 | `autoActivation` | table? | Auto-activate when the connected displays match (keys below). Omit for manual only. A present table with no conditions is a catch-all that matches any configuration. |
+| `workspaceChains` | table[] | Symmetric workspace groups that switch together across displays. Destinations are resolved at activation time, not stored in the chain. Omit when unused. |
 
 **`[profiles.autoActivation]`:** All keys are optional and combined with AND. When several
 profiles match, the most specific wins. `exactly` outranks `contains`, more
@@ -531,6 +555,47 @@ conditions rank higher, and ties go to the earlier profile:
 | `whenConnected` | string[]? | Displays that must be connected (`"<uuid>::<name>"` or `"<name>"`). |
 | `whenConnectedMatch` | string | `"contains"` by default, where listed displays must be present and extras are allowed, or `"exactly"`, where the connected set equals the list. |
 | `whenDisconnected` | string[]? | Displays that must be unplugged. |
+
+**`[[profiles.workspaceChains]]`:** A chain is a symmetric group with no anchor
+or parent. It stores an ordered list of stable workspace UUIDs, never display
+slots. A workspace may belong to at most one chain in a profile, every chain
+needs at least two unique entries, and every entry must reference a normal
+workspace in that profile. Renaming a workspace is safe.
+
+Only the workspace the user actually switched to starts a chain. Restores made
+by that chain do not recursively start another chain. The workspace explicitly
+selected by the user is mandatory: Tatami places it with the same pin, pointer,
+and global-Recent rules as a standalone activation. Other entries restore first
+and the triggering workspace restores last, so focus stays on the user's
+selection.
+
+Display placement is deliberately not a static config validation rule. Tatami
+resolves it against the displays connected at that moment. After reserving the
+triggering workspace, Tatami considers every other member from top to bottom in
+`workspaceIds` order. A pinned member uses its configured display when that
+display is connected and free. A disconnected pin is skipped instead of being
+moved to an unrelated display. An ordinarily dynamic member uses the next
+available display, with dynamic placement starting at the pointer display.
+`dynamicWorkspaceIds` can give that same chain-only behavior to a pinned
+workspace without changing its ordinary pin. If a pin overlaps a display
+already claimed by a higher-priority member, or no display remains, that member
+is skipped and Tatami continues down the list. This makes `workspaceIds` the
+deterministic priority order instead of requiring one display per member.
+
+Chain Dynamic companions claim free displays before the ordinary fallback.
+Displays still outside the resolved chain then use the usual restore order:
+recent valid history, then a workspace pinned to that display, then an unused
+dynamic workspace. Invalid workspace references and cross-chain membership
+conflicts remain visible for repair, and their chains do not execute.
+
+Workspace-chain fields:
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `id` | UUID | Stable chain identifier. Must be unique within the profile. |
+| `name` | string? | Optional label shown in Settings; it does not affect activation. |
+| `workspaceIds` | UUID[] | Two or more unique normal-workspace IDs in deterministic conflict-resolution order. |
+| `dynamicWorkspaceIds` | UUID[]? | Subset of `workspaceIds` whose pinned workspaces use the next free display while being placed as chain companions. Omit when unused. |
 
 Workspace fields:
 

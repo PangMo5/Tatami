@@ -55,6 +55,8 @@ struct ActionHUDRequest: Equatable, Sendable {
     name: String,
     symbolIconName: String?,
     subtitle: String?,
+    subtitleSymbolIconName: String? = nil,
+    subtitleExtendsDuration: Bool = true,
     durationMs: Int,
     position: HUDPosition,
     size: HUDSize,
@@ -64,6 +66,8 @@ struct ActionHUDRequest: Equatable, Sendable {
     self.name = name
     self.symbolIconName = symbolIconName
     self.subtitle = subtitle
+    self.subtitleSymbolIconName = subtitleSymbolIconName
+    self.subtitleExtendsDuration = subtitleExtendsDuration
     self.durationMs = durationMs
     self.position = position
     self.size = size
@@ -76,6 +80,8 @@ struct ActionHUDRequest: Equatable, Sendable {
   let name: String
   let symbolIconName: String?
   let subtitle: String?
+  let subtitleSymbolIconName: String?
+  let subtitleExtendsDuration: Bool
   let durationMs: Int
   let position: HUDPosition
   let size: HUDSize
@@ -97,6 +103,7 @@ public struct ActionHUDPresentation: Equatable, Sendable {
     title: String,
     symbolIconName: String?,
     subtitle: String?,
+    subtitleSymbolIconName: String? = nil,
     durationMs: Int,
     position: HUDPosition,
     size: HUDSize,
@@ -105,6 +112,7 @@ public struct ActionHUDPresentation: Equatable, Sendable {
     self.title = title
     self.symbolIconName = symbolIconName
     self.subtitle = subtitle
+    self.subtitleSymbolIconName = subtitleSymbolIconName
     self.durationMs = durationMs
     self.position = position
     self.size = size
@@ -116,9 +124,12 @@ public struct ActionHUDPresentation: Equatable, Sendable {
       title: request.name,
       symbolIconName: request.symbolIconName,
       subtitle: request.subtitle,
+      subtitleSymbolIconName: request.subtitleSymbolIconName,
       durationMs: max(
         100,
-        request.subtitle == nil ? request.durationMs : request.durationMs * 2,
+        request.subtitle == nil || !request.subtitleExtendsDuration
+          ? request.durationMs
+          : request.durationMs * 2,
       ),
       position: request.position,
       size: request.size,
@@ -131,6 +142,7 @@ public struct ActionHUDPresentation: Equatable, Sendable {
   public let title: String
   public let symbolIconName: String?
   public let subtitle: String?
+  public let subtitleSymbolIconName: String?
   public let durationMs: Int
   public let position: HUDPosition
   public let size: HUDSize
@@ -351,7 +363,11 @@ enum HUDLayout {
     return CGRect(origin: CGPoint(x: x, y: y), size: size)
   }
 
-  static func actionSurfaceSize(name: String, subtitle: String?) -> NSSize {
+  static func actionSurfaceSize(
+    name: String,
+    subtitle: String?,
+    subtitleSymbolIconName: String? = nil,
+  ) -> NSSize {
     let titleWidth = textWidth(
       name,
       font: .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
@@ -363,7 +379,11 @@ enum HUDLayout {
         subtitle,
         font: .systemFont(ofSize: NSFont.smallSystemFontSize),
       )
-      width = min(max(max(titleWidth, subtitleWidth) + contentSpacing, 240), 404)
+      let subtitleIconWidth: CGFloat = subtitleSymbolIconName == nil ? 0 : 14
+      width = min(
+        max(max(titleWidth, subtitleWidth + subtitleIconWidth) + contentSpacing, 240),
+        404,
+      )
     } else {
       width = min(max(titleWidth + contentSpacing, 142), 300)
     }
@@ -411,6 +431,7 @@ private struct ActionHUDContent: Equatable {
   let name: String
   let symbolIconName: String?
   let subtitle: String?
+  let subtitleSymbolIconName: String?
 }
 
 // MARK: - ActionHUDContentModel
@@ -421,12 +442,18 @@ private final class ActionHUDContentModel {
 
   // MARK: Lifecycle
 
-  init(name: String, symbolIconName: String?, subtitle: String?) {
+  init(
+    name: String,
+    symbolIconName: String?,
+    subtitle: String?,
+    subtitleSymbolIconName: String?,
+  ) {
     value = ActionHUDContent(
       revision: 0,
       name: name,
       symbolIconName: symbolIconName,
       subtitle: subtitle,
+      subtitleSymbolIconName: subtitleSymbolIconName,
     )
   }
 
@@ -434,18 +461,25 @@ private final class ActionHUDContentModel {
 
   private(set) var value: ActionHUDContent
 
-  func update(name: String, symbolIconName: String?, subtitle: String?) {
+  func update(
+    name: String,
+    symbolIconName: String?,
+    subtitle: String?,
+    subtitleSymbolIconName: String?,
+  ) {
     let current = value
     guard
       current.name != name
       || current.symbolIconName != symbolIconName
       || current.subtitle != subtitle
+      || current.subtitleSymbolIconName != subtitleSymbolIconName
     else { return }
     value = ActionHUDContent(
       revision: current.revision &+ 1,
       name: name,
       symbolIconName: symbolIconName,
       subtitle: subtitle,
+      subtitleSymbolIconName: subtitleSymbolIconName,
     )
   }
 
@@ -655,6 +689,7 @@ private final class WorkspaceHUDController {
         name: request.name,
         symbolIconName: request.symbolIconName,
         subtitle: request.subtitle,
+        subtitleSymbolIconName: request.subtitleSymbolIconName,
       )
       entry = current
     } else {
@@ -664,6 +699,7 @@ private final class WorkspaceHUDController {
         name: request.name,
         symbolIconName: request.symbolIconName,
         subtitle: request.subtitle,
+        subtitleSymbolIconName: request.subtitleSymbolIconName,
       )
       let presentation = HUDPresentationModel()
       layoutActionHUD(panel, position: request.position, size: request.size, on: screen)
@@ -1386,6 +1422,7 @@ private struct WorkspaceHUDView: View {
     let surfaceSize = HUDLayout.actionSurfaceSize(
       name: value.name,
       subtitle: value.subtitle,
+      subtitleSymbolIconName: value.subtitleSymbolIconName,
     )
     ZStack(alignment: .top) {
       HUDGlassSurface(surface: Capsule()) {
@@ -1417,11 +1454,19 @@ private struct WorkspaceHUDView: View {
               .font(.callout.weight(.semibold))
               .lineLimit(1)
             if let subtitle = value.subtitle {
-              Text(subtitle)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+              HStack(spacing: 4) {
+                if let subtitleSymbolIconName = value.subtitleSymbolIconName {
+                  Image(systemName: subtitleSymbolIconName)
+                    .font(.caption2.weight(.semibold))
+                    .accessibilityLabel("Workspace Chain")
+                    .accessibilityHidden(subtitleSymbolIconName != "link")
+                }
+                Text(subtitle)
+                  .lineLimit(2)
+                  .multilineTextAlignment(.leading)
+              }
+              .font(.caption2)
+              .foregroundStyle(.secondary)
             }
           }
           .frame(maxWidth: .infinity, alignment: .leading)

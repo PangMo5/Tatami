@@ -245,17 +245,31 @@ struct WorkspaceListView: View {
   }
 
   private func row(for workspace: Workspace) -> some View {
-    HStack(spacing: 6) {
-      Label {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
+        .frame(width: 20, height: 20)
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 5) {
         editableName(workspace.name, target: .workspace(workspace.id))
-      } icon: {
-        Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
+
+        if
+          let profile = store.selectedProfile,
+          profile.validWorkspaceChain(containing: workspace.id) != nil
+        {
+          WorkspaceChainPeerIcons(
+            profile: profile,
+            workspaceID: workspace.id,
+          )
+        }
       }
-      Spacer()
+      .frame(maxWidth: .infinity, alignment: .leading)
+
       WorkspaceRuntimeStatusView(
         workspaceID: workspace.id,
         activationStore: activationStore,
       )
+      .padding(.top, 2)
     }
     .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
     .contextMenu {
@@ -581,6 +595,7 @@ private struct WorkspaceRuntimeStatusView: View {
 
   var body: some View {
     let hostName = borrowedHostName
+    let display = activeDisplay
     HStack(spacing: 6) {
       // Keep this slot alive while Borrow appears/disappears. Stable row
       // geometry prevents every following List row from being laid out again.
@@ -592,12 +607,16 @@ private struct WorkspaceRuntimeStatusView: View {
         .accessibilityHidden(hostName == nil)
         .help(hostName.map { "Borrowed into \($0)" } ?? "")
 
-      if let display = activeDisplay {
-        Image(systemName: "circle.fill")
-          .foregroundStyle(dotColor(for: display))
-          .imageScale(.small)
-          .help("Active on \(display.name)")
-      }
+      // Reserve the active-display slot even while this workspace is not
+      // active. The row title must not slide when the runtime dot appears or
+      // disappears.
+      Image(systemName: "circle.fill")
+        .foregroundStyle(display.map { dotColor(for: $0) } ?? Color.clear)
+        .imageScale(.small)
+        .frame(width: 12)
+        .opacity(display == nil ? 0 : 1)
+        .accessibilityHidden(display == nil)
+        .help(display.map { "Active on \($0.name)" } ?? "")
     }
   }
 

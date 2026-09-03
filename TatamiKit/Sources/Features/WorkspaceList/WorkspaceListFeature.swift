@@ -313,10 +313,7 @@ public struct WorkspaceListFeature {
           state.detail = nil
         }
         state.$config.withLock { config in
-          guard let profileId = config.profileId(owning: id) else { return }
-          config.mutateProfile(profileId) { profile in
-            profile.workspaces.remove(id: id)
-          }
+          config.removeWorkspace(id)
         }
         // Drop the saved layout too, so layouts.json doesn't accumulate orphaned
         // entries (the delete confirmation promises the layout is removed).
@@ -712,6 +709,7 @@ public struct WorkspaceListFeature {
           clone.symbolIconName = nil
         }
         clone.workspaces = IdentifiedArray(uniqueElements: selectedWorkspaces)
+        clone.removeIncompleteWorkspaceChains()
       }
       layoutMapping = selectedLayouts
 
