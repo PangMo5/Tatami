@@ -36,6 +36,7 @@ this locale. Add `zh-HK` separately if Tatami supports Hong Kong later.
 | Concept | `en` | `ko` | `ja` | `zh-Hans` | `zh-Hant` |
 | --- | --- | --- | --- | --- | --- |
 | Workspace | Workspace | 작업 공간 | ワークスペース | 工作区 | 工作空間 |
+| Workspace Chain | Workspace Chain | 작업 공간 체인 | ワークスペースチェーン | 工作区链 | 工作空間鏈 |
 | Profile | Profile | 프로필 | プロファイル | 配置方案 | 設定組合 |
 | Shared Apps | Shared Apps | 공용 앱 | 共有アプリ | 共享应用 | 共用 App |
 | Borrow | Borrow | 빌려오기 | 借りる | 借用 | 借用 |

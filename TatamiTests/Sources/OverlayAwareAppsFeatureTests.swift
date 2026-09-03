@@ -45,7 +45,7 @@ struct OverlayAwareAppsFeatureTests {
     let notion = MacApp(
       bundleIdentifier: "notion.id",
       name: "Notion",
-      iconPath: "/Applications/Notion.app"
+      iconPath: "/Applications/Notion.app",
     )
     let state = OverlayAwareAppsFeature.State()
     state.$config.withLock {

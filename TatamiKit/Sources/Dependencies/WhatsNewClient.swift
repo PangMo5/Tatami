@@ -124,8 +124,8 @@ private struct WhatsNewView: View {
               .font(.title.weight(.semibold))
             Text(
               """
-              Tatami 1.12 adds scriptable control and lifecycle hooks, plus safer, more selective profile and \
-              workspace duplication.
+              Tatami 1.13 links workspaces across displays, keeps floating controls visible, and makes action \
+              feedback more flexible.
               """
             )
             .font(.subheadline)
@@ -138,27 +138,28 @@ private struct WhatsNewView: View {
               .font(.headline)
 
             item(
-              icon: "terminal",
-              title: "Control Tatami from the command line",
+              icon: "link",
+              title: "Workspace Chains",
               detail: """
-                Use domain commands for profiles, workspaces, windows, displays, layouts, and apps, with stable JSON \
-                output and every action available to trackpad gestures.
+                Keep the workspace you choose active while Tatami restores available chain members across connected \
+                displays in priority order.
                 """,
             )
             item(
-              icon: "bolt.circle",
-              title: "Run programs on lifecycle events",
+              icon: "pip",
+              title: "Apps With Floating Controls",
               detail: """
-                Create and test hooks for Tatami launch, profile changes, and workspaces becoming visible on a \
-                display. Each event includes versioned JSON and useful environment variables.
+                Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. \
+                Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you \
+                activate that workspace again. They may remain visible in Mission Control.
                 """,
             )
             item(
-              icon: "square.on.square",
-              title: "Choose what Duplicate keeps",
+              icon: "bell.badge",
+              title: "Customize and share action feedback",
               detail: """
-                Right-click a profile or workspace, review its workspaces, apps, settings, and saved layouts, then \
-                include only what you want.
+                Choose one of nine HUD positions and three sizes. Each affected display gets its own feedback, and HUD \
+                hooks can mirror the same localized payload to tools such as SketchyBar.
                 """,
             )
           }

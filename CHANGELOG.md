@@ -6,6 +6,27 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.13.0 (2026-09-03)
+
+### New
+- **Restore workspace sets across displays:** Create an ordered workspace chain in Profile Settings, then switch to any member to restore the companions that fit the current display setup. The workspace you chose keeps focus, connected pinned members claim their displays, Chain Dynamic members use the next free displays in priority order, and Tatami's existing fallback fills anything still empty. Sidebar indicators show each relationship, while every affected display receives its own result HUD.
+- **Keep apps with persistent floating controls available:** Register apps such as Notion with the existing app picker. While a registered app owns an on-screen elevated control, Tatami leaves that process unhidden so the control survives workspace switches, but excludes its ordinary windows from focus, tiling, cycling, drag, and membership actions. The windows may remain visible in Mission Control.
+- **Send action feedback to external surfaces:** The new `hud` hook publishes the localized title, symbols, subtitle, fully visible duration, position, size, and resolved display used by Tatami's compact feedback. Integrations such as SketchyBar can mirror the same information without parsing logs, and hook-failure feedback is not republished recursively.
+
+### Improvements
+- **Place and size compact action feedback:** Choose any edge, corner, or the center of the affected display, and select a small, default, or large HUD. Entrance and exit now use spring motion, while the configured duration counts only the fully visible interval between them.
+- **Include Shared Apps in app and window switching:** During Borrow, shared floating and Leave As Is windows now join the switcher after the host and borrowed tiled blocks. A default-on setting can exclude Shared Apps when a narrower switching list is preferred.
+- **Troubleshoot app-specific floating behavior:** The new guide explains when to register an app with a floating control, why browser Picture-in-Picture stays out of tiling automatically, and when keeping it visible across workspace switches still requires registration.
+
+### Fixes
+- **Keep browser Picture-in-Picture out of the layout:** Chrome and Dia PiP windows are identified from their WindowServer layer and no longer become BSP tiles, while failed metadata queries still preserve otherwise valid ordinary windows.
+- **Preserve manually resized split ratios:** Focus-driven reconciliation and replacement window surfaces no longer reset a workspace to 50:50 when the logical tiled membership did not change. Auto Balance still applies to real insertions and removals according to its setting.
+- **Scope switching to the display under the pointer:** Previous/next workspace actions and app/window switching use the pointer's display instead of stale keyboard focus. A held Option-Tab session keeps the display where it began, filters non-tiled candidates from other displays, and does not jump after a late asynchronous focus lookup.
+- **Report multi-display changes on the correct HUD:** Chain identity appears only when a visible chain actually caused the result, focus transfers and Borrow returns can share the same two-line feedback, and each HUD and hook payload targets the display where that change occurred. Workspace icons also retain their accent tint when their row is not selected.
+
+### Compatibility
+- **Existing configurations upgrade without changes:** New visibility, switcher, feedback, and workspace-chain fields all have backward-compatible defaults. Before downgrading to Tatami 1.12, back up `config.toml` and remove hooks whose event is `hud`; that version does not recognize the event and does not preserve 1.13-only workspace-chain or setting fields on its next successful save.
+
 ## 1.12.0 (2026-08-31)
 
 ### New
