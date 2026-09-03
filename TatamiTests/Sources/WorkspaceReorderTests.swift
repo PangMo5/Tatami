@@ -87,6 +87,27 @@ struct WorkspaceReorderTests {
   }
 
   @Test
+  func `dragging into scratchpads removes workspace chain membership`() throws {
+    let first = Workspace(name: "N0")
+    let second = Workspace(name: "N1")
+    let chain = WorkspaceChain(workspaceIDs: [first.id, second.id])
+    var config = AppConfig(profiles: [
+      Profile(name: "Default", workspaceChains: [chain], workspaces: [first, second])
+    ])
+
+    config.placeWorkspace(
+      first.id,
+      kind: .scratchpad,
+      relativeTo: nil,
+      after: false,
+    )
+
+    let profile = try #require(config.activeProfile)
+    #expect(profile.workspaces[id: first.id]?.kind == .scratchpad)
+    #expect(profile.workspaceChains.isEmpty)
+  }
+
+  @Test
   func draggingScratchpadIntoWorkspacesRetypes() {
     var config = makeConfig([
       Workspace(name: "N0", kind: .normal),

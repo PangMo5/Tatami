@@ -110,7 +110,13 @@ public struct AppFeature {
     /// Switch the active profile. `focus`, when set, is a workspace to land as
     /// the focused one after the switch's per-display retile (used by the detail
     /// Activate button on a non-active profile's workspace).
-    case activateProfile(Profile.ID, focus: Workspace.ID?)
+    /// `interactionDisplay` carries the pointer display captured at the user
+    /// command's parent-reducer entry across the profile-switch transaction.
+    case activateProfile(
+      Profile.ID,
+      focus: Workspace.ID?,
+      interactionDisplay: DisplayName? = nil,
+    )
     /// Switch after deleting the active profile while retaining the outgoing
     /// profile snapshot for the `profileChanged` hook payload.
     case activateProfileAfterDeletion(Profile.ID, previousProfile: Profile)
@@ -308,6 +314,7 @@ public struct AppFeature {
             title: presentation.title,
             symbolIconName: presentation.symbolIconName,
             subtitle: presentation.subtitle,
+            subtitleSymbolIconName: presentation.subtitleSymbolIconName,
             durationMs: presentation.durationMs,
             position: presentation.position,
             size: presentation.size,
@@ -411,7 +418,11 @@ public struct AppFeature {
           "dispatch fingers=\(gesture.fingerCount) direction=\(gesture.direction) "
             + "action=\(action.id)",
         )
-        return route(hotKeyAction, config: state.config)
+        return route(
+          hotKeyAction,
+          config: state.config,
+          interactionDisplay: commandInteractionDisplay(state: state),
+        )
 
       case .hotKeys(.actionTriggered(let hotKeyAction)):
         if state.onboarding.isPresented {
@@ -430,16 +441,18 @@ public struct AppFeature {
           hotKeyAction,
           config: state.config,
           windowCycleHoldModifiers: holdModifiers,
+          interactionDisplay: commandInteractionDisplay(state: state),
         )
 
       case .activation(.borrowChordKey(let key)):
         guard state.onboarding.isPresented else { return .none }
         return .send(.onboarding(.demoBorrowChordKey(key)))
 
-      case .activateProfile(let id, let focus):
+      case .activateProfile(let id, let focus, let interactionDisplay):
         return activateProfileEffect(
           id,
           focus: focus,
+          interactionDisplay: interactionDisplay,
           previousProfile: nil,
           state: &state,
         )
@@ -448,6 +461,7 @@ public struct AppFeature {
         return activateProfileEffect(
           id,
           focus: nil,
+          interactionDisplay: nil,
           previousProfile: previousProfile,
           state: &state,
         )
@@ -543,13 +557,19 @@ public struct AppFeature {
           target: .workspace(workspaceId),
           complete: complete,
         )
+        let interactionDisplay = commandInteractionDisplay(state: state)
         let activation: Effect<Action> =
           if owner != state.config.activeProfile?.id {
-            .send(.activateProfile(owner, focus: workspaceId))
+            .send(.activateProfile(
+              owner,
+              focus: workspaceId,
+              interactionDisplay: interactionDisplay,
+            ))
           } else {
             .send(.activation(.activateFromCLI(
               workspaceId: workspaceId,
               requestID: request.id,
+              interactionDisplay: interactionDisplay,
             )))
           }
         return .concatenate(
@@ -568,7 +588,11 @@ public struct AppFeature {
         // Its response is intentionally `accepted`: child reducers can still
         // decide that changed live window/focus state leaves nothing to do.
         return .concatenate(
-          route(action, config: state.config),
+          route(
+            action,
+            config: state.config,
+            interactionDisplay: commandInteractionDisplay(state: state),
+          ),
           .run { _ in complete(nil) },
         )
 
@@ -602,8 +626,16 @@ public struct AppFeature {
 
       // A display rule auto-switched the profile: activation already retiled;
       // run the remaining switch side effects (rebind hotkeys, persist, HUD).
-      case .activation(.delegate(.profileSwitchRequested(let id, let focus))):
-        return .send(.activateProfile(id, focus: focus))
+      case .activation(.delegate(.profileSwitchRequested(
+        let id,
+        let focus,
+        let interactionDisplay,
+      ))):
+        return .send(.activateProfile(
+          id,
+          focus: focus,
+          interactionDisplay: interactionDisplay,
+        ))
 
       case .activation(.delegate(.profileAutoActivated(let previousID, let id))):
         guard let current = state.config.profiles.first(where: { $0.id == id }) else { return .none }
@@ -702,14 +734,23 @@ public struct AppFeature {
       // profile first, then activate the specific workspace with focus.
       case .workspaceList(.detail(.activateTapped)):
         guard let wsId = state.workspaceList.detail?.workspaceId else { return .none }
+        let interactionDisplay = commandInteractionDisplay(state: state)
         let owning = state.config.profileId(owning: wsId)
         let activeId = state.config.activeProfileId ?? state.config.profiles.first?.id
         if let owning, owning != activeId {
           // Switch to the workspace's profile; the reactivate plan ends on this
           // workspace so it lands active + focused (no race with the retile).
-          return .send(.activateProfile(owning, focus: wsId))
+          return .send(.activateProfile(
+            owning,
+            focus: wsId,
+            interactionDisplay: interactionDisplay,
+          ))
         }
-        return .send(.activation(.activate(workspaceId: wsId, setFocus: true)))
+        return .send(.activation(.activate(
+          workspaceId: wsId,
+          setFocus: true,
+          interactionDisplay: interactionDisplay,
+        )))
 
       // A workspace's derived shortcut deep-links to the modifier scheme it
       // reads from: jump to the Settings tab and route it to Workspace Keys.
@@ -735,6 +776,7 @@ public struct AppFeature {
   // MARK: Internal
 
   @Dependency(\.focusFollowsMouse) var focusFollowsMouse
+  @Dependency(\.displays) var displays
   @Dependency(\.overlayAwareness) var overlayAwareness
   @Dependency(\.windowSnapshot) var windowSnapshot
   @Dependency(\.floatingOverlay) var floatingOverlay
@@ -810,6 +852,7 @@ public struct AppFeature {
   private func activateProfileEffect(
     _ id: Profile.ID,
     focus: Workspace.ID?,
+    interactionDisplay: DisplayName?,
     previousProfile: Profile?,
     state: inout State,
   ) -> Effect<Action> {
@@ -825,7 +868,13 @@ public struct AppFeature {
     }
     guard state.config.activeProfileId != id else {
       // Already the active profile. Just focus the requested workspace, if any.
-      if let focus { return .send(.activation(.activate(workspaceId: focus, setFocus: true))) }
+      if let focus {
+        return .send(.activation(.activate(
+          workspaceId: focus,
+          setFocus: true,
+          interactionDisplay: interactionDisplay,
+        )))
+      }
       return .none
     }
     let outgoingProfile = previousProfile ?? state.config.activeProfile
@@ -852,78 +901,138 @@ public struct AppFeature {
       .send(.hotKeys(.refreshBindings)),
       // Retile every display for the new profile. When `focus` is set, the
       // plan ends on that workspace so it lands active.
-      .send(.activation(.reactivateActiveProfile(focus: focus))),
+      .send(.activation(.reactivateActiveProfile(
+        focus: focus,
+        interactionDisplay: interactionDisplay,
+      ))),
       .run { [profileSessionStore] _ in await profileSessionStore.saveActiveProfileId(id) },
       hook,
     )
+  }
+
+  /// Freeze the pointer display in the parent reducer beat that receives a
+  /// hotkey, gesture, CLI command, or detail-button tap. Routing through a
+  /// child action takes another reducer beat; resolving the pointer there can
+  /// otherwise make a fast cross-monitor move retarget the original command.
+  private func commandInteractionDisplay(state: State) -> DisplayName? {
+    displays.current() ?? state.activation.focusedDisplay
   }
 
   private func route(
     _ action: HotKeyAction,
     config: AppConfig,
     windowCycleHoldModifiers: HotKeyModifiers? = nil,
+    interactionDisplay: DisplayName?,
   ) -> Effect<Action> {
     switch action {
     case .activateWorkspace(let id):
       if let owner = config.profileId(owning: id), owner != config.activeProfile?.id {
-        return .send(.activateProfile(owner, focus: id))
+        return .send(.activateProfile(
+          owner,
+          focus: id,
+          interactionDisplay: interactionDisplay,
+        ))
       }
-      return .send(.activation(.activate(workspaceId: id, setFocus: true)))
+      return .send(.activation(.activate(
+        workspaceId: id,
+        setFocus: true,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .assignFocusedAppToWorkspace(let id):
-      return .send(.activation(.membershipEdit(.assign(to: id))))
+      return .send(.activation(.membershipEdit(
+        .assign(to: id),
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .borrowWorkspace(let id):
       guard config.activeProfile?.workspaces[id: id] != nil else {
         debugLog.log("Gesture", "borrow target belongs to an inactive profile — dropped")
         return .none
       }
-      return .send(.activation(.beginBorrowDirection(workspaceId: id)))
+      return .send(.activation(.beginBorrowDirection(
+        workspaceId: id,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .switchToNextWorkspace:
-      return .send(.activation(.activateNext))
+      return .send(.activation(.activateNext(
+        interactionDisplay: interactionDisplay
+      )))
 
     case .switchToPreviousWorkspace:
-      return .send(.activation(.activatePrevious))
+      return .send(.activation(.activatePrevious(
+        interactionDisplay: interactionDisplay
+      )))
 
     case .switchToRecentWorkspace:
-      return .send(.activation(.activateRecent))
+      return .send(.activation(.activateRecent(
+        interactionDisplay: interactionDisplay
+      )))
 
     case .activateProfile(let id):
       return .send(.activateProfile(id, focus: nil))
 
     case .assignFocusedAppToRecentWorkspace:
-      return .send(.activation(.assignFocusedAppToRecentWorkspace))
+      return .send(.activation(.assignFocusedAppToRecentWorkspace(
+        interactionDisplay: interactionDisplay
+      )))
 
     case .assignFocusedAppToNextWorkspace:
-      return .send(.activation(.assignFocusedAppToAdjacentWorkspace(direction: 1)))
+      return .send(.activation(.assignFocusedAppToAdjacentWorkspace(
+        direction: 1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .assignFocusedAppToPreviousWorkspace:
-      return .send(.activation(.assignFocusedAppToAdjacentWorkspace(direction: -1)))
+      return .send(.activation(.assignFocusedAppToAdjacentWorkspace(
+        direction: -1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .borrowRecentWorkspace:
-      return .send(.activation(.borrowRecentWorkspace))
+      return .send(.activation(.borrowRecentWorkspace(
+        interactionDisplay: interactionDisplay
+      )))
 
     case .borrowNextWorkspace:
-      return .send(.activation(.borrowAdjacentWorkspace(direction: 1)))
+      return .send(.activation(.borrowAdjacentWorkspace(
+        direction: 1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .borrowPreviousWorkspace:
-      return .send(.activation(.borrowAdjacentWorkspace(direction: -1)))
+      return .send(.activation(.borrowAdjacentWorkspace(
+        direction: -1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .dismissBorrow:
-      return .send(.activation(.dismissBorrow(display: nil)))
+      return .send(.activation(.dismissBorrow(display: interactionDisplay)))
 
     case .moveFocusedAppToNextWorkspace:
-      return .send(.activation(.moveFocusedAppToAdjacent(direction: 1)))
+      return .send(.activation(.moveFocusedAppToAdjacent(
+        direction: 1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .moveFocusedAppToPreviousWorkspace:
-      return .send(.activation(.moveFocusedAppToAdjacent(direction: -1)))
+      return .send(.activation(.moveFocusedAppToAdjacent(
+        direction: -1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .focusNextDisplay:
-      return .send(.activation(.focusAdjacentDisplay(direction: 1)))
+      return .send(.activation(.focusAdjacentDisplay(
+        direction: 1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .focusPreviousDisplay:
-      return .send(.activation(.focusAdjacentDisplay(direction: -1)))
+      return .send(.activation(.focusAdjacentDisplay(
+        direction: -1,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .focusLeft:
       return .send(.activation(.bspFocus(.west)))

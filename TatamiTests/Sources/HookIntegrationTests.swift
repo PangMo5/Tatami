@@ -161,6 +161,7 @@ struct HookIntegrationTests {
       title: "Borrow Work",
       symbolIconName: "rectangle.split.2x1",
       subtitle: "press a direction",
+      subtitleSymbolIconName: "link",
       durationMs: 8_000,
       position: .bottomTrailing,
       size: .large,
@@ -177,6 +178,7 @@ struct HookIntegrationTests {
           title: presentation.title,
           symbolIconName: presentation.symbolIconName,
           subtitle: presentation.subtitle,
+          subtitleSymbolIconName: presentation.subtitleSymbolIconName,
           durationMs: presentation.durationMs,
           position: presentation.position,
           size: presentation.size,
@@ -185,6 +187,99 @@ struct HookIntegrationTests {
     await store.finish()
 
     #expect(invocations.value.count == 1)
+  }
+
+  @Test
+  func `ordinary Borrow return HUD hook does not claim workspace chain provenance`() async {
+    let profile = Profile(name: "Default")
+    let hook = HookDefinition(
+      id: "external-hud",
+      event: .hud,
+      command: ["/usr/bin/true"],
+    )
+    let display = DisplayName(uuid: "display-a", name: "Built-in")
+    let (store, invocations, _) = makeStore(AppConfig(
+      profiles: [profile],
+      hooks: [hook],
+      activeProfileId: profile.id,
+    ))
+    let presentation = ActionHUDPresentation(
+      title: "AI",
+      symbolIconName: "brain.head.profile",
+      subtitle: "Returned Calendar",
+      subtitleSymbolIconName: nil,
+      durationMs: 1_800,
+      position: .top,
+      size: .standard,
+      display: display,
+    )
+
+    await store.send(.actionHUDPresented(presentation))
+    await store.receive {
+      guard case .hooks(.emit(let invocation)) = $0 else { return false }
+      return invocation.event == .hud
+        && invocation.hud?.title == presentation.title
+        && invocation.hud?.subtitle == presentation.subtitle
+        && invocation.hud?.subtitleSymbolIconName == nil
+    }
+    await store.finish()
+
+    #expect(invocations.value.count == 1)
+  }
+
+  @Test
+  func `workspace-chain HUD hooks retain each affected display`() async {
+    let profile = Profile(name: "Default")
+    let hook = HookDefinition(
+      id: "external-hud",
+      event: .hud,
+      command: ["/usr/bin/true"],
+    )
+    let displayA = DisplayName(uuid: "display-a", name: "Built-in")
+    let displayB = DisplayName(uuid: "display-b", name: "AirPlay")
+    let (store, invocations, _) = makeStore(AppConfig(
+      profiles: [profile],
+      hooks: [hook],
+      activeProfileId: profile.id,
+    ))
+    let presentations = [
+      ActionHUDPresentation(
+        title: "Slack",
+        symbolIconName: "ellipsis.bubble.fill",
+        subtitle: "Coding",
+        subtitleSymbolIconName: "link",
+        durationMs: 1_800,
+        position: .top,
+        size: .standard,
+        display: displayB,
+      ),
+      ActionHUDPresentation(
+        title: "Code",
+        symbolIconName: "swift",
+        subtitle: "Coding",
+        subtitleSymbolIconName: "link",
+        durationMs: 1_800,
+        position: .top,
+        size: .standard,
+        display: displayA,
+      ),
+    ]
+
+    for presentation in presentations {
+      await store.send(.actionHUDPresented(presentation))
+      await store.receive {
+        guard case .hooks(.emit(let invocation)) = $0 else { return false }
+        return invocation.event == .hud
+          && invocation.display == presentation.display.map(HookInvocation.DisplaySnapshot.init)
+          && invocation.hud?.title == presentation.title
+          && invocation.hud?.subtitle == presentation.subtitle
+          && invocation.hud?.subtitleSymbolIconName == "link"
+      }
+    }
+    await store.finish()
+
+    #expect(invocations.value.map(\.display?.uuid) == [displayB.uuid, displayA.uuid])
+    #expect(invocations.value.map(\.display?.name) == [displayB.name, displayA.name])
   }
 
   @Test

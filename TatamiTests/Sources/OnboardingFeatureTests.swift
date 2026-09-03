@@ -1102,6 +1102,76 @@ struct OnboardingFeatureTests {
   }
 
   @Test
+  func `adding a profile remaps workspace chains with the copied workspaces`() async throws {
+    let code = Workspace(name: "Code", displayHint: DisplayName("Studio Display"))
+    let chat = Workspace(name: "Chat")
+    let chain = WorkspaceChain(
+      name: "Coding",
+      workspaceIDs: [code.id, chat.id],
+      dynamicWorkspaceIDs: [code.id],
+    )
+    let source = Profile(
+      name: "Default",
+      workspaceChains: [chain],
+      workspaces: [code, chat],
+    )
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [source], activeProfileId: source.id)
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+      $0.uuid = .incrementing
+    }
+    store.exhaustivity = .off
+
+    await store.send(.addProfileButtonTapped)
+    await store.finish()
+
+    let clone = try #require(store.state.draft.profiles.last)
+    let cloneChain = try #require(clone.workspaceChains.first)
+    let clonedCode = try #require(clone.workspaces.first { $0.name == code.name })
+    let clonedChat = try #require(clone.workspaces.first { $0.name == chat.name })
+    #expect(clone.id != source.id)
+    #expect(cloneChain.id != chain.id)
+    #expect(cloneChain.workspaceIDs == [clonedCode.id, clonedChat.id])
+    #expect(cloneChain.dynamicWorkspaceIDs == [clonedCode.id])
+    #expect(chain.dynamicWorkspaceIDs == [code.id])
+    #expect(clone.validateWorkspaceChains().isValid)
+  }
+
+  @Test
+  func `AI recommendation replacement clears chains whose identities no longer exist`() async {
+    let code = Workspace(name: "Code")
+    let chat = Workspace(name: "Chat")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, chat.id])
+    let profile = Profile(
+      name: "Default",
+      workspaceChains: [chain],
+      workspaces: [code, chat],
+    )
+    var state = OnboardingFeature.State()
+    state.draft = AppConfig(profiles: [profile], activeProfileId: profile.id)
+    state.aiRecommendation = OnboardingRecommendation(
+      workspaces: [.init(name: "Development", kind: .normal)],
+      assignments: [],
+    )
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+      $0.uuid = .incrementing
+    }
+    store.exhaustivity = .off
+
+    await store.send(.aiRecommendationApplyButtonTapped)
+    await store.finish()
+
+    #expect(store.state.activeProfile?.workspaceChains.isEmpty == true)
+    #expect(store.state.activeProfile?.validateWorkspaceChains().isValid == true)
+  }
+
+  @Test
   func `AI recommendation stays a proposal until the user applies it`() async {
     let managedApp = MacApp(bundleIdentifier: "com.apple.Terminal", name: "Terminal")
     let workspace = Workspace(name: "Focus", apps: [

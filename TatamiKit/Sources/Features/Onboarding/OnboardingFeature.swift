@@ -820,12 +820,11 @@ public struct OnboardingFeature {
       case .deleteWorkspaceButtonTapped(let id):
         guard
           let workspace = state.activeProfile?.workspaces[id: id],
-          workspace.kind == .scratchpad || state.normalWorkspaces.count > 1,
-          let profileID = state.activeProfileID
+          workspace.kind == .scratchpad || state.normalWorkspaces.count > 1
         else {
           return .none
         }
-        state.draft.mutateProfile(profileID) { $0.workspaces.remove(id: id) }
+        state.draft.removeWorkspace(id)
         if state.demoActiveWorkspaceID == id {
           state.demoActiveWorkspaceID = state.normalWorkspaces.first?.id
           syncDemoLayout(state: &state)
@@ -971,6 +970,10 @@ public struct OnboardingFeature {
         }
         state.draft.mutateProfile(profileID) { profile in
           profile.workspaces = IdentifiedArray(uniqueElements: workspaces)
+          // The recommendation replaces the workspace set wholesale with new
+          // identities. Existing chains cannot be remapped reliably because
+          // suggestions may rename, split, or merge workspaces.
+          profile.workspaceChains = []
         }
         var assignedScratchpads = Set<Workspace.ID>()
         for assignment in recommendation.assignments {
@@ -1192,16 +1195,35 @@ public struct OnboardingFeature {
 
       case .addProfileButtonTapped:
         guard let source = state.activeProfile else { return .none }
+        var workspaceIDMap = [Workspace.ID: Workspace.ID]()
         var workspaces: IdentifiedArrayOf<Workspace> = []
         for var workspace in source.workspaces {
+          let sourceID = workspace.id
           workspace.id = uuid()
+          workspaceIDMap[sourceID] = workspace.id
           workspaces.append(workspace)
+        }
+        let workspaceChains: [WorkspaceChain] = source.workspaceChains.compactMap { sourceChain in
+          var chain = sourceChain
+          chain.id = uuid()
+          let workspaceIDs = sourceChain.workspaceIDs.compactMap { workspaceIDMap[$0] }
+          guard workspaceIDs.count == sourceChain.workspaceIDs.count else { return nil }
+          chain.workspaceIDs = workspaceIDs
+          let dynamicWorkspaceIDs = sourceChain.dynamicWorkspaceIDs.compactMap {
+            workspaceIDMap[$0]
+          }
+          guard dynamicWorkspaceIDs.count == sourceChain.dynamicWorkspaceIDs.count else {
+            return nil
+          }
+          chain.dynamicWorkspaceIDs = dynamicWorkspaceIDs
+          return chain
         }
         let profile = Profile(
           id: uuid(),
           name: state.displays.count > 1 ? "Desk" : "Another Setup",
           symbolIconName: "display.2",
           autoActivation: ProfileActivation(displayCount: .atLeast(2)),
+          workspaceChains: workspaceChains,
           workspaces: workspaces,
         )
         if
@@ -1478,6 +1500,7 @@ public struct OnboardingFeature {
     draft.activeProfileId = profileID
     draft.mutateProfile(profileID) { profile in
       profile.workspaces = IdentifiedArray(uniqueElements: workspaces)
+      profile.workspaceChains = []
     }
     return draft
   }

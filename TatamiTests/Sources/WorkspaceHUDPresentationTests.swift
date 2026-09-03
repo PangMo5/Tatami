@@ -36,6 +36,7 @@ struct WorkspaceHUDPresentationTests {
       name: "Focus moved",
       symbolIconName: "arrow.right.to.line",
       subtitle: "Work is on Built-in",
+      subtitleSymbolIconName: "link",
       durationMs: 900,
       position: .topLeading,
       size: .small,
@@ -46,10 +47,30 @@ struct WorkspaceHUDPresentationTests {
     #expect(presentation.title == request.name)
     #expect(presentation.symbolIconName == request.symbolIconName)
     #expect(presentation.subtitle == request.subtitle)
+    #expect(presentation.subtitleSymbolIconName == request.subtitleSymbolIconName)
     #expect(presentation.durationMs == 1_800)
     #expect(presentation.position == .topLeading)
     #expect(presentation.size == .small)
     #expect(presentation.display == display)
+  }
+
+  @Test
+  func `workspace-chain context preserves the configured dwell duration`() {
+    let request = ActionHUDRequest(
+      name: "Slack",
+      symbolIconName: "ellipsis.bubble.fill",
+      subtitle: "Coding",
+      subtitleSymbolIconName: "link",
+      subtitleExtendsDuration: false,
+      durationMs: 900,
+      position: .top,
+      size: .standard,
+    )
+
+    let presentation = ActionHUDPresentation(request: request, display: nil)
+
+    #expect(presentation.durationMs == 900)
+    #expect(presentation.subtitleSymbolIconName == "link")
   }
 
   @Test

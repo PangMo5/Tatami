@@ -846,7 +846,7 @@ extension HookEvent {
       return base + ", workspace { id, name, kind }, display? { uuid?, name }"
     case .hud:
       return base
-        + ", hud { title, symbolIconName?, subtitle?, durationMs, position, size }"
+        + ", hud { title, symbolIconName?, subtitle?, subtitleSymbolIconName?, durationMs, position, size }"
         + ", display? { uuid?, name }"
     }
   }
@@ -866,6 +866,7 @@ extension HookEvent {
     case .hud:
       return base
         + ", TATAMI_HUD_TITLE, TATAMI_HUD_SYMBOL_ICON_NAME?, TATAMI_HUD_SUBTITLE?"
+        + ", TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME?"
         + ", TATAMI_HUD_DURATION_MS, TATAMI_HUD_POSITION, TATAMI_HUD_SIZE"
         + ", TATAMI_DISPLAY_NAME?, TATAMI_DISPLAY_UUID?"
     }

@@ -10,16 +10,294 @@ import OrderedCollections
 /// A workspace to (re)activate on a specific display — the unit of a
 /// display-reconnect restore plan (and its pending queue).
 public struct DisplayAssignment: Equatable, Sendable {
+
+  // MARK: Lifecycle
+
   public init(display: DisplayName, workspace: Workspace.ID) {
     self.display = display
     self.workspace = workspace
+    presentation = nil
   }
+
+  // MARK: Public
 
   public var display: DisplayName
   public var workspace: Workspace.ID
+
+  // MARK: Internal
+
+  var presentation: DisplayRestorePresentation?
+
+}
+
+// MARK: - DisplayRestorePresentation
+
+enum DisplayRestorePresentation: Equatable, Sendable {
+  case workspaceChain(WorkspaceChainHUDContext)
+  case workspaceCleanup(WorkspaceChainCleanupTransaction)
+}
+
+// MARK: - WorkspaceChainPlanningFailure
+
+/// Structural or transient runtime state that prevents even the selected
+/// workspace from anchoring a workspace-chain plan. Display scarcity and pin
+/// collisions are not failures: the chain's stored order decides which peers
+/// fit on the currently connected displays.
+enum WorkspaceChainPlanningFailure: Error, Equatable, Sendable {
+  case duplicateWorkspace(Workspace.ID)
+  case invalidWorkspace(Workspace.ID)
+  case tooFewWorkspaces
+  case triggerDisplayUnavailable(DisplayName)
+  case triggerNotInChain(Workspace.ID)
+
+  // MARK: Internal
+
+  var description: String {
+    switch self {
+    case .duplicateWorkspace(let id):
+      "workspace appears more than once: \(id)"
+
+    case .invalidWorkspace(let id):
+      "workspace is missing or not independently activatable: \(id)"
+
+    case .tooFewWorkspaces:
+      "a chain needs at least two workspaces"
+
+    case .triggerDisplayUnavailable(let display):
+      "trigger display is not connected: \(display.name)"
+
+    case .triggerNotInChain(let id):
+      "trigger workspace is not in the chain: \(id)"
+    }
+  }
+}
+
+// MARK: - WorkspaceChainPlan
+
+struct WorkspaceChainPlan: Equatable, Sendable {
+  let assignments: [DisplayAssignment]
+  /// Chain members selected by the priority pass, including peers that are
+  /// already on their desired display and therefore need no activation entry.
+  let selectedWorkspaceIDs: Set<Workspace.ID>
+}
+
+// MARK: - WorkspaceChainHUDRole
+
+enum WorkspaceChainHUDRole: Equatable, Sendable {
+  case chainMember
+  case nonChain
+
+  var subtitleSymbolIconName: String? {
+    switch self {
+    case .chainMember: "link"
+    case .nonChain: nil
+    }
+  }
+}
+
+// MARK: - WorkspaceChainHUDContext
+
+/// One direct chain switch can update several displays sequentially. Retaining
+/// the complete destination set lets every changed display present its own HUD
+/// without the final cross-monitor focus note overwriting that feedback.
+struct WorkspaceChainHUDContext: Equatable, Sendable {
+  let name: String
+  /// Whether this destination is an actual selected member or an unrelated
+  /// workspace supplied by the ordinary empty-display fallback.
+  let role: WorkspaceChainHUDRole
+  /// A focused profile switch can also trigger a workspace chain. Retaining
+  /// both presentations in one display-scoped context prevents two HUDs (and
+  /// two hook events) from competing on the same screen.
+  let profileSwitch: WorkspaceChainProfileSwitchHUD?
+  /// Every destination or newly-vacated display that owns more specific chain
+  /// feedback. A generic focus-moved HUD must not overwrite those panels.
+  let coveredDisplays: [DisplayName]
+  /// The user-selected member owns final focus after every companion restore.
+  /// Carry the complete transfer so the display being left can fold it into
+  /// its own result HUD instead of losing either result to a later overwrite.
+  let focusTransfer: WorkspaceChainFocusTransfer?
+  /// Borrowed workspaces that this assignment removes from its destination.
+  /// Captured before the restore queue starts so an earlier assignment cannot
+  /// consume the composition and erase this display's result text.
+  let destinationReturnedBorrowNames: [String]
+  /// Composition changes on displays that keep their current host and therefore
+  /// have no destination/vacated assignment of their own.
+  let sourceCompositionHUDs: [WorkspaceChainSourceCompositionHUD]
+  /// Facts that become true only after a priority cleanup physically returns
+  /// the source display. They are emitted by the display-scoped commit, never
+  /// by an earlier assignment.
+  let deferredCleanupHUDs: [WorkspaceChainSourceCompositionHUD]
+  /// Source displays left empty by moving this assignment's workspace away.
+  /// Sources filled by another assignment are covered by that result instead.
+  let vacatedHUDs: [WorkspaceChainVacatedHUD]
+  /// Priority cleanup is committed only after the final trigger has established
+  /// focus and its visibility return succeeds. Cancellation before then leaves
+  /// the original state intact for the next switch to recalculate.
+  var cleanupTransaction: WorkspaceChainCleanupTransaction?
+}
+
+// MARK: - WorkspaceChainProfileSwitchHUD
+
+struct WorkspaceChainProfileSwitchHUD: Equatable, Sendable {
+  let name: String
+  let symbolIconName: String?
+}
+
+// MARK: - WorkspaceChainSourceCompositionHUD
+
+struct WorkspaceChainSourceCompositionHUD: Equatable, Sendable {
+  let display: DisplayName
+  let role: WorkspaceChainHUDRole
+  let hostName: String
+  let hostSymbolIconName: String?
+  let returnedBorrowNames: [String]
+  let prioritySkippedWorkspaceName: String?
+  /// When the composition host itself moved elsewhere, the source panel is a
+  /// vacated-display result rather than a host-local return.
+  let movedWorkspaceDestination: DisplayName?
+}
+
+// MARK: - WorkspaceChainVacatedHUD
+
+struct WorkspaceChainVacatedHUD: Equatable, Sendable {
+  let display: DisplayName
+  let returnedBorrowNames: [String]
+}
+
+// MARK: - WorkspaceChainVisibilityCleanup
+
+public struct WorkspaceChainVisibilityCleanup: Equatable, Sendable {
+  let display: DisplayName
+  let bundleIDs: Set<String>
+}
+
+// MARK: - WorkspaceChainCleanupReply
+
+/// A one-shot acknowledgement that lets the activation effect retain
+/// ownership of its tail while reducer actions validate and commit one
+/// display-scoped cleanup step.
+public struct WorkspaceChainCleanupReply: Equatable, Sendable {
+
+  // MARK: Lifecycle
+
+  init(
+    id: UUID = UUID(),
+    complete: @escaping @Sendable (Bool) -> Void,
+  ) {
+    self.id = id
+    completion = Completion(complete)
+  }
+
+  // MARK: Public
+
+  public static func ==(lhs: Self, rhs: Self) -> Bool {
+    lhs.id == rhs.id
+  }
+
+  // MARK: Internal
+
+  let id: UUID
+
+  var wasCommitAccepted: Bool {
+    completion.wasCommitAccepted
+  }
+
+  func acceptCommit() {
+    completion.acceptCommit()
+  }
+
+  func complete(_ result: Bool) {
+    completion.call(result)
+  }
+
+  // MARK: Private
+
+  private final class Completion: @unchecked Sendable {
+
+    // MARK: Lifecycle
+
+    init(_ body: @escaping @Sendable (Bool) -> Void) {
+      self.body = body
+    }
+
+    // MARK: Internal
+
+    var wasCommitAccepted: Bool {
+      lock.lock()
+      defer { lock.unlock() }
+      return isCommitAccepted
+    }
+
+    func acceptCommit() {
+      lock.lock()
+      isCommitAccepted = true
+      lock.unlock()
+    }
+
+    func call(_ result: Bool) {
+      lock.lock()
+      guard !isCompleted else {
+        lock.unlock()
+        return
+      }
+      isCompleted = true
+      lock.unlock()
+      body(result)
+    }
+
+    // MARK: Private
+
+    private let body: @Sendable (Bool) -> Void
+    private var isCompleted = false
+    private var isCommitAccepted = false
+    private let lock = NSLock()
+
+  }
+
+  private let completion: Completion
+
+}
+
+// MARK: - WorkspaceChainCleanupTransaction
+
+public struct WorkspaceChainCleanupTransaction: Equatable, Sendable {
+  let skippedWorkspaceIDs: Set<Workspace.ID>
+  let retainedWorkspaceIDs: Set<Workspace.ID>
+  let placements: [WorkspaceChainPlacement]
+  let sourcePlacements: [WorkspaceChainPlacement]
+  let sourceSnapshots: [WorkspaceChainCleanupSourceSnapshot]
+  let requiresFocusSuccessor: Bool
+  let cleanupHUDRequests: [ActionHUDRequest]
+}
+
+// MARK: - WorkspaceChainPlacement
+
+struct WorkspaceChainPlacement: Equatable, Sendable {
+  let display: DisplayName
+  let workspace: Workspace.ID
+}
+
+// MARK: - WorkspaceChainCleanupSourceSnapshot
+
+struct WorkspaceChainCleanupSourceSnapshot: Equatable, Sendable {
+  let display: DisplayName
+  let activeWorkspace: Workspace.ID?
+  let composition: Composition?
+  let borrowGeneration: UInt64
+}
+
+// MARK: - WorkspaceChainFocusTransfer
+
+struct WorkspaceChainFocusTransfer: Equatable, Sendable {
+  let from: DisplayName
+  let to: DisplayName
+  let workspaceName: String
 }
 
 extension WorkspaceActivationFeature {
+
+  // MARK: Internal
+
   /// Map persisted fullscreen-zoom slots back onto live windows via the same
   /// windowID-rank assignment `hydrate` uses (`slotToKey` over `keys`), so a
   /// specific same-app window resolves to the exact slot it was zoomed in — not
@@ -174,6 +452,178 @@ extension WorkspaceActivationFeature {
     }
   }
 
+  /// Resolve active placement without letting a stale name-only alias override
+  /// an exact live display key. A name fallback is safe only when that name does
+  /// not describe multiple connected UUID displays.
+  static func activeWorkspace(
+    on display: DisplayName,
+    connected: [DisplayName],
+    active: [DisplayName: Workspace.ID],
+  ) -> Workspace.ID? {
+    if let exact = active[display] { return exact }
+    let connectedUUIDsWithSameName = Set(connected.compactMap { candidate in
+      candidate.name == display.name ? candidate.uuid : nil
+    })
+    guard connectedUUIDsWithSameName.count <= 1 else { return nil }
+    return active.first { key, _ in key.matches(display) }?.value
+  }
+
+  /// Build one symmetric workspace-chain switch for the displays available now.
+  /// The user-selected trigger is mandatory and claims its ordinary target.
+  /// Remaining members are considered strictly in stored order: a pinned member
+  /// claims its configured target only while that display is connected and free.
+  /// An ordinarily dynamic member, or a pinned member explicitly made dynamic
+  /// for this chain, claims the pointer-preferred display when free and otherwise
+  /// the first remaining connected display. Members that do not fit are skipped
+  /// without preventing lower-priority members from being considered.
+  ///
+  /// Displays vacated by chain members reuse the ordinary reconnect fallback.
+  /// The trigger is returned last so it owns final keyboard focus after every
+  /// companion restore settles.
+  static func planWorkspaceChain(
+    _ chain: WorkspaceChain,
+    triggeredBy trigger: DisplayAssignment,
+    dynamicPreferredDisplay: DisplayName?,
+    connected: [DisplayName],
+    primaryDisplay: DisplayName?,
+    workspaces: [Workspace],
+    active: [DisplayName: Workspace.ID],
+    history: [DisplayName: [Workspace.ID]],
+    workspaceMRU: [Workspace.ID] = [],
+  ) -> Result<WorkspaceChainPlan, WorkspaceChainPlanningFailure> {
+    let normalWorkspaces = workspaces.filter { $0.kind != .scratchpad }
+    var byID = [Workspace.ID: Workspace]()
+    for workspace in normalWorkspaces { byID[workspace.id] = workspace }
+
+    guard chain.workspaceIDs.count >= 2 else { return .failure(.tooFewWorkspaces) }
+    guard chain.workspaceIDs.contains(trigger.workspace) else {
+      return .failure(.triggerNotInChain(trigger.workspace))
+    }
+
+    var seenWorkspaceIDs = Set<Workspace.ID>()
+    for workspaceID in chain.workspaceIDs {
+      guard seenWorkspaceIDs.insert(workspaceID).inserted else {
+        return .failure(.duplicateWorkspace(workspaceID))
+      }
+      guard byID[workspaceID] != nil else {
+        return .failure(.invalidWorkspace(workspaceID))
+      }
+    }
+
+    /// Mirror `DisplayClient.connected`: stable UUID first, then the display
+    /// name fallback used by hand-edited and pre-UUID configs.
+    func connectedDisplay(for reference: DisplayName) -> DisplayName? {
+      if let uuid = reference.uuid {
+        return connected.first { $0.uuid == uuid }
+      }
+      return connected.first { $0.name == reference.name }
+    }
+
+    guard let triggerWorkspace = byID[trigger.workspace] else {
+      return .failure(.invalidWorkspace(trigger.workspace))
+    }
+    let resolvedPrimary = primaryDisplay.flatMap(connectedDisplay(for:)) ?? connected.first
+    let triggerDisplay: DisplayName? =
+      if let hint = triggerWorkspace.displayHint {
+        connectedDisplay(for: hint) ?? resolvedPrimary
+      } else {
+        connectedDisplay(for: trigger.display)
+          ?? dynamicPreferredDisplay.flatMap(connectedDisplay(for:))
+      }
+    guard let triggerDisplay else {
+      return .failure(.triggerDisplayUnavailable(trigger.display))
+    }
+
+    var displayByWorkspace = [trigger.workspace: triggerDisplay]
+    var availableDisplays = connected.filter { !$0.matches(triggerDisplay) }
+    let preferredDynamicDisplay = dynamicPreferredDisplay.flatMap(connectedDisplay(for:))
+
+    for workspaceID in chain.workspaceIDs where workspaceID != trigger.workspace {
+      guard let workspace = byID[workspaceID], !availableDisplays.isEmpty else { continue }
+
+      if chain.isDynamicInChain(workspace) {
+        let index = preferredDynamicDisplay.flatMap { preferred in
+          availableDisplays.firstIndex(where: { $0.matches(preferred) })
+        } ?? availableDisplays.startIndex
+        displayByWorkspace[workspaceID] = availableDisplays.remove(at: index)
+      } else if let hint = workspace.displayHint {
+        guard
+          let target = connectedDisplay(for: hint),
+          let index = availableDisplays.firstIndex(where: { $0.matches(target) })
+        else { continue }
+        displayByWorkspace[workspaceID] = availableDisplays.remove(at: index)
+      }
+    }
+
+    let explicit = chain.workspaceIDs.compactMap { workspaceID in
+      displayByWorkspace[workspaceID].map {
+        DisplayAssignment(display: $0, workspace: workspaceID)
+      }
+    }
+    // Canonicalize live state onto the connected display identities while
+    // retaining the one-workspace/one-display invariant even if stale state
+    // momentarily contains a duplicate.
+    var assigned = [DisplayName: Workspace.ID]()
+    var alreadyAssigned = Set<Workspace.ID>()
+    for display in connected {
+      guard
+        let workspace = activeWorkspace(
+          on: display,
+          connected: connected,
+          active: active,
+        ),
+        byID[workspace] != nil,
+        alreadyAssigned.insert(workspace).inserted
+      else { continue }
+      assigned[display] = workspace
+    }
+
+    let chainWorkspaceIDs = Set(chain.workspaceIDs)
+    for display in connected
+      where assigned[display].map(chainWorkspaceIDs.contains) == true
+    {
+      assigned[display] = nil
+    }
+    for assignment in explicit {
+      assigned[assignment.display] = assignment.workspace
+    }
+
+    let emptyDisplays = Set(connected.filter { assigned[$0] == nil })
+    let finalAssignments = planDisplayRestore(
+      connected: connected,
+      newlyConnected: emptyDisplays,
+      // Even members skipped by this priority pass must not survive on an old
+      // display or be selected again by fallback. Only the chosen subset is
+      // allowed to remain visible after this switch.
+      workspaces: normalWorkspaces.filter { !chainWorkspaceIDs.contains($0.id) },
+      active: assigned,
+      history: history,
+      workspaceMRU: workspaceMRU,
+    )
+
+    // Restoring a display that already has its desired workspace would
+    // needlessly tear down Borrow and re-tile it. Only the trigger is kept even
+    // when unchanged; the reducer turns that final entry into a focus transfer.
+    var changes = finalAssignments.filter { assignment in
+      guard assignment.workspace != trigger.workspace else { return false }
+      return activeWorkspace(
+        on: assignment.display,
+        connected: connected,
+        active: active,
+      ) != assignment.workspace
+    }
+    guard
+      let finalTrigger = finalAssignments.first(where: {
+        $0.workspace == trigger.workspace
+      })
+    else { return .failure(.invalidWorkspace(trigger.workspace)) }
+    changes.append(finalTrigger)
+    return .success(WorkspaceChainPlan(
+      assignments: changes,
+      selectedWorkspaceIDs: Set(explicit.map(\.workspace)),
+    ))
+  }
+
   /// Lay the tree out, trimming fullscreen-zoomed windows so the rest
   /// of the tree shapes around as if they weren't present. Parent-zoom
   /// is handled inside `tree.frames(...)` directly.
@@ -237,6 +687,1004 @@ extension WorkspaceActivationFeature {
     }
   }
 
+  /// Keep the caller's effect alive until every physical return, state commit,
+  /// layout and deferred HUD has completed. Each step is acknowledged by the
+  /// reducer so a canceled or stale transaction cannot enqueue later displays.
+  static func runWorkspaceChainCleanup(
+    transaction: WorkspaceChainCleanupTransaction,
+    cleanups: [WorkspaceChainVisibilityCleanup],
+    send: Send<Action>,
+  ) async -> Bool {
+    for cleanup in orderedWorkspaceChainCleanups(cleanups) {
+      guard !Task.isCancelled else { return false }
+      let channel = AsyncStream<Bool>.makeStream(
+        bufferingPolicy: .bufferingNewest(1)
+      )
+      let reply = WorkspaceChainCleanupReply { result in
+        channel.continuation.yield(result)
+        channel.continuation.finish()
+      }
+      await send(.processWorkspaceChainCleanupStep(
+        transaction,
+        cleanup: cleanup,
+        reply: reply,
+      ))
+      var iterator = channel.stream.makeAsyncIterator()
+      guard await iterator.next() == true else { return false }
+    }
+    return true
+  }
+
+  /// Coalesce only exact display identities and guarantee one transaction step
+  /// per physical display. A legacy name-only alias is deliberately not merged
+  /// with UUID identities because two identical-model monitors can both match
+  /// that non-transitive alias. Physical hides run before state-only commits.
+  static func orderedWorkspaceChainCleanups(
+    _ cleanups: [WorkspaceChainVisibilityCleanup]
+  ) -> [WorkspaceChainVisibilityCleanup] {
+    var coalesced = [WorkspaceChainVisibilityCleanup]()
+    for cleanup in cleanups.sorted(by: {
+      ($0.display.name, $0.display.uuid ?? "")
+        < ($1.display.name, $1.display.uuid ?? "")
+    }) {
+      if
+        let index = coalesced.firstIndex(where: {
+          $0.display == cleanup.display
+        })
+      {
+        coalesced[index] = WorkspaceChainVisibilityCleanup(
+          display: coalesced[index].display,
+          bundleIDs: coalesced[index].bundleIDs.union(cleanup.bundleIDs),
+        )
+      } else {
+        coalesced.append(cleanup)
+      }
+    }
+    return coalesced.sorted { lhs, rhs in
+      if lhs.bundleIDs.isEmpty != rhs.bundleIDs.isEmpty {
+        return !lhs.bundleIDs.isEmpty
+      }
+      return (lhs.display.name, lhs.display.uuid ?? "")
+        < (rhs.display.name, rhs.display.uuid ?? "")
+    }
+  }
+
+  /// Attach display-specific HUD provenance only when this direct chain plan
+  /// changes workspace placement. Every changed destination presents the
+  /// workspace that landed there; a source left empty presents where its
+  /// workspace moved. The selected final assignment is annotated too, so its
+  /// ordinary focus feedback identifies the same transaction.
+  func workspaceChainHUDAssignments(
+    chain: WorkspaceChain,
+    assignments: [DisplayAssignment],
+    selectedWorkspaceIDs: Set<Workspace.ID>,
+    skippedWorkspaceIDs: Set<Workspace.ID> = [],
+    cleanupWorkspaceIDs: Set<Workspace.ID>? = nil,
+    profileSwitch: WorkspaceChainProfileSwitchHUD? = nil,
+    focusSourceDisplay: DisplayName? = nil,
+    connected: [DisplayName],
+    state: State,
+  ) -> [DisplayAssignment] {
+    let cleanupWorkspaceIDs = cleanupWorkspaceIDs ?? skippedWorkspaceIDs
+    let changesDisplayState = assignments.contains { assignment in
+      Self.activeWorkspace(
+        on: assignment.display,
+        connected: connected,
+        active: state.activeWorkspacesByDisplay,
+      ) != assignment.workspace
+    }
+    let hasSkippedVisibleMember = state.activeWorkspacesByDisplay.values.contains {
+      cleanupWorkspaceIDs.contains($0)
+    } || state.compositionsByDisplay.values.contains { composition in
+      cleanupWorkspaceIDs.contains(composition.host)
+        || composition.borrowed.contains { cleanupWorkspaceIDs.contains($0.workspace) }
+    }
+    let capturedFocusSource = focusSourceDisplay ?? state.focusedDisplay
+    let changesFocusDisplay = capturedFocusSource.flatMap { sourceDisplay in
+      assignments.last.map { !sourceDisplay.matches($0.display) }
+    } ?? false
+    let hasCapturedFocusSource = focusSourceDisplay != nil
+    guard
+      changesDisplayState
+      || hasSkippedVisibleMember
+      || changesFocusDisplay
+      || hasCapturedFocusSource
+    else {
+      return assignments
+    }
+    let trimmedName = chain.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let name =
+      if let trimmedName, !trimmedName.isEmpty {
+        trimmedName
+      } else {
+        String(localized: "Workspace Chain")
+      }
+    let destinationDisplays = assignments.map(\.display)
+    var vacatedDisplaysByWorkspace = [Workspace.ID: [DisplayName]]()
+    for (sourceDisplay, activeWorkspaceID) in state.activeWorkspacesByDisplay {
+      guard
+        connected.contains(where: { $0.matches(sourceDisplay) }),
+        let destination = assignments.first(where: {
+          $0.workspace == activeWorkspaceID
+        })?.display,
+        !destination.matches(sourceDisplay),
+        !destinationDisplays.contains(where: { $0.matches(sourceDisplay) })
+      else { continue }
+      vacatedDisplaysByWorkspace[activeWorkspaceID, default: []].append(sourceDisplay)
+    }
+
+    // Snapshot every composition the chain will dismantle before the serial
+    // restore queue mutates state. The assignment that ultimately owns the
+    // source display carries its return facts; if the host stays put, the first
+    // member moving away owns a separate source-display HUD instead.
+    var returnedBorrowNamesByAssignment = [Int: [String]]()
+    var sourceCompositionHUDsByAssignment = [Int: [WorkspaceChainSourceCompositionHUD]]()
+    var deferredCleanupHUDs = [WorkspaceChainSourceCompositionHUD]()
+    // A host moving off its source display leaves a borrowed block there until
+    // the display-scoped return commits. Do not emit the usual vacated-display
+    // result early: it would describe a return that a cancellation can still
+    // prevent.
+    var deferredVacatedDisplays = [DisplayName]()
+    var coveredDisplays = destinationDisplays
+    for display in vacatedDisplaysByWorkspace.values.joined() where !coveredDisplays.contains(
+      where: { $0.matches(display) }
+    ) {
+      coveredDisplays.append(display)
+    }
+    if state.config.activeProfile != nil {
+      /// Profile activation changes `activeProfile` before this presentation is
+      /// planned, while the live composition still contains workspace IDs from
+      /// the outgoing profile. Resolve names across the complete config so its
+      /// return facts are not silently dropped.
+      func workspaceForID(_ id: Workspace.ID) -> Workspace? {
+        state.config.profiles.lazy.compactMap { $0.workspaces[id: id] }.first
+      }
+
+      func appendReturnedBorrowNames(_ names: [String], to assignmentIndex: Int) {
+        var existing = returnedBorrowNamesByAssignment[assignmentIndex] ?? []
+        for name in names where !existing.contains(name) { existing.append(name) }
+        returnedBorrowNamesByAssignment[assignmentIndex] = existing
+      }
+
+      func appendSourceHUD(
+        display: DisplayName,
+        role: WorkspaceChainHUDRole,
+        workspace: Workspace,
+        returnedBorrowNames: [String],
+        prioritySkippedWorkspaceName: String? = nil,
+        to assignmentIndex: Int,
+      ) {
+        var existing = sourceCompositionHUDsByAssignment[assignmentIndex] ?? []
+        if let index = existing.firstIndex(where: { $0.display.matches(display) }) {
+          let mergedNames = Array(OrderedSet(
+            existing[index].returnedBorrowNames + returnedBorrowNames
+          ))
+          existing[index] = WorkspaceChainSourceCompositionHUD(
+            display: display,
+            role: existing[index].role == .chainMember || role == .chainMember
+              ? .chainMember
+              : .nonChain,
+            hostName: existing[index].hostName,
+            hostSymbolIconName: existing[index].hostSymbolIconName,
+            returnedBorrowNames: mergedNames,
+            prioritySkippedWorkspaceName: existing[index].prioritySkippedWorkspaceName
+              ?? prioritySkippedWorkspaceName,
+            movedWorkspaceDestination: existing[index].movedWorkspaceDestination,
+          )
+        } else {
+          existing.append(WorkspaceChainSourceCompositionHUD(
+            display: display,
+            role: role,
+            hostName: workspace.name,
+            hostSymbolIconName: workspace.symbolIconName,
+            returnedBorrowNames: returnedBorrowNames,
+            prioritySkippedWorkspaceName: prioritySkippedWorkspaceName,
+            movedWorkspaceDestination: nil,
+          ))
+        }
+        sourceCompositionHUDsByAssignment[assignmentIndex] = existing
+        if !coveredDisplays.contains(where: { $0.matches(display) }) {
+          coveredDisplays.append(display)
+        }
+      }
+
+      func appendDeferredCleanupHUD(
+        display: DisplayName,
+        role: WorkspaceChainHUDRole,
+        workspace: Workspace,
+        returnedBorrowNames: [String],
+        prioritySkippedWorkspaceName: String? = nil,
+        movedWorkspaceDestination: DisplayName? = nil,
+      ) {
+        if
+          let index = deferredCleanupHUDs.firstIndex(where: {
+            $0.display.matches(display)
+          })
+        {
+          let mergedNames = Array(OrderedSet(
+            deferredCleanupHUDs[index].returnedBorrowNames + returnedBorrowNames
+          ))
+          deferredCleanupHUDs[index] = WorkspaceChainSourceCompositionHUD(
+            display: display,
+            role: deferredCleanupHUDs[index].role == .chainMember || role == .chainMember
+              ? .chainMember
+              : .nonChain,
+            hostName: deferredCleanupHUDs[index].hostName,
+            hostSymbolIconName: deferredCleanupHUDs[index].hostSymbolIconName,
+            returnedBorrowNames: mergedNames,
+            prioritySkippedWorkspaceName:
+            deferredCleanupHUDs[index].prioritySkippedWorkspaceName
+              ?? prioritySkippedWorkspaceName,
+            movedWorkspaceDestination:
+            deferredCleanupHUDs[index].movedWorkspaceDestination
+              ?? movedWorkspaceDestination,
+          )
+        } else {
+          deferredCleanupHUDs.append(WorkspaceChainSourceCompositionHUD(
+            display: display,
+            role: role,
+            hostName: workspace.name,
+            hostSymbolIconName: workspace.symbolIconName,
+            returnedBorrowNames: returnedBorrowNames,
+            prioritySkippedWorkspaceName: prioritySkippedWorkspaceName,
+            movedWorkspaceDestination: movedWorkspaceDestination,
+          ))
+        }
+        if !coveredDisplays.contains(where: { $0.matches(display) }) {
+          coveredDisplays.append(display)
+        }
+      }
+
+      let compositions = state.compositionsByDisplay.sorted {
+        ($0.key.name, $0.key.uuid ?? "") < ($1.key.name, $1.key.uuid ?? "")
+      }
+      for (sourceDisplay, composition) in compositions {
+        guard connected.contains(where: { $0.matches(sourceDisplay) }) else { continue }
+        let destinationIndex = assignments.firstIndex {
+          $0.display.matches(sourceDisplay)
+        }
+        let movingMemberIndices = assignments.indices.filter { index in
+          let assignment = assignments[index]
+          guard !assignment.display.matches(sourceDisplay) else { return false }
+          return assignment.workspace == composition.host
+            || composition.borrowed.contains(where: {
+              $0.workspace == assignment.workspace
+            })
+        }
+        let destinationReplacesHost = destinationIndex.map {
+          assignments[$0].workspace != composition.host
+        } ?? false
+
+        // Capacity/pin priority can deliberately omit a member that is still
+        // visible inside an otherwise unchanged composition. That return is a
+        // real part of this switch even though the omitted member has no
+        // destination assignment of its own.
+        let skippedBorrowNames = composition.borrowed.compactMap { slot in
+          cleanupWorkspaceIDs.contains(slot.workspace)
+            ? workspaceForID(slot.workspace)?.name
+            : nil
+        }
+        let removesSkippedChainBorrow = composition.borrowed.contains {
+          skippedWorkspaceIDs.contains($0.workspace)
+        }
+        if
+          !destinationReplacesHost,
+          movingMemberIndices.isEmpty,
+          !skippedBorrowNames.isEmpty
+        {
+          if let host = workspaceForID(composition.host) {
+            appendDeferredCleanupHUD(
+              display: sourceDisplay,
+              role: removesSkippedChainBorrow ? .chainMember : .nonChain,
+              workspace: host,
+              returnedBorrowNames: skippedBorrowNames,
+            )
+          }
+        }
+        if
+          cleanupWorkspaceIDs.contains(composition.host),
+          destinationIndex == nil,
+          let host = workspaceForID(composition.host)
+        {
+          let returnedNames = composition.borrowed.compactMap {
+            workspaceForID($0.workspace)?.name
+          }
+          appendDeferredCleanupHUD(
+            display: sourceDisplay,
+            role: skippedWorkspaceIDs.contains(composition.host)
+              ? .chainMember
+              : .nonChain,
+            workspace: host,
+            returnedBorrowNames: returnedNames,
+            prioritySkippedWorkspaceName: skippedWorkspaceIDs.contains(composition.host)
+              ? host.name
+              : nil,
+          )
+        }
+        guard destinationReplacesHost || !movingMemberIndices.isEmpty else { continue }
+
+        // Promoting a borrowed member on this same display is not a return for
+        // that member. Every other borrowed block disappears with the source
+        // composition and must remain visible in HUD metadata.
+        let promotedWorkspaceID = destinationIndex.flatMap { index -> Workspace.ID? in
+          let workspaceID = assignments[index].workspace
+          return composition.borrowed.contains(where: { $0.workspace == workspaceID })
+            ? workspaceID
+            : nil
+        }
+        let returnedBorrowNames = composition.borrowed.compactMap { slot -> String? in
+          guard slot.workspace != promotedWorkspaceID else { return nil }
+          return workspaceForID(slot.workspace)?.name
+        }
+        guard !returnedBorrowNames.isEmpty else { continue }
+
+        if let destinationIndex {
+          appendReturnedBorrowNames(returnedBorrowNames, to: destinationIndex)
+        } else if
+          movingMemberIndices.contains(where: {
+            assignments[$0].workspace == composition.host
+          }),
+          vacatedDisplaysByWorkspace[composition.host]?.contains(where: {
+            $0.matches(sourceDisplay)
+          }) == true,
+          let host = workspaceForID(composition.host)
+        {
+          appendDeferredCleanupHUD(
+            display: sourceDisplay,
+            role: assignments.first(where: {
+              $0.workspace == composition.host
+            }).map {
+              selectedWorkspaceIDs.contains($0.workspace)
+                ? .chainMember
+                : .nonChain
+            } ?? .nonChain,
+            workspace: host,
+            returnedBorrowNames: returnedBorrowNames,
+            movedWorkspaceDestination: assignments.first(where: {
+              $0.workspace == composition.host
+            })?.display,
+          )
+          if !deferredVacatedDisplays.contains(where: { $0.matches(sourceDisplay) }) {
+            deferredVacatedDisplays.append(sourceDisplay)
+          }
+        } else if
+          let ownerIndex = movingMemberIndices.first,
+          let host = workspaceForID(composition.host)
+        {
+          appendSourceHUD(
+            display: sourceDisplay,
+            role: selectedWorkspaceIDs.contains(assignments[ownerIndex].workspace)
+              ? .chainMember
+              : .nonChain,
+            workspace: host,
+            returnedBorrowNames: returnedBorrowNames,
+            to: ownerIndex,
+          )
+        }
+      }
+
+      // A skipped standalone host on a display with no replacement has no
+      // destination assignment from which to announce its removal. Attach that
+      // source-display result to the first queued assignment.
+      for (sourceDisplay, workspaceID) in state.activeWorkspacesByDisplay
+        where cleanupWorkspaceIDs.contains(workspaceID)
+      {
+        guard
+          connected.contains(where: { $0.matches(sourceDisplay) }),
+          !destinationDisplays.contains(where: { $0.matches(sourceDisplay) }),
+          let workspace = workspaceForID(workspaceID)
+        else { continue }
+        appendDeferredCleanupHUD(
+          display: sourceDisplay,
+          role: skippedWorkspaceIDs.contains(workspaceID)
+            ? .chainMember
+            : .nonChain,
+          workspace: workspace,
+          returnedBorrowNames: [],
+          prioritySkippedWorkspaceName: skippedWorkspaceIDs.contains(workspaceID)
+            ? workspace.name
+            : nil,
+        )
+      }
+    }
+    let focusTransfer: WorkspaceChainFocusTransfer? = {
+      guard
+        let sourceDisplay = capturedFocusSource,
+        let destination = assignments.last,
+        !sourceDisplay.matches(destination.display),
+        let destinationWorkspace = state.config.activeProfile?
+          .workspaces[id: destination.workspace]
+      else { return nil }
+      return WorkspaceChainFocusTransfer(
+        from: sourceDisplay,
+        to: destination.display,
+        workspaceName: destinationWorkspace.name,
+      )
+    }()
+    return assignments.enumerated().map { index, assignment in
+      var assignment = assignment
+      assignment.presentation = .workspaceChain(WorkspaceChainHUDContext(
+        name: name,
+        role: selectedWorkspaceIDs.contains(assignment.workspace)
+          ? .chainMember
+          : .nonChain,
+        profileSwitch: profileSwitch,
+        coveredDisplays: coveredDisplays,
+        focusTransfer: focusTransfer,
+        destinationReturnedBorrowNames: returnedBorrowNamesByAssignment[index] ?? [],
+        sourceCompositionHUDs: sourceCompositionHUDsByAssignment[index] ?? [],
+        deferredCleanupHUDs: index == assignments.indices.last
+          ? deferredCleanupHUDs
+          : [],
+        vacatedHUDs: (vacatedDisplaysByWorkspace[assignment.workspace] ?? []).compactMap { display in
+          guard !deferredVacatedDisplays.contains(where: { $0.matches(display) }) else {
+            return nil
+          }
+          return WorkspaceChainVacatedHUD(
+            display: display,
+            returnedBorrowNames: [],
+          )
+        },
+        cleanupTransaction: nil,
+      ))
+      return assignment
+    }
+  }
+
+  /// Resolve the display-scoped process hides for a priority cleanup without
+  /// mutating reducer state. The final trigger establishes focus first; only a
+  /// completed hide is allowed to commit the corresponding state transition.
+  func workspaceChainVisibilityCleanups(
+    _ transaction: WorkspaceChainCleanupTransaction,
+    state: State,
+  ) -> [WorkspaceChainVisibilityCleanup] {
+    guard let profile = state.config.activeProfile else { return [] }
+    let assignedWorkspaceIDs = Set(transaction.placements.map(\.workspace))
+    let sharedBundleIDs = Set(state.config.sharedApps.map(\.bundleIdentifier))
+    var bundleIDsByDisplay = [DisplayName: Set<String>]()
+
+    func destination(on display: DisplayName) -> WorkspaceChainPlacement? {
+      transaction.placements.first { $0.display.matches(display) }
+    }
+
+    /// A composition host that is being placed on a different display leaves
+    /// its borrowed block behind. That block is not an ordinary "skipped"
+    /// member, but it still has to be physically returned before the source
+    /// composition can be removed from reducer state.
+    func hostMovesAway(_ composition: Composition, from display: DisplayName) -> Bool {
+      transaction.placements.contains {
+        $0.workspace == composition.host && !$0.display.matches(display)
+      }
+    }
+
+    func addBundles(for workspaceID: Workspace.ID, on display: DisplayName) {
+      guard !assignedWorkspaceIDs.contains(workspaceID) else { return }
+      let registered = state.config.profiles.lazy.compactMap {
+        $0.workspaces[id: workspaceID]
+      }.first?.apps.map(\.bundleIdentifier) ?? []
+      let resident = state.tilingTrees[workspaceID]?.windows
+        .map(\.bundleId)
+        .filter(state.managedBundleIds.contains) ?? []
+      bundleIDsByDisplay[display, default: []].formUnion(registered + resident)
+    }
+
+    for (display, composition) in state.compositionsByDisplay {
+      let target = destination(on: display)
+      if hostMovesAway(composition, from: display) {
+        // The host itself is becoming visible on its destination. Only return
+        // the borrowed block from this source display.
+        for slot in composition.borrowed {
+          let registered = state.config.profiles.lazy.compactMap {
+            $0.workspaces[id: slot.workspace]
+          }.first?.apps.map(\.bundleIdentifier) ?? []
+          let resident = state.tilingTrees[slot.workspace]?.windows
+            .map(\.bundleId)
+            .filter(state.managedBundleIds.contains) ?? []
+          bundleIDsByDisplay[display, default: []].formUnion(registered + resident)
+        }
+        continue
+      }
+      if transaction.skippedWorkspaceIDs.contains(composition.host) {
+        guard target == nil else { continue }
+        addBundles(for: composition.host, on: display)
+        for slot in composition.borrowed {
+          addBundles(for: slot.workspace, on: display)
+        }
+        continue
+      }
+      guard target?.workspace == composition.host || target == nil else { continue }
+      for slot in composition.borrowed
+        where transaction.skippedWorkspaceIDs.contains(slot.workspace)
+      {
+        addBundles(for: slot.workspace, on: display)
+      }
+    }
+    for (display, workspaceID) in state.activeWorkspacesByDisplay
+      where transaction.skippedWorkspaceIDs.contains(workspaceID)
+      && destination(on: display) == nil
+    {
+      addBundles(for: workspaceID, on: display)
+    }
+    for source in transaction.sourcePlacements
+      where transaction.skippedWorkspaceIDs.contains(source.workspace)
+      && destination(on: source.display) == nil
+    {
+      addBundles(for: source.workspace, on: source.display)
+    }
+
+    // Protect the complete prospective visible set, not only emitted changes:
+    // unchanged selected peers and unrelated active/composed workspaces can
+    // share an app process with a skipped member.
+    var protectedWorkspaceIDs = transaction.retainedWorkspaceIDs
+      .union(assignedWorkspaceIDs)
+    for (display, workspaceID) in state.activeWorkspacesByDisplay
+      where !transaction.skippedWorkspaceIDs.contains(workspaceID)
+      && (destination(on: display) == nil
+        || destination(on: display)?.workspace == workspaceID)
+    {
+      protectedWorkspaceIDs.insert(workspaceID)
+    }
+    for (display, composition) in state.compositionsByDisplay {
+      guard !transaction.skippedWorkspaceIDs.contains(composition.host) else { continue }
+      let target = destination(on: display)
+      // Its host is protected through the destination placement. The borrowed
+      // block is deliberately *not* protected: it is the source-only content
+      // this cleanup returns after the host moved away.
+      if hostMovesAway(composition, from: display) {
+        continue
+      }
+      guard target?.workspace == composition.host || target == nil else { continue }
+      protectedWorkspaceIDs.insert(composition.host)
+      protectedWorkspaceIDs.formUnion(composition.borrowed.compactMap { slot in
+        transaction.skippedWorkspaceIDs.contains(slot.workspace) ? nil : slot.workspace
+      })
+    }
+    var protectedBundleIDs = sharedBundleIDs
+    for workspaceID in protectedWorkspaceIDs {
+      protectedBundleIDs.formUnion(
+        profile.workspaces[id: workspaceID]?.apps.map(\.bundleIdentifier) ?? []
+      )
+      protectedBundleIDs.formUnion(
+        state.tilingTrees[workspaceID]?.windows.map(\.bundleId) ?? []
+      )
+    }
+    return bundleIDsByDisplay.map { display, bundleIDs in
+      let filtered = bundleIDs.subtracting(protectedBundleIDs)
+      return WorkspaceChainVisibilityCleanup(display: display, bundleIDs: filtered)
+    }.sorted {
+      ($0.display.name, $0.display.uuid ?? "")
+        < ($1.display.name, $1.display.uuid ?? "")
+    }
+  }
+
+  /// Preserve cleanup provenance across a superseded profile cascade. Runtime
+  /// placement may still contain workspaces from the outgoing profile until a
+  /// successful post-focus cleanup commits; merge those sources into the next
+  /// direct or chained activation instead of dropping them with the old queue.
+  func makeWorkspaceCleanupTransaction(
+    prioritySkippedWorkspaceIDs: Set<Workspace.ID> = [],
+    retainedWorkspaceIDs: Set<Workspace.ID>,
+    assignments: [DisplayAssignment],
+    cleanupHUDRequests: [ActionHUDRequest] = [],
+    state: State,
+  ) -> WorkspaceChainCleanupTransaction? {
+    guard let profile = state.config.activeProfile else { return nil }
+    let activeProfileWorkspaceIDs = Set(profile.workspaces.ids)
+    var visibleWorkspaceIDs = Set(state.activeWorkspacesByDisplay.values)
+    for composition in state.compositionsByDisplay.values {
+      visibleWorkspaceIDs.insert(composition.host)
+      visibleWorkspaceIDs.formUnion(composition.borrowed.map(\.workspace))
+    }
+    let outgoingProfileWorkspaceIDs = visibleWorkspaceIDs
+      .subtracting(activeProfileWorkspaceIDs)
+    let skippedWorkspaceIDs = prioritySkippedWorkspaceIDs
+      .union(outgoingProfileWorkspaceIDs)
+    let placements = assignments.map {
+      WorkspaceChainPlacement(display: $0.display, workspace: $0.workspace)
+    }
+    func destination(on display: DisplayName) -> WorkspaceChainPlacement? {
+      placements.first { $0.display.matches(display) }
+    }
+    let hasMovingCompositionHost = state.compositionsByDisplay.contains { display, composition in
+      placements.contains {
+        $0.workspace == composition.host && !$0.display.matches(display)
+      }
+    }
+    guard !skippedWorkspaceIDs.isEmpty || hasMovingCompositionHost else { return nil }
+    let hasUnfilledSkippedHost = state.activeWorkspacesByDisplay.contains {
+      display, workspaceID in
+      skippedWorkspaceIDs.contains(workspaceID) && destination(on: display) == nil
+    }
+    let hasExplicitCompositionCleanup = state.compositionsByDisplay.contains {
+      display, composition in
+      let target = destination(on: display)
+      if
+        placements.contains(where: {
+          $0.workspace == composition.host && !$0.display.matches(display)
+        })
+      {
+        return true
+      }
+      if skippedWorkspaceIDs.contains(composition.host) {
+        return target == nil
+      }
+      return (target?.workspace == composition.host || target == nil)
+        && composition.borrowed.contains {
+          skippedWorkspaceIDs.contains($0.workspace)
+        }
+    }
+    var cleanupDisplays = [DisplayName]()
+    func appendCleanupDisplay(_ display: DisplayName) {
+      guard !cleanupDisplays.contains(where: { $0.matches(display) }) else { return }
+      cleanupDisplays.append(display)
+    }
+    for (display, workspaceID) in state.activeWorkspacesByDisplay
+      where skippedWorkspaceIDs.contains(workspaceID) && destination(on: display) == nil
+    {
+      appendCleanupDisplay(display)
+    }
+    for (display, composition) in state.compositionsByDisplay {
+      let target = destination(on: display)
+      if
+        placements.contains(where: {
+          $0.workspace == composition.host && !$0.display.matches(display)
+        })
+      {
+        appendCleanupDisplay(display)
+      } else if skippedWorkspaceIDs.contains(composition.host), target == nil {
+        appendCleanupDisplay(display)
+      } else if
+        target?.workspace == composition.host || target == nil,
+        composition.borrowed.contains(where: {
+          skippedWorkspaceIDs.contains($0.workspace)
+        })
+      {
+        appendCleanupDisplay(display)
+      }
+    }
+    let sourceSnapshots = cleanupDisplays.map { display in
+      let composition = state.compositionsByDisplay[display]
+        ?? state.compositionsByDisplay.first(where: { $0.key.matches(display) })?.value
+      let generation = state.borrowGenerationByDisplay[display]
+        ?? state.borrowGenerationByDisplay.first(where: {
+          $0.key.matches(display)
+        })?.value
+        ?? 0
+      let currentActiveWorkspace = Self.activeWorkspace(
+        on: display,
+        connected: Array(state.connectedDisplays),
+        active: state.activeWorkspacesByDisplay,
+      )
+      // `recordCompletedActivation` enforces one workspace per display before
+      // the deferred cleanup starts. A host moving to another destination is
+      // therefore absent from its source active map by then, while its source
+      // composition/generation intentionally remain unchanged until commit.
+      let expectedActiveWorkspace = currentActiveWorkspace.flatMap { workspaceID in
+        placements.contains(where: {
+          $0.workspace == workspaceID && !$0.display.matches(display)
+        }) ? nil : workspaceID
+      }
+      return WorkspaceChainCleanupSourceSnapshot(
+        display: display,
+        activeWorkspace: expectedActiveWorkspace,
+        composition: composition,
+        borrowGeneration: generation,
+      )
+    }
+    return WorkspaceChainCleanupTransaction(
+      skippedWorkspaceIDs: skippedWorkspaceIDs,
+      // Callers provide the selected/incoming workspaces explicitly. Unaffected
+      // visible workspaces are protected by the prospective active/composition
+      // scan in `workspaceChainVisibilityCleanups`; unioning every visible ID
+      // here also protected unrelated borrows under a skipped host even though
+      // committing that host removes the whole composition.
+      retainedWorkspaceIDs: retainedWorkspaceIDs.subtracting(skippedWorkspaceIDs),
+      placements: placements,
+      sourcePlacements: state.activeWorkspacesByDisplay.compactMap {
+        display, activeWorkspaceID in
+        skippedWorkspaceIDs.contains(activeWorkspaceID)
+          ? WorkspaceChainPlacement(display: display, workspace: activeWorkspaceID)
+          : nil
+      },
+      sourceSnapshots: sourceSnapshots,
+      requiresFocusSuccessor: hasUnfilledSkippedHost || hasExplicitCompositionCleanup,
+      cleanupHUDRequests: cleanupHUDRequests,
+    )
+  }
+
+  /// Commit a cleanup whose visibility return completed after focus moved to
+  /// the trigger. If that effect was cancelled, this action is never delivered
+  /// and the intact state is available to the next switch.
+  func commitWorkspaceChainCleanup(
+    _ transaction: WorkspaceChainCleanupTransaction,
+    displays cleanupDisplays: Set<DisplayName>,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard !cleanupDisplays.isEmpty else { return .none }
+    guard
+      isWorkspaceChainCleanupCurrent(
+        transaction,
+        displays: cleanupDisplays,
+        state: state,
+      )
+    else {
+      debugLog.log("WorkspaceChain", "skip stale priority cleanup transaction")
+      return .none
+    }
+    debugLog.log(
+      "WorkspaceChain",
+      "commit priority cleanup displays=\(cleanupDisplays.map(\.name).sorted()) "
+        + "skipped=\(transaction.skippedWorkspaceIDs)",
+    )
+    var compositionLayoutDisplays = Set<DisplayName>()
+    var fullLayoutWorkspaceIDs = Set<Workspace.ID>()
+    var changedComposition = false
+
+    func destination(on display: DisplayName) -> WorkspaceChainPlacement? {
+      transaction.placements.first { $0.display.matches(display) }
+    }
+
+    func hostMovesAway(_ composition: Composition, from display: DisplayName) -> Bool {
+      transaction.placements.contains {
+        $0.workspace == composition.host && !$0.display.matches(display)
+      }
+    }
+
+    for (display, original) in Array(state.compositionsByDisplay)
+      where cleanupDisplays.contains(where: { $0.matches(display) })
+    {
+      let target = destination(on: display)
+      if
+        transaction.skippedWorkspaceIDs.contains(original.host)
+        || hostMovesAway(original, from: display)
+      {
+        state.borrowGenerationByDisplay[display, default: 0] &+= 1
+        state.pendingBorrowCompletionByDisplay[display] = nil
+        for slot in original.borrowed {
+          state.pendingCenterWarps[slot.workspace] = nil
+        }
+        state.compositionsByDisplay[display] = nil
+        changedComposition = true
+        continue
+      }
+
+      let removedSlots = original.borrowed.filter {
+        transaction.skippedWorkspaceIDs.contains($0.workspace)
+      }
+      guard
+        !removedSlots.isEmpty,
+        target?.workspace == original.host || target == nil
+      else { continue }
+      state.borrowGenerationByDisplay[display, default: 0] &+= 1
+      state.pendingBorrowCompletionByDisplay[display] = nil
+      var updated = original
+      updated.borrowed.removeAll {
+        transaction.skippedWorkspaceIDs.contains($0.workspace)
+      }
+      for slot in removedSlots {
+        state.pendingCenterWarps[slot.workspace] = nil
+      }
+      state.compositionsByDisplay[display] = updated.borrowed.isEmpty ? nil : updated
+      if updated.borrowed.isEmpty {
+        fullLayoutWorkspaceIDs.insert(original.host)
+      } else {
+        compositionLayoutDisplays.insert(display)
+      }
+      changedComposition = true
+    }
+
+    let skippedActiveKeys = state.activeWorkspacesByDisplay.keys.filter { display in
+      cleanupDisplays.contains(where: { $0.matches(display) })
+        && state.activeWorkspacesByDisplay[display].map(
+          transaction.skippedWorkspaceIDs.contains
+        ) == true && destination(on: display) == nil
+    }
+    for display in skippedActiveKeys {
+      state.activeWorkspacesByDisplay.removeValue(forKey: display)
+    }
+
+    var layouts = [Effect<Action>]()
+    for display in compositionLayoutDisplays {
+      layouts.append(applyComposition(display: display, state: &state))
+    }
+    for workspaceID in fullLayoutWorkspaceIDs {
+      layouts.append(flushLayout(workspaceId: workspaceID, state: &state))
+    }
+    if changedComposition {
+      layouts.append(refreshMarkers(state: state))
+    }
+    let cleanupHUDRequests = transaction.cleanupHUDRequests.filter { request in
+      guard let display = request.display else { return false }
+      return cleanupDisplays.contains { $0.matches(display) }
+    }
+    if !cleanupHUDRequests.isEmpty {
+      layouts.append(.run { [workspaceHUD, cleanupHUDRequests] _ in
+        for request in cleanupHUDRequests {
+          guard !Task.isCancelled else { return }
+          await workspaceHUD.showAction(request)
+        }
+      })
+    }
+    return .merge(layouts)
+  }
+
+  func isWorkspaceChainCleanupCurrent(
+    _ transaction: WorkspaceChainCleanupTransaction,
+    displays cleanupDisplays: Set<DisplayName>? = nil,
+    state: State,
+  ) -> Bool {
+    let connected = state.connectedDisplays.isEmpty
+      ? transaction.placements.map(\.display)
+      : Array(state.connectedDisplays)
+    guard
+      transaction.placements.allSatisfy({ placement in
+        Self.activeWorkspace(
+          on: placement.display,
+          connected: connected,
+          active: state.activeWorkspacesByDisplay,
+        ) == placement.workspace
+      })
+    else { return false }
+    let snapshots = transaction.sourceSnapshots.filter { snapshot in
+      cleanupDisplays?.contains(where: { $0.matches(snapshot.display) }) ?? true
+    }
+    if let cleanupDisplays {
+      guard
+        cleanupDisplays.allSatisfy({ display in
+          snapshots.contains { $0.display.matches(display) }
+        })
+      else { return false }
+    }
+    return snapshots.allSatisfy { snapshot in
+      let activeWorkspace = Self.activeWorkspace(
+        on: snapshot.display,
+        connected: connected,
+        active: state.activeWorkspacesByDisplay,
+      )
+      let composition = state.compositionsByDisplay[snapshot.display]
+        ?? state.compositionsByDisplay.first(where: {
+          $0.key.matches(snapshot.display)
+        })?.value
+      let generation = state.borrowGenerationByDisplay[snapshot.display]
+        ?? state.borrowGenerationByDisplay.first(where: {
+          $0.key.matches(snapshot.display)
+        })?.value
+        ?? 0
+      return activeWorkspace == snapshot.activeWorkspace
+        && composition == snapshot.composition
+        && generation == snapshot.borrowGeneration
+    }
+  }
+
+  /// A chain-owned display already has authoritative feedback about the
+  /// workspace that landed there. Add the focus transfer as another fact in
+  /// that same HUD instead of presenting a second, generic HUD that would
+  /// replace the workspace/chain/borrow-return result on the screen.
+  func workspaceChainFocusTransferSubtitle(
+    on display: DisplayName,
+    context: WorkspaceChainHUDContext?,
+  ) -> String? {
+    guard
+      let transfer = context?.focusTransfer,
+      transfer.from.matches(display)
+    else { return nil }
+    let title = String(localized: "Focus moved")
+    let destination = String(
+      localized: "\(transfer.workspaceName) is on \(transfer.to.name)"
+    )
+    return "\(title): \(destination)"
+  }
+
+  func returnedBorrowSubtitles(_ names: [String]) -> [String] {
+    names.map { String(localized: "Returned \($0)") }
+  }
+
+  func workspaceChainCleanupEffect(
+    transaction: WorkspaceChainCleanupTransaction?,
+    cleanups: [WorkspaceChainVisibilityCleanup],
+  ) -> Effect<Action> {
+    guard let transaction else { return .none }
+    let orderedCleanups = Self.orderedWorkspaceChainCleanups(cleanups)
+    guard !orderedCleanups.isEmpty else { return .none }
+    return .run { send in
+      _ = await Self.runWorkspaceChainCleanup(
+        transaction: transaction,
+        cleanups: orderedCleanups,
+        send: send,
+      )
+    }
+    .cancellable(id: CancelID.workspaceChainCleanup, cancelInFlight: true)
+  }
+
+  /// A borrowed chain member can leave a composition while that display keeps
+  /// its host workspace. Since no display assignment is emitted for the host,
+  /// publish the source result alongside the member's destination assignment.
+  func workspaceChainSourceCompositionHUDRequests(
+    context: WorkspaceChainHUDContext?,
+    state: State,
+  ) -> [ActionHUDRequest] {
+    guard let context else { return [] }
+    return workspaceChainSourceHUDRequests(
+      context.sourceCompositionHUDs,
+      context: context,
+      state: state,
+    )
+  }
+
+  func workspaceChainDeferredCleanupHUDRequests(
+    context: WorkspaceChainHUDContext,
+    state: State,
+  ) -> [ActionHUDRequest] {
+    workspaceChainSourceHUDRequests(
+      context.deferredCleanupHUDs,
+      context: context,
+      state: state,
+    )
+  }
+
+  /// If a chained move leaves a source display empty, that screen has no
+  /// destination assignment from which to present feedback. Announce the move
+  /// alongside the destination activation instead.
+  func workspaceChainVacatedHUDRequests(
+    workspace: Workspace,
+    targetDisplay: DisplayName?,
+    context: WorkspaceChainHUDContext?,
+    state: State,
+  ) -> [ActionHUDRequest] {
+    guard
+      let context,
+      let targetDisplay,
+      !context.vacatedHUDs.isEmpty
+    else { return [] }
+    let showsWorkspaceSwitch = state.config.settings.hud.shows(\.workspaceSwitch)
+    let showsBorrow = state.config.settings.hud.shows(\.borrow)
+    let showsProfileSwitch = context.profileSwitch != nil
+      && state.config.settings.hud.shows(\.profileSwitch)
+    let visibleProfileSwitch = showsProfileSwitch ? context.profileSwitch : nil
+    let durationMs = state.config.settings.hud.durationMs
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
+    return context.vacatedHUDs.compactMap { vacatedHUD in
+      let hasChainIdentity = context.role == .chainMember
+      let returned = showsBorrow
+        ? returnedBorrowSubtitles(vacatedHUD.returnedBorrowNames)
+        : []
+      guard showsProfileSwitch || showsWorkspaceSwitch || !returned.isEmpty else { return nil }
+      let movedWorkspace = String(localized: "\(workspace.name) is on \(targetDisplay.name)")
+      var resultFacts = showsWorkspaceSwitch && hasChainIdentity ? [context.name] : []
+      if showsProfileSwitch || showsWorkspaceSwitch {
+        resultFacts.append(movedWorkspace)
+      }
+      resultFacts.append(contentsOf: returned)
+      let resultLine = resultFacts.joined(separator: " · ")
+      let subtitle = [
+        resultLine,
+        showsWorkspaceSwitch
+          ? workspaceChainFocusTransferSubtitle(on: vacatedHUD.display, context: context)
+          : nil,
+      ]
+      .compactMap { $0 }
+      .joined(separator: "\n")
+      return ActionHUDRequest(
+        name: visibleProfileSwitch?.name ?? (
+          showsWorkspaceSwitch ? String(localized: "Workspace moved") : workspace.name
+        ),
+        symbolIconName: visibleProfileSwitch?.symbolIconName ?? (
+          showsWorkspaceSwitch ? "arrow.right.to.line" : workspace.symbolIconName
+        ),
+        subtitle: subtitle,
+        subtitleSymbolIconName: hasChainIdentity
+          ? context.role.subtitleSymbolIconName
+          : nil,
+        subtitleExtendsDuration: !returned.isEmpty,
+        durationMs: durationMs,
+        position: position,
+        size: size,
+        display: vacatedHUD.display,
+      )
+    }
+  }
+
   /// On the display being left, identify both where focus went and which
   /// workspace now owns it. The destination display shows the regular
   /// workspace-switch HUD separately.
@@ -244,31 +1692,72 @@ extension WorkspaceActivationFeature {
     workspace: Workspace,
     from oldDisplay: DisplayName?,
     to targetDisplay: DisplayName?,
+    subtitleSymbolIconName: String? = nil,
     state: State,
   ) -> Effect<Action> {
+    guard
+      let request = focusMovedHUDRequest(
+        workspace: workspace,
+        from: oldDisplay,
+        to: targetDisplay,
+        subtitleSymbolIconName: subtitleSymbolIconName,
+        state: state,
+      )
+    else { return .none }
+    return .run { [workspaceHUD] _ in
+      await workspaceHUD.showAction(request)
+    }
+  }
+
+  func focusMovedHUDRequest(
+    workspace: Workspace,
+    from oldDisplay: DisplayName?,
+    to targetDisplay: DisplayName?,
+    subtitleSymbolIconName: String? = nil,
+    state: State,
+  ) -> ActionHUDRequest? {
     guard
       state.config.settings.hud.shows(\.workspaceSwitch),
       let oldDisplay,
       let targetDisplay,
       !oldDisplay.matches(targetDisplay)
-    else { return .none }
+    else { return nil }
     let durationMs = state.config.settings.hud.durationMs
     let position = state.config.settings.hud.position
     let size = state.config.settings.hud.size
     let subtitle = String(localized: "\(workspace.name) is on \(targetDisplay.name)")
-    return .run { [workspaceHUD] _ in
-      await workspaceHUD.showAction(
-        ActionHUDRequest(
-          name: String(localized: "Focus moved"),
-          symbolIconName: "arrow.right.to.line",
-          subtitle: subtitle,
-          durationMs: durationMs,
-          position: position,
-          size: size,
-          display: oldDisplay,
-        )
-      )
-    }
+    return ActionHUDRequest(
+      name: String(localized: "Focus moved"),
+      symbolIconName: "arrow.right.to.line",
+      subtitle: subtitle,
+      subtitleSymbolIconName: subtitleSymbolIconName,
+      subtitleExtendsDuration: subtitleSymbolIconName == nil,
+      durationMs: durationMs,
+      position: position,
+      size: size,
+      display: oldDisplay,
+    )
+  }
+
+  /// A chain snapshots its interaction display before serial restores begin.
+  /// Mutable focus state observed during those restores must never invent a
+  /// second origin. Covered source displays fold this fact into their own HUD.
+  func uncoveredWorkspaceChainFocusMovedHUDRequest(
+    workspace: Workspace,
+    context: WorkspaceChainHUDContext,
+    state: State,
+  ) -> ActionHUDRequest? {
+    guard
+      let transfer = context.focusTransfer,
+      !context.coveredDisplays.contains(where: { $0.matches(transfer.from) })
+    else { return nil }
+    return focusMovedHUDRequest(
+      workspace: workspace,
+      from: transfer.from,
+      to: transfer.to,
+      subtitleSymbolIconName: context.role.subtitleSymbolIconName,
+      state: state,
+    )
   }
 
   /// Where a deliberate (focus-taking) activation puts `workspace`: its pinned
@@ -276,25 +1765,152 @@ extension WorkspaceActivationFeature {
   /// the display under the pointer. `performActivate` and the already-visible
   /// focus-transfer shortcut must agree on this; when they drift, a dynamic
   /// workspace looks pinned to whichever monitor it happens to sit on.
-  func deliberateActivationDisplay(for workspace: Workspace, state: State) -> DisplayName? {
+  func deliberateActivationDisplay(
+    for workspace: Workspace,
+    interactionDisplay: DisplayName? = nil,
+    state: State,
+  ) -> DisplayName? {
     guard let hint = workspace.displayHint else {
-      return displays.current() ?? state.focusedDisplay
+      return interactionDisplay ?? self.interactionDisplay(state: state)
     }
     return displays.connected(hint) ?? displays.primary() ?? hint
   }
 
-  /// Shared deliberate-switch entry point for hotkeys/UI and CLI completion
-  /// tracking. The CLI wraps this returned effect so its response follows the
-  /// actual focus/layout tail instead of merely following action delivery.
+  /// Shared deliberate-switch planner for hotkeys/UI, app focus, and CLI
+  /// completion tracking. Every reducer entry point must cancel the prior
+  /// workspace-chain cleanup *before* running this effect; keeping that cancel
+  /// inside a merge lets an old physical return race a newer activation.
   func deliberateActivation(
     workspaceId: Workspace.ID,
     setFocus: Bool,
+    targetDisplayOverride: DisplayName? = nil,
+    interactionDisplayOverride: DisplayName? = nil,
+    followsCursor: Bool = false,
     continuesCLIActivation: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
     // A deliberate switch supersedes any in-flight reconnect restore cascade.
     // The user's action wins over the display-restore queue.
     state.pendingDisplayRestores = []
+    state.focusWorkspaceOnRestore = nil
+    state.finalRestoreTakesFocus = true
+    state.finalRestoreFollowsCursor = false
+    state.suppressFocusedRestoreHUD = false
+    let commandInteractionDisplay = interactionDisplayOverride
+      ?? interactionDisplay(state: state)
+
+    // A workspace chain is a symmetric set of workspace identities. Its
+    // destinations come from each workspace's ordinary pinned/dynamic target
+    // at activation time; internal restores enter through `restoreDisplay` and
+    // therefore cannot recursively expand another chain. The selected member
+    // remains last and owns final focus.
+    if
+      setFocus || followsCursor,
+      let profile = state.config.activeProfile,
+      let workspace = profile.workspaces[id: workspaceId]
+    {
+      let connected = displays.all()
+      let resolvedDisplay: DisplayName? =
+        if let targetDisplayOverride {
+          targetDisplayOverride
+        } else if workspace.isDynamic {
+          if !setFocus {
+            state.displayShowing(workspaceId) ?? commandInteractionDisplay
+          } else {
+            commandInteractionDisplay
+          }
+        } else {
+          deliberateActivationDisplay(
+            for: workspace,
+            interactionDisplay: commandInteractionDisplay,
+            state: state,
+          )
+        }
+      if
+        let resolvedDisplay,
+        let actualDisplay = connected.first(where: { $0.matches(resolvedDisplay) }),
+        let chain = profile.validWorkspaceChain(containing: workspaceId)
+      {
+        let trigger = DisplayAssignment(display: actualDisplay, workspace: workspaceId)
+        let result = Self.planWorkspaceChain(
+          chain,
+          triggeredBy: trigger,
+          // App-focus keeps a dynamic trigger on the display that already owns
+          // its focused window. A pinned trigger still lets its first dynamic
+          // companion follow the pointer/focus interaction display.
+          dynamicPreferredDisplay: targetDisplayOverride ?? (
+            workspace.isDynamic ? resolvedDisplay : commandInteractionDisplay
+          ),
+          connected: connected,
+          primaryDisplay: displays.primary(),
+          workspaces: profile.workspaces.elements,
+          active: state.activeWorkspacesByDisplay,
+          history: state.displayWorkspaceHistory,
+          workspaceMRU: state.workspaceMRU,
+        )
+        switch result {
+        case .success(let chainPlan):
+          let skippedWorkspaceIDs = Set(chain.workspaceIDs)
+            .subtracting(chainPlan.selectedWorkspaceIDs)
+          var plan = workspaceChainHUDAssignments(
+            chain: chain,
+            assignments: chainPlan.assignments,
+            selectedWorkspaceIDs: chainPlan.selectedWorkspaceIDs,
+            skippedWorkspaceIDs: skippedWorkspaceIDs,
+            focusSourceDisplay: commandInteractionDisplay,
+            connected: connected,
+            state: state,
+          )
+          let cleanupHUDRequests: [ActionHUDRequest] =
+            if
+              let finalIndex = plan.indices.last,
+              case .workspaceChain(let context)? = plan[finalIndex].presentation
+            {
+              workspaceChainDeferredCleanupHUDRequests(context: context, state: state)
+            } else {
+              []
+            }
+          if
+            let transaction = makeWorkspaceCleanupTransaction(
+              prioritySkippedWorkspaceIDs: skippedWorkspaceIDs,
+              retainedWorkspaceIDs: chainPlan.selectedWorkspaceIDs,
+              assignments: chainPlan.assignments,
+              cleanupHUDRequests: cleanupHUDRequests,
+              state: state,
+            ),
+            let finalIndex = plan.indices.last
+          {
+            if case .workspaceChain(var context)? = plan[finalIndex].presentation {
+              context.cleanupTransaction = transaction
+              plan[finalIndex].presentation = .workspaceChain(context)
+            } else {
+              plan[finalIndex].presentation = .workspaceCleanup(transaction)
+            }
+          }
+          let superseded = continuesCLIActivation
+            ? Effect<Action>.none
+            : supersedePendingCLIActivation(state: &state)
+          state.pendingDisplayRestores = plan
+          state.focusWorkspaceOnRestore = workspaceId
+          state.finalRestoreTakesFocus = setFocus
+          state.finalRestoreFollowsCursor = followsCursor
+          debugLog.log(
+            "WorkspaceChain",
+            "trigger workspace=\(workspace.name) display=\(actualDisplay.name) "
+              + "plan=\(plan.map { "\($0.display.name)→\($0.workspace)" })",
+          )
+          return .merge(superseded, .send(.processDisplayRestores))
+
+        case .failure(let failure):
+          // Structurally malformed or transiently stale chain state cannot
+          // prevent the selected workspace's standalone activation.
+          debugLog.log(
+            "WorkspaceChain",
+            "reject chain=\(chain.id) trigger=\(workspace.name): \(failure.description)",
+          )
+        }
+      }
+    }
     // An already-active host that activation would leave exactly where it is
     // is a display focus transfer. Re-activation would tear down its Borrow.
     if
@@ -304,24 +1920,74 @@ extension WorkspaceActivationFeature {
         $0.value == workspaceId
       })?.key,
       let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
-      deliberateActivationDisplay(for: workspace, state: state)?.matches(display) ?? true,
+      targetDisplayOverride?.matches(display)
+      ?? deliberateActivationDisplay(
+        for: workspace,
+        interactionDisplay: commandInteractionDisplay,
+        state: state,
+      )?.matches(display)
+      ?? true,
       // With no focus target, a transfer would silently swallow the switch;
       // run a real activation so the workspace is raised again.
       visibleFocusTarget(workspaceId, state: state) != nil
     {
+      let cleanup = makeWorkspaceCleanupTransaction(
+        retainedWorkspaceIDs: [workspaceId],
+        assignments: [DisplayAssignment(display: display, workspace: workspaceId)],
+        state: state,
+      )
       let superseded = continuesCLIActivation
         ? Effect<Action>.none
         : supersedePendingCLIActivation(state: &state)
-      return .merge(superseded, focusVisibleWorkspace(
-        workspaceId: workspaceId,
-        display: display,
-        state: &state,
-      ))
+      return .merge(
+        superseded,
+        focusVisibleWorkspace(
+          workspaceId: workspaceId,
+          display: display,
+          workspaceChainCleanup: cleanup,
+          state: &state,
+        ),
+      )
+    }
+    let dynamicDisplayOverride: DisplayName? =
+      if
+        targetDisplayOverride == nil,
+        state.config.activeProfile?.workspaces[id: workspaceId]?.isDynamic == true
+      {
+        if !setFocus, followsCursor {
+          state.displayShowing(workspaceId) ?? commandInteractionDisplay
+        } else if setFocus || interactionDisplayOverride != nil {
+          commandInteractionDisplay
+        } else {
+          nil
+        }
+      } else {
+        nil
+      }
+    let activationDisplayOverride = targetDisplayOverride ?? dynamicDisplayOverride
+    let cleanupDisplay = activationDisplayOverride ?? state.config.activeProfile?
+      .workspaces[id: workspaceId]
+      .flatMap {
+        deliberateActivationDisplay(
+          for: $0,
+          interactionDisplay: commandInteractionDisplay,
+          state: state,
+        )
+      }
+    let cleanup = cleanupDisplay.flatMap { display in
+      makeWorkspaceCleanupTransaction(
+        retainedWorkspaceIDs: [workspaceId],
+        assignments: [DisplayAssignment(display: display, workspace: workspaceId)],
+        state: state,
+      )
     }
     return performActivate(
       workspaceId: workspaceId,
       setFocus: setFocus,
+      displayOverride: activationDisplayOverride,
+      workspaceChainCleanup: cleanup,
       continuesCLIActivation: continuesCLIActivation,
+      followsCursor: followsCursor,
       state: &state,
     )
   }
@@ -331,6 +1997,8 @@ extension WorkspaceActivationFeature {
     setFocus: Bool,
     displayOverride: DisplayName? = nil,
     suppressSwitchHUD: Bool = false,
+    workspaceChainHUD: WorkspaceChainHUDContext? = nil,
+    workspaceChainCleanup: WorkspaceChainCleanupTransaction? = nil,
     /// Planned profile restores and the originating workspace CLI command keep
     /// ownership of the pending CLI request. Every other activation supersedes
     /// that request instead of silently rebinding it to unrelated work.
@@ -364,7 +2032,12 @@ extension WorkspaceActivationFeature {
         // A configured default edge → dock straight there.
         return .merge(
           superseded,
-          performBorrow(targetId: workspaceId, edge: resolved, state: &state),
+          performBorrow(
+            targetId: workspaceId,
+            edge: resolved,
+            displayOverride: displayOverride,
+            state: &state,
+          ),
         )
       }
       if setFocus {
@@ -372,15 +2045,26 @@ extension WorkspaceActivationFeature {
         // picker with nothing placed yet, like the borrow shortcut.
         return .merge(
           superseded,
-          .send(.beginBorrowDirection(workspaceId: workspaceId)),
+          .send(.beginBorrowDirection(
+            workspaceId: workspaceId,
+            interactionDisplay: displayOverride,
+          )),
         )
       }
       // "Ask" via focusing the app: dock provisionally at the fallback edge so
       // the window never floats unplaced, then open the picker to re-steer it.
       return .merge(
         superseded,
-        performBorrow(targetId: workspaceId, edge: .right, state: &state),
-        .send(.beginBorrowDirection(workspaceId: workspaceId)),
+        performBorrow(
+          targetId: workspaceId,
+          edge: .right,
+          displayOverride: displayOverride,
+          state: &state,
+        ),
+        .send(.beginBorrowDirection(
+          workspaceId: workspaceId,
+          interactionDisplay: displayOverride,
+        )),
       )
     }
     // AX callbacks continuously maintain the latest focused key. Never perform
@@ -388,7 +2072,7 @@ extension WorkspaceActivationFeature {
     // would stall every subsequent menu and hotkey event on the main thread.
     let outgoingWorkspaceId = state.isActivating
       ? state.activatingWorkspaceID
-      : state.focusedDisplay.flatMap { state.activeWorkspacesByDisplay[$0] }
+      : state.activeWorkspace(on: state.focusedDisplay)
         ?? state.primaryActiveWorkspaceID
     var recordedOutgoingFocus = false
     if
@@ -461,10 +2145,15 @@ extension WorkspaceActivationFeature {
       // A background reflow keeps the workspace on its actual display (or the
       // keyboard-focused one before it has an owner) so a config/layout sync
       // cannot move it merely because the pointer happens to be on another
-      // monitor. A deliberate dynamic activation follows the mouse instead —
-      // that is `deliberateActivationDisplay`.
-      targetDisplay = state.displayShowing(workspaceId) ?? state.focusedDisplay
-        ?? displays.current()
+      // monitor. An app-focus activation is user-originated (`followsCursor`),
+      // so an inactive dynamic workspace follows the current pointer before a
+      // stale focused-display cache. A visible dynamic always keeps its actual
+      // owner in both cases.
+      targetDisplay = state.displayShowing(workspaceId) ?? (
+        followsCursor
+          ? interactionDisplay(state: state)
+          : state.focusedDisplay ?? displays.current()
+      )
     } else {
       if
         let hint = workspace.displayHint,
@@ -477,6 +2166,7 @@ extension WorkspaceActivationFeature {
       }
       targetDisplay = deliberateActivationDisplay(for: workspace, state: state)
     }
+    state.activatingDisplay = targetDisplay
     // The switch HUD shows on the display focus lands on; on a cross-monitor
     // switch a second HUD on the monitor being left says where focus went, so
     // it doesn't look like the workspace just vanished.
@@ -499,33 +2189,44 @@ extension WorkspaceActivationFeature {
     // hide, so nothing unmanaged lingers on the new workspace. (The earlier
     // `compositionsByDisplay[display] != nil` gate leaked the managed-only scope
     // onto third-workspace switches, stranding the unregistered app on screen.)
-    let restoringHost =
-      targetDisplay.flatMap { state.compositionsByDisplay[$0]?.host } == workspaceId
+    let targetCompositionDisplay = targetDisplay.flatMap { target in
+      state.compositionsByDisplay.keys.first { $0.matches(target) }
+    }
+    let restoringHost = targetCompositionDisplay
+      .flatMap { state.compositionsByDisplay[$0]?.host } == workspaceId
     var dismissedBorrowName: String?
     var clearedComposition = false
-    if let targetDisplay, let comp = state.compositionsByDisplay[targetDisplay] {
+    if
+      let compositionDisplay = targetCompositionDisplay,
+      let comp = state.compositionsByDisplay[compositionDisplay]
+    {
       if let slot = comp.borrowed.first, slot.workspace != workspaceId {
         dismissedBorrowName = profile.workspaces[id: slot.workspace]?.name
       }
-      state.borrowGenerationByDisplay[targetDisplay, default: 0] &+= 1
-      state.pendingBorrowCompletionByDisplay[targetDisplay] = nil
+      state.borrowGenerationByDisplay[compositionDisplay, default: 0] &+= 1
+      state.pendingBorrowCompletionByDisplay[compositionDisplay] = nil
       for slot in comp.borrowed {
         state.pendingCenterWarps[slot.workspace] = nil
       }
-      state.compositionsByDisplay[targetDisplay] = nil
+      state.compositionsByDisplay[compositionDisplay] = nil
       clearedComposition = true
     }
     var displacedCompositionHosts = [Workspace.ID]()
-    // Borrowed blocks stranded on a display this activation pulls its host
-    // away from. The manager's hide pass only ever covers the display being
-    // activated, so without an explicit return these windows stay on screen
-    // until that display happens to be re-activated for some other reason.
-    var strandedBorrows = [(display: DisplayName, bundleIds: Set<String>)]()
+    // A host moving to another display leaves its borrowed block on the source
+    // display. Do not erase that composition here: the cleanup transaction
+    // returns those windows *after* target focus has settled, then commits the
+    // source removal only when the display-scoped return succeeded. This keeps
+    // state paired with the visible block if a newer switch cancels the move.
     for (sourceDisplay, composition) in Array(state.compositionsByDisplay)
       where composition.host == workspaceId
       || composition.borrowed.contains(where: { $0.workspace == workspaceId })
     {
       guard targetDisplay?.matches(sourceDisplay) != true else { continue }
+      // Promotion of a borrowed member still collapses its old host right
+      // away; the host remains on this display and gets a local reflow. The
+      // moving-host case above is different: it leaves the whole source
+      // composition stranded and is committed by the cleanup transaction.
+      guard composition.host != workspaceId else { continue }
       state.borrowGenerationByDisplay[sourceDisplay, default: 0] &+= 1
       state.pendingBorrowCompletionByDisplay[sourceDisplay] = nil
       for slot in composition.borrowed {
@@ -533,21 +2234,7 @@ extension WorkspaceActivationFeature {
       }
       state.compositionsByDisplay[sourceDisplay] = nil
       clearedComposition = true
-      if composition.host != workspaceId {
-        displacedCompositionHosts.append(composition.host)
-      } else {
-        // The host itself is moving. Take its borrowed blocks down with it,
-        // scoped to apps Tatami manages so an unregistered window the user
-        // parked next to the borrow is left where it is.
-        let bundleIds = Set(
-          composition.borrowed
-            .flatMap { state.tilingTrees[$0.workspace]?.windows ?? [] }
-            .map(\.bundleId)
-        ).intersection(state.managedBundleIds)
-        if !bundleIds.isEmpty {
-          strandedBorrows.append((display: sourceDisplay, bundleIds: bundleIds))
-        }
-      }
+      displacedCompositionHosts.append(composition.host)
     }
     // "Most recently used" (no pinned focus app): restore the exact window the
     // user last had focused in this workspace. On a plain switch the target must
@@ -599,12 +2286,32 @@ extension WorkspaceActivationFeature {
     // borrow (so the dismissal is always announced — even mid-move).
     // A profile switch shows its own HUD (profile name + activated workspace),
     // so the per-workspace switch HUD is suppressed here to avoid clobbering it.
-    let showHUD = setFocus && !suppressSwitchHUD && (
-      state.config.settings.hud.shows(\.workspaceSwitch)
-        || (dismissedBorrowName != nil && state.config.settings.hud.shows(\.borrow))
+    let showsWorkspaceSwitchHUD = state.config.settings.hud.shows(\.workspaceSwitch)
+    let showsBorrowHUD = state.config.settings.hud.shows(\.borrow)
+    let showsProfileSwitchHUD = workspaceChainHUD?.profileSwitch != nil
+      && state.config.settings.hud.shows(\.profileSwitch)
+    let returnedBorrowNames = Array(OrderedSet(
+      (workspaceChainHUD?.destinationReturnedBorrowNames ?? [])
+        + (dismissedBorrowName.map { [$0] } ?? [])
+    ))
+    let deferredCleanupOwnsTargetHUD = workspaceChainCleanup != nil
+      && targetDisplay.map { target in
+        workspaceChainHUD?.deferredCleanupHUDs.contains {
+          $0.display.matches(target)
+        } == true
+      } == true
+    let showHUD = !suppressSwitchHUD && !deferredCleanupOwnsTargetHUD && (
+      showsProfileSwitchHUD
+        || ((setFocus || workspaceChainHUD != nil) && showsWorkspaceSwitchHUD)
+        || ((setFocus || workspaceChainHUD != nil)
+          && !returnedBorrowNames.isEmpty
+          && showsBorrowHUD)
     )
 
     let settings = state.config.settings
+    let workspaceChainVisibilityCleanups = workspaceChainCleanup.map {
+      self.workspaceChainVisibilityCleanups($0, state: state)
+    } ?? []
     // Tile target: this workspace's tiled apps + shared tiled apps. Floating
     // apps (per-workspace or shared) are shown by the manager but kept out of
     // the tree.
@@ -635,7 +2342,7 @@ extension WorkspaceActivationFeature {
     var presentationWorkspaceIDs = state.visibleWorkspaceIDs
     if
       let targetDisplay,
-      let outgoing = state.activeWorkspacesByDisplay[targetDisplay]
+      let outgoing = state.activeWorkspace(on: targetDisplay)
     {
       presentationWorkspaceIDs.remove(outgoing)
     }
@@ -679,9 +2386,38 @@ extension WorkspaceActivationFeature {
       ? refreshMarkers(state: state)
       : Effect<Action>.none
 
-    let hudName = workspace.name
-    let hudIcon = workspace.symbolIconName
-    let hudSubtitle = dismissedBorrowName.map { String(localized: "Returned \($0)") }
+    let visibleProfileSwitch = showsProfileSwitchHUD
+      ? workspaceChainHUD?.profileSwitch
+      : nil
+    let hudName = visibleProfileSwitch?.name ?? workspace.name
+    let hudIcon = visibleProfileSwitch?.symbolIconName ?? workspace.symbolIconName
+    let returnedBorrowFacts = showsBorrowHUD
+      ? returnedBorrowSubtitles(returnedBorrowNames)
+      : []
+    let focusTransferSubtitle = showsWorkspaceSwitchHUD
+      ? targetDisplay.flatMap {
+        workspaceChainFocusTransferSubtitle(on: $0, context: workspaceChainHUD)
+      }
+      : nil
+    let hasWorkspaceChainIdentity = workspaceChainHUD?.role == .chainMember
+    let visibleWorkspaceChainName = showsWorkspaceSwitchHUD && hasWorkspaceChainIdentity
+      ? workspaceChainHUD?.name
+      : nil
+    let hudResultLine = (
+      (visibleProfileSwitch == nil ? [] : [workspace.name])
+        + [visibleWorkspaceChainName].compactMap { $0 }
+        + returnedBorrowFacts
+    ).joined(separator: " · ")
+    let hudSubtitle = [
+      hudResultLine.isEmpty ? nil : hudResultLine,
+      focusTransferSubtitle,
+    ]
+    .compactMap { $0 }
+    .joined(separator: "\n")
+    let effectiveHUDSubtitle = hudSubtitle.isEmpty ? nil : hudSubtitle
+    let hudSubtitleIcon = hasWorkspaceChainIdentity
+      ? workspaceChainHUD?.role.subtitleSymbolIconName
+      : nil
     // The switch HUD shows on the display focus landed on (the target). On a
     // same-monitor switch with no resolved target it falls back to the cursor.
     let hudDisplay = targetDisplay
@@ -689,17 +2425,39 @@ extension WorkspaceActivationFeature {
     let hudPosition = state.config.settings.hud.position
     let hudSize = state.config.settings.hud.size
 
+    var auxiliaryHUDRequests = workspaceChainVacatedHUDRequests(
+      workspace: workspace,
+      targetDisplay: targetDisplay,
+      context: workspaceChainHUD,
+      state: state,
+    )
+    auxiliaryHUDRequests.append(contentsOf: workspaceChainSourceCompositionHUDRequests(
+      context: workspaceChainHUD,
+      state: state,
+    ))
+
     // On a cross-monitor switch, a second HUD on the monitor being left names
     // where focus went. Separate panel (the controller tracks one per screen),
     // shown alongside the switch HUD on the new monitor.
-    let crossMonitorHUD = !setFocus || suppressSwitchHUD
-      ? Effect<Action>.none
-      : focusMovedHUDEffect(
+    let focusMovedHUDRequest = workspaceChainHUD.map {
+      uncoveredWorkspaceChainFocusMovedHUDRequest(
         workspace: workspace,
-        from: oldDisplay,
-        to: targetDisplay,
+        context: $0,
         state: state,
       )
+    } ?? self.focusMovedHUDRequest(
+      workspace: workspace,
+      from: oldDisplay,
+      to: targetDisplay,
+      state: state,
+    )
+    if
+      setFocus || (followsCursor && workspaceChainHUD != nil),
+      !suppressSwitchHUD,
+      let focusMovedHUDRequest
+    {
+      auxiliaryHUDRequests.append(focusMovedHUDRequest)
+    }
     var displacedCompositionEffects = [Effect<Action>]()
     for workspaceId in displacedCompositionHosts {
       displacedCompositionEffects.append(
@@ -713,23 +2471,30 @@ extension WorkspaceActivationFeature {
     // Floating windows need Screen Recording for their mirrors. Don't fail
     // silently ("floating just doesn't stay on top"): surface the system
     // prompt and a HUD pointing at the Settings row, once per session.
-    var screenRecordingWarning = Effect<Action>.none
+    var screenRecordingAccess = Effect<Action>.none
+    var screenRecordingWarningHUDRequest: ActionHUDRequest? = nil
     if
       !floatingBundleIds.isEmpty,
       !screenRecording.isGranted(),
       !state.didWarnMissingScreenRecording
     {
       state.didWarnMissingScreenRecording = true
-      screenRecordingWarning = .merge(
-        .run { [screenRecording] _ in await screenRecording.requestAccess() },
-        hudEffect(
-          state,
-          \.floating,
-          "Screen Recording Needed",
-          "exclamationmark.triangle.fill",
-          subtitle: "Floating windows can't stay above the tiles without it — grant in Settings → General → Permissions, then relaunch",
-        ),
-      )
+      screenRecordingAccess = .run { [screenRecording] _ in
+        await screenRecording.requestAccess()
+      }
+      if state.config.settings.hud.shows(\.floating) {
+        screenRecordingWarningHUDRequest = ActionHUDRequest(
+          name: String(localized: "Screen Recording Needed"),
+          symbolIconName: "exclamationmark.triangle.fill",
+          subtitle: String(
+            localized: "Floating windows can't stay above the tiles without it — grant in Settings → General → Permissions, then relaunch"
+          ),
+          durationMs: hudDurationMs,
+          position: hudPosition,
+          size: hudSize,
+          display: targetDisplay,
+        )
+      }
     }
 
     // Watchdog: `isActivating` is only ever cleared by
@@ -756,10 +2521,10 @@ extension WorkspaceActivationFeature {
         .cancel(id: CancelID.layout(targetDisplay)),
         .cancel(id: CancelID.borrowFocus(targetDisplay)),
         .cancel(id: CancelID.borrowRender(targetDisplay)),
+        .cancel(id: CancelID.activationHUD),
         .merge(
-          screenRecordingWarning,
+          screenRecordingAccess,
           watchdog,
-          crossMonitorHUD,
           displacedCompositionReflow,
           clearedCompositionMarkers,
           // Arm tiled, floating, and unmanaged apps concurrently with activation.
@@ -784,7 +2549,8 @@ extension WorkspaceActivationFeature {
             displays = displays,
             debugLog = debugLog,
             focus = focusManager,
-            strandedBorrows,
+            auxiliaryHUDRequests,
+            screenRecordingWarningHUDRequest,
           ] send in
             async let outgoingFocus: WindowKey? = {
               guard let outgoingFrontmostApp else { return nil as WindowKey? }
@@ -802,18 +2568,29 @@ extension WorkspaceActivationFeature {
               phases.append((name, now - phaseStart))
               phaseStart = now
             }
-            if showHUD {
+            guard !Task.isCancelled else { return }
+            if showHUD, screenRecordingWarningHUDRequest == nil {
               await hud.showAction(
                 ActionHUDRequest(
                   name: hudName,
                   symbolIconName: hudIcon,
-                  subtitle: hudSubtitle,
+                  subtitle: effectiveHUDSubtitle,
+                  subtitleSymbolIconName: hudSubtitleIcon,
+                  subtitleExtendsDuration: !returnedBorrowFacts.isEmpty,
                   durationMs: hudDurationMs,
                   position: hudPosition,
                   size: hudSize,
                   display: hudDisplay,
                 )
               )
+            }
+            for request in auxiliaryHUDRequests {
+              guard !Task.isCancelled else { return }
+              await hud.showAction(request)
+            }
+            if let screenRecordingWarningHUDRequest {
+              guard !Task.isCancelled else { return }
+              await hud.showAction(screenRecordingWarningHUDRequest)
             }
             guard !Task.isCancelled else { return }
             // Tear down the outgoing workspace's mirrors in the same beat as the
@@ -1129,16 +2906,23 @@ extension WorkspaceActivationFeature {
                 generation: activationGeneration,
               ))
             }
-            // Take down blocks borrowed into a display this host just left. Runs
-            // after the tile pass so the host's own windows already count as
-            // living on their new display and aren't hidden along with them.
-            for stranded in strandedBorrows {
-              await mgr.returnBorrowed(stranded.bundleIds, stranded.display)
+            // Priority-skipped members on otherwise-unfilled displays are
+            // hidden only after the selected trigger has established focus.
+            // Hiding the old frontmost app earlier can make macOS reactivate it
+            // and bounce follow-app-focus back into the discarded workspace.
+            if let workspaceChainCleanup {
+              guard !Task.isCancelled else { return }
+              _ = await Self.runWorkspaceChainCleanup(
+                transaction: workspaceChainCleanup,
+                cleanups: workspaceChainVisibilityCleanups,
+                send: send,
+              )
             }
             // The tail survived to the end. Only now is it safe for a queued
             // display restore to start its own activation, which would cancel
             // this effect. A cancelled tail never gets here, but cancellation
             // only happens when another activation is already taking over.
+            guard !Task.isCancelled else { return }
             await send(.activationTailFinished(generation: activationGeneration))
           }
           .cancellable(id: CancelID.activation, cancelInFlight: true),
@@ -1156,13 +2940,22 @@ extension WorkspaceActivationFeature {
     }
   }
 
-  func cycle(by direction: Int, state: inout State) -> Effect<Action> {
-    let anchor = state.activatingWorkspaceID ?? state.primaryActiveWorkspaceID
+  func cycle(
+    by direction: Int,
+    display: DisplayName?,
+    state: inout State,
+  ) -> Effect<Action> {
+    let inFlightAnchor = state.config.settings.switching.cycleAcrossDisplays
+      ? state.activatingWorkspaceID
+      : state.activatingWorkspace(on: display)
+    let anchor = inFlightAnchor
+      ?? state.activeWorkspace(on: display)
+      ?? state.primaryActiveWorkspaceID
     let workspaces = state.config.activeProfile?.workspaces
     let name = { (id: Workspace.ID?) -> String in
       id.flatMap { workspaces?[id: $0]?.name } ?? "nil"
     }
-    guard let id = adjacentWorkspaceId(by: direction, state: state) else {
+    guard let id = adjacentWorkspaceId(by: direction, state: state, display: display) else {
       debugLog.log(
         "Activate",
         "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)): no eligible target",
@@ -1173,7 +2966,11 @@ extension WorkspaceActivationFeature {
       "Activate",
       "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)) → \(name(id))",
     )
-    return .send(.activate(workspaceId: id, setFocus: true))
+    return .send(.activate(
+      workspaceId: id,
+      setFocus: true,
+      interactionDisplay: display,
+    ))
   }
 
   /// The workspace `direction` steps from the active one, honoring the
@@ -1183,7 +2980,7 @@ extension WorkspaceActivationFeature {
   func adjacentWorkspaceId(
     by direction: Int,
     state: State,
-    display: DisplayName? = nil,
+    display: DisplayName?,
   ) -> Workspace.ID? {
     // Scratchpads are borrow-only — never a cycle destination.
     guard
@@ -1216,15 +3013,22 @@ extension WorkspaceActivationFeature {
         all
       }
     guard !workspaces.isEmpty else { return nil }
-    // Anchor at the in-flight activation's target when there is one, else
-    // the active workspace on the focused display. `primaryActive` only
+    // Anchor at the in-flight activation's target when it belongs to this
+    // cycle scope, else the active workspace on the interaction display.
+    // `primaryActive` only
     // updates on completion, so without the in-flight anchor every press
     // during a slow switch re-resolved to the same target.
-    let currentID = state.activatingWorkspaceID
-      ?? (display ?? state.focusedDisplay).flatMap { state.activeWorkspacesByDisplay[$0] }
+    let inFlightWorkspaceID = settings.switching.cycleAcrossDisplays
+      ? state.activatingWorkspaceID
+      : state.activatingWorkspace(on: display ?? state.focusedDisplay)
+    let currentID = inFlightWorkspaceID.flatMap { id in
+      workspaces.contains(where: { $0.id == id }) ? id : nil
+    }
+      ?? state.activeWorkspace(on: display ?? state.focusedDisplay)
       ?? state.primaryActiveWorkspaceID
-    let currentIndex = workspaces.firstIndex { $0.id == currentID } ?? -1
     let count = workspaces.count
+    let currentIndex = workspaces.firstIndex { $0.id == currentID }
+      ?? (direction > 0 ? -1 : count)
 
     let runningBundleIds: Set<String> = settings.switching.skipEmpty
       ? windowSnapshot.runningBundleIds()
@@ -1483,27 +3287,30 @@ extension WorkspaceActivationFeature {
     guard
       let profile = state.config.activeProfile,
       let target = profile.workspaces[id: targetId],
-      let display = displayOverride ?? displays.current() ?? state.focusedDisplay
+      let display = displayOverride ?? interactionDisplay(state: state)
       ?? state.activeWorkspacesByDisplay.keys.first,
-      let hostId = state.activeWorkspacesByDisplay[display],
+      let hostId = state.activeWorkspace(on: display),
       hostId != targetId,
       let hostWs = profile.workspaces[id: hostId]
     else { return .none }
     // Already borrowed here → dismiss by default. Users who want repeated
     // summons to move/refocus the block can turn the toggle behavior off.
     if
-      let existing = state.compositionsByDisplay[display],
+      let existingDisplay = state.compositionsByDisplay.keys.first(where: {
+        $0.matches(display)
+      }),
+      let existing = state.compositionsByDisplay[existingDisplay],
       let idx = existing.borrowed.firstIndex(where: { $0.workspace == targetId })
     {
       if state.config.settings.switching.toggleBorrowOnRepeat {
         debugLog.log("Borrow", "repeat summon \(target.name) → dismiss")
-        return dismissBorrow(display: display, state: &state)
+        return dismissBorrow(display: existingDisplay, state: &state)
       }
       var comp = existing
       comp.borrowed[idx].edge = edge
-      state.compositionsByDisplay[display] = comp
-      let generation = state.borrowGenerationByDisplay[display, default: 0]
-      state.pendingBorrowCompletionByDisplay[display] = .init(
+      state.compositionsByDisplay[existingDisplay] = comp
+      let generation = state.borrowGenerationByDisplay[existingDisplay, default: 0]
+      state.pendingBorrowCompletionByDisplay[existingDisplay] = .init(
         workspaceId: targetId,
         generation: generation,
       )
@@ -1514,7 +3321,7 @@ extension WorkspaceActivationFeature {
       // new generation used to strand a fast re-dock with an empty block.
       return .send(
         .flushCompositionAndFocus(
-          display: display,
+          display: existingDisplay,
           workspaceId: targetId,
           generation: generation,
         )
@@ -1717,10 +3524,10 @@ extension WorkspaceActivationFeature {
   /// End the borrow on `display`: drop the composition and re-activate the
   /// host alone, which hides the borrowed apps (no longer in keepVisible) and
   /// re-tiles the host to the full work area. Fire-and-forget.
-  /// The recent target shared by switch / assign / borrow. The default is a
+  /// The recent target shared by switch / assign / borrow. Local mode uses a
   /// strict per-display history; global mode walks workspace MRU across every
   /// display while excluding the workspace on the interaction display.
-  func recentWorkspaceId(state: State, display: DisplayName? = nil) -> Workspace.ID? {
+  func recentWorkspaceId(state: State, display: DisplayName?) -> Workspace.ID? {
     let interactionDisplay = display ?? state.focusedDisplay
     guard let workspaces = state.config.activeProfile?.workspaces else { return nil }
     let isEligible: (Workspace.ID) -> Bool = { id in
@@ -1728,13 +3535,26 @@ extension WorkspaceActivationFeature {
     }
     guard state.config.settings.switching.recentAcrossDisplays else {
       if let interactionDisplay {
-        return state.previousWorkspacesByDisplay[interactionDisplay].flatMap {
-          isEligible($0) ? $0 : nil
+        if let previous = state.previousWorkspace(on: interactionDisplay), isEligible(previous) {
+          return previous
+        }
+        let exactHistory = state.displayWorkspaceHistory[interactionDisplay]
+        let connectedUUIDsWithSameName = Set(state.connectedDisplays.compactMap { candidate in
+          candidate.name == interactionDisplay.name ? candidate.uuid : nil
+        })
+        let matchingHistory = connectedUUIDsWithSameName.count <= 1
+          ? state.displayWorkspaceHistory.first(where: {
+            $0.key.matches(interactionDisplay)
+          })?.value
+          : nil
+        let current = state.activeWorkspace(on: interactionDisplay)
+        return (exactHistory ?? matchingHistory ?? []).first {
+          $0 != current && isEligible($0)
         }
       }
       return state.previousWorkspacesByDisplay.values.first(where: isEligible)
     }
-    let current = interactionDisplay.flatMap { state.activeWorkspacesByDisplay[$0] }
+    let current = state.activeWorkspace(on: interactionDisplay)
       ?? state.primaryActiveWorkspaceID
     return state.workspaceMRU.first { $0 != current && isEligible($0) }
   }
@@ -1754,6 +3574,8 @@ extension WorkspaceActivationFeature {
   func focusVisibleWorkspace(
     workspaceId: Workspace.ID,
     display: DisplayName,
+    workspaceChainHUD: WorkspaceChainHUDContext? = nil,
+    workspaceChainCleanup: WorkspaceChainCleanupTransaction? = nil,
     state: inout State,
   ) -> Effect<Action> {
     guard state.displayShowing(workspaceId)?.matches(display) == true else {
@@ -1779,46 +3601,110 @@ extension WorkspaceActivationFeature {
       shouldFocus: true,
       state: &state,
     )
-    guard
-      let oldDisplay,
-      !oldDisplay.matches(display),
-      state.config.settings.hud.shows(\.workspaceSwitch),
-      let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
-    else { return focus }
+    let visibilityCleanup = workspaceChainCleanupEffect(
+      transaction: workspaceChainCleanup,
+      cleanups: workspaceChainCleanup.map {
+        workspaceChainVisibilityCleanups($0, state: state)
+      } ?? [],
+    )
+    guard let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
+    else { return .concatenate(focus, visibilityCleanup) }
+    let showsWorkspaceSwitchHUD = state.config.settings.hud.shows(\.workspaceSwitch)
+    let showsBorrowHUD = state.config.settings.hud.shows(\.borrow)
+    let showsProfileSwitchHUD = workspaceChainHUD?.profileSwitch != nil
+      && state.config.settings.hud.shows(\.profileSwitch)
+    let returnedBorrowNames = workspaceChainHUD?.destinationReturnedBorrowNames ?? []
+    let returnedBorrowFacts = showsBorrowHUD
+      ? returnedBorrowSubtitles(returnedBorrowNames)
+      : []
+    let movedAcrossDisplays = oldDisplay?.matches(display) == false
+    let hasWorkspaceChainPresentation = workspaceChainHUD != nil
+    let showsWorkspaceResult = showsWorkspaceSwitchHUD
+      && (movedAcrossDisplays || hasWorkspaceChainPresentation)
+    let showsBorrowResult = showsBorrowHUD && !returnedBorrowFacts.isEmpty
+    let deferredCleanupOwnsTargetHUD = workspaceChainCleanup != nil
+      && workspaceChainHUD?.deferredCleanupHUDs.contains {
+        $0.display.matches(display)
+      } == true
     let durationMs = state.config.settings.hud.durationMs
     let position = state.config.settings.hud.position
     let size = state.config.settings.hud.size
-    let targetHUD = Effect<Action>.run { [hud = workspaceHUD] _ in
-      await hud.showAction(
-        ActionHUDRequest(
-          name: workspace.name,
-          symbolIconName: workspace.symbolIconName,
-          subtitle: nil,
-          durationMs: durationMs,
-          position: position,
-          size: size,
-          display: display,
-        )
-      )
+    let visibleProfileSwitch = showsProfileSwitchHUD
+      ? workspaceChainHUD?.profileSwitch
+      : nil
+    let hasWorkspaceChainIdentity = workspaceChainHUD?.role == .chainMember
+    let visibleWorkspaceChainName = showsWorkspaceSwitchHUD && hasWorkspaceChainIdentity
+      ? workspaceChainHUD?.name
+      : nil
+    let resultLine = (
+      (visibleProfileSwitch == nil ? [] : [workspace.name])
+        + [visibleWorkspaceChainName].compactMap { $0 }
+        + returnedBorrowFacts
+    ).joined(separator: " · ")
+    let subtitle = resultLine
+    var hudRequests = [ActionHUDRequest]()
+    if
+      !deferredCleanupOwnsTargetHUD,
+      showsProfileSwitchHUD || showsWorkspaceResult || showsBorrowResult
+    {
+      hudRequests.append(ActionHUDRequest(
+        name: visibleProfileSwitch?.name ?? workspace.name,
+        symbolIconName: visibleProfileSwitch?.symbolIconName ?? workspace.symbolIconName,
+        subtitle: subtitle.isEmpty ? nil : subtitle,
+        subtitleSymbolIconName: hasWorkspaceChainIdentity
+          ? workspaceChainHUD?.role.subtitleSymbolIconName
+          : nil,
+        subtitleExtendsDuration: !returnedBorrowFacts.isEmpty,
+        durationMs: durationMs,
+        position: position,
+        size: size,
+        display: display,
+      ))
     }
-    return .merge(
-      focus,
-      targetHUD,
-      focusMovedHUDEffect(
+    hudRequests.append(contentsOf: workspaceChainSourceCompositionHUDRequests(
+      context: workspaceChainHUD,
+      state: state,
+    ))
+    let focusMovedHUDRequest = workspaceChainHUD.map {
+      uncoveredWorkspaceChainFocusMovedHUDRequest(
         workspace: workspace,
-        from: oldDisplay,
-        to: display,
+        context: $0,
         state: state,
-      ),
+      )
+    } ?? self.focusMovedHUDRequest(
+      workspace: workspace,
+      from: oldDisplay,
+      to: display,
+      state: state,
     )
+    if let movedHUD = focusMovedHUDRequest {
+      hudRequests.append(movedHUD)
+    }
+    guard !hudRequests.isEmpty else {
+      return .concatenate(focus, visibilityCleanup)
+    }
+    let hud = Effect<Action>.run { [workspaceHUD, hudRequests] _ in
+      for request in hudRequests {
+        guard !Task.isCancelled else { return }
+        await workspaceHUD.showAction(request)
+      }
+    }
+    .cancellable(id: CancelID.activationHUD, cancelInFlight: true)
+    return .merge(.concatenate(focus, visibilityCleanup), hud)
   }
 
   func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
     // A hotkey passes nil → resolve the pointer display. Internal collapse
     // actions pass their exact owner so a background monitor stays isolated.
-    let display = display ?? displays.current() ?? state.focusedDisplay
+    let requestedDisplay = display ?? interactionDisplay(state: state)
       ?? state.compositionsByDisplay.keys.first
-    guard let display, let comp = state.compositionsByDisplay[display] else { return .none }
+    guard
+      let requestedDisplay,
+      let display = state.compositionsByDisplay.keys.first(where: {
+        $0.matches(requestedDisplay)
+      }),
+      let comp = state.compositionsByDisplay[display]
+    else { return .none }
     debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
     state.borrowGenerationByDisplay[display, default: 0] &+= 1
     state.pendingBorrowCompletionByDisplay[display] = nil
@@ -1968,6 +3854,81 @@ extension WorkspaceActivationFeature {
       ?? displays.current()
     return (display, tilingWorkArea(for: display, settings: state.config.settings))
   }
+
+  // MARK: Private
+
+  private func workspaceChainSourceHUDRequests(
+    _ sources: [WorkspaceChainSourceCompositionHUD],
+    context: WorkspaceChainHUDContext,
+    state: State,
+  ) -> [ActionHUDRequest] {
+    guard !sources.isEmpty else { return [] }
+    let showsWorkspaceSwitch = state.config.settings.hud.shows(\.workspaceSwitch)
+    let showsBorrow = state.config.settings.hud.shows(\.borrow)
+    let showsProfileSwitch = context.profileSwitch != nil
+      && state.config.settings.hud.shows(\.profileSwitch)
+    let visibleProfileSwitch = showsProfileSwitch ? context.profileSwitch : nil
+    guard showsProfileSwitch || showsWorkspaceSwitch || showsBorrow else { return [] }
+    let durationMs = state.config.settings.hud.durationMs
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
+    return sources.compactMap { source in
+      let hasChainIdentity = source.role == .chainMember
+      let returned = showsBorrow
+        ? returnedBorrowSubtitles(source.returnedBorrowNames)
+        : []
+      guard showsProfileSwitch || showsWorkspaceSwitch || !returned.isEmpty else { return nil }
+      var resultFacts = showsProfileSwitch && source.movedWorkspaceDestination == nil
+        ? [source.hostName]
+        : []
+      if showsWorkspaceSwitch && hasChainIdentity {
+        resultFacts.append(context.name)
+      }
+      if
+        showsProfileSwitch || showsWorkspaceSwitch,
+        let destination = source.movedWorkspaceDestination
+      {
+        resultFacts.append(String(localized: "\(source.hostName) is on \(destination.name)"))
+      }
+      if
+        showsWorkspaceSwitch && hasChainIdentity,
+        let skipped = source.prioritySkippedWorkspaceName
+      {
+        resultFacts.append(String(localized: "Skipped by chain priority: \(skipped)"))
+      }
+      resultFacts.append(contentsOf: returned)
+      let resultLine = resultFacts.joined(separator: " · ")
+      let focusTransfer = showsWorkspaceSwitch
+        ? workspaceChainFocusTransferSubtitle(on: source.display, context: context)
+        : nil
+      let subtitle = [resultLine.isEmpty ? nil : resultLine, focusTransfer]
+        .compactMap { $0 }
+        .joined(separator: "\n")
+      return ActionHUDRequest(
+        name: visibleProfileSwitch?.name ?? (
+          source.movedWorkspaceDestination == nil
+            ? source.hostName
+            : String(localized: "Workspace moved")
+        ),
+        symbolIconName: visibleProfileSwitch?.symbolIconName ?? (
+          source.movedWorkspaceDestination == nil
+            ? source.hostSymbolIconName
+            : "arrow.right.to.line"
+        ),
+        subtitle: subtitle.isEmpty ? nil : subtitle,
+        subtitleSymbolIconName: hasChainIdentity
+          ? source.role.subtitleSymbolIconName
+          : nil,
+        subtitleExtendsDuration: !returned.isEmpty
+          || source.prioritySkippedWorkspaceName != nil,
+        durationMs: durationMs,
+        position: position,
+        size: size,
+        display: source.display,
+      )
+    }
+  }
+
 }
 
 /// Whole milliseconds of a `Duration`, for the activation phase log.

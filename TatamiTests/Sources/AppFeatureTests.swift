@@ -183,11 +183,13 @@ struct WorkspaceListFeatureTests {
       apps: [app],
     )
     let excluded = Workspace(name: "Browse")
+    let workspaceChain = WorkspaceChain(workspaceIDs: [included.id, excluded.id])
     let profile = Profile(
       name: "Default",
       symbolIconName: "rectangle.stack.fill",
       shortcut: profileShortcut,
       autoActivation: ProfileActivation(),
+      workspaceChains: [workspaceChain],
       workspaces: [included, excluded],
     )
     let layoutCopyCount = LockIsolated(0)
@@ -240,6 +242,7 @@ struct WorkspaceListFeatureTests {
     #expect(clone.symbolIconName == profile.symbolIconName)
     #expect(clone.shortcut == nil)
     #expect(clone.autoActivation == nil)
+    #expect(clone.workspaceChains.isEmpty)
     #expect(layoutCopyCount.value == 0)
   }
 
@@ -250,7 +253,7 @@ struct WorkspaceListFeatureTests {
     let workspace = Workspace(
       name: "Focus",
       activateShortcut: explicit,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let profile = Profile(name: "Default", workspaces: [workspace])
     var settings = AppSettings()
@@ -266,19 +269,19 @@ struct WorkspaceListFeatureTests {
     let excluded: Set<String> = [
       WorkspaceListFeature.DuplicationOptionID.field(
         WorkspaceShortcutField.activateShortcut.rawValue,
-        in: workspace.id
-      ),
+        in: workspace.id,
+      )
     ]
 
     await store.send(.duplicateProfileTapped(profile.id))
     let review = try #require(store.state.duplicationReview)
     let conflictMap = WorkspaceListFeature.duplicationShortcutConflicts(
       review: review,
-      excluding: excluded
+      excluding: excluded,
     )
     let keyItemID = WorkspaceListFeature.DuplicationOptionID.field(
       WorkspaceShortcutField.keyEquivalent.rawValue,
-      in: workspace.id
+      in: workspace.id,
     )
     #expect(conflictMap[keyItemID]?.map(\.hotKey) == [derived])
 
@@ -296,7 +299,7 @@ struct WorkspaceListFeatureTests {
     let workspace = Workspace(
       name: "Focus",
       activateShortcut: explicit,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let profile = Profile(name: "Default", workspaces: [workspace])
     var settings = AppSettings()
@@ -327,8 +330,8 @@ struct WorkspaceListFeatureTests {
       selectionRevision: 0,
       layoutCopied: true,
       shortcutSelections: [
-        .init(workspaceId: clonedWorkspaceID, field: .keyEquivalent),
-      ]
+        .init(workspaceId: clonedWorkspaceID, field: .keyEquivalent)
+      ],
     )))
 
     #expect(store.state.config == baseline)
@@ -498,7 +501,7 @@ struct WorkspaceListFeatureTests {
     await store.send(.duplicateWorkspaceTapped(workspace.id))
     shared.withLock { $0.mutateWorkspace(workspace.id) { $0.name = "Changed elsewhere" } }
     await store.send(.duplicationReviewConfirmed(excluding: [
-      WorkspaceListFeature.DuplicationOptionID.layout(workspace.id),
+      WorkspaceListFeature.DuplicationOptionID.layout(workspace.id)
     ]))
     await store.receive {
       guard case .duplicationPrepared(let preparation) = $0 else { return false }
@@ -724,7 +727,7 @@ struct ProfileCopyTransactionTests {
       source: source.id,
       baseline: baseline,
       excludedApps: [:],
-      excludedFields: [:]
+      excludedFields: [:],
     ))
     await store.finish()
 
@@ -755,13 +758,191 @@ struct ProfileCopyTransactionTests {
       source: source.id,
       baseline: baseline,
       excludedApps: [:],
-      excludedFields: [:]
+      excludedFields: [:],
     ))
     await store.finish()
 
     #expect(store.state.config == changed)
     #expect(store.state.config.workspace(id: targetWorkspace.id)?.symbolIconName == "bolt")
     #expect(store.state.alert != nil)
+  }
+}
+
+// MARK: - ProfileWorkspaceChainFeatureTests
+
+@MainActor
+struct ProfileWorkspaceChainFeatureTests {
+  @Test
+  func `valid workspace chain saves into selected profile`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayB)
+    let profile = Profile(name: "Default", workspaces: [code, slack])
+    let state = ProfileDetailFeature.State(profileId: profile.id)
+    state.$config = Shared(value: AppConfig(profiles: [profile]))
+    let chain = WorkspaceChain(
+      name: "  Coding  ",
+      workspaceIDs: [code.id, slack.id],
+    )
+    let store = TestStore(initialState: state) {
+      ProfileDetailFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.saveWorkspaceChain(original: nil, updated: chain))
+    await store.finish()
+
+    #expect(store.state.profile?.workspaceChains.first?.name == "Coding")
+    #expect(store.state.profile?.workspaceChains.first?.workspaceIDs == chain.workspaceIDs)
+    #expect(store.state.alert == nil)
+  }
+
+  @Test
+  func `workspace chain save repairs dynamic references in membership order`() async {
+    let first = Workspace(name: "First")
+    let second = Workspace(name: "Second")
+    let outside = Workspace(name: "Outside")
+    let profile = Profile(name: "Default", workspaces: [first, second, outside])
+    let state = ProfileDetailFeature.State(profileId: profile.id)
+    state.$config = Shared(value: AppConfig(profiles: [profile]))
+    let chain = WorkspaceChain(
+      workspaceIDs: [first.id, second.id],
+      dynamicWorkspaceIDs: [second.id, outside.id, first.id, second.id],
+    )
+    let store = TestStore(initialState: state) {
+      ProfileDetailFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.saveWorkspaceChain(original: nil, updated: chain))
+    await store.finish()
+
+    #expect(
+      store.state.profile?.workspaceChains.first?.dynamicWorkspaceIDs
+        == [first.id, second.id]
+    )
+    #expect(store.state.alert == nil)
+  }
+
+  @Test
+  func `workspace chain save allows overlapping pins and preserves any priority length`() async {
+    let sharedDisplay = DisplayName(uuid: "display-a", name: "Studio Display")
+    let first = Workspace(name: "First", displayHint: sharedDisplay)
+    let second = Workspace(name: "Second", displayHint: sharedDisplay)
+    let third = Workspace(name: "Third", displayHint: sharedDisplay)
+    let profile = Profile(name: "Default", workspaces: [first, second, third])
+    let state = ProfileDetailFeature.State(profileId: profile.id)
+    state.$config = Shared(value: AppConfig(profiles: [profile]))
+    let chain = WorkspaceChain(workspaceIDs: [first.id, second.id, third.id])
+    let store = TestStore(initialState: state) {
+      ProfileDetailFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.saveWorkspaceChain(original: nil, updated: chain))
+    await store.finish()
+
+    #expect(store.state.profile?.workspaceChains == [chain])
+    #expect(store.state.alert == nil)
+  }
+
+  @Test
+  func `editing workspace chain preserves identity and position while updating order`() async throws {
+    let first = Workspace(name: "A")
+    let second = Workspace(name: "B")
+    let third = Workspace(name: "C")
+    let otherFirst = Workspace(name: "D")
+    let otherSecond = Workspace(name: "E")
+    let untouched = WorkspaceChain(
+      name: "Untouched",
+      workspaceIDs: [otherFirst.id, otherSecond.id],
+    )
+    let original = WorkspaceChain(
+      name: "Primary",
+      workspaceIDs: [first.id, second.id, third.id],
+    )
+    let profile = Profile(
+      name: "Default",
+      workspaceChains: [untouched, original],
+      workspaces: [first, second, third, otherFirst, otherSecond],
+    )
+    let state = ProfileDetailFeature.State(profileId: profile.id)
+    state.$config = Shared(value: AppConfig(profiles: [profile]))
+    let store = TestStore(initialState: state) {
+      ProfileDetailFeature()
+    }
+    store.exhaustivity = .off
+    var updated = original
+    updated.workspaceIDs = [third.id, first.id, second.id]
+
+    await store.send(.saveWorkspaceChain(original: original, updated: updated))
+    await store.finish()
+
+    let chains = try #require(store.state.profile?.workspaceChains)
+    #expect(chains == [untouched, updated])
+    #expect(chains[1].id == original.id)
+    #expect(chains[1].workspaceIDs == [third.id, first.id, second.id])
+    #expect(store.state.alert == nil)
+  }
+
+  @Test
+  func `workspace shared by two workspace chains rejects the new chain`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayB)
+    let notes = Workspace(name: "Notes", displayHint: displayC)
+    let existing = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    let conflicting = WorkspaceChain(workspaceIDs: [code.id, notes.id])
+    let profile = Profile(
+      name: "Default",
+      workspaceChains: [existing],
+      workspaces: [code, slack, notes],
+    )
+    let state = ProfileDetailFeature.State(profileId: profile.id)
+    state.$config = Shared(value: AppConfig(profiles: [profile]))
+    let store = TestStore(initialState: state) {
+      ProfileDetailFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.saveWorkspaceChain(original: nil, updated: conflicting))
+    await store.finish()
+
+    #expect(store.state.profile?.workspaceChains == [existing])
+    #expect(store.state.alert != nil)
+  }
+
+  @Test
+  func `workspace chain deletion removes the confirmed exact chain`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayB)
+    let chain = WorkspaceChain(
+      name: "Coding",
+      workspaceIDs: [code.id, slack.id],
+    )
+    let profile = Profile(
+      name: "Default",
+      workspaceChains: [chain],
+      workspaces: [code, slack],
+    )
+    let state = ProfileDetailFeature.State(profileId: profile.id)
+    state.$config = Shared(value: AppConfig(profiles: [profile]))
+    let store = TestStore(initialState: state) {
+      ProfileDetailFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.deleteWorkspaceChainRequested(chain))
+    #expect(store.state.alert != nil)
+    await store.send(.alert(.presented(.confirmWorkspaceChainDeletion(chain))))
+    await store.finish()
+
+    #expect(store.state.profile?.workspaceChains.isEmpty == true)
   }
 }
 
@@ -819,6 +1000,55 @@ struct GestureRoutingTests {
   }
 }
 
+// MARK: - WorkspaceDetailActivationRoutingTests
+
+@MainActor
+struct WorkspaceDetailActivationRoutingTests {
+  @Test
+  func `detail activate freezes the pointer display before child routing`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let workspace = Workspace(name: "Work")
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [profile],
+      activeProfileId: profile.id,
+    ))
+    var state = AppFeature.State()
+    state.$config = sharedConfig
+    state.activation.$config = sharedConfig
+    state.workspaceList.$config = sharedConfig
+    state.workspaceList.detail = WorkspaceDetailFeature.State(workspaceId: workspace.id)
+    let pointerDisplay = LockIsolated(displayA)
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.workspaceList(.detail(.activateTapped)))
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard
+        case .activation(.activate(
+          let workspaceID,
+          let setFocus,
+          let interactionDisplay,
+        )) = $0
+      else { return false }
+      return workspaceID == workspace.id
+        && setFocus
+        && interactionDisplay == displayA
+    }
+    await store.finish()
+  }
+}
+
 // MARK: - WindowCycleShortcutRoutingTests
 
 @MainActor
@@ -845,7 +1075,33 @@ struct WindowCycleShortcutRoutingTests {
   }
 
   @Test
+  func `workspace hot key freezes the pointer display before child routing`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    var state = AppFeature.State()
+    state.activation.focusedDisplay = displayB
+    let pointerDisplay = LockIsolated(displayA)
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.hotKeys(.actionTriggered(.switchToNextWorkspace)))
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard case .activation(.activateNext(let interactionDisplay)) = $0 else {
+        return false
+      }
+      return interactionDisplay == displayA
+    }
+  }
+
+  @Test
   func `workspace gesture switches to the owning profile`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
     let currentWorkspace = Workspace(name: "Current")
     let targetWorkspace = Workspace(name: "Target")
     let currentProfile = Profile(name: "Default", workspaces: [currentWorkspace])
@@ -859,9 +1115,11 @@ struct WindowCycleShortcutRoutingTests {
         fourFinger: .init(up: .activateWorkspace(targetWorkspace.id)),
       )
     }
+    let pointerDisplay = LockIsolated(displayA)
     let store = TestStore(initialState: state) {
       AppFeature()
     } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
       $0.continuousClock = TestClock()
       $0.floatingOverlay.retainOnly = { _ in }
       $0.floatingOverlay.setFloating = { _ in }
@@ -869,15 +1127,73 @@ struct WindowCycleShortcutRoutingTests {
     store.exhaustivity = .off
 
     await store.send(.gesturePerformed(.init(fingerCount: 4, direction: .up)))
+    // The parent route owns the command's input beat. Pointer movement before
+    // its child action is reduced must not retarget the workspace/profile.
+    pointerDisplay.setValue(displayB)
     await store.receive {
-      guard case .activateProfile(let id, let focus) = $0 else { return false }
-      return id == targetProfile.id && focus == targetWorkspace.id
+      guard case .activateProfile(let id, let focus, let interactionDisplay) = $0 else {
+        return false
+      }
+      return id == targetProfile.id
+        && focus == targetWorkspace.id
+        && interactionDisplay == displayA
     }
+    #expect(store.state.config.activeProfileId == targetProfile.id)
+  }
+
+  @Test
+  func `membership profile switch forwards its captured display into reactivation`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let currentWorkspace = Workspace(name: "Current")
+    let targetWorkspace = Workspace(name: "Target", kind: .scratchpad)
+    let currentProfile = Profile(name: "Default", workspaces: [currentWorkspace])
+    let targetProfile = Profile(name: "Dual", workspaces: [targetWorkspace])
+    let state = AppFeature.State()
+    state.$config.withLock {
+      $0.profiles = [currentProfile, targetProfile]
+      $0.activeProfileId = currentProfile.id
+    }
+    let pointerDisplay = LockIsolated(displayA)
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.displays.all = { [] }
+      $0.displays.current = { pointerDisplay.value }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activation(.delegate(.profileSwitchRequested(
+      targetProfile.id,
+      focus: targetWorkspace.id,
+      interactionDisplay: displayA,
+    ))))
+    await store.receive {
+      guard case .activateProfile(let id, let focus, let interactionDisplay) = $0 else {
+        return false
+      }
+      return id == targetProfile.id
+        && focus == targetWorkspace.id
+        && interactionDisplay == displayA
+    }
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard
+        case .activation(.reactivateActiveProfile(
+          let focus,
+          let interactionDisplay,
+        )) = $0
+      else { return false }
+      return focus == targetWorkspace.id && interactionDisplay == displayA
+    }
+    await store.receive(\.activation.activateInitial)
+    await store.finish()
+
     #expect(store.state.config.activeProfileId == targetProfile.id)
   }
 }
 
-// MARK: - CLIActionRoutingTests
+// MARK: - CLIDomainCommandRoutingTests
 
 @MainActor
 struct CLIDomainCommandRoutingTests {
@@ -918,6 +1234,35 @@ struct CLIDomainCommandRoutingTests {
 
     #expect(completions.value == ["The requested workspace no longer exists"])
   }
+
+  @Test
+  func `CLI domain command freezes the pointer display before child routing`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let pointerDisplay = LockIsolated(displayA)
+    let completions = LockIsolated<[String?]>([])
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cli(.delegate(.dispatchDomainCommandRequested(
+      .borrowRecentWorkspace,
+      complete: { error in completions.withValue { $0.append(error) } },
+    ))))
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard case .activation(.borrowRecentWorkspace(let interactionDisplay)) = $0 else {
+        return false
+      }
+      return interactionDisplay == displayA
+    }
+    await store.finish()
+
+    #expect(completions.value == [nil])
+  }
 }
 
 // MARK: - CLIActivationRoutingTests
@@ -925,6 +1270,58 @@ struct CLIDomainCommandRoutingTests {
 @MainActor
 @Suite("CLI activation routing", .serialized)
 struct CLIActivationRoutingTests {
+  @Test
+  func `workspace request freezes the pointer display before activation tracking`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let workspace = Workspace(name: "CLI")
+    let profile = Profile(name: "Default", workspaces: [workspace])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [profile],
+      activeProfileId: profile.id,
+    ))
+    let state = AppFeature.State()
+    state.$config = sharedConfig
+    state.activation.$config = sharedConfig
+    let pointerDisplay = LockIsolated(displayA)
+    let completions = LockIsolated<[String?]>([])
+    let store = TestStore(initialState: state) {
+      AppFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cli(.delegate(.activateWorkspaceRequested(
+      workspace.id,
+      complete: { error in completions.withValue { $0.append(error) } },
+    ))))
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard case .activation(.trackCLIActivation(let request, _)) = $0 else {
+        return false
+      }
+      return request.target == .workspace(workspace.id)
+    }
+    await store.receive {
+      guard
+        case .activation(.activateFromCLI(
+          let workspaceID,
+          _,
+          let interactionDisplay,
+        )) = $0
+      else { return false }
+      return workspaceID == workspace.id && interactionDisplay == displayA
+    }
+    await store.finish()
+
+    #expect(completions.value == [nil])
+  }
+
   @Test
   func `deleted profile request fails without entering activation tracking`() async {
     let missingProfileID = UUID()
@@ -1173,7 +1570,7 @@ struct HotKeyRegistrationRefreshTests {
       sourceWorkspace: sourceWorkspace.id,
       baseline: baseline,
       excludingApps: [],
-      excludingFields: []
+      excludingFields: [],
     ))))
     await store.finish()
 
@@ -1214,7 +1611,7 @@ struct HotKeyRegistrationRefreshTests {
       sourceWorkspace: sourceWorkspace.id,
       baseline: baseline,
       excludingApps: [],
-      excludingFields: []
+      excludingFields: [],
     ))))
     await store.finish()
 
@@ -1232,7 +1629,7 @@ struct HotKeyRegistrationRefreshTests {
     let sourceProfile = Profile(name: "Source", workspaces: [sourceWorkspace])
     let baseline = AppConfig(
       profiles: [targetProfile, sourceProfile],
-      activeProfileId: targetProfile.id
+      activeProfileId: targetProfile.id,
     )
     var current = baseline
     current.activeProfileId = sourceProfile.id
@@ -1257,7 +1654,7 @@ struct HotKeyRegistrationRefreshTests {
       sourceWorkspace: sourceWorkspace.id,
       baseline: baseline,
       excludingApps: [],
-      excludingFields: []
+      excludingFields: [],
     ))))
     await store.finish()
 
@@ -1311,7 +1708,13 @@ struct HotKeyRegistrationRefreshTests {
   func `confirmed workspace deletion refreshes without the deleted binding`() async throws {
     let key = try #require(HotKey(parsing: "ctrl + alt - a"))
     let workspace = Workspace(name: "Focus", activateShortcut: key)
-    let profile = Profile(name: "Default", workspaces: [workspace])
+    let companion = Workspace(name: "Companion")
+    let chain = WorkspaceChain(workspaceIDs: [workspace.id, companion.id])
+    let profile = Profile(
+      name: "Default",
+      workspaceChains: [chain],
+      workspaces: [workspace, companion],
+    )
     let registrations = LockIsolated<[[HotKeyBinding]]>([])
     var state = AppFeature.State()
     state.$config.withLock {
@@ -1341,5 +1744,6 @@ struct HotKeyRegistrationRefreshTests {
     #expect(
       bindings.contains { $0.action == .activateWorkspace(workspace.id) } == false
     )
+    #expect(store.state.config.profiles[0].workspaceChains.isEmpty)
   }
 }

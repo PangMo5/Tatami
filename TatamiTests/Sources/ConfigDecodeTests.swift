@@ -56,6 +56,136 @@ struct ConfigDecodeTests {
     #expect(reported.value == 0)
   }
 
+  @Test
+  func `profile without workspace chains defaults to an empty list`() throws {
+    let profileID = UUID()
+    let toml = """
+      [[profiles]]
+      id = "\(profileID.uuidString)"
+      name = "Default"
+      workspaces = []
+      """
+
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+
+    #expect(decoded.profiles.count == 1)
+    #expect(decoded.profiles[0].workspaceChains.isEmpty)
+  }
+
+  @Test
+  func `workspace chains decode and round trip ordered stable references`() throws {
+    let profileID = UUID()
+    let firstWorkspaceID = UUID()
+    let secondWorkspaceID = UUID()
+    let chainID = UUID()
+    let toml = """
+      [[profiles]]
+      id = "\(profileID.uuidString)"
+      name = "Default"
+
+      [[profiles.workspaces]]
+      id = "\(firstWorkspaceID.uuidString)"
+      name = "Code"
+      displayHint = "display-a::Studio Display"
+
+      [[profiles.workspaces]]
+      id = "\(secondWorkspaceID.uuidString)"
+      name = "Chat"
+      displayHint = "display-b::Built-in Retina Display"
+
+      [[profiles.workspaceChains]]
+      id = "\(chainID.uuidString)"
+      name = "Coding"
+      workspaceIds = ["\(firstWorkspaceID.uuidString)", "\(secondWorkspaceID.uuidString)"]
+      """
+
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+    let profile = try #require(decoded.profiles.first)
+    let chain = try #require(profile.workspaceChains.first)
+
+    #expect(chain.id == chainID)
+    #expect(chain.name == "Coding")
+    #expect(chain.workspaceIDs == [firstWorkspaceID, secondWorkspaceID])
+    #expect(chain.dynamicWorkspaceIDs.isEmpty)
+    #expect(profile.validateWorkspaceChains().isValid)
+
+    let encoded = try TOMLEncoder().encode(decoded)
+    let roundTripped = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    #expect(roundTripped == decoded)
+    let encodedText = String(decoding: encoded, as: UTF8.self)
+    #expect(encodedText.contains("workspaceChains"))
+    #expect(encodedText.contains("workspaceIds"))
+  }
+
+  @Test
+  func `workspace chain dynamic IDs decode and round trip`() throws {
+    let profileID = UUID()
+    let firstWorkspaceID = UUID()
+    let secondWorkspaceID = UUID()
+    let chainID = UUID()
+    let toml = """
+      [[profiles]]
+      id = "\(profileID.uuidString)"
+      name = "Default"
+
+      [[profiles.workspaces]]
+      id = "\(firstWorkspaceID.uuidString)"
+      name = "Code"
+      displayHint = "display-a::Studio Display"
+
+      [[profiles.workspaces]]
+      id = "\(secondWorkspaceID.uuidString)"
+      name = "Chat"
+
+      [[profiles.workspaceChains]]
+      id = "\(chainID.uuidString)"
+      name = "Coding"
+      workspaceIds = ["\(firstWorkspaceID.uuidString)", "\(secondWorkspaceID.uuidString)"]
+      dynamicWorkspaceIds = ["\(firstWorkspaceID.uuidString)"]
+      """
+
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: toml)
+    let chain = try #require(decoded.profiles.first?.workspaceChains.first)
+
+    #expect(chain.dynamicWorkspaceIDs == [firstWorkspaceID])
+    #expect(decoded.profiles.first?.validateWorkspaceChains().isValid == true)
+
+    let encoded = try TOMLEncoder().encode(decoded)
+    let encodedText = String(decoding: encoded, as: UTF8.self)
+    #expect(encodedText.contains("dynamicWorkspaceIds"))
+    let roundTripped = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    #expect(roundTripped == decoded)
+  }
+
+  @Test
+  func `empty workspace chain dynamic IDs stay omitted when encoding`() throws {
+    let first = Workspace(name: "Code")
+    let second = Workspace(name: "Chat")
+    let chain = WorkspaceChain(
+      workspaceIDs: [first.id, second.id],
+      dynamicWorkspaceIDs: [],
+    )
+    let profile = Profile(
+      name: "Default",
+      workspaceChains: [chain],
+      workspaces: [first, second],
+    )
+
+    let encoded = try TOMLEncoder().encode(AppConfig(profiles: [profile]))
+    let encodedText = String(decoding: encoded, as: UTF8.self)
+
+    #expect(encodedText.contains("workspaceChains"))
+    #expect(!encodedText.contains("dynamicWorkspaceIds"))
+  }
+
+  @Test
+  func `empty workspace chains stay omitted when encoding`() throws {
+    let profile = Profile(name: "Default")
+    let encoded = try TOMLEncoder().encode(AppConfig(profiles: [profile]))
+
+    #expect(!String(decoding: encoded, as: UTF8.self).contains("workspaceChains"))
+  }
+
   @Test(arguments: HUDPosition.allCases)
   func `HUD position decodes and round trips`(_ position: HUDPosition) throws {
     let toml = """

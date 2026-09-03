@@ -3,6 +3,7 @@
 
 import ComposableArchitecture
 import CoreGraphics
+import CustomDump
 import Foundation
 import Testing
 @testable import TatamiKit
@@ -284,11 +285,606 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.activateNext)
+    await store.send(.activateNext())
     await store.receive {
-      guard case .activate(let id, let setFocus) = $0 else { return false }
+      guard case .activate(let id, let setFocus, _) = $0 else { return false }
       return id == ws1.id && setFocus
     }
+  }
+
+  @Test
+  func `cycle next uses the captured pointer display after the live pointer moves`() async {
+    let displayA = DisplayName("A")
+    let liveDisplayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName("B")
+    let a1 = Workspace(name: "A 1", displayHint: displayA)
+    let a2 = Workspace(name: "A 2", displayHint: displayA)
+    let b1 = Workspace(name: "B 1", displayHint: displayB)
+    let b2 = Workspace(name: "B 2", displayHint: displayB)
+    let state = Self.makeState(workspaces: [a1, a2, b1, b2]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: a1.id, displayB: b1.id]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      // Live identities have UUIDs even when restored state is name-only.
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateNext(interactionDisplay: liveDisplayA))
+    await store.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == a2.id && setFocus && display?.matches(liveDisplayA) == true
+    }
+  }
+
+  @Test
+  func `cycle previous uses the captured pointer display after the live pointer moves`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let a1 = Workspace(name: "A 1", displayHint: displayA)
+    let a2 = Workspace(name: "A 2", displayHint: displayA)
+    let b1 = Workspace(name: "B 1", displayHint: displayB)
+    let b2 = Workspace(name: "B 2", displayHint: displayB)
+    let state = Self.makeState(workspaces: [a1, a2, b1, b2]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: a2.id, displayB: b2.id]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activatePrevious(interactionDisplay: displayA))
+    await store.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == a1.id && setFocus && display?.matches(displayA) == true
+    }
+  }
+
+  @Test
+  func `local cycle starts at opposite ends when the pointer display is empty`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let first = Workspace(name: "First", displayHint: displayA)
+    let middle = Workspace(name: "Middle", displayHint: displayA)
+    let last = Workspace(name: "Last", displayHint: displayA)
+    let outside = Workspace(name: "Outside", displayHint: displayB)
+    let state = Self.makeState(workspaces: [first, middle, last, outside]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayB: outside.id]
+    }
+    func makeStore() -> TestStoreOf<WorkspaceActivationFeature> {
+      let store = TestStore(initialState: state) {
+        WorkspaceActivationFeature()
+      } withDependencies: {
+        $0.displays.all = { [displayA, displayB] }
+        $0.displays.current = { displayA }
+        $0.displays.primary = { displayA }
+        $0.continuousClock = TestClock()
+        $0.floatingOverlay.retainOnly = { _ in }
+        $0.floatingOverlay.setFloating = { _ in }
+      }
+      store.exhaustivity = .off
+      return store
+    }
+
+    let nextStore = makeStore()
+    await nextStore.send(.activateNext())
+    await nextStore.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == first.id && setFocus && display?.matches(displayA) == true
+    }
+
+    let previousStore = makeStore()
+    await previousStore.send(.activatePrevious())
+    await previousStore.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == last.id && setFocus && display?.matches(displayA) == true
+    }
+  }
+
+  @Test
+  func `cycle across displays still anchors at the pointer display workspace`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let a1 = Workspace(name: "A 1")
+    let b1 = Workspace(name: "B 1")
+    let a2 = Workspace(name: "A 2")
+    let state = Self.makeState(workspaces: [a1, b1, a2]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = true }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: a1.id, displayB: b1.id]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateNext())
+    await store.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == b1.id && setFocus && display?.matches(displayA) == true
+    }
+  }
+
+  @Test
+  func `global cycle keeps the global in flight anchor across displays`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let a1 = Workspace(name: "A 1")
+    let a2 = Workspace(name: "A 2")
+    let b1 = Workspace(name: "B 1")
+    let state = Self.makeState(workspaces: [a1, a2, b1]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = true }
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: a1.id, displayB: b1.id]
+      $0.isActivating = true
+      $0.activatingWorkspaceID = a2.id
+      $0.activatingDisplay = displayA
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateNext())
+    await store.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == b1.id && setFocus && display?.matches(displayB) == true
+    }
+  }
+
+  @Test
+  func `local cycle ignores an in flight anchor on another display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let a1 = Workspace(name: "A 1")
+    let a2 = Workspace(name: "A 2")
+    let b1 = Workspace(name: "B 1")
+    let b2 = Workspace(name: "B 2")
+    let state = Self.makeState(workspaces: [a1, a2, b1, b2]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: a1.id, displayB: b1.id]
+      $0.lastActiveDisplay = [
+        a1.id: displayA,
+        a2.id: displayA,
+        b1.id: displayB,
+        b2.id: displayB,
+      ]
+      $0.isActivating = true
+      $0.activatingWorkspaceID = a2.id
+      $0.activatingDisplay = displayA
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateNext())
+    await store.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == b2.id && setFocus && display?.matches(displayB) == true
+    }
+  }
+
+  @Test
+  func `recent workspace uses the pointer display when keyboard focus is elsewhere`() async {
+    let displayA = DisplayName("A")
+    let liveDisplayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName("B")
+    let currentA = Workspace(name: "Current A")
+    let recentA = Workspace(name: "Recent A")
+    let currentB = Workspace(name: "Current B")
+    let recentB = Workspace(name: "Recent B")
+    let state = Self.makeState(workspaces: [currentA, recentA, currentB, recentB]) {
+      $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = false }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: currentA.id, displayB: currentB.id]
+      $0.previousWorkspacesByDisplay = [displayA: recentA.id, displayB: recentB.id]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent(interactionDisplay: liveDisplayA))
+    await store.receive {
+      guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+      return id == recentA.id && setFocus && display?.matches(liveDisplayA) == true
+    }
+  }
+
+  @Test
+  func `recent assign and borrow targets use the pointer display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let currentA = Workspace(name: "Current A")
+    let recentA = Workspace(name: "Recent A")
+    let currentB = Workspace(name: "Current B")
+    let recentB = Workspace(name: "Recent B")
+    let state = Self.makeState(workspaces: [currentA, recentA, currentB, recentB]) {
+      $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = false }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: currentA.id, displayB: currentB.id]
+      $0.previousWorkspacesByDisplay = [displayA: recentA.id, displayB: recentB.id]
+    }
+
+    let assignStore = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayB }
+    }
+    assignStore.exhaustivity = .off
+    await assignStore.send(.assignFocusedAppToRecentWorkspace(
+      interactionDisplay: displayA
+    ))
+    await assignStore.receive {
+      guard case .membershipEdit(.assign(let id), let display) = $0 else { return false }
+      return id == recentA.id && display?.matches(displayA) == true
+    }
+
+    let borrowStore = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { displayB }
+      $0.borrowChord.setArmed = { _ in }
+      $0.continuousClock = TestClock()
+      $0.workspaceHUD.showAction = { _ in }
+    }
+    borrowStore.exhaustivity = .off
+    await borrowStore.send(.borrowRecentWorkspace(
+      interactionDisplay: displayA
+    ))
+    await borrowStore.receive {
+      guard case .beginBorrowDirection(let id, let display) = $0 else { return false }
+      return id == recentA.id && display?.matches(displayA) == true
+    }
+  }
+
+  @Test
+  func `adjacent app edits use the pointer display when keyboard focus is elsewhere`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let a1 = Workspace(name: "A 1", displayHint: displayA)
+    let a2 = Workspace(name: "A 2", displayHint: displayA)
+    let b1 = Workspace(name: "B 1", displayHint: displayB)
+    let b2 = Workspace(name: "B 2", displayHint: displayB)
+    let state = Self.makeState(workspaces: [a1, a2, b1, b2]) {
+      $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: a1.id, displayB: b1.id]
+    }
+
+    for (action, expectedEdit) in [
+      (
+        WorkspaceActivationFeature.Action.assignFocusedAppToAdjacentWorkspace(
+          direction: 1,
+          interactionDisplay: displayA,
+        ),
+        WorkspaceActivationFeature.MembershipEdit.assign(to: a2.id),
+      ),
+      (
+        WorkspaceActivationFeature.Action.moveFocusedAppToAdjacent(
+          direction: 1,
+          interactionDisplay: displayA,
+        ),
+        WorkspaceActivationFeature.MembershipEdit.move(to: a2.id),
+      ),
+    ] {
+      let store = TestStore(initialState: state) {
+        WorkspaceActivationFeature()
+      } withDependencies: {
+        $0.displays.current = { displayB }
+      }
+      store.exhaustivity = .off
+
+      await store.send(action)
+      await store.receive {
+        guard case .membershipEdit(let edit, let display) = $0 else { return false }
+        return edit == expectedEdit && display?.matches(displayA) == true
+      }
+    }
+  }
+
+  @Test
+  func `next and previous keep their pointer display through activation`() async {
+    for movesForward in [true, false] {
+      let displayA = DisplayName("A")
+      let liveDisplayA = DisplayName(uuid: "display-a", name: "A")
+      let displayB = DisplayName(uuid: "display-b", name: "B")
+      let a1 = Workspace(name: "A 1")
+      let a2 = Workspace(name: "A 2")
+      let b1 = Workspace(name: "B 1")
+      let start = movesForward ? a1 : a2
+      let target = movesForward ? a2 : a1
+      let state = Self.makeState(workspaces: [a1, a2, b1]) {
+        $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+        $0.isTilingPaused = true
+        $0.focusedDisplay = displayB
+        $0.activeWorkspacesByDisplay = [displayA: start.id, displayB: b1.id]
+        $0.lastActiveDisplay = [a1.id: displayA, a2.id: displayA, b1.id: displayB]
+      }
+      let pointerDisplay = LockIsolated(liveDisplayA)
+      let requests = LockIsolated<[ActivationRequest]>([])
+      let store = TestStore(initialState: state) {
+        WorkspaceActivationFeature()
+      } withDependencies: {
+        $0.displays.current = { pointerDisplay.value }
+        $0.continuousClock = TestClock()
+        $0.workspaceManager.activate = { request in
+          requests.withValue { $0.append(request) }
+        }
+        $0.floatingOverlay.retainOnly = { _ in }
+      }
+      store.exhaustivity = .off
+
+      await store.send(movesForward ? .activateNext() : .activatePrevious())
+      // The continuation action has not run yet. Moving the pointer now must
+      // not retarget the already-started command from A to B.
+      pointerDisplay.setValue(displayB)
+      await store.receive {
+        guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+        return id == target.id && display?.matches(liveDisplayA) == true
+      }
+      await store.finish()
+
+      #expect(requests.value.last?.workspace.id == target.id)
+      #expect(requests.value.last?.targetDisplay?.matches(liveDisplayA) == true)
+      #expect(store.state.activeWorkspace(on: liveDisplayA) == target.id)
+      #expect(store.state.activeWorkspace(on: displayB) == b1.id)
+    }
+  }
+
+  @Test
+  func `recent keeps its pointer display through activation`() async {
+    let displayA = DisplayName("A")
+    let liveDisplayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let currentA = Workspace(name: "Current A")
+    let recentA = Workspace(name: "Recent A")
+    let currentB = Workspace(name: "Current B")
+    let state = Self.makeState(workspaces: [currentA, recentA, currentB]) {
+      $0.$config.withLock { $0.settings.switching.recentAcrossDisplays = false }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: currentA.id, displayB: currentB.id]
+      $0.previousWorkspacesByDisplay = [displayA: recentA.id]
+    }
+    let pointerDisplay = LockIsolated(liveDisplayA)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent())
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+      return id == recentA.id && display?.matches(liveDisplayA) == true
+    }
+    await store.finish()
+
+    #expect(requests.value.last?.targetDisplay?.matches(liveDisplayA) == true)
+    #expect(store.state.activeWorkspace(on: displayB) == currentB.id)
+  }
+
+  @Test
+  func `adjacent assign and move keep their pointer display through app resolution`() async {
+    for movesMembership in [false, true] {
+      let displayA = DisplayName("A")
+      let liveDisplayA = DisplayName(uuid: "display-a", name: "A")
+      let displayB = DisplayName(uuid: "display-b", name: "B")
+      let bundleID = movesMembership ? "app.move" : "app.assign"
+      let currentA = Workspace(
+        name: "Current A",
+        apps: [AppAssignment(bundleIdentifier: bundleID, name: "Focused")],
+      )
+      let targetA = Workspace(name: "Target A")
+      let currentB = Workspace(name: "Current B")
+      let state = Self.makeState(workspaces: [currentA, targetA, currentB]) {
+        $0.$config.withLock { $0.settings.switching.cycleAcrossDisplays = false }
+        $0.isTilingPaused = true
+        $0.focusedDisplay = displayB
+        $0.activeWorkspacesByDisplay = [displayA: currentA.id, displayB: currentB.id]
+        $0.lastActiveDisplay = [
+          currentA.id: displayA,
+          targetA.id: displayA,
+          currentB.id: displayB,
+        ]
+      }
+      let pointerDisplay = LockIsolated(liveDisplayA)
+      let requests = LockIsolated<[ActivationRequest]>([])
+      let store = TestStore(initialState: state) {
+        WorkspaceActivationFeature()
+      } withDependencies: {
+        $0.displays.current = { pointerDisplay.value }
+        $0.continuousClock = TestClock()
+        $0.windowSnapshot.frontmostApp = {
+          FrontmostApp(pid: 42, bundleId: bundleID, name: "Focused")
+        }
+        $0.workspaceManager.activate = { request in
+          requests.withValue { $0.append(request) }
+        }
+        $0.floatingOverlay.retainOnly = { _ in }
+      }
+      store.exhaustivity = .off
+
+      await store.send(
+        movesMembership
+          ? .moveFocusedAppToAdjacent(direction: 1)
+          : .assignFocusedAppToAdjacentWorkspace(direction: 1)
+      )
+      pointerDisplay.setValue(displayB)
+      await store.receive {
+        guard case .membershipEdit(let edit, let display) = $0 else { return false }
+        let expected: WorkspaceActivationFeature.MembershipEdit = movesMembership
+          ? .move(to: targetA.id)
+          : .assign(to: targetA.id)
+        return edit == expected && display?.matches(liveDisplayA) == true
+      }
+      await store.receive {
+        guard
+          case .membershipEditResolved(
+            let resolvedBundleID,
+            _,
+            let edit,
+            _,
+            let display,
+          ) = $0
+        else { return false }
+        let expected: WorkspaceActivationFeature.MembershipEdit = movesMembership
+          ? .move(to: targetA.id)
+          : .assign(to: targetA.id)
+        return resolvedBundleID == bundleID
+          && edit == expected
+          && display?.matches(liveDisplayA) == true
+      }
+      await store.receive {
+        guard case .activate(let id, let setFocus, let display) = $0 else { return false }
+        return id == targetA.id
+          && setFocus
+          && display?.matches(liveDisplayA) == true
+      }
+      await store.receive {
+        guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+        return id == targetA.id && display?.matches(liveDisplayA) == true
+      }
+      await store.finish()
+
+      #expect(requests.value.last?.targetDisplay?.matches(liveDisplayA) == true)
+      #expect(
+        store.state.config.activeProfile?.workspaces[id: targetA.id]?
+          .apps.contains(where: { $0.bundleIdentifier == bundleID }) == true
+      )
+    }
+  }
+
+  @Test
+  func `recent borrow keeps its pointer display through direction resolution`() async {
+    let displayA = DisplayName("A")
+    let liveDisplayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let hostA = Workspace(name: "Host A")
+    let borrowed = Workspace(name: "Borrowed")
+    let hostB = Workspace(name: "Host B")
+    let state = Self.makeState(workspaces: [hostA, borrowed, hostB]) {
+      $0.$config.withLock {
+        $0.settings.switching.recentAcrossDisplays = false
+        $0.settings.switching.borrowDefaultEdge = .right
+      }
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayA: hostA.id, displayB: hostB.id]
+      $0.previousWorkspacesByDisplay = [displayA: borrowed.id]
+    }
+    let pointerDisplay = LockIsolated(liveDisplayA)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { pointerDisplay.value }
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.borrowRecentWorkspace())
+    pointerDisplay.setValue(displayB)
+    await store.receive {
+      guard case .beginBorrowDirection(let id, let display) = $0 else { return false }
+      return id == borrowed.id && display?.matches(liveDisplayA) == true
+    }
+    await store.finish()
+
+    let composition = store.state.compositionsByDisplay.first(where: {
+      $0.key.matches(liveDisplayA)
+    })?.value
+    #expect(composition?.host == hostA.id)
+    #expect(composition?.borrowed.first?.workspace == borrowed.id)
+    #expect(requests.value.last?.targetDisplay?.matches(liveDisplayA) == true)
+  }
+
+  @Test
+  func `adjacent display focus starts from the pointer monitor`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let workspaceA = Workspace(name: "A")
+    let workspaceB = Workspace(name: "B")
+    let workspaceC = Workspace(name: "C")
+    let windowB = WindowKey(pid: 2, windowID: 202, bundleId: "app.b")
+    let windowC = WindowKey(pid: 3, windowID: 303, bundleId: "app.c")
+    let state = Self.makeState(workspaces: [workspaceA, workspaceB, workspaceC]) {
+      $0.focusedDisplay = displayC
+      $0.activeWorkspacesByDisplay = [
+        displayA: workspaceA.id,
+        displayB: workspaceB.id,
+        displayC: workspaceC.id,
+      ]
+      $0.tilingTrees[workspaceB.id] = .leaf(windowB)
+      $0.tilingTrees[workspaceC.id] = .leaf(windowC)
+    }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayC }
+      $0.focusManager.focusWindow = { key in focused.setValue(key) }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.focusAdjacentDisplay(
+      direction: 1,
+      interactionDisplay: displayA,
+    ))
+    await store.finish()
+
+    #expect(focused.value == windowB)
+    #expect(store.state.focusedDisplay == displayB)
   }
 
   @Test
@@ -307,7 +903,7 @@ struct WorkspaceActivationFeatureTests {
     }
 
     // At the last workspace with looping off there is no eligible target.
-    await store.send(.activateNext)
+    await store.send(.activateNext())
   }
 
   @Test
@@ -340,9 +936,9 @@ struct WorkspaceActivationFeatureTests {
     store.exhaustivity = .off
 
     // ws2 has no running app → the cycle lands on ws3.
-    await store.send(.activateNext)
+    await store.send(.activateNext())
     await store.receive {
-      guard case .activate(let id, _) = $0 else { return false }
+      guard case .activate(let id, _, _) = $0 else { return false }
       return id == ws3.id
     }
   }
@@ -355,24 +951,27 @@ struct WorkspaceActivationFeatureTests {
     // ws1 is the *completed* workspace, but a switch to ws2 is still in
     // flight. Cycling must advance from ws2 — anchoring at the completed
     // one made every rapid press re-target the same slow workspace.
+    let liveDisplay = DisplayName(uuid: "test-display", name: Self.display.name)
     let state = Self.makeState(workspaces: [ws1, ws2, ws3]) {
       $0.focusedDisplay = Self.display
       $0.activeWorkspacesByDisplay[Self.display] = ws1.id
       $0.isActivating = true
       $0.activatingWorkspaceID = ws2.id
+      $0.activatingDisplay = Self.display
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
+      $0.displays.current = { liveDisplay }
       $0.continuousClock = TestClock()
       $0.floatingOverlay.retainOnly = { _ in }
       $0.floatingOverlay.setFloating = { _ in }
     }
     store.exhaustivity = .off
 
-    await store.send(.activateNext)
+    await store.send(.activateNext())
     await store.receive {
-      guard case .activate(let id, _) = $0 else { return false }
+      guard case .activate(let id, _, _) = $0 else { return false }
       return id == ws3.id
     }
   }
@@ -1273,7 +1872,8 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
-  func `assigning to another profile requests one profile switch transaction`() async {
+  func `assigning to another profile carries its command display into the switch`() async {
+    let commandDisplay = DisplayName(uuid: "display-a", name: "A")
     let currentWorkspace = Workspace(name: "Current")
     let targetWorkspace = Workspace(name: "Target")
     let currentProfile = Profile(name: "Default", workspaces: [currentWorkspace])
@@ -1292,12 +1892,21 @@ struct WorkspaceActivationFeatureTests {
       bundleId: "app.example",
       name: "Example",
       edit: .assign(to: targetWorkspace.id),
+      interactionDisplay: commandDisplay,
     ))
     await store.receive {
-      guard case .delegate(.profileSwitchRequested(let id, let focus)) = $0 else {
+      guard
+        case .delegate(.profileSwitchRequested(
+          let id,
+          let focus,
+          let interactionDisplay,
+        )) = $0
+      else {
         return false
       }
-      return id == targetProfile.id && focus == targetWorkspace.id
+      return id == targetProfile.id
+        && focus == targetWorkspace.id
+        && interactionDisplay == commandDisplay
     }
 
     #expect(
@@ -1397,10 +2006,12 @@ struct WorkspaceActivationFeatureTests {
     }
     let activations = LockIsolated<[ActivationRequest]>([])
     let focused = LockIsolated<[WindowKey]>([])
+    let pointerDisplay = LockIsolated(displayA)
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
       $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { pointerDisplay.value }
       $0.workspaceManager.activate = { request in
         activations.withValue { $0.append(request) }
       }
@@ -1415,6 +2026,7 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.focusedDisplay == displayB)
     #expect(store.state.compositionsByDisplay[displayA] == composition)
 
+    pointerDisplay.setValue(displayB)
     await store.send(.focusAdjacentDisplay(direction: -1))
     await store.finish()
 
@@ -1481,6 +2093,1197 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.compositionsByDisplay[displayA] == composition)
     #expect(activations.value.isEmpty)
     #expect(focused.value == [terminalWindow, browserWindow])
+  }
+
+  @Test
+  func `workspace chain restores peers before returning focus to selected workspace`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayB)
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let codeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.code")
+    let slackWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.slack")
+    let chain = WorkspaceChain(
+      name: "Coding",
+      workspaceIDs: [code.id, slack.id],
+    )
+    let state = Self.makeState(workspaces: [code, slack, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: code.id, displayB: old.id]
+      $0.tilingTrees = [code.id: .leaf(codeWindow), slack.id: .leaf(slackWindow)]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: code.id, setFocus: true))
+    await store.receive {
+      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      return workspaceId == slack.id && display?.matches(displayB) == true
+    }
+    #expect(store.state.activeWorkspacesByDisplay[displayB] == slack.id)
+    await store.receive {
+      guard case .activationTailFinished = $0 else { return false }
+      return true
+    }
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == code.id && assignment.display.matches(displayA)
+    }
+    #expect(store.state.focusedDisplay == displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [slack.id])
+    #expect(activations.value.allSatisfy { !$0.setFocus })
+    #expect(focused.value == [codeWindow])
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: code.id, displayB: slack.id])
+    #expect(store.state.compositionsByDisplay.isEmpty)
+    #expect(hudRequests.value.map(\.name) == [slack.name, code.name])
+    #expect(hudRequests.value.map(\.display) == [displayB, displayA])
+    expectNoDifference(
+      hudRequests.value.map(\.subtitle),
+      [chain.name, chain.name],
+    )
+    #expect(hudRequests.value.allSatisfy { $0.subtitleSymbolIconName == "link" })
+  }
+
+  @Test
+  func `ordinary fallback HUD does not inherit workspace chain identity`() async throws {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let disconnected = DisplayName("Disconnected")
+    let coding = Workspace(name: "Coding", displayHint: displayA)
+    let browser = Workspace(name: "Browser", displayHint: disconnected)
+    let figma = Workspace(name: "Figma")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let figmaWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.figma")
+    let chain = WorkspaceChain(
+      name: "Work",
+      workspaceIDs: [coding.id, browser.id],
+    )
+    let state = Self.makeState(workspaces: [coding, browser, figma]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: figma.id]
+      $0.displayWorkspaceHistory[displayB] = [figma.id]
+      $0.workspaceMRU = [figma.id]
+      $0.tilingTrees = [
+        browser.id: .leaf(browserWindow),
+        figma.id: .leaf(figmaWindow),
+      ]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.displays.connected = { reference in
+        [displayA, displayB].first { $0.matches(reference) }
+      }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.focusManager.focusWindow = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: figma.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == browser.id && assignment.display.matches(displayA)
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: browser.id, display: displayA)
+    await store.finish()
+
+    let figmaHUD = try #require(hudRequests.value.first {
+      $0.display?.matches(displayB) == true
+    })
+    #expect(figmaHUD.name == figma.name)
+    #expect(figmaHUD.subtitle == nil)
+    #expect(figmaHUD.subtitleSymbolIconName == nil)
+    let browserHUD = try #require(hudRequests.value.first {
+      $0.display?.matches(displayA) == true
+    })
+    #expect(browserHUD.name == browser.name)
+    #expect(browserHUD.subtitle == chain.name)
+    #expect(browserHUD.subtitleSymbolIconName == "link")
+  }
+
+  @Test
+  func `satisfied chain focus uses the captured pointer display instead of stale focus`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let codeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.code")
+    let slackWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.slack")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayB)
+    let chain = WorkspaceChain(
+      name: "Work",
+      workspaceIDs: [code.id, slack.id],
+    )
+    let state = Self.makeState(workspaces: [code, slack]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: code.id, displayB: slack.id]
+      $0.tilingTrees = [code.id: .leaf(codeWindow), slack.id: .leaf(slackWindow)]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayB }
+      $0.displays.primary = { displayA }
+      $0.displays.connected = { reference in
+        [displayA, displayB].first { $0.matches(reference) }
+      }
+      $0.focusManager.focusWindow = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: slack.id, setFocus: true))
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == slack.id && assignment.display.matches(displayB)
+    }
+    await store.finish()
+
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(hudRequests.value.count == 1)
+    #expect(hudRequests.value.first?.display == displayB)
+    #expect(hudRequests.value.first?.name == slack.name)
+    #expect(hudRequests.value.first?.subtitle == chain.name)
+    #expect(hudRequests.value.first?.subtitleSymbolIconName == "link")
+    #expect(!hudRequests.value.contains {
+      $0.name == String(localized: "Focus moved")
+    })
+  }
+
+  @Test
+  func `workspace chain stacks destination return and focus facts on the source display HUD`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let codingWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.coding")
+    let slackWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.slack")
+    let kakaoWindow = WindowKey(pid: 4, windowID: 401, bundleId: "app.kakao")
+    let browser = Workspace(name: "Browser", displayHint: displayB)
+    let coding = Workspace(name: "Coding", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayA)
+    let kakaoTalk = Workspace(name: "KakaoTalk")
+    let chain = WorkspaceChain(
+      name: "Test",
+      workspaceIDs: [browser.id, coding.id],
+    )
+    let state = Self.makeState(workspaces: [browser, coding, slack, kakaoTalk]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [
+        displayA: slack.id,
+        displayB: browser.id,
+      ]
+      $0.tilingTrees = [
+        browser.id: .leaf(browserWindow),
+        coding.id: .leaf(codingWindow),
+        slack.id: .leaf(slackWindow),
+        kakaoTalk.id: .leaf(kakaoWindow),
+      ]
+      $0.compositionsByDisplay[displayA] = Composition(
+        host: slack.id,
+        borrowed: [
+          BorrowedSlot(workspace: kakaoTalk.id, edge: .right, fraction: 0.4)
+        ],
+      )
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.focusManager.focusWindow = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: coding.id, display: displayA)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == browser.id && assignment.display.matches(displayB)
+    }
+    await store.finish()
+
+    let returned = String(localized: "Returned \(kakaoTalk.name)")
+    let focusTransfer = "\(String(localized: "Focus moved")): "
+      + String(localized: "\(browser.name) is on \(displayB.name)")
+    expectNoDifference(
+      hudRequests.value.map {
+        "\($0.display?.name ?? "nil")|\($0.name)|\($0.subtitle ?? "nil")|"
+          + "\($0.subtitleSymbolIconName ?? "nil")"
+      },
+      [
+        "\(displayA.name)|\(coding.name)|\(chain.name!) · \(returned)\n\(focusTransfer)|link",
+        "\(displayB.name)|\(browser.name)|\(chain.name!)|link",
+      ],
+    )
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(store.state.activeWorkspacesByDisplay == [
+      displayA: coding.id,
+      displayB: browser.id,
+    ])
+    #expect(store.state.compositionsByDisplay[displayA] == nil)
+  }
+
+  @Test
+  func `workspace chain keeps source and destination borrow returns on their own displays`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let movingHost = Workspace(name: "Moving Host")
+    let peer = Workspace(name: "Peer", displayHint: displayC)
+    let destinationHost = Workspace(name: "Destination Host", displayHint: displayB)
+    let sourceBorrow = Workspace(name: "Source Borrow", kind: .scratchpad)
+    let destinationBorrow = Workspace(name: "Destination Borrow", kind: .scratchpad)
+    let chain = WorkspaceChain(
+      name: "Move Together",
+      workspaceIDs: [movingHost.id, peer.id],
+    )
+    let state = Self.makeState(
+      workspaces: [movingHost, peer, destinationHost, sourceBorrow, destinationBorrow]
+    ) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [
+        displayA: movingHost.id,
+        displayB: destinationHost.id,
+        displayC: peer.id,
+      ]
+      $0.compositionsByDisplay = [
+        displayA: Composition(
+          host: movingHost.id,
+          borrowed: [
+            BorrowedSlot(workspace: sourceBorrow.id, edge: .right, fraction: 0.4)
+          ],
+        ),
+        displayB: Composition(
+          host: destinationHost.id,
+          borrowed: [
+            BorrowedSlot(workspace: destinationBorrow.id, edge: .right, fraction: 0.4)
+          ],
+        ),
+      ]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayB }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: movingHost.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: movingHost.id, display: displayB)
+    await store.finish()
+
+    let destinationReturned = String(localized: "Returned \(destinationBorrow.name)")
+    let sourceReturned = String(localized: "Returned \(sourceBorrow.name)")
+    let moved = String(localized: "\(movingHost.name) is on \(displayB.name)")
+    let records = Set(hudRequests.value.map { request in
+      "\(request.display?.name ?? "nil")|\(request.name)|\(request.subtitle ?? "nil")|"
+        + "\(request.subtitleExtendsDuration)"
+    })
+    #expect(hudRequests.value.count == 2)
+    #expect(records == [
+      "\(displayB.name)|\(movingHost.name)|\(chain.name!) · \(destinationReturned)|true",
+      "\(displayA.name)|\(String(localized: "Workspace moved"))|"
+        + "\(chain.name!) · \(moved) · \(sourceReturned)|true",
+    ])
+    #expect(store.state.compositionsByDisplay.isEmpty)
+  }
+
+  @Test
+  func `moving a borrowed chain member reports the return on its source host display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let host = Workspace(name: "Host", displayHint: displayA)
+    let selected = Workspace(name: "Selected")
+    let peer = Workspace(name: "Peer", displayHint: displayB)
+    let old = Workspace(name: "Old", displayHint: displayC)
+    let chain = WorkspaceChain(
+      name: "Linked",
+      workspaceIDs: [selected.id, peer.id],
+    )
+    let state = Self.makeState(workspaces: [host, selected, peer, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayC
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [
+        displayA: host.id,
+        displayB: peer.id,
+        displayC: old.id,
+      ]
+      $0.compositionsByDisplay[displayA] = Composition(
+        host: host.id,
+        borrowed: [
+          BorrowedSlot(workspace: selected.id, edge: .right, fraction: 0.4)
+        ],
+      )
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayC }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: selected.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: selected.id, display: displayC)
+    await store.finish()
+
+    let returned = String(localized: "Returned \(selected.name)")
+    let records = Set(hudRequests.value.map { request in
+      "\(request.display?.name ?? "nil")|\(request.name)|\(request.subtitle ?? "nil")"
+    })
+    #expect(hudRequests.value.count == 2)
+    #expect(records == [
+      "\(displayC.name)|\(selected.name)|\(chain.name!)",
+      "\(displayA.name)|\(host.name)|\(chain.name!) · \(returned)",
+    ])
+    #expect(hudRequests.value.allSatisfy { $0.subtitleSymbolIconName == "link" })
+    #expect(store.state.compositionsByDisplay[displayA] == nil)
+  }
+
+  @Test
+  func `final visible chain host keeps a precomputed borrow return in its HUD`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let memberWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.member")
+    let host = Workspace(name: "Host", displayHint: displayA)
+    let member = Workspace(name: "Member")
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let chain = WorkspaceChain(
+      name: "Linked",
+      workspaceIDs: [host.id, member.id],
+    )
+    let state = Self.makeState(workspaces: [host, member, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: host.id, displayB: old.id]
+      $0.tilingTrees = [
+        host.id: .leaf(hostWindow),
+        member.id: .leaf(memberWindow),
+      ]
+      $0.compositionsByDisplay[displayA] = Composition(
+        host: host.id,
+        borrowed: [
+          BorrowedSlot(workspace: member.id, edge: .right, fraction: 0.4)
+        ],
+      )
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: host.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: member.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == host.id && assignment.display.matches(displayA)
+    }
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [member.id])
+    #expect(store.state.compositionsByDisplay[displayA] == nil)
+    let hostHUD = hudRequests.value.first { $0.display == displayA }
+    #expect(hostHUD?.name == host.name)
+    #expect(
+      hostHUD?.subtitle
+        == "\(chain.name!) · \(String(localized: "Returned \(member.name)"))"
+    )
+    #expect(hostHUD?.subtitleExtendsDuration == true)
+  }
+
+  @Test
+  func `silent chain companion reports borrow return when workspace switch HUD is off`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let browserWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let browser = Workspace(name: "Browser", displayHint: displayB)
+    let coding = Workspace(name: "Coding", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayA)
+    let borrowed = Workspace(name: "Borrowed")
+    let chain = WorkspaceChain(
+      name: "Test",
+      workspaceIDs: [browser.id, coding.id],
+    )
+    let state = Self.makeState(workspaces: [browser, coding, slack, borrowed]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: slack.id, displayB: browser.id]
+      $0.tilingTrees[browser.id] = .leaf(browserWindow)
+      $0.compositionsByDisplay[displayA] = Composition(
+        host: slack.id,
+        borrowed: [
+          BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)
+        ],
+      )
+      $0.$config.withLock {
+        $0.settings.hud.workspaceSwitch = false
+        $0.settings.hud.borrow = true
+        $0.mutateActiveProfile { $0.workspaceChains = [chain] }
+      }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.focusManager.focusWindow = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: coding.id, display: displayA)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == browser.id && assignment.display.matches(displayB)
+    }
+    await store.finish()
+
+    #expect(hudRequests.value.count == 1)
+    #expect(hudRequests.value.first?.display == displayA)
+    #expect(hudRequests.value.first?.name == coding.name)
+    #expect(
+      hudRequests.value.first?.subtitle
+        == String(localized: "Returned \(borrowed.name)")
+    )
+    #expect(hudRequests.value.first?.subtitleSymbolIconName == "link")
+    #expect(hudRequests.value.first?.subtitleExtendsDuration == true)
+  }
+
+  @Test
+  func `workspace chain HUD describes destination and vacated displays`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack")
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let codeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.code")
+    let chain = WorkspaceChain(
+      name: "Coding",
+      workspaceIDs: [code.id, slack.id],
+    )
+    let state = Self.makeState(workspaces: [code, slack, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayC
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [
+        displayA: code.id,
+        displayB: old.id,
+        displayC: slack.id,
+      ]
+      $0.tilingTrees[code.id] = .leaf(codeWindow)
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.focusManager.focusWindow = { _ in }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: code.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == code.id && assignment.display.matches(displayA)
+    }
+    await store.finish()
+
+    let records = Set(hudRequests.value.map { request in
+      "\(request.display?.name ?? "nil")|\(request.name)|\(request.subtitle ?? "nil")"
+    })
+    #expect(hudRequests.value.count == 3)
+    #expect(records == [
+      "\(displayA.name)|\(code.name)|Coding",
+      "\(displayB.name)|\(slack.name)|Coding",
+      "\(displayC.name)|\(String(localized: "Workspace moved"))|"
+        + "Coding · \(String(localized: "\(slack.name) is on \(displayB.name)"))",
+    ])
+    #expect(hudRequests.value.allSatisfy { $0.subtitleSymbolIconName == "link" })
+  }
+
+  @Test
+  func `workspace-chain trigger promotes a borrowed member instead of focus-transferring`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let host = Workspace(name: "Host", displayHint: displayA)
+    let selected = Workspace(name: "Selected", displayHint: displayA)
+    let peer = Workspace(name: "Peer", displayHint: displayB)
+    let selectedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.selected")
+    let composition = Composition(
+      host: host.id,
+      borrowed: [BorrowedSlot(workspace: selected.id, edge: .right, fraction: 0.4)],
+    )
+    let chain = WorkspaceChain(workspaceIDs: [selected.id, peer.id])
+    let state = Self.makeState(workspaces: [host, selected, peer]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: host.id, displayB: peer.id]
+      $0.tilingTrees[selected.id] = .leaf(selectedWindow)
+      $0.compositionsByDisplay[displayA] = composition
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: selected.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: selected.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [selected.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayA])
+    #expect(focused.value.isEmpty)
+    #expect(store.state.compositionsByDisplay[displayA] == nil)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: selected.id, displayB: peer.id])
+  }
+
+  @Test
+  func `workspace-chain duplicate pin skips the lower priority peer and continues`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayA)
+    let terminal = Workspace(name: "Terminal")
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id, terminal.id])
+    let state = Self.makeState(workspaces: [code, slack, terminal, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayB: old.id]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let logs = LockIsolated<[(String, String)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.debugLog.log = { category, message in
+        logs.withValue { $0.append((category, message)) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: code.id, setFocus: true))
+    await Self.receiveActivationCompletion(
+      store,
+      workspaceID: terminal.id,
+      display: displayB,
+    )
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == code.id && assignment.display.matches(displayA)
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: code.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [terminal.id, code.id])
+    #expect(activations.value.map(\.setFocus) == [false, true])
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: code.id, displayB: terminal.id])
+    #expect(hudRequests.value.count == 2)
+    #expect(hudRequests.value.map(\.name) == [terminal.name, code.name])
+    #expect(hudRequests.value.allSatisfy { $0.subtitleSymbolIconName == "link" })
+    #expect(logs.value.contains { category, message in
+      category == "WorkspaceChain"
+        && message.contains("plan=")
+        && message.contains(terminal.id.uuidString)
+        && !message.contains(slack.id.uuidString)
+    })
+  }
+
+  @Test
+  func `three-member workspace chain uses stored priority on two displays`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let browser = Workspace(name: "Browser")
+    let coding = Workspace(name: "Coding")
+    let terminal = Workspace(name: "Terminal")
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let chain = WorkspaceChain(
+      name: "Three Up",
+      workspaceIDs: [browser.id, coding.id, terminal.id],
+    )
+    let state = Self.makeState(workspaces: [browser, coding, terminal, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayB: old.id]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: browser.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: coding.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == browser.id && assignment.display.matches(displayA)
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: browser.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [coding.id, browser.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayB, displayA])
+    #expect(activations.value.map(\.setFocus) == [false, true])
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: browser.id, displayB: coding.id])
+    #expect(hudRequests.value.count == 2)
+    #expect(hudRequests.value.map(\.name) == [coding.name, browser.name])
+    #expect(hudRequests.value.allSatisfy { $0.subtitleSymbolIconName == "link" })
+    #expect(!activations.value.contains { $0.workspace.id == terminal.id })
+  }
+
+  @Test
+  func `partial workspace chain obeys workspace switch HUD setting`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayA)
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    let state = Self.makeState(workspaces: [code, slack, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.activeWorkspacesByDisplay = [displayB: old.id]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    state.$config.withLock { $0.settings.hud.workspaceSwitch = false }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: code.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: code.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [code.id])
+    #expect(hudRequests.value.isEmpty)
+  }
+
+  @Test
+  func `priority-skipped active host is hidden when its display has no fallback`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let first = Workspace(
+      name: "First",
+      displayHint: displayA,
+      apps: [AppAssignment(bundleIdentifier: "app.first", name: "First")],
+    )
+    let skipped = Workspace(
+      name: "Skipped",
+      displayHint: displayA,
+      apps: [AppAssignment(bundleIdentifier: "app.skipped", name: "Skipped")],
+    )
+    let dynamic = Workspace(
+      name: "Dynamic",
+      apps: [AppAssignment(bundleIdentifier: "app.dynamic", name: "Dynamic")],
+    )
+    let chain = WorkspaceChain(
+      name: "Priority",
+      workspaceIDs: [first.id, skipped.id, dynamic.id],
+    )
+    let state = Self.makeState(workspaces: [first, skipped, dynamic]) {
+      $0.isTilingPaused = true
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [displayC: skipped.id]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let returns = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returns.withValue { $0.append((bundleIDs, display)) }
+        return true
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: first.id, setFocus: true))
+    await Self.receiveActivationCompletion(store, workspaceID: dynamic.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == first.id && assignment.display.matches(displayA)
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: first.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [dynamic.id, first.id])
+    #expect(!store.state.activeWorkspacesByDisplay.values.contains(skipped.id))
+    #expect(returns.value.count == 1)
+    #expect(returns.value.first?.0 == ["app.skipped"])
+    #expect(returns.value.first?.1 == displayC)
+    #expect(hudRequests.value.contains { request in
+      request.display == displayC
+        && request.name == skipped.name
+        && request.subtitle
+        == "\(chain.name!) · "
+        + String(localized: "Skipped by chain priority: \(skipped.name)")
+        && request.subtitleSymbolIconName == "link"
+    })
+  }
+
+  @Test
+  func `priority-skipped borrowed member returns without dropping the remaining composition`() async {
+    let display = DisplayName("A")
+    let hostWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.host")
+    let skippedWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.skipped")
+    let remainingWindow = WindowKey(pid: 3, windowID: 301, bundleId: "app.retained")
+    let host = Workspace(
+      name: "Host",
+      displayHint: display,
+      apps: [AppAssignment(bundleIdentifier: hostWindow.bundleId, name: "Host")],
+    )
+    let skipped = Workspace(
+      name: "Skipped",
+      displayHint: display,
+      apps: [
+        AppAssignment(bundleIdentifier: skippedWindow.bundleId, name: "Skipped"),
+        AppAssignment(bundleIdentifier: remainingWindow.bundleId, name: "Overlap"),
+      ],
+    )
+    let remaining = Workspace(
+      name: "Remaining",
+      apps: [AppAssignment(bundleIdentifier: remainingWindow.bundleId, name: "Remaining")],
+    )
+    let chain = WorkspaceChain(
+      name: "Priority",
+      workspaceIDs: [host.id, skipped.id],
+    )
+    let remainingSlot = BorrowedSlot(workspace: remaining.id, edge: .right)
+    let state = Self.makeState(workspaces: [host, skipped, remaining]) {
+      $0.isTilingPaused = true
+      $0.connectedDisplays = [display]
+      $0.activeWorkspacesByDisplay = [display: host.id]
+      $0.tilingTrees = [
+        host.id: .leaf(hostWindow),
+        skipped.id: .leaf(skippedWindow),
+        remaining.id: .leaf(remainingWindow),
+      ]
+      $0.mruWindows[host.id] = [hostWindow]
+      $0.compositionsByDisplay[display] = Composition(
+        host: host.id,
+        borrowed: [
+          BorrowedSlot(workspace: skipped.id, edge: .left),
+          remainingSlot,
+        ],
+      )
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let returns = LockIsolated<[Set<String>]>([])
+    let appliedKeys = LockIsolated<[Set<WindowKey>]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let logs = LockIsolated<[String]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [display] }
+      $0.displays.current = { display }
+      $0.displays.primary = { display }
+      $0.displays.workArea = { _ in CGRect(x: 0, y: 0, width: 1200, height: 800) }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, _ in
+        returns.withValue { $0.append(bundleIDs) }
+        return true
+      }
+      $0.windowTiler.apply = { application in
+        appliedKeys.withValue { $0.append(Set(application.windowFrames.keys)) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.debugLog.log = { category, message in
+        logs.withValue { $0.append("\(category):\(message)") }
+      }
+      $0.focusManager.focusWindow = { _ in }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: host.id, setFocus: true))
+    await store.receive {
+      guard
+        case .commitWorkspaceChainCleanup(let transaction, let cleanupDisplay, _) = $0
+      else { return false }
+      return transaction.skippedWorkspaceIDs == [skipped.id]
+        && cleanupDisplay.matches(display)
+    }
+    await store.finish()
+
+    #expect(activations.value.isEmpty)
+    #expect(
+      store.state.compositionsByDisplay[display]
+        == Composition(host: host.id, borrowed: [remainingSlot])
+    )
+    #expect(returns.value == [[skippedWindow.bundleId]])
+    #expect(appliedKeys.value.contains([hostWindow, remainingWindow]))
+    #expect(logs.value.contains { $0.contains("commit priority cleanup") })
+    #expect(hudRequests.value.count == 1)
+    #expect(hudRequests.value.first.map { request in
+      request.display == display
+        && request.name == host.name
+        && request.subtitle == "\(chain.name!) · \(String(localized: "Returned \(skipped.name)"))"
+        && request.subtitleSymbolIconName == "link"
+    } == true)
+  }
+
+  @Test
+  func `app-focus workspace chain keeps the originating dynamic display and never refocuses`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let skipped = Workspace(
+      name: "Skipped",
+      displayHint: displayA,
+      apps: [AppAssignment(bundleIdentifier: "app.skipped", name: "Skipped")],
+    )
+    let slack = Workspace(name: "Slack")
+    let old = Workspace(name: "Old", displayHint: displayA)
+    let slackWindow = WindowKey(pid: 2, windowID: 201, bundleId: "app.slack")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, skipped.id, slack.id])
+    let state = Self.makeState(workspaces: [code, skipped, slack, old]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [
+        displayA: old.id,
+        displayB: slack.id,
+        displayC: skipped.id,
+      ]
+      $0.tilingTrees[slack.id] = .leaf(slackWindow)
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let returns = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      // The pointer may already have moved, while the system-focused Slack
+      // window still authoritatively belongs to display B.
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returns.withValue { $0.append((bundleIDs, display)) }
+        return true
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateFollowingAppFocus(workspaceId: slack.id))
+    await Self.receiveActivationCompletion(store, workspaceID: code.id, display: displayA)
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayB)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [code.id, slack.id])
+    #expect(activations.value.allSatisfy { !$0.setFocus })
+    #expect(focused.value.isEmpty)
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: code.id, displayB: slack.id])
+    #expect(returns.value.count == 1)
+    #expect(returns.value.first?.0 == ["app.skipped"])
+    #expect(returns.value.first?.1 == displayC)
+  }
+
+  @Test
+  func `inactive dynamic app-focus chain follows pointer before stale focused display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let old = Workspace(name: "Old", displayHint: displayA)
+    let code = Workspace(name: "Code", displayHint: displayC)
+    let slack = Workspace(name: "Slack")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    let state = Self.makeState(workspaces: [old, code, slack]) {
+      $0.isTilingPaused = true
+      // Stale keyboard focus still says A, but the app-focus interaction is
+      // happening under the pointer on B and Slack is not currently visible.
+      $0.focusedDisplay = displayA
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [displayA: old.id]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayB }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateFollowingAppFocus(workspaceId: slack.id))
+    await Self.receiveActivationCompletion(store, workspaceID: code.id, display: displayC)
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayB)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [code.id, slack.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayC, displayB])
+    #expect(activations.value.allSatisfy { !$0.setFocus })
+    #expect(store.state.activeWorkspacesByDisplay == [
+      displayA: old.id,
+      displayB: slack.id,
+      displayC: code.id,
+    ])
+    #expect(hudRequests.value.count == 2)
+    #expect(!hudRequests.value.contains {
+      $0.name == String(localized: "Focus moved")
+    })
+  }
+
+  @Test
+  func `inactive standalone dynamic app-focus follows pointer before stale focused display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let slack = Workspace(name: "Slack")
+    let state = Self.makeState(workspaces: [slack]) {
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayA
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateFollowingAppFocus(workspaceId: slack.id))
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayB)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [slack.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayB])
+    #expect(activations.value.allSatisfy { !$0.setFocus })
+    #expect(store.state.activeWorkspacesByDisplay == [displayB: slack.id])
   }
 
   @Test
@@ -1669,6 +3472,7 @@ struct WorkspaceActivationFeatureTests {
       $0.workspaceManager.activate = { _ in }
       $0.workspaceManager.returnBorrowed = { bundleIds, display in
         returned.withValue { $0.append((bundleIds, display)) }
+        return true
       }
       $0.floatingOverlay.retainOnly = { _ in }
     }
@@ -1679,6 +3483,14 @@ struct WorkspaceActivationFeatureTests {
     await store.receive {
       guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
+    }
+    await store.receive {
+      guard case .processWorkspaceChainCleanupStep(_, let cleanup, _) = $0 else { return false }
+      return cleanup.display.matches(displayB) && cleanup.bundleIDs == ["app.figma"]
+    }
+    await store.receive {
+      guard case .commitWorkspaceChainCleanup(_, let display, _) = $0 else { return false }
+      return display.matches(displayB)
     }
     await store.finish()
 
@@ -1722,6 +3534,7 @@ struct WorkspaceActivationFeatureTests {
       $0.workspaceManager.activate = { _ in }
       $0.workspaceManager.returnBorrowed = { bundleIds, display in
         returned.withValue { $0.append((bundleIds, display)) }
+        return true
       }
       $0.floatingOverlay.retainOnly = { _ in }
     }
@@ -1768,6 +3581,7 @@ struct WorkspaceActivationFeatureTests {
       $0.workspaceManager.activate = { _ in }
       $0.workspaceManager.returnBorrowed = { bundleIds, display in
         returned.withValue { $0.append((bundleIds, display)) }
+        return true
       }
       $0.focusManager.focusWindow = { _ in }
     }
@@ -1908,7 +3722,7 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.activateRecent)
+    await store.send(.activateRecent())
     await store.finish()
 
     #expect(requests.value.isEmpty)
@@ -1916,6 +3730,179 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.focusedDisplay == displayB)
     #expect(store.state.activeWorkspacesByDisplay[displayA] == wsA.id)
     #expect(store.state.activeWorkspacesByDisplay[displayB] == wsB.id)
+  }
+
+  @Test
+  func `global recent restores a visible workspace-chain member's stale peer`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let slack = Workspace(name: "Slack", displayHint: displayB)
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let codeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.code")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    let state = Self.makeState(workspaces: [code, slack, old]) {
+      $0.$config.withLock {
+        $0.settings.switching.recentAcrossDisplays = true
+        $0.mutateActiveProfile { $0.workspaceChains = [chain] }
+      }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: code.id, displayB: old.id]
+      $0.workspaceMRU = [old.id, code.id, slack.id]
+      $0.tilingTrees[code.id] = .leaf(codeWindow)
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayB }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent())
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == code.id && assignment.display.matches(displayA)
+    }
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [slack.id])
+    #expect(activations.value.allSatisfy { !$0.setFocus })
+    #expect(focused.value == [codeWindow])
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: code.id, displayB: slack.id])
+  }
+
+  @Test
+  func `global recent moves a visible pinned chain target back to its hint`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayB)
+    let slack = Workspace(name: "Slack", displayHint: displayA)
+    let old = Workspace(name: "Old", displayHint: displayB)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    let state = Self.makeState(workspaces: [code, slack, old]) {
+      $0.$config.withLock {
+        $0.settings.switching.recentAcrossDisplays = true
+        $0.mutateActiveProfile { $0.workspaceChains = [chain] }
+      }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayB
+      $0.connectedDisplays = [displayA, displayB]
+      // Simulate changing Code's pin while it is still visible on A.
+      $0.activeWorkspacesByDisplay = [displayA: code.id, displayB: old.id]
+      $0.workspaceMRU = [old.id, code.id, slack.id]
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      // Global recent still excludes the workspace on the pointer display;
+      // Code is the preceding visible workspace from Old on B.
+      $0.displays.current = { displayB }
+      $0.displays.connected = { reference in
+        [displayA, displayB].first { reference.matches($0) }
+      }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent())
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayA)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == code.id && assignment.display.matches(displayB)
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: code.id, display: displayB)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [slack.id, code.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayA, displayB])
+    #expect(activations.value.map(\.setFocus) == [false, true])
+    #expect(store.state.focusedDisplay == displayB)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: slack.id, displayB: code.id])
+  }
+
+  @Test
+  func `global recent keeps a visible dynamic chain target on its current display`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let code = Workspace(name: "Code")
+    let slack = Workspace(name: "Slack", displayHint: displayC)
+    let old = Workspace(name: "Old", displayHint: displayC)
+    let codeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.code")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    let state = Self.makeState(workspaces: [code, slack, old]) {
+      $0.$config.withLock {
+        $0.settings.switching.recentAcrossDisplays = true
+        $0.mutateActiveProfile { $0.workspaceChains = [chain] }
+      }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = displayC
+      $0.connectedDisplays = [displayA, displayB, displayC]
+      $0.activeWorkspacesByDisplay = [displayA: code.id, displayC: old.id]
+      $0.workspaceMRU = [old.id, code.id, slack.id]
+      $0.tilingTrees[code.id] = .leaf(codeWindow)
+    }
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      // Pointer B must not pull the already-visible dynamic recent target away
+      // from its current owner A.
+      $0.displays.current = { displayB }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activateRecent())
+    await Self.receiveActivationCompletion(store, workspaceID: slack.id, display: displayC)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == code.id && assignment.display.matches(displayA)
+    }
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [slack.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayC])
+    #expect(activations.value.allSatisfy { !$0.setFocus })
+    #expect(focused.value == [codeWindow])
+    #expect(store.state.focusedDisplay == displayA)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: code.id, displayC: slack.id])
   }
 
   @Test
@@ -1946,7 +3933,7 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.activateRecent)
+    await store.send(.activateRecent())
     await store.receive {
       guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
       return workspaceId == localRecent.id && display == displayA
@@ -1974,7 +3961,7 @@ struct WorkspaceActivationFeatureTests {
       WorkspaceActivationFeature()
     }
 
-    await store.send(.activateRecent)
+    await store.send(.activateRecent())
   }
 
   @Test
@@ -2142,6 +4129,118 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `activation completion canonicalizes legacy display state to the live UUID`() async {
+    let legacyDisplay = DisplayName("Studio")
+    let liveDisplay = DisplayName(uuid: "studio-display", name: "Studio")
+    let previous = Workspace(name: "Previous")
+    let older = Workspace(name: "Older")
+    let current = Workspace(name: "Current")
+    let state = Self.makeState(workspaces: [previous, older, current]) {
+      $0.connectedDisplays = [liveDisplay]
+      $0.activeWorkspacesByDisplay = [legacyDisplay: previous.id]
+      $0.previousWorkspacesByDisplay = [legacyDisplay: older.id]
+      $0.displayWorkspaceHistory = [legacyDisplay: [previous.id, older.id]]
+      $0.lastActiveDisplay = [previous.id: legacyDisplay, older.id: legacyDisplay]
+      $0.isActivating = true
+      $0.activatingWorkspaceID = current.id
+      $0.activatingDisplay = liveDisplay
+      $0.activationGeneration = 1
+      $0.activeActivationGeneration = 1
+    }
+    let savedHistory = LockIsolated<[DisplayName: [UUID]]?>(nil)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.profileSessionStore.saveWorkspaceState = { history, _ in
+        savedHistory.setValue(history)
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activationCompleted(
+      workspaceId: current.id,
+      display: liveDisplay,
+      generation: 1,
+    ))
+    await store.finish()
+
+    #expect(store.state.activeWorkspacesByDisplay == [liveDisplay: current.id])
+    #expect(store.state.previousWorkspacesByDisplay == [liveDisplay: previous.id])
+    #expect(
+      store.state.displayWorkspaceHistory
+        == [liveDisplay: [current.id, previous.id, older.id]]
+    )
+    #expect(store.state.lastActiveDisplay[current.id] == liveDisplay)
+    #expect(store.state.lastActiveDisplay[previous.id] == liveDisplay)
+    #expect(store.state.lastActiveDisplay[older.id] == liveDisplay)
+    #expect(savedHistory.value == store.state.displayWorkspaceHistory)
+    #expect(store.state.activatingDisplay == nil)
+  }
+
+  @Test
+  func `name only completion preserves the one known UUID display key`() {
+    let legacyDisplay = DisplayName("Studio")
+    let liveDisplay = DisplayName(uuid: "studio-display", name: "Studio")
+    let previousID = UUID()
+    let currentID = UUID()
+    let profile = Profile(name: "Default", workspaces: [
+      Workspace(id: previousID, name: "Previous"),
+      Workspace(id: currentID, name: "Current"),
+    ])
+    var state = WorkspaceActivationFeature.State()
+    state.$config.withLock {
+      $0.profiles = [profile]
+      $0.activeProfileId = profile.id
+    }
+    state.connectedDisplays = [liveDisplay]
+    state.activeWorkspacesByDisplay = [liveDisplay: previousID]
+    state.displayWorkspaceHistory = [liveDisplay: [previousID]]
+
+    _ = state.recordCompletedActivation(
+      workspaceId: currentID,
+      display: legacyDisplay,
+    )
+
+    #expect(state.activeWorkspacesByDisplay == [liveDisplay: currentID])
+    #expect(state.previousWorkspacesByDisplay == [liveDisplay: previousID])
+    #expect(state.displayWorkspaceHistory == [liveDisplay: [currentID, previousID]])
+  }
+
+  @Test
+  func `ambiguous name only display does not collapse distinct UUID monitors`() {
+    let nameOnly = DisplayName("Studio")
+    let displayA = DisplayName(uuid: "studio-a", name: "Studio")
+    let displayB = DisplayName(uuid: "studio-b", name: "Studio")
+    let workspaceA = UUID()
+    let workspaceB = UUID()
+    let replacementA = UUID()
+    var state = WorkspaceActivationFeature.State()
+    state.connectedDisplays = [displayA, displayB]
+    state.activeWorkspacesByDisplay = [
+      nameOnly: workspaceA,
+      displayA: workspaceA,
+      displayB: workspaceB,
+    ]
+    state.displayWorkspaceHistory = [
+      nameOnly: [workspaceA],
+      displayA: [workspaceA],
+      displayB: [workspaceB],
+    ]
+
+    _ = state.recordCompletedActivation(
+      workspaceId: replacementA,
+      display: displayA,
+    )
+
+    #expect(state.activeWorkspacesByDisplay[displayA] == replacementA)
+    #expect(state.activeWorkspacesByDisplay[displayB] == workspaceB)
+    #expect(state.displayWorkspaceHistory[displayB] == [workspaceB])
+    #expect(state.activeWorkspacesByDisplay[nameOnly] == workspaceA)
+    #expect(state.displayWorkspaceHistory[nameOnly] == [workspaceA])
+  }
+
+  @Test
   func `CLI activation completes only after the activation tail`() async {
     let workspace = Workspace(name: "CLI")
     let state = Self.makeState(workspaces: [workspace]) {
@@ -2173,6 +4272,74 @@ struct WorkspaceActivationFeatureTests {
     await store.finish()
 
     #expect(completions.value == [nil])
+  }
+
+  @Test
+  func `CLI chain dispatch does not complete before its final restore starts`() async {
+    let workspace = Workspace(name: "CLI Chain")
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(workspace.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.pendingCLIActivation = request
+      $0.focusWorkspaceOnRestore = workspace.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cliActivationEffectFinished(
+      workspaceId: workspace.id,
+      requestID: request.id,
+    ))
+    await store.finish()
+
+    #expect(completions.value.isEmpty)
+    #expect(store.state.pendingCLIActivation?.id == request.id)
+  }
+
+  @Test
+  func `CLI workspace-chain activation completes after the queued trigger becomes active`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let code = Workspace(name: "Code", displayHint: displayA)
+    let browser = Workspace(name: "Browser", displayHint: displayB)
+    let old = Workspace(name: "Old", displayHint: displayA)
+    let chain = WorkspaceChain(workspaceIDs: [browser.id, code.id])
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(code.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let state = Self.makeState(workspaces: [code, browser, old]) {
+      $0.connectedDisplays = [displayA, displayB]
+      $0.activeWorkspacesByDisplay = [displayA: old.id, displayB: browser.id]
+      $0.$config.withLock { $0.mutateActiveProfile { $0.workspaceChains = [chain] } }
+      $0.isTilingPaused = true
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.trackCLIActivation(request, joinCurrentActivation: false))
+    await store.send(.activateFromCLI(workspaceId: code.id, requestID: request.id))
+    await Self.receiveActivationCompletion(store, workspaceID: code.id, display: displayA)
+    await store.finish()
+
+    #expect(completions.value == [nil])
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: code.id, displayB: browser.id])
+    #expect(store.state.pendingCLIActivation == nil)
   }
 
   @Test
@@ -2372,11 +4539,14 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
 
-    await store.send(.restoreDisplay(workspaceId: missingID, display: Self.display))
+    await store.send(.restoreDisplay(DisplayAssignment(
+      display: Self.display,
+      workspace: missingID,
+    )))
     await store.receive(\.processDisplayRestores)
     await store.receive {
-      guard case .restoreDisplay(let workspaceID, let display) = $0 else { return false }
-      return workspaceID == live.id && display == liveDisplay
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == live.id && assignment.display == liveDisplay
     }
     await store.receive {
       guard case .activationCompleted(let workspaceID, let display, _) = $0 else { return false }
@@ -2448,6 +4618,833 @@ struct WorkspaceActivationFeatureTests {
 
     #expect(completions.value == [nil])
     #expect(store.state.activeWorkspacesByDisplay.isEmpty)
+  }
+
+  @Test
+  func `profile cleanup focuses a successor and preserves profile-local recent history`() async {
+    let displayA = DisplayName("A")
+    let displayC = DisplayName("C")
+    let oldA = Workspace(
+      name: "Old A",
+      apps: [AppAssignment(bundleIdentifier: "app.old-a", name: "Old A")],
+    )
+    let oldC = Workspace(
+      name: "Old C",
+      apps: [AppAssignment(bundleIdentifier: "app.old-c", name: "Old C")],
+    )
+    let outgoing = Profile(name: "Outgoing", workspaces: [oldA, oldC])
+    let recent = Workspace(name: "Recent", displayHint: displayA)
+    let other = Workspace(name: "Other", displayHint: displayA)
+    let incoming = Profile(name: "Incoming", workspaces: [recent, other])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [outgoing, incoming],
+      activeProfileId: incoming.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.$config.withLock { $0.settings.switching.recentAcrossDisplays = false }
+    state.connectedDisplays = [displayA, displayC]
+    state.focusedDisplay = displayC
+    state.activeWorkspacesByDisplay = [displayA: oldA.id, displayC: oldC.id]
+    state.displayWorkspaceHistory[displayA] = [oldA.id, recent.id, other.id]
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let returns = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayC] }
+      $0.displays.current = { displayC }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returns.withValue { $0.append((bundleIDs, display)) }
+        return true
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.reactivateActiveProfile(focus: nil))
+    await Self.receiveActivationCompletion(store, workspaceID: recent.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [recent.id])
+    #expect(activations.value.map(\.setFocus) == [true])
+    #expect(returns.value.count == 1)
+    #expect(returns.value.first?.0 == ["app.old-c"])
+    #expect(returns.value.first?.1 == displayC)
+    #expect(store.state.activeWorkspacesByDisplay == [displayA: recent.id])
+    #expect(store.state.previousWorkspacesByDisplay[displayA] == nil)
+    #expect(store.state.displayWorkspaceHistory[displayA]?.contains(oldA.id) == true)
+    #expect(
+      WorkspaceActivationFeature().recentWorkspaceId(
+        state: store.state,
+        display: displayA,
+      ) == other.id
+    )
+  }
+
+  @Test
+  func `focused profile restore applies a partial priority chain and cleans an unfilled source`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let outgoingWorkspace = Workspace(
+      name: "Outgoing",
+      apps: [AppAssignment(bundleIdentifier: "app.outgoing", name: "Outgoing")],
+    )
+    let outgoing = Profile(name: "Outgoing", workspaces: [outgoingWorkspace])
+    let first = Workspace(name: "First", displayHint: displayA)
+    let skipped = Workspace(name: "Skipped", displayHint: displayA)
+    let dynamic = Workspace(name: "Dynamic")
+    let chain = WorkspaceChain(workspaceIDs: [first.id, skipped.id, dynamic.id])
+    let incoming = Profile(
+      name: "Incoming",
+      workspaceChains: [chain],
+      workspaces: [first, skipped, dynamic],
+    )
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [outgoing, incoming],
+      activeProfileId: incoming.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.connectedDisplays = [displayA, displayB, displayC]
+    state.activeWorkspacesByDisplay = [displayC: outgoingWorkspace.id]
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let returns = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returns.withValue { $0.append((bundleIDs, display)) }
+        return true
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.reactivateActiveProfile(focus: first.id))
+    await Self.receiveActivationCompletion(store, workspaceID: dynamic.id, display: displayB)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == first.id && assignment.display.matches(displayA)
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: first.id, display: displayA)
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [dynamic.id, first.id])
+    #expect(activations.value.map(\.setFocus) == [false, true])
+    #expect(!activations.value.contains { $0.workspace.id == skipped.id })
+    #expect(returns.value.count == 1)
+    #expect(returns.value.first?.0 == ["app.outgoing"])
+    #expect(returns.value.first?.1 == displayC)
+    #expect(store.state.activeWorkspacesByDisplay == [
+      displayA: first.id,
+      displayB: dynamic.id,
+    ])
+  }
+
+  @Test
+  func `focused profile chain publishes one complete HUD per affected display`() async throws {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let outgoingHost = Workspace(
+      name: "Slack",
+      apps: [AppAssignment(bundleIdentifier: "app.slack", name: "Slack")],
+    )
+    let outgoingBorrow = Workspace(
+      name: "KakaoTalk",
+      apps: [AppAssignment(bundleIdentifier: "app.kakao", name: "KakaoTalk")],
+    )
+    let outgoing = Profile(
+      name: "Outgoing",
+      workspaces: [outgoingHost, outgoingBorrow],
+    )
+    let coding = Workspace(name: "Coding", displayHint: displayA)
+    let skipped = Workspace(name: "Skipped", displayHint: displayA)
+    let browser = Workspace(name: "Browser", displayHint: displayB)
+    let chain = WorkspaceChain(
+      name: "Test",
+      workspaceIDs: [coding.id, skipped.id, browser.id],
+    )
+    let incoming = Profile(
+      name: "Incoming",
+      symbolIconName: "sparkles",
+      workspaceChains: [chain],
+      workspaces: [coding, skipped, browser],
+    )
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [outgoing, incoming],
+      activeProfileId: incoming.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.isTilingPaused = true
+    state.connectedDisplays = [displayA, displayB, displayC]
+    state.focusedDisplay = displayC
+    state.activeWorkspacesByDisplay = [displayC: outgoingHost.id]
+    state.compositionsByDisplay[displayC] = Composition(
+      host: outgoingHost.id,
+      borrowed: [BorrowedSlot(workspace: outgoingBorrow.id, edge: .right)],
+    )
+    let cleanupStarted = AsyncStream<Void>.makeStream()
+    let releaseCleanup = AsyncStream<Void>.makeStream()
+    let returned = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returned.withValue { $0.append((bundleIDs, display)) }
+        cleanupStarted.continuation.yield()
+        var iterator = releaseCleanup.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        return true
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    var cleanupStartedIterator = cleanupStarted.stream.makeAsyncIterator()
+
+    await store.send(.reactivateActiveProfile(
+      focus: browser.id,
+      interactionDisplay: displayA,
+    ))
+    await Self.receiveActivationCompletion(store, workspaceID: coding.id, display: displayA)
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == browser.id && assignment.display.matches(displayB)
+    }
+    await store.receive {
+      guard case .activationCompleted(let workspaceID, let display, _) = $0 else { return false }
+      return workspaceID == browser.id && display?.matches(displayB) == true
+    }
+    await store.receive {
+      guard case .processWorkspaceChainCleanupStep(_, let cleanup, _) = $0 else { return false }
+      return cleanup.display.matches(displayC)
+        && cleanup.bundleIDs == ["app.kakao", "app.slack"]
+    }
+    #expect(await cleanupStartedIterator.next() != nil)
+    let sourceHUDsBeforeCommit = hudRequests.value.filter {
+      $0.display?.matches(displayC) == true
+    }
+    #expect(sourceHUDsBeforeCommit.isEmpty)
+
+    releaseCleanup.continuation.yield()
+    releaseCleanup.continuation.finish()
+    cleanupStarted.continuation.finish()
+    await store.receive {
+      guard case .commitWorkspaceChainCleanup(_, let display, _) = $0 else { return false }
+      return display.matches(displayC)
+    }
+    await store.receive {
+      guard case .activationTailFinished = $0 else { return false }
+      return true
+    }
+    await store.finish()
+
+    #expect(returned.value.count == 1)
+    #expect(returned.value.first?.0 == ["app.kakao", "app.slack"])
+    #expect(returned.value.first?.1 == displayC)
+    #expect(hudRequests.value.count == 3)
+    let codingHUD = try #require(hudRequests.value.first {
+      $0.display?.matches(displayA) == true
+    })
+    #expect(codingHUD.name == incoming.name)
+    #expect(codingHUD.symbolIconName == incoming.symbolIconName)
+    #expect(
+      codingHUD.subtitle
+        == "\(coding.name) · \(chain.name!)"
+        + "\n\(String(localized: "Focus moved")): "
+        + String(localized: "\(browser.name) is on \(displayB.name)")
+    )
+    #expect(codingHUD.subtitleSymbolIconName == "link")
+    let browserHUD = try #require(hudRequests.value.first {
+      $0.display?.matches(displayB) == true
+    })
+    #expect(browserHUD.name == incoming.name)
+    #expect(browserHUD.symbolIconName == incoming.symbolIconName)
+    #expect(browserHUD.subtitle == "\(browser.name) · \(chain.name!)")
+    #expect(browserHUD.subtitleSymbolIconName == "link")
+    let sourceHUDs = hudRequests.value.filter {
+      $0.display?.matches(displayC) == true
+    }
+    let sourceHUD = try #require(sourceHUDs.first)
+    #expect(sourceHUDs.count == 1)
+    #expect(sourceHUD.name == incoming.name)
+    #expect(sourceHUD.symbolIconName == incoming.symbolIconName)
+    #expect(
+      sourceHUD.subtitle
+        == "\(outgoingHost.name) · "
+        + String(localized: "Returned \(outgoingBorrow.name)")
+    )
+    #expect(sourceHUD.subtitleSymbolIconName == nil)
+    #expect(sourceHUD.subtitleExtendsDuration)
+  }
+
+  @Test(arguments: [false, true])
+  func `focused chain restore keeps its captured dynamic display and respects pins`(
+    pinsTrigger: Bool
+  ) async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let peer = Workspace(name: "Peer")
+    let trigger = Workspace(
+      name: "Trigger",
+      displayHint: pinsTrigger ? displayB : nil,
+    )
+    let chain = WorkspaceChain(workspaceIDs: [peer.id, trigger.id])
+    let profile = Profile(
+      name: "Incoming",
+      workspaceChains: [chain],
+      workspaces: [peer, trigger],
+    )
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [profile],
+      activeProfileId: profile.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.isTilingPaused = true
+    state.connectedDisplays = [displayA, displayB]
+    state.focusedDisplay = displayB
+    let pointerDisplay = LockIsolated(displayA)
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { pointerDisplay.value }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.reactivateActiveProfile(
+      focus: trigger.id,
+      interactionDisplay: displayA,
+    ))
+    pointerDisplay.setValue(displayB)
+
+    let triggerDisplay = pinsTrigger ? displayB : displayA
+    let peerDisplay = pinsTrigger ? displayA : displayB
+    await Self.receiveActivationCompletion(
+      store,
+      workspaceID: peer.id,
+      display: peerDisplay,
+    )
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == trigger.id
+        && assignment.display.matches(triggerDisplay)
+    }
+    await Self.receiveActivationCompletion(
+      store,
+      workspaceID: trigger.id,
+      display: triggerDisplay,
+    )
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [peer.id, trigger.id])
+    #expect(activations.value.map(\.targetDisplay) == [peerDisplay, triggerDisplay])
+    #expect(activations.value.map(\.setFocus) == [false, true])
+    #expect(store.state.activeWorkspace(on: triggerDisplay) == trigger.id)
+  }
+
+  @Test
+  func `focused standalone restore moves its dynamic workspace to the captured display`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let peer = Workspace(name: "Peer")
+    // The ordinary restore order puts the second dynamic workspace on B.
+    // Explicit focus must swap it onto the command-entry display A instead.
+    let trigger = Workspace(name: "Trigger")
+    let profile = Profile(name: "Incoming", workspaces: [peer, trigger])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [profile],
+      activeProfileId: profile.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.isTilingPaused = true
+    state.connectedDisplays = [displayA, displayB]
+    state.focusedDisplay = displayB
+    let pointerDisplay = LockIsolated(displayA)
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB] }
+      $0.displays.current = { pointerDisplay.value }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.reactivateActiveProfile(
+      focus: trigger.id,
+      interactionDisplay: displayA,
+    ))
+    pointerDisplay.setValue(displayB)
+    await Self.receiveActivationCompletion(
+      store,
+      workspaceID: peer.id,
+      display: displayB,
+    )
+    await store.receive(\.processDisplayRestores)
+    await store.receive {
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == trigger.id
+        && assignment.display.matches(displayA)
+    }
+    await Self.receiveActivationCompletion(
+      store,
+      workspaceID: trigger.id,
+      display: displayA,
+    )
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [peer.id, trigger.id])
+    #expect(activations.value.map(\.targetDisplay) == [displayB, displayA])
+    #expect(activations.value.map(\.setFocus) == [false, true])
+    #expect(store.state.activeWorkspace(on: displayA) == trigger.id)
+  }
+
+  @Test
+  func `stale chain cleanup transaction never starts its physical return`() async {
+    let displayA = DisplayName("A")
+    let displayC = DisplayName("C")
+    let expected = Workspace(name: "Expected")
+    let newer = Workspace(name: "Newer")
+    let skipped = Workspace(name: "Skipped")
+    let state = Self.makeState(workspaces: [expected, newer, skipped]) {
+      $0.connectedDisplays = [displayA, displayC]
+      $0.activeWorkspacesByDisplay = [displayA: newer.id, displayC: skipped.id]
+    }
+    let transaction = WorkspaceChainCleanupTransaction(
+      skippedWorkspaceIDs: [skipped.id],
+      retainedWorkspaceIDs: [expected.id],
+      placements: [WorkspaceChainPlacement(display: displayA, workspace: expected.id)],
+      sourcePlacements: [
+        WorkspaceChainPlacement(display: displayC, workspace: skipped.id)
+      ],
+      sourceSnapshots: [WorkspaceChainCleanupSourceSnapshot(
+        display: displayC,
+        activeWorkspace: skipped.id,
+        composition: nil,
+        borrowGeneration: 0,
+      )],
+      requiresFocusSuccessor: true,
+      cleanupHUDRequests: [],
+    )
+    let returnCalls = LockIsolated(0)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.workspaceManager.returnBorrowed = { _, _ in
+        returnCalls.withValue { $0 += 1 }
+        return true
+      }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.processWorkspaceChainCleanup(
+      transaction,
+      cleanups: [WorkspaceChainVisibilityCleanup(
+        display: displayC,
+        bundleIDs: ["app.skipped"],
+      )],
+    ))
+    await store.finish()
+
+    #expect(store.state.activeWorkspacesByDisplay == [
+      displayA: newer.id,
+      displayC: skipped.id,
+    ])
+    #expect(returnCalls.value == 0)
+  }
+
+  @Test(arguments: ["activate", "cli", "app-focus", "recent", "next", "focus-display"])
+  func `replacement activation cancels unfinished multi-display cleanup before starting`(
+    entryPath: String
+  ) async {
+    let displayA = DisplayName("A")
+    let displayC = DisplayName("C")
+    let displayD = DisplayName("D")
+    let expected = Workspace(name: "Expected", displayHint: displayA)
+    let newer = Workspace(name: "Newer", displayHint: displayA)
+    let skippedC = Workspace(
+      name: "Skipped C",
+      apps: [AppAssignment(bundleIdentifier: "app.skipped-c", name: "Skipped C")],
+    )
+    let skippedD = Workspace(
+      name: "Skipped D",
+      apps: [AppAssignment(bundleIdentifier: "app.skipped-d", name: "Skipped D")],
+    )
+    let skippedDWindow = WindowKey(
+      pid: 4,
+      windowID: 404,
+      bundleId: "app.skipped-d",
+    )
+    var state = Self.makeState(workspaces: [expected, newer, skippedC, skippedD]) {
+      $0.isTilingPaused = true
+      $0.$config.withLock {
+        $0.settings.switching.cycleAcrossDisplays = false
+        $0.settings.switching.recentAcrossDisplays = true
+      }
+      $0.connectedDisplays = [displayA, displayC, displayD]
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [
+        displayA: expected.id,
+        displayC: skippedC.id,
+        displayD: skippedD.id,
+      ]
+      $0.workspaceMRU = [expected.id, newer.id]
+      $0.tilingTrees[skippedD.id] = .leaf(skippedDWindow)
+    }
+    let cliRequest = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(newer.id),
+      complete: { _ in },
+    )
+    if entryPath == "cli" {
+      state.pendingCLIActivation = cliRequest
+    }
+    let hudSettings = state.config.settings.hud
+    let transaction = WorkspaceChainCleanupTransaction(
+      skippedWorkspaceIDs: [skippedC.id, skippedD.id],
+      retainedWorkspaceIDs: [expected.id],
+      placements: [WorkspaceChainPlacement(display: displayA, workspace: expected.id)],
+      sourcePlacements: [
+        WorkspaceChainPlacement(display: displayC, workspace: skippedC.id),
+        WorkspaceChainPlacement(display: displayD, workspace: skippedD.id),
+      ],
+      sourceSnapshots: [
+        WorkspaceChainCleanupSourceSnapshot(
+          display: displayC,
+          activeWorkspace: skippedC.id,
+          composition: nil,
+          borrowGeneration: 0,
+        ),
+        WorkspaceChainCleanupSourceSnapshot(
+          display: displayD,
+          activeWorkspace: skippedD.id,
+          composition: nil,
+          borrowGeneration: 0,
+        ),
+      ],
+      requiresFocusSuccessor: true,
+      cleanupHUDRequests: [
+        ActionHUDRequest(
+          name: "C cleaned",
+          symbolIconName: nil,
+          subtitle: nil,
+          durationMs: hudSettings.durationMs,
+          position: hudSettings.position,
+          size: hudSettings.size,
+          display: displayC,
+        ),
+        ActionHUDRequest(
+          name: "D cleaned",
+          symbolIconName: nil,
+          subtitle: nil,
+          durationMs: hudSettings.durationMs,
+          position: hudSettings.position,
+          size: hudSettings.size,
+          display: displayD,
+        ),
+      ],
+    )
+    let secondStarted = AsyncStream<Void>.makeStream()
+    let holdSecond = AsyncStream<Void>.makeStream()
+    let outcomes = LockIsolated<[(DisplayName, Bool)]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayC, displayD] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { _ in }
+      $0.workspaceManager.returnBorrowed = { _, display in
+        if display.matches(displayD) {
+          secondStarted.continuation.yield()
+          var iterator = holdSecond.stream.makeAsyncIterator()
+          _ = await iterator.next()
+        }
+        let completed = !Task.isCancelled
+        outcomes.withValue { $0.append((display, completed)) }
+        return completed
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    var secondStartedIterator = secondStarted.stream.makeAsyncIterator()
+
+    await store.send(.processWorkspaceChainCleanup(
+      transaction,
+      cleanups: [
+        WorkspaceChainVisibilityCleanup(
+          display: displayC,
+          bundleIDs: ["app.skipped-c"],
+        ),
+        WorkspaceChainVisibilityCleanup(
+          display: displayD,
+          bundleIDs: ["app.skipped-d"],
+        ),
+      ],
+    ))
+    await store.receive {
+      guard case .processWorkspaceChainCleanupStep(_, let cleanup, _) = $0 else { return false }
+      return cleanup.display.matches(displayC) && cleanup.bundleIDs == ["app.skipped-c"]
+    }
+    await store.receive {
+      guard case .commitWorkspaceChainCleanup(_, let display, _) = $0 else { return false }
+      return display.matches(displayC)
+    }
+    await store.receive {
+      guard case .processWorkspaceChainCleanupStep(_, let cleanup, _) = $0 else { return false }
+      return cleanup.display.matches(displayD) && cleanup.bundleIDs == ["app.skipped-d"]
+    }
+    #expect(await secondStartedIterator.next() != nil)
+    #expect(store.state.activeWorkspacesByDisplay[displayC] == nil)
+    #expect(store.state.activeWorkspacesByDisplay[displayD] == skippedD.id)
+
+    switch entryPath {
+    case "cli":
+      await store.send(.activateFromCLI(
+        workspaceId: newer.id,
+        requestID: cliRequest.id,
+        interactionDisplay: displayA,
+      ))
+
+    case "app-focus":
+      await store.send(.activateFollowingAppFocus(workspaceId: newer.id))
+
+    case "recent":
+      await store.send(.activateRecent(interactionDisplay: displayA))
+
+    case "next":
+      await store.send(.activateNext(interactionDisplay: displayA))
+
+    case "focus-display":
+      await store.send(.focusAdjacentDisplay(
+        direction: -1,
+        interactionDisplay: displayA,
+      ))
+
+    default:
+      await store.send(.activate(
+        workspaceId: newer.id,
+        setFocus: true,
+        interactionDisplay: displayA,
+      ))
+    }
+    if entryPath != "focus-display" {
+      await Self.receiveActivationCompletion(store, workspaceID: newer.id, display: displayA)
+    }
+    holdSecond.continuation.finish()
+    secondStarted.continuation.finish()
+    await store.finish()
+
+    #expect(outcomes.value.count == 2)
+    #expect(outcomes.value[0].0 == displayC && outcomes.value[0].1)
+    #expect(outcomes.value[1].0 == displayD && !outcomes.value[1].1)
+    #expect(store.state.activeWorkspacesByDisplay == (
+      entryPath == "focus-display"
+        ? [displayA: expected.id, displayD: skippedD.id]
+        : [displayA: newer.id, displayD: skippedD.id]
+    ))
+    // C's committed cleanup feedback survives; D never reaches its commit.
+    // The deliberate replacement activation is independent and presents its
+    // ordinary workspace HUD after it takes over the display.
+    let expectedHUDNames =
+      switch entryPath {
+      case "app-focus": ["C cleaned"]
+      case "focus-display": ["C cleaned", "Skipped D", String(localized: "Focus moved")]
+      default: ["C cleaned", "Newer"]
+      }
+    #expect(hudRequests.value.map(\.name) == expectedHUDNames)
+  }
+
+  @Test
+  func `skipped host cleanup returns its unrelated borrowed workspace before removing composition`() async throws {
+    let displayA = DisplayName("A")
+    let displayC = DisplayName("C")
+    let trigger = Workspace(name: "Trigger", displayHint: displayA)
+    let skippedHost = Workspace(
+      name: "Skipped Host",
+      apps: [AppAssignment(bundleIdentifier: "app.skipped-host", name: "Host")],
+    )
+    let borrowed = Workspace(
+      name: "Borrowed",
+      apps: [AppAssignment(bundleIdentifier: "app.borrowed", name: "Borrowed")],
+    )
+    let state = Self.makeState(workspaces: [trigger, skippedHost, borrowed]) {
+      $0.connectedDisplays = [displayA, displayC]
+      $0.activeWorkspacesByDisplay = [displayA: trigger.id, displayC: skippedHost.id]
+      $0.compositionsByDisplay[displayC] = Composition(
+        host: skippedHost.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right)],
+      )
+    }
+    let assignment = DisplayAssignment(display: displayA, workspace: trigger.id)
+    let feature = WorkspaceActivationFeature()
+    let transaction = try #require(feature.makeWorkspaceCleanupTransaction(
+      prioritySkippedWorkspaceIDs: [skippedHost.id],
+      retainedWorkspaceIDs: [trigger.id],
+      assignments: [assignment],
+      state: state,
+    ))
+    let cleanups = feature.workspaceChainVisibilityCleanups(transaction, state: state)
+    #expect(cleanups == [WorkspaceChainVisibilityCleanup(
+      display: displayC,
+      bundleIDs: ["app.borrowed", "app.skipped-host"],
+    )])
+    let returned = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returned.withValue { $0.append((bundleIDs, display)) }
+        return true
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.processWorkspaceChainCleanup(
+      transaction,
+      cleanups: cleanups,
+    ))
+    await store.receive {
+      guard case .processWorkspaceChainCleanupStep(_, let cleanup, _) = $0 else { return false }
+      return cleanup.display.matches(displayC)
+        && cleanup.bundleIDs == ["app.borrowed", "app.skipped-host"]
+    }
+    await store.receive {
+      guard case .commitWorkspaceChainCleanup(_, let display, _) = $0 else { return false }
+      return display.matches(displayC)
+    }
+    await store.finish()
+
+    #expect(returned.value.count == 1)
+    #expect(returned.value.first?.0 == ["app.borrowed", "app.skipped-host"])
+    #expect(returned.value.first?.1 == displayC)
+    #expect(store.state.activeWorkspacesByDisplay[displayC] == nil)
+    #expect(store.state.compositionsByDisplay[displayC] == nil)
+  }
+
+  @Test
+  func `superseded profile restore carries the unfilled outgoing source forward`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let displayC = DisplayName("C")
+    let outgoingWorkspace = Workspace(
+      name: "Outgoing",
+      apps: [AppAssignment(bundleIdentifier: "app.outgoing", name: "Outgoing")],
+    )
+    let first = Workspace(name: "First", displayHint: displayA)
+    let second = Workspace(name: "Second", displayHint: displayB)
+    let outgoing = Profile(name: "Outgoing", workspaces: [outgoingWorkspace])
+    let firstProfile = Profile(name: "First", workspaces: [first])
+    let secondProfile = Profile(name: "Second", workspaces: [second])
+    let sharedConfig = Shared(value: AppConfig(
+      profiles: [outgoing, firstProfile, secondProfile],
+      activeProfileId: firstProfile.id,
+    ))
+    var state = WorkspaceActivationFeature.State()
+    state.$config = sharedConfig
+    state.connectedDisplays = [displayA, displayB, displayC]
+    state.activeWorkspacesByDisplay = [displayC: outgoingWorkspace.id]
+    let firstActivationStarted = AsyncStream<Void>.makeStream()
+    let releaseFirstActivation = AsyncStream<Void>.makeStream()
+    let activationCount = LockIsolated(0)
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let returns = LockIsolated<[(Set<String>, DisplayName)]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.all = { [displayA, displayB, displayC] }
+      $0.displays.current = { displayA }
+      $0.displays.primary = { displayA }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        activations.withValue { $0.append(request) }
+        let index = activationCount.withValue { count in
+          defer { count += 1 }
+          return count
+        }
+        if index == 0 {
+          firstActivationStarted.continuation.yield()
+          var iterator = releaseFirstActivation.stream.makeAsyncIterator()
+          _ = await iterator.next()
+        }
+      }
+      $0.workspaceManager.returnBorrowed = { bundleIDs, display in
+        returns.withValue { $0.append((bundleIDs, display)) }
+        return true
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    var startedIterator = firstActivationStarted.stream.makeAsyncIterator()
+
+    await store.send(.reactivateActiveProfile(focus: nil))
+    #expect(await startedIterator.next() != nil)
+    sharedConfig.withLock { $0.activeProfileId = secondProfile.id }
+    await store.send(.reactivateActiveProfile(focus: nil))
+    await Self.receiveActivationCompletion(store, workspaceID: second.id, display: displayB)
+    releaseFirstActivation.continuation.finish()
+    firstActivationStarted.continuation.finish()
+    await store.finish()
+
+    #expect(activations.value.map(\.workspace.id) == [first.id, second.id])
+    #expect(returns.value.count == 1)
+    #expect(returns.value.first?.0 == ["app.outgoing"])
+    #expect(returns.value.first?.1 == displayC)
+    #expect(store.state.activeWorkspacesByDisplay == [displayB: second.id])
   }
 
   @Test
@@ -2594,8 +5591,8 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.activateInitial)
     await store.receive(\.processDisplayRestores)
     await store.receive {
-      guard case .restoreDisplay(let workspaceId, let display) = $0 else { return false }
-      return workspaceId == workspaceA.id && display == displayA
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == workspaceA.id && assignment.display == displayA
     }
     await store.receive {
       guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
@@ -2603,8 +5600,8 @@ struct WorkspaceActivationFeatureTests {
     }
     await store.receive(\.processDisplayRestores)
     await store.receive {
-      guard case .restoreDisplay(let workspaceId, let display) = $0 else { return false }
-      return workspaceId == workspaceB.id && display == displayB
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == workspaceB.id && assignment.display == displayB
     }
     await store.receive {
       guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
@@ -2655,8 +5652,8 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.activateInitial)
     await store.receive(\.processDisplayRestores)
     await store.receive {
-      guard case .restoreDisplay(let workspaceId, let owner) = $0 else { return false }
-      return workspaceId == frontmost.id && owner == display
+      guard case .restoreDisplay(let assignment) = $0 else { return false }
+      return assignment.workspace == frontmost.id && assignment.display == display
     }
     await store.receive {
       guard case .activationCompleted(let workspaceId, let owner, _) = $0 else { return false }
@@ -2768,6 +5765,48 @@ struct WorkspaceActivationFeatureTests {
     ) {
       $0.insertionPoint[notionWorkspace.id] = pulse
       $0.mruWindows[notionWorkspace.id] = [pulse, notion]
+      $0.lastObservedFocusedWindow = pulse
+    }
+  }
+
+  @Test
+  func `in flight focus keeps the captured activation display before placement commits`() async {
+    let displayA = DisplayName("A")
+    let displayB = DisplayName("B")
+    let figma = WindowKey(pid: 1, windowID: 101, bundleId: "com.figma.Desktop")
+    let pulse = WindowKey(pid: 2, windowID: 202, bundleId: "kean.studio.pulse")
+    let figmaWorkspace = Workspace(
+      name: "Figma",
+      apps: [AppAssignment(bundleIdentifier: figma.bundleId, name: "Figma")],
+    )
+    let targetWorkspace = Workspace(name: "Target")
+    let state = Self.makeState(workspaces: [figmaWorkspace, targetWorkspace]) {
+      $0.$config.withLock {
+        $0.sharedApps = [
+          SharedApp(bundleIdentifier: pulse.bundleId, name: "Pulse", layout: .tiled)
+        ]
+        $0.settings.focus.mouseFollowsFocus = false
+      }
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay[displayA] = figmaWorkspace.id
+      $0.tilingTrees[figmaWorkspace.id] = .branch(
+        BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(figma), right: .leaf(pulse))
+      )
+      $0.tilingTrees[targetWorkspace.id] = .leaf(pulse)
+      $0.isActivating = true
+      $0.activatingWorkspaceID = targetWorkspace.id
+      $0.activatingDisplay = displayB
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+
+    await store.send(
+      .windowChanged(.windowFocused(bundleId: pulse.bundleId, key: pulse))
+    ) {
+      $0.focusedDisplay = displayB
+      $0.insertionPoint[targetWorkspace.id] = pulse
+      $0.mruWindows[targetWorkspace.id] = [pulse]
       $0.lastObservedFocusedWindow = pulse
     }
   }
@@ -4911,6 +7950,7 @@ struct WorkspaceActivationFeatureTests {
       )
     }
     let requests = LockIsolated<[ActivationRequest]>([])
+    let hudRequests = LockIsolated<[ActionHUDRequest]>([])
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
@@ -4918,6 +7958,9 @@ struct WorkspaceActivationFeatureTests {
       $0.continuousClock = TestClock()
       $0.workspaceManager.activate = { request in
         requests.withValue { $0.append(request) }
+      }
+      $0.workspaceHUD.showAction = { request in
+        hudRequests.withValue { $0.append(request) }
       }
       $0.floatingOverlay.retainOnly = { _ in }
     }
@@ -4933,6 +7976,13 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.compositionsByDisplay[display] == nil)
     #expect(requests.value.last?.workspace.id == host.id)
     #expect(requests.value.last?.targetDisplay == display)
+    #expect(hudRequests.value.count == 1)
+    #expect(hudRequests.value.first?.name == host.name)
+    #expect(
+      hudRequests.value.first?.subtitle
+        == String(localized: "Returned \(borrowed.name)")
+    )
+    #expect(hudRequests.value.first?.subtitleSymbolIconName == nil)
   }
 
   @Test
@@ -5281,6 +8331,49 @@ struct WorkspaceActivationFeatureTests {
     await store.finish()
 
     #expect(focused.value.isEmpty)
+  }
+
+  @Test
+  func `empty workspace recent switch keeps the emptied display`() async {
+    let displayA = DisplayName(uuid: "display-a", name: "A")
+    let displayB = DisplayName(uuid: "display-b", name: "B")
+    let current = Workspace(name: "Current")
+    let recent = Workspace(name: "Recent")
+    let other = Workspace(name: "Other")
+    let state = Self.makeState(workspaces: [current, recent, other]) {
+      $0.$config.withLock {
+        $0.settings.switching.switchToRecentWhenEmpty = true
+      }
+      $0.focusedDisplay = displayA
+      $0.activeWorkspacesByDisplay = [displayA: current.id, displayB: other.id]
+      $0.previousWorkspacesByDisplay[displayA] = recent.id
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      // Presence resolution belongs to A even if the pointer has reached B by
+      // the time its asynchronous result is reduced.
+      $0.displays.current = { displayB }
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.emptyWorkspacePresenceResolved(
+      workspaceId: current.id,
+      hasOnScreenMembers: false,
+      hasFloatingWindows: false,
+      borrowDisplay: nil,
+      borrowGeneration: nil,
+      borrowComposition: nil,
+    ))
+    await store.receive {
+      guard case .activate(let workspaceID, let setFocus, let display) = $0 else {
+        return false
+      }
+      return workspaceID == recent.id && setFocus && display == displayA
+    }
   }
 
   @Test
@@ -7091,6 +10184,137 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `display UUID promotion preserves and canonicalizes live runtime state`() async {
+    let legacyDisplay = DisplayName("Studio")
+    let liveDisplay = DisplayName(uuid: "studio-display", name: "Studio")
+    let host = Workspace(name: "Host")
+    let previous = Workspace(name: "Previous")
+    let borrowed = Workspace(name: "Borrowed")
+    let composition = Composition(
+      host: host.id,
+      borrowed: [
+        BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)
+      ],
+    )
+    let pendingBorrow = WorkspaceActivationFeature.State.PendingBorrowCompletion(
+      workspaceId: borrowed.id,
+      generation: 7,
+    )
+    let state = Self.makeState(workspaces: [host, previous, borrowed]) {
+      $0.isTilingPaused = true
+      $0.connectedDisplays = [legacyDisplay]
+      $0.activeWorkspacesByDisplay = [legacyDisplay: host.id]
+      $0.previousWorkspacesByDisplay = [legacyDisplay: previous.id]
+      $0.displayWorkspaceHistory = [legacyDisplay: [host.id, previous.id]]
+      $0.lastActiveDisplay = [host.id: legacyDisplay]
+      $0.focusedDisplay = legacyDisplay
+      $0.activatingDisplay = legacyDisplay
+      $0.compositionsByDisplay = [legacyDisplay: composition]
+      $0.borrowGenerationByDisplay = [legacyDisplay: 7]
+      $0.pendingBorrowCompletionByDisplay = [legacyDisplay: pendingBorrow]
+      $0.pendingCenterWarps[borrowed.id] = WindowKey(
+        pid: 1,
+        windowID: 101,
+        bundleId: "app.borrowed",
+      )
+      $0.borrowCapture = .init(display: legacyDisplay, workspaceId: borrowed.id)
+      $0.pendingDisplayRestores = [
+        DisplayAssignment(display: legacyDisplay, workspace: host.id)
+      ]
+    }
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    }
+    store.exhaustivity = .off
+
+    await store.send(.displaysReconfigured([liveDisplay]))
+    await store.receive(\.displayGeometryChanged)
+    await store.finish()
+
+    #expect(store.state.connectedDisplays == [liveDisplay])
+    #expect(store.state.activeWorkspacesByDisplay == [liveDisplay: host.id])
+    #expect(store.state.previousWorkspacesByDisplay == [liveDisplay: previous.id])
+    #expect(
+      store.state.displayWorkspaceHistory
+        == [liveDisplay: [host.id, previous.id]]
+    )
+    #expect(store.state.lastActiveDisplay == [host.id: liveDisplay])
+    #expect(store.state.focusedDisplay == liveDisplay)
+    #expect(store.state.activatingDisplay == liveDisplay)
+    #expect(store.state.compositionsByDisplay == [liveDisplay: composition])
+    #expect(store.state.borrowGenerationByDisplay == [liveDisplay: 7])
+    #expect(
+      store.state.pendingBorrowCompletionByDisplay
+        == [liveDisplay: pendingBorrow]
+    )
+    #expect(store.state.pendingCenterWarps[borrowed.id] != nil)
+    #expect(store.state.borrowCapture?.display == liveDisplay)
+    #expect(store.state.pendingDisplayRestores.first?.display == liveDisplay)
+  }
+
+  @Test
+  func `activation clears a legacy keyed composition on the target display`() async {
+    let legacyDisplay = DisplayName("Studio")
+    let liveDisplay = DisplayName(uuid: "studio-display", name: "Studio")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    let target = Workspace(name: "Target")
+    let state = Self.makeState(workspaces: [host, borrowed, target]) {
+      $0.isTilingPaused = true
+      $0.connectedDisplays = [liveDisplay]
+      $0.focusedDisplay = legacyDisplay
+      $0.activeWorkspacesByDisplay = [legacyDisplay: host.id]
+      $0.compositionsByDisplay = [
+        legacyDisplay: Composition(
+          host: host.id,
+          borrowed: [
+            BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.4)
+          ],
+        )
+      ]
+      $0.borrowGenerationByDisplay = [legacyDisplay: 3]
+      $0.pendingBorrowCompletionByDisplay[legacyDisplay] = .init(
+        workspaceId: borrowed.id,
+        generation: 3,
+      )
+      $0.pendingCenterWarps[borrowed.id] = WindowKey(
+        pid: 1,
+        windowID: 101,
+        bundleId: "app.borrowed",
+      )
+    }
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.displays.current = { liveDisplay }
+      $0.continuousClock = TestClock()
+      $0.workspaceManager.activate = { request in
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(
+      workspaceId: target.id,
+      setFocus: true,
+      interactionDisplay: liveDisplay,
+    ))
+    #expect(store.state.compositionsByDisplay.isEmpty)
+    #expect(store.state.borrowGenerationByDisplay[legacyDisplay] == 4)
+    #expect(store.state.pendingBorrowCompletionByDisplay[legacyDisplay] == nil)
+    #expect(store.state.pendingCenterWarps[borrowed.id] == nil)
+    await store.receive {
+      guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+      return id == target.id && display?.matches(liveDisplay) == true
+    }
+    await store.finish()
+
+    #expect(requests.value.last?.targetDisplay == liveDisplay)
+  }
+
+  @Test
   func `floating presentation includes every visible monitor`() {
     let displayA = DisplayName("A")
     let displayB = DisplayName("B")
@@ -7266,6 +10490,542 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.previousWorkspacesByDisplay.isEmpty)
     #expect(store.state.lastActiveDisplay.isEmpty)
     #expect(store.state.focusedDisplay == nil)
+  }
+
+  @Test
+  func `workspace chain places pinned peers and trigger last in both directions`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack", hint: b)
+    let chain = WorkspaceChain(
+      name: "Coding",
+      workspaceIDs: [code.id, slack.id],
+    )
+
+    let codePlan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: code.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [code, slack],
+      active: [:],
+      history: [:],
+    )
+    #expect(codePlan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: slack.id),
+      DisplayAssignment(display: a, workspace: code.id),
+    ]))
+
+    let slackPlan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: b, workspace: slack.id),
+      dynamicPreferredDisplay: b,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [code, slack],
+      active: [:],
+      history: [:],
+    )
+    #expect(slackPlan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: code.id),
+      DisplayAssignment(display: b, workspace: slack.id),
+    ]))
+  }
+
+  @Test
+  func `workspace chain active lookup prefers exact UUID keys over legacy aliases`() {
+    let a = DisplayName(uuid: "display-a", name: "Studio Display")
+    let b = DisplayName(uuid: "display-b", name: "Studio Display")
+    let legacy = DisplayName("Studio Display")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack", hint: b)
+    let stale = workspace("Stale")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+    var active = [legacy: stale.id]
+    active[a] = code.id
+    active[b] = slack.id
+    var state = Self.makeState(workspaces: [code, slack, stale])
+    state.connectedDisplays = [a, b]
+    state.activeWorkspacesByDisplay = active
+    state.previousWorkspacesByDisplay = [legacy: stale.id, a: slack.id]
+
+    #expect(state.activeWorkspace(on: a) == code.id)
+    #expect(state.activeWorkspace(on: b) == slack.id)
+    #expect(state.previousWorkspace(on: a) == slack.id)
+    #expect(state.previousWorkspace(on: b) == nil)
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: code.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [code, slack, stale],
+      active: active,
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: code.id)
+    ]))
+  }
+
+  @Test
+  func `workspace chain derives a dynamic peer from remaining connected displays`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let c = DisplayName("C")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack")
+    let notes = workspace("Notes", hint: c)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: code.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b, c],
+      primaryDisplay: a,
+      workspaces: [code, slack, notes],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: slack.id),
+      DisplayAssignment(display: c, workspace: notes.id),
+      DisplayAssignment(display: a, workspace: code.id),
+    ]))
+  }
+
+  @Test
+  func `pinned trigger sends its first dynamic companion to the pointer display`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let c = DisplayName("C")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack")
+    let notes = workspace("Notes", hint: b)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: code.id),
+      dynamicPreferredDisplay: c,
+      connected: [a, b, c],
+      primaryDisplay: a,
+      workspaces: [code, slack, notes],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: notes.id),
+      DisplayAssignment(display: c, workspace: slack.id),
+      // The pinned trigger still runs last even though its companion used the
+      // pointer preference.
+      DisplayAssignment(display: a, workspace: code.id),
+    ]))
+  }
+
+  @Test
+  func `dynamic workspace-chain trigger prefers the pointer display`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let c = DisplayName("C")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack")
+    let notes = workspace("Notes", hint: b)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: c, workspace: slack.id),
+      dynamicPreferredDisplay: c,
+      connected: [a, b, c],
+      primaryDisplay: a,
+      workspaces: [code, slack, notes],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: code.id),
+      DisplayAssignment(display: b, workspace: notes.id),
+      DisplayAssignment(display: c, workspace: slack.id),
+    ]))
+  }
+
+  @Test
+  func `dynamic trigger remains mandatory when a pinned peer targets the same display`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack")
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: slack.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [code, slack],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: slack.id)
+    ]))
+  }
+
+  @Test
+  func `dynamic workspace-chain members use chain order after trigger reservation`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let c = DisplayName("C")
+    let first = workspace("First")
+    let trigger = workspace("Trigger")
+    let third = workspace("Third")
+    let chain = WorkspaceChain(workspaceIDs: [first.id, trigger.id, third.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: c, workspace: trigger.id),
+      dynamicPreferredDisplay: c,
+      connected: [a, b, c],
+      primaryDisplay: a,
+      workspaces: [first, trigger, third],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: first.id),
+      DisplayAssignment(display: b, workspace: third.id),
+      DisplayAssignment(display: c, workspace: trigger.id),
+    ]))
+  }
+
+  @Test
+  func `duplicate pins use stored priority then continue to a later dynamic member`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let first = workspace("First", hint: a)
+    let second = workspace("Second", hint: a)
+    let dynamic = workspace("Dynamic")
+    let chain = WorkspaceChain(workspaceIDs: [first.id, second.id, dynamic.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: first.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [first, second, dynamic],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: dynamic.id),
+      DisplayAssignment(display: a, workspace: first.id),
+    ]))
+  }
+
+  @Test
+  func `disconnected pinned chain peer is skipped before ordinary fallback`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let disconnected = DisplayName("Disconnected")
+    let trigger = workspace("Trigger", hint: a)
+    let peer = workspace("Peer", hint: disconnected)
+    let fallback = workspace("Fallback")
+    let chain = WorkspaceChain(workspaceIDs: [trigger.id, peer.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: trigger.id),
+      dynamicPreferredDisplay: b,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [trigger, peer, fallback],
+      active: [:],
+      history: [b: [fallback.id]],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: fallback.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+    #expect(plan.map(\.selectedWorkspaceIDs) == .success([trigger.id]))
+  }
+
+  @Test
+  func `disconnected UUID pin cannot alias a connected display with the same name`() {
+    let a = DisplayName(uuid: "display-a", name: "Built-in")
+    let gone = DisplayName(uuid: "display-gone", name: "Studio Display")
+    let live = DisplayName(uuid: "display-live", name: "Studio Display")
+    let trigger = workspace("Trigger", hint: a)
+    let peer = workspace("Peer", hint: gone)
+    let fallback = workspace("Fallback")
+
+    let pinnedPlan = WorkspaceActivationFeature.planWorkspaceChain(
+      WorkspaceChain(workspaceIDs: [trigger.id, peer.id]),
+      triggeredBy: DisplayAssignment(display: a, workspace: trigger.id),
+      dynamicPreferredDisplay: live,
+      connected: [a, live],
+      primaryDisplay: a,
+      workspaces: [trigger, peer, fallback],
+      active: [:],
+      history: [live: [fallback.id]],
+    )
+    #expect(pinnedPlan.map(\.assignments) == .success([
+      DisplayAssignment(display: live, workspace: fallback.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+    #expect(pinnedPlan.map(\.selectedWorkspaceIDs) == .success([trigger.id]))
+
+    let dynamicPlan = WorkspaceActivationFeature.planWorkspaceChain(
+      WorkspaceChain(
+        workspaceIDs: [trigger.id, peer.id],
+        dynamicWorkspaceIDs: [peer.id],
+      ),
+      triggeredBy: DisplayAssignment(display: a, workspace: trigger.id),
+      dynamicPreferredDisplay: live,
+      connected: [a, live],
+      primaryDisplay: a,
+      workspaces: [trigger, peer, fallback],
+      active: [:],
+      history: [live: [fallback.id]],
+    )
+    #expect(dynamicPlan.map(\.assignments) == .success([
+      DisplayAssignment(display: live, workspace: peer.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+    #expect(dynamicPlan.map(\.selectedWorkspaceIDs) == .success([trigger.id, peer.id]))
+  }
+
+  @Test
+  func `chain dynamic override fills before ordinary fallback`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let disconnected = DisplayName("Disconnected")
+    let trigger = workspace("Trigger", hint: a)
+    let peer = workspace("Peer", hint: disconnected)
+    let fallback = workspace("Fallback")
+    let chain = WorkspaceChain(
+      workspaceIDs: [trigger.id, peer.id],
+      dynamicWorkspaceIDs: [peer.id],
+    )
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: trigger.id),
+      dynamicPreferredDisplay: b,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [trigger, peer, fallback],
+      active: [:],
+      history: [b: [fallback.id]],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: peer.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+    #expect(plan.map(\.selectedWorkspaceIDs) == .success([trigger.id, peer.id]))
+  }
+
+  @Test
+  func `chain dynamic override does not change the selected trigger target`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let peer = workspace("Peer")
+    let trigger = workspace("Trigger", hint: a)
+    let chain = WorkspaceChain(
+      workspaceIDs: [peer.id, trigger.id],
+      dynamicWorkspaceIDs: [trigger.id],
+    )
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: b, workspace: trigger.id),
+      dynamicPreferredDisplay: b,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [peer, trigger],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: peer.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+  }
+
+  @Test
+  func `workspace chain applies the highest-priority members that fit`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let pinned = workspace("Pinned", hint: a)
+    let first = workspace("First")
+    let second = workspace("Second")
+    let chain = WorkspaceChain(workspaceIDs: [pinned.id, first.id, second.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: b, workspace: first.id),
+      dynamicPreferredDisplay: b,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [pinned, first, second],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: pinned.id),
+      DisplayAssignment(display: b, workspace: first.id),
+    ]))
+  }
+
+  @Test
+  func `lower-priority duplicate pin trigger overrides the earlier peer`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let first = workspace("First", hint: a)
+    let trigger = workspace("Trigger", hint: a)
+    let dynamic = workspace("Dynamic")
+    let chain = WorkspaceChain(workspaceIDs: [first.id, trigger.id, dynamic.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: trigger.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [first, trigger, dynamic],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: dynamic.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+  }
+
+  @Test
+  func `skipped chain member is removed and its display uses ordinary fallback`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let c = DisplayName("C")
+    let first = workspace("First", hint: a)
+    let skipped = workspace("Skipped", hint: a)
+    let dynamic = workspace("Dynamic")
+    let fallback = workspace("Fallback", hint: c)
+    let chain = WorkspaceChain(workspaceIDs: [first.id, skipped.id, dynamic.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: first.id),
+      dynamicPreferredDisplay: b,
+      connected: [a, b, c],
+      primaryDisplay: a,
+      workspaces: [first, skipped, dynamic, fallback],
+      active: [c: skipped.id],
+      history: [c: [skipped.id, fallback.id]],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: dynamic.id),
+      DisplayAssignment(display: c, workspace: fallback.id),
+      DisplayAssignment(display: a, workspace: first.id),
+    ]))
+  }
+
+  @Test
+  func `last dynamic trigger reserves its display before stored-order peers`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let first = workspace("First")
+    let second = workspace("Second")
+    let trigger = workspace("Trigger")
+    let chain = WorkspaceChain(workspaceIDs: [first.id, second.id, trigger.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: trigger.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [first, second, trigger],
+      active: [:],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: first.id),
+      DisplayAssignment(display: a, workspace: trigger.id),
+    ]))
+  }
+
+  @Test
+  func `workspace chain fills a vacated display without reusing chain members`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let c = DisplayName("C")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack")
+    let notes = workspace("Notes", hint: c)
+    let old = workspace("Old", hint: b)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: code.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b, c],
+      primaryDisplay: a,
+      workspaces: [code, slack, notes, old],
+      active: [a: code.id, b: old.id, c: slack.id],
+      history: [c: [slack.id, notes.id]],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: b, workspace: slack.id),
+      DisplayAssignment(display: c, workspace: notes.id),
+      DisplayAssignment(display: a, workspace: code.id),
+    ]))
+  }
+
+  @Test
+  func `workspace chain skips unchanged peers but retains trigger for focus`() {
+    let a = DisplayName("A")
+    let b = DisplayName("B")
+    let code = workspace("Code", hint: a)
+    let slack = workspace("Slack", hint: b)
+    let chain = WorkspaceChain(workspaceIDs: [code.id, slack.id])
+
+    let plan = WorkspaceActivationFeature.planWorkspaceChain(
+      chain,
+      triggeredBy: DisplayAssignment(display: a, workspace: code.id),
+      dynamicPreferredDisplay: a,
+      connected: [a, b],
+      primaryDisplay: a,
+      workspaces: [code, slack],
+      active: [a: code.id, b: slack.id],
+      history: [:],
+    )
+
+    #expect(plan.map(\.assignments) == .success([
+      DisplayAssignment(display: a, workspace: code.id)
+    ]))
   }
 
   @Test
@@ -7650,6 +11410,23 @@ struct WorkspaceActivationFeatureTests {
     }
     mutate(&state)
     return state
+  }
+
+  private static func receiveActivationCompletion(
+    _ store: TestStoreOf<WorkspaceActivationFeature>,
+    workspaceID: Workspace.ID,
+    display: DisplayName,
+  ) async {
+    await store.receive {
+      guard case .activationCompleted(let receivedID, let receivedDisplay, _) = $0 else {
+        return false
+      }
+      return receivedID == workspaceID && receivedDisplay?.matches(display) == true
+    }
+    await store.receive {
+      guard case .activationTailFinished = $0 else { return false }
+      return true
+    }
   }
 
   private func workspace(_ name: String, hint: DisplayName? = nil) -> Workspace {

@@ -68,6 +68,7 @@ struct HookDefinitionTests {
     #expect(hud["size"] as? String == "large")
     #expect(hud["symbolIconName"] == nil)
     #expect(hud["subtitle"] == nil)
+    #expect(hud["subtitleSymbolIconName"] == nil)
     #expect(try JSONDecoder().decode(HookInvocation.self, from: data) == invocation)
   }
 
@@ -387,6 +388,44 @@ struct HookRunnerTests {
   }
 
   @Test
+  func `clears reserved optional context inherited from hook configuration`() async throws {
+    let profileID = try #require(UUID(
+      uuidString: "00000000-0000-0000-0000-000000000001"
+    ))
+    let invocation = HookInvocation(
+      event: .profileChanged,
+      occurredAt: Date(timeIntervalSince1970: 0),
+      profile: .init(id: profileID, name: "Default"),
+    )
+    let script = #"""
+      printf '%s\n' "${TATAMI_WORKSPACE_ID-unset}"
+      printf '%s\n' "${TATAMI_DISPLAY_NAME-unset}"
+      printf '%s\n' "${TATAMI_HUD_SUBTITLE-unset}"
+      printf '%s\n' "${TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME-unset}"
+      """#
+    let hook = HookDefinition(
+      id: "reserved-context",
+      event: .profileChanged,
+      command: ["/bin/zsh", "-c", script],
+      environment: [
+        "TATAMI_WORKSPACE_ID": "stale-workspace",
+        "TATAMI_DISPLAY_NAME": "stale-display",
+        "TATAMI_HUD_SUBTITLE": "stale-subtitle",
+        "TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME": "link",
+      ],
+    )
+
+    let result = await HookRunnerClient.liveValue.run(hook, invocation)
+
+    guard case .success(let stdout, let stderr) = result else {
+      Issue.record("Expected hook success, got \(result)")
+      return
+    }
+    #expect(stdout == "unset\nunset\nunset\nunset\n")
+    #expect(stderr.isEmpty)
+  }
+
+  @Test
   func `HUD hook receives presentation environment`() async throws {
     let profileID = try #require(UUID(
       uuidString: "00000000-0000-0000-0000-000000000001"
@@ -403,6 +442,7 @@ struct HookRunnerTests {
         title: "Focus moved",
         symbolIconName: "arrow.right.to.line",
         subtitle: "Work is on Built-in",
+        subtitleSymbolIconName: "link",
         durationMs: 1_800,
         position: .topLeading,
         size: .small,
@@ -412,10 +452,12 @@ struct HookRunnerTests {
       printf '%s\n' "$TATAMI_HUD_TITLE"
       printf '%s\n' "$TATAMI_HUD_SYMBOL_ICON_NAME"
       printf '%s\n' "$TATAMI_HUD_SUBTITLE"
+      printf '%s\n' "$TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME"
       printf '%s\n' "$TATAMI_HUD_DURATION_MS"
       printf '%s\n' "$TATAMI_HUD_POSITION"
       printf '%s\n' "$TATAMI_HUD_SIZE"
       printf '%s\n' "$TATAMI_DISPLAY_UUID"
+      printf '%s\n' "$TATAMI_DISPLAY_NAME"
       """#
     let hook = HookDefinition(
       id: "hud-environment",
@@ -429,7 +471,9 @@ struct HookRunnerTests {
       Issue.record("Expected hook success, got \(result)")
       return
     }
-    #expect(stdout == "Focus moved\narrow.right.to.line\nWork is on Built-in\n1800\ntopLeading\nsmall\ndisplay-a\n")
+    let expected = "Focus moved\narrow.right.to.line\nWork is on Built-in\nlink\n"
+      + "1800\ntopLeading\nsmall\ndisplay-a\nBuilt-in\n"
+    #expect(stdout == expected)
     #expect(stderr.isEmpty)
   }
 
