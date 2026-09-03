@@ -1049,18 +1049,32 @@ public struct AppFeature {
     case .cycleNextWindow:
       if let windowCycleHoldModifiers, !windowCycleHoldModifiers.isEmpty {
         return .send(.activation(
-          .cycleWindowShortcut(.next, holdModifiers: windowCycleHoldModifiers)
+          .cycleWindowShortcut(
+            .next,
+            holdModifiers: windowCycleHoldModifiers,
+            interactionDisplay: interactionDisplay,
+          )
         ))
       }
-      return .send(.activation(.cycleWindow(.next)))
+      return .send(.activation(.cycleWindow(
+        .next,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .cyclePreviousWindow:
       if let windowCycleHoldModifiers, !windowCycleHoldModifiers.isEmpty {
         return .send(.activation(
-          .cycleWindowShortcut(.previous, holdModifiers: windowCycleHoldModifiers)
+          .cycleWindowShortcut(
+            .previous,
+            holdModifiers: windowCycleHoldModifiers,
+            interactionDisplay: interactionDisplay,
+          )
         ))
       }
-      return .send(.activation(.cycleWindow(.previous)))
+      return .send(.activation(.cycleWindow(
+        .previous,
+        interactionDisplay: interactionDisplay,
+      )))
 
     case .toggleFloating:
       return .send(.activation(.membershipEdit(.toggleFloating)))

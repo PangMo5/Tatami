@@ -248,6 +248,11 @@ struct WorkspaceListView: View {
     HStack(alignment: .top, spacing: 8) {
       Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
         .frame(width: 20, height: 20)
+        .foregroundStyle(
+          store.selection == workspace.sidebarItem
+            ? AnyShapeStyle(.primary)
+            : AnyShapeStyle(.tint)
+        )
         .accessibilityHidden(true)
 
       VStack(alignment: .leading, spacing: 5) {
@@ -417,6 +422,9 @@ struct WorkspaceListView: View {
 /// `WorkspaceListView` prevents option construction from widening the sidebar's
 /// normal invalidation boundary.
 private struct DuplicationReviewSheet: View {
+
+  // MARK: Internal
+
   let review: WorkspaceListFeature.DuplicationReview
   let onConfirm: (Set<String>) -> Void
 
@@ -432,7 +440,7 @@ private struct DuplicationReviewSheet: View {
         validateSelection: { excluded in
           WorkspaceListFeature.duplicationShortcutConflicts(
             review: review,
-            excluding: excluded
+            excluding: excluded,
           )
         },
         onApply: onConfirm,
@@ -448,13 +456,15 @@ private struct DuplicationReviewSheet: View {
         validateSelection: { excluded in
           WorkspaceListFeature.duplicationShortcutConflicts(
             review: review,
-            excluding: excluded
+            excluding: excluded,
           )
         },
         onApply: onConfirm,
       )
     }
   }
+
+  // MARK: Private
 
   /// A profile chooser keeps each workspace in one group. Its first toggle is
   /// the parent of that workspace's content and layout rows, so excluding a
@@ -535,7 +545,7 @@ private struct DuplicationReviewSheet: View {
 
   private func appItems(
     _ workspace: Workspace,
-    parentId: String? = nil
+    parentId: String? = nil,
   ) -> [SyncChangeItem] {
     let prefix = "\(workspace.id.uuidString):"
     return WorkspaceSync.appChanges(from: workspace.apps, to: []).map {
@@ -546,7 +556,7 @@ private struct DuplicationReviewSheet: View {
   private func settingItems(
     _ workspace: Workspace,
     parentId: String? = nil,
-    includeShortcuts: Bool = false
+    includeShortcuts: Bool = false,
   ) -> [SyncChangeItem] {
     let empty = Workspace(name: workspace.name)
     let prefix = "\(workspace.id.uuidString):"
@@ -557,7 +567,7 @@ private struct DuplicationReviewSheet: View {
 
   private func layoutItem(
     _ workspace: Workspace,
-    parentId: String? = nil
+    parentId: String? = nil,
   ) -> SyncChangeItem {
     SyncChangeItem(
       id: WorkspaceListFeature.DuplicationOptionID.layout(workspace.id),
@@ -574,12 +584,21 @@ private struct DuplicationReviewSheet: View {
 
   private func isShortcutIdentity(_ change: WorkspaceFieldChange) -> Bool {
     switch change {
-    case .keyEquivalent, .activateShortcut, .assignAppShortcut, .borrowShortcut:
+    case .keyEquivalent,
+         .activateShortcut,
+         .assignAppShortcut,
+         .borrowShortcut:
       true
-    case .icon, .kind, .appToFocus, .displayHint, .borrowEdge, .borrowFraction:
+    case .icon,
+         .kind,
+         .appToFocus,
+         .displayHint,
+         .borrowEdge,
+         .borrowFraction:
       false
     }
   }
+
 }
 
 // MARK: - WorkspaceRuntimeStatusView
