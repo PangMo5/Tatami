@@ -1,0 +1,142 @@
+{
+  "name": "profile-copy",
+  "title": "Reuse an existing setup",
+  "summary": "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Build",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Terminal"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "REUSE A SETUP"
+    },
+    {
+      "kind": "caption",
+      "text": "Start with the setup that already works."
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "tatami profile duplicate Laptop --name Studio",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "tatami profile duplicate Laptop --name Studio",
+      "code": 0
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Duplicate a workspace for a new variation."
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "tatami workspace duplicate Design --name Explore",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "tatami workspace duplicate Design --name Explore",
+      "code": 0
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "tatami workspace list",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "tatami workspace list",
+      "code": 0
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    }
+  ],
+  "openingApps": [
+    "Terminal"
+  ]
+}

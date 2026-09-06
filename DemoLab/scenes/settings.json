@@ -1,0 +1,127 @@
+{
+  "name": "settings",
+  "title": "Tatami's own window",
+  "summary": "A short walk through the window everything else in these scenes was configured in: profiles, the workspaces under the active one, and the shared apps.",
+  "requires": {
+    "displays": 1,
+    "profile": "Laptop",
+    "apps": [
+      "Editor",
+      "Terminal",
+      "Docs",
+      "Monitor"
+    ],
+    "note": "run `democtl seed` first, and start the overlay. Tatami's window opens on the tab it was last left on, so open it once by hand and leave it on Workspaces before recording. This scene types real shortcuts, so THIS process needs Accessibility as well as Tatami."
+  },
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "Tatami itself"
+    },
+    {
+      "kind": "caption",
+      "text": "Everything those keys did is also here | Tatami is a menu bar app, and this is its window, opened the usual way"
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400,
+      "note": "something real behind the window, composed while the caption above is read"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Tatami"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - ,"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200,
+      "note": "short because the runner holds the keycaps after the press: that hold covers the window opening"
+    },
+    {
+      "kind": "caption",
+      "text": "Profiles come first | Laptop and Desk are the same machine with different workspaces, and Tatami picks between them by how many displays are connected"
+    },
+    {
+      "kind": "beat",
+      "ms": 2800
+    },
+    {
+      "kind": "caption",
+      "text": "Under the active profile, its workspaces | Write, Review, Chat and Build, with the borrow-only Notes down in Scratchpads"
+    },
+    {
+      "kind": "beat",
+      "ms": 2800
+    },
+    {
+      "kind": "caption",
+      "text": "A workspace is its apps, its key and its layout rules | This list is exactly what Auto-open reads every time I switch to it"
+    },
+    {
+      "kind": "beat",
+      "ms": 2800
+    },
+    {
+      "kind": "caption",
+      "text": "Everywhere holds the shared apps | Monitor lives there, which is the whole reason it turns up in every workspace"
+    },
+    {
+      "kind": "beat",
+      "ms": 2800
+    },
+    {
+      "kind": "caption",
+      "text": "Close it and the demo underneath has not moved | Tatami never tiles its own windows"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "beat",
+      "ms": 800,
+      "note": "closing it here matters: a window left open leaks into the next take"
+    },
+    {
+      "kind": "caption",
+      "text": ""
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "clearOverlay"
+    }
+  ],
+  "setup": [
+    {
+      "kind": "note",
+      "text": "The title card goes up before the activation, so the take opens on windows arriving rather than on a staging beat."
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.55
+    },
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "quitApps"
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "name": "membership",
+  "title": "Move an app with the task",
+  "summary": "Send the reference from Write to Review, then move it back using the keyboard.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Editor"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "APP MEMBERSHIP"
+    },
+    {
+      "kind": "caption",
+      "text": "The reference belongs with the review."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - ]"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "Write now has only its draft."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "caption",
+      "text": "Bring the reference back when you need it."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - ["
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    }
+  ],
+  "openingApps": [
+    "Editor",
+    "Docs"
+  ]
+}

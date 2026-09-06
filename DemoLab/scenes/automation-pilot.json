@@ -1,0 +1,19 @@
+{
+  "name":"automation-pilot","title":"Automation pilot","requires":{"displays":1},
+  "setup":[{"kind":"clearOverlay"},{"kind":"activateWorkspace","workspace":"Build","profile":"Laptop"},{"kind":"waitWindows","apps":["Terminal"]}],
+  "openingApps":["Terminal"],
+  "steps":[
+    {"kind":"chapter","text":"CLI / WORKSPACES"},
+    {"kind":"caption","text":"One command. A workspace ready for work."},
+    {"kind":"click","app":"Terminal","identifier":"terminal.command"},
+    {"kind":"typeText","app":"Terminal","text":"focus-session","ms":70},
+    {"kind":"key","chord":"return"},
+    {"kind":"expectCommand","text":"focus-session"},
+    {"kind":"waitWindows","apps":["Canvas","Docs","Notes"]},
+    {"kind":"expectHook","field":"workspace","value":"Design"},
+    {"kind":"beat","ms":2200},
+    {"kind":"click","app":"Canvas","identifier":"canvas.sand"},
+    {"kind":"expectStory","field":"theme","value":"sand"},
+    {"kind":"beat","ms":1800}
+  ]
+}

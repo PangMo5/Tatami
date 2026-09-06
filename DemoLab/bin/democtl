@@ -1,0 +1,30 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Thin wrapper so `DemoLab/bin/democtl <command>` works from a clean checkout
+# without anyone having to remember the SwiftPM incantation. It builds once, on
+# demand, then execs the real binary.
+#
+# Set DEMOLAB_NO_BUILD=1 to skip the build check (useful inside a VM snapshot
+# where the tree is already built and must not change).
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "${here}/.." && pwd)"
+binary="${root}/.build/release/democtl"
+
+if [ "${DEMOLAB_NO_BUILD:-0}" != "1" ]; then
+  if [ ! -x "${binary}" ] || [ -n "$(find "${root}/Sources" "${root}/Package.swift" -newer "${binary}" -print -quit 2>/dev/null)" ]; then
+    echo "democtl: building…" >&2
+    ( cd "${root}" && swift build -c release --product democtl >&2 )
+  fi
+fi
+
+if [ ! -x "${binary}" ]; then
+  echo "democtl: ${binary} is missing; run 'swift build -c release' in ${root}" >&2
+  exit 1
+fi
+
+export DEMOLAB_ROOT="${root}"
+exec "${binary}" "$@"

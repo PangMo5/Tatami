@@ -1,0 +1,172 @@
+{
+  "name": "checks",
+  "title": "Validate the saved draft alongside the brief.",
+  "summary": "Validate the saved draft alongside the brief.",
+  "requires": {
+    "displays": 1,
+    "profile": "Laptop"
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "quitApps"
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Review",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Editor"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.headline"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - a"
+    },
+    {
+      "kind": "typeText",
+      "app": "Editor",
+      "text": "A calmer way to work.",
+      "ms": 70
+    },
+    {
+      "kind": "expectValue",
+      "app": "Editor",
+      "identifier": "editor.headline",
+      "value": "A calmer way to work."
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.save"
+    },
+    {
+      "kind": "expectStory",
+      "field": "headline",
+      "value": "A calmer way to work."
+    }
+  ],
+  "openingApps": [
+    "Editor",
+    "Docs"
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "BUILD / CHECKS"
+    },
+    {
+      "kind": "caption",
+      "text": "Move from writing to checking the work."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 4"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Build"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "caption",
+      "text": "The checks read the draft you saved."
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "check copy",
+      "ms": 70
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "checksPassed",
+      "value": "3"
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    },
+    {
+      "kind": "caption",
+      "text": "The saved draft follows the task."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ]
+}

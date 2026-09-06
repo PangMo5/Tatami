@@ -1,0 +1,149 @@
+{
+  "name": "scratchpad",
+  "title": "Keep a reusable scratchpad",
+  "summary": "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "SCRATCHPADS"
+    },
+    {
+      "kind": "caption",
+      "text": "A quick note beside the canvas."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "Compare the three color directions.",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "Compare the three color directions."
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "caption",
+      "text": "Bring it back later. The note stays."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "Compare the three color directions."
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

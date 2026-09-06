@@ -1,0 +1,154 @@
+{
+  "name": "focus",
+  "title": "Focus follows your intent",
+  "summary": "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "FOCUS & POINTER"
+    },
+    {
+      "kind": "caption",
+      "text": "Move focus by direction. The pointer follows."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - h"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "caption",
+      "text": "Or let focus follow the pointer."
+    },
+    {
+      "kind": "hover",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "hover",
+      "app": "Docs",
+      "identifier": "docs.search"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "typeText",
+      "app": "Docs",
+      "text": "headline",
+      "ms": 65
+    },
+    {
+      "kind": "expectValue",
+      "app": "Docs",
+      "identifier": "docs.search",
+      "value": "headline"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "Close a window. Focus returns to the remaining work."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "name": "cli",
+  "title": "Build a focus session with the CLI",
+  "summary": "Inspect the real workspace list, then run a short script that activates, balances and borrows.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Build",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Terminal"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "COMMAND LINE"
+    },
+    {
+      "kind": "caption",
+      "text": "The same workspace controls, in your scripts."
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "tatami workspace list",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "tatami workspace list",
+      "code": 0
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "caption",
+      "text": "One script prepares a focus session."
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "focus-session",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "focus-session",
+      "code": 0
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    }
+  ],
+  "openingApps": [
+    "Terminal"
+  ]
+}

@@ -1,0 +1,173 @@
+# Tatami Demo Lab
+
+Record the real Tatami, export a consistent set of marketing videos, and place
+those videos beside the product promises they demonstrate. The apps and their
+contents are fixtures; workspace switches, tiling, Borrow and window focus are
+performed by the installed Tatami.
+
+## Publication contract
+
+[`publication.json`](publication.json) is the inventory and editorial budget.
+It maps each scene to its website section and limits duration and delivery size.
+
+The introduction is a complete design → writing → review → Borrow → automation
+workflow, ending with a real display-topology change. Focused collections cover
+workspaces, profiles and displays, tiling and focus, Borrow, window modes,
+CLI/hooks, and Guided Setup. The inventory is generated from `publication.json`;
+there is no separate hard-coded list to keep in sync.
+
+The hero teaches the central promise: **switch contexts and keep your place**.
+Feature scenes demonstrate different activities instead of replaying the hero.
+See [coverage and evidence boundaries](docs/COVERAGE.md) for the complete map.
+
+## Capture → export → review → install locally
+
+Use the existing dedicated Tart VM, not your everyday desktop. `reset` and
+`seed` quit Tatami and change its preferences in whichever machine runs them.
+Config and layout files are isolated under `.build/lab/`; the preferences domain
+is backed up separately and can be restored with `democtl restore`.
+
+```sh
+# Host: copy source into the running VM and rebuild the independent Swift package.
+./vm/tart/sync.sh
+
+# Guest: a fresh seed for every scene. Existing takes are never overwritten.
+tart exec tatami-demo /bin/bash -lc \
+  'cd ~/DemoLab && ./scripts/record-suite.sh /Users/admin/DemoLab/recordings/publish'
+
+# Host: fetch that exact batch, including originals, metadata and scene snapshots.
+GUEST_DIR=DemoLab/recordings/publish ./vm/tart/fetch-recordings.sh recordings/publish
+
+# Host: new output directory; no ambiguous “latest take” selection.
+python3 scripts/export.py --takes recordings/publish --output ~/Downloads/TatamiDemoLab-review
+
+# Open index.html and inspect playback, opening frames, actions and every feature.
+# Install the verified bundle into this checkout only; this does not push or deploy.
+python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
+```
+
+Host requirements: `tart`, Python 3.11+, `mpv` with libass/libx264, `ffmpeg` and
+`ffprobe`. The recorder is a separate SwiftPM package; it does not change
+Tatami's Tuist build graph. The guest needs Xcode Command Line Tools and Python 3
+for the suite inventory, with no third-party Python packages.
+
+## A small set of useful apps
+
+| Workspace | Apps | Actual work |
+| --- | --- | --- |
+| Design | Canvas + Docs | Change the visual theme, inspect the saved draft, export a PNG. |
+| Write | Editor + Docs | Read the brief, edit the headline, save the draft. |
+| Review | Review + Docs | Read saved copy, run checks, comment and approve. |
+| Chat | Chat | Type and send a local demo reply. |
+| Build | Terminal | Execute the real Tatami CLI and bundled automation scripts. |
+| Notes (Borrow only) | Notes | Add a follow-up and complete a checklist item. |
+| Focus | Canvas + Notes | Work with a per-workspace Always on Top note. |
+| Shared | Monitor | Observe saved project state or real workspace/HUD hook events. |
+
+All eight apps use persisted local data. Saving changes what Review and Canvas
+read. The Canvas export writes an actual image. Notes and messages survive
+workspace switches. Terminal executes an explicit command allowlist and bundled
+scripts; hooks receive Tatami's real environment. No fixture connects to a chat
+service, and the AI proposal demonstration uses a clearly labelled local example.
+
+## What changed in the capture contract
+
+A scene has two phases:
+
+- `setup` runs **before** recording: teardown, app launches, workspace warm-up,
+  fixture state and layout preparation.
+- `steps` are the visible demonstration. `openingApps` must have visible windows
+  with stable geometry before the recorder starts. `autoopen` is the deliberate
+  exception: a short empty opening is the point of that feature.
+
+The capture gate checks system permission/settings windows before recording and
+around every action. It also sees a permission dialog that is behind another
+window. Resolve that dialog; do not crop it out or suppress the error.
+
+**Recorder access is not Tatami access.** Earlier takes contained a stale
+Tatami Screen Recording request despite the recorder passing `doctor`.
+Tatami's Always on Top uses its own ScreenCaptureKit stream. A throwaway recorder
+warm-up alone cannot validate that path. Warm up the `shared` scene and inspect
+its actual monitor before accepting it. The default shared Monitor no longer
+auto-opens in every scene; `shared` explicitly launches it off camera.
+
+`waitWindows` waits for the named apps and stable window geometry.
+`saveLayout` / `assertLayout` compare the same window IDs and their bounds after
+workspace switches, Borrow returns, and zoom restoration. Missing or additional
+windows and coordinate changes beyond 4 points fail the take.
+
+`key` and `hold` generate their own keycasts from the actual input. Published
+scenes may not use a `keys` label to pretend a CLI operation was a keystroke.
+The recorder refuses startup without an encoded frame, and gives the scene its
+first-frame monotonic timestamp so subtitles share the movie's clock.
+
+## Presentation
+
+The raw `.mov` contains the entire captured desktop, without lab captions.
+The export uses a 1920×1200 canvas: a 1664×1040 desktop at (128, 48), a slim
+chapter header, and a footer for narration and shortcut labels. The chapter text,
+letterbox and captions derive directly from the website dark palette through
+`video_theme.py`: charcoal, off-white and Tatami gold. Wide dual-screen films
+use a 1920×800 canvas. Changing the palette does not require re-recording.
+Tatami's own HUD remains inside the untouched captured desktop.
+
+Every take has:
+
+- `.mov`: clean camera original.
+- `.ass`: editable narration and actual keycast timing.
+- `.timeline.json`: all events with start/end times.
+- `.take.json`: pass/fail, scene hash, Tatami version, per-output frame/drop counts, capture epochs and overlay mode.
+- `.scene.json`: the exact scene bytes frozen when recording began.
+
+A failed take stays available for diagnosis but cannot enter the exporter.
+Exports require a matching current scene hash, clean narration, less than 1%
+dropped frames, timely opening captions and matching movie/timeline duration.
+The output must fit its time/size budget, use H.264/yuv420p, and survive a complete
+FFmpeg decode. `faststart` places the MP4 header before the media payload.
+
+The export bundle includes a playback gallery, posters, sampled evidence frames,
+source/delivery hashes and all sidecars. Automated acceptance does not replace
+watching the action: in particular, shared-window mirroring and focus targets
+still need visible verification. Website players use native controls and
+`preload="none"`; playback is deliberate and only one video plays at a time.
+Every collection exposes its thumbnail playlist, count and previous/next buttons.
+Arrow keys, Home/End and per-film links work without opening a disclosure.
+
+For two-screen capture, the suite connects a real guest-side virtual display,
+records each display independently, and aligns them by first-frame timestamps.
+See [the verified VM setup](docs/MULTI-DISPLAY.md).
+
+## Work on one scene
+
+Run the capture commands inside the dedicated guest:
+
+```sh
+./bin/democtl doctor
+./bin/democtl reset
+./bin/democtl seed
+./bin/democtl scene tour --dry-run    # prints setup and visible steps
+./bin/democtl take tour --output recordings/iteration/tour.mov
+python3 scripts/export.py --takes recordings/iteration \
+  --output ~/Downloads/TatamiDemoLab-iteration --scenes tour
+```
+
+`democtl scene` rehearses with a live overlay. Recorded `take` defaults to
+`--overlay off`; only that mode is accepted for publication. The live rehearsal
+panel is not the export design. `subtitle burn` can render the sidecar into a
+viewing copy, but use `export.py` for budget checks, web encoding and evidence.
+
+Finish a session with `democtl quit` and `democtl restore` in the guest.
+Original host preferences and host Tatami are not involved in the VM workflow.
+
+## Development and reference
+
+```sh
+swift test
+./scripts/bundle-apps.sh
+python3 -m unittest discover -s Tests -p 'test_*.py'
+```
+
+- [Scene vocabulary](docs/SCENES.md)
+- [VM setup](docs/VM-TART.md)
+- [Permissions](docs/PERMISSIONS.md)
+- [Real multi-display capture](docs/MULTI-DISPLAY.md)

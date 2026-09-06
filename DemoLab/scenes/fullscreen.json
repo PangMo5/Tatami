@@ -1,0 +1,109 @@
+{
+  "name": "fullscreen",
+  "title": "Focus with workspace zoom",
+  "summary": "Zoom one tile and restore the exact arrangement.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "ZOOM & FULLSCREEN"
+    },
+    {
+      "kind": "caption",
+      "text": "Zoom a tile. Keep the rest of the layout."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "caption",
+      "text": "Focus on the preview, then return to the layout."
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "name": "pause",
+  "title": "Take manual control",
+  "summary": "Pause automatic tiling, position a window freely, and resume the arranged workspace.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "PAUSE & RESUME"
+    },
+    {
+      "kind": "caption",
+      "text": "Pause tiling when the task needs free placement."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - z"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Docs",
+      "target": "Canvas",
+      "x": 0.65,
+      "y": 0.35
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "caption",
+      "text": "Resume. Tatami arranges the workspace again."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - z"
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - e"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

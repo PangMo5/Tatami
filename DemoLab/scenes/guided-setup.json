@@ -1,0 +1,186 @@
+{
+  "name": "guided-setup",
+  "title": "Learn with a safe virtual desktop",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Run Guided Setup…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Continue"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Continue"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Continue"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "GUIDED SETUP"
+    },
+    {
+      "kind": "caption",
+      "text": "Learn in a safe virtual desktop."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "Preview gesture actions with the built-in controls."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:4F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "caption",
+      "text": "Your real shortcuts work in the preview too."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Continue"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:5 of 9",
+      "value": "5 of 9"
+    },
+    {
+      "kind": "caption",
+      "text": "Practise the layout before changing real windows."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Focus right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Swap left"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Next window"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Grow window"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Flip split"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Zoom window"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Zoom window"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Balance layout"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:You exercised the full tiling toolset",
+      "value": "You exercised the full tiling toolset"
+    },
+    {
+      "kind": "caption",
+      "text": "Nothing changes until you apply the draft."
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ]
+}

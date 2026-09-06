@@ -1,0 +1,120 @@
+{
+  "name": "autoopen",
+  "title": "Open the whole toolset",
+  "summary": "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Chat",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "quitApps"
+    },
+    {
+      "kind": "beat",
+      "ms": 500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "AUTO-OPEN"
+    },
+    {
+      "kind": "caption",
+      "text": "Start the task with one shortcut."
+    },
+    {
+      "kind": "beat",
+      "ms": 200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Re-enter to bring back a closed window."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ],
+  "openingApps": []
+}

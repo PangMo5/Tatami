@@ -1,0 +1,571 @@
+{
+  "name": "tour",
+  "title": "Make room for the whole workflow.",
+  "summary": "Design, write, review, borrow, automate, and adapt to a bigger desk.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "TATAMI / DESIGN"
+    },
+    {
+      "kind": "caption",
+      "text": "A place for every part of the work."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "caption",
+      "text": "Start with the big picture."
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "expectStory",
+      "field": "theme",
+      "value": "sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.forest"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "caption",
+      "text": "Keep the brief beside the preview."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.content"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI / WRITE"
+    },
+    {
+      "kind": "caption",
+      "text": "Writing gets its own tools."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.headline"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - a"
+    },
+    {
+      "kind": "typeText",
+      "app": "Editor",
+      "text": "A calmer way to work.",
+      "ms": 65
+    },
+    {
+      "kind": "expectValue",
+      "app": "Editor",
+      "identifier": "editor.headline",
+      "value": "A calmer way to work."
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.save"
+    },
+    {
+      "kind": "expectStory",
+      "field": "headline",
+      "value": "A calmer way to work."
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Return to a live preview of the saved work."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 2
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "saveLayout",
+      "text": "design"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.export"
+    },
+    {
+      "kind": "expectStory",
+      "field": "exported",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI / REVIEW"
+    },
+    {
+      "kind": "caption",
+      "text": "Review in a different context."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.check"
+    },
+    {
+      "kind": "expectStory",
+      "field": "checksPassed",
+      "value": "3"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.comment"
+    },
+    {
+      "kind": "typeText",
+      "app": "Review",
+      "text": "Ready. The preview is exported.",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.approve"
+    },
+    {
+      "kind": "expectStory",
+      "field": "approved",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "caption",
+      "text": "Your arrangement is waiting for you."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI / BORROW"
+    },
+    {
+      "kind": "caption",
+      "text": "Keep the next step alongside."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.task.1"
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "Prepare the release announcement.",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "Prepare the release announcement."
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI / ALWAYS ON TOP"
+    },
+    {
+      "kind": "caption",
+      "text": "Keep useful status above the workspace."
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI / AUTOMATE"
+    },
+    {
+      "kind": "caption",
+      "text": "Make the routine a command."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 4"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Build"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "focus-session",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "focus-session",
+      "code": 0
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI / ADAPT"
+    },
+    {
+      "kind": "caption",
+      "text": "A second display. A different setup."
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": true
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "expectHook",
+      "field": "profile",
+      "value": "Desk"
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    },
+    {
+      "kind": "caption",
+      "text": "Back on one screen, the layout returns."
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": false
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI"
+    },
+    {
+      "kind": "caption",
+      "text": "Keep your tools. Keep your place. | A macOS workspace manager with BSP window tiling."
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

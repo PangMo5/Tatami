@@ -1,0 +1,133 @@
+{
+  "name": "native-fullscreen",
+  "title": "Native fullscreen restoration diagnostic",
+  "summary": "Use Tatami zoom for a quick focus change, or enter and leave native macOS fullscreen.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "ZOOM & FULLSCREEN"
+    },
+    {
+      "kind": "caption",
+      "text": "Zoom a tile. Keep the rest of the layout."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "caption",
+      "text": "Native fullscreen stays native."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + cmd - f"
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + cmd - f"
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "caption",
+      "text": "Your workspace returns around it."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

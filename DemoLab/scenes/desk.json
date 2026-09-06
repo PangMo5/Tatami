@@ -1,0 +1,147 @@
+{
+  "name": "desk",
+  "title": "Two displays, one workflow",
+  "summary": "Keep design and reference on separate displays; switch a workspace chain with one shortcut.",
+  "requires": {
+    "displays": 2
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Desk"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "MULTIPLE DISPLAYS"
+    },
+    {
+      "kind": "caption",
+      "text": "Design here. Reference over there."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - right"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.search"
+    },
+    {
+      "kind": "typeText",
+      "app": "Docs",
+      "text": "headline",
+      "ms": 65
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - left"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "caption",
+      "text": "A workspace chain changes both displays."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Chat"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "caption",
+      "text": "Return to the pair you were using."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

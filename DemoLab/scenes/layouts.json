@@ -1,0 +1,150 @@
+{
+  "name": "layouts",
+  "title": "Shape the layout from the keyboard",
+  "summary": "Swap windows, change a split, resize it, and balance the workspace.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "appWindows",
+      "app": "Docs",
+      "count": 2
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Docs",
+        "Canvas"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "LAYOUT CONTROLS"
+    },
+    {
+      "kind": "caption",
+      "text": "Swap the window into a better position."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - left"
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Change the split to fit the material."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - s"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "caption",
+      "text": "Give one side more room."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 3
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Balance the whole arrangement."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - e"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    }
+  ],
+  "openingApps": [
+    "Docs",
+    "Docs",
+    "Canvas"
+  ]
+}

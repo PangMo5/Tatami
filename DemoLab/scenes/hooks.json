@@ -1,0 +1,174 @@
+{
+  "name": "hooks",
+  "title": "Make workspace changes useful elsewhere",
+  "summary": "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "LIFECYCLE & HUD HOOKS"
+    },
+    {
+      "kind": "caption",
+      "text": "Let another tool follow the workspace."
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Chat"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "caption",
+      "text": "Action feedback can leave Tatami too."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    }
+  ]
+}

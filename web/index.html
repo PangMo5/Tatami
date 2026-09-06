@@ -18,7 +18,7 @@
 <nav class="nav">
   <div class="nav-inner">
     <a class="nav-brand" href="./"><img src="./icon.png" alt="" /> <span class="brand-name">Tatami</span></a>
-    <input type="checkbox" id="nav-toggle" class="nav-toggle" />
+    <input type="checkbox" id="nav-toggle" class="nav-toggle" aria-label="Toggle navigation" />
     <label for="nav-toggle" class="nav-burger" aria-label="Menu"><span></span></label>
     <div class="nav-links">
       <a href="#workspaces">Workspaces</a>
@@ -53,41 +53,23 @@
   </div>
 </section>
 
-<section class="showcase">
-  <div class="scene">
-    <div class="screen" id="screen">
-      <div class="menubar">
-        <div class="wsrail" id="wsrail">
-          <span class="wspill" data-ws="1">1 Code</span>
-          <span class="wspill" data-ws="2">2 Design</span>
-          <span class="wspill" data-ws="3">3 Chat</span>
-        </div>
-      </div>
-      <div class="hud" id="hud"></div>
-    </div>
-    <div class="caption-wrap">
-      <p class="scene-caption" id="cap">Open a window and it tiles itself.</p>
-    </div>
-  </div>
-</section>
-
 <section class="section-gray" id="demo">
   <div class="wrap">
     <p class="eyebrow">See it in action</p>
-    <h2>A real screen recording</h2>
+    <h2>Make room for the whole workflow.</h2>
+    <p class="sub">Design, write, review, borrow, and automate. Follow one piece of work through a setup that changes with you.</p>
     <video
       class="demo-video"
-      poster="tatami-demo-poster.jpg"
+      poster="tour.jpg?v=b5e80c70d100"
       controls
-      autoplay
       muted
-      loop
       playsinline
-      preload="metadata"
+      preload="none"
+      aria-label="Tatami overview: design, write, review, borrow, automate, and adapt to a second display"
     >
-      <source src="tatami-demo.mp4" type="video/mp4" />
+      <source src="tour.mp4?v=b5e80c70d100" type="video/mp4" />
     </video>
-    <p class="sub">Recorded on an earlier version. Some labels and controls have changed since this recording.</p>
+    <p class="sub">Real Tatami window management, with demo apps and sample content. Shortcuts shown are the demo’s configured bindings.</p>
   </div>
 </section>
 
@@ -96,6 +78,45 @@
     <p class="eyebrow">Virtual workspaces</p>
     <h2>A space for every task.</h2>
     <p class="sub">Group your apps into workspaces and jump between them in a keystroke. Each one brings exactly the windows you assigned it, on the display you want.</p>
+    <!-- DEMO-COLLECTION:workspaces:START -->
+    <div class="demo-gallery" data-count="3" aria-label="workspaces video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 3</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-workspaces" aria-labelledby="tab-workspaces">
+          <video class="demo-video" controls muted playsinline preload="none" poster="workspaces.jpg?v=d4e767ad21cf" aria-label="Move between tasks" style="aspect-ratio: 16 / 10">
+            <source src="workspaces.mp4?v=d4e767ad21cf" type="video/mp4" />
+            <a href="workspaces.mp4?v=d4e767ad21cf">Watch Move between tasks</a>
+          </video>
+          <p class="demo-description">Switch to a conversation, return to design, then move through the workspace order.</p>
+        </article><article class="demo-slide" id="demo-autoopen" aria-labelledby="tab-autoopen">
+          <video class="demo-video" controls muted playsinline preload="none" poster="autoopen.jpg?v=6836b8038372" aria-label="Open the whole toolset" style="aspect-ratio: 16 / 10">
+            <source src="autoopen.mp4?v=6836b8038372" type="video/mp4" />
+            <a href="autoopen.mp4?v=6836b8038372">Watch Open the whole toolset</a>
+          </video>
+          <p class="demo-description">One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.</p>
+        </article><article class="demo-slide" id="demo-membership" aria-labelledby="tab-membership">
+          <video class="demo-video" controls muted playsinline preload="none" poster="membership.jpg?v=2b6551f32b2d" aria-label="Move an app with the task" style="aspect-ratio: 16 / 10">
+            <source src="membership.mp4?v=2b6551f32b2d" type="video/mp4" />
+            <a href="membership.mp4?v=2b6551f32b2d">Watch Move an app with the task</a>
+          </video>
+          <p class="demo-description">Send the reference from Write to Review, then move it back using the keyboard.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a workspaces demonstration"><button class="demo-tab" type="button" role="tab" id="tab-workspaces" aria-controls="demo-workspaces" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="workspaces.jpg?v=d4e767ad21cf" loading="lazy" alt="" /><span class="demo-duration">0:18</span></span>
+          <span class="demo-tab-title">Move between tasks</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-autoopen" aria-controls="demo-autoopen" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="autoopen.jpg?v=6836b8038372" loading="lazy" alt="" /><span class="demo-duration">0:12</span></span>
+          <span class="demo-tab-title">Open the whole toolset</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-membership" aria-controls="demo-membership" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="membership.jpg?v=2b6551f32b2d" loading="lazy" alt="" /><span class="demo-duration">0:13</span></span>
+          <span class="demo-tab-title">Move an app with the task</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:workspaces:END -->
     <div class="features">
       <div class="feature">
         <div class="ico">🗂️</div>
@@ -121,6 +142,54 @@
     <p class="eyebrow">Profiles</p>
     <h2>Switch your whole setup at once.</h2>
     <p class="sub">Group workspaces into profiles, such as one for the laptop and one for the desk, then switch the entire set with a keystroke. Every display re-tiles for the new profile.</p>
+    <!-- DEMO-COLLECTION:profiles:START -->
+    <div class="demo-gallery" data-count="4" aria-label="profiles video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 4</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-profiles" aria-labelledby="tab-profiles">
+          <video class="demo-video" controls muted playsinline preload="none" poster="profiles.jpg?v=2a794cb4229a" aria-label="Switch the complete setup" style="aspect-ratio: 16 / 10">
+            <source src="profiles.mp4?v=2a794cb4229a" type="video/mp4" />
+            <a href="profiles.mp4?v=2a794cb4229a">Watch Switch the complete setup</a>
+          </video>
+          <p class="demo-description">A profile changes the workspace set and restores the arrangement belonging to that context.</p>
+        </article><article class="demo-slide" id="demo-profile-copy" aria-labelledby="tab-profile-copy">
+          <video class="demo-video" controls muted playsinline preload="none" poster="profile-copy.jpg?v=00d26190731f" aria-label="Reuse an existing setup" style="aspect-ratio: 16 / 10">
+            <source src="profile-copy.mp4?v=00d26190731f" type="video/mp4" />
+            <a href="profile-copy.mp4?v=00d26190731f">Watch Reuse an existing setup</a>
+          </video>
+          <p class="demo-description">Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.</p>
+        </article><article class="demo-slide" id="demo-desk" aria-labelledby="tab-desk">
+          <video class="demo-video" controls muted playsinline preload="none" poster="desk.jpg?v=64d2c71124da" aria-label="Two displays, one workflow" style="aspect-ratio: 12 / 5">
+            <source src="desk.mp4?v=64d2c71124da" type="video/mp4" />
+            <a href="desk.mp4?v=64d2c71124da">Watch Two displays, one workflow</a>
+          </video>
+          <p class="demo-description">Keep design and reference on separate displays; switch a workspace chain with one shortcut.</p>
+        </article><article class="demo-slide" id="demo-hotplug" aria-labelledby="tab-hotplug">
+          <video class="demo-video" controls muted playsinline preload="none" poster="hotplug.jpg?v=26c71ee4f3ab" aria-label="Your setup follows the displays" style="aspect-ratio: 16 / 10">
+            <source src="hotplug.mp4?v=26c71ee4f3ab" type="video/mp4" />
+            <a href="hotplug.mp4?v=26c71ee4f3ab">Watch Your setup follows the displays</a>
+          </video>
+          <p class="demo-description">Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a profiles demonstration"><button class="demo-tab" type="button" role="tab" id="tab-profiles" aria-controls="demo-profiles" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="profiles.jpg?v=2a794cb4229a" loading="lazy" alt="" /><span class="demo-duration">0:07</span></span>
+          <span class="demo-tab-title">Switch the complete setup</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-profile-copy" aria-controls="demo-profile-copy" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="profile-copy.jpg?v=00d26190731f" loading="lazy" alt="" /><span class="demo-duration">0:24</span></span>
+          <span class="demo-tab-title">Reuse an existing setup</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-desk" aria-controls="demo-desk" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="desk.jpg?v=64d2c71124da" loading="lazy" alt="" /><span class="demo-duration">0:15</span></span>
+          <span class="demo-tab-title">Two displays, one workflow</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-hotplug" aria-controls="demo-hotplug" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="hotplug.jpg?v=26c71ee4f3ab" loading="lazy" alt="" /><span class="demo-duration">0:06</span></span>
+          <span class="demo-tab-title">Your setup follows the displays</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:profiles:END -->
     <div class="features">
       <div class="feature">
         <div class="ico">🗄️</div>
@@ -146,6 +215,45 @@
     <p class="eyebrow">Workspace composition</p>
     <h2>Two workspaces, side by side.</h2>
     <p class="sub">Need one workspace's window while you work in another? Borrow it beside the current one, docked to a screen edge, with each block keeping its own layout.</p>
+    <!-- DEMO-COLLECTION:borrow:START -->
+    <div class="demo-gallery" data-count="3" aria-label="borrow video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 3</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-borrow" aria-labelledby="tab-borrow">
+          <video class="demo-video" controls muted playsinline preload="none" poster="borrow.jpg?v=31451bc258bc" aria-label="Bring a conversation alongside" style="aspect-ratio: 16 / 10">
+            <source src="borrow.mp4?v=31451bc258bc" type="video/mp4" />
+            <a href="borrow.mp4?v=31451bc258bc">Watch Bring a conversation alongside</a>
+          </video>
+          <p class="demo-description">Answer a teammate without replacing the canvas and reference you are using.</p>
+        </article><article class="demo-slide" id="demo-scratchpad" aria-labelledby="tab-scratchpad">
+          <video class="demo-video" controls muted playsinline preload="none" poster="scratchpad.jpg?v=806407a3e273" aria-label="Keep a reusable scratchpad" style="aspect-ratio: 16 / 10">
+            <source src="scratchpad.mp4?v=806407a3e273" type="video/mp4" />
+            <a href="scratchpad.mp4?v=806407a3e273">Watch Keep a reusable scratchpad</a>
+          </video>
+          <p class="demo-description">Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.</p>
+        </article><article class="demo-slide" id="demo-borrow-placement" aria-labelledby="tab-borrow-placement">
+          <video class="demo-video" controls muted playsinline preload="none" poster="borrow-placement.jpg?v=beca04275f0f" aria-label="Choose the edge and the context" style="aspect-ratio: 16 / 10">
+            <source src="borrow-placement.mp4?v=beca04275f0f" type="video/mp4" />
+            <a href="borrow-placement.mp4?v=beca04275f0f">Watch Choose the edge and the context</a>
+          </video>
+          <p class="demo-description">Dock a workspace left or below, cross the boundary with focus, then activate it fully.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a borrow demonstration"><button class="demo-tab" type="button" role="tab" id="tab-borrow" aria-controls="demo-borrow" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="borrow.jpg?v=31451bc258bc" loading="lazy" alt="" /><span class="demo-duration">0:13</span></span>
+          <span class="demo-tab-title">Bring a conversation alongside</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-scratchpad" aria-controls="demo-scratchpad" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="scratchpad.jpg?v=806407a3e273" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
+          <span class="demo-tab-title">Keep a reusable scratchpad</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-borrow-placement" aria-controls="demo-borrow-placement" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="borrow-placement.jpg?v=beca04275f0f" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
+          <span class="demo-tab-title">Choose the edge and the context</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:borrow:END -->
     <div class="features">
       <div class="feature">
         <div class="ico">⊞</div>
@@ -171,6 +279,90 @@
     <p class="eyebrow">Window tiling</p>
     <h2>Tiled automatically, controlled precisely.</h2>
     <p class="sub">A binary-space-partitioning engine tiles each workspace's windows as you open them. It is fully native and needs no shell scripting.</p>
+    <!-- DEMO-COLLECTION:tiling:START -->
+    <div class="demo-gallery" data-count="8" aria-label="tiling video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 8</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-tiling" aria-labelledby="tab-tiling">
+          <video class="demo-video" controls muted playsinline preload="none" poster="tiling.jpg?v=9fd2e38278cf" aria-label="Let new windows find their place" style="aspect-ratio: 16 / 10">
+            <source src="tiling.mp4?v=9fd2e38278cf" type="video/mp4" />
+            <a href="tiling.mp4?v=9fd2e38278cf">Watch Let new windows find their place</a>
+          </video>
+          <p class="demo-description">Open a second reference next to the canvas. Close it and the layout reclaims the space.</p>
+        </article><article class="demo-slide" id="demo-layouts" aria-labelledby="tab-layouts">
+          <video class="demo-video" controls muted playsinline preload="none" poster="layouts.jpg?v=7c89b9f18a64" aria-label="Shape the layout from the keyboard" style="aspect-ratio: 16 / 10">
+            <source src="layouts.mp4?v=7c89b9f18a64" type="video/mp4" />
+            <a href="layouts.mp4?v=7c89b9f18a64">Watch Shape the layout from the keyboard</a>
+          </video>
+          <p class="demo-description">Swap windows, change a split, resize it, and balance the workspace.</p>
+        </article><article class="demo-slide" id="demo-drag" aria-labelledby="tab-drag">
+          <video class="demo-video" controls muted playsinline preload="none" poster="drag.jpg?v=0fac47956695" aria-label="Arrange it by hand" style="aspect-ratio: 16 / 10">
+            <source src="drag.mp4?v=0fac47956695" type="video/mp4" />
+            <a href="drag.mp4?v=0fac47956695">Watch Arrange it by hand</a>
+          </video>
+          <p class="demo-description">Drag one window onto another, resize an edge, and return to the saved arrangement.</p>
+        </article><article class="demo-slide" id="demo-fullscreen" aria-labelledby="tab-fullscreen">
+          <video class="demo-video" controls muted playsinline preload="none" poster="fullscreen.jpg?v=6ee8aba5ada8" aria-label="Focus with workspace zoom" style="aspect-ratio: 16 / 10">
+            <source src="fullscreen.mp4?v=6ee8aba5ada8" type="video/mp4" />
+            <a href="fullscreen.mp4?v=6ee8aba5ada8">Watch Focus with workspace zoom</a>
+          </video>
+          <p class="demo-description">Inspect one tile at full workspace size, then return to the exact arrangement.</p>
+        </article><article class="demo-slide" id="demo-pause" aria-labelledby="tab-pause">
+          <video class="demo-video" controls muted playsinline preload="none" poster="pause.jpg?v=67b8c9017fa7" aria-label="Take manual control" style="aspect-ratio: 16 / 10">
+            <source src="pause.mp4?v=67b8c9017fa7" type="video/mp4" />
+            <a href="pause.mp4?v=67b8c9017fa7">Watch Take manual control</a>
+          </video>
+          <p class="demo-description">Pause automatic tiling, position a window freely, and resume the arranged workspace.</p>
+        </article><article class="demo-slide" id="demo-focus" aria-labelledby="tab-focus">
+          <video class="demo-video" controls muted playsinline preload="none" poster="focus.jpg?v=241322013950" aria-label="Focus follows your intent" style="aspect-ratio: 16 / 10">
+            <source src="focus.mp4?v=241322013950" type="video/mp4" />
+            <a href="focus.mp4?v=241322013950">Watch Focus follows your intent</a>
+          </video>
+          <p class="demo-description">Move focus by direction, let the pointer follow, then focus a reference simply by hovering.</p>
+        </article><article class="demo-slide" id="demo-switching" aria-labelledby="tab-switching">
+          <video class="demo-video" controls muted playsinline preload="none" poster="switching.jpg?v=e104087838a7" aria-label="Choose the window you need" style="aspect-ratio: 16 / 10">
+            <source src="switching.mp4?v=e104087838a7" type="video/mp4" />
+            <a href="switching.mp4?v=e104087838a7">Watch Choose the window you need</a>
+          </video>
+          <p class="demo-description">Hold the switcher shortcut to inspect the windows in this workspace, then switch back with a quick tap.</p>
+        </article><article class="demo-slide" id="demo-layout-editor" aria-labelledby="tab-layout-editor">
+          <video class="demo-video" controls muted playsinline preload="none" poster="layout-editor.jpg?v=cf6576f6acf2" aria-label="Plan the layout visually" style="aspect-ratio: 16 / 10">
+            <source src="layout-editor.mp4?v=cf6576f6acf2" type="video/mp4" />
+            <a href="layout-editor.mp4?v=cf6576f6acf2">Watch Plan the layout visually</a>
+          </video>
+          <p class="demo-description">Rotate, mirror and balance a saved layout in Tatami’s native editor, then activate it.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a tiling demonstration"><button class="demo-tab" type="button" role="tab" id="tab-tiling" aria-controls="demo-tiling" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="tiling.jpg?v=9fd2e38278cf" loading="lazy" alt="" /><span class="demo-duration">0:12</span></span>
+          <span class="demo-tab-title">Let new windows find their place</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-layouts" aria-controls="demo-layouts" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="layouts.jpg?v=7c89b9f18a64" loading="lazy" alt="" /><span class="demo-duration">0:12</span></span>
+          <span class="demo-tab-title">Shape the layout from the keyboard</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-drag" aria-controls="demo-drag" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="drag.jpg?v=0fac47956695" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
+          <span class="demo-tab-title">Arrange it by hand</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-fullscreen" aria-controls="demo-fullscreen" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="fullscreen.jpg?v=6ee8aba5ada8" loading="lazy" alt="" /><span class="demo-duration">0:07</span></span>
+          <span class="demo-tab-title">Focus with workspace zoom</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-pause" aria-controls="demo-pause" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="pause.jpg?v=67b8c9017fa7" loading="lazy" alt="" /><span class="demo-duration">0:15</span></span>
+          <span class="demo-tab-title">Take manual control</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-focus" aria-controls="demo-focus" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="focus.jpg?v=241322013950" loading="lazy" alt="" /><span class="demo-duration">0:12</span></span>
+          <span class="demo-tab-title">Focus follows your intent</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-switching" aria-controls="demo-switching" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="switching.jpg?v=e104087838a7" loading="lazy" alt="" /><span class="demo-duration">0:09</span></span>
+          <span class="demo-tab-title">Choose the window you need</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-layout-editor" aria-controls="demo-layout-editor" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="layout-editor.jpg?v=cf6576f6acf2" loading="lazy" alt="" /><span class="demo-duration">0:14</span></span>
+          <span class="demo-tab-title">Plan the layout visually</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:tiling:END -->
     <div class="features">
       <div class="feature">
         <div class="ico">▦</div>
@@ -196,6 +388,45 @@
     <p class="eyebrow">Always on Top</p>
     <h2>Keep important windows above the layout.</h2>
     <p class="sub">Some windows should remain visible, including a video call, a simulator, or a music player. Choose Always on Top and Tatami keeps them above the layout.</p>
+    <!-- DEMO-COLLECTION:floating:START -->
+    <div class="demo-gallery" data-count="3" aria-label="floating video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 3</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-floating" aria-labelledby="tab-floating">
+          <video class="demo-video" controls muted playsinline preload="none" poster="floating.jpg?v=095bb4837f62" aria-label="Keep a note above this workspace" style="aspect-ratio: 16 / 10">
+            <source src="floating.mp4?v=095bb4837f62" type="video/mp4" />
+            <a href="floating.mp4?v=095bb4837f62">Watch Keep a note above this workspace</a>
+          </video>
+          <p class="demo-description">Switch a note between Always on Top and tiled placement, and interact with its real controls.</p>
+        </article><article class="demo-slide" id="demo-shared" aria-labelledby="tab-shared">
+          <video class="demo-video" controls muted playsinline preload="none" poster="shared.jpg?v=a7527a81b209" aria-label="One status window across tasks" style="aspect-ratio: 16 / 10">
+            <source src="shared.mp4?v=a7527a81b209" type="video/mp4" />
+            <a href="shared.mp4?v=a7527a81b209">Watch One status window across tasks</a>
+          </video>
+          <p class="demo-description">A Shared Always on Top monitor receives real workspace and HUD hook events.</p>
+        </article><article class="demo-slide" id="demo-unmanaged" aria-labelledby="tab-unmanaged">
+          <video class="demo-video" controls muted playsinline preload="none" poster="unmanaged.jpg?v=6f115d34a9db" aria-label="Leave a window where you put it" style="aspect-ratio: 16 / 10">
+            <source src="unmanaged.mp4?v=6f115d34a9db" type="video/mp4" />
+            <a href="unmanaged.mp4?v=6f115d34a9db">Watch Leave a window where you put it</a>
+          </video>
+          <p class="demo-description">Shared membership with normal stacking: the window keeps its position and size across tasks.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a floating demonstration"><button class="demo-tab" type="button" role="tab" id="tab-floating" aria-controls="demo-floating" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="floating.jpg?v=095bb4837f62" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
+          <span class="demo-tab-title">Keep a note above this workspace</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-shared" aria-controls="demo-shared" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="shared.jpg?v=a7527a81b209" loading="lazy" alt="" /><span class="demo-duration">0:13</span></span>
+          <span class="demo-tab-title">One status window across tasks</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-unmanaged" aria-controls="demo-unmanaged" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="unmanaged.jpg?v=6f115d34a9db" loading="lazy" alt="" /><span class="demo-duration">0:18</span></span>
+          <span class="demo-tab-title">Leave a window where you put it</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:floating:END -->
     <div class="features">
       <div class="feature">
         <div class="ico">🪟</div>
@@ -221,6 +452,36 @@
     <p class="eyebrow">Guided Setup</p>
     <h2>Learn Tatami by using it.</h2>
     <p class="sub">First launch turns this Mac's app metadata and displays into a draft, then teaches every major feature in order on a safe virtual display. Nothing moves and no configuration is written until you apply.</p>
+    <!-- DEMO-COLLECTION:guided-setup:START -->
+    <div class="demo-gallery" data-count="2" aria-label="guided-setup video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 2</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-guided-setup" aria-labelledby="tab-guided-setup">
+          <video class="demo-video" controls muted playsinline preload="none" poster="guided-setup.jpg?v=8d82fb8c7191" aria-label="Learn by doing" style="aspect-ratio: 16 / 10">
+            <source src="guided-setup.mp4?v=8d82fb8c7191" type="video/mp4" />
+            <a href="guided-setup.mp4?v=8d82fb8c7191">Watch Learn by doing</a>
+          </video>
+          <p class="demo-description">Preview gesture actions and practise real shortcuts without moving the live desktop. Physical trackpad input is not shown.</p>
+        </article><article class="demo-slide" id="demo-ai-draft" aria-labelledby="tab-ai-draft">
+          <video class="demo-video" controls muted playsinline preload="none" poster="ai-draft.jpg?v=5fa069fa8663" aria-label="Review a suggested setup" style="aspect-ratio: 16 / 10">
+            <source src="ai-draft.mp4?v=5fa069fa8663" type="video/mp4" />
+            <a href="ai-draft.mp4?v=5fa069fa8663">Watch Review a suggested setup</a>
+          </video>
+          <p class="demo-description">Validate an example AI proposal and apply it to the draft. No external AI service is called in this recording.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a guided-setup demonstration"><button class="demo-tab" type="button" role="tab" id="tab-guided-setup" aria-controls="demo-guided-setup" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="guided-setup.jpg?v=8d82fb8c7191" loading="lazy" alt="" /><span class="demo-duration">0:30</span></span>
+          <span class="demo-tab-title">Learn by doing</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-ai-draft" aria-controls="demo-ai-draft" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="ai-draft.jpg?v=5fa069fa8663" loading="lazy" alt="" /><span class="demo-duration">0:12</span></span>
+          <span class="demo-tab-title">Review a suggested setup</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:guided-setup:END -->
     <div class="features">
       <div class="feature">
         <div class="ico">🧭</div>
@@ -260,7 +521,45 @@
         </a>
       </div>
     </div>
-  </div>
+    <!-- DEMO-COLLECTION:automation:START -->
+    <div class="demo-gallery" data-count="3" aria-label="automation video collection">
+      <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 3</span>
+          <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
+          <button type="button" class="demo-next" aria-label="Next video">›</button>
+        </div>
+      </div>
+      <div class="demo-stage"><article class="demo-slide" id="demo-cli" aria-labelledby="tab-cli">
+          <video class="demo-video" controls muted playsinline preload="none" poster="cli.jpg?v=e7fc23ab5dce" aria-label="Build a focus session with the CLI" style="aspect-ratio: 16 / 10">
+            <source src="cli.mp4?v=e7fc23ab5dce" type="video/mp4" />
+            <a href="cli.mp4?v=e7fc23ab5dce">Watch Build a focus session with the CLI</a>
+          </video>
+          <p class="demo-description">Inspect the real workspace list, then run a short script that activates, balances and borrows.</p>
+        </article><article class="demo-slide" id="demo-hooks" aria-labelledby="tab-hooks">
+          <video class="demo-video" controls muted playsinline preload="none" poster="hooks.jpg?v=77467516d42b" aria-label="Make workspace changes useful elsewhere" style="aspect-ratio: 16 / 10">
+            <source src="hooks.mp4?v=77467516d42b" type="video/mp4" />
+            <a href="hooks.mp4?v=77467516d42b">Watch Make workspace changes useful elsewhere</a>
+          </video>
+          <p class="demo-description">Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.</p>
+        </article><article class="demo-slide" id="demo-configuration" aria-labelledby="tab-configuration">
+          <video class="demo-video" controls muted playsinline preload="none" poster="configuration.jpg?v=250a726a56ae" aria-label="Edit plain TOML, see a live change" style="aspect-ratio: 16 / 10">
+            <source src="configuration.mp4?v=250a726a56ae" type="video/mp4" />
+            <a href="configuration.mp4?v=250a726a56ae">Watch Edit plain TOML, see a live change</a>
+          </video>
+          <p class="demo-description">A small script edits the real gap setting. Tatami reloads it without a restart.</p>
+        </article></div>
+      <div class="demo-tabs" role="tablist" aria-label="Choose a automation demonstration"><button class="demo-tab" type="button" role="tab" id="tab-cli" aria-controls="demo-cli" aria-selected="true" tabindex="0">
+          <span class="demo-thumb"><img src="cli.jpg?v=e7fc23ab5dce" loading="lazy" alt="" /><span class="demo-duration">0:13</span></span>
+          <span class="demo-tab-title">Build a focus session with the CLI</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-hooks" aria-controls="demo-hooks" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="hooks.jpg?v=77467516d42b" loading="lazy" alt="" /><span class="demo-duration">0:18</span></span>
+          <span class="demo-tab-title">Make workspace changes useful elsewhere</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-configuration" aria-controls="demo-configuration" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="configuration.jpg?v=250a726a56ae" loading="lazy" alt="" /><span class="demo-duration">0:19</span></span>
+          <span class="demo-tab-title">Edit plain TOML, see a live change</span>
+        </button></div>
+    </div>
+    <!-- DEMO-COLLECTION:automation:END --></div>
 </section>
 
 <section class="section-dark" id="download">
@@ -295,96 +594,7 @@
   </div>
 </footer>
 
-<script>
-  // Looping product demo: walks through tiling, directional focus, swap, zoom,
-  // workspace switching, and always-on-top windows. CSS transitions animate moves.
-  (() => {
-    const screen = document.getElementById("screen");
-    const cap = document.getElementById("cap");
-    const hud = document.getElementById("hud");
-    if (!screen) return;
 
-    const G = 2, TOP = 9, BOT = 98, LFT = 2, RGT = 98, MX = 50, MY = 53.5;
-    const r = (x, y, w, h) => ({ x, y, w, h });
-    const R = {
-      full: r(LFT, TOP, RGT - LFT, BOT - TOP),
-      left: r(LFT, TOP, MX - LFT - G / 2, BOT - TOP),
-      right: r(MX + G / 2, TOP, RGT - MX - G / 2, BOT - TOP),
-      rtop: r(MX + G / 2, TOP, RGT - MX - G / 2, MY - TOP - G / 2),
-      rbot: r(MX + G / 2, MY + G / 2, RGT - MX - G / 2, BOT - MY - G / 2),
-      // Bottom-right split in two, for the dwindle (spiral) layout.
-      rbl: r(MX + G / 2, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
-      rbr: r(MX + G / 2 + (RGT - MX - G / 2 - G) / 2 + G, MY + G / 2, (RGT - MX - G / 2 - G) / 2, BOT - MY - G / 2),
-      // Always-on-top window - portrait, like a phone simulator.
-      float: r(38, 17, 24, 62),
-    };
-
-    const els = {};
-    function win(app) {
-      if (els[app]) return els[app];
-      const el = document.createElement("div");
-      el.className = "win";
-      el.innerHTML =
-        '<div class="wtitle"><span class="dots"><i></i><i></i><i></i></span>' + app + "</div>" +
-        '<div class="wbody"></div>';
-      screen.appendChild(el);
-      els[app] = el;
-      return el;
-    }
-    ["Terminal", "Code", "Safari", "Notes", "Figma", "Photos", "Messages", "Mail", "Calendar", "Simulator"].forEach(win);
-
-    const WS = { 1: "Code", 2: "Design", 3: "Chat" };
-
-    const stages = [
-      // Act 1 - Tatami tiles your windows as they open. Each new window splits
-      // off the focused one, so the first window stays the largest (dwindle).
-      { cap: "Open a window…", ws: 1, wins: { Terminal: { r: "full", f: 1 } } },
-      { cap: "Open another and Tatami tiles it for you", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "right", f: 1 } } },
-      { cap: "Each new window splits off the focused one", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbot", f: 1 } } },
-      { cap: "A dwindle layout keeps your first window largest", ws: 1, wins: { Terminal: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Notes: { r: "rbr", f: 1 } } },
-      // Swap: the focused window travels to another tile and grows into it.
-      { cap: "Swap the focused window into a bigger tile", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
-      { cap: "Zoom a window to fill the screen", ws: 1, wins: { Notes: { r: "full", f: 1 } } },
-      { cap: "Zoom off. The layout snaps right back", ws: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" } } },
-      // Act 2 - always on top: a new app opens above the tiles; the
-      // layout underneath doesn't move for it.
-      { cap: "Always-on-top apps stay visible without taking a tile", ws: 1, wins: { Notes: { r: "left" }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", f: 1, fl: 1 } } },
-      // Act 3 - workspaces, each with its own assigned apps and layout.
-      { cap: "Group apps into workspaces. Switch with a hotkey or a swipe", ws: 2, hud: 1, wins: { Figma: { r: "left", f: 1 }, Photos: { r: "right" }, Simulator: { r: "float", fl: 1 } } },
-      { cap: "Shared always-on-top apps follow every workspace", ws: 3, hud: 1, wins: { Messages: { r: "left" }, Mail: { r: "rtop" }, Calendar: { r: "rbot", f: 1 }, Simulator: { r: "float", fl: 1 } } },
-      // Payoff - the workspace comes back exactly as it was left, including its always-on-top window.
-      { cap: "Switch back. Everything is right where you left it", ws: 1, hud: 1, wins: { Notes: { r: "left", f: 1 }, Code: { r: "rtop" }, Safari: { r: "rbl" }, Terminal: { r: "rbr" }, Simulator: { r: "float", fl: 1 } } },
-    ];
-
-    const pills = Array.from(document.querySelectorAll(".wspill"));
-
-    function apply(s) {
-      cap.style.opacity = "0";
-      setTimeout(() => { cap.textContent = s.cap; cap.style.opacity = "1"; }, 170);
-      pills.forEach((p) => p.classList.toggle("active", +p.dataset.ws === s.ws));
-      hud.textContent = s.hud ? s.ws + " · " + WS[s.ws] : "";
-      hud.classList.toggle("show", !!s.hud);
-      const visible = new Set(Object.keys(s.wins));
-      for (const app in els) {
-        if (!visible.has(app)) els[app].classList.remove("show", "focused", "floating");
-      }
-      for (const app in s.wins) {
-        const w = s.wins[app], el = els[app], rc = R[w.r];
-        el.style.left = rc.x + "%"; el.style.top = rc.y + "%";
-        el.style.width = rc.w + "%"; el.style.height = rc.h + "%";
-        el.classList.add("show");
-        el.classList.toggle("focused", !!w.f);
-        el.classList.toggle("floating", !!w.fl);
-      }
-    }
-
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) { apply(stages[2]); return; }
-    let i = 0;
-    apply(stages[0]);
-    setInterval(() => { i = (i + 1) % stages.length; apply(stages[i]); }, 2700);
-  })();
-</script>
 
 <script>
   // Point the download buttons + version label at the latest GitHub release.
@@ -410,5 +620,7 @@
   })();
 </script>
 
+
+<script src="./demos.js" defer></script>
 </body>
 </html>
