@@ -1,0 +1,532 @@
+# SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Tatami Demo Lab configuration template.
+#
+# `democtl seed` renders this into the lab's ISOLATED config home
+# (.build/lab/xdg/tatami/config.toml) and starts Tatami with
+# `--tatami-config-home` / `--tatami-socket-path`, so your real
+# ~/.config/tatami is never read or written.
+#
+# Placeholder tokens (an at-sign, an uppercase name, an at-sign) are
+# substituted by ConfigRenderer. Everything else in this file is literal.
+# Tatami rewrites the rendered file on its first launch with sorted keys and
+# no comments — that is expected; this template is the source of truth, the
+# rendered file is disposable.
+#
+# Every key below was checked against Tatami's decoder, not against memory.
+# The traps that matter here:
+#   * Unknown keys are silently ignored. A typo costs you a whole feature with
+#     no warning anywhere, so `democtl seed` re-parses the rendered file and
+#     checks every key name against ConfigValidator's per-table allow-list,
+#     copied from Tatami's CodingKeys. A key Tatami would drop fails the seed.
+#   * `autoOpen` is decoded with a bare `try?`, so `autoOpen = "true"` means
+#     "do not open" with no banner and the take records an empty desktop. Every
+#     app row below therefore carries a bare true/false, and seed rejects
+#     anything else — including a missing one.
+#   * A hand-authored config gets the *decode* defaults, not the richer
+#     "recommended" set a fresh install is seeded with. The three modifier
+#     arrays are therefore written out explicitly.
+#   * `borrowDefaultEdge` is unset by default, and without it a CLI borrow arms
+#     a keyboard-only direction picker that cancels itself after 5 seconds. It
+#     is set here on purpose: it is what makes Borrow scriptable.
+
+[settings.general]
+launchAtLogin = false
+# No update check during a take: a Sparkle dialog on camera ruins the shot.
+checkForUpdatesAutomatically = false
+checkInterval = "weekly"
+debugLogging = @DEBUG_LOGGING@
+
+[settings.visibility]
+# The Demo Lab's narration overlay owns persistent elevated controls: a chapter
+# pill, a caption card and keycaps that have to stay above the tiles for a whole
+# take. `overlayAwareApps` is Tatami's feature for exactly that kind of app, so
+# its windows are kept out of focus, out of window cycling, out of every layout
+# and out of workspace membership instead of being tiled like an ordinary window.
+overlayAwareApps = ["dev.PangMo5.DemoLab.Overlay"]
+
+[settings.menuBar]
+showWorkspaceIcon = true
+showWorkspaceName = true
+showProfileIcon = true
+# On for the demo: the profile name in the menu bar is how a viewer sees the
+# Desk/Laptop switch happen.
+showProfileName = true
+
+[settings.hud]
+enabled = true
+workspaceSwitch = true
+windowCycle = true
+profileSwitch = true
+floating = true
+appMembership = true
+tilingPaused = true
+fullscreen = true
+borrow = true
+layout = true
+position = "top"
+# Tatami's own feedback is a feature these takes demonstrate, so it has to be
+# legible on a recording rather than merely present. "large" is the biggest of
+# small/default/large, and 1800 ms sits inside the 300...3000 range the app's
+# own UI offers, so a switch, a borrow or a zoom can be read at normal speed.
+# The narration overlay's chapter pill is kept out of the top centre, so this
+# has that space to itself.
+size = "large"
+durationMs = 1800
+
+[settings.layout]
+gapInner = 10
+gapOuter = 12
+autoBalance = "none"
+splitType = "auto"
+windowPlacement = "second"
+
+[settings.focus]
+mouseFollowsFocus = @MOUSE_FOLLOWS_FOCUS@
+mouseHidesOnFocus = false
+focusFollowsMouse = @FOCUS_FOLLOWS_MOUSE@
+focusFollowsMouseIgnoreFullscreen = true
+focusFollowsMouseDisableHotkey = "Alt"
+refocusOnClose = true
+
+[settings.switching]
+loop = true
+skipEmpty = false
+followAppFocus = true
+cycleAcrossDisplays = false
+recentAcrossDisplays = true
+switchToRecentWhenEmpty = false
+cycleSameAppWindows = false
+includeSharedAppsInWindowSwitcher = true
+toggleBorrowOnRepeat = true
+# Required for a scriptable Borrow. See the note at the top of this file.
+borrowDefaultEdge = "@BORROW_EDGE@"
+borrowFraction = 0.34
+
+[settings.gestures]
+# Off: a VM has no trackpad, and a stray swipe mid-take is unrecoverable.
+enabled = false
+threshold = 0.3
+
+[settings.gestures.threeFinger]
+left = "nextWorkspace"
+right = "previousWorkspace"
+up = "none"
+down = "none"
+
+[settings.gestures.fourFinger]
+left = "none"
+right = "none"
+up = "none"
+down = "none"
+
+[settings.marker]
+fullscreenEnabled = true
+fullscreenColorHex = "#007AFF"
+floatingEnabled = true
+floatingColorHex = "#FF9500"
+borrowEnabled = true
+borrowColorHex = "#AF52DE"
+size = 14
+corner = "bottomTrailing"
+hideOnHover = true
+
+[settings.shortcuts]
+# The three modifier arrays that drive every workspace key equivalent. Written
+# out because the fallback for a hand-authored file is NOT the recommended set.
+keyEquivalentModifiers = ["ctrl", "alt", "shift"]
+assignModifiers = ["alt", "shift", "cmd"]
+borrowModifiers = ["ctrl", "alt", "cmd"]
+recentWorkspaceKey = "\\"
+nextWorkspaceKey = "."
+previousWorkspaceKey = ","
+
+focusLeft = "ctrl + alt - h"
+focusDown = "ctrl + alt - j"
+focusUp = "ctrl + alt - k"
+focusRight = "ctrl + alt - l"
+
+swapLeft = "ctrl + alt - left"
+swapDown = "ctrl + alt - down"
+swapUp = "ctrl + alt - up"
+swapRight = "ctrl + alt - right"
+
+resizeGrow = "ctrl + alt - ="
+resizeShrink = "ctrl + alt - -"
+toggleOrientation = "ctrl + alt - s"
+toggleFullscreen = "ctrl + alt - return"
+balance = "ctrl + alt - e"
+
+cycleNextWindow = "alt - tab"
+cyclePreviousWindow = "alt + shift - tab"
+
+moveToPreviousWorkspace = "ctrl + alt + shift - ["
+moveToNextWorkspace = "ctrl + alt + shift - ]"
+focusPreviousDisplay = "ctrl + alt + shift - left"
+focusNextDisplay = "ctrl + alt + shift - right"
+
+toggleFloating = "alt + cmd - return"
+toggleSharedFloating = "alt + shift + cmd - return"
+toggleFocusedAppInActiveWorkspace = "ctrl + alt - /"
+toggleAppInSharedApps = "ctrl + alt + shift - /"
+toggleSpaceActivated = "ctrl + alt + shift + cmd - z"
+dismissBorrow = "ctrl + alt + cmd - /"
+
+# ---------------------------------------------------------------------------
+# Shared apps: part of every workspace in every profile.
+# ---------------------------------------------------------------------------
+
+# Monitor is the small utility that demonstrates Always on Top (layout =
+# "floating", mirrored above the tiles) or Leave As Is (layout = "unmanaged",
+# left exactly where it is and never touched). Always on Top needs the Screen
+# Recording permission because the mirror is a ScreenCaptureKit capture;
+# "unmanaged" needs no permission at all. The seed option picks the mode.
+#
+# The token below is still spelled PULSE_LAYOUT because that is the name
+# ConfigRenderer substitutes. Renaming it on one side only makes `democtl seed`
+# stop on "unresolved placeholder", which is the loud failure, not a silent one.
+[[sharedApps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Monitor"
+name = "Monitor"
+layout = "@PULSE_LAYOUT@"
+autoOpen = false
+
+# ---------------------------------------------------------------------------
+# Hooks: the scene runner's completion barrier.
+#
+# Only `profile activate` and `workspace activate` block until the activation
+# pipeline finishes; every other command returns "accepted" the instant it is
+# enqueued and says nothing about whether a window moved. These hooks append a
+# line per real transition, which is what `democtl` actually waits on.
+# ---------------------------------------------------------------------------
+
+[[hooks]]
+id = "demolab-workspace"
+event = "workspaceActivated"
+enabled = true
+command = ["@HOOK@", "@EVENT_LOG@"]
+timeoutMs = 3000
+
+[[hooks]]
+id = "demolab-profile"
+event = "profileChanged"
+enabled = true
+command = ["@HOOK@", "@EVENT_LOG@"]
+timeoutMs = 3000
+
+[[hooks]]
+id = "demolab-launch"
+event = "tatamiLaunched"
+enabled = true
+command = ["@HOOK@", "@EVENT_LOG@"]
+timeoutMs = 3000
+
+[[hooks]]
+id = "demolab-status-workspaceActivated"
+event = "workspaceActivated"
+enabled = true
+command = ["@STATUS_HOOK@", "@STATUS_BINARY@", "@CONTROL_DIR@"]
+timeoutMs = 3000
+
+[[hooks]]
+id = "demolab-status-profileChanged"
+event = "profileChanged"
+enabled = true
+command = ["@STATUS_HOOK@", "@STATUS_BINARY@", "@CONTROL_DIR@"]
+timeoutMs = 3000
+
+[[hooks]]
+id = "demolab-status-hud"
+event = "hud"
+enabled = true
+command = ["@STATUS_HOOK@", "@STATUS_BINARY@", "@CONTROL_DIR@"]
+timeoutMs = 3000
+
+# ===========================================================================
+# Profile: Laptop — one display, everything on it.
+# ===========================================================================
+
+[[profiles]]
+id = "d0000000-0000-4000-8000-000000000001"
+name = "Laptop"
+symbolIconName = "laptopcomputer"
+shortcut = "ctrl + alt + shift + cmd - 1"
+
+# Auto-activation by display *count* only. Naming a display would bind the demo
+# to one machine's monitor, and a VM's virtual display name is undocumented and
+# locale-dependent. Count is portable everywhere.
+[profiles.autoActivation]
+displayCount = "==1"
+
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000001"
+name = "Write"
+symbolIconName = "doc.text"
+kind = "normal"
+keyEquivalent = "1"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Editor"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Editor"
+name = "Editor"
+autoOpen = true
+layout = "tiled"
+
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Docs"
+name = "Docs"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000002"
+name = "Review"
+symbolIconName = "checkmark.bubble"
+kind = "normal"
+keyEquivalent = "2"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Review"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Review"
+name = "Review"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Docs"
+name = "Docs"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000003"
+name = "Chat"
+symbolIconName = "bubble.left.and.bubble.right"
+kind = "normal"
+keyEquivalent = "3"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Chat"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Chat"
+name = "Chat"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000004"
+name = "Build"
+symbolIconName = "terminal"
+kind = "normal"
+keyEquivalent = "4"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Terminal"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Terminal"
+name = "Terminal"
+autoOpen = true
+layout = "tiled"
+
+# Borrow-only. A scratchpad is excluded from ordinary switching, never
+# activates on its own, is rejected by `tatami workspace activate`, and forces
+# autoOpen on its apps when it is summoned.
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000005"
+name = "Notes"
+symbolIconName = "square.and.pencil"
+kind = "scratchpad"
+keyEquivalent = "n"
+borrowEdge = "right"
+borrowFraction = 0.3
+appToFocusBundleId = "dev.PangMo5.DemoLab.Notes"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Notes"
+name = "Notes"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000006"
+name = "Design"
+symbolIconName = "square.stack.3d.up"
+kind = "normal"
+keyEquivalent = "5"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Canvas"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Canvas"
+name = "Canvas"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Docs"
+name = "Docs"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "11111111-0000-4000-8000-000000000007"
+name = "Focus"
+symbolIconName = "scope"
+kind = "normal"
+keyEquivalent = "6"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Canvas"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Canvas"
+name = "Canvas"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Notes"
+name = "Notes"
+autoOpen = true
+layout = "floating"
+
+# ===========================================================================
+# Profile: Desk — an external display is connected.
+#
+# Each display keeps its own active workspace. Rather than pinning workspaces
+# to display names (host-specific, and unavailable in a VM), the two chains
+# below place a companion workspace on the next free display. The workspace you
+# actually switch to claims the display under the pointer and keeps focus, so
+# `democtl` parks the cursor first and the placement is deterministic.
+#
+# To pin hard instead, run `democtl displays`, then add a `displayHint` line to
+# a workspace using the exact "<uuid>::<name>" string it prints.
+# ===========================================================================
+
+[[profiles]]
+id = "d0000000-0000-4000-8000-000000000002"
+name = "Desk"
+symbolIconName = "display.2"
+shortcut = "ctrl + alt + shift + cmd - 2"
+
+[profiles.autoActivation]
+displayCount = ">=2"
+
+[[profiles.workspaceChains]]
+id = "33333333-0000-4000-8000-000000000001"
+name = "Deep work"
+workspaceIds = [
+  "22222222-0000-4000-8000-000000000001",
+  "22222222-0000-4000-8000-000000000003",
+]
+
+[[profiles.workspaceChains]]
+id = "33333333-0000-4000-8000-000000000002"
+name = "Review pass"
+workspaceIds = [
+  "22222222-0000-4000-8000-000000000002",
+  "22222222-0000-4000-8000-000000000004",
+]
+
+[[profiles.workspaceChains]]
+id = "33333333-0000-4000-8000-000000000003"
+name = "Design desk"
+workspaceIds = ["22222222-0000-4000-8000-000000000006", "22222222-0000-4000-8000-000000000007"]
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000006"
+name = "Design"
+symbolIconName = "square.stack.3d.up"
+kind = "normal"
+keyEquivalent = "5"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Canvas"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Canvas"
+name = "Canvas"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000007"
+name = "Reference"
+symbolIconName = "book.closed"
+kind = "normal"
+keyEquivalent = "7"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Docs"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Docs"
+name = "Docs"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000001"
+name = "Write"
+symbolIconName = "doc.text"
+kind = "normal"
+keyEquivalent = "1"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Editor"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Editor"
+name = "Editor"
+autoOpen = true
+layout = "tiled"
+
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000002"
+name = "Review"
+symbolIconName = "checkmark.bubble"
+kind = "normal"
+keyEquivalent = "2"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Review"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Review"
+name = "Review"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000003"
+name = "Build"
+symbolIconName = "terminal"
+kind = "normal"
+keyEquivalent = "3"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Terminal"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Terminal"
+name = "Terminal"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000004"
+name = "Chat"
+symbolIconName = "bubble.left.and.bubble.right"
+kind = "normal"
+keyEquivalent = "4"
+appToFocusBundleId = "dev.PangMo5.DemoLab.Chat"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Chat"
+name = "Chat"
+autoOpen = true
+layout = "tiled"
+
+[[profiles.workspaces]]
+id = "22222222-0000-4000-8000-000000000005"
+name = "Notes"
+symbolIconName = "square.and.pencil"
+kind = "scratchpad"
+keyEquivalent = "n"
+borrowEdge = "right"
+borrowFraction = 0.3
+appToFocusBundleId = "dev.PangMo5.DemoLab.Notes"
+
+[[profiles.workspaces.apps]]
+bundleIdentifier = "dev.PangMo5.DemoLab.Notes"
+name = "Notes"
+autoOpen = true
+layout = "tiled"

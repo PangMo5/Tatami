@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "canvas": {
+    "width": 1920,
+    "height": 1200
+  },
+  "assets": [
+    {
+      "scene": "tour",
+      "title": "Make room for the whole workflow.",
+      "description": "Design, write, review, borrow, automate, and adapt to a bigger desk.",
+      "section": "demo",
+      "maxSeconds": 150,
+      "maxMB": 30
+    },
+    {
+      "scene": "workspaces",
+      "title": "Move between tasks",
+      "description": "Switch to a conversation, return to design, then move through the workspace order.",
+      "section": "workspaces",
+      "maxSeconds": 32,
+      "maxMB": 16
+    },
+    {
+      "scene": "autoopen",
+      "title": "Open the whole toolset",
+      "description": "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.",
+      "section": "workspaces",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "posterCaptionIndex": 1
+    },
+    {
+      "scene": "membership",
+      "title": "Move an app with the task",
+      "description": "Send the reference from Write to Review, then move it back using the keyboard.",
+      "section": "workspaces",
+      "maxSeconds": 28,
+      "maxMB": 16
+    },
+    {
+      "scene": "profiles",
+      "title": "Switch the complete setup",
+      "description": "A profile changes the workspace set and restores the arrangement belonging to that context.",
+      "section": "profiles",
+      "maxSeconds": 22,
+      "maxMB": 16
+    },
+    {
+      "scene": "profile-copy",
+      "title": "Reuse an existing setup",
+      "description": "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.",
+      "section": "profiles",
+      "maxSeconds": 35,
+      "maxMB": 16
+    },
+    {
+      "scene": "tiling",
+      "title": "Let new windows find their place",
+      "description": "Open a second reference next to the canvas. Close it and the layout reclaims the space.",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16
+    },
+    {
+      "scene": "layouts",
+      "title": "Shape the layout from the keyboard",
+      "description": "Swap windows, change a split, resize it, and balance the workspace.",
+      "section": "tiling",
+      "maxSeconds": 27,
+      "maxMB": 16
+    },
+    {
+      "scene": "drag",
+      "title": "Arrange it by hand",
+      "description": "Drag one window onto another, resize an edge, and return to the saved arrangement.",
+      "section": "tiling",
+      "maxSeconds": 32,
+      "maxMB": 16
+    },
+    {
+      "scene": "fullscreen",
+      "title": "Focus with workspace zoom",
+      "description": "Inspect one tile at full workspace size, then return to the exact arrangement.",
+      "section": "tiling",
+      "maxSeconds": 30,
+      "maxMB": 16
+    },
+    {
+      "scene": "pause",
+      "title": "Take manual control",
+      "description": "Pause automatic tiling, position a window freely, and resume the arranged workspace.",
+      "section": "tiling",
+      "maxSeconds": 23,
+      "maxMB": 16
+    },
+    {
+      "scene": "focus",
+      "title": "Focus follows your intent",
+      "description": "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.",
+      "section": "tiling",
+      "maxSeconds": 29,
+      "maxMB": 16,
+      "seedOptions": [
+        "--focus-follows-mouse"
+      ]
+    },
+    {
+      "scene": "switching",
+      "title": "Choose the window you need",
+      "description": "Hold the switcher shortcut to inspect the windows in this workspace, then switch back with a quick tap.",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16
+    },
+    {
+      "scene": "borrow",
+      "title": "Bring a conversation alongside",
+      "description": "Answer a teammate without replacing the canvas and reference you are using.",
+      "section": "borrow",
+      "maxSeconds": 24,
+      "maxMB": 16
+    },
+    {
+      "scene": "scratchpad",
+      "title": "Keep a reusable scratchpad",
+      "description": "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.",
+      "section": "borrow",
+      "maxSeconds": 25,
+      "maxMB": 16
+    },
+    {
+      "scene": "borrow-placement",
+      "title": "Choose the edge and the context",
+      "description": "Dock a workspace left or below, cross the boundary with focus, then activate it fully.",
+      "section": "borrow",
+      "maxSeconds": 30,
+      "maxMB": 16
+    },
+    {
+      "scene": "floating",
+      "title": "Keep a note above this workspace",
+      "description": "Switch a note between Always on Top and tiled placement, and interact with its real controls.",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16
+    },
+    {
+      "scene": "shared",
+      "title": "One status window across tasks",
+      "description": "A Shared Always on Top monitor receives real workspace and HUD hook events.",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16
+    },
+    {
+      "scene": "unmanaged",
+      "title": "Leave a window where you put it",
+      "description": "Shared membership with normal stacking: the window keeps its position and size across tasks.",
+      "section": "floating",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "seedOptions": [
+        "--pulse",
+        "unmanaged"
+      ]
+    },
+    {
+      "scene": "cli",
+      "title": "Build a focus session with the CLI",
+      "description": "Inspect the real workspace list, then run a short script that activates, balances and borrows.",
+      "section": "automation",
+      "maxSeconds": 34,
+      "maxMB": 16
+    },
+    {
+      "scene": "hooks",
+      "title": "Make workspace changes useful elsewhere",
+      "description": "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.",
+      "section": "automation",
+      "maxSeconds": 30,
+      "maxMB": 16
+    },
+    {
+      "scene": "configuration",
+      "title": "Edit plain TOML, see a live change",
+      "description": "A small script edits the real gap setting. Tatami reloads it without a restart.",
+      "section": "automation",
+      "maxSeconds": 33,
+      "maxMB": 16
+    },
+    {
+      "scene": "desk",
+      "title": "Two displays, one workflow",
+      "description": "Keep design and reference on separate displays; switch a workspace chain with one shortcut.",
+      "section": "profiles",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "presentation": "dual"
+    },
+    {
+      "scene": "hotplug",
+      "title": "Your setup follows the displays",
+      "description": "Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.",
+      "section": "profiles",
+      "maxSeconds": 30,
+      "maxMB": 16
+    },
+    {
+      "scene": "layout-editor",
+      "title": "Plan the layout visually",
+      "description": "Rotate, mirror and balance a saved layout in Tatami\u2019s native editor, then activate it.",
+      "section": "tiling",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ]
+    },
+    {
+      "scene": "guided-setup",
+      "title": "Learn by doing",
+      "description": "Preview gesture actions and practise real shortcuts without moving the live desktop. Physical trackpad input is not shown.",
+      "section": "guided-setup",
+      "maxSeconds": 45,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ]
+    },
+    {
+      "scene": "ai-draft",
+      "title": "Review a suggested setup",
+      "description": "Validate an example AI proposal and apply it to the draft. No external AI service is called in this recording.",
+      "section": "guided-setup",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+.build/
+recordings/
+*.mov
+.swiftpm/
+.sync/
+
+__pycache__/

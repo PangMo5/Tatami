@@ -1,0 +1,109 @@
+{
+  "name": "ai-draft",
+  "title": "Review a suggested setup",
+  "summary": "A clearly labelled example proposal is validated and applied only to the Guided Setup draft.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Tatami"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Run Guided Setup\u2026"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Continue"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Continue"
+    },
+    {
+      "kind": "clipboard",
+      "text": "{\n  \"workspaces\": [\n    {\n      \"name\": \"Design review\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Canvas\",\n        \"dev.PangMo5.DemoLab.Docs\"\n      ]\n    },\n    {\n      \"name\": \"Writing\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Editor\"\n      ]\n    },\n    {\n      \"name\": \"Conversation\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Chat\"\n      ]\n    },\n    {\n      \"name\": \"Quick notes\",\n      \"kind\": \"scratchpad\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Notes\"\n      ]\n    }\n  ]\n}\n"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "AI PLANNING / EXAMPLE PROPOSAL"
+    },
+    {
+      "kind": "caption",
+      "text": "A proposed setup is something you review."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "desktop"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3. Paste Result"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:Design review",
+      "value": "Design review"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "Check the workspaces and app placements."
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "description:Apply Plan to Draft"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:Apply Plan to Draft"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "text:Design review"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "desktop"
+    },
+    {
+      "kind": "caption",
+      "text": "Only the draft changes. Your desktop stays put."
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    }
+  ]
+}

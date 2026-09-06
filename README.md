@@ -12,7 +12,17 @@ keystroke or a configurable trackpad gesture, and tiles their windows
 automatically with a binary space partitioning (BSP) engine. No SIP changes and no shell
 scripting required.
 
-## Screenshots
+## See Tatami in action
+
+[![Make room for the whole workflow.](web/tour.jpg)](https://pangmo5.dev/Tatami#demo)
+
+**[Watch the complete workflow](https://pangmo5.dev/Tatami#demo)** — design, write,
+review, borrow a follow-up, automate a focus session, and adapt to a second display.
+Real Tatami window management; demo apps and sample content. The displayed
+shortcuts are this demo's configured bindings.
+
+<details>
+<summary>Settings and Guided Setup screenshots</summary>
 
 <p align="center">
   <img src="Resources/Marketing/screenshots/overview.png" alt="Tatami Guided Setup, profile and workspace settings, and a scratchpad borrowed beside a tiled workspace." width="100%" />
@@ -24,34 +34,29 @@ scripting required.
 <a href="Resources/Marketing/screenshots/borrow.png">Borrow</a><br />
 Captured on an earlier version. Some labels have changed since these screenshots.</sub></p>
 
-## Demo
 
-<p align="center">
-  <a href="https://pangmo5.dev/Tatami#demo">
-    <img src="web/tatami-demo-poster.jpg" alt="Tatami demo. Click to watch." width="760" />
-  </a>
-</p>
-
-<p align="center"><a href="https://pangmo5.dev/Tatami#demo">▶ Watch the demo</a></p>
-
-<p align="center"><sub>Recorded on an early version. It will be re-recorded for a later release.</sub></p>
+</details>
 
 ## Features
 
 ### Workspaces
+[![Move between tasks.](web/workspaces.jpg)](https://pangmo5.dev/Tatami#demo-workspaces)
+
 
 - **Virtual workspaces:** Group apps with per-workspace assignments.
 - **Flexible switching:** Use a hotkey, trackpad gesture, or recent-workspace action.
 - **Configurable gestures:** Bind every direction of a three- or four-finger swipe to any shortcut action, including profile- and workspace-specific commands.
 - **One key per workspace:** Hold the switch, assign, or borrow modifier with a **key equivalent**. The same keys also drive recent, next, and previous targets, while any action can take an explicit override.
 - **Optional switching behaviors:** Enable loop-around, skip-empty, or follow-app-focus.
-- **Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
+- **[Auto-open demo](https://pangmo5.dev/Tatami#demo-autoopen):** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.
 - **Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace across relaunches, while next/previous and recent navigation can independently stay local or span every display.
 - **Workspace chains:** Link an ordered set of workspaces inside a profile. Switching to any member restores available companions in chain priority, honoring connected display pins and Chain Dynamic placement while focus stays with the workspace you chose.
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
 
 ### Window tiling (BSP)
+[![Let new windows find their place.](web/tiling.jpg)](https://pangmo5.dev/Tatami#demo-tiling)
+
 
 - **Automatic BSP layout:** Insert new windows at the shallowest tile.
 - **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
@@ -64,6 +69,8 @@ Captured on an earlier version. Some labels have changed since these screenshots
 
 ### Profiles
 
+[Watch the profile and two-display collection](https://pangmo5.dev/Tatami#profiles).
+
 - **Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.
 - **Fast profile switching:** Switch by hotkey or from the menu bar. Every display re-tiles for the new profile, and Tatami returns to the right profile after relaunch.
 - **Display-aware activation:** Auto-activate a profile by monitor count or by specific displays being connected or disconnected. Tatami warns when rules overlap at the same priority.
@@ -71,6 +78,8 @@ Captured on an earlier version. Some labels have changed since these screenshots
 - **Reuse an existing setup:** **Copy from** and **Duplicate** share one preview where you keep or skip each workspace, app, setting, and saved layout before anything changes.
 
 ### Borrow: compose two workspaces
+[![Bring a conversation alongside.](web/borrow.jpg)](https://pangmo5.dev/Tatami#demo-borrow)
+
 
 - **Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.
 - **Live and bidirectional:** The borrowed block is the real workspace, so edits persist back to it.
@@ -81,6 +90,8 @@ Captured on an earlier version. Some labels have changed since these screenshots
 
 ### Always on Top
 
+[Watch: one shared monitor above different workspaces](https://pangmo5.dev/Tatami#demo-shared).
+
 - **Per-workspace or shared:** Keep an app on top in one workspace or add it to Shared Apps to keep it on top everywhere.
 - **No SIP changes:** Tatami uses always-on-top ScreenCaptureKit mirrors, then hands you the real window when you interact with it.
 - **Predictable stacking:** Multiple always-on-top windows stack by focus recency. This requires Screen Recording permission.
@@ -88,11 +99,15 @@ Captured on an earlier version. Some labels have changed since these screenshots
 
 ### Focus & cursor
 
+[Watch focus follow the keyboard and pointer](https://pangmo5.dev/Tatami#demo-focus).
+
 - **Two explicit focus models:** Focus-follows-mouse gives the window under the pointer keyboard focus. Mouse-follows-focus moves the pointer after Tatami changes windows, including switching to Always on Top, Shared Always on Top, or Leave As Is windows.
 - **Close-window refocus:** Return to the most recently used remaining window.
 - **Cursor control:** Optionally hide the cursor during a workspace switch.
 
 ### Interface & config
+
+[Watch real CLI commands, hooks and live configuration](https://pangmo5.dev/Tatami#automation).
 
 - **Five interface languages:** Use Tatami in English, Korean, Japanese, Simplified Chinese, or Traditional Chinese, following your macOS app-language preference.
 - **Customizable menu bar:** Show the active workspace icon or name and, when relevant, the active profile icon or name.
@@ -106,6 +121,8 @@ Captured on an earlier version. Some labels have changed since these screenshots
 - **Automatic updates:** Receive releases through Sparkle.
 
 ### Guided setup
+
+[Watch shortcut practice and proposal review](https://pangmo5.dev/Tatami#guided-setup).
 
 - **Learn by doing:** First launch walks through Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Always on Top / Leave As Is, MFF / FFM, and app / window switching in a safe virtual display.
 - **Built from this Mac:** Start from running-app metadata and connected-display geometry, then organize apps around repeatable work rather than generic categories. No screen contents are captured.

@@ -1,0 +1,31 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# Tatami lifecycle hook for the Demo Lab.
+#
+# Appends one tab-separated line per real transition to the event log named by
+# $1. This is the scene runner's completion barrier: apart from `profile
+# activate` and `workspace activate`, every Tatami command returns the moment it
+# is enqueued, so exit codes cannot tell a scene that a switch actually landed.
+#
+# Tatami runs hook commands directly (no shell interpretation of `command`), so
+# this file is the executable and the log path is a real argv value. Tatami also
+# writes the event JSON to stdin, which is ignored here — the TATAMI_* variables
+# carry everything the lab needs and are far cheaper to read from /bin/sh.
+set -eu
+
+log="${1:?usage: demolab-hook <event-log-path>}"
+dir=$(dirname "$log")
+[ -d "$dir" ] || mkdir -p "$dir"
+
+# A single printf is one write() for a line this short, so concurrent hooks
+# (a workspace chain emits one event per display) interleave cleanly.
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "$(date +%s)" \
+  "${TATAMI_HOOK_EVENT:-}" \
+  "${TATAMI_PROFILE_NAME:-}" \
+  "${TATAMI_WORKSPACE_NAME:-}" \
+  "${TATAMI_WORKSPACE_KIND:-}" \
+  "${TATAMI_DISPLAY_NAME:-}" \
+  >> "$log"

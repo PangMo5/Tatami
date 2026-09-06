@@ -1,0 +1,105 @@
+{
+  "name": "layout-editor",
+  "title": "Plan a layout visually",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "LAYOUT EDITOR"
+    },
+    {
+      "kind": "caption",
+      "text": "Arrange a workspace before you enter it."
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Rotate 90°"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "Mirror the arrangement. Keep the useful shape."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Flip left ↔ right"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Flip top ↔ bottom"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:Balance all splits equally"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Activate it. The saved layout becomes the workspace."
+    },
+    {
+      "kind": "closeSettings"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ]
+}

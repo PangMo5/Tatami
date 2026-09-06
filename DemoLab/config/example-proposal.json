@@ -1,0 +1,33 @@
+{
+  "workspaces": [
+    {
+      "name": "Design review",
+      "kind": "workspace",
+      "bundleIdentifiers": [
+        "dev.PangMo5.DemoLab.Canvas",
+        "dev.PangMo5.DemoLab.Docs"
+      ]
+    },
+    {
+      "name": "Writing",
+      "kind": "workspace",
+      "bundleIdentifiers": [
+        "dev.PangMo5.DemoLab.Editor"
+      ]
+    },
+    {
+      "name": "Conversation",
+      "kind": "workspace",
+      "bundleIdentifiers": [
+        "dev.PangMo5.DemoLab.Chat"
+      ]
+    },
+    {
+      "name": "Quick notes",
+      "kind": "scratchpad",
+      "bundleIdentifiers": [
+        "dev.PangMo5.DemoLab.Notes"
+      ]
+    }
+  ]
+}
