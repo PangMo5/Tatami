@@ -7,8 +7,7 @@ import DependenciesMacros
 import Sparkle
 
 /// Wraps Sparkle's updater so reducers/views can drive software updates
-/// without touching Sparkle directly. Reading the live dependency starts
-/// Sparkle's background check schedule.
+/// without touching Sparkle directly. Configure the schedule before starting it.
 @DependencyClient
 struct UpdaterClient: Sendable {
   /// Triggers a user-initiated update check.
@@ -23,13 +22,14 @@ struct UpdaterClient: Sendable {
 extension UpdaterClient: DependencyKey {
   static let liveValue: UpdaterClient = MainActor.assumeIsolated {
     let controller = SPUStandardUpdaterController(
-      startingUpdater: true,
+      startingUpdater: false,
       updaterDelegate: nil,
       userDriverDelegate: nil
     )
     let updater = controller.updater
     return UpdaterClient(
       checkForUpdates: {
+        controller.startUpdater()
         // Sparkle's window can end up behind another app without any error, so
         // record the activation state the check starts from. That is what
         // distinguishes "Sparkle refused" from "the alert opened out of sight".
@@ -45,6 +45,7 @@ extension UpdaterClient: DependencyKey {
       configure: { automaticallyChecks, interval in
         updater.automaticallyChecksForUpdates = automaticallyChecks
         updater.updateCheckInterval = interval
+        controller.startUpdater()
       }
     )
   }

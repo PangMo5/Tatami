@@ -176,34 +176,12 @@ footer p { line-height: 1.5; }
 .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; margin-top: 60px; text-align: left; }
 .feature { background: var(--card-bg); border-radius: var(--radius); padding: 32px 28px; border: 1px solid var(--card-border); box-shadow: var(--card-shadow); }
 .feature .ico { font-size: 30px; margin-bottom: 14px; }
+.demo-settings { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 8px 14px; margin: 12px 0 0; font-size: 13px; }
+.demo-settings > span { color: var(--text-secondary); }
+.demo-settings a { overflow-wrap: anywhere; }
 .feature h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
 .feature p { font-size: 16px; color: var(--text-secondary); margin-top: 8px; line-height: 1.4; }
 @media (max-width: 760px) { .features { grid-template-columns: 1fr; } }
-
-/* Automation is an optional extension point, so it stays visible without
-   competing with the primary workspace and tiling sections. */
-.supporting-section { padding: 56px 22px; background: var(--bg-gray); text-align: left; }
-.supporting-panel {
-  display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr); gap: 48px;
-  align-items: center; padding: 34px 38px; border: 1px solid var(--card-border);
-  border-radius: var(--radius); background: var(--card-bg); box-shadow: var(--card-shadow);
-}
-.supporting-copy .eyebrow { font-size: 15px; margin-bottom: 5px; }
-.supporting-copy h2 { font-size: clamp(26px, 3.4vw, 36px); }
-.supporting-copy > p:last-child {
-  max-width: 620px; margin-top: 12px; color: var(--text-secondary); font-size: 17px; line-height: 1.45;
-}
-.supporting-links { display: grid; gap: 10px; }
-.supporting-links a {
-  display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px;
-  color: var(--text); background: var(--pill-bg);
-}
-.supporting-links a:hover { text-decoration: none; }
-.supporting-links strong { font-size: 15px; font-weight: 600; }
-.supporting-links span { color: var(--text-secondary); font-size: 13px; line-height: 1.35; }
-@media (max-width: 760px) {
-  .supporting-panel { grid-template-columns: 1fr; gap: 24px; padding: 28px 24px; }
-}
 
 /* Recorded product demonstrations. The player owns playback and fullscreen. */
 .demo-video {
@@ -328,3 +306,30 @@ footer p { line-height: 1.5; }
 .demo-tabs::-webkit-scrollbar { width: 5px; height: 5px; }
 .demo-tabs::-webkit-scrollbar-track { background: transparent; }
 .demo-tabs::-webkit-scrollbar-thumb { background: var(--text-secondary); border-radius: 8px; }
+
+/* Native language selection remains available when the navigation collapses. */
+.language-picker { color: var(--text); background: var(--card-bg); border: 1px solid var(--hairline); border-radius: 7px; padding: 5px 7px; max-width: 118px; font: inherit; font-size: 12px; margin-left: 12px; }
+.language-picker:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 760px) { .language-picker { margin-left: auto; margin-right: 48px; } }
+.feature a { display: inline-block; margin-top: 16px; font-size: 15px; }
+
+.language-links { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 20px; }
+.language-links a[aria-current="page"] { color: var(--text); font-weight: 600; }
+
+.doc-table { max-width: 100%; overflow-x: auto; }
+@media (max-width: 980px) {
+  .nav-inner { position: relative; }
+  .nav-burger { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); margin: 0; }
+  .language-picker { margin-left: auto; margin-right: 44px; }
+}
+@media (max-width: 600px) {
+  .md table, .md tbody { display: block; width: 100%; }
+  .md thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .md tbody tr { display: block; padding: 14px; margin: 12px 0; border: 1px solid var(--hairline); border-radius: 12px; background: var(--card-bg); }
+  .md td { display: block; padding: 5px 0; border: 0; overflow-wrap: anywhere; }
+  .md td:first-child { font-weight: 600; margin-bottom: 7px; }
+  .md td:not(:first-child)::before { content: attr(data-label); display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .md td code { white-space: normal; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 600px) { .md h1 { font-size: 32px; line-height: 1.2; } }

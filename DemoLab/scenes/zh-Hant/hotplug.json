@@ -1,0 +1,127 @@
+{
+  "name": "hotplug",
+  "title": "設定跟隨顯示器變化",
+  "summary": "連接第二部顯示器，啟用 Desk 設定組合；中斷連接後還原 Laptop 排列。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "配合顯示器的設定組合"
+    },
+    {
+      "kind": "caption",
+      "text": "連接第二部顯示器，自動啟用雙螢幕的設定組合。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": true
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "expectHook",
+      "field": "profile",
+      "value": "Desk"
+    },
+    {
+      "kind": "beat",
+      "ms": 2500
+    },
+    {
+      "kind": "caption",
+      "text": "中斷連接，自動切換回單螢幕的設定組合。"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": false
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ],
+  "captureSecondary": true
+}

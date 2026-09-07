@@ -303,8 +303,9 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // above, and `setFrame` takes a frame rect. Without adding the title bar
     // back, every window's content is a title bar shorter than the catalog says.
     let size = window.frameRect(forContentRect: CGRect(origin: .zero, size: spec.windowSize)).size
-    let x = visible.minX + 80 + step
-    let y = visible.maxY - size.height - 60 - step
+    let utility = spec.id == .monitor || spec.id == .notes
+    let x = utility ? visible.maxX - size.width - 32 : visible.minX + 80 + step
+    let y = utility ? visible.minY + 40 : visible.maxY - size.height - 60 - step
     return CGRect(x: x, y: max(visible.minY, y), width: size.width, height: size.height)
   }
 
@@ -316,50 +317,50 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let appMenu = NSMenu()
     appItem.submenu = appMenu
     appMenu.addItem(
-      withTitle: "Quit \(spec.name)",
+      withTitle: String(localized: "Quit \(spec.name)"),
       action: #selector(NSApplication.terminate(_:)),
       keyEquivalent: "q"
     )
 
     let editItem = NSMenuItem()
     mainMenu.addItem(editItem)
-    let editMenu = NSMenu(title: "Edit")
+    let editMenu = NSMenu(title: String(localized: "Edit"))
     editItem.submenu = editMenu
-    for (title, selector, key) in [("Undo", "undo:", "z"), ("Cut", "cut:", "x"),
-                                    ("Copy", "copy:", "c"), ("Paste", "paste:", "v"),
-                                    ("Select All", "selectAll:", "a")] {
-      editMenu.addItem(withTitle: title, action: Selector(selector), keyEquivalent: key)
+    let editActions: [(LocalizedStringResource, String, String)] = [("Undo", "undo:", "z"), ("Cut", "cut:", "x"),
+      ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")]
+    for (title, selector, key) in editActions {
+      editMenu.addItem(withTitle: String(localized: title), action: Selector(selector), keyEquivalent: key)
     }
 
     let windowItem = NSMenuItem()
     mainMenu.addItem(windowItem)
-    let windowMenu = NSMenu(title: "Window")
+    let windowMenu = NSMenu(title: String(localized: "Window"))
     windowItem.submenu = windowMenu
 
     let newItem = NSMenuItem(
-      title: "New Window",
+      title: String(localized: "New Window"),
       action: #selector(openWindow(_:)),
       keyEquivalent: "n"
     )
     newItem.target = self
     windowMenu.addItem(newItem)
     windowMenu.addItem(
-      withTitle: "Close",
+      withTitle: String(localized: "Close"),
       action: #selector(NSWindow.performClose(_:)),
       keyEquivalent: "w"
     )
     windowMenu.addItem(
-      withTitle: "Minimize",
+      withTitle: String(localized: "Minimize"),
       action: #selector(NSWindow.performMiniaturize(_:)),
       keyEquivalent: "m"
     )
     windowMenu.addItem(
-      withTitle: "Zoom",
+      withTitle: String(localized: "Zoom"),
       action: #selector(NSWindow.performZoom(_:)),
       keyEquivalent: ""
     )
     // Exercises the native-fullscreen path Tatami has to detect and step out of.
-    let fullscreenItem = NSMenuItem(title: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+    let fullscreenItem = NSMenuItem(title: String(localized: "Enter Full Screen"), action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
     fullscreenItem.keyEquivalentModifierMask = [.control, .command]
     windowMenu.addItem(fullscreenItem)
     NSApp.windowsMenu = windowMenu

@@ -1,7 +1,7 @@
 {
   "name": "focus",
   "title": "Focus follows your intent",
-  "summary": "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.",
+  "summary": "Use shortcuts to select neighboring windows and move the pointer, or select windows by hovering.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,11 @@
     },
     {
       "kind": "caption",
-      "text": "Move focus by direction. The pointer follows."
+      "text": "Select a window with a shortcut; the pointer moves there too."
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
     },
     {
       "kind": "activateApp",
@@ -85,8 +89,56 @@
       "ms": 900
     },
     {
+      "kind": "key",
+      "chord": "ctrl + alt - l"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - h"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - l"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
       "kind": "caption",
-      "text": "Or let focus follow the pointer."
+      "text": "With Focus Follows Mouse enabled, hovering selects a window."
     },
     {
       "kind": "hover",
@@ -128,7 +180,7 @@
     },
     {
       "kind": "caption",
-      "text": "Close a window. Focus returns to the remaining work."
+      "text": "When a window closes, focus moves to a remaining window."
     },
     {
       "kind": "activateApp",

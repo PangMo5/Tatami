@@ -1,0 +1,187 @@
+{
+  "name": "guided-setup",
+  "title": "직접 사용하며 익히기",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:가이드 설정 실행…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계속"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계속"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계속"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "시작 안내"
+    },
+    {
+      "kind": "caption",
+      "text": "가이드 설정에서는 실제 창을 움직이지 않고 기능을 연습해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "안내에 있는 버튼으로 제스처 동작을 미리 봐요."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:4F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "caption",
+      "text": "설정한 단축키를 미리보기 안에서 직접 연습해요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계속"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:5/9",
+      "value": "5/9"
+    },
+    {
+      "kind": "caption",
+      "text": "가상 창으로 타일링 동작을 먼저 익혀요."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:오른쪽으로 포커스"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:왼쪽과 교체"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:다음 창"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:창 늘리기"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:분할 뒤집기"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:배치 균등하게 맞추기"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:타일링 도구를 모두 사용해 봤어요",
+      "value": "타일링 도구를 모두 사용해 봤어요"
+    },
+    {
+      "kind": "caption",
+      "text": "초안을 적용하기 전까지 실제 환경은 그대로예요."
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ],
+  "summary": "실제 화면을 움직이지 않고 제스처 동작과 단축키를 익혀요. 물리 트랙패드 입력 장면은 포함하지 않았어요."
+}

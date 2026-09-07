@@ -41,8 +41,8 @@ struct DemoCatalogTests {
   func windowTitlesAreDeterministic() {
     for spec in DemoCatalog.all {
       #expect(!spec.windowTitles.isEmpty, "\(spec.name) has no window titles")
-      #expect(Set(spec.windowTitles).count == spec.windowTitles.count, "\(spec.name) repeats a title")
-      for title in spec.windowTitles { #expect(!title.isEmpty) }
+      #expect(Set(spec.windowTitles.map { String(localized: $0) }).count == spec.windowTitles.count, "\(spec.name) repeats a title")
+      for title in spec.windowTitles { #expect(!String(localized: title).isEmpty) }
       // Same ordinal, same title — twice, in the same process and across runs.
       #expect(spec.windowTitle(at: 0) == spec.windowTitle(at: 0))
       #expect(spec.windowTitle(at: 0) != spec.windowTitle(at: 99))

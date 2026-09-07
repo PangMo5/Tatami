@@ -1,0 +1,174 @@
+{
+  "name": "hooks",
+  "title": "把工作空間變化連接到其他工具",
+  "summary": "工作空間變更時，透過掛鉤通知外部工具。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "工作空間與操作回饋掛鉤"
+    },
+    {
+      "kind": "caption",
+      "text": "工作空間變更時，透過掛鉤通知外部工具。"
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Chat"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "caption",
+      "text": "HUD 掛鉤也能將操作提示傳送給外部工具。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    }
+  ]
+}

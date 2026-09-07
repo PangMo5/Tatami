@@ -1,0 +1,170 @@
+{
+  "name": "configuration",
+  "title": "编辑 TOML，立即查看变化",
+  "summary": "Tatami 运行时，编辑 TOML 即可调整窗口间距。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Build",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Terminal"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "TOML / 实时重载"
+    },
+    {
+      "kind": "caption",
+      "text": "Tatami 运行时，编辑 TOML 即可调整窗口间距。"
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "set-spacing 32",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "set-spacing 32",
+      "code": 0
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "caption",
+      "text": "支持的设置会自动生效，无需重启。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 4"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Build"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "set-spacing 10",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "set-spacing 10",
+      "code": 0
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    }
+  ],
+  "openingApps": [
+    "Terminal"
+  ]
+}

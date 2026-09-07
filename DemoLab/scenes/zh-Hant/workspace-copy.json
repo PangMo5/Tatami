@@ -1,0 +1,91 @@
+{
+  "name": "workspace-copy",
+  "title": "在工作空間之間複製設定",
+  "summary": "檢查另一個工作空間的 App 與設定，再套用選取的變更。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Desk"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "複製工作空間設定"
+    },
+    {
+      "kind": "caption",
+      "text": "選擇要從中複製設定的工作空間。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:從其他工作空間複製…"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "title:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:Design"
+    },
+    {
+      "kind": "caption",
+      "text": "複製至目前工作空間前，先檢查變更內容。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:複製"
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Docs",
+      "workspace": "Design",
+      "profile": "Desk"
+    },
+    {
+      "kind": "caption",
+      "text": "選取的 App 與設定已複製至目前的工作空間。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "heading:佈局"
+    },
+    {
+      "kind": "beat",
+      "ms": 2400
+    }
+  ]
+}

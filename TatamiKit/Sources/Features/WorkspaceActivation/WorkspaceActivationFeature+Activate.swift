@@ -2353,6 +2353,8 @@ extension WorkspaceActivationFeature {
         )
     ))
     let sessionTree = state.tilingTrees[workspace.id]
+    let pendingRestoration = state.pendingLayoutRestorations[workspace.id]
+    let autoOpeningBundleIDs = Set(workspace.apps.filter { $0.autoOpen && $0.layout == .tiled }.map(\.bundleIdentifier))
     let sharedTiledBundleIds = Set(
       state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
     )
@@ -2605,8 +2607,12 @@ extension WorkspaceActivationFeature {
             if !isPaused {
               // Layouts always persist now. Restore the saved template whenever
               // there's no in-memory tree yet (fresh launch / first activation).
-              let persistedSnapshot: LayoutSnapshot? =
-                sessionTree == nil ? await store.load(workspaceId) : nil
+              let persistedSnapshot: LayoutSnapshot?
+              if let pendingRestoration {
+                persistedSnapshot = pendingRestoration
+              } else {
+                persistedSnapshot = sessionTree == nil ? await store.load(workspaceId) : nil
+              }
               guard !Task.isCancelled else { return }
               // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
               // AX round trips. AX scans block on each target app's run loop
@@ -2711,6 +2717,16 @@ extension WorkspaceActivationFeature {
               // Do not publish or persist a superseded workspace's layout snapshot.
               guard !Task.isCancelled else { return }
               await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
+              // Wait for the first window of apps this activation opens, not
+              // for every old occurrence (an app may reopen fewer windows).
+              let missingLayoutApps = Set(persistedSnapshot?.tree.windows.map(\.bundleId) ?? [])
+                .intersection(autoOpeningBundleIDs)
+                .subtracting(keys.map(\.bundleId))
+              let stillRestoring = missingLayoutApps.isEmpty ? nil : persistedSnapshot
+              await send(.persistedLayoutRestorationUpdated(
+                workspaceId: workspaceId,
+                snapshot: stillRestoring,
+              ))
               if persistedSnapshot != nil, zoomed.isEmpty {
                 await send(.persistedFullscreenZoomRestored(
                   workspaceId: workspaceId,
@@ -2719,7 +2735,7 @@ extension WorkspaceActivationFeature {
                 ))
               }
               guard !Task.isCancelled else { return }
-              if let tree {
+              if let tree, stillRestoring == nil {
                 let slots = slotAssignment(tree.windows)
                 await store.save(
                   workspaceId,

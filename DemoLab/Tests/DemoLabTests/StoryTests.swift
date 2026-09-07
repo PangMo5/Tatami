@@ -8,7 +8,7 @@ import Testing
 struct StoryTests {
   @Test("copy validation follows the saved content, not a staged success screen")
   func checksFollowContent() {
-    var draft = LaunchStory()
+    var draft = LaunchStory(locale: .en)
     #expect(draft.evaluateCopy().filter(\.passed).count == 2)
     draft.headline = "A calmer way to work."
     #expect(draft.evaluateCopy().allSatisfy { $0.passed })
@@ -22,7 +22,7 @@ struct StoryTests {
     defer { try? FileManager.default.removeItem(at: directory) }
     let editor = StoryRepository(file: directory.appendingPathComponent("story.json"))
     let reviewer = StoryRepository(file: editor.file)
-    var draft = LaunchStory()
+    var draft = LaunchStory(locale: .en)
     draft.headline = "A calmer way to work."
     try editor.write(draft)
     var review = try reviewer.load()

@@ -1,0 +1,582 @@
+{
+  "name": "tour",
+  "title": "仕事の流れに、必要な場所を。",
+  "summary": "デザイン、執筆、レビュー、借りる操作、自動化。広いデスクにも合わせて切り替えます。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "Tatami / デザイン"
+    },
+    {
+      "kind": "caption",
+      "text": "作業ごとに、使うアプリとウインドウ配置をまとめて管理できます。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "caption",
+      "text": "一つのウインドウをワークスペースいっぱいに広げます。"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "expectStory",
+      "field": "theme",
+      "value": "sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.forest"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "caption",
+      "text": "拡大を解除すると、元のウインドウ配置に戻ります。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.content"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 執筆"
+    },
+    {
+      "kind": "caption",
+      "text": "ワークスペースを切り替えると、次の作業で使うアプリが表示されます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.headline"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - a"
+    },
+    {
+      "kind": "typeText",
+      "app": "Editor",
+      "text": "落ち着いて、仕事を進めよう。",
+      "ms": 65
+    },
+    {
+      "kind": "expectValue",
+      "app": "Editor",
+      "identifier": "editor.headline",
+      "value": "落ち着いて、仕事を進めよう。"
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.save"
+    },
+    {
+      "kind": "expectStory",
+      "field": "headline",
+      "value": "落ち着いて、仕事を進めよう。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Design に戻ると、使っていたアプリが元の位置に表示されます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 2
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "saveLayout",
+      "text": "design"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.export"
+    },
+    {
+      "kind": "expectStory",
+      "field": "exported",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / レビュー"
+    },
+    {
+      "kind": "caption",
+      "text": "ショートカット一つで、表示するアプリの組み合わせを切り替えます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.check"
+    },
+    {
+      "kind": "expectStory",
+      "field": "checksPassed",
+      "value": "3"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.comment"
+    },
+    {
+      "kind": "typeText",
+      "app": "Review",
+      "text": "準備できました。プレビューも書き出しました。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.approve"
+    },
+    {
+      "kind": "expectStory",
+      "field": "approved",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "caption",
+      "text": "戻ると、ウインドウの位置と大きさが復元されます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 借りる"
+    },
+    {
+      "kind": "caption",
+      "text": "借りる機能で、別のワークスペースを今の作業の隣に表示します。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.task.1"
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "公開のお知らせを準備します。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "公開のお知らせを準備します。"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 常に手前"
+    },
+    {
+      "kind": "caption",
+      "text": "最前面表示にすると、ほかのアプリの手前にウインドウを保てます。"
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Monitor",
+      "target": "Docs",
+      "x": 0.3,
+      "y": 0.7
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 自動化"
+    },
+    {
+      "kind": "caption",
+      "text": "CLI を使うと、複数のワークスペース操作をスクリプトにまとめられます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 4"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Build"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "focus-session",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "focus-session",
+      "code": 0
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 環境に合わせる"
+    },
+    {
+      "kind": "caption",
+      "text": "ディスプレイを接続すると、条件に合うプロファイルへ自動で切り替わります。"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": true
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "expectHook",
+      "field": "profile",
+      "value": "Desk"
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    },
+    {
+      "kind": "caption",
+      "text": "接続を外すと、ノートブック用のプロファイルと配置に戻ります。"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": false
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI"
+    },
+    {
+      "kind": "caption",
+      "text": "ツールも、作業の場所も、そのまま。 | BSP タイル表示を備えた macOS 用ワークスペースマネージャです。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

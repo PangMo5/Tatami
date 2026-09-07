@@ -1,0 +1,126 @@
+{
+  "name": "borrow",
+  "title": "把对话放到旁边",
+  "summary": "无需离开当前任务，就能借用另一个工作区。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "借用工作区"
+    },
+    {
+      "kind": "caption",
+      "text": "无需离开当前任务，就能借用另一个工作区。"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - 3"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Chat",
+      "identifier": "chat.message"
+    },
+    {
+      "kind": "typeText",
+      "app": "Chat",
+      "text": "沙金配色已经可以评审了。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastMessage",
+      "value": "沙金配色已经可以评审了。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "收起借用的工作区，恢复完整布局。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

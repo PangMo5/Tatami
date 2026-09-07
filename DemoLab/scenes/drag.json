@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "Drag a window onto another tile."
+      "text": "Drag onto another window to swap or reposition it."
     },
     {
       "kind": "saveLayout",
@@ -85,7 +85,7 @@
     },
     {
       "kind": "caption",
-      "text": "Resize an edge. The tree remembers the ratio."
+      "text": "Drag a window edge; Tatami saves the new split ratio."
     },
     {
       "kind": "resizeWindow",

@@ -2198,7 +2198,7 @@ public struct OnboardingFeature {
       state.demoActionResult = String(localized: "Flipped the focused tile's parent split")
 
     case .resize(let delta):
-      let updated = tree.resizing(window: selected, direction: .east, delta: delta)
+      let updated = tree.resizing(window: selected, delta: delta)
       guard updated != tree else {
         state.demoActionResult = String(localized: "No vertical split owns the focused tile")
         return true

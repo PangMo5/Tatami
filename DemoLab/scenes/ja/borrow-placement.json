@@ -1,0 +1,174 @@
+{
+  "name": "borrow-placement",
+  "title": "位置と作業の場を選ぶ",
+  "summary": "ワークスペースを左や下に借りて、境界を越えてフォーカスを移し、その作業に切り替えます。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "configure",
+      "field": "borrowDefaultEdge",
+      "value": "remove"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "借りる位置を選ぶ"
+    },
+    {
+      "kind": "caption",
+      "text": "借りるワークスペースを、画面のどの辺に置くか選べます。"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - 3"
+    },
+    {
+      "kind": "key",
+      "chord": "left"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "caption",
+      "text": "今のワークスペースの下側に借りることもできます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - 3"
+    },
+    {
+      "kind": "key",
+      "chord": "down"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "caption",
+      "text": "借りているワークスペースを開くと、その作業へ完全に切り替わります。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - \\"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

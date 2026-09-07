@@ -161,12 +161,12 @@ public struct DemoAppsController {
     let identifiers = Set(DemoCatalog.all.map(\.bundleIdentifier))
     return NSWorkspace.shared.runningApplications.filter {
       guard let identifier = $0.bundleIdentifier else { return false }
-      return identifiers.contains(identifier)
+      return identifiers.contains(identifier) && Shell.processExists($0.processIdentifier)
     }
   }
 
   public static func isRunning(_ spec: DemoAppSpec) -> Bool {
-    !NSRunningApplication.runningApplications(withBundleIdentifier: spec.bundleIdentifier).isEmpty
+    NSRunningApplication.runningApplications(withBundleIdentifier: spec.bundleIdentifier).contains { Shell.processExists($0.processIdentifier) }
   }
 
   /// Whether the app answers on its control socket. `isRunning` is not enough:
@@ -374,7 +374,7 @@ public struct OverlayController {
   public var bundleExists: Bool { FileManager.default.fileExists(atPath: bundle.path) }
 
   public static func running() -> [NSRunningApplication] {
-    NSRunningApplication.runningApplications(withBundleIdentifier: DemoCatalog.overlayBundleIdentifier)
+    NSRunningApplication.runningApplications(withBundleIdentifier: DemoCatalog.overlayBundleIdentifier).filter { Shell.processExists($0.processIdentifier) }
   }
 
   /// Launches the overlay and waits for it to answer.

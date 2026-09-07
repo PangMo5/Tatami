@@ -1,0 +1,91 @@
+{
+  "name": "workspace-copy",
+  "title": "在工作区之间复制设置",
+  "summary": "检查另一个工作区的应用和设置，然后应用所选更改。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Desk"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "复制工作区设置"
+    },
+    {
+      "kind": "caption",
+      "text": "选择要从中复制设置的工作区。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:从其他工作区复制…"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "title:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:Design"
+    },
+    {
+      "kind": "caption",
+      "text": "复制到当前工作区前，先检查更改内容。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:复制"
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Docs",
+      "workspace": "Design",
+      "profile": "Desk"
+    },
+    {
+      "kind": "caption",
+      "text": "所选应用和设置已复制到当前工作区。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "heading:布局"
+    },
+    {
+      "kind": "beat",
+      "ms": 2400
+    }
+  ]
+}

@@ -67,7 +67,7 @@
     },
     {
       "kind": "caption",
-      "text": "Choose the edge after the workspace key."
+      "text": "Choose which edge to place the borrowed workspace on."
     },
     {
       "kind": "saveLayout",
@@ -101,7 +101,7 @@
     },
     {
       "kind": "caption",
-      "text": "Or keep a conversation underneath."
+      "text": "Borrow can also place a workspace below the current one."
     },
     {
       "kind": "key",
@@ -123,7 +123,7 @@
     },
     {
       "kind": "caption",
-      "text": "Activate the borrowed workspace when it becomes the task."
+      "text": "Activate the borrowed workspace to switch to it completely."
     },
     {
       "kind": "key",

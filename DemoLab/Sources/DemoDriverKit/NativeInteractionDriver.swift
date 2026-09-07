@@ -24,6 +24,48 @@ public enum NativeInteractionDriver {
     try clickPoint(point)
   }
 
+  public static func isMenuItem(bundleIdentifier: String, identifier: String) throws -> Bool {
+    let target = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
+    return attribute(target, kAXRoleAttribute) as? String == kAXMenuItemRole
+  }
+
+  public static func rightClick(bundleIdentifier: String, identifier: String) throws {
+    let target = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
+    try reveal(target)
+    let point = try center(of: target)
+    try move(to: point)
+    guard let down = CGEvent(mouseEventSource: nil, mouseType: .rightMouseDown, mouseCursorPosition: point, mouseButton: .right),
+          let up = CGEvent(mouseEventSource: nil, mouseType: .rightMouseUp, mouseCursorPosition: point, mouseButton: .right)
+    else { throw DriverError.eventSourceUnavailable }
+    down.flags = []; up.flags = []
+    down.post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.06)
+    up.post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.25)
+  }
+
+  public static func prepareSettingsWindow(bundleIdentifier: String) throws {
+    let window = try element(bundleIdentifier: bundleIdentifier, identifier: "main")
+    var frame = try bounds(of: window)
+    try drag(from: CGPoint(x: frame.minX + 110, y: frame.minY + 15), to: CGPoint(x: 260, y: 125))
+    frame = try bounds(of: window)
+    try drag(from: CGPoint(x: frame.maxX - 2, y: frame.maxY - 2), to: CGPoint(x: 1770, y: 1050))
+  }
+
+  public static func clickSettingsWindowTitle(bundleIdentifier: String) throws {
+    let window = try element(bundleIdentifier: bundleIdentifier, identifier: "main")
+    // Auto-opened fixture apps can cover Tatami during launch. Raise the
+    // actual window first so the title click cannot hit an app behind it.
+    guard AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success else {
+      throw InteractionError("could not raise the Tatami window")
+    }
+    Thread.sleep(forTimeInterval: 0.12)
+    let sheet = (attribute(window, kAXChildrenAttribute) as? [AXUIElement])?
+      .first { attribute($0, kAXRoleAttribute) as? String == kAXSheetRole }
+    let frame = try bounds(of: sheet ?? window)
+    try clickPoint(CGPoint(x: sheet == nil ? frame.minX + 110 : frame.midX, y: frame.minY + 15))
+  }
+
   public static func clickWindowTitle(bundleIdentifier:String) throws {
     let frame=try windowFrame(bundleIdentifier:bundleIdentifier)
     try clickPoint(CGPoint(x:frame.midX,y:frame.minY+14))
@@ -50,7 +92,9 @@ public enum NativeInteractionDriver {
   public static func windowFrame(bundleIdentifier:String) throws -> CGRect {
     guard let app=NSRunningApplication.runningApplications(withBundleIdentifier:bundleIdentifier).first else {throw InteractionError("app is not running")}
     let root=AXUIElementCreateApplication(app.processIdentifier)
-    guard let windows=attribute(root,kAXWindowsAttribute) as? [AXUIElement], let window=windows.first else {throw InteractionError("app has no window")}
+    guard let windows=attribute(root,kAXWindowsAttribute) as? [AXUIElement],
+          let window=windows.first(where: { search($0, identifier: "demolab.window.content", depth: 0) != nil })
+    else {throw InteractionError("app has no identified demo window") }
     return try bounds(of:window)
   }
   public static func drag(from:CGPoint,to:CGPoint) throws {
@@ -128,6 +172,9 @@ public enum NativeInteractionDriver {
     for _ in 0..<24 {
       guard let raw=attribute(node,kAXParentAttribute),CFGetTypeID(raw)==AXUIElementGetTypeID() else {break}
       node=unsafeDowncast(raw,to:AXUIElement.self)
+      // A popup menu floats above its owner's scroll view; scrolling that
+      // view cannot reveal a submenu item and can instead close the menu.
+      if attribute(node,kAXRoleAttribute) as? String == kAXMenuRole { return }
       if attribute(node,kAXRoleAttribute) as? String == kAXScrollAreaRole {ancestors.append(node)}
     }
     for ancestor in ancestors.reversed() {
@@ -168,7 +215,14 @@ public enum NativeInteractionDriver {
   private static func search(_ element: AXUIElement, identifier: String, depth: Int) -> AXUIElement? {
     guard depth < 30 else { return nil }
     let selectors=["title:":kAXTitleAttribute,"help:":kAXHelpAttribute,"text:":kAXValueAttribute,"description:":kAXDescriptionAttribute]
-    if let selector=selectors.first(where:{identifier.hasPrefix($0.key)}) {
+    let roleSelectors = ["button:": kAXButtonRole, "heading:": "AXHeading"]
+    if let selector = roleSelectors.first(where: { identifier.hasPrefix($0.key) }) {
+      let label = String(identifier.dropFirst(selector.key.count))
+      if attribute(element, kAXRoleAttribute) as? String == selector.value,
+         [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute].contains(where: { attribute(element, $0) as? String == label }) {
+        return element
+      }
+    } else if let selector=selectors.first(where:{identifier.hasPrefix($0.key)}) {
       if attribute(element,selector.value) as? String == String(identifier.dropFirst(selector.key.count)) {return element}
     } else if attribute(element,kAXIdentifierAttribute) as? String == identifier {return element}
     for child in attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {

@@ -1,7 +1,7 @@
 {
   "name": "ai-draft",
   "title": "Review a suggested setup",
-  "summary": "A clearly labelled example proposal is validated and applied only to the Guided Setup draft.",
+  "summary": "Validate an example AI proposal and apply it to the draft. No external AI service is called in this recording.",
   "requires": {
     "displays": 1
   },
@@ -25,7 +25,7 @@
     {
       "kind": "click",
       "app": "Tatami",
-      "identifier": "description:Run Guided Setup\u2026"
+      "identifier": "description:Run Guided Setup…"
     },
     {
       "kind": "click",
@@ -49,7 +49,7 @@
     },
     {
       "kind": "caption",
-      "text": "A proposed setup is something you review."
+      "text": "Review an AI-proposed configuration before applying it."
     },
     {
       "kind": "saveLayout",
@@ -72,7 +72,7 @@
     },
     {
       "kind": "caption",
-      "text": "Check the workspaces and app placements."
+      "text": "Check which apps are assigned to each proposed workspace."
     },
     {
       "kind": "hover",

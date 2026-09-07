@@ -72,7 +72,7 @@ struct SubtitleTests {
     #expect(!ass.contains("ctrl + alt - l"))
   }
 
-  @Test("a caption stays in the export footer without an opaque box")
+  @Test("a two-line caption stays in one overlay event")
   func captionIsOneEvent() {
     let timeline = SceneTimeline(scene: "t", t0: .now)
     timeline.record(.caption, text: "Headline\(SceneTimeline.captionSeparator)why it matters", at: 0)
@@ -88,9 +88,9 @@ struct SubtitleTests {
     // a step in the card. Inline overrides keep one box.
     #expect(!event.contains("\\r"))
 
-    // The export footer carries plain text, without an opaque box or outline.
-    #expect(styleField("BorderStyle", of: "Caption", in: ass) == "1")
-    #expect(styleField("Outline", of: "Caption", in: ass) == "0")
+    // One translucent backing protects both lines over light or dark apps.
+    #expect(styleField("BorderStyle", of: "Caption", in: ass) == "3")
+    #expect(styleField("Outline", of: "Caption", in: ass) == "10")
   }
 
   @Test("a clear ends the words rather than writing an empty line")

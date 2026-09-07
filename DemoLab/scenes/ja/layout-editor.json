@@ -1,0 +1,131 @@
+{
+  "name": "layout-editor",
+  "title": "見ながら配置を決める",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "レイアウトエディタ"
+    },
+    {
+      "kind": "caption",
+      "text": "ワークスペースを開く前に、保存するウインドウ配置を編集できます。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:90°回転"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "配置プレビューで、上下の位置を入れ替えます。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "before-mirror"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:上下反転"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "before-mirror"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "ワークスペースを開くと、編集した配置が実際のウインドウに反映されます。"
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "final-canvas-tile"
+    },
+    {
+      "kind": "closeSettings"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Canvas",
+      "target": "Docs",
+      "value": "above"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "summary": "ワークスペースを開く前に、保存するウインドウ配置を編集できます。"
+}

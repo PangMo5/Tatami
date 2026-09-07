@@ -1,0 +1,109 @@
+{
+  "name": "ai-draft",
+  "title": "检查建议的配置",
+  "summary": "验证示例 AI 建议并应用到草稿。本次录制未调用外部 AI 服务。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Tatami"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:运行引导设置…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:继续"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:继续"
+    },
+    {
+      "kind": "clipboard",
+      "text": "{\n  \"workspaces\": [\n    {\n      \"name\": \"Design review\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Canvas\",\n        \"dev.PangMo5.DemoLab.Docs\"\n      ]\n    },\n    {\n      \"name\": \"Writing\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Editor\"\n      ]\n    },\n    {\n      \"name\": \"Conversation\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Chat\"\n      ]\n    },\n    {\n      \"name\": \"Quick notes\",\n      \"kind\": \"scratchpad\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Notes\"\n      ]\n    }\n  ]\n}\n"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "AI 规划 / 示例建议"
+    },
+    {
+      "kind": "caption",
+      "text": "应用 AI 建议的配置之前，先进行检查。"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "desktop"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3. 粘贴结果"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:Design review",
+      "value": "Design review"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "检查建议的各个工作区分配了哪些应用。"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "description:将方案应用到草稿"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:将方案应用到草稿"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "text:Design review"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "desktop"
+    },
+    {
+      "kind": "caption",
+      "text": "只修改草稿，实际桌面保持不变。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    }
+  ]
+}

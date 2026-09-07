@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](TROUBLESHOOTING.md) · [한국어](ko/TROUBLESHOOTING.md) · [日本語](ja/TROUBLESHOOTING.md) · [简体中文](zh-Hans/TROUBLESHOOTING.md) · [繁體中文](zh-Hant/TROUBLESHOOTING.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Troubleshooting
 
 ## A floating control disappears or brings its app back

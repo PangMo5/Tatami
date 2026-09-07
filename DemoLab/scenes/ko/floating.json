@@ -1,0 +1,148 @@
+{
+  "name": "floating",
+  "title": "작업 공간 위에 메모 두기",
+  "summary": "메모를 항상 위에 두거나 타일링에 포함하고 실제 버튼과 입력창을 사용해요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Focus",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "항상 위"
+    },
+    {
+      "kind": "caption",
+      "text": "항상 위로 설정한 창은 작업 공간 위에 계속 보여요."
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "작은 크기에서도 미리보기를 확인해요.",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "작은 크기에서도 미리보기를 확인해요."
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "caption",
+      "text": "타일링으로 바꾸면 다른 창과 함께 나눠 배치돼요."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Notes"
+    },
+    {
+      "kind": "key",
+      "chord": "alt + cmd - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "caption",
+      "text": "필요할 때 다시 항상 위로 바꿀 수 있어요."
+    },
+    {
+      "kind": "key",
+      "chord": "alt + cmd - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 400
+    },
+    {
+      "kind": "restoreWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Notes"
+    }
+  ]
+}

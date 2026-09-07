@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "A place for every part of the work."
+      "text": "Each workspace keeps the apps and layout for one task."
     },
     {
       "kind": "beat",
@@ -78,7 +78,7 @@
     },
     {
       "kind": "caption",
-      "text": "Start with the big picture."
+      "text": "Enlarge one window to fill the workspace."
     },
     {
       "kind": "click",
@@ -114,7 +114,7 @@
     },
     {
       "kind": "caption",
-      "text": "Keep the brief beside the preview."
+      "text": "Exit zoom to restore the previous window layout."
     },
     {
       "kind": "key",
@@ -135,7 +135,7 @@
     },
     {
       "kind": "caption",
-      "text": "Writing gets its own tools."
+      "text": "Switch workspaces to bring up the apps for your next task."
     },
     {
       "kind": "key",
@@ -189,7 +189,7 @@
     },
     {
       "kind": "caption",
-      "text": "Return to a live preview of the saved work."
+      "text": "Return to Design; its apps are ready where you left them."
     },
     {
       "kind": "key",
@@ -243,7 +243,7 @@
     },
     {
       "kind": "caption",
-      "text": "Review in a different context."
+      "text": "A workspace shortcut switches the whole set of apps."
     },
     {
       "kind": "key",
@@ -301,7 +301,7 @@
     },
     {
       "kind": "caption",
-      "text": "Your arrangement is waiting for you."
+      "text": "Window positions and sizes are restored when you return."
     },
     {
       "kind": "key",
@@ -332,7 +332,7 @@
     },
     {
       "kind": "caption",
-      "text": "Keep the next step alongside."
+      "text": "Borrow adds another workspace beside the current one."
     },
     {
       "kind": "key",
@@ -387,7 +387,7 @@
     },
     {
       "kind": "caption",
-      "text": "Keep useful status above the workspace."
+      "text": "Always on Top keeps a window visible above other apps."
     },
     {
       "kind": "launch",
@@ -405,6 +405,17 @@
       "kind": "click",
       "app": "Monitor",
       "identifier": "monitor.mode"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Monitor",
+      "target": "Docs",
+      "x": 0.3,
+      "y": 0.7
+    },
+    {
+      "kind": "beat",
+      "ms": 700
     },
     {
       "kind": "activateApp",
@@ -428,7 +439,7 @@
     },
     {
       "kind": "caption",
-      "text": "Make the routine a command."
+      "text": "Use the CLI to combine workspace actions in a script."
     },
     {
       "kind": "key",
@@ -491,7 +502,7 @@
     },
     {
       "kind": "caption",
-      "text": "A second display. A different setup."
+      "text": "Connecting a display automatically activates the matching profile."
     },
     {
       "kind": "saveWindow",
@@ -521,7 +532,7 @@
     },
     {
       "kind": "caption",
-      "text": "Back on one screen, the layout returns."
+      "text": "Disconnecting the display restores the laptop profile and layout."
     },
     {
       "kind": "virtualDisplay",

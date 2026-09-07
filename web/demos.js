@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 (() => {
-  document.querySelectorAll('.nav-links a').forEach(link => link.addEventListener('click', () => { document.getElementById('nav-toggle').checked = false; }));
   const collections = [];
   document.querySelectorAll('.demo-gallery').forEach(gallery => {
     const slides = [...gallery.querySelectorAll('.demo-slide')];
@@ -36,7 +35,7 @@
       if (play) {
         gallery.scrollIntoView({block:'start'});
         slides[selected].querySelector('video').play().catch(() => {
-          count.textContent = `${selected + 1} / ${slides.length} · Use the play control`;
+          count.textContent = `${selected + 1} / ${slides.length} · ${gallery.dataset.playHint}`;
         });
       }
     }

@@ -13,9 +13,10 @@ struct ReviewView: View {
       Spacer()
       Button("Check copy") { session.update { $0.checks = $0.evaluateCopy() } }
         .accessibilityIdentifier("review.check")
-      Button(session.story.approved ? "Approved" : "Approve") {
+      Button {
         session.update { $0.approved = true }
-      }.disabled(session.story.checks.isEmpty || session.story.checks.contains { !$0.passed } || session.story.approved)
+      } label: { Text(session.story.approved ? LocalizedStringResource("Approved") : LocalizedStringResource("Approve")) }
+      .disabled(session.story.checks.isEmpty || session.story.checks.contains { !$0.passed } || session.story.approved)
         .accessibilityIdentifier("review.approve")
     } content: {
       ScrollView {

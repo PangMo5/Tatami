@@ -315,6 +315,9 @@ public struct WorkspaceActivationFeature {
     /// startup discovery. The first later sync that sees the matching live
     /// occurrences promotes them into `fullscreenZoomed`.
     public var unresolvedFullscreenZoomSlots = [Workspace.ID: Set<SlotID>]()
+    /// Keep the saved shape while auto-opened windows are still arriving.
+    /// A partial discovery must not replace a complete persisted layout.
+    public var pendingLayoutRestorations = [Workspace.ID: LayoutSnapshot]()
 
     /// Active composition per display — a host workspace plus borrowed
     /// blocks. Absent → that display shows its host alone (default behavior).
@@ -1196,6 +1199,7 @@ public struct WorkspaceActivationFeature {
     case windowCycleHUDInteraction(WindowSwitcherInteraction)
     case bspSwap(BSPDirection)
     case bspResize(direction: BSPDirection, delta: CGFloat)
+    case bspResizeFocused(delta: CGFloat)
     case bspToggleOrientation
     /// Tatami's fullscreen-zoom: multi-window, takes the window out of
     /// the tree's layout and renders it at the work area.
@@ -1205,6 +1209,7 @@ public struct WorkspaceActivationFeature {
     /// GUI layout-preview edit for the *active* workspace: apply a structural
     /// op to its live tree, re-tile on screen, and persist per memory setting.
     case layoutEdited(workspaceId: Workspace.ID, op: LayoutEditOp)
+    case persistedLayoutRestorationUpdated(workspaceId: Workspace.ID, snapshot: LayoutSnapshot?)
     /// A GUI edit changed an *inactive* workspace's saved layout — drop its
     /// resident in-memory tree/zoom so the next activation rebuilds from the
     /// edited snapshot rather than the stale session state.
@@ -1390,6 +1395,7 @@ public struct WorkspaceActivationFeature {
   public enum BSPOp: Sendable, Hashable {
     case swap(BSPDirection)
     case resize(BSPDirection, delta: CGFloat)
+    case resizeFocused(delta: CGFloat)
     case toggleOrientation
     case toggleZoomFullscreen
     /// Follow the configured auto-balance axes, or rebuild the canonical
@@ -4017,6 +4023,11 @@ public struct WorkspaceActivationFeature {
           .bspOpResolved(windowKey: key, op: .resize(direction, delta: delta))
         }
 
+      case .bspResizeFocused(let delta):
+        return resolveFocusedWindowKey { key in
+          .bspOpResolved(windowKey: key, op: .resizeFocused(delta: delta))
+        }
+
       case .bspToggleOrientation:
         return resolveFocusedWindowKey { key in
           .bspOpResolved(windowKey: key, op: .toggleOrientation)
@@ -4046,6 +4057,7 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         let newTree = tree.applying(op)
         guard newTree != tree else { return .none }
+        state.pendingLayoutRestorations[workspaceId] = nil
         state.tilingTrees[workspaceId] = newTree
         let zoomed = state.fullscreenZoomed[workspaceId] ?? []
         return .merge(
@@ -4071,7 +4083,12 @@ public struct WorkspaceActivationFeature {
         state.tilingTrees[workspaceId] = nil
         state.fullscreenZoomed[workspaceId] = nil
         state.unresolvedFullscreenZoomSlots[workspaceId] = nil
+        state.pendingLayoutRestorations[workspaceId] = nil
         state.insertionPoint[workspaceId] = nil
+        return .none
+
+      case .persistedLayoutRestorationUpdated(let workspaceId, let snapshot):
+        state.pendingLayoutRestorations[workspaceId] = snapshot
         return .none
 
       case .persistedFullscreenZoomRestored(
@@ -4921,6 +4938,7 @@ public struct WorkspaceActivationFeature {
          .bspFocus,
          .bspSwap,
          .bspResize,
+         .bspResizeFocused,
          .bspToggleOrientation,
          .bspToggleZoomFullscreen,
          .bspBalance,
@@ -5422,6 +5440,9 @@ public struct WorkspaceActivationFeature {
       "\(String(describing: op)) \(windowKey.bundleId)#\(windowKey.windowID)",
     )
 
+    // An explicit edit owns the current layout, including during startup.
+    state.pendingLayoutRestorations[workspaceId] = nil
+
     let settings = state.config.settings
     // The block's geometry: a composition sub-rect when composed, else the
     // workspace's full work area. (Display is re-derived in `flushLayout`.)
@@ -5459,6 +5480,9 @@ public struct WorkspaceActivationFeature {
       // east/south edge. (The previous fence-based path returned nil at the
       // edge, which made grow/shrink a no-op for edge windows.)
       tree = tree.resizing(window: windowKey, direction: direction, delta: delta)
+
+    case .resizeFocused(let delta):
+      tree = tree.resizing(window: windowKey, delta: delta)
 
     case .toggleOrientation:
       tree = tree.togglingSplit(at: windowKey)

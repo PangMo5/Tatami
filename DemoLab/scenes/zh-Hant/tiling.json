@@ -1,0 +1,161 @@
+{
+  "name": "tiling",
+  "title": "讓新視窗找到位置",
+  "summary": "新視窗會分割目前選取視窗的區域，自動排列。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - left"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Docs",
+      "target": "Canvas",
+      "value": "right"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "自動並排"
+    },
+    {
+      "kind": "caption",
+      "text": "新視窗會分割目前選取視窗的區域，自動排列。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Docs",
+      "target": "Canvas",
+      "value": "right"
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "caption",
+      "text": "新視窗加入時，其他區域的視窗保持原位。"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.forest"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "caption",
+      "text": "關閉視窗後，其餘視窗會填滿空出的空間。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

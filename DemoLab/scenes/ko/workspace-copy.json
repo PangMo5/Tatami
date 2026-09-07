@@ -1,0 +1,91 @@
+{
+  "name": "workspace-copy",
+  "title": "작업 공간 간 설정 복사하기",
+  "summary": "다른 작업 공간에서 복사할 앱과 설정을 검토한 뒤 선택한 변경을 적용해요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Desk"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "작업 공간 설정 복사"
+    },
+    {
+      "kind": "caption",
+      "text": "설정을 가져올 작업 공간을 선택해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:다른 작업 공간에서 복사…"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "title:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:Design"
+    },
+    {
+      "kind": "caption",
+      "text": "현재 작업 공간에 복사할 변경 내용을 먼저 확인해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:복사"
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Docs",
+      "workspace": "Design",
+      "profile": "Desk"
+    },
+    {
+      "kind": "caption",
+      "text": "선택한 앱과 설정이 현재 작업 공간에 복사됐어요."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "heading:배치"
+    },
+    {
+      "kind": "beat",
+      "ms": 2400
+    }
+  ]
+}

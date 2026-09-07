@@ -1,0 +1,206 @@
+{
+  "name": "focus",
+  "title": "讓焦點跟隨你的意圖",
+  "summary": "用快速鍵選擇相鄰視窗並移動滑鼠游標，也可以將游標移入視窗來選取它。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "焦點與游標"
+    },
+    {
+      "kind": "caption",
+      "text": "用快速鍵選取視窗時，滑鼠游標也會移到該視窗。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - h"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - l"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - h"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - l"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "expectPointer",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "啟用焦點跟隨滑鼠後，游標移入哪個視窗就選取哪個視窗。"
+    },
+    {
+      "kind": "hover",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "hover",
+      "app": "Docs",
+      "identifier": "docs.search"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "typeText",
+      "app": "Docs",
+      "text": "標題",
+      "ms": 65
+    },
+    {
+      "kind": "expectValue",
+      "app": "Docs",
+      "identifier": "docs.search",
+      "value": "標題"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "關閉視窗後，自動選取剩下的視窗。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

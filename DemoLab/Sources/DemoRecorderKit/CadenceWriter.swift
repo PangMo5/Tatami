@@ -215,7 +215,7 @@ public final class CadenceWriter: @unchecked Sendable {
     let (frames, captured, dropped, start, last) = lock.withLock {
       isFinished = true
       latestBuffer = nil
-      return (appendedFrameCount, capturedFrameCount, droppedFrameCount, startPTS, lastPresentationTime)
+      return (appendedFrameCount, capturedFrameCount, accounting.droppedFrameCount, startPTS, lastPresentationTime)
     }
 
     guard let start, frames > 0 else {
@@ -261,9 +261,8 @@ public final class CadenceWriter: @unchecked Sendable {
   private var startPTS: CMTime?
   private var startUptime: UInt64?
   private var lastPresentationTime = CMTime.zero
-  private var frameIndex = 0
+  private var accounting = CadenceAccounting()
   private var appendedFrameCount = 0
-  private var droppedFrameCount = 0
   private var capturedFrameCount = 0
   private var hasStartedSession = false
   private var isFinished = false
@@ -342,11 +341,10 @@ public final class CadenceWriter: @unchecked Sendable {
     // starts at the first frame that actually exists.
     guard !stopped, let source else { return }
 
-    guard input.isReadyForMoreMediaData else {
-      // Never block the cadence on the encoder: drop this tick instead.
-      countDrop()
-      return
-    }
+    let ready = input.isReadyForMoreMediaData
+    // Encoder warm-up precedes the first movie frame, so it is startup latency,
+    // not a hole in the delivered timeline.
+    guard ready || lock.withLock({ startUptime != nil }) else { return }
 
     let now = DispatchTime.now().uptimeNanoseconds
     lock.lock()
@@ -360,11 +358,14 @@ public final class CadenceWriter: @unchecked Sendable {
     // wall-clock time rather than by one, so the file's duration keeps matching
     // the take instead of quietly shrinking.
     let elapsed = Double(now &- startedAt) / 1_000_000_000
-    let target = max(frameIndex, Int((elapsed * Double(fps)).rounded()))
-    droppedFrameCount += target - frameIndex
-    frameIndex = target
+    let target = accounting.reserve(elapsed: elapsed, fps: fps)
     let needsSession = !hasStartedSession
     lock.unlock()
+
+    guard ready else {
+      countDrop()
+      return
+    }
 
     let presentationTime = CMTimeAdd(start, CMTime(value: CMTimeValue(target), timescale: CMTimeScale(fps)))
     var timing = CMSampleTimingInfo(
@@ -398,7 +399,6 @@ public final class CadenceWriter: @unchecked Sendable {
     }
 
     lock.lock()
-    frameIndex = target + 1
     appendedFrameCount += 1
     lastPresentationTime = presentationTime
     lock.unlock()
@@ -406,7 +406,7 @@ public final class CadenceWriter: @unchecked Sendable {
 
   private func countDrop() {
     lock.lock()
-    droppedFrameCount += 1
+    accounting.rejectReservedFrame()
     lock.unlock()
   }
 
@@ -416,7 +416,7 @@ public final class CadenceWriter: @unchecked Sendable {
     lock.lock()
     let alreadyFailed = hasFailed
     hasFailed = true
-    droppedFrameCount += 1
+    accounting.rejectReservedFrame()
     lock.unlock()
     guard !alreadyFailed else { return }
     StandardError.write("DemoRecorder: append failed for \(outputURL.path): \(CadenceWriter.reason(writer.error))")

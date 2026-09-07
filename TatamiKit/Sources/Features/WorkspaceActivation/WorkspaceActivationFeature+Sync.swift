@@ -477,6 +477,7 @@ extension WorkspaceActivationFeature {
       windowSnapshot.invalidateWindowIDs(invalidatedWindowIDs)
       var pruned: BSPNode<WindowKey>? = tree
       for key in gone { pruned = pruned?.removing(key) }
+      state.pendingLayoutRestorations[workspaceId] = nil
       let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
       state.tilingTrees[workspaceId] = balanced
       let newWindows = Set(balanced?.windows ?? [])
@@ -681,6 +682,7 @@ extension WorkspaceActivationFeature {
       let lostEveryIdentity = Set(current.windows).isDisjoint(with: suspendedWindows)
       let recovered: BSPNode<WindowKey>
       if lostEveryIdentity {
+        state.pendingLayoutRestorations[workspaceId] = nil
         let (_, workArea) = tilingContext(for: workspaceId, state: state)
         recovered = current.balancedForCommand(
           autoBalance: settings.layout.autoBalance,
@@ -1026,6 +1028,30 @@ extension WorkspaceActivationFeature {
       }
     }
 
+    // Restore late-arriving slots into the saved shape. A closed window is
+    // new user intent and ends the startup restore.
+    let currentKeys = tree?.windows ?? []
+    let removedDuringSync = Set(replacementBaseline?.windows ?? [])
+      .subtracting(currentKeys)
+    if !removedDuringSync.isEmpty {
+      state.pendingLayoutRestorations[workspaceId] = nil
+    } else if let restoration = state.pendingLayoutRestorations[workspaceId],
+              let restored = BSPNode.hydrate(template: restoration.tree, keys: currentKeys) {
+      tree = Self.mergeTree(
+        existing: restored,
+        target: currentKeys,
+        focused: { focused },
+        insertionPoint: insertionPointKey,
+        workArea: workArea,
+        settings: settings,
+      )
+      let expectedApps = Set(workspace.apps.filter { $0.autoOpen && $0.layout == .tiled }.map(\.bundleIdentifier))
+        .intersection(restoration.tree.windows.map(\.bundleId))
+      if expectedApps.isSubset(of: Set(currentKeys.map(\.bundleId))) {
+        state.pendingLayoutRestorations[workspaceId] = nil
+      }
+    }
+
     // Auto-balance belongs to logical insert/remove transitions. A no-op sync
     // must preserve user-resized ratios, and a WindowServer identity swap is
     // still the same logical slot. Compare against the replacement-normalized
@@ -1267,7 +1293,7 @@ extension WorkspaceActivationFeature {
           postLayoutFocusEffect,
         )
       }
-    let persistence = state.isRecoveringSystemLayout
+    let persistence = state.isRecoveringSystemLayout || state.pendingLayoutRestorations[workspaceId] != nil
       ? Effect<Action>.none
       : persist(
         final,

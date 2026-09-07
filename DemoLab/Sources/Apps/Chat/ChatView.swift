@@ -64,7 +64,7 @@ private struct ChatMessageRow: View {
       Text(message.author == "You" ? "Y" : "M").font(.system(size: 15, weight: .semibold))
         .frame(width: 38, height: 38).background(message.author == "You" ? Color.blue.opacity(0.12) : Color.purple.opacity(0.12), in: .rect(cornerRadius: 12))
       VStack(alignment: .leading, spacing: 8) {
-        Text(message.author).font(.system(size: 15, weight: .semibold))
+        Text(message.author == "You" ? String(localized: "You") : message.author).font(.system(size: 15, weight: .semibold))
         Text(message.text).font(.system(size: 18)).lineSpacing(5)
       }
     }.frame(maxWidth: .infinity, alignment: .leading)

@@ -43,7 +43,7 @@
     },
     {
       "kind": "caption",
-      "text": "Design here. Reference over there."
+      "text": "Pin different workspaces to different displays."
     },
     {
       "kind": "saveLayout",
@@ -114,7 +114,7 @@
     },
     {
       "kind": "caption",
-      "text": "Return to the pair you were using."
+      "text": "One shortcut restores the previous workspace pair."
     },
     {
       "kind": "key",

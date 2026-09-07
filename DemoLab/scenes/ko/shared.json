@@ -1,0 +1,166 @@
+{
+  "name": "shared",
+  "title": "여러 작업에서 같은 상태 창 보기",
+  "summary": "공용 앱을 항상 위로 두면 어느 작업 공간에서도 보여요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "공용 앱"
+    },
+    {
+      "kind": "caption",
+      "text": "공용 앱을 항상 위로 두면 어느 작업 공간에서도 보여요."
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Review"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "창 하나를 전체 크기로 확대해도 공용 창은 계속 보여요."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Review"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    }
+  ]
+}

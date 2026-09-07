@@ -12,7 +12,7 @@ struct CanvasView: View {
       Spacer()
       Button("Export") { exportPreview() }.accessibilityIdentifier("canvas.export")
       ForEach(["cobalt", "sand", "forest"], id: \.self) { theme in
-        Button(theme.capitalized) { session.update { $0.designTheme = theme } }
+        Button { session.update { $0.designTheme = theme } } label: { Text(DemoTheme.name(theme)) }
           .accessibilityIdentifier("canvas.\(theme)")
           .buttonStyle(.bordered)
           .tint(session.story.designTheme == theme ? Color.purple : Color.gray)
@@ -24,12 +24,12 @@ struct CanvasView: View {
     } status: {
       StoryStatus("Live from the saved draft", error: session.error)
       Spacer()
-      Text("\(session.story.designTheme.capitalized) · Revision \(session.story.revision)")
+      Text("\(String(localized: DemoTheme.name(session.story.designTheme))) · Revision \(session.story.revision)")
     }.onAppear { session.start() }
   }
   private func exportPreview() {
     let renderer=ImageRenderer(content:PagePreview(headline:session.story.headline,bodyText:session.story.body,theme:session.story.designTheme).frame(width:1280).background(Color(red:0.08,green:0.09,blue:0.13)))
-    guard let image=renderer.nsImage,let tiff=image.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) else {session.error="Could not render the preview";return}
+    guard let image=renderer.nsImage,let tiff=image.tiffRepresentation,let bitmap=NSBitmapImageRep(data:tiff),let png=bitmap.representation(using:.png,properties:[:]) else {session.error=String(localized: "Could not render the preview");return}
     do {
       try png.write(to:DemoControl.directory.appendingPathComponent("launch-preview.png"),options:.atomic)
       session.update {story in story.exported=true;if let index=story.tasks.firstIndex(where:{$0.id==2}) {story.tasks[index].done=true}}
@@ -90,8 +90,8 @@ private struct WorkspaceArtwork: View {
   }
 }
 private struct PreviewDetail: View {
-  let number: String; let title: String; let description: String
-  init(_ number: String,_ title: String,_ description: String) { self.number=number;self.title=title;self.description=description }
+  let number: String; let title: LocalizedStringResource; let description: LocalizedStringResource
+  init(_ number: String,_ title: LocalizedStringResource,_ description: LocalizedStringResource) { self.number=number;self.title=title;self.description=description }
   var body: some View {
     VStack(alignment: .leading,spacing:10) {
       Text(number).font(.system(size:12)).foregroundStyle(.white.opacity(0.4))

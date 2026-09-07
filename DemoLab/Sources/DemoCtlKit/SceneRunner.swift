@@ -189,6 +189,25 @@ public final class SceneRunner {
     log("scene \(scene.name) complete")
   }
 
+  public var secondaryCapture: (output: URL, fps: Int)?
+  private var secondaryOffset: Double?
+
+  public func finishSecondaryCapture() throws {
+    guard let capture = secondaryCapture, let offset = secondaryOffset else { return }
+    let recorder = RecorderController(paths: paths, recordingName: "recorder-secondary")
+    let end = try RecorderController(paths: paths).elapsedSinceFirstFrame()
+    _ = try recorder.stop()
+    let stats = try recorder.outputStatistics(for: capture.output)
+    guard let frames = stats["frames"], frames > 0,
+          Double(stats["dropped"] ?? 0) / Double(frames) <= 0.01
+    else { throw DemoCtlError.usage("secondary display capture failed quality checks") }
+    let data: [String: Any] = ["start": offset, "end": end, "frames": frames,
+      "droppedFrames": stats["dropped"] ?? 0, "capture": try recorder.captureMetadata(for: capture.output)]
+    try JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys])
+      .write(to: capture.output.deletingPathExtension().appendingPathExtension("json"), options: .atomic)
+    secondaryOffset = nil
+  }
+
   private func logRequirements(_ requires: SceneRequirements) {
     var lines = [String]()
     if let displays = requires.displays { lines.append("displays: \(displays)") }
@@ -219,10 +238,21 @@ public final class SceneRunner {
       guard let expected=windowFrames[name] else {throw DemoCtlError.usage("missing control checkpoint")}
       guard try Shell.wait(timeout:.seconds(4),until:{!CaptureGate.matches([name:try NativeInteractionDriver.controlFrame(bundleIdentifier:bundle(app),identifier:id)],[name:expected])}) else {throw DemoCtlError.usage("control geometry did not change: \(name)")}
     case .saveWindow(let app): windowFrames[app]=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
+    case .restoreWindow(let app):
+      guard let saved = windowFrames[app] else { throw DemoCtlError.usage("missing saved window: \(app)") }
+      try activate(app: app)
+      let identifier = try bundle(app)
+      var current = try NativeInteractionDriver.windowFrame(bundleIdentifier: identifier)
+      if abs(current.width - saved.width) > 4 || abs(current.height - saved.height) > 4 {
+        let corner = CGPoint(x: current.maxX - 4, y: current.maxY - 4)
+        try NativeInteractionDriver.drag(from: corner, to: CGPoint(x: corner.x + saved.width - current.width, y: corner.y + saved.height - current.height))
+      }
+      current = try NativeInteractionDriver.windowFrame(bundleIdentifier: identifier)
+      try NativeInteractionDriver.drag(from: CGPoint(x: current.midX, y: current.minY + 14), to: CGPoint(x: saved.midX, y: saved.minY + 14))
     case .assertWindow(let app):
       guard let expected=windowFrames[app] else {throw DemoCtlError.usage("missing window checkpoint")}
       let actual=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
-      guard CaptureGate.matches([app:actual],[app:expected]) else {throw DemoCtlError.usage("window frame changed: \(app)")}
+      guard CaptureGate.matches([app:actual],[app:expected]) else {throw DemoCtlError.usage("window frame changed: \(app); expected \(expected); actual \(actual)")}
     case .expectPointer(let app):
       let frame=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
       guard let point=CGEvent(source:nil)?.location,frame.contains(point) else {throw DemoCtlError.usage("pointer did not follow focus to \(app)")}
@@ -237,6 +267,39 @@ public final class SceneRunner {
       let frame=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
       let point=CGPoint(x:frame.maxX-1,y:frame.midY)
       try NativeInteractionDriver.drag(from:point,to:CGPoint(x:point.x+dx,y:point.y+dy))
+    case .prepareSettings:
+      try activate(app: "Tatami")
+      try NativeInteractionDriver.prepareSettingsWindow(bundleIdentifier: client.install.bundleIdentifier)
+    case .rightClick(let app, let identifier):
+      try NativeInteractionDriver.rightClick(bundleIdentifier: bundle(app), identifier: identifier)
+    case .expectProfileCount(let count):
+      guard try Shell.wait(timeout: .seconds(4), until: { try client.profiles().count == count })
+      else { throw DemoCtlError.usage("unexpected profile count") }
+    case .expectAssignment(let app, let workspace, let profile):
+      let identifier = try bundle(app)
+      guard try Shell.wait(timeout: .seconds(5), until: {
+        let rows = try client.json(["workspace", "apps", workspace, "--profile", profile]) as? [[String: Any]]
+        return rows?.contains { $0["bundleIdentifier"] as? String == identifier } == true
+      }) else { throw DemoCtlError.usage("copied app is missing from the target workspace") }
+    case .expectPlacement(let app, let target, let edge):
+      let sourceBundle = try bundle(app), targetBundle = try bundle(target)
+      guard ["left", "right", "above", "below"].contains(edge) else { throw DemoCtlError.usage("unknown placement edge") }
+      let passed = try Shell.wait(timeout: .seconds(5)) {
+        let frames = try CaptureGate.demoFrames()
+        let sources = frames.filter { $0.key.hasPrefix(sourceBundle + ":") }.map(\.value)
+        let targets = frames.filter { $0.key.hasPrefix(targetBundle + ":") }.map(\.value)
+        return !sources.isEmpty && !targets.isEmpty && sources.allSatisfy { source in
+          targets.allSatisfy { target in
+            switch edge {
+            case "left": source.maxX <= target.minX + 4
+            case "right": source.minX >= target.maxX - 4
+            case "above": source.maxY <= target.minY + 4
+            default: source.minY >= target.maxY - 4
+            }
+          }
+        }
+      }
+      guard passed else { throw DemoCtlError.usage("\(app) did not appear \(edge) of \(target)") }
     case .expectFront(let app):
       let id=try bundle(app)
       guard Shell.wait(timeout:.seconds(4),until:{NativeInteractionDriver.frontmostBundleIdentifier()==id}) else {throw DemoCtlError.usage("focus did not reach \(app)")}
@@ -247,7 +310,23 @@ public final class SceneRunner {
       try LiveConfigEditor.update(file:paths.configFile,key:key,value:value)
       Shell.sleep(.milliseconds(800))
     case .virtualDisplay(let connected):
-      if connected {try VirtualDisplayController.connect(paths)} else {try VirtualDisplayController.disconnect(paths)}
+      if connected {
+        try VirtualDisplayController.connect(paths)
+        if let capture = secondaryCapture {
+          var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+          var count: UInt32 = 0
+          guard secondaryOffset == nil, !FileManager.default.fileExists(atPath: capture.output.path),
+                CGGetOnlineDisplayList(16, &ids, &count) == .success,
+                let display = ids.prefix(Int(count)).first(where: { CGDisplayVendorNumber($0) == 0x5050 && CGDisplayModelNumber($0) == 0x1001 })
+          else { throw DemoCtlError.usage("expected a new secondary display capture") }
+          let secondary = RecorderController(paths: paths, recordingName: "recorder-secondary")
+          try secondary.start(output: capture.output, display: "id:\(display)", fps: capture.fps)
+          secondaryOffset = try RecorderController(paths: paths).elapsedSinceFirstFrame() - secondary.elapsedSinceFirstFrame()
+        }
+      } else {
+        try finishSecondaryCapture()
+        try VirtualDisplayController.disconnect(paths)
+      }
     case .expectCommand(let command,let code):
       let file=paths.controlDirectory.appendingPathComponent("terminal-result.json")
       guard Shell.wait(timeout:.seconds(15),until:{
@@ -261,7 +340,12 @@ public final class SceneRunner {
         switch field {case "workspace":return hook.workspace==value;case "profile":return hook.profile==value;case "title":return hook.title.contains(value);default:return hook.event==value}
       }) else {throw DemoCtlError.usage("hook did not report \(field) = \(value)")}
     case .click(let name, let identifier):
-      try activate(app: name)
+      // Reactivating an app while its popup menu is open can dismiss the menu
+      // before the intended item receives the click.
+      let menuItem = name == "Tatami"
+        ? try NativeInteractionDriver.isMenuItem(bundleIdentifier: bundle(name), identifier: identifier)
+        : false
+      if !menuItem { try activate(app: name) }
       try NativeInteractionDriver.click(bundleIdentifier: bundle(name), identifier: identifier)
     case .typeText(let name, let text, let interval):
       let identifier = try bundle(name)
@@ -591,13 +675,13 @@ public final class SceneRunner {
     else {
       throw DemoCtlError.usage("activateApp: \(name) (\(identifier)) is not running")
     }
+    if NativeInteractionDriver.frontmostBundleIdentifier() == identifier { return }
     if demoApp != nil {
-      if NativeInteractionDriver.frontmostBundleIdentifier() == identifier {return}
       // A real title-bar click has a user activation context. Background
       // activate() requests can be declined even when the control socket replies.
       try NativeInteractionDriver.clickWindowTitle(bundleIdentifier:identifier)
     } else {
-      _ = application.activate()
+      try NativeInteractionDriver.clickSettingsWindowTitle(bundleIdentifier: identifier)
     }
     // Only an app with a Dock tile can become frontmost. Tatami is an accessory
     // app, so waiting for it there would time out on a step that worked.
@@ -645,7 +729,7 @@ public final class SceneRunner {
 extension SceneStep {
   fileprivate var needsKeyboard: Bool {
     switch self {
-    case .key, .hold, .click, .typeText, .scroll, .hover, .dragWindow, .resizeWindow: true
+    case .key, .hold, .click, .rightClick, .prepareSettings, .typeText, .scroll, .hover, .dragWindow, .resizeWindow: true
     default: false
     }
   }

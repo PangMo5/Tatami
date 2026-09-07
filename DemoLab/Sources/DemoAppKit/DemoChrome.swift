@@ -60,6 +60,8 @@ public struct DemoWindow<Toolbar: View, Content: View, Status: View>: View {
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Color(nsColor: .windowBackgroundColor))
+    .accessibilityElement(children: .contain)
+    .accessibilityIdentifier("demolab.window.content")
   }
 
   // MARK: Private
@@ -86,7 +88,7 @@ public struct DemoTitle: View {
 
   // MARK: Lifecycle
 
-  public init(_ text: String, symbol: String, accent: DemoAccent, subtitle: String? = nil) {
+  public init(_ text: LocalizedStringResource, symbol: String, accent: DemoAccent, subtitle: LocalizedStringResource? = nil) {
     self.text = text
     self.symbol = symbol
     self.accent = accent
@@ -117,10 +119,9 @@ public struct DemoTitle: View {
 
   // MARK: Private
 
-  private let text: String
+  private let text: LocalizedStringResource
   private let symbol: String
   private let accent: DemoAccent
-  private let subtitle: String?
+  private let subtitle: LocalizedStringResource?
 
 }
-

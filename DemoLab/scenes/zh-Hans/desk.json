@@ -1,0 +1,147 @@
+{
+  "name": "desk",
+  "title": "两个显示器，一套工作流程",
+  "summary": "把设计和参考资料放在不同显示器上，用一个快捷键切换工作区链。",
+  "requires": {
+    "displays": 2
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Desk"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "多个显示器"
+    },
+    {
+      "kind": "caption",
+      "text": "将不同的工作区固定到不同的显示器。"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - right"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.search"
+    },
+    {
+      "kind": "typeText",
+      "app": "Docs",
+      "text": "标题",
+      "ms": 65
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - left"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "caption",
+      "text": "用工作区链一起切换两个显示器。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Chat"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "caption",
+      "text": "一个快捷键，恢复之前搭配使用的工作区。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

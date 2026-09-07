@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](CONFIGURATION.md) · [한국어](ko/CONFIGURATION.md) · [日本語](ja/CONFIGURATION.md) · [简体中文](zh-Hans/CONFIGURATION.md) · [繁體中文](zh-Hant/CONFIGURATION.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Configuration
 
 Tatami reads its configuration from:
@@ -276,7 +280,7 @@ restores the host to full screen.
 | --- | --- |
 | `focusLeft` / `focusRight` / `focusUp` / `focusDown` | Move focus to the tile in that direction (crosses into a borrowed block at the edge) |
 | `swapLeft` / `swapRight` / `swapUp` / `swapDown` | Swap the focused tile in that direction |
-| `resizeGrow` / `resizeShrink` | Resize the focused tile |
+| `resizeGrow` / `resizeShrink` | Grow or shrink the focused tile at its parent split, following either left/right or top/bottom orientation |
 | `toggleOrientation` | Toggle the focused split's orientation |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
 | `balance` | Apply the configured `autoBalance` axes. With Auto-balance off, rebuild the canonical BSP topology and ratios from the current window order. |

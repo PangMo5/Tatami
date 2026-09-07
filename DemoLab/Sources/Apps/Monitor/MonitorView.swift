@@ -12,7 +12,7 @@ struct MonitorView: View {
     DemoWindow {
       DemoTitle(automation ? "Workspace status" : "Launch status", symbol: automation ? "bolt" : "checkmark.seal", accent: .green)
       Spacer()
-      Button(automation ? "Project" : "Hooks") {automation.toggle()}.accessibilityIdentifier("monitor.mode")
+      Button { automation.toggle() } label: { Text(automation ? LocalizedStringResource("Project") : LocalizedStringResource("Hooks")) }.accessibilityIdentifier("monitor.mode")
     } content: {
       if automation {
         HookMonitor(workspace:hooks.workspace,hud:hooks.hud)
@@ -32,7 +32,7 @@ private struct HookMonitor:View {
       Label(workspace.profile,systemImage:"rectangle.stack").foregroundStyle(.secondary)
       Divider()
       Text(hud.title.isEmpty ? workspace.event : hud.title).font(.system(size:16,weight:.medium))
-      Text(hud.subtitle.isEmpty ? "Waiting for the next action…" : hud.subtitle).font(.system(size:13)).foregroundStyle(.secondary).lineLimit(3)
+      Text(hud.subtitle.isEmpty ? String(localized: "Waiting for the next action…") : hud.subtitle).font(.system(size:13)).foregroundStyle(.secondary).lineLimit(3)
     }.padding(22).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).background(Color(nsColor:.textBackgroundColor))
   }
 }
@@ -40,11 +40,11 @@ private struct ProjectMonitor:View {
   let story:LaunchStory
   var body: some View {
     VStack(alignment:.leading,spacing:18) {
-      Text(story.approved ? "Ready to share" : "Work in progress").font(.system(size:22,weight:.semibold))
+      Text(story.approved ? LocalizedStringResource("Ready to share") : LocalizedStringResource("Work in progress")).font(.system(size:22,weight:.semibold))
       Label("Draft · revision \(story.revision)",systemImage:"doc.text")
-      Label(story.checks.isEmpty ? "Copy checks pending" : "\(story.checks.filter(\.passed).count) / 3 checks passed",systemImage:"checkmark.circle")
+      Label { Text(story.checks.isEmpty ? LocalizedStringResource("Copy checks pending") : LocalizedStringResource("\(story.checks.filter(\.passed).count) / 3 checks passed")) } icon: { Image(systemName:"checkmark.circle") }
         .foregroundStyle(story.checks.count == 3 && story.checks.allSatisfy(\.passed) ? Color.green : Color.secondary)
-      Label(story.approved ? "Review approved" : "Waiting for review",systemImage:story.approved ? "checkmark.seal.fill" : "clock")
+      Label { Text(story.approved ? LocalizedStringResource("Review approved") : LocalizedStringResource("Waiting for review")) } icon: { Image(systemName:story.approved ? "checkmark.seal.fill" : "clock") }
         .foregroundStyle(story.approved ? Color.green : Color.secondary)
     }.font(.system(size:15)).padding(22).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading).background(Color(nsColor:.textBackgroundColor))
   }

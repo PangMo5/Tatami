@@ -1,0 +1,1300 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "A Shared Always on Top monitor receives real workspace and HUD hook events.": {
+      "en": "A Shared Always on Top monitor receives real workspace and HUD hook events.",
+      "ko": "항상 위에 둔 공용 상태 창에 실제 작업 공간·화면 알림 훅 이벤트가 도착해요.",
+      "ja": "常に手前に置いた共有の状態ウインドウに、実際のワークスペースと操作フィードバックのフックが届きます。",
+      "zh-Hans": "置顶的共享状态窗口接收实际的工作区和操作反馈钩子事件。",
+      "zh-Hant": "置頂的共用狀態視窗接收實際的工作空間與操作回饋掛鉤事件。"
+    },
+    "A profile changes the workspace set and restores the arrangement belonging to that context.": {
+      "en": "A profile changes the workspace set and restores the arrangement belonging to that context.",
+      "ko": "프로필을 바꾸면 작업 공간 구성과 해당 상황에 맞는 배치가 돌아와요.",
+      "ja": "プロファイルを切り替えると、作業環境に合ったワークスペースと配置が戻ります。",
+      "zh-Hans": "切换配置方案，恢复适合当前场景的工作区组合和布局。",
+      "zh-Hant": "切換設定組合，還原適合目前情境的工作空間與排列。"
+    },
+    "A small script edits the real gap setting. Tatami reloads it without a restart.": {
+      "en": "A small script edits the real gap setting. Tatami reloads it without a restart.",
+      "ko": "작은 스크립트로 실제 창 간격을 바꿔요. Tatami를 다시 실행할 필요가 없어요.",
+      "ja": "小さなスクリプトで実際の余白を変更します。Tatami の再起動は不要です。",
+      "zh-Hans": "用小脚本修改实际的窗口间距，无需重启 Tatami。",
+      "zh-Hant": "用小型指令稿修改實際的視窗間距，不必重新啟動 Tatami。"
+    },
+    "A workspace chain changes both displays.": {
+      "en": "A workspace chain changes both displays.",
+      "ko": "작업 공간 체인으로 두 화면을 함께 바꿔요.",
+      "ja": "ワークスペースチェーンで、両方の画面を切り替えます。",
+      "zh-Hans": "用工作区链一起切换两个显示器。",
+      "zh-Hant": "用工作空間鏈一起切換兩部顯示器。"
+    },
+    "AI PLANNING / EXAMPLE PROPOSAL": {
+      "en": "AI PLANNING / EXAMPLE PROPOSAL",
+      "ko": "AI 구성 / 예시 제안",
+      "ja": "AI による構成 / 提案例",
+      "zh-Hans": "AI 规划 / 示例建议",
+      "zh-Hant": "AI 規劃 / 範例建議"
+    },
+    "ALWAYS ON TOP": {
+      "en": "ALWAYS ON TOP",
+      "ko": "항상 위",
+      "ja": "常に手前",
+      "zh-Hans": "置顶",
+      "zh-Hant": "置頂"
+    },
+    "APP MEMBERSHIP": {
+      "en": "APP MEMBERSHIP",
+      "ko": "앱 배정",
+      "ja": "アプリの割り当て",
+      "zh-Hans": "应用分配",
+      "zh-Hant": "App 指派"
+    },
+    "AUTO-OPEN": {
+      "en": "AUTO-OPEN",
+      "ko": "자동 열기",
+      "ja": "自動で開く",
+      "zh-Hans": "自动打开",
+      "zh-Hant": "自動開啟"
+    },
+    "AUTOMATIC TILING": {
+      "en": "AUTOMATIC TILING",
+      "ko": "자동 타일링",
+      "ja": "自動タイル表示",
+      "zh-Hans": "自动平铺",
+      "zh-Hant": "自動並排"
+    },
+    "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.": {
+      "en": "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.",
+      "ko": "빌려오기 전용 임시 공간에 다음 할 일을 적어요. 다시 꺼내도 그대로 남아 있어요.",
+      "ja": "借りるための一時スペースに次の作業を残します。呼び出し直しても、そのままです。",
+      "zh-Hans": "在仅供借用的暂存区中记下待办事项，下次调出时仍然保留。",
+      "zh-Hant": "在僅供借用的暫存區記下待辦事項，下次叫出時仍然保留。"
+    },
+    "Answer a teammate without replacing the canvas and reference you are using.": {
+      "en": "Answer a teammate without replacing the canvas and reference you are using.",
+      "ko": "보고 있던 Canvas와 참고 자료를 그대로 두고 동료에게 답해요.",
+      "ja": "Canvas と参考資料を開いたまま、同僚に返事をします。",
+      "zh-Hans": "保留正在使用的 Canvas 和参考资料，同时回复同事。",
+      "zh-Hant": "保留正在使用的 Canvas 和參考資料，同時回覆同事。"
+    },
+    "Arrange it by hand": {
+      "en": "Arrange it by hand",
+      "ko": "마우스로 배치하기",
+      "ja": "マウスで並べる",
+      "zh-Hans": "用鼠标排列",
+      "zh-Hant": "用滑鼠排列"
+    },
+    "BORROW A WORKSPACE": {
+      "en": "BORROW A WORKSPACE",
+      "ko": "작업 공간 빌려오기",
+      "ja": "ワークスペースを借りる",
+      "zh-Hans": "借用工作区",
+      "zh-Hant": "借用工作空間"
+    },
+    "BORROW PLACEMENT": {
+      "en": "BORROW PLACEMENT",
+      "ko": "빌려올 위치 선택",
+      "ja": "借りる位置を選ぶ",
+      "zh-Hans": "选择借用位置",
+      "zh-Hant": "選擇借用位置"
+    },
+    "Bring a conversation alongside": {
+      "en": "Bring a conversation alongside",
+      "ko": "대화를 옆으로 가져오기",
+      "ja": "会話を横に呼び出す",
+      "zh-Hans": "把对话放到旁边",
+      "zh-Hant": "把對話放到旁邊"
+    },
+    "Build a focus session with the CLI": {
+      "en": "Build a focus session with the CLI",
+      "ko": "CLI로 집중할 환경 준비하기",
+      "ja": "CLI で集中できる環境を用意する",
+      "zh-Hans": "用 CLI 准备专注环境",
+      "zh-Hant": "用 CLI 準備專注環境"
+    },
+    "COMMAND LINE": {
+      "en": "COMMAND LINE",
+      "ko": "커맨드라인",
+      "ja": "コマンドライン",
+      "zh-Hans": "命令行",
+      "zh-Hant": "命令列"
+    },
+    "Check the preview at a smaller size.": {
+      "en": "Check the preview at a smaller size.",
+      "ko": "작은 크기에서도 미리보기를 확인해요.",
+      "ja": "小さいサイズでもプレビューを確認します。",
+      "zh-Hans": "检查较小尺寸下的预览。",
+      "zh-Hant": "檢查較小尺寸下的預覽。"
+    },
+    "Choose the edge and the context": {
+      "en": "Choose the edge and the context",
+      "ko": "위치와 작업 맥락 고르기",
+      "ja": "位置と作業の場を選ぶ",
+      "zh-Hans": "选择位置和工作环境",
+      "zh-Hant": "選擇位置與工作情境"
+    },
+    "Choose the window you need": {
+      "en": "Choose the window you need",
+      "ko": "필요한 창 고르기",
+      "ja": "必要なウインドウを選ぶ",
+      "zh-Hans": "选择需要的窗口",
+      "zh-Hant": "選擇需要的視窗"
+    },
+    "Compare the three color directions.": {
+      "en": "Compare the three color directions.",
+      "ko": "세 가지 색상 방향을 비교해요.",
+      "ja": "3 つの配色を比べます。",
+      "zh-Hans": "比较三种配色方向。",
+      "zh-Hant": "比較三種配色方向。"
+    },
+    "Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.": {
+      "en": "Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.",
+      "ko": "두 번째 화면을 연결하면 Desk 프로필이 활성화돼요. 연결을 해제하면 Laptop 배치로 돌아와요.",
+      "ja": "2 台目を接続すると Desk プロファイルに切り替わります。外すと Laptop の配置に戻ります。",
+      "zh-Hans": "连接第二个显示器，激活 Desk 配置方案；断开后恢复 Laptop 布局。",
+      "zh-Hant": "連接第二部顯示器，啟用 Desk 設定組合；中斷連接後還原 Laptop 排列。"
+    },
+    "DISPLAY-AWARE PROFILES": {
+      "en": "DISPLAY-AWARE PROFILES",
+      "ko": "화면에 맞는 프로필",
+      "ja": "画面に合わせたプロファイル",
+      "zh-Hans": "匹配显示器的配置方案",
+      "zh-Hant": "配合顯示器的設定組合"
+    },
+    "DRAG & RESIZE": {
+      "en": "DRAG & RESIZE",
+      "ko": "드래그와 크기 조절",
+      "ja": "ドラッグとサイズ変更",
+      "zh-Hans": "拖移与调整大小",
+      "zh-Hant": "拖移與調整大小"
+    },
+    "Design, write, review, borrow, automate, and adapt to a bigger desk.": {
+      "en": "Design, write, review, borrow, automate, and adapt to a bigger desk.",
+      "ko": "디자인하고, 쓰고, 검토하고, 빌려오고, 자동화해요. 넓은 책상에 맞춰 구성도 바꿔요.",
+      "ja": "デザイン、執筆、レビュー、借りる操作、自動化。広いデスクにも合わせて切り替えます。",
+      "zh-Hans": "设计、写作、评审、借用、自动化，再适应更大的桌面。",
+      "zh-Hant": "設計、撰寫、審閱、借用、自動化，再配合更大的桌面。"
+    },
+    "Dock a workspace left or below, cross the boundary with focus, then activate it fully.": {
+      "en": "Dock a workspace left or below, cross the boundary with focus, then activate it fully.",
+      "ko": "왼쪽이나 아래로 작업 공간을 빌려와요. 경계를 넘어 포커스를 옮긴 뒤 해당 작업 공간으로 전환해요.",
+      "ja": "ワークスペースを左や下に借りて、境界を越えてフォーカスを移し、その作業に切り替えます。",
+      "zh-Hans": "把工作区借到左侧或下方，跨过边界移动焦点，再完整切换过去。",
+      "zh-Hant": "把工作空間借到左側或下方，跨過邊界移動焦點，再完整切換過去。"
+    },
+    "Drag one window onto another, resize an edge, and return to the saved arrangement.": {
+      "en": "Drag one window onto another, resize an edge, and return to the saved arrangement.",
+      "ko": "창을 다른 창 위로 옮기고 가장자리를 조절해요. 그런 다음 저장한 배치로 돌아와요.",
+      "ja": "ウインドウを重ねるようにドラッグして端を調整し、保存した配置に戻ります。",
+      "zh-Hans": "拖移窗口、调整边缘，再恢复保存的布局。",
+      "zh-Hant": "拖移視窗、調整邊緣，再還原儲存的排列。"
+    },
+    "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.": {
+      "en": "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.",
+      "ko": "실제 CLI로 프로필과 작업 공간을 복제한 뒤 결과를 확인해요.",
+      "ja": "実際の CLI でプロファイルとワークスペースを複製し、結果を確認します。",
+      "zh-Hans": "用实际 CLI 复制配置方案和工作区，再检查结果。",
+      "zh-Hant": "用實際 CLI 複製設定組合與工作空間，再檢查結果。"
+    },
+    "Duplicate a workspace for a new variation.": {
+      "en": "Duplicate a workspace for a new variation.",
+      "ko": "작업 공간을 복제해서 다른 구성을 만들어요.",
+      "ja": "ワークスペースを複製して、別の構成を作ります。",
+      "zh-Hans": "复制工作区，创建不同的组合。",
+      "zh-Hant": "複製工作空間，建立不同的組合。"
+    },
+    "Edit plain TOML, see a live change": {
+      "en": "Edit plain TOML, see a live change",
+      "ko": "TOML을 수정하고 바로 확인하기",
+      "ja": "TOML を編集して、その場で確認する",
+      "zh-Hans": "编辑 TOML，立即查看变化",
+      "zh-Hant": "編輯 TOML，立即查看變化"
+    },
+    "FOCUS & POINTER": {
+      "en": "FOCUS & POINTER",
+      "ko": "포커스와 포인터",
+      "ja": "フォーカスとポインタ",
+      "zh-Hans": "焦点与指针",
+      "zh-Hant": "焦點與游標"
+    },
+    "Focus follows your intent": {
+      "en": "Focus follows your intent",
+      "ko": "내 의도에 따라 포커스 이동하기",
+      "ja": "意図に合わせてフォーカスを移す",
+      "zh-Hans": "让焦点跟随你的意图",
+      "zh-Hant": "讓焦點跟隨你的意圖"
+    },
+    "Focus with workspace zoom": {
+      "en": "Focus with workspace zoom",
+      "ko": "작업 공간 확대해서 집중하기",
+      "ja": "ワークスペースを広げて集中する",
+      "zh-Hans": "放大工作区，集中注意力",
+      "zh-Hant": "放大工作空間，集中注意力"
+    },
+    "GUIDED SETUP": {
+      "en": "GUIDED SETUP",
+      "ko": "시작 안내",
+      "ja": "使いながら設定",
+      "zh-Hans": "设置向导",
+      "zh-Hant": "設定導覽"
+    },
+    "Hold the switcher shortcut to inspect the windows in this workspace, then switch back with a quick tap.": {
+      "en": "Hold the switcher shortcut to inspect the windows in this workspace, then switch back with a quick tap.",
+      "ko": "전환 단축키를 길게 눌러 현재 창들을 확인해요. 짧게 누르면 바로 돌아갈 수 있어요.",
+      "ja": "切り替えキーを長く押してウインドウを確認し、短く押して戻れます。",
+      "zh-Hans": "按住切换快捷键查看当前窗口，轻按即可快速返回。",
+      "zh-Hant": "按住切換快速鍵查看目前視窗，輕按即可快速返回。"
+    },
+    "I am comparing the color directions.": {
+      "en": "I am comparing the color directions.",
+      "ko": "색상 방향을 비교하고 있어요.",
+      "ja": "配色の方向性を比べています。",
+      "zh-Hans": "我正在比较配色方向。",
+      "zh-Hant": "我正在比較配色方向。"
+    },
+    "Inspect one tile at full workspace size, then return to the exact arrangement.": {
+      "en": "Inspect one tile at full workspace size, then return to the exact arrangement.",
+      "ko": "창 하나를 작업 공간 크기로 펼쳐서 확인한 뒤 정확히 이전 배치로 돌아와요.",
+      "ja": "一つのウインドウをワークスペースいっぱいに広げ、元の配置に戻します。",
+      "zh-Hans": "将一个窗口放大到工作区大小，再准确恢复原来的布局。",
+      "zh-Hant": "將一個視窗放大到工作空間大小，再完整還原原來的排列。"
+    },
+    "Inspect the real workspace list, then run a short script that activates, balances and borrows.": {
+      "en": "Inspect the real workspace list, then run a short script that activates, balances and borrows.",
+      "ko": "실제 작업 공간 목록을 확인한 뒤 활성화·균등 배치·빌려오기를 묶은 스크립트를 실행해요.",
+      "ja": "実際のワークスペース一覧を確認し、切り替え・均等配置・借りる操作をまとめたスクリプトを実行します。",
+      "zh-Hans": "查看实际工作区列表，再运行包含激活、均衡布局和借用操作的脚本。",
+      "zh-Hant": "查看實際工作空間清單，再執行包含啟用、平均排列與借用操作的指令稿。"
+    },
+    "Keep a note above this workspace": {
+      "en": "Keep a note above this workspace",
+      "ko": "작업 공간 위에 메모 두기",
+      "ja": "ワークスペースの手前にメモを置く",
+      "zh-Hans": "把便笺放在工作区上方",
+      "zh-Hant": "把便箋放在工作空間上方"
+    },
+    "Keep a reusable scratchpad": {
+      "en": "Keep a reusable scratchpad",
+      "ko": "다시 꺼내 쓰는 임시 공간",
+      "ja": "何度でも呼び出せる一時スペース",
+      "zh-Hans": "随时调出的暂存区",
+      "zh-Hant": "隨時叫出的暫存區"
+    },
+    "Keep design and reference on separate displays; switch a workspace chain with one shortcut.": {
+      "en": "Keep design and reference on separate displays; switch a workspace chain with one shortcut.",
+      "ko": "디자인과 참고 자료를 다른 화면에 두고, 단축키 하나로 작업 공간 체인을 전환해요.",
+      "ja": "デザインと資料を別々の画面に置き、一つのショートカットでチェーンを切り替えます。",
+      "zh-Hans": "把设计和参考资料放在不同显示器上，用一个快捷键切换工作区链。",
+      "zh-Hant": "把設計和參考資料放在不同顯示器上，用一個快速鍵切換工作空間鏈。"
+    },
+    "Keep your tools. Keep your place. | A macOS workspace manager with BSP window tiling.": {
+      "en": "Keep your tools. Keep your place. | A macOS workspace manager with BSP window tiling.",
+      "ko": "도구도, 하던 자리도 그대로예요. | BSP 타일링을 갖춘 macOS 작업 공간 관리자예요.",
+      "ja": "ツールも、作業の場所も、そのまま。 | BSP タイル表示を備えた macOS 用ワークスペースマネージャです。",
+      "zh-Hans": "工具和工作位置，都为你保留。 | 支持 BSP 窗口平铺的 macOS 工作区管理器。",
+      "zh-Hant": "工具與工作位置，都為你保留。 | 支援 BSP 視窗並排的 macOS 工作空間管理工具。"
+    },
+    "LAYOUT CONTROLS": {
+      "en": "LAYOUT CONTROLS",
+      "ko": "배치 조절",
+      "ja": "配置の操作",
+      "zh-Hans": "布局控制",
+      "zh-Hant": "排列控制"
+    },
+    "LAYOUT EDITOR": {
+      "en": "LAYOUT EDITOR",
+      "ko": "배치 편집기",
+      "ja": "レイアウトエディタ",
+      "zh-Hans": "布局编辑器",
+      "zh-Hant": "排列編輯器"
+    },
+    "LEAVE AS IS": {
+      "en": "LEAVE AS IS",
+      "ko": "그대로 두기",
+      "ja": "そのまま",
+      "zh-Hans": "保持原样",
+      "zh-Hant": "維持原狀"
+    },
+    "LIFECYCLE & HUD HOOKS": {
+      "en": "LIFECYCLE & HUD HOOKS",
+      "ko": "작업 공간과 화면 알림 훅",
+      "ja": "状態と操作フィードバックのフック",
+      "zh-Hans": "工作区与操作反馈钩子",
+      "zh-Hant": "工作空間與操作回饋掛鉤"
+    },
+    "Learn by doing": {
+      "en": "Learn by doing",
+      "ko": "직접 사용하며 익히기",
+      "ja": "使いながら覚える",
+      "zh-Hans": "边用边学",
+      "zh-Hant": "邊用邊學"
+    },
+    "Leave a window where you put it": {
+      "en": "Leave a window where you put it",
+      "ko": "놓아둔 자리에 창 유지하기",
+      "ja": "置いた場所にウインドウを残す",
+      "zh-Hans": "让窗口留在原处",
+      "zh-Hant": "讓視窗留在原處"
+    },
+    "Let new windows find their place": {
+      "en": "Let new windows find their place",
+      "ko": "새 창이 제자리를 찾도록 하기",
+      "ja": "新しいウインドウが自然に収まる",
+      "zh-Hans": "让新窗口找到位置",
+      "zh-Hant": "讓新視窗找到位置"
+    },
+    "MULTIPLE DISPLAYS": {
+      "en": "MULTIPLE DISPLAYS",
+      "ko": "여러 화면",
+      "ja": "複数のディスプレイ",
+      "zh-Hans": "多个显示器",
+      "zh-Hant": "多部顯示器"
+    },
+    "Make room for the whole workflow.": {
+      "en": "Make room for the whole workflow.",
+      "ko": "모든 작업에 알맞은 자리를 만들어요.",
+      "ja": "仕事の流れに、必要な場所を。",
+      "zh-Hans": "为整个工作流程腾出空间。",
+      "zh-Hant": "為整個工作流程騰出空間。"
+    },
+    "Make workspace changes useful elsewhere": {
+      "en": "Make workspace changes useful elsewhere",
+      "ko": "작업 공간 변경을 다른 도구에 연결하기",
+      "ja": "ワークスペースの切り替えをほかのツールに届ける",
+      "zh-Hans": "把工作区变化连接到其他工具",
+      "zh-Hant": "把工作空間變化連接到其他工具"
+    },
+    "Move an app with the task": {
+      "en": "Move an app with the task",
+      "ko": "작업에 맞춰 앱 옮기기",
+      "ja": "作業に合わせてアプリを移す",
+      "zh-Hans": "随任务移动应用",
+      "zh-Hant": "隨工作移動 App"
+    },
+    "Move between tasks": {
+      "en": "Move between tasks",
+      "ko": "작업 사이를 오가기",
+      "ja": "作業を切り替える",
+      "zh-Hans": "在任务之间切换",
+      "zh-Hant": "在工作之間切換"
+    },
+    "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.": {
+      "en": "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.",
+      "ko": "방향으로 포커스를 옮기면 포인터가 따라와요. 마우스를 올려서 참고 자료를 선택할 수도 있어요.",
+      "ja": "方向キーでフォーカスを移すとポインタも追従します。資料にポインタを置くだけでも選べます。",
+      "zh-Hans": "按方向移动焦点，让指针跟随；也可以悬停在参考资料上切换焦点。",
+      "zh-Hant": "依方向移動焦點，讓游標跟隨；也可以將游標移到參考資料上切換焦點。"
+    },
+    "Nothing changes until you apply the draft.": {
+      "en": "Nothing changes until you apply the draft.",
+      "ko": "초안을 적용하기 전까지 실제 환경은 그대로예요.",
+      "ja": "下書きを適用するまで、実際の環境は変わりません。",
+      "zh-Hans": "应用草稿前，实际桌面保持不变。",
+      "zh-Hant": "套用草稿前，實際桌面保持不變。"
+    },
+    "One status window across tasks": {
+      "en": "One status window across tasks",
+      "ko": "여러 작업에서 같은 상태 창 보기",
+      "ja": "作業が変わっても同じ状態ウインドウを使う",
+      "zh-Hans": "跨任务使用同一个状态窗口",
+      "zh-Hant": "跨工作使用同一個狀態視窗"
+    },
+    "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.": {
+      "en": "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.",
+      "ko": "단축키 하나로 미리보기와 참고 자료가 열려요. 창을 닫아도 다시 들어가면 열어줘요.",
+      "ja": "一つのショートカットでプレビューと資料が開きます。閉じたウインドウも、入り直すと開きます。",
+      "zh-Hans": "一个工作区快捷键打开预览和参考资料。关闭窗口后，重新进入即可再次打开。",
+      "zh-Hant": "一個工作空間快速鍵開啟預覽和參考資料。關閉視窗後，重新進入即可再次開啟。"
+    },
+    "Only the draft changes. Your desktop stays put.": {
+      "en": "Only the draft changes. Your desktop stays put.",
+      "ko": "초안만 바뀌고 실제 화면은 그대로예요.",
+      "ja": "変わるのは下書きだけ。実際のデスクトップはそのままです。",
+      "zh-Hans": "只修改草稿，实际桌面保持不变。",
+      "zh-Hant": "只修改草稿，實際桌面保持不變。"
+    },
+    "Open a second reference next to the canvas. Close it and the layout reclaims the space.": {
+      "en": "Open a second reference next to the canvas. Close it and the layout reclaims the space.",
+      "ko": "Canvas 옆에 참고 자료를 하나 더 열어요. 닫으면 나머지 창이 공간을 채워요.",
+      "ja": "Canvas の横に資料をもう一つ開きます。閉じると、ほかのウインドウが広がります。",
+      "zh-Hans": "在 Canvas 旁再打开一份参考资料。关闭后，其余窗口填补空位。",
+      "zh-Hant": "在 Canvas 旁再開啟一份參考資料。關閉後，其餘視窗填補空位。"
+    },
+    "Open the whole toolset": {
+      "en": "Open the whole toolset",
+      "ko": "필요한 도구 한 번에 열기",
+      "ja": "必要なツールをまとめて開く",
+      "zh-Hans": "一次打开所需工具",
+      "zh-Hant": "一次開啟所需工具"
+    },
+    "Or move through your workspaces in order.": {
+      "en": "Or move through your workspaces in order.",
+      "ko": "작업 공간을 순서대로 오갈 수도 있어요.",
+      "ja": "ワークスペースを順番に切り替えることもできます。",
+      "zh-Hans": "也可以按顺序切换工作区。",
+      "zh-Hant": "也可以依序切換工作空間。"
+    },
+    "PAUSE & RESUME": {
+      "en": "PAUSE & RESUME",
+      "ko": "일시 정지와 다시 시작",
+      "ja": "一時停止と再開",
+      "zh-Hans": "暂停与恢复",
+      "zh-Hant": "暫停與恢復"
+    },
+    "PLAIN TOML / LIVE RELOAD": {
+      "en": "PLAIN TOML / LIVE RELOAD",
+      "ko": "TOML / 바로 적용",
+      "ja": "TOML / その場で反映",
+      "zh-Hans": "TOML / 实时重载",
+      "zh-Hant": "TOML / 即時重新載入"
+    },
+    "PROFILES": {
+      "en": "PROFILES",
+      "ko": "프로필",
+      "ja": "プロファイル",
+      "zh-Hans": "配置方案",
+      "zh-Hant": "設定組合"
+    },
+    "Pause automatic tiling, position a window freely, and resume the arranged workspace.": {
+      "en": "Pause automatic tiling, position a window freely, and resume the arranged workspace.",
+      "ko": "자동 타일링을 잠시 멈추고 창을 자유롭게 놓아요. 다시 켜면 정돈된 배치로 돌아와요.",
+      "ja": "自動タイル表示を止めて自由に配置し、再開すると整った配置に戻ります。",
+      "zh-Hans": "暂停自动平铺，自由摆放窗口，再恢复整理好的工作区。",
+      "zh-Hant": "暫停自動並排，自由擺放視窗，再恢復整理好的工作空間。"
+    },
+    "Pause tiling when the task needs free placement.": {
+      "en": "Pause tiling when the task needs free placement.",
+      "ko": "자유롭게 놓고 싶을 때 타일링을 잠시 멈춰요.",
+      "ja": "自由に置きたいときは、タイル表示を一時停止します。",
+      "zh-Hans": "需要自由摆放时，暂停平铺。",
+      "zh-Hant": "需要自由擺放時，暫停並排。"
+    },
+    "Plan the layout visually": {
+      "en": "Plan the layout visually",
+      "ko": "눈으로 보며 배치 정하기",
+      "ja": "見ながら配置を決める",
+      "zh-Hans": "直观规划布局",
+      "zh-Hant": "直覺規劃排列"
+    },
+    "Prepare the release announcement.": {
+      "en": "Prepare the release announcement.",
+      "ko": "출시 안내를 준비해요.",
+      "ja": "公開のお知らせを準備します。",
+      "zh-Hans": "准备发布公告。",
+      "zh-Hant": "準備發布公告。"
+    },
+    "Preview gesture actions and practise real shortcuts without moving the live desktop. Physical trackpad input is not shown.": {
+      "en": "Preview gesture actions and practise real shortcuts without moving the live desktop. Physical trackpad input is not shown.",
+      "ko": "실제 화면을 움직이지 않고 제스처 동작과 단축키를 익혀요. 물리 트랙패드 입력 장면은 포함하지 않았어요.",
+      "ja": "実際の画面を動かさずに、ジェスチャのプレビューとショートカットを練習します。実機のトラックパッド入力は含みません。",
+      "zh-Hans": "不移动实际桌面，预览手势操作并练习快捷键。本片不展示物理触控板输入。",
+      "zh-Hant": "不移動實際桌面，預覽手勢操作並練習快速鍵。本片不展示實體觸控式軌跡板輸入。"
+    },
+    "Preview gesture actions with the built-in controls.": {
+      "en": "Preview gesture actions with the built-in controls.",
+      "ko": "안내에 있는 버튼으로 제스처 동작을 미리 봐요.",
+      "ja": "ガイド内のボタンで、ジェスチャの動きを確認します。",
+      "zh-Hans": "用向导内的按钮预览手势操作。",
+      "zh-Hant": "用導覽內的按鈕預覽手勢操作。"
+    },
+    "REUSE A SETUP": {
+      "en": "REUSE A SETUP",
+      "ko": "기존 구성 재사용",
+      "ja": "構成を再利用",
+      "zh-Hans": "复用现有配置",
+      "zh-Hant": "重複使用現有設定"
+    },
+    "Ready. The preview is exported.": {
+      "en": "Ready. The preview is exported.",
+      "ko": "준비됐어요. 미리보기도 내보냈어요.",
+      "ja": "準備できました。プレビューも書き出しました。",
+      "zh-Hans": "准备好了，预览也已导出。",
+      "zh-Hant": "準備好了，預覽也已輸出。"
+    },
+    "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.": {
+      "en": "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.",
+      "ko": "전환·확대·빌려오기 중에 실제 작업 공간·화면 알림 이벤트로 외부 상태 창이 갱신돼요.",
+      "ja": "切り替え・拡大・借りる操作に合わせて、実際のイベントが外部の状態ウインドウを更新します。",
+      "zh-Hans": "切换、放大或借用时，实际的生命周期和操作反馈事件会更新外部状态窗口。",
+      "zh-Hant": "切換、放大或借用時，實際的生命週期與操作回饋事件會更新外部狀態視窗。"
+    },
+    "Resume. Tatami arranges the workspace again.": {
+      "en": "Resume. Tatami arranges the workspace again.",
+      "ko": "다시 켜면 Tatami가 창을 정리해요.",
+      "ja": "再開すると、Tatami がウインドウを整えます。",
+      "zh-Hans": "恢复后，Tatami 会重新排列窗口。",
+      "zh-Hant": "恢復後，Tatami 會重新排列視窗。"
+    },
+    "Reuse an existing setup": {
+      "en": "Reuse an existing setup",
+      "ko": "기존 구성 재사용하기",
+      "ja": "今ある構成を再利用する",
+      "zh-Hans": "复用现有配置",
+      "zh-Hant": "重複使用現有設定"
+    },
+    "Review a suggested setup": {
+      "en": "Review a suggested setup",
+      "ko": "제안받은 구성 검토하기",
+      "ja": "提案された構成を確認する",
+      "zh-Hans": "检查建议的配置",
+      "zh-Hant": "檢查建議的設定"
+    },
+    "Rotate, mirror and balance a saved layout in Tatami’s native editor, then activate it.": {
+      "en": "Rotate, mirror and balance a saved layout in Tatami’s native editor, then activate it.",
+      "ko": "Tatami 배치 편집기에서 회전·뒤집기·균등 배치를 해보고 작업 공간에 적용해요.",
+      "ja": "Tatami のエディタで回転・反転・均等配置を試してから、ワークスペースを開きます。",
+      "zh-Hans": "在 Tatami 原生编辑器中旋转、镜像并均衡保存的布局，然后激活工作区。",
+      "zh-Hant": "在 Tatami 原生編輯器中旋轉、鏡像並平均調整儲存的排列，然後啟用工作空間。"
+    },
+    "SCRATCHPADS": {
+      "en": "SCRATCHPADS",
+      "ko": "임시 공간",
+      "ja": "一時スペース",
+      "zh-Hans": "暂存区",
+      "zh-Hant": "暫存區"
+    },
+    "SHARED APPS": {
+      "en": "SHARED APPS",
+      "ko": "공용 앱",
+      "ja": "共有アプリ",
+      "zh-Hans": "共享应用",
+      "zh-Hant": "共用 App"
+    },
+    "Send the reference from Write to Review, then move it back using the keyboard.": {
+      "en": "Send the reference from Write to Review, then move it back using the keyboard.",
+      "ko": "키보드로 참고 자료를 Write에서 Review로 옮겼다가 다시 가져와요.",
+      "ja": "キーボードで資料を Write から Review に移し、また戻します。",
+      "zh-Hans": "用键盘把参考资料从 Write 移到 Review，再移回来。",
+      "zh-Hant": "用鍵盤把參考資料從 Write 移到 Review，再移回來。"
+    },
+    "Shape the layout from the keyboard": {
+      "en": "Shape the layout from the keyboard",
+      "ko": "키보드로 배치 다듬기",
+      "ja": "キーボードで配置を整える",
+      "zh-Hans": "用键盘调整布局",
+      "zh-Hant": "用鍵盤調整排列"
+    },
+    "Shared membership with normal stacking: the window keeps its position and size across tasks.": {
+      "en": "Shared membership with normal stacking: the window keeps its position and size across tasks.",
+      "ko": "공용 앱을 일반 창으로 두면 작업을 바꿔도 위치와 크기가 유지돼요.",
+      "ja": "共有アプリを通常の重なり順にすると、作業が変わっても位置と大きさが保たれます。",
+      "zh-Hans": "让共享应用保持普通堆叠顺序，跨任务保留窗口的位置和大小。",
+      "zh-Hant": "讓共用 App 維持一般堆疊順序，跨工作保留視窗的位置和大小。"
+    },
+    "Start with the setup that already works.": {
+      "en": "Start with the setup that already works.",
+      "ko": "잘 쓰던 구성에서 시작해요.",
+      "ja": "使い慣れた構成から始めます。",
+      "zh-Hans": "从已经顺手的配置开始。",
+      "zh-Hant": "從已經順手的設定開始。"
+    },
+    "Swap windows, change a split, resize it, and balance the workspace.": {
+      "en": "Swap windows, change a split, resize it, and balance the workspace.",
+      "ko": "창을 바꾸고 나누는 방향과 크기를 조절한 뒤 전체 비율을 맞춰요.",
+      "ja": "ウインドウを入れ替え、分割の向きと大きさを変え、全体を整えます。",
+      "zh-Hans": "交换窗口、改变分割方向、调整大小，再均衡整个布局。",
+      "zh-Hant": "交換視窗、變更分割方向、調整大小，再平均調整整個排列。"
+    },
+    "Switch a note between Always on Top and tiled placement, and interact with its real controls.": {
+      "en": "Switch a note between Always on Top and tiled placement, and interact with its real controls.",
+      "ko": "메모를 항상 위에 두거나 타일링에 포함하고 실제 버튼과 입력창을 사용해요.",
+      "ja": "メモを常に手前に置いたりタイル表示に戻したりしながら、実際のボタンや入力欄を使います。",
+      "zh-Hans": "在置顶和参与平铺之间切换便笺，并使用其实际控件。",
+      "zh-Hant": "在置頂和參與並排之間切換便箋，並使用其實際控制項。"
+    },
+    "Switch the complete setup": {
+      "en": "Switch the complete setup",
+      "ko": "전체 구성 전환하기",
+      "ja": "作業環境ごと切り替える",
+      "zh-Hans": "切换整套配置",
+      "zh-Hant": "切換整套設定"
+    },
+    "Switch to a conversation, return to design, then move through the workspace order.": {
+      "en": "Switch to a conversation, return to design, then move through the workspace order.",
+      "ko": "대화로 전환했다가 디자인으로 돌아와요. 작업 공간 순서대로 이동하는 모습도 보여줘요.",
+      "ja": "会話に切り替えてからデザインに戻り、ワークスペースを順番にも切り替えます。",
+      "zh-Hans": "切换到对话，再返回设计，然后按工作区顺序移动。",
+      "zh-Hant": "切換到對話，再返回設計，然後依工作空間順序移動。"
+    },
+    "TATAMI": {
+      "en": "TATAMI",
+      "ko": "TATAMI",
+      "ja": "TATAMI",
+      "zh-Hans": "TATAMI",
+      "zh-Hant": "TATAMI"
+    },
+    "TATAMI / ADAPT": {
+      "en": "TATAMI / ADAPT",
+      "ko": "Tatami / 화면에 맞추기",
+      "ja": "Tatami / 環境に合わせる",
+      "zh-Hans": "Tatami / 适应环境",
+      "zh-Hant": "Tatami / 配合環境"
+    },
+    "TATAMI / ALWAYS ON TOP": {
+      "en": "TATAMI / ALWAYS ON TOP",
+      "ko": "Tatami / 항상 위",
+      "ja": "Tatami / 常に手前",
+      "zh-Hans": "Tatami / 置顶",
+      "zh-Hant": "Tatami / 置頂"
+    },
+    "TATAMI / AUTOMATE": {
+      "en": "TATAMI / AUTOMATE",
+      "ko": "Tatami / 자동화",
+      "ja": "Tatami / 自動化",
+      "zh-Hans": "Tatami / 自动化",
+      "zh-Hant": "Tatami / 自動化"
+    },
+    "TATAMI / BORROW": {
+      "en": "TATAMI / BORROW",
+      "ko": "Tatami / 빌려오기",
+      "ja": "Tatami / 借りる",
+      "zh-Hans": "Tatami / 借用",
+      "zh-Hant": "Tatami / 借用"
+    },
+    "TATAMI / DESIGN": {
+      "en": "TATAMI / DESIGN",
+      "ko": "Tatami / 디자인",
+      "ja": "Tatami / デザイン",
+      "zh-Hans": "Tatami / 设计",
+      "zh-Hant": "Tatami / 設計"
+    },
+    "TATAMI / REVIEW": {
+      "en": "TATAMI / REVIEW",
+      "ko": "Tatami / 검토",
+      "ja": "Tatami / レビュー",
+      "zh-Hans": "Tatami / 评审",
+      "zh-Hant": "Tatami / 審閱"
+    },
+    "TATAMI / WRITE": {
+      "en": "TATAMI / WRITE",
+      "ko": "Tatami / 글쓰기",
+      "ja": "Tatami / 執筆",
+      "zh-Hans": "Tatami / 写作",
+      "zh-Hant": "Tatami / 撰寫"
+    },
+    "Take manual control": {
+      "en": "Take manual control",
+      "ko": "직접 창 배치하기",
+      "ja": "自分でウインドウを配置する",
+      "zh-Hans": "手动控制布局",
+      "zh-Hant": "手動控制排列"
+    },
+    "The sand direction is ready to review.": {
+      "en": "The sand direction is ready to review.",
+      "ko": "샌드 색상 안을 검토할 수 있어요.",
+      "ja": "サンドの案をレビューできます。",
+      "zh-Hans": "沙金配色已经可以评审了。",
+      "zh-Hant": "沙金配色已經可以審閱了。"
+    },
+    "Two displays, one workflow": {
+      "en": "Two displays, one workflow",
+      "ko": "두 화면으로 이어지는 작업",
+      "ja": "二つの画面で、一つの作業",
+      "zh-Hans": "两个显示器，一套工作流程",
+      "zh-Hant": "兩部顯示器，一套工作流程"
+    },
+    "Validate an example AI proposal and apply it to the draft. No external AI service is called in this recording.": {
+      "en": "Validate an example AI proposal and apply it to the draft. No external AI service is called in this recording.",
+      "ko": "예시 AI 제안을 검증하고 초안에 적용해요. 이 영상에서는 외부 AI 서비스를 호출하지 않아요.",
+      "ja": "AI 提案の例を検証し、下書きに反映します。この録画では外部の AI サービスを呼び出していません。",
+      "zh-Hans": "验证示例 AI 建议并应用到草稿。本次录制未调用外部 AI 服务。",
+      "zh-Hant": "驗證範例 AI 建議並套用到草稿。本次錄製未呼叫外部 AI 服務。"
+    },
+    "WINDOW SWITCHER": {
+      "en": "WINDOW SWITCHER",
+      "ko": "창 전환",
+      "ja": "ウインドウ切り替え",
+      "zh-Hans": "窗口切换",
+      "zh-Hant": "視窗切換"
+    },
+    "WORKSPACES": {
+      "en": "WORKSPACES",
+      "ko": "작업 공간",
+      "ja": "ワークスペース",
+      "zh-Hans": "工作区",
+      "zh-Hant": "工作空間"
+    },
+    "Your setup follows the displays": {
+      "en": "Your setup follows the displays",
+      "ko": "화면 구성에 맞춰 자동으로 바꾸기",
+      "ja": "画面に合わせて環境を切り替える",
+      "zh-Hans": "配置跟随显示器变化",
+      "zh-Hant": "設定跟隨顯示器變化"
+    },
+    "ZOOM & FULLSCREEN": {
+      "en": "ZOOM & FULLSCREEN",
+      "ko": "작업 공간 확대",
+      "ja": "ワークスペースの拡大",
+      "zh-Hans": "放大工作区",
+      "zh-Hant": "放大工作空間"
+    },
+    "headline": {
+      "en": "headline",
+      "ko": "제목",
+      "ja": "見出し",
+      "zh-Hans": "标题",
+      "zh-Hant": "標題"
+    },
+    "Each workspace keeps the apps and layout for one task.": {
+      "en": "Each workspace keeps the apps and layout for one task.",
+      "ko": "작업 공간마다 필요한 앱과 창 배치를 따로 관리해요.",
+      "ja": "作業ごとに、使うアプリとウインドウ配置をまとめて管理できます。",
+      "zh-Hans": "每个工作区分别保存一项任务所需的应用和窗口布局。",
+      "zh-Hant": "每個工作空間分別保存一項工作所需的 App 與視窗排列。"
+    },
+    "Enlarge one window to fill the workspace.": {
+      "en": "Enlarge one window to fill the workspace.",
+      "ko": "창 하나를 작업 공간 전체 크기로 확대해요.",
+      "ja": "一つのウインドウをワークスペースいっぱいに広げます。",
+      "zh-Hans": "将一个窗口放大到整个工作区。",
+      "zh-Hant": "將一個視窗放大至整個工作空間。"
+    },
+    "Exit zoom to restore the previous window layout.": {
+      "en": "Exit zoom to restore the previous window layout.",
+      "ko": "확대를 해제하면 이전 창 배치로 돌아와요.",
+      "ja": "拡大を解除すると、元のウインドウ配置に戻ります。",
+      "zh-Hans": "退出放大，恢复原来的窗口布局。",
+      "zh-Hant": "取消放大後，恢復原本的視窗排列。"
+    },
+    "Switch workspaces to bring up the apps for your next task.": {
+      "en": "Switch workspaces to bring up the apps for your next task.",
+      "ko": "작업 공간을 바꾸면 다음 작업에 필요한 앱이 함께 나타나요.",
+      "ja": "ワークスペースを切り替えると、次の作業で使うアプリが表示されます。",
+      "zh-Hans": "切换工作区，一起调出下一项任务需要的应用。",
+      "zh-Hant": "切換工作空間，一次顯示下一項工作需要的 App。"
+    },
+    "Return to Design; its apps are ready where you left them.": {
+      "en": "Return to Design; its apps are ready where you left them.",
+      "ko": "Design으로 돌아오면 사용하던 앱이 제자리에 나타나요.",
+      "ja": "Design に戻ると、使っていたアプリが元の位置に表示されます。",
+      "zh-Hans": "回到 Design，之前的应用仍在原来的位置。",
+      "zh-Hant": "回到 Design，先前使用的 App 仍在原本的位置。"
+    },
+    "A workspace shortcut switches the whole set of apps.": {
+      "en": "A workspace shortcut switches the whole set of apps.",
+      "ko": "작업 공간 단축키로 사용하는 앱 구성을 한 번에 바꿔요.",
+      "ja": "ショートカット一つで、表示するアプリの組み合わせを切り替えます。",
+      "zh-Hans": "用工作区快捷键一次切换整组应用。",
+      "zh-Hant": "用工作空間快速鍵一次切換整組 App。"
+    },
+    "Window positions and sizes are restored when you return.": {
+      "en": "Window positions and sizes are restored when you return.",
+      "ko": "돌아오면 창의 위치와 크기가 그대로 복원돼요.",
+      "ja": "戻ると、ウインドウの位置と大きさが復元されます。",
+      "zh-Hans": "返回时，窗口的位置和大小会恢复。",
+      "zh-Hant": "返回時，視窗的位置與大小會恢復。"
+    },
+    "Borrow adds another workspace beside the current one.": {
+      "en": "Borrow adds another workspace beside the current one.",
+      "ko": "빌려오기로 다른 작업 공간을 현재 작업 옆에 띄워요.",
+      "ja": "借りる機能で、別のワークスペースを今の作業の隣に表示します。",
+      "zh-Hans": "用借用功能，把另一个工作区显示在当前工作区旁边。",
+      "zh-Hant": "用借用功能，將另一個工作空間顯示在目前的工作空間旁。"
+    },
+    "Always on Top keeps a window visible above other apps.": {
+      "en": "Always on Top keeps a window visible above other apps.",
+      "ko": "항상 위로 설정한 창은 다른 앱 위에 계속 보여요.",
+      "ja": "最前面表示にすると、ほかのアプリの手前にウインドウを保てます。",
+      "zh-Hans": "设为始终置顶的窗口会一直显示在其他应用上方。",
+      "zh-Hant": "設為保持最上層的視窗，會持續顯示在其他 App 上方。"
+    },
+    "Use the CLI to combine workspace actions in a script.": {
+      "en": "Use the CLI to combine workspace actions in a script.",
+      "ko": "CLI로 작업 공간 동작들을 스크립트에 묶어 실행해요.",
+      "ja": "CLI を使うと、複数のワークスペース操作をスクリプトにまとめられます。",
+      "zh-Hans": "用 CLI 将多项工作区操作组合成脚本。",
+      "zh-Hant": "用 CLI 將多個工作空間操作組合成指令稿。"
+    },
+    "Connecting a display automatically activates the matching profile.": {
+      "en": "Connecting a display automatically activates the matching profile.",
+      "ko": "화면을 연결하면 조건에 맞는 프로필이 자동으로 켜져요.",
+      "ja": "ディスプレイを接続すると、条件に合うプロファイルへ自動で切り替わります。",
+      "zh-Hans": "连接显示器后，自动切换到符合条件的配置方案。",
+      "zh-Hant": "連接顯示器後，自動切換至符合條件的設定組合。"
+    },
+    "Disconnecting the display restores the laptop profile and layout.": {
+      "en": "Disconnecting the display restores the laptop profile and layout.",
+      "ko": "화면 연결을 해제하면 노트북용 프로필과 배치로 돌아와요.",
+      "ja": "接続を外すと、ノートブック用のプロファイルと配置に戻ります。",
+      "zh-Hans": "断开显示器后，恢复笔记本的配置方案和布局。",
+      "zh-Hant": "中斷顯示器連接後，恢復筆電的設定組合與排列。"
+    },
+    "A shortcut switches to another workspace and its apps.": {
+      "en": "A shortcut switches to another workspace and its apps.",
+      "ko": "단축키로 작업 공간과 그 안의 앱을 함께 전환해요.",
+      "ja": "ショートカットで、ワークスペースと使用するアプリをまとめて切り替えます。",
+      "zh-Hans": "用快捷键切换工作区及其中的应用。",
+      "zh-Hant": "用快速鍵切換工作空間及其中的 App。"
+    },
+    "The recent-workspace shortcut returns to the previous task.": {
+      "en": "The recent-workspace shortcut returns to the previous task.",
+      "ko": "최근 작업 공간 단축키로 방금 하던 작업에 돌아가요.",
+      "ja": "直前のワークスペースに戻るショートカットで、前の作業を再開できます。",
+      "zh-Hans": "用最近工作区快捷键，回到刚才的任务。",
+      "zh-Hant": "用最近工作空間快速鍵，回到剛才的工作。"
+    },
+    "Activating a workspace automatically opens its assigned apps.": {
+      "en": "Activating a workspace automatically opens its assigned apps.",
+      "ko": "작업 공간을 켜면 배정한 앱들이 자동으로 열려요.",
+      "ja": "ワークスペースを開くと、割り当てたアプリが自動で起動します。",
+      "zh-Hans": "激活工作区时，自动打开分配给它的应用。",
+      "zh-Hant": "啟用工作空間時，自動開啟指派給它的 App。"
+    },
+    "With Auto-open enabled, returning also reopens closed windows.": {
+      "en": "With Auto-open enabled, returning also reopens closed windows.",
+      "ko": "자동 열기를 켜두면 다시 들어올 때 닫았던 창도 열려요.",
+      "ja": "自動起動を有効にすると、戻ったときに閉じたウインドウも開きます。",
+      "zh-Hans": "启用自动打开后，返回工作区也会重新打开已关闭的窗口。",
+      "zh-Hant": "啟用自動開啟後，返回工作空間也會重新開啟已關閉的視窗。"
+    },
+    "Move the focused app to a different workspace with a shortcut.": {
+      "en": "Move the focused app to a different workspace with a shortcut.",
+      "ko": "단축키로 현재 앱을 다른 작업 공간에 옮겨요.",
+      "ja": "ショートカットで、選択中のアプリを別のワークスペースへ移します。",
+      "zh-Hans": "用快捷键把当前应用移到另一个工作区。",
+      "zh-Hant": "用快速鍵將目前的 App 移至另一個工作空間。"
+    },
+    "The moved app is no longer assigned to its original workspace.": {
+      "en": "The moved app is no longer assigned to its original workspace.",
+      "ko": "옮긴 앱은 원래 작업 공간에서 빠져요.",
+      "ja": "移したアプリは、元のワークスペースから外れます。",
+      "zh-Hans": "移动后，该应用不再属于原来的工作区。",
+      "zh-Hant": "移動後，該 App 不再屬於原本的工作空間。"
+    },
+    "Use the same shortcut to move the app back.": {
+      "en": "Use the same shortcut to move the app back.",
+      "ko": "같은 방식의 단축키로 앱을 다시 옮길 수 있어요.",
+      "ja": "同じ操作で、アプリを元のワークスペースへ戻せます。",
+      "zh-Hans": "用同样的快捷键操作将应用移回去。",
+      "zh-Hant": "用相同的快速鍵操作將 App 移回去。"
+    },
+    "Switching profiles changes the complete workspace configuration.": {
+      "en": "Switching profiles changes the complete workspace configuration.",
+      "ko": "프로필을 전환하면 작업 공간 구성이 통째로 바뀌어요.",
+      "ja": "プロファイルを切り替えると、ワークスペースの構成全体が変わります。",
+      "zh-Hans": "切换配置方案会更换整套工作区配置。",
+      "zh-Hant": "切換設定組合會更換整套工作空間設定。"
+    },
+    "Each profile restores its own window layout.": {
+      "en": "Each profile restores its own window layout.",
+      "ko": "프로필마다 저장해둔 창 배치로 돌아올 수 있어요.",
+      "ja": "プロファイルごとに保存したウインドウ配置へ戻れます。",
+      "zh-Hans": "每个配置方案都会恢复各自保存的窗口布局。",
+      "zh-Hant": "每個設定組合都會恢復各自儲存的視窗排列。"
+    },
+    "A new window splits the space beside the focused window.": {
+      "en": "A new window splits the space beside the focused window.",
+      "ko": "새 창을 열면 선택한 창의 영역을 나눠 함께 배치해요.",
+      "ja": "新しいウインドウは、選択中のウインドウの領域を分割して配置されます。",
+      "zh-Hans": "新窗口会分割当前选中窗口的区域，自动排列。",
+      "zh-Hant": "新視窗會分割目前選取視窗的區域，自動排列。"
+    },
+    "Other tiles keep their positions while the new window fits in.": {
+      "en": "Other tiles keep their positions while the new window fits in.",
+      "ko": "새 창이 들어와도 다른 영역의 창은 제자리를 유지해요.",
+      "ja": "新しいウインドウが入っても、ほかの領域の配置は変わりません。",
+      "zh-Hans": "新窗口加入时，其他区域的窗口保持原位。",
+      "zh-Hant": "新視窗加入時，其他區域的視窗保持原位。"
+    },
+    "Closing a window lets the remaining tiles fill the space.": {
+      "en": "Closing a window lets the remaining tiles fill the space.",
+      "ko": "창을 닫으면 남은 창이 빈 공간을 채워요.",
+      "ja": "ウインドウを閉じると、残ったウインドウが空いた領域を埋めます。",
+      "zh-Hans": "关闭窗口后，其余窗口会填满腾出的空间。",
+      "zh-Hant": "關閉視窗後，其餘視窗會填滿空出的空間。"
+    },
+    "Swap the focused window with the window beside it.": {
+      "en": "Swap the focused window with the window beside it.",
+      "ko": "선택한 창과 옆 창의 위치를 바꿔요.",
+      "ja": "選択中のウインドウと隣のウインドウを入れ替えます。",
+      "zh-Hans": "交换当前选中窗口与相邻窗口的位置。",
+      "zh-Hant": "交換目前選取視窗與相鄰視窗的位置。"
+    },
+    "Switch between left/right and top/bottom splits.": {
+      "en": "Switch between left/right and top/bottom splits.",
+      "ko": "창을 나누는 방향을 좌우에서 위아래로 바꿔요.",
+      "ja": "左右分割と上下分割を切り替えます。",
+      "zh-Hans": "在左右分割和上下分割之间切换。",
+      "zh-Hant": "在左右分割與上下分割之間切換。"
+    },
+    "Grow the focused tile along its current split.": {
+      "en": "Grow the focused tile along its current split.",
+      "ko": "선택한 창이 속한 영역을 더 크게 늘려요.",
+      "ja": "選択中のウインドウの領域を広げます。",
+      "zh-Hans": "扩大当前选中窗口所占的区域。",
+      "zh-Hant": "擴大目前選取視窗所占的區域。"
+    },
+    "Balance resets the BSP layout when Auto-balance is off.": {
+      "en": "Balance resets the BSP layout when Auto-balance is off.",
+      "ko": "자동 균등 배치가 꺼져 있으면 기본 BSP 배치로 되돌려요.",
+      "ja": "自動均等配置がオフの場合、基本の BSP 配置に戻します。",
+      "zh-Hans": "关闭自动均衡时，均衡命令会恢复默认 BSP 布局。",
+      "zh-Hant": "關閉自動平衡時，平衡指令會恢復預設 BSP 排列。"
+    },
+    "Drag onto another window to swap or reposition it.": {
+      "en": "Drag onto another window to swap or reposition it.",
+      "ko": "창을 다른 창 위로 드래그해 위치를 바꾸거나 끼워 넣어요.",
+      "ja": "別のウインドウへドラッグして、入れ替えたり隣へ配置したりできます。",
+      "zh-Hans": "将窗口拖到另一个窗口上，交换位置或插入布局。",
+      "zh-Hant": "將視窗拖到另一個視窗上，交換位置或插入排列。"
+    },
+    "Drag a window edge; Tatami saves the new split ratio.": {
+      "en": "Drag a window edge; Tatami saves the new split ratio.",
+      "ko": "창 가장자리를 드래그하면 바꾼 비율이 저장돼요.",
+      "ja": "ウインドウの端をドラッグすると、変更した分割比率が保存されます。",
+      "zh-Hans": "拖动窗口边缘，Tatami 会保存新的分割比例。",
+      "zh-Hant": "拖曳視窗邊緣，Tatami 會儲存新的分割比例。"
+    },
+    "Enlarge one tile without losing the saved layout.": {
+      "en": "Enlarge one tile without losing the saved layout.",
+      "ko": "기존 배치를 유지한 채 창 하나만 크게 확대해요.",
+      "ja": "元の配置を保ったまま、一つのウインドウを大きく表示できます。",
+      "zh-Hans": "放大一个窗口，同时保留原来的布局。",
+      "zh-Hant": "放大一個視窗，同時保留原本的排列。"
+    },
+    "Press the shortcut again to restore the previous layout.": {
+      "en": "Press the shortcut again to restore the previous layout.",
+      "ko": "같은 단축키를 다시 누르면 이전 배치로 돌아와요.",
+      "ja": "同じショートカットをもう一度押すと、元の配置に戻ります。",
+      "zh-Hans": "再按一次快捷键，恢复之前的布局。",
+      "zh-Hant": "再按一次快速鍵，恢復先前的排列。"
+    },
+    "Select a window with a shortcut; the pointer moves there too.": {
+      "en": "Select a window with a shortcut; the pointer moves there too.",
+      "ko": "단축키로 창을 선택하면 마우스 포인터도 그 창으로 이동해요.",
+      "ja": "ショートカットでウインドウを選ぶと、ポインタもそのウインドウへ移動します。",
+      "zh-Hans": "用快捷键选中窗口时，鼠标指针也会移到该窗口。",
+      "zh-Hant": "用快速鍵選取視窗時，滑鼠游標也會移到該視窗。"
+    },
+    "With Focus Follows Mouse enabled, hovering selects a window.": {
+      "en": "With Focus Follows Mouse enabled, hovering selects a window.",
+      "ko": "마우스 포인터를 올린 창을 자동으로 선택하도록 설정할 수도 있어요.",
+      "ja": "ポインタを重ねたウインドウが自動で選ばれる設定もあります。",
+      "zh-Hans": "启用焦点跟随鼠标后，指针移入哪个窗口就选中哪个窗口。",
+      "zh-Hant": "啟用焦點跟隨滑鼠後，游標移入哪個視窗就選取哪個視窗。"
+    },
+    "When a window closes, focus moves to a remaining window.": {
+      "en": "When a window closes, focus moves to a remaining window.",
+      "ko": "창을 닫으면 남아 있는 창이 자동으로 선택돼요.",
+      "ja": "ウインドウを閉じると、残っているウインドウへフォーカスが移ります。",
+      "zh-Hans": "关闭窗口后，自动选中剩下的窗口。",
+      "zh-Hant": "關閉視窗後，自動選取剩下的視窗。"
+    },
+    "Hold the shortcut to choose a window in the current workspace.": {
+      "en": "Hold the shortcut to choose a window in the current workspace.",
+      "ko": "단축키를 길게 눌러 현재 작업 공간의 창을 골라요.",
+      "ja": "ショートカットを押し続けて、今のワークスペースのウインドウを選びます。",
+      "zh-Hans": "按住快捷键，选择当前工作区中的窗口。",
+      "zh-Hant": "按住快速鍵，選擇目前工作空間中的視窗。"
+    },
+    "Tap the shortcut to return to the last-used window.": {
+      "en": "Tap the shortcut to return to the last-used window.",
+      "ko": "단축키를 짧게 누르면 직전에 사용한 창으로 돌아가요.",
+      "ja": "短く押すと、直前に使っていたウインドウへ戻ります。",
+      "zh-Hans": "轻按快捷键，返回上一个使用的窗口。",
+      "zh-Hant": "輕按快速鍵，返回上一個使用的視窗。"
+    },
+    "Borrow another workspace without leaving the current task.": {
+      "en": "Borrow another workspace without leaving the current task.",
+      "ko": "현재 작업을 유지하면서 다른 작업 공간을 옆에 빌려와요.",
+      "ja": "今の作業を続けながら、別のワークスペースを隣へ借りられます。",
+      "zh-Hans": "无需离开当前任务，就能借用另一个工作区。",
+      "zh-Hant": "不必離開目前工作，就能借用另一個工作空間。"
+    },
+    "Dismiss the borrowed workspace to restore the full layout.": {
+      "en": "Dismiss the borrowed workspace to restore the full layout.",
+      "ko": "빌려온 작업 공간을 돌려보내면 원래 영역을 다시 채워요.",
+      "ja": "借りたワークスペースを閉じると、元の領域全体を使えます。",
+      "zh-Hans": "收起借用的工作区，恢复完整布局。",
+      "zh-Hant": "收起借用的工作空間，恢復完整排列。"
+    },
+    "A scratchpad opens only when you borrow it.": {
+      "en": "A scratchpad opens only when you borrow it.",
+      "ko": "임시 작업 공간은 빌려올 때만 열려요.",
+      "ja": "スクラッチパッドは、借りる操作でのみ表示できます。",
+      "zh-Hans": "临时工作区只在借用时打开。",
+      "zh-Hant": "暫存工作空間只會在借用時開啟。"
+    },
+    "Borrow the scratchpad again; its apps keep their contents.": {
+      "en": "Borrow the scratchpad again; its apps keep their contents.",
+      "ko": "다시 빌려와도 앱에서 작업한 내용은 그대로 남아 있어요.",
+      "ja": "もう一度借りると、アプリの作業内容がそのまま残っています。",
+      "zh-Hans": "再次借用时，应用中的内容仍然保留。",
+      "zh-Hant": "再次借用時，App 中的內容仍然保留。"
+    },
+    "Choose which edge to place the borrowed workspace on.": {
+      "en": "Choose which edge to place the borrowed workspace on.",
+      "ko": "빌려온 작업 공간을 화면의 어느 쪽에 둘지 골라요.",
+      "ja": "借りるワークスペースを、画面のどの辺に置くか選べます。",
+      "zh-Hans": "选择将借用的工作区放在屏幕的哪一侧。",
+      "zh-Hant": "選擇將借用的工作空間放在螢幕的哪一側。"
+    },
+    "Borrow can also place a workspace below the current one.": {
+      "en": "Borrow can also place a workspace below the current one.",
+      "ko": "현재 작업 공간 아래쪽으로 빌려올 수도 있어요.",
+      "ja": "今のワークスペースの下側に借りることもできます。",
+      "zh-Hans": "也可以把借用的工作区放在当前工作区下方。",
+      "zh-Hant": "也可以將借用的工作空間放在目前工作空間下方。"
+    },
+    "Activate the borrowed workspace to switch to it completely.": {
+      "en": "Activate the borrowed workspace to switch to it completely.",
+      "ko": "빌려온 작업 공간을 활성화하면 그 공간으로 완전히 전환해요.",
+      "ja": "借りているワークスペースを開くと、その作業へ完全に切り替わります。",
+      "zh-Hans": "激活借用的工作区，就会完全切换过去。",
+      "zh-Hant": "啟用借用的工作空間，就會完全切換過去。"
+    },
+    "Always on Top keeps this window above the workspace.": {
+      "en": "Always on Top keeps this window above the workspace.",
+      "ko": "항상 위로 설정한 창은 작업 공간 위에 계속 보여요.",
+      "ja": "最前面表示にしたウインドウは、ワークスペースの手前に表示されます。",
+      "zh-Hans": "设为始终置顶的窗口会保持在工作区上方。",
+      "zh-Hant": "設為保持最上層的視窗，會持續顯示在工作空間上方。"
+    },
+    "Switch to tiled placement to include the window in the layout.": {
+      "en": "Switch to tiled placement to include the window in the layout.",
+      "ko": "타일링으로 바꾸면 다른 창과 함께 나눠 배치돼요.",
+      "ja": "タイル表示に切り替えると、ほかのウインドウと並んで配置されます。",
+      "zh-Hans": "切换为平铺，让窗口参与自动布局。",
+      "zh-Hant": "切換為並排，讓視窗加入自動排列。"
+    },
+    "Switch back to Always on Top whenever you need it.": {
+      "en": "Switch back to Always on Top whenever you need it.",
+      "ko": "필요할 때 다시 항상 위로 바꿀 수 있어요.",
+      "ja": "必要なときに、再び最前面表示へ戻せます。",
+      "zh-Hans": "需要时，可以再次切换为始终置顶。",
+      "zh-Hant": "需要時，可以再次切換為保持最上層。"
+    },
+    "A shared Always on Top window stays visible across workspaces.": {
+      "en": "A shared Always on Top window stays visible across workspaces.",
+      "ko": "공용 앱을 항상 위로 두면 어느 작업 공간에서도 보여요.",
+      "ja": "共有アプリを最前面表示にすると、どのワークスペースでも表示されます。",
+      "zh-Hans": "将共享应用设为始终置顶，在每个工作区都能看到它。",
+      "zh-Hant": "將共用 App 設為保持最上層，在每個工作空間都能看到它。"
+    },
+    "The shared window remains visible even over a zoomed tile.": {
+      "en": "The shared window remains visible even over a zoomed tile.",
+      "ko": "창 하나를 전체 크기로 확대해도 공용 창은 계속 보여요.",
+      "ja": "一つのウインドウを拡大しても、共有ウインドウは手前に表示されます。",
+      "zh-Hans": "即使放大一个平铺窗口，共享窗口仍然可见。",
+      "zh-Hant": "即使放大一個並排視窗，共用視窗仍然可見。"
+    },
+    "Leave As Is keeps a window out of automatic tiling.": {
+      "en": "Leave As Is keeps a window out of automatic tiling.",
+      "ko": "그대로 두기로 설정한 창은 자동 타일링에서 제외돼요.",
+      "ja": "そのまま表示にしたウインドウは、自動タイル配置の対象外になります。",
+      "zh-Hans": "设为保持原样的窗口不参与自动平铺。",
+      "zh-Hant": "設為維持原狀的視窗不會參與自動並排。"
+    },
+    "Shared membership keeps it in place when workspaces change.": {
+      "en": "Shared membership keeps it in place when workspaces change.",
+      "ko": "공용 앱으로 등록하면 작업 공간을 바꿔도 위치와 크기가 유지돼요.",
+      "ja": "共有アプリにすると、ワークスペースを変えても位置と大きさを保てます。",
+      "zh-Hans": "设为共享应用后，切换工作区也会保持它的位置和大小。",
+      "zh-Hant": "設為共用 App 後，切換工作空間也會保留它的位置與大小。"
+    },
+    "The CLI can list workspaces and control the running Tatami.": {
+      "en": "The CLI can list workspaces and control the running Tatami.",
+      "ko": "CLI로 작업 공간 목록을 확인하고 실행 중인 Tatami를 조작해요.",
+      "ja": "CLI からワークスペース一覧を確認し、起動中の Tatami を操作できます。",
+      "zh-Hans": "通过 CLI 查看工作区列表并控制正在运行的 Tatami。",
+      "zh-Hant": "透過 CLI 查看工作空間清單，並操作執行中的 Tatami。"
+    },
+    "One script activates, arranges, and borrows workspaces.": {
+      "en": "One script activates, arranges, and borrows workspaces.",
+      "ko": "스크립트 하나로 작업 공간 전환·배치·빌려오기를 실행해요.",
+      "ja": "一つのスクリプトで、ワークスペースの切り替え・配置・借用を実行します。",
+      "zh-Hans": "一个脚本即可切换、排列和借用工作区。",
+      "zh-Hant": "一個指令稿即可切換、排列及借用工作空間。"
+    },
+    "Hooks notify external tools when the workspace changes.": {
+      "en": "Hooks notify external tools when the workspace changes.",
+      "ko": "작업 공간이 바뀌면 훅으로 외부 도구에 알려요.",
+      "ja": "ワークスペースが変わると、フックで外部ツールに通知できます。",
+      "zh-Hans": "工作区变化时，通过钩子通知外部工具。",
+      "zh-Hant": "工作空間變更時，透過掛鉤通知外部工具。"
+    },
+    "HUD hooks also send action feedback to external tools.": {
+      "en": "HUD hooks also send action feedback to external tools.",
+      "ko": "HUD 훅으로 동작 알림도 외부 도구에 전달해요.",
+      "ja": "HUD フックを使うと、操作結果の通知も外部ツールへ送れます。",
+      "zh-Hans": "HUD 钩子还能把操作提示发送给外部工具。",
+      "zh-Hant": "HUD 掛鉤也能將操作提示傳送給外部工具。"
+    },
+    "Edit TOML to change window gaps while Tatami is running.": {
+      "en": "Edit TOML to change window gaps while Tatami is running.",
+      "ko": "실행 중에 TOML 파일을 수정해 창 사이 간격을 바꿔요.",
+      "ja": "Tatami の起動中に TOML を編集して、ウインドウの間隔を変えられます。",
+      "zh-Hans": "Tatami 运行时，编辑 TOML 即可调整窗口间距。",
+      "zh-Hant": "Tatami 執行時，編輯 TOML 即可調整視窗間距。"
+    },
+    "Supported settings reload automatically without restarting.": {
+      "en": "Supported settings reload automatically without restarting.",
+      "ko": "지원하는 설정은 재시작하지 않아도 자동으로 반영돼요.",
+      "ja": "対応している設定は、再起動せずに自動で反映されます。",
+      "zh-Hans": "支持的设置会自动生效，无需重启。",
+      "zh-Hant": "支援的設定會自動生效，不必重新啟動。"
+    },
+    "Pin different workspaces to different displays.": {
+      "en": "Pin different workspaces to different displays.",
+      "ko": "화면마다 다른 작업 공간을 고정해 사용할 수 있어요.",
+      "ja": "ディスプレイごとに、別のワークスペースを固定できます。",
+      "zh-Hans": "将不同的工作区固定到不同的显示器。",
+      "zh-Hant": "將不同的工作空間固定至不同的顯示器。"
+    },
+    "One shortcut restores the previous workspace pair.": {
+      "en": "One shortcut restores the previous workspace pair.",
+      "ko": "단축키 하나로 이전에 함께 쓰던 작업 공간들로 돌아와요.",
+      "ja": "ショートカット一つで、前のワークスペースの組み合わせに戻れます。",
+      "zh-Hans": "一个快捷键，恢复之前搭配使用的工作区。",
+      "zh-Hant": "一個快速鍵，恢復先前搭配使用的工作空間。"
+    },
+    "Connect a second display to trigger the two-display profile rule.": {
+      "en": "Connect a second display to trigger the two-display profile rule.",
+      "ko": "두 번째 화면을 연결하면 두 화면용 프로필이 자동으로 켜져요.",
+      "ja": "2 台目を接続すると、2 画面用の条件でプロファイルが自動切り替えされます。",
+      "zh-Hans": "连接第二个显示器，自动触发双屏配置方案。",
+      "zh-Hant": "連接第二部顯示器，自動啟用雙螢幕的設定組合。"
+    },
+    "Disconnect it to trigger the single-display profile rule.": {
+      "en": "Disconnect it to trigger the single-display profile rule.",
+      "ko": "연결을 해제하면 한 화면용 프로필로 자동 전환돼요.",
+      "ja": "接続を外すと、1 画面用のプロファイルに自動で戻ります。",
+      "zh-Hans": "断开连接，自动切换回单屏配置方案。",
+      "zh-Hant": "中斷連接，自動切換回單螢幕的設定組合。"
+    },
+    "Edit the saved layout before activating the workspace.": {
+      "en": "Edit the saved layout before activating the workspace.",
+      "ko": "작업 공간을 켜기 전에 저장된 창 배치를 편집해요.",
+      "ja": "ワークスペースを開く前に、保存するウインドウ配置を編集できます。",
+      "zh-Hans": "激活工作区之前，先编辑保存的窗口布局。",
+      "zh-Hant": "啟用工作空間之前，先編輯儲存的視窗排列。"
+    },
+    "Flip the top and bottom positions in the layout preview.": {
+      "en": "Flip the top and bottom positions in the layout preview.",
+      "ko": "배치 미리보기에서 위아래 위치를 뒤집어요.",
+      "ja": "配置プレビューで、上下の位置を入れ替えます。",
+      "zh-Hans": "在布局预览中交换上下位置。",
+      "zh-Hant": "在排列預覽中交換上下位置。"
+    },
+    "Activating the workspace applies the layout you just edited.": {
+      "en": "Activating the workspace applies the layout you just edited.",
+      "ko": "작업 공간을 켜면 방금 편집한 배치가 실제 창에 적용돼요.",
+      "ja": "ワークスペースを開くと、編集した配置が実際のウインドウに反映されます。",
+      "zh-Hans": "激活工作区后，刚才编辑的布局会应用到实际窗口。",
+      "zh-Hant": "啟用工作空間後，剛才編輯的排列會套用至實際視窗。"
+    },
+    "Guided Setup lets you practise without moving your real windows.": {
+      "en": "Guided Setup lets you practise without moving your real windows.",
+      "ko": "가이드 설정에서는 실제 창을 움직이지 않고 기능을 연습해요.",
+      "ja": "ガイド付き設定では、実際のウインドウを動かさずに操作を練習できます。",
+      "zh-Hans": "在引导设置中练习功能，不会移动实际窗口。",
+      "zh-Hant": "在引導設定中練習功能，不會移動實際視窗。"
+    },
+    "Practise the configured shortcuts inside the preview.": {
+      "en": "Practise the configured shortcuts inside the preview.",
+      "ko": "설정한 단축키를 미리보기 안에서 직접 연습해요.",
+      "ja": "設定したショートカットを、プレビュー内で実際に試せます。",
+      "zh-Hans": "在预览中练习已设置的快捷键。",
+      "zh-Hant": "在預覽中練習已設定的快速鍵。"
+    },
+    "Try tiling controls on the virtual windows first.": {
+      "en": "Try tiling controls on the virtual windows first.",
+      "ko": "가상 창으로 타일링 동작을 먼저 익혀요.",
+      "ja": "仮想ウインドウで、タイル配置の操作を先に試せます。",
+      "zh-Hans": "先用虚拟窗口练习平铺操作。",
+      "zh-Hant": "先用虛擬視窗練習並排操作。"
+    },
+    "Review an AI-proposed configuration before applying it.": {
+      "en": "Review an AI-proposed configuration before applying it.",
+      "ko": "AI가 제안한 구성을 적용하기 전에 검토해요.",
+      "ja": "AI が提案した構成を、適用する前に確認できます。",
+      "zh-Hans": "应用 AI 建议的配置之前，先进行检查。",
+      "zh-Hant": "套用 AI 建議的設定之前，先進行檢查。"
+    },
+    "Check which apps are assigned to each proposed workspace.": {
+      "en": "Check which apps are assigned to each proposed workspace.",
+      "ko": "제안된 작업 공간마다 어떤 앱이 배정됐는지 확인해요.",
+      "ja": "提案された各ワークスペースに、どのアプリが割り当てられたか確認します。",
+      "zh-Hans": "检查建议的各个工作区分配了哪些应用。",
+      "zh-Hant": "檢查建議的各個工作空間指派了哪些 App。"
+    },
+    "Duplicate a profile in the settings window and review the workspaces to include.": {
+      "en": "Duplicate a profile in the settings window and review the workspaces to include.",
+      "ko": "설정 창에서 프로필을 복제하고 포함할 작업 공간을 검토해요.",
+      "ja": "設定画面でプロファイルを複製し、含めるワークスペースを確認します。",
+      "zh-Hans": "在设置窗口中复制配置方案，并检查要包含的工作区。",
+      "zh-Hant": "在設定視窗中複製設定組合，並檢查要包含的工作空間。"
+    },
+    "Open Duplicate from a profile’s context menu.": {
+      "en": "Open Duplicate from a profile’s context menu.",
+      "ko": "프로필을 오른쪽 클릭해 복제를 선택해요.",
+      "ja": "プロファイルを右クリックして、複製を選びます。",
+      "zh-Hans": "右键单击配置方案，选择复制。",
+      "zh-Hant": "在設定組合上按右鍵，選擇複製。"
+    },
+    "Choose the workspaces and settings to include.": {
+      "en": "Choose the workspaces and settings to include.",
+      "ko": "복제할 작업 공간과 설정을 골라요.",
+      "ja": "複製するワークスペースと設定を選べます。",
+      "zh-Hans": "选择要复制的工作区和设置。",
+      "zh-Hant": "選擇要複製的工作空間與設定。"
+    },
+    "The new profile can be edited independently.": {
+      "en": "The new profile can be edited independently.",
+      "ko": "새 프로필은 원본과 별개로 편집할 수 있어요.",
+      "ja": "新しいプロファイルは、元の構成とは別に編集できます。",
+      "zh-Hans": "新配置方案可以独立于原方案进行编辑。",
+      "zh-Hant": "新的設定組合可以獨立於原組合進行編輯。"
+    },
+    "Copy settings between workspaces": {
+      "en": "Copy settings between workspaces",
+      "ko": "작업 공간 간 설정 복사하기",
+      "ja": "ワークスペース間で設定をコピー",
+      "zh-Hans": "在工作区之间复制设置",
+      "zh-Hant": "在工作空間之間複製設定"
+    },
+    "Use Copy from to review another workspace’s apps and settings, then apply the selected changes.": {
+      "en": "Use Copy from to review another workspace’s apps and settings, then apply the selected changes.",
+      "ko": "다른 작업 공간에서 복사할 앱과 설정을 검토한 뒤 선택한 변경을 적용해요.",
+      "ja": "別のワークスペースのアプリと設定を確認し、選んだ変更を適用します。",
+      "zh-Hans": "检查另一个工作区的应用和设置，然后应用所选更改。",
+      "zh-Hant": "檢查另一個工作空間的 App 與設定，再套用選取的變更。"
+    },
+    "COPY WORKSPACE SETTINGS": {
+      "en": "COPY WORKSPACE SETTINGS",
+      "ko": "작업 공간 설정 복사",
+      "ja": "ワークスペース設定のコピー",
+      "zh-Hans": "复制工作区设置",
+      "zh-Hant": "複製工作空間設定"
+    },
+    "Choose the workspace whose settings you want to copy.": {
+      "en": "Choose the workspace whose settings you want to copy.",
+      "ko": "설정을 가져올 작업 공간을 선택해요.",
+      "ja": "設定のコピー元にするワークスペースを選びます。",
+      "zh-Hans": "选择要从中复制设置的工作区。",
+      "zh-Hant": "選擇要從中複製設定的工作空間。"
+    },
+    "Review the changes before copying them into this workspace.": {
+      "en": "Review the changes before copying them into this workspace.",
+      "ko": "현재 작업 공간에 복사할 변경 내용을 먼저 확인해요.",
+      "ja": "今のワークスペースへコピーする変更を、適用前に確認できます。",
+      "zh-Hans": "复制到当前工作区前，先检查更改内容。",
+      "zh-Hant": "複製至目前工作空間前，先檢查變更內容。"
+    },
+    "The selected apps and settings are now copied.": {
+      "en": "The selected apps and settings are now copied.",
+      "ko": "선택한 앱과 설정이 현재 작업 공간에 복사됐어요.",
+      "ja": "選んだアプリと設定が、今のワークスペースにコピーされました。",
+      "zh-Hans": "所选应用和设置已复制到当前工作区。",
+      "zh-Hant": "選取的 App 與設定已複製至目前的工作空間。"
+    },
+    "Use shortcuts to select neighboring windows and move the pointer, or select windows by hovering.": {
+      "en": "Use shortcuts to select neighboring windows and move the pointer, or select windows by hovering.",
+      "ko": "단축키로 이웃한 창을 선택하고 포인터도 함께 옮겨요. 마우스를 창 위에 올려 선택하는 방법도 보여줘요.",
+      "ja": "ショートカットで隣のウインドウを選び、ポインタも移動します。マウスを重ねて選ぶ方法も紹介します。",
+      "zh-Hans": "用快捷键选择相邻窗口并移动鼠标指针，也可以将指针移入窗口来选中它。",
+      "zh-Hant": "用快速鍵選擇相鄰視窗並移動滑鼠游標，也可以將游標移入視窗來選取它。"
+    }
+  }
+}

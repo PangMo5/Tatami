@@ -1,0 +1,147 @@
+{
+  "name": "desk",
+  "title": "二つの画面で、一つの作業",
+  "summary": "デザインと資料を別々の画面に置き、一つのショートカットでチェーンを切り替えます。",
+  "requires": {
+    "displays": 2
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Desk"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "複数のディスプレイ"
+    },
+    {
+      "kind": "caption",
+      "text": "ディスプレイごとに、別のワークスペースを固定できます。"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - right"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.search"
+    },
+    {
+      "kind": "typeText",
+      "app": "Docs",
+      "text": "見出し",
+      "ms": 65
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - left"
+    },
+    {
+      "kind": "expectFront",
+      "app": "Canvas"
+    },
+    {
+      "kind": "caption",
+      "text": "ワークスペースチェーンで、両方の画面を切り替えます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Chat"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "caption",
+      "text": "ショートカット一つで、前のワークスペースの組み合わせに戻れます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

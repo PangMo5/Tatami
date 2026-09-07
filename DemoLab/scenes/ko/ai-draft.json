@@ -1,0 +1,109 @@
+{
+  "name": "ai-draft",
+  "title": "제안받은 구성 검토하기",
+  "summary": "예시 AI 제안을 검증하고 초안에 적용해요. 이 영상에서는 외부 AI 서비스를 호출하지 않아요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Tatami"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:가이드 설정 실행…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계속"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계속"
+    },
+    {
+      "kind": "clipboard",
+      "text": "{\n  \"workspaces\": [\n    {\n      \"name\": \"Design review\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Canvas\",\n        \"dev.PangMo5.DemoLab.Docs\"\n      ]\n    },\n    {\n      \"name\": \"Writing\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Editor\"\n      ]\n    },\n    {\n      \"name\": \"Conversation\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Chat\"\n      ]\n    },\n    {\n      \"name\": \"Quick notes\",\n      \"kind\": \"scratchpad\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Notes\"\n      ]\n    }\n  ]\n}\n"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "AI 구성 / 예시 제안"
+    },
+    {
+      "kind": "caption",
+      "text": "AI가 제안한 구성을 적용하기 전에 검토해요."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "desktop"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3. 결과 붙여넣기"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:Design review",
+      "value": "Design review"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "제안된 작업 공간마다 어떤 앱이 배정됐는지 확인해요."
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "description:계획을 초안에 반영"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:계획을 초안에 반영"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "text:Design review"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "desktop"
+    },
+    {
+      "kind": "caption",
+      "text": "초안만 바뀌고 실제 화면은 그대로예요."
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    }
+  ]
+}

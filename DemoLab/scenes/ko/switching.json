@@ -1,0 +1,130 @@
+{
+  "name": "switching",
+  "title": "필요한 창 고르기",
+  "summary": "전환 단축키를 길게 눌러 현재 창들을 확인해요. 짧게 누르면 바로 돌아갈 수 있어요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "appWindows",
+      "app": "Docs",
+      "count": 2
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "창 전환"
+    },
+    {
+      "kind": "caption",
+      "text": "단축키를 길게 눌러 현재 작업 공간의 창을 골라요."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "hold",
+      "modifiers": "alt",
+      "keys": [
+        "tab"
+      ],
+      "gapMs": 900,
+      "releaseAfterMs": 1600
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "caption",
+      "text": "단축키를 짧게 누르면 직전에 사용한 창으로 돌아가요."
+    },
+    {
+      "kind": "key",
+      "chord": "alt - tab"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "alt - tab"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs",
+    "Docs"
+  ]
+}

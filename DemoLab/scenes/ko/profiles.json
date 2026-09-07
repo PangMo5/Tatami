@@ -1,0 +1,121 @@
+{
+  "name": "profiles",
+  "title": "전체 구성 전환하기",
+  "summary": "프로필을 전환하면 작업 공간 구성이 통째로 바뀌어요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Editor"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "프로필"
+    },
+    {
+      "kind": "caption",
+      "text": "프로필을 전환하면 작업 공간 구성이 통째로 바뀌어요."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - 2"
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    },
+    {
+      "kind": "caption",
+      "text": "프로필마다 저장해둔 창 배치로 돌아올 수 있어요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - 1"
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    }
+  ],
+  "openingApps": [
+    "Editor",
+    "Docs"
+  ]
+}

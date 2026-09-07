@@ -1,7 +1,7 @@
 {
   "name": "profile-copy",
   "title": "Reuse an existing setup",
-  "summary": "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.",
+  "summary": "Duplicate a profile in the settings window and review the workspaces to include.",
   "requires": {
     "displays": 1
   },
@@ -10,48 +10,12 @@
       "kind": "clearOverlay"
     },
     {
-      "kind": "pointer",
-      "display": 0,
-      "x": 0.5,
-      "y": 0.5
+      "kind": "prepareSettings"
     },
     {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Build",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Terminal"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Terminal"
-    },
-    {
-      "kind": "cli",
-      "args": [
-        "layout",
-        "balance"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1800
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
     }
   ],
   "steps": [
@@ -61,82 +25,50 @@
     },
     {
       "kind": "caption",
-      "text": "Start with the setup that already works."
-    },
-    {
-      "kind": "click",
-      "app": "Terminal",
-      "identifier": "terminal.command"
-    },
-    {
-      "kind": "typeText",
-      "app": "Terminal",
-      "text": "tatami profile duplicate Laptop --name Studio",
-      "ms": 65
-    },
-    {
-      "kind": "key",
-      "chord": "return"
-    },
-    {
-      "kind": "expectCommand",
-      "text": "tatami profile duplicate Laptop --name Studio",
-      "code": 0
+      "text": "Open Duplicate from a profile’s context menu."
     },
     {
       "kind": "beat",
-      "ms": 1000
+      "ms": 1400
+    },
+    {
+      "kind": "rightClick",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:Duplicate"
     },
     {
       "kind": "caption",
-      "text": "Duplicate a workspace for a new variation."
-    },
-    {
-      "kind": "click",
-      "app": "Terminal",
-      "identifier": "terminal.command"
-    },
-    {
-      "kind": "typeText",
-      "app": "Terminal",
-      "text": "tatami workspace duplicate Design --name Explore",
-      "ms": 65
-    },
-    {
-      "kind": "key",
-      "chord": "return"
-    },
-    {
-      "kind": "expectCommand",
-      "text": "tatami workspace duplicate Design --name Explore",
-      "code": 0
-    },
-    {
-      "kind": "click",
-      "app": "Terminal",
-      "identifier": "terminal.command"
-    },
-    {
-      "kind": "typeText",
-      "app": "Terminal",
-      "text": "tatami workspace list",
-      "ms": 65
-    },
-    {
-      "kind": "key",
-      "chord": "return"
-    },
-    {
-      "kind": "expectCommand",
-      "text": "tatami workspace list",
-      "code": 0
+      "text": "Choose the workspaces and settings to include."
     },
     {
       "kind": "beat",
-      "ms": 2200
+      "ms": 2600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:Duplicate"
+    },
+    {
+      "kind": "expectProfileCount",
+      "count": 3
+    },
+    {
+      "kind": "caption",
+      "text": "The new profile can be edited independently."
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
     }
-  ],
-  "openingApps": [
-    "Terminal"
   ]
 }

@@ -1,0 +1,187 @@
+{
+  "name": "guided-setup",
+  "title": "边用边学",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:运行引导设置…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:继续"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:继续"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:继续"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "设置向导"
+    },
+    {
+      "kind": "caption",
+      "text": "在引导设置中练习功能，不会移动实际窗口。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "用向导内的按钮预览手势操作。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:4F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "caption",
+      "text": "在预览中练习已设置的快捷键。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:继续"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:5/9",
+      "value": "5/9"
+    },
+    {
+      "kind": "caption",
+      "text": "先用虚拟窗口练习平铺操作。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:向右聚焦"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:与左侧交换"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:下一个窗口"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:扩大窗口"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:翻转分区"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:均衡布局"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:你已体验完整的平铺工具集",
+      "value": "你已体验完整的平铺工具集"
+    },
+    {
+      "kind": "caption",
+      "text": "应用草稿前，实际桌面保持不变。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ],
+  "summary": "不移动实际桌面，预览手势操作并练习快捷键。本片不展示物理触控板输入。"
+}

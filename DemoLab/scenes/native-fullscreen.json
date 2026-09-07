@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "Zoom a tile. Keep the rest of the layout."
+      "text": "Enlarge one tile without losing the saved layout."
     },
     {
       "kind": "saveLayout",

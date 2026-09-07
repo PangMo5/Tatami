@@ -323,21 +323,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/site"
-          # Static pages (configuration.html / releases.html render their source
-          # of truth at runtime; index.html gets the release version injected).
-          cp web/*.html web/*.css web/*.js "$RUNNER_TEMP/site/"
-          cp web/*.mp4 web/*.jpg "$RUNNER_TEMP/site/" 2>/dev/null || true
-          cp web/demo-manifest.json "$RUNNER_TEMP/site/"
-          sed "s/__VERSION__/${VERSION}/g" web/index.html > "$RUNNER_TEMP/site/index.html"
-          cp Resources/Marketing/app-icon.png "$RUNNER_TEMP/site/icon.png"
-          # Cache-bust the stylesheet and gallery script so a CSS change is never masked by a
-          # stale browser cache.
-          BUST="${GITHUB_SHA:0:8}"
-          # `sed -i` with no backup suffix is GNU-only; this job runs on macOS,
-          # whose BSD sed needs `-i.bak` (which GNU sed also accepts). Clean up.
-          sed -i.bak "s#\"./style.css\"#\"./style.css?v=${BUST}\"#g" "$RUNNER_TEMP/site"/*.html
-          sed -i.bak "s#\"./demos.js\"#\"./demos.js?v=${BUST}\"#g" "$RUNNER_TEMP/site"/*.html
-          rm -f "$RUNNER_TEMP/site"/*.html.bak
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 scripts/build-site.py --output "$RUNNER_TEMP/site" --version "$VERSION"
           # Sparkle feed.
           cp "$RUNNER_TEMP/release/appcast.xml" "$RUNNER_TEMP/site/appcast.xml"
 

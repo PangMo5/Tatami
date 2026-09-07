@@ -1,7 +1,7 @@
 {
   "name": "shared",
   "title": "One status window across tasks",
-  "summary": "A Shared Always on Top monitor receives real workspace and HUD hook events.",
+  "summary": "A shared Always on Top window stays visible across workspaces.",
   "requires": {
     "displays": 1
   },
@@ -78,7 +78,7 @@
     },
     {
       "kind": "caption",
-      "text": "Keep useful status above every workspace."
+      "text": "A shared Always on Top window stays visible across workspaces."
     },
     {
       "kind": "click",
@@ -120,7 +120,7 @@
     },
     {
       "kind": "caption",
-      "text": "Even when one window fills the workspace."
+      "text": "The shared window remains visible even over a zoomed tile."
     },
     {
       "kind": "activateApp",

@@ -1,0 +1,783 @@
+{
+  "schemaVersion": 1,
+  "locale": "ko",
+  "assets": [
+    {
+      "scene": "tour",
+      "title": "모든 작업에 알맞은 자리를 만들어요.",
+      "description": "디자인하고, 쓰고, 검토하고, 빌려오고, 자동화해요. 넓은 책상에 맞춰 구성도 바꿔요.",
+      "section": "demo",
+      "maxSeconds": 150,
+      "maxMB": 30,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 80.62,
+      "bytes": 3232910,
+      "sha256": "f9b78a63684a3b11c7b3fe0f9b6d408ba21c4683283bcb001bc5214c9294798d",
+      "sourceSHA256": "e047cc4df66e4ad7f071e005ef6301820ba66224cd3eef292d0fc5385bd00fb5",
+      "sceneSHA256": "1f991e1c717650c89f8845ae392458d99e943256094bf6e9edea464993852af9",
+      "capturedSceneSHA256": "0cd3cae5557eb54717d6646e799374b49fb27896f8da1ce36f21496b83250956",
+      "tatamiVersion": "1.13.0",
+      "video": "tour.mp4",
+      "poster": "tour.jpg"
+    },
+    {
+      "scene": "workspaces",
+      "title": "작업 사이를 오가기",
+      "description": "단축키로 작업 공간과 그 안의 앱을 함께 전환해요.",
+      "section": "workspaces",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.keyEquivalentModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.recentAcrossDisplays",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 16.8,
+      "bytes": 1013672,
+      "sha256": "478918cc982468299dcd3e8f03a3aebe14a6775b7491c9a0bdf51a03312aecaa",
+      "sourceSHA256": "9b1379f0fb17a9a2bcde45b4bf11f257b15bc4251b05694333580983ce85940c",
+      "sceneSHA256": "b43655b08390eb3d545eda288de41a5bacf64e519850842a50615c18cb951734",
+      "capturedSceneSHA256": "d1661f6fe175c34003aa0525cc8814373135809742e822c30f39561750dd3651",
+      "tatamiVersion": "1.13.0",
+      "video": "workspaces.mp4",
+      "poster": "workspaces.jpg"
+    },
+    {
+      "scene": "autoopen",
+      "title": "필요한 도구 한 번에 열기",
+      "description": "작업 공간을 켜면 배정한 앱들이 자동으로 열려요.",
+      "section": "workspaces",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "posterCaptionIndex": 1,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.autoOpen",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.keyEquivalent",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 14.53,
+      "bytes": 1255398,
+      "sha256": "ab7edf13713dc2954a7d938d69b9bf74b1dee80af6b91a099e0afcdc3cac7bbe",
+      "sourceSHA256": "3ab0db3a2a02cfc2d1b95f44e7a6d512a71506525f3daea6878263c308557189",
+      "sceneSHA256": "5e4656e3c7d48f19637f35ada2e2e08c3d75a42a2804d933935abd8c78241800",
+      "capturedSceneSHA256": "a90574c61fb3390239d590752edcce25cadc00dcde44269b869df9f3831433b7",
+      "tatamiVersion": "1.13.0",
+      "video": "autoopen.mp4",
+      "poster": "autoopen.jpg"
+    },
+    {
+      "scene": "membership",
+      "title": "작업에 맞춰 앱 옮기기",
+      "description": "단축키로 현재 앱을 다른 작업 공간에 옮겨요.",
+      "section": "workspaces",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.assignModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.moveToNextWorkspace",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 13.53,
+      "bytes": 723291,
+      "sha256": "d75c7b4284ea30c94d1d2e61f85b724cd81d80797da20d827dc939faefb50eeb",
+      "sourceSHA256": "08b25501957186d5dab7a69d2b0c229406fd817881e62661c7357f9b44379657",
+      "sceneSHA256": "2aed7df150701bb09a772f9478a6e8f6e82c24800df9c64216838dd7b3797a7d",
+      "capturedSceneSHA256": "f8cb32218c2db6b139462e15dceedeab271faa292c395fe2e95a77668bab9578",
+      "tatamiVersion": "1.13.0",
+      "video": "membership.mp4",
+      "poster": "membership.jpg"
+    },
+    {
+      "scene": "profiles",
+      "title": "전체 구성 전환하기",
+      "description": "프로필을 전환하면 작업 공간 구성이 통째로 바뀌어요.",
+      "section": "profiles",
+      "maxSeconds": 22,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.shortcut",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 7.8,
+      "bytes": 486304,
+      "sha256": "481b0c647564ca348928159d696ec4d1067f1db6d91380f2c8e86541897abadc",
+      "sourceSHA256": "ec598d5d030a8915f0e652a2a73be696cc137ee0fd41121ead55d34bc7b988d8",
+      "sceneSHA256": "9a0a3ea1a54f2dfea734773ae38715ba9f6482c8a773bbe2d823630e008169f3",
+      "capturedSceneSHA256": "4971464beb24e0d31e8eafaa87a5fcc7c25877d2040b935f6a64adcd7d54bcd4",
+      "tatamiVersion": "1.13.0",
+      "video": "profiles.mp4",
+      "poster": "profiles.jpg"
+    },
+    {
+      "scene": "profile-copy",
+      "title": "기존 구성 재사용하기",
+      "description": "설정 창에서 프로필을 복제하고 포함할 작업 공간을 검토해요.",
+      "section": "profiles",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 11.87,
+      "bytes": 420343,
+      "sha256": "db898eeedd10b90a8ec798a3d9aaa3bb0690be1adb3e21e2db604c692e9ccd04",
+      "sourceSHA256": "019fdce6c46d829edead18ce02dad29c60acb94c31a282cd6e3c25569266fcc5",
+      "sceneSHA256": "76990e1efa1df293c1bcdca0992168e1c5f263f8c3ced216443490f90c100648",
+      "capturedSceneSHA256": "76990e1efa1df293c1bcdca0992168e1c5f263f8c3ced216443490f90c100648",
+      "tatamiVersion": "1.13.0",
+      "video": "profile-copy.mp4",
+      "poster": "profile-copy.jpg"
+    },
+    {
+      "scene": "workspace-copy",
+      "title": "작업 공간 간 설정 복사하기",
+      "description": "다른 작업 공간에서 복사할 앱과 설정을 검토한 뒤 선택한 변경을 적용해요.",
+      "section": "profiles",
+      "maxSeconds": 40,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 19.33,
+      "bytes": 855222,
+      "sha256": "8281d01255431d53b783c93b45cefd9c604f985174db2405e8ba6b74fc99801d",
+      "sourceSHA256": "dc34957c864c75494769ae9170f046804b6952dd2f9f0deb0edb5b1e3a552743",
+      "sceneSHA256": "e9537c86ba53720bbee4ebdc78926ad69c6aa70150431ef15bae440f48774339",
+      "capturedSceneSHA256": "e9537c86ba53720bbee4ebdc78926ad69c6aa70150431ef15bae440f48774339",
+      "tatamiVersion": "1.13.0",
+      "video": "workspace-copy.mp4",
+      "poster": "workspace-copy.jpg"
+    },
+    {
+      "scene": "tiling",
+      "title": "새 창이 제자리를 찾도록 하기",
+      "description": "새 창을 열면 선택한 창의 영역을 나눠 함께 배치해요.",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.splitType",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.windowPlacement",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 13.97,
+      "bytes": 504341,
+      "sha256": "2354a0ea80856bb6b4c6c4e11b7ea146e461ca682caf1c48ee144db471b9c116",
+      "sourceSHA256": "f3bd186b6828f710cdc7c66543a5728f3e6ec813c214327dc43d356788df6621",
+      "sceneSHA256": "4cde93f33c44a519132567d0ba4bcfdfa0562113ac6d7adb39ca0d07365645e3",
+      "capturedSceneSHA256": "78ffc58da3e99e8bd2013a1d468a82e2d9af76891854355466db1a7ac07dd85f",
+      "tatamiVersion": "1.13.0",
+      "video": "tiling.mp4",
+      "poster": "tiling.jpg"
+    },
+    {
+      "scene": "layouts",
+      "title": "키보드로 배치 다듬기",
+      "description": "창을 바꾸고 나누는 방향과 크기를 조절한 뒤 전체 비율을 맞춰요.",
+      "section": "tiling",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.resizeGrow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.balance",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 13.6,
+      "bytes": 718258,
+      "sha256": "f30ec9b3d1be8816cbf154c4ad7284487b0e6cfc508eba9c20a032ba6c27a3d0",
+      "sourceSHA256": "bfbf730bfd241cf44f731ad74a4a93e8e2b608ccceb89018f7fc639561f7354f",
+      "sceneSHA256": "fd40fdfe80134035d926bf3c75e7912370c40dd1b240b8c72b15913ad32c67df",
+      "capturedSceneSHA256": "fd40fdfe80134035d926bf3c75e7912370c40dd1b240b8c72b15913ad32c67df",
+      "tatamiVersion": "1.13.0",
+      "video": "layouts.mp4",
+      "poster": "layouts.jpg"
+    },
+    {
+      "scene": "drag",
+      "title": "마우스로 배치하기",
+      "description": "창을 다른 창 위로 옮기고 가장자리를 조절해요. 그런 다음 저장한 배치로 돌아와요.",
+      "section": "tiling",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 17.4,
+      "bytes": 1299206,
+      "sha256": "f062a40dee3691c6bd541d48dbce69e8214da4b9fb50bfe2a3f5f9ccab786e64",
+      "sourceSHA256": "9ef46cab179ec40a729351c65e9b3a3c51ad9d8c4758dd0a89745c78636e6f5f",
+      "sceneSHA256": "4468629d307bc5519508c3efdb9b712faceeb8d6b1e41b8e4d8fe58d9ce1ef58",
+      "capturedSceneSHA256": "fa40c998b20af73794fabd492a7320e7f0a91e4a5c6a235cca426daeae499fd2",
+      "tatamiVersion": "1.13.0",
+      "video": "drag.mp4",
+      "poster": "drag.jpg"
+    },
+    {
+      "scene": "fullscreen",
+      "title": "작업 공간 확대해서 집중하기",
+      "description": "창 하나를 작업 공간 크기로 펼쳐서 확인한 뒤 정확히 이전 배치로 돌아와요.",
+      "section": "tiling",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.toggleFullscreen",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 7.37,
+      "bytes": 327942,
+      "sha256": "7adc33c2bad691a572ec3f7ba0ad7c2b4ca7b0279dfd788428d3f73cd09bb4fe",
+      "sourceSHA256": "68b4292916b61812da1e5f375d27a12cdff2b075a318562f8709c1cbf12ef807",
+      "sceneSHA256": "ed00bea594490f0b0a40132c418b7f350d15f88ca000453d4f0eea0861a36676",
+      "capturedSceneSHA256": "53394ad6f476d4417d41632b7a05b93756049fe0b7e3f5d511c241f36acf6b08",
+      "tatamiVersion": "1.13.0",
+      "video": "fullscreen.mp4",
+      "poster": "fullscreen.jpg"
+    },
+    {
+      "scene": "focus",
+      "title": "내 의도에 따라 포커스 이동하기",
+      "description": "단축키로 이웃한 창을 선택하고 포인터도 함께 옮겨요. 마우스를 창 위에 올려 선택하는 방법도 보여줘요.",
+      "section": "tiling",
+      "maxSeconds": 38,
+      "maxMB": 16,
+      "seedOptions": [
+        "--focus-follows-mouse"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.focusLeft",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.focusRight",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.focus.mouseFollowsFocus",
+          "anchor": "settingsfocus"
+        },
+        {
+          "key": "settings.focus.focusFollowsMouse",
+          "anchor": "settingsfocus"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 20.0,
+      "bytes": 640570,
+      "sha256": "e373fb261ca7dfcc3e5f33f10027ee06d14f4483a7ce6c4100ef35999e3bb291",
+      "sourceSHA256": "76f0a658ad47ec08d4c46b1558304bc6e420e4bd85cc9b0ff2aa69885c981b2f",
+      "sceneSHA256": "302b71c14f49eece442baa802c32622d6b02d95557f156cbe87e1c0e2bcdc2c8",
+      "capturedSceneSHA256": "67fa7064afd95dd56103176e61f433d806e5b3ed41d44272272eb6b0b06b2268",
+      "tatamiVersion": "1.13.0",
+      "video": "focus.mp4",
+      "poster": "focus.jpg"
+    },
+    {
+      "scene": "switching",
+      "title": "필요한 창 고르기",
+      "description": "전환 단축키를 길게 눌러 현재 창들을 확인해요. 짧게 누르면 바로 돌아갈 수 있어요.",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.cycleNextWindow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.cycleSameAppWindows",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 9.83,
+      "bytes": 406168,
+      "sha256": "39b4c336ea5260938edd502ebea1df2a3ac4dd0da8c59e174d270841e54fe7dc",
+      "sourceSHA256": "3914697c16c63db55611184592f32d4dbf99a1e6639fb8587f79639f3c72544b",
+      "sceneSHA256": "c618a7eea03cd566b054d6d543c11871ccce6ad8a4d588dc3340b3fe6f5629f9",
+      "capturedSceneSHA256": "0fa52119a45e92ed9b6c512944439b32a672b20fe81ca3857209f38fbad6767a",
+      "tatamiVersion": "1.13.0",
+      "video": "switching.mp4",
+      "poster": "switching.jpg"
+    },
+    {
+      "scene": "borrow",
+      "title": "대화를 옆으로 가져오기",
+      "description": "현재 작업을 유지하면서 다른 작업 공간을 옆에 빌려와요.",
+      "section": "borrow",
+      "maxSeconds": 24,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.borrowModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 11.6,
+      "bytes": 581256,
+      "sha256": "0b1aa3105e53c5ee44526f8dd416c9ba66b810904c8e90e635f8a54b6a77f961",
+      "sourceSHA256": "c05a2fa79f89f784cf9e206a2394f10899434d8d339f5449c934c77ea972f2e0",
+      "sceneSHA256": "1ee05e93e0e7b1e2059c45be3c11798d414f3b64892eb680824c29d96ca687ef",
+      "capturedSceneSHA256": "32b7b5bc4fc5464a6af96236ee506abc232ce5cea680378e98bb09993903408f",
+      "tatamiVersion": "1.13.0",
+      "video": "borrow.mp4",
+      "poster": "borrow.jpg"
+    },
+    {
+      "scene": "scratchpad",
+      "title": "다시 꺼내 쓰는 임시 공간",
+      "description": "다시 빌려와도 앱에서 작업한 내용은 그대로 남아 있어요.",
+      "section": "borrow",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.kind",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.borrowEdge",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 14.17,
+      "bytes": 676560,
+      "sha256": "5c42ee12afe4b45217a717c8cb1271eb18693046abcf20808c1f28512dabf56e",
+      "sourceSHA256": "aed45647b524574950f79cb3e1795a57b5baa9751824f93a51c9e4352495c7c0",
+      "sceneSHA256": "9286a35116e469db6938b9584fda22999568b385ff44b4d21867bb22fef1c39f",
+      "capturedSceneSHA256": "cfdaf36bef09d2aff4838031bc59db1cf90de33ce3aa164a6d9670e0aa9f74a6",
+      "tatamiVersion": "1.13.0",
+      "video": "scratchpad.mp4",
+      "poster": "scratchpad.jpg"
+    },
+    {
+      "scene": "borrow-placement",
+      "title": "위치와 작업 맥락 고르기",
+      "description": "왼쪽이나 아래로 작업 공간을 빌려와요. 경계를 넘어 포커스를 옮긴 뒤 해당 작업 공간으로 전환해요.",
+      "section": "borrow",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        },
+        {
+          "key": "settings.switching.borrowFraction",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 17.23,
+      "bytes": 1081446,
+      "sha256": "4b553775d4b8b9c33c47697bbe5e1446406c6329b7aad9ce8c64a4fb13f087da",
+      "sourceSHA256": "13cfc315140d32058d89d237b804ed2cd5f987c23c823b8c716b48d77a96d45f",
+      "sceneSHA256": "840063caa560be77899d545af4fd07abab84ad9dac5f00abfa47c11251d2f698",
+      "capturedSceneSHA256": "e3ab8eb90ce5dee9d75194040bbb86259d6e66c3b92681422167b81034a88f8b",
+      "tatamiVersion": "1.13.0",
+      "video": "borrow-placement.mp4",
+      "poster": "borrow-placement.jpg"
+    },
+    {
+      "scene": "floating",
+      "title": "작업 공간 위에 메모 두기",
+      "description": "메모를 항상 위에 두거나 타일링에 포함하고 실제 버튼과 입력창을 사용해요.",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.shortcuts.toggleFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 23.43,
+      "bytes": 686786,
+      "sha256": "35a8dae9de3e8e1f86b52ea2cd8308745597f0aa637df600e0adc87dacd9d61a",
+      "sourceSHA256": "d5378be473a80ce884d80e00e55ae846012d5dfe1bce437f388a94b2f8e177f9",
+      "sceneSHA256": "ebf0031e7c335327d3ee49d150fa8c19620371dd9e12bdbc23fe149278a16f21",
+      "capturedSceneSHA256": "7ba14501f53ee4d9ff2a76e5825e7339e9734dd25fcd61f7367eda673b7ddd7d",
+      "tatamiVersion": "1.13.0",
+      "video": "floating.mp4",
+      "poster": "floating.jpg"
+    },
+    {
+      "scene": "shared",
+      "title": "여러 작업에서 같은 상태 창 보기",
+      "description": "공용 앱을 항상 위로 두면 어느 작업 공간에서도 보여요.",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        },
+        {
+          "key": "settings.shortcuts.toggleSharedFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 13.47,
+      "bytes": 581638,
+      "sha256": "af52bb1f1b12f0518a775ea88f51b4870b0ead83e0ae5cc498317e95a565a2c3",
+      "sourceSHA256": "afb6a3bce7c6f31e51452d5efdc0a523798e714b722a18877dbccf7bfe8406a3",
+      "sceneSHA256": "abbc1586337d18ac5ae09486aece459c26a6e7681f512fca195c2830bd5c586a",
+      "capturedSceneSHA256": "51845d601a1380e546a98b95f2966dabc1c39dc6b3dec19bdf9dbcaf54df1fd2",
+      "tatamiVersion": "1.13.0",
+      "video": "shared.mp4",
+      "poster": "shared.jpg"
+    },
+    {
+      "scene": "unmanaged",
+      "title": "놓아둔 자리에 창 유지하기",
+      "description": "공용 앱을 일반 창으로 두면 작업을 바꿔도 위치와 크기가 유지돼요.",
+      "section": "floating",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "seedOptions": [
+        "--pulse",
+        "unmanaged"
+      ],
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 17.6,
+      "bytes": 725441,
+      "sha256": "0be8f056656036e45241e159ca16c3bd4ca3c5bf456933002196e937ebf51a3b",
+      "sourceSHA256": "f67b25c891533fbf52f210869ea9a3f335d1578cb8dc12dffba4124ab1411f6d",
+      "sceneSHA256": "f48a35659645efed2a3296ced9d70e51d22f3774a3262649435d1af3b5afc174",
+      "capturedSceneSHA256": "12194b934ea74260d44b512790b1cb5ec1f4b9ea4a518c7f3a5bf4cfe2982e70",
+      "tatamiVersion": "1.13.0",
+      "video": "unmanaged.mp4",
+      "poster": "unmanaged.jpg"
+    },
+    {
+      "scene": "cli",
+      "title": "CLI로 집중할 환경 준비하기",
+      "description": "실제 작업 공간 목록을 확인한 뒤 활성화·균등 배치·빌려오기를 묶은 스크립트를 실행해요.",
+      "section": "automation",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 12.8,
+      "bytes": 544334,
+      "sha256": "9a3ab6101f0ea2a7384b3f2f5f2c207ea695c7267431d5cebec633bab1cfb2c7",
+      "sourceSHA256": "e61bf5287a3c5594619c8d1d0bb1ed717d4b931ac9ebdb997c156fab2680ce31",
+      "sceneSHA256": "786e0249c9996dbf782f1e6628cf668bd50c36c1ab47fe54efcfe7a2fc984e23",
+      "capturedSceneSHA256": "17917256ee611f6e5e6cd9e12caf065acd640617616faa17a568baba744a0e7a",
+      "tatamiVersion": "1.13.0",
+      "video": "cli.mp4",
+      "poster": "cli.jpg"
+    },
+    {
+      "scene": "hooks",
+      "title": "작업 공간 변경을 다른 도구에 연결하기",
+      "description": "작업 공간이 바뀌면 훅으로 외부 도구에 알려요.",
+      "section": "automation",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "hooks",
+          "anchor": "hooks"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 17.93,
+      "bytes": 1132630,
+      "sha256": "5be88aaf186f06a6536d56fe7d0f47affe37f8d85957a0826d517cb7571bbf50",
+      "sourceSHA256": "f648ad1f166e8b420774d9861a928c952749d1b0d3d5d094cc73f759f14082c7",
+      "sceneSHA256": "b29f86c7673f6c69abea2e6b4bfd56cc9f450c0019d93fe7c6b7c3d4c77aa4b1",
+      "capturedSceneSHA256": "0ab5c1caf11c1905adc0346d7f175e9b532c06c60ef4c72e38127248bc4a5e66",
+      "tatamiVersion": "1.13.0",
+      "video": "hooks.mp4",
+      "poster": "hooks.jpg"
+    },
+    {
+      "scene": "configuration",
+      "title": "TOML을 수정하고 바로 확인하기",
+      "description": "실행 중에 TOML 파일을 수정해 창 사이 간격을 바꿔요.",
+      "section": "automation",
+      "maxSeconds": 33,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.gapInner",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.gapOuter",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 19.03,
+      "bytes": 604295,
+      "sha256": "1e4deb520a791eacb06bd1ce990cd339142fa8cef09eaf8790f166adafadb092",
+      "sourceSHA256": "ee9407c5e9eedaf9f54d4a9c8ffb52b2c9bfc0d4f7cf48285a7eee7ce9c3d11d",
+      "sceneSHA256": "9bbd5f3e739a83668ae9961306ce852f8089118ed37687b51cb708f12ab102b2",
+      "capturedSceneSHA256": "7dbf27a3e836b9d0059b19de0f81ce90381fbdbdac344e1023f2a9787feae18a",
+      "tatamiVersion": "1.13.0",
+      "video": "configuration.mp4",
+      "poster": "configuration.jpg"
+    },
+    {
+      "scene": "desk",
+      "title": "두 화면으로 이어지는 작업",
+      "description": "디자인과 참고 자료를 다른 화면에 두고, 단축키 하나로 작업 공간 체인을 전환해요.",
+      "section": "profiles",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "presentation": "dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaceChains",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.displayHint",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 15.03,
+      "bytes": 461182,
+      "sha256": "7c8dbca8df6c95ad0616b5ec3943dba53df3cf4652052f90ad21f84ebfb6e68c",
+      "sourceSHA256": "df8aa35c4a241303282a3199cdb4f5b00935ec3dfb94da022a856a2fdd19f8f0",
+      "sceneSHA256": "9c39720401524ee87db4722944e57ead0ef4c8997c71d5b9c83d121d3db3f78e",
+      "capturedSceneSHA256": "699de003887207230f7d004237ecc1e5481e596fb59f59b38f03b5795b8149f8",
+      "tatamiVersion": "1.13.0",
+      "video": "desk.mp4",
+      "poster": "desk.jpg"
+    },
+    {
+      "scene": "hotplug",
+      "title": "화면 구성에 맞춰 자동으로 바꾸기",
+      "description": "두 번째 화면을 연결하면 Desk 프로필이 활성화돼요. 연결을 해제하면 Laptop 배치로 돌아와요.",
+      "section": "profiles",
+      "maxSeconds": 36,
+      "maxMB": 16,
+      "presentation": "dynamic-dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.autoActivation.displayCount",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 8.13,
+      "bytes": 329345,
+      "sha256": "281cc36b886986dea3138575d0ab54d29b103b7043f18bb325079090eed5ad33",
+      "sourceSHA256": "680008979fd9544590829c3f611634b3d191d441cf670b22b254e5d75ff77b2b",
+      "sceneSHA256": "c30fef90ba640a948821f01d2ff75f432d6a719462c6f77ed82f79859d88ac16",
+      "capturedSceneSHA256": "c30fef90ba640a948821f01d2ff75f432d6a719462c6f77ed82f79859d88ac16",
+      "tatamiVersion": "1.13.0",
+      "video": "hotplug.mp4",
+      "poster": "hotplug.jpg"
+    },
+    {
+      "scene": "layout-editor",
+      "title": "눈으로 보며 배치 정하기",
+      "description": "작업 공간을 켜기 전에 저장된 창 배치를 편집해요.",
+      "section": "tiling",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 15.43,
+      "bytes": 707109,
+      "sha256": "5b39c4c50707480df233f4bcbbd26d2e8ee226c19c16dfdce751f9d3869e0319",
+      "sourceSHA256": "5f065922ea6f9dc61db883f8a8540c9c0e0c3c97ccdfcd0ad7fbe219095dfb75",
+      "sceneSHA256": "cf3265f2ba9e40bd71f682d08517516aac633484b0d754b37c5246e9e81eb21d",
+      "capturedSceneSHA256": "cf3265f2ba9e40bd71f682d08517516aac633484b0d754b37c5246e9e81eb21d",
+      "tatamiVersion": "1.13.0",
+      "video": "layout-editor.mp4",
+      "poster": "layout-editor.jpg"
+    },
+    {
+      "scene": "guided-setup",
+      "title": "직접 사용하며 익히기",
+      "description": "실제 화면을 움직이지 않고 제스처 동작과 단축키를 익혀요. 물리 트랙패드 입력 장면은 포함하지 않았어요.",
+      "section": "guided-setup",
+      "maxSeconds": 45,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 29.9,
+      "bytes": 777354,
+      "sha256": "abc66f885c6a087d1190e75af76d797eef97f54683e6304916cea93077c43ef5",
+      "sourceSHA256": "bf659358a334356b03da18df6b9cb1551728a7e6f4a807717586eb803e6c4d3f",
+      "sceneSHA256": "dd6aebb7d74348100552011e16f092eac7e2a9aeca3cb07074f6fe92b1e0542b",
+      "capturedSceneSHA256": "8b80f500247b3f67f2a3558901b86a643b4c821849b7e41a6bd48283e016fb69",
+      "tatamiVersion": "1.13.0",
+      "video": "guided-setup.mp4",
+      "poster": "guided-setup.jpg"
+    },
+    {
+      "scene": "ai-draft",
+      "title": "제안받은 구성 검토하기",
+      "description": "예시 AI 제안을 검증하고 초안에 적용해요. 이 영상에서는 외부 AI 서비스를 호출하지 않아요.",
+      "section": "guided-setup",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ko",
+      "durationSeconds": 13.0,
+      "bytes": 452346,
+      "sha256": "4d87e2b9c625f64183a90591a91ed62baa2e405318d467e375db2ffe49bc363f",
+      "sourceSHA256": "5f961e543882702b1f7b2b4876aca5763e40d9fa287af77fd5b36e54a723d132",
+      "sceneSHA256": "6d636bddad9873ba609451176d65c72fcf229524162c3af9ac6791c104b8a136",
+      "capturedSceneSHA256": "1da77a4f933afe7ee569f67aa2a1988957d41062a737ea20a4dc5f2313461e6e",
+      "tatamiVersion": "1.13.0",
+      "video": "ai-draft.mp4",
+      "poster": "ai-draft.jpg"
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "name": "layout-editor",
+  "title": "눈으로 보며 배치 정하기",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "배치 편집기"
+    },
+    {
+      "kind": "caption",
+      "text": "작업 공간을 켜기 전에 저장된 창 배치를 편집해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:90° 회전"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "배치 미리보기에서 위아래 위치를 뒤집어요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "before-mirror"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:상하 뒤집기"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "before-mirror"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "작업 공간을 켜면 방금 편집한 배치가 실제 창에 적용돼요."
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "final-canvas-tile"
+    },
+    {
+      "kind": "closeSettings"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Canvas",
+      "target": "Docs",
+      "value": "above"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "summary": "작업 공간을 켜기 전에 저장된 창 배치를 편집해요."
+}

@@ -1,0 +1,74 @@
+{
+  "name": "profile-copy",
+  "title": "复用现有配置",
+  "summary": "在设置窗口中复制配置方案，并检查要包含的工作区。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "复用现有配置"
+    },
+    {
+      "kind": "caption",
+      "text": "右键单击配置方案，选择复制。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "rightClick",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:复制"
+    },
+    {
+      "kind": "caption",
+      "text": "选择要复制的工作区和设置。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:复制"
+    },
+    {
+      "kind": "expectProfileCount",
+      "count": 3
+    },
+    {
+      "kind": "caption",
+      "text": "新配置方案可以独立于原方案进行编辑。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    }
+  ]
+}

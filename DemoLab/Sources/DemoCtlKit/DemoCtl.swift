@@ -449,6 +449,9 @@ public enum DemoCtl {
     )
     try guardian.captureIfNeeded()
     try guardian.suppressFirstRunWindows(appVersion: install.version)
+    for domain in [install.bundleIdentifier] + DemoCatalog.all.map(\.bundleIdentifier) {
+      _ = try Shell.require(URL(fileURLWithPath: "/usr/bin/defaults"), ["write", domain, "AppleLanguages", "-array", DemoLocale.selected.rawValue])
+    }
     print(
       "defaults: Guided Setup, What's New and window restoration suppressed for "
         + "\(guardian.domain) (`democtl restore` puts them back)"
@@ -761,6 +764,9 @@ public enum DemoCtl {
       keycastHoldMilliseconds: keycastHold
     )
 
+    if scene.captureSecondary == true {
+      runner.secondaryCapture = (output.deletingPathExtension().appendingPathExtension("secondary.mov"), fps)
+    }
     defer {runner.restoreClipboard()}
     var sceneFailure: (any Error)?
     do {
@@ -772,6 +778,7 @@ public enum DemoCtl {
     }
     // Before the recorder is asked to stop, so the last caption ends with the
     // last frame rather than with however long the writer takes to drain.
+    do { try runner.finishSecondaryCapture() } catch { if sceneFailure == nil { sceneFailure = error } }
     timeline.finish()
 
     var outcome: RecordingOutcome?
@@ -814,6 +821,7 @@ public enum DemoCtl {
       let metadata = outcome == nil ? [:] : try recorder.captureMetadata(for: movie)
       let record: [String: Any] = [
         "capture": metadata,
+        "locale": DemoLocale.selected.rawValue,
         "schemaVersion": 2, "scene": name, "status": failures.isEmpty ? "passed" : "failed",
         "tatamiVersion": install.version ?? "unknown", "overlay": overlayMode.rawValue,
         "frames": stats["frames"] ?? 0, "droppedFrames": stats["dropped"] ?? 0,

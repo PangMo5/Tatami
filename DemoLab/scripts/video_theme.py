@@ -5,6 +5,7 @@
 from pathlib import Path
 import json
 import re
+import subprocess
 ROOT=Path(__file__).resolve().parents[2]
 
 def palette():
@@ -21,14 +22,41 @@ def palette():
 
 def bgr(rgb):return rgb[4:6]+rgb[2:4]+rgb[0:2]
 
-def restyle(ass):
+FONTS = {'en':'Helvetica Neue','ko':'Apple SD Gothic Neo','ja':'Hiragino Sans','zh-Hans':'Heiti SC','zh-Hant':'Heiti TC'}
+
+def require_font(locale, texts):
+    expected = FONTS[locale]
+    result = subprocess.check_output(['fc-match','-f','%{family}\n%{charset}\n',expected],text=True).splitlines()
+    normalize = lambda value: ''.join(value.lower().split())
+    if not result or normalize(expected) not in [normalize(f) for f in result[0].split(',')]:
+        raise ValueError(f'Required caption font is unavailable: {expected}; resolved {result[:1]}')
+    ranges = []
+    for entry in result[1].split():
+        bounds=entry.split('-');ranges.append((int(bounds[0],16),int(bounds[-1],16)))
+    missing = {character for text in texts for character in text if not character.isspace()
+               and not any(low <= ord(character) <= high for low,high in ranges)}
+    if missing: raise ValueError(f'{expected} lacks caption glyphs: {"".join(sorted(missing))}')
+
+def restyle(ass, locale="en", *, dual=False):
     colors=palette(); lines=[]
     for line in ass.splitlines():
         if line.startswith('Style: '):
             fields=line[7:].split(',')
+            if fields[0] != 'Keys': fields[1]=FONTS[locale]
             if fields[0] in ['Caption','Chapter','Keys']:
                 color=colors['text'] if fields[0]=='Caption' else colors['accent']
                 fields[3]=fields[4]='&H00'+bgr(color)
+                fields[5]=fields[6]='&H40141414'
+                fields[15:18]=['3','10','0']
+                if fields[0]=='Caption':
+                    fields[2]='36' if dual else '42'
+                    fields[18:22]=['2','110','110','52' if dual else '96']
+                elif fields[0]=='Chapter':
+                    fields[2]='22' if dual else '26'
+                    fields[18:22]=['7','32','700','36' if dual else '54']
+                else:
+                    fields[2]='34' if dual else '38'
+                    fields[18:22]=['9','1300','32','36' if dual else '54']
                 line='Style: '+','.join(fields)
         if ',Caption,,' in line:
             line=re.sub(r'\\1c&H[0-9A-Fa-f]+&',lambda _: '\\1c&H'+bgr(colors['secondary'])+'&',line)

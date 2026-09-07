@@ -1,0 +1,127 @@
+{
+  "name": "hotplug",
+  "title": "화면 구성에 맞춰 자동으로 바꾸기",
+  "summary": "두 번째 화면을 연결하면 Desk 프로필이 활성화돼요. 연결을 해제하면 Laptop 배치로 돌아와요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "화면에 맞는 프로필"
+    },
+    {
+      "kind": "caption",
+      "text": "두 번째 화면을 연결하면 두 화면용 프로필이 자동으로 켜져요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": true
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "expectHook",
+      "field": "profile",
+      "value": "Desk"
+    },
+    {
+      "kind": "beat",
+      "ms": 2500
+    },
+    {
+      "kind": "caption",
+      "text": "연결을 해제하면 한 화면용 프로필로 자동 전환돼요."
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": false
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ],
+  "captureSecondary": true
+}

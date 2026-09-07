@@ -1,7 +1,7 @@
 {
   "name": "configuration",
   "title": "Edit plain TOML, see a live change",
-  "summary": "A small script edits the real gap setting. Tatami reloads it without a restart.",
+  "summary": "Edit TOML to change window gaps while Tatami is running.",
   "requires": {
     "displays": 1
   },
@@ -61,7 +61,7 @@
     },
     {
       "kind": "caption",
-      "text": "Configuration is a file you can work with."
+      "text": "Edit TOML to change window gaps while Tatami is running."
     },
     {
       "kind": "click",
@@ -108,7 +108,7 @@
     },
     {
       "kind": "caption",
-      "text": "Bring the spacing back without restarting."
+      "text": "Supported settings reload automatically without restarting."
     },
     {
       "kind": "key",

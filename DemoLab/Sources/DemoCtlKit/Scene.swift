@@ -22,6 +22,7 @@ public struct Scene: Sendable, Decodable {
   /// Runs before the recorder starts; app launches and layout preparation never enter the movie.
   public var setup: [SceneStep]?
   public var openingApps: [String]?
+  public var captureSecondary: Bool?
   public var steps: [SceneStep]
 
 }
@@ -42,9 +43,11 @@ public enum SceneStep: Sendable {
   /// recording stay in sync.
   case clipboard(text:String)
   case closeSettings
+  case prepareSettings
   case saveControlFrame(app:String,identifier:String,name:String)
   case expectControlMoved(app:String,identifier:String,name:String)
   case saveWindow(app:String)
+  case restoreWindow(app:String)
   case assertWindow(app:String)
   case expectPointer(app:String)
   case hover(app:String,identifier:String)
@@ -57,6 +60,10 @@ public enum SceneStep: Sendable {
   case expectCommand(command:String,code:Int)
   case expectHook(field:String,value:String)
   case click(app: String, identifier: String)
+  case rightClick(app: String, identifier: String)
+  case expectPlacement(app: String, target: String, edge: String)
+  case expectProfileCount(Int)
+  case expectAssignment(app: String, workspace: String, profile: String)
   case typeText(app: String, text: String, intervalMilliseconds: Int)
   case expectStory(field: String, value: String)
   case expectValue(app: String, identifier: String, value: String)
@@ -93,11 +100,17 @@ public enum SceneStep: Sendable {
 
   public var label: String {
     switch self {
+    case .rightClick(let app, let id): "context menu \(app) / \(id)"
+    case .expectPlacement(let app, let target, let edge): "verify \(app) is \(edge) of \(target)"
+    case .expectProfileCount(let count): "verify \(count) profiles"
+    case .expectAssignment(let app, let workspace, let profile): "verify \(app) belongs to \(profile)/\(workspace)"
     case .clipboard: "prepare example clipboard content"
     case .closeSettings: "close Tatami window"
+    case .prepareSettings: "size and position the native Tatami window"
     case .saveControlFrame(_,_,let name): "save control frame \(name)"
     case .expectControlMoved(_,_,let name): "verify control moved \(name)"
     case .saveWindow(let app): "save window \(app)"
+    case .restoreWindow(let app): "restore window by dragging \(app)"
     case .assertWindow(let app): "verify window frame \(app)"
     case .expectPointer(let app): "verify pointer in \(app)"
     case .hover(let app,let id): "hover \(app) / \(id)"
@@ -152,6 +165,10 @@ extension SceneStep: Decodable {
     let kind = try container.decode(String.self, forKey: .kind)
 
     switch kind {
+    case "rightClick": self = .rightClick(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier))
+    case "expectPlacement": self = .expectPlacement(app: try container.decode(String.self, forKey: .app), target: try container.decode(String.self, forKey: .target), edge: try container.decode(String.self, forKey: .value))
+    case "expectProfileCount": self = .expectProfileCount(try container.decode(Int.self, forKey: .count))
+    case "expectAssignment": self = .expectAssignment(app: try container.decode(String.self, forKey: .app), workspace: try container.decode(String.self, forKey: .workspace), profile: try container.decode(String.self, forKey: .profile))
     case "waitWindows":
       self = .waitWindows(apps: try container.decode([String].self, forKey: .apps),
         timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 12000)
@@ -161,9 +178,11 @@ extension SceneStep: Decodable {
       self = .assertLayout(name: try container.decode(String.self, forKey: .text))
     case "clipboard": self = .clipboard(text:try container.decode(String.self,forKey:.text))
     case "closeSettings": self = .closeSettings
+    case "prepareSettings": self = .prepareSettings
     case "saveControlFrame": self = .saveControlFrame(app:try container.decode(String.self,forKey:.app),identifier:try container.decode(String.self,forKey:.identifier),name:try container.decode(String.self,forKey:.text))
     case "expectControlMoved": self = .expectControlMoved(app:try container.decode(String.self,forKey:.app),identifier:try container.decode(String.self,forKey:.identifier),name:try container.decode(String.self,forKey:.text))
     case "saveWindow": self = .saveWindow(app:try container.decode(String.self,forKey:.app))
+    case "restoreWindow": self = .restoreWindow(app:try container.decode(String.self,forKey:.app))
     case "assertWindow": self = .assertWindow(app:try container.decode(String.self,forKey:.app))
     case "expectPointer": self = .expectPointer(app:try container.decode(String.self,forKey:.app))
     case "hover": self = .hover(app:try container.decode(String.self,forKey:.app),identifier:try container.decode(String.self,forKey:.identifier))

@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](CLI.md) · [한국어](ko/CLI.md) · [日本語](ja/CLI.md) · [简体中文](zh-Hans/CLI.md) · [繁體中文](zh-Hant/CLI.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Tatami command-line reference
 
 Tatami ships a `tatami` executable inside the app bundle. The CLI talks to the

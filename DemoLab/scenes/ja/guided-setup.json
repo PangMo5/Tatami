@@ -1,0 +1,187 @@
+{
+  "name": "guided-setup",
+  "title": "使いながら覚える",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:ガイド設定を開始…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:続ける"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:続ける"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:続ける"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "使いながら設定"
+    },
+    {
+      "kind": "caption",
+      "text": "ガイド付き設定では、実際のウインドウを動かさずに操作を練習できます。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "ガイド内のボタンで、ジェスチャの動きを確認します。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:4F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "caption",
+      "text": "設定したショートカットを、プレビュー内で実際に試せます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:続ける"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:5 / 9",
+      "value": "5 / 9"
+    },
+    {
+      "kind": "caption",
+      "text": "仮想ウインドウで、タイル配置の操作を先に試せます。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:右へフォーカス"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:左と入れ替え"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:次のウインドウ"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:ウインドウを拡大"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:分割を反転"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:レイアウトを均等化"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:タイル表示の操作をすべて試しました",
+      "value": "タイル表示の操作をすべて試しました"
+    },
+    {
+      "kind": "caption",
+      "text": "下書きを適用するまで、実際の環境は変わりません。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ],
+  "summary": "実際の画面を動かさずに、ジェスチャのプレビューとショートカットを練習します。実機のトラックパッド入力は含みません。"
+}

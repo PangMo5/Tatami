@@ -1,7 +1,7 @@
 {
   "name": "tiling",
   "title": "Let new windows find their place",
-  "summary": "Open a second reference next to the canvas. Close it and the layout reclaims the space.",
+  "summary": "A new window splits the space beside the focused window.",
   "requires": {
     "displays": 1
   },
@@ -53,6 +53,28 @@
     {
       "kind": "beat",
       "ms": 1800
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - left"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Docs",
+      "target": "Canvas",
+      "value": "right"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
     }
   ],
   "steps": [
@@ -62,15 +84,41 @@
     },
     {
       "kind": "caption",
-      "text": "Open another reference. It finds its place."
+      "text": "A new window splits the space beside the focused window."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
     },
     {
       "kind": "activateApp",
       "app": "Docs"
     },
     {
+      "kind": "expectFront",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    },
+    {
       "kind": "key",
       "chord": "cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Docs",
+      "target": "Canvas",
+      "value": "right"
     },
     {
       "kind": "beat",
@@ -78,7 +126,7 @@
     },
     {
       "kind": "caption",
-      "text": "Keep reading without rearranging the desktop."
+      "text": "Other tiles keep their positions while the new window fits in."
     },
     {
       "kind": "click",
@@ -99,7 +147,7 @@
     },
     {
       "kind": "caption",
-      "text": "Close it. The remaining windows expand."
+      "text": "Closing a window lets the remaining tiles fill the space."
     },
     {
       "kind": "beat",

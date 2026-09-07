@@ -1,0 +1,121 @@
+{
+  "name": "profiles",
+  "title": "切换整套配置",
+  "summary": "切换配置方案会更换整套工作区配置。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Editor"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "配置方案"
+    },
+    {
+      "kind": "caption",
+      "text": "切换配置方案会更换整套工作区配置。"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - 2"
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    },
+    {
+      "kind": "caption",
+      "text": "每个配置方案都会恢复各自保存的窗口布局。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - 1"
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    }
+  ],
+  "openingApps": [
+    "Editor",
+    "Docs"
+  ]
+}

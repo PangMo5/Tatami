@@ -78,7 +78,7 @@
     },
     {
       "kind": "caption",
-      "text": "Place the window where it is useful."
+      "text": "Leave As Is keeps a window out of automatic tiling."
     },
     {
       "kind": "dragWindow",
@@ -97,7 +97,7 @@
     },
     {
       "kind": "caption",
-      "text": "Change tasks. Its geometry stays the same."
+      "text": "Shared membership keeps it in place when workspaces change."
     },
     {
       "kind": "key",

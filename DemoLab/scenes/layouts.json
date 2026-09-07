@@ -82,7 +82,11 @@
     },
     {
       "kind": "caption",
-      "text": "Swap the window into a better position."
+      "text": "Swap the focused window with the window beside it."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
     },
     {
       "kind": "activateApp",
@@ -106,7 +110,7 @@
     },
     {
       "kind": "caption",
-      "text": "Change the split to fit the material."
+      "text": "Switch between left/right and top/bottom splits."
     },
     {
       "kind": "key",
@@ -118,7 +122,11 @@
     },
     {
       "kind": "caption",
-      "text": "Give one side more room."
+      "text": "Grow the focused tile along its current split."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "before-grow"
     },
     {
       "kind": "key",
@@ -126,16 +134,28 @@
       "repeats": 3
     },
     {
+      "kind": "expectLayoutChanged",
+      "text": "before-grow"
+    },
+    {
       "kind": "beat",
       "ms": 1000
     },
     {
       "kind": "caption",
-      "text": "Balance the whole arrangement."
+      "text": "Balance resets the BSP layout when Auto-balance is off."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "before-balance"
     },
     {
       "kind": "key",
       "chord": "ctrl + alt - e"
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "before-balance"
     },
     {
       "kind": "beat",

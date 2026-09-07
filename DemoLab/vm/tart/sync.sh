@@ -33,7 +33,7 @@ mkdir -p "${lab_root}/.sync"
 # `.build` and `recordings` stay on the guest: one is huge and machine-specific,
 # the other is the artifact we came for.
 tar czf "${lab_root}/${archive}" -C "${lab_root}" \
-  Package.swift publication.json Sources Tests config scenes scripts bin vm docs README.md
+  Package.swift publication.json Sources Tests Localization config scenes scripts bin vm docs README.md
 trap 'rm -f "${lab_root}/${archive}"' EXIT
 
 echo "pushing $(du -h "${lab_root}/${archive}" | cut -f1) to ${VM_NAME}:~/${GUEST_DIR}"
@@ -50,7 +50,7 @@ tart exec "${VM_NAME}" /usr/bin/env "LAB_GUEST_DIR=${GUEST_DIR}" "LAB_ARCHIVE=${
     mkdir -p "${target}"
     # Mirror only managed source paths. Runtime data and recordings stay intact.
     # Archive extraction alone leaves deleted Swift files active in the guest.
-    for entry in Package.swift publication.json Sources Tests config scenes scripts bin vm docs README.md; do
+    for entry in Package.swift publication.json Sources Tests Localization config scenes scripts bin vm docs README.md; do
       if [ -d "${stage}/${entry}" ]; then
         mkdir -p "${target}/${entry}"
         rsync -a --delete "${stage}/${entry}/" "${target}/${entry}/"

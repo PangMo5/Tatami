@@ -1,0 +1,74 @@
+{
+  "name": "profile-copy",
+  "title": "重複使用現有設定",
+  "summary": "在設定視窗中複製設定組合，並檢查要包含的工作空間。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "重複使用現有設定"
+    },
+    {
+      "kind": "caption",
+      "text": "在設定組合上按右鍵，選擇複製。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "rightClick",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:複製"
+    },
+    {
+      "kind": "caption",
+      "text": "選擇要複製的工作空間與設定。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:複製"
+    },
+    {
+      "kind": "expectProfileCount",
+      "count": 3
+    },
+    {
+      "kind": "caption",
+      "text": "新的設定組合可以獨立於原組合進行編輯。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    }
+  ]
+}
