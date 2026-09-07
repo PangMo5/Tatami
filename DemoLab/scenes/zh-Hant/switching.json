@@ -1,0 +1,130 @@
+{
+  "name": "switching",
+  "title": "選擇需要的視窗",
+  "summary": "按住切換快速鍵查看目前視窗，輕按即可快速返回。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "appWindows",
+      "app": "Docs",
+      "count": 2
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "視窗切換"
+    },
+    {
+      "kind": "caption",
+      "text": "按住快速鍵，選擇目前工作空間中的視窗。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "hold",
+      "modifiers": "alt",
+      "keys": [
+        "tab"
+      ],
+      "gapMs": 900,
+      "releaseAfterMs": 1600
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "caption",
+      "text": "輕按快速鍵，返回上一個使用的視窗。"
+    },
+    {
+      "kind": "key",
+      "chord": "alt - tab"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "alt - tab"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs",
+    "Docs"
+  ]
+}

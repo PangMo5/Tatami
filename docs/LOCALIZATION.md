@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](LOCALIZATION.md) · [한국어](ko/LOCALIZATION.md) · [日本語](ja/LOCALIZATION.md) · [简体中文](zh-Hans/LOCALIZATION.md) · [繁體中文](zh-Hant/LOCALIZATION.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Tatami Localization and UX Writing
 
 Tatami keeps one product model across languages, but it does not translate
@@ -135,6 +139,31 @@ over a technical transliteration such as `플로팅`.
 - Do not uppercase localized copy at runtime.
 - Do not use em dashes in interface copy. Split the thought into sentences or
   use punctuation that fits the locale.
+
+## Documentation, website and demo films
+
+The same terminology and writing rules apply outside the app.
+
+- Keep English documentation as the source, with localized README and guide
+  files generated from `Localization/Docs.json`. Preserve commands, code
+  samples, identifiers, link destinations and explicit heading anchors.
+- `Localization/Web.json` contains complete website text units. Each locale
+  has its own URL and document language, including navigation, accessible
+  labels, loading/error states, documentation and demo gallery controls.
+- Demo Lab owns a separate `DemoLab/Localization/Localizable.xcstrings` catalog.
+  The independent fixture apps each include that catalog in their main bundle.
+  Shared helpers pass `LocalizedStringResource`; saved fixture data resolves
+  complete strings in the language selected for that recording.
+- Film captions, titles and human input share `DemoLab/Localization/Films.json`.
+  Generate input assertions from those same values. Prefer stable accessibility
+  identifiers over translated labels, which may legitimately be identical.
+- Record and validate each app language. Translated subtitles over English UI
+  do not establish that a localized app was exercised.
+- Reject missing translations and changed placeholders at build time. A
+  translation must not quietly fall back to English to make a build pass.
+- Preserve historical release notes and license/copyright texts in their
+  original language. Translate navigation and explanatory notices, and link
+  clearly to the authoritative original.
 
 ## Review checklist
 

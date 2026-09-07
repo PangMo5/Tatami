@@ -1,0 +1,174 @@
+{
+  "name": "workspaces",
+  "title": "作業を切り替える",
+  "summary": "ショートカットで、ワークスペースと使用するアプリをまとめて切り替えます。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "ワークスペース"
+    },
+    {
+      "kind": "caption",
+      "text": "ショートカットで、ワークスペースと使用するアプリをまとめて切り替えます。"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.forest"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Chat",
+      "identifier": "chat.message"
+    },
+    {
+      "kind": "typeText",
+      "app": "Chat",
+      "text": "配色の方向性を比べています。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastMessage",
+      "value": "配色の方向性を比べています。"
+    },
+    {
+      "kind": "caption",
+      "text": "直前のワークスペースに戻るショートカットで、前の作業を再開できます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - \\"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "ワークスペースを順番に切り替えることもできます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - ."
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Focus"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - ,"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

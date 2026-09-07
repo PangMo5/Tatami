@@ -1,0 +1,74 @@
+{
+  "name": "profile-copy",
+  "title": "기존 구성 재사용하기",
+  "summary": "설정 창에서 프로필을 복제하고 포함할 작업 공간을 검토해요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "기존 구성 재사용"
+    },
+    {
+      "kind": "caption",
+      "text": "프로필을 오른쪽 클릭해 복제를 선택해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "rightClick",
+      "app": "Tatami",
+      "identifier": "text:Laptop"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:복제"
+    },
+    {
+      "kind": "caption",
+      "text": "복제할 작업 공간과 설정을 골라요."
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "button:복제"
+    },
+    {
+      "kind": "expectProfileCount",
+      "count": 3
+    },
+    {
+      "kind": "caption",
+      "text": "새 프로필은 원본과 별개로 편집할 수 있어요."
+    },
+    {
+      "kind": "beat",
+      "ms": 2300
+    }
+  ]
+}

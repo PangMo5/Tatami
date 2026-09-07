@@ -61,7 +61,7 @@
     },
     {
       "kind": "caption",
-      "text": "The same workspace controls, in your scripts."
+      "text": "The CLI can list workspaces and control the running Tatami."
     },
     {
       "kind": "click",
@@ -89,7 +89,7 @@
     },
     {
       "kind": "caption",
-      "text": "One script prepares a focus session."
+      "text": "One script activates, arranges, and borrows workspaces."
     },
     {
       "kind": "click",

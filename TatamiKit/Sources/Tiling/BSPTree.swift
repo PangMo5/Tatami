@@ -666,6 +666,15 @@ extension BSPNode {
 // MARK: - Resize / fence
 
 extension BSPNode {
+  /// Grow or shrink the focused tile at its parent split, following the
+  /// layout's orientation rather than assuming a left/right arrangement.
+  public func resizing(window: WindowID, delta: CGFloat) -> BSPNode {
+    guard let path = pathTo(window: window), !path.isEmpty,
+          case .branch(let parent) = subtree(at: Array(path.dropLast()))
+    else { return self }
+    return resizing(window: window, axis: parent.split, delta: delta)
+  }
+
   /// Adjust the ratio at the nearest ancestor of `window` whose split
   /// axis matches `axis`. Positive `delta` always means "grow the
   /// focused window": the sign is flipped when the focused leaf sits on

@@ -1,7 +1,7 @@
 {
   "name": "autoopen",
   "title": "Open the whole toolset",
-  "summary": "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.",
+  "summary": "Activating a workspace automatically opens its assigned apps.",
   "requires": {
     "displays": 1
   },
@@ -29,7 +29,7 @@
     },
     {
       "kind": "caption",
-      "text": "Start the task with one shortcut."
+      "text": "Activating a workspace automatically opens its assigned apps."
     },
     {
       "kind": "beat",
@@ -61,7 +61,7 @@
     },
     {
       "kind": "caption",
-      "text": "Re-enter to bring back a closed window."
+      "text": "With Auto-open enabled, returning also reopens closed windows."
     },
     {
       "kind": "activateApp",

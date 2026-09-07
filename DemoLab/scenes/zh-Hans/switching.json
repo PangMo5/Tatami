@@ -1,0 +1,130 @@
+{
+  "name": "switching",
+  "title": "选择需要的窗口",
+  "summary": "按住切换快捷键查看当前窗口，轻按即可快速返回。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "appWindows",
+      "app": "Docs",
+      "count": 2
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 600
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "窗口切换"
+    },
+    {
+      "kind": "caption",
+      "text": "按住快捷键，选择当前工作区中的窗口。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "hold",
+      "modifiers": "alt",
+      "keys": [
+        "tab"
+      ],
+      "gapMs": 900,
+      "releaseAfterMs": 1600
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "caption",
+      "text": "轻按快捷键，返回上一个使用的窗口。"
+    },
+    {
+      "kind": "key",
+      "chord": "alt - tab"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "key",
+      "chord": "alt - tab"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs",
+    "Docs"
+  ]
+}

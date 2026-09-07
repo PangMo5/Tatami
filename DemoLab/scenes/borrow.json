@@ -1,7 +1,7 @@
 {
   "name": "borrow",
   "title": "Bring a conversation alongside",
-  "summary": "Answer a teammate without replacing the canvas and reference you are using.",
+  "summary": "Borrow another workspace without leaving the current task.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "Bring the conversation beside your work."
+      "text": "Borrow another workspace without leaving the current task."
     },
     {
       "kind": "saveLayout",
@@ -104,7 +104,7 @@
     },
     {
       "kind": "caption",
-      "text": "Return it. Reclaim the whole workspace."
+      "text": "Dismiss the borrowed workspace to restore the full layout."
     },
     {
       "kind": "key",

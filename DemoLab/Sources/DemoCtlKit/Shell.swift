@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Foundation
+import Darwin
 
 // MARK: - CommandResult
 
@@ -60,6 +61,13 @@ private final class DataBox: @unchecked Sendable {
 // MARK: - Shell
 
 public enum Shell {
+
+  /// NSWorkspace process notifications need a main run loop. A synchronous
+  /// command must check the kernel before trusting cached app enumeration.
+  public static func processExists(_ pid: pid_t) -> Bool {
+    guard pid > 0 else { return false }
+    return Darwin.kill(pid, 0) == 0 || errno == EPERM
+  }
 
   // MARK: Public
 

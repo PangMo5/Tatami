@@ -86,6 +86,9 @@ bin_path="$(swift build -c release --show-bin-path)"
 [ -d "$bin_path" ] || die "cannot resolve the release bin path"
 info "$bin_path"
 
+# Compile the shared catalog once, then place it in each app that owns UI.
+python3 "$package_root/scripts/compile-localization.py" --output "$out_dir/Localization"
+
 # MARK: - Icons
 
 icons_ok=0
@@ -153,6 +156,9 @@ assemble() {
   # renamed resource or a dropped key can never survive a rebuild.
   rm -rf "$bundle"
   mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
+  for localization in "$out_dir/Localization/"*.lproj; do
+    cp -R "$localization" "$bundle/Contents/Resources/"
+  done
   cp "$executable" "$bundle/Contents/MacOS/$name"
 
   icon_state="no"
@@ -172,6 +178,7 @@ assemble() {
     printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
     printf '%s\n' '<plist version="1.0">'
     printf '%s\n' '<dict>'
+    plist_string CFBundleDevelopmentRegion "en"
     plist_string CFBundleName "$name"
     plist_string CFBundleDisplayName "$name"
     plist_string CFBundleExecutable "$name"

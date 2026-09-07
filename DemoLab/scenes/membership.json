@@ -1,7 +1,7 @@
 {
   "name": "membership",
   "title": "Move an app with the task",
-  "summary": "Send the reference from Write to Review, then move it back using the keyboard.",
+  "summary": "Move the focused app to a different workspace with a shortcut.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "The reference belongs with the review."
+      "text": "Move the focused app to a different workspace with a shortcut."
     },
     {
       "kind": "activateApp",
@@ -89,7 +89,7 @@
     },
     {
       "kind": "caption",
-      "text": "Write now has only its draft."
+      "text": "The moved app is no longer assigned to its original workspace."
     },
     {
       "kind": "key",
@@ -111,7 +111,7 @@
     },
     {
       "kind": "caption",
-      "text": "Bring the reference back when you need it."
+      "text": "Use the same shortcut to move the app back."
     },
     {
       "kind": "key",

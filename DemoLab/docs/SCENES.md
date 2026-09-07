@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](SCENES.md) · [한국어](ko/SCENES.md) · [日本語](ja/SCENES.md) · [简体中文](zh-Hans/SCENES.md) · [繁體中文](zh-Hant/SCENES.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Scenes and acceptance
 
 A scene is a JSON file with `name`, `title`, optional `requires`, `setup`,
@@ -41,6 +45,8 @@ a reason to correct preparation, not to trim away the unexpected window later.
 | `launch` | `apps`, `windows?` | Explicitly launch fixtures, primarily off camera. |
 | `quitApps` | `apps?` | Quit named fixtures or the entire fixture set. |
 | `dragWindow` | `app`, `target`, `x`, `y` | Drag a real title bar toward a normalized target-window point. |
+| `restoreWindow` | `app` | Resize and move the saved window with real pointer drags, then verify its original frame. |
+| `rightClick` | `app`, `identifier` | Open the native context menu for a control. |
 | `resizeWindow` | `app`, `x`, `y?` | Drag a native window edge. |
 | `virtualDisplay` | `connected` | Connect or disconnect the real guest virtual display helper. |
 | `configure` | `key`, `value` | Atomically edit an allowed live setting in the lab TOML. |
@@ -58,6 +64,9 @@ not. The chat is a local fixture and has no network transport.
 
 | Kind | Fields | Acceptance |
 | --- | --- | --- |
+| `expectPlacement` | `app`, `target`, `value` | Require every source window to be left, right, above or below the target windows. |
+| `expectProfileCount` | `count` | Verify the profile count through the real CLI. |
+| `expectAssignment` | `app`, `workspace`, `profile` | Verify that a copied app belongs to the target workspace. |
 | `expectValue` | `app`, `identifier`, `value` | Read the actual native input value back. |
 | `expectStory` | `field`, `value` | Verify saved headline, approval, comment, last task/message, checks or completed tasks. |
 | `expectFront` | `app` | Verify the actual focused app through Accessibility. |

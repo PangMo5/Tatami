@@ -1,7 +1,7 @@
 {
   "name": "profiles",
   "title": "Switch the complete setup",
-  "summary": "A profile changes the workspace set and restores the arrangement belonging to that context.",
+  "summary": "Switching profiles changes the complete workspace configuration.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "Change the whole setup in one shortcut."
+      "text": "Switching profiles changes the complete workspace configuration."
     },
     {
       "kind": "saveLayout",
@@ -88,7 +88,7 @@
     },
     {
       "kind": "caption",
-      "text": "The original profile remembers its layout."
+      "text": "Each profile restores its own window layout."
     },
     {
       "kind": "key",

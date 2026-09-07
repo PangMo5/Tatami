@@ -9,7 +9,7 @@ import re
 ROOT = Path(__file__).resolve().parents[2]
 
 
-from video_gallery import collection
+from video_gallery import collection, settings_links
 
 
 def render():
@@ -42,6 +42,8 @@ def render():
         text=text.replace('</body>','<script src="./demos.js" defer></script>\n</body>')
     # The hero is outside the generated collections but shares their media cache key.
     hero = next(a for a in manifest['assets'] if a['scene'] == 'tour')
+    text = re.sub(r'<!-- DEMO-SETTINGS:tour:START -->.*?<!-- DEMO-SETTINGS:tour:END -->',
+                  '<!-- DEMO-SETTINGS:tour:START -->'+settings_links(hero)+'<!-- DEMO-SETTINGS:tour:END -->',text,flags=re.S)
     for name in [hero['video'], hero['poster']]:
         text = re.sub(re.escape(name) + r'(?:\?v=[a-f0-9]+)?', name + '?v=' + hero['sha256'][:12], text)
     page.write_text(text)

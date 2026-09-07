@@ -19,7 +19,7 @@ struct DocsView: View {
         Divider()
         ScrollView {
           VStack(alignment: .leading, spacing: 30) {
-            if !query.isEmpty && !"headline short content 40 characters calmer work description screenshot".localizedCaseInsensitiveContains(query) {
+            if !query.isEmpty && !String(localized: "headline short content 40 characters calmer work description screenshot").localizedCaseInsensitiveContains(query) {
               StoryHeading("SEARCH", "No matches.", "Try headline, content, or screenshot.")
             } else if page == "brief" && query.isEmpty {
               StoryHeading("PROJECT / LAUNCH", "A calmer way to work.", "The product should feel useful before it feels complicated.")
@@ -43,7 +43,7 @@ struct DocsView: View {
     } status: {
       StoryStatus("Launch brief / Team reference")
       Spacer()
-      Text(page == "brief" && query.isEmpty ? "Overview" : "Content direction")
+      Text(page == "brief" && query.isEmpty ? LocalizedStringResource("Overview") : LocalizedStringResource("Content direction"))
     }.onAppear { if context.ordinal % 2 == 1 { page = "content" } }
   }
 }
@@ -62,11 +62,11 @@ private struct BriefSidebar: View {
   }
 }
 private struct BriefSection: View {
-  let number: String; let title: String; let text: String
-  init(_ number: String, _ title: String, _ text: String) { self.number = number; self.title = title; self.text = text }
+  let number: String; let title: LocalizedStringResource; let text: LocalizedStringResource
+  init(_ number: String, _ title: LocalizedStringResource, _ text: LocalizedStringResource) { self.number = number; self.title = title; self.text = text }
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      Text("\(number)  /  \(title)").font(.system(size: 19, weight: .semibold))
+      HStack { Text(number); Text("/"); Text(title) }.font(.system(size: 19, weight: .semibold))
       Text(text).font(.system(size: 16)).foregroundStyle(.secondary).lineSpacing(5)
     }.frame(maxWidth: .infinity, alignment: .leading)
   }

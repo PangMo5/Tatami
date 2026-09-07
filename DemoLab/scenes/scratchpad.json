@@ -1,7 +1,7 @@
 {
   "name": "scratchpad",
   "title": "Keep a reusable scratchpad",
-  "summary": "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.",
+  "summary": "Borrow the scratchpad again; its apps keep their contents.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "A quick note beside the canvas."
+      "text": "A scratchpad opens only when you borrow it."
     },
     {
       "kind": "saveLayout",
@@ -112,7 +112,7 @@
     },
     {
       "kind": "caption",
-      "text": "Bring it back later. The note stays."
+      "text": "Borrow the scratchpad again; its apps keep their contents."
     },
     {
       "kind": "key",

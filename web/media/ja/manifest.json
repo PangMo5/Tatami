@@ -1,0 +1,783 @@
+{
+  "schemaVersion": 1,
+  "locale": "ja",
+  "assets": [
+    {
+      "scene": "tour",
+      "title": "仕事の流れに、必要な場所を。",
+      "description": "デザイン、執筆、レビュー、借りる操作、自動化。広いデスクにも合わせて切り替えます。",
+      "section": "demo",
+      "maxSeconds": 150,
+      "maxMB": 30,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 81.8,
+      "bytes": 3621490,
+      "sha256": "f808676b43253158e75fee4243d6ebbc379da325724fe88f56d3d379c9e03ef6",
+      "sourceSHA256": "6560261ce13853203248dbb234db4aa8efabf60feb37e7882ed3cde2c6656a3c",
+      "sceneSHA256": "8b05014eb5dd7f838016eab561be6225b0d8d016a7dfd561e2b5eaac6feecd57",
+      "capturedSceneSHA256": "5b26b73b8e1ddd5b86fc4a87a362e68d2f3e8066dad5a9ebc83ae876808a414d",
+      "tatamiVersion": "1.13.0",
+      "video": "tour.mp4",
+      "poster": "tour.jpg"
+    },
+    {
+      "scene": "workspaces",
+      "title": "作業を切り替える",
+      "description": "ショートカットで、ワークスペースと使用するアプリをまとめて切り替えます。",
+      "section": "workspaces",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.keyEquivalentModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.recentAcrossDisplays",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 16.7,
+      "bytes": 1024457,
+      "sha256": "cfddb84e43d52ae8262be26a4c8074452af1320ebdd05110be5c88d7bb7302f2",
+      "sourceSHA256": "6d4839072e8ebb5ca499e49075c2feccbbec925a5fe245ebb5b9da42373c226d",
+      "sceneSHA256": "cd7e2083e83b1ef6bd3c319b023d5be32ed989df16063b5282f1ac3bd00f06fc",
+      "capturedSceneSHA256": "f084660a9487f62920b5cb18e5ea5f44d57738f6a98d2264f52b7cdb90877cac",
+      "tatamiVersion": "1.13.0",
+      "video": "workspaces.mp4",
+      "poster": "workspaces.jpg"
+    },
+    {
+      "scene": "autoopen",
+      "title": "必要なツールをまとめて開く",
+      "description": "ワークスペースを開くと、割り当てたアプリが自動で起動します。",
+      "section": "workspaces",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "posterCaptionIndex": 1,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.autoOpen",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.keyEquivalent",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 14.9,
+      "bytes": 1406969,
+      "sha256": "f83ee85a5ec5af8346e3a25e7d51b84a5e0b40fdf505f3e67fdea36d84b94d13",
+      "sourceSHA256": "269ee1f52d51041b2074cd584f657420f85b87d6cf2d5474b083cad05d535c6d",
+      "sceneSHA256": "a26380229436b7210810b2959551aa1ce200a0c1981f85ec5a839dada52cc70b",
+      "capturedSceneSHA256": "51d04a619d1d0cbbf08b17fe384704d6fa8e255f7bd4c294f9cd4df75cce6390",
+      "tatamiVersion": "1.13.0",
+      "video": "autoopen.mp4",
+      "poster": "autoopen.jpg"
+    },
+    {
+      "scene": "membership",
+      "title": "作業に合わせてアプリを移す",
+      "description": "ショートカットで、選択中のアプリを別のワークスペースへ移します。",
+      "section": "workspaces",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.assignModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.moveToNextWorkspace",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 13.73,
+      "bytes": 862177,
+      "sha256": "d30fcd7df2d4e7ca2d7ac5b30e4b8cadc8ee4d3cd397d6c1192a82c0b9e9d159",
+      "sourceSHA256": "ebb62f2740439c38acf6aca1f6c355f8c7418ddf4340f6de98ce2b43d91197f5",
+      "sceneSHA256": "6a85a20b99ce21ed9a5a48df5673e9ffd3d94af1212832118d0edc6a74d071b0",
+      "capturedSceneSHA256": "b98da5cc975d0d3575e2dbfe4fc44c3c77af38b489e2f7fc385990846edbcadd",
+      "tatamiVersion": "1.13.0",
+      "video": "membership.mp4",
+      "poster": "membership.jpg"
+    },
+    {
+      "scene": "profiles",
+      "title": "作業環境ごと切り替える",
+      "description": "プロファイルを切り替えると、ワークスペースの構成全体が変わります。",
+      "section": "profiles",
+      "maxSeconds": 22,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.shortcut",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 7.63,
+      "bytes": 481744,
+      "sha256": "e495668a60f29f8380b27c897c36aab3aef227f2c83b831c1bc71cc65d6c8a81",
+      "sourceSHA256": "acce8a10623628e51ef0496bd96b4da86e7c630297243edbeaf02f40838402c2",
+      "sceneSHA256": "6242e1d7092875b3d201df251de70984fd731c30aedceb4523fb77fb9885fdaf",
+      "capturedSceneSHA256": "ec95b57cd9f2675ba7aa5d3cbca98683b30ca4ad5ddd841b5c94f231e103c38a",
+      "tatamiVersion": "1.13.0",
+      "video": "profiles.mp4",
+      "poster": "profiles.jpg"
+    },
+    {
+      "scene": "profile-copy",
+      "title": "今ある構成を再利用する",
+      "description": "設定画面でプロファイルを複製し、含めるワークスペースを確認します。",
+      "section": "profiles",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 11.9,
+      "bytes": 471497,
+      "sha256": "d031e596686dff05dfca0951a6d234503665c2a089ca152b2f0df521ad455269",
+      "sourceSHA256": "b3b84c688052239fcf884946dc6e930543b61feeba5cc51418040065e727cced",
+      "sceneSHA256": "58e3750eb2b03a2b016edd827cb8dcc406604ebd73fa8cdaead3a57252bf9066",
+      "capturedSceneSHA256": "58e3750eb2b03a2b016edd827cb8dcc406604ebd73fa8cdaead3a57252bf9066",
+      "tatamiVersion": "1.13.0",
+      "video": "profile-copy.mp4",
+      "poster": "profile-copy.jpg"
+    },
+    {
+      "scene": "workspace-copy",
+      "title": "ワークスペース間で設定をコピー",
+      "description": "別のワークスペースのアプリと設定を確認し、選んだ変更を適用します。",
+      "section": "profiles",
+      "maxSeconds": 40,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 19.07,
+      "bytes": 919434,
+      "sha256": "601d47140a7f0d4efde8ccc74a0415e547c25643302af6fb7a2d494a0c73720c",
+      "sourceSHA256": "6da96d8e206835066199b718a949a5741b9917495faf179197a50c7bd96fe2ca",
+      "sceneSHA256": "b5c132f71076f497a8b0a4ee65e89a594df9948ef5b46ea312a4b8d0dfa448f3",
+      "capturedSceneSHA256": "b5c132f71076f497a8b0a4ee65e89a594df9948ef5b46ea312a4b8d0dfa448f3",
+      "tatamiVersion": "1.13.0",
+      "video": "workspace-copy.mp4",
+      "poster": "workspace-copy.jpg"
+    },
+    {
+      "scene": "tiling",
+      "title": "新しいウインドウが自然に収まる",
+      "description": "新しいウインドウは、選択中のウインドウの領域を分割して配置されます。",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.splitType",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.windowPlacement",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 14.2,
+      "bytes": 613202,
+      "sha256": "bed5ff4a29e17cea6b799ee48e306e0db0679dff407c6ddfe67a08291e7c262b",
+      "sourceSHA256": "9b04683455090e391f6c2543cbcf043a74464777bb0818fe9fdb0a9655839ffb",
+      "sceneSHA256": "0d2bf011114e7c525d409ff4d56bda0731870e516b6c01c00e257e73793d139f",
+      "capturedSceneSHA256": "70cedbbc5f5634421b60feb0e6b65686a1f6cd22b09bfe2fe5f82d93520fe44e",
+      "tatamiVersion": "1.13.0",
+      "video": "tiling.mp4",
+      "poster": "tiling.jpg"
+    },
+    {
+      "scene": "layouts",
+      "title": "キーボードで配置を整える",
+      "description": "ウインドウを入れ替え、分割の向きと大きさを変え、全体を整えます。",
+      "section": "tiling",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.resizeGrow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.balance",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 13.77,
+      "bytes": 823190,
+      "sha256": "db9f586485bb082dd8ad528140d6fbba23219a8e6e38a18b593fb5ba6d93cd51",
+      "sourceSHA256": "e7e377f256379e5d59d1224b8e5cb051093900cc5c42c1ba3e53fdcb47fb8e47",
+      "sceneSHA256": "0979924d3db4d6e649887e044b9cef151c063794a8bd0ea6c528feb639dfcaaa",
+      "capturedSceneSHA256": "0979924d3db4d6e649887e044b9cef151c063794a8bd0ea6c528feb639dfcaaa",
+      "tatamiVersion": "1.13.0",
+      "video": "layouts.mp4",
+      "poster": "layouts.jpg"
+    },
+    {
+      "scene": "drag",
+      "title": "マウスで並べる",
+      "description": "ウインドウを重ねるようにドラッグして端を調整し、保存した配置に戻ります。",
+      "section": "tiling",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 16.97,
+      "bytes": 1598837,
+      "sha256": "8a521339d499ed8844b93999be835eb1898c5c8b6f252397ddf19e412092bd76",
+      "sourceSHA256": "e53f481ebf8165a90420aea21a50016ead44c691bde67f241a57aabc5a774c0b",
+      "sceneSHA256": "2eff2ec31a3c1e6a1a9b953534c80eac3aeef51e8f6f6ef456f13a6575e9c0af",
+      "capturedSceneSHA256": "8458b21d5a61a3d2eb0ce9d979922fb8ff497efdd69748b966d1087c4c7f009f",
+      "tatamiVersion": "1.13.0",
+      "video": "drag.mp4",
+      "poster": "drag.jpg"
+    },
+    {
+      "scene": "fullscreen",
+      "title": "ワークスペースを広げて集中する",
+      "description": "一つのウインドウをワークスペースいっぱいに広げ、元の配置に戻します。",
+      "section": "tiling",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.toggleFullscreen",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 7.03,
+      "bytes": 464990,
+      "sha256": "053b413dbff628b30678bd298653eaa10ec2c174861dad65a261f99b1ed69fc9",
+      "sourceSHA256": "7573b777e91abb8178cca86b7c3c28c430ec612faeae329cb4870b4c73ef3460",
+      "sceneSHA256": "712d65c4f101a69cd2d1052a09c4d64a32077a0a5211ecddb905c80dd10d23da",
+      "capturedSceneSHA256": "b445521b89af6aa8cabfe7701de9fedc4fd69dc7e0bcb50b813a31ebcfc22064",
+      "tatamiVersion": "1.13.0",
+      "video": "fullscreen.mp4",
+      "poster": "fullscreen.jpg"
+    },
+    {
+      "scene": "focus",
+      "title": "意図に合わせてフォーカスを移す",
+      "description": "ショートカットで隣のウインドウを選び、ポインタも移動します。マウスを重ねて選ぶ方法も紹介します。",
+      "section": "tiling",
+      "maxSeconds": 38,
+      "maxMB": 16,
+      "seedOptions": [
+        "--focus-follows-mouse"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.focusLeft",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.focusRight",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.focus.mouseFollowsFocus",
+          "anchor": "settingsfocus"
+        },
+        {
+          "key": "settings.focus.focusFollowsMouse",
+          "anchor": "settingsfocus"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 20.47,
+      "bytes": 683448,
+      "sha256": "a54b4cd1f5cf7fc6d488801b5041f0efa14c8ea91425e1c6eefc63aed00d7625",
+      "sourceSHA256": "b5a2df64bab1efa51f5c0bcf5b59b3f37b2ce22507be3e9f0aa8cb9a7c9fc58e",
+      "sceneSHA256": "4d28e5c21357adda0590c91155112175c166499327bf2ab0e549334d0b5e4b14",
+      "capturedSceneSHA256": "62f2c0c38eaaa9278f5761a4d4ec38e415618c6f5f6447b74094dfc199d6d140",
+      "tatamiVersion": "1.13.0",
+      "video": "focus.mp4",
+      "poster": "focus.jpg"
+    },
+    {
+      "scene": "switching",
+      "title": "必要なウインドウを選ぶ",
+      "description": "切り替えキーを長く押してウインドウを確認し、短く押して戻れます。",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.cycleNextWindow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.cycleSameAppWindows",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 9.6,
+      "bytes": 469363,
+      "sha256": "74116548137ddbe341eecac86b1e8202344b06150653aa81179b58a96c8c9721",
+      "sourceSHA256": "6c3ad486363113a1951cb47d0fa16084019fafb1b4ae9af99ba9703a1e076aea",
+      "sceneSHA256": "96816b35d2dec26025c9662c041fc270b7b81477d7c2994de6eb23b2ca798cb2",
+      "capturedSceneSHA256": "ff5ab415f192acf9c4bbefaffbad47b346c938140520b19cb374bbc903318eea",
+      "tatamiVersion": "1.13.0",
+      "video": "switching.mp4",
+      "poster": "switching.jpg"
+    },
+    {
+      "scene": "borrow",
+      "title": "会話を横に呼び出す",
+      "description": "今の作業を続けながら、別のワークスペースを隣へ借りられます。",
+      "section": "borrow",
+      "maxSeconds": 24,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.borrowModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 10.73,
+      "bytes": 648982,
+      "sha256": "780e87499f2bc5442656f4c2cdd0a057061b5986a013560bd1651f42bff485d1",
+      "sourceSHA256": "15b5483766175821c4cfd6787acd4471641dc17139888c0854309ca2c5aeb9b3",
+      "sceneSHA256": "4ef5d7317d908eba1aaccaaef0b0a6b804030cfbf79b65b3a471bb67703a3952",
+      "capturedSceneSHA256": "7bb113a997954f3a562bed98fc8abb2322dbb6d27f5e5522e0d8275979eb1e42",
+      "tatamiVersion": "1.13.0",
+      "video": "borrow.mp4",
+      "poster": "borrow.jpg"
+    },
+    {
+      "scene": "scratchpad",
+      "title": "何度でも呼び出せる一時スペース",
+      "description": "もう一度借りると、アプリの作業内容がそのまま残っています。",
+      "section": "borrow",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.kind",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.borrowEdge",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 13.7,
+      "bytes": 798476,
+      "sha256": "a31593b8162a8a5fe2b79400d26d553305864044fb371ed23b8ff6540f240abd",
+      "sourceSHA256": "29b9b7e1bcb21172ebcdc2fd0530accd086653727da268360e1d351e0f01518f",
+      "sceneSHA256": "703c736b1f45a8f33226971bc3502bc1863e11e77f98120ed1e8e19ff9302b54",
+      "capturedSceneSHA256": "786b35f8da8811424e19b900f5c24da943de8edfbb40d246041cb4da028cd506",
+      "tatamiVersion": "1.13.0",
+      "video": "scratchpad.mp4",
+      "poster": "scratchpad.jpg"
+    },
+    {
+      "scene": "borrow-placement",
+      "title": "位置と作業の場を選ぶ",
+      "description": "ワークスペースを左や下に借りて、境界を越えてフォーカスを移し、その作業に切り替えます。",
+      "section": "borrow",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        },
+        {
+          "key": "settings.switching.borrowFraction",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 17.1,
+      "bytes": 1405346,
+      "sha256": "da4f58cbf4b767eeb39c2627ec949e1256f10434b878c4a438157dc7c0b6fed3",
+      "sourceSHA256": "f32fd61338b04cc022e901bbc0bea1bd04117e5b8f19627dd9d463a8fa10c4fa",
+      "sceneSHA256": "584bd818055d6b971838119855c5c300ab71b272c260a2b08609be4e387eb4df",
+      "capturedSceneSHA256": "c9e6f191481d3ae0e0dd91352f9a8daa9448b0908dd223308c6aaebe50e1383a",
+      "tatamiVersion": "1.13.0",
+      "video": "borrow-placement.mp4",
+      "poster": "borrow-placement.jpg"
+    },
+    {
+      "scene": "floating",
+      "title": "ワークスペースの手前にメモを置く",
+      "description": "メモを常に手前に置いたりタイル表示に戻したりしながら、実際のボタンや入力欄を使います。",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.shortcuts.toggleFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 23.03,
+      "bytes": 840568,
+      "sha256": "73f96a43bcdc3f67e9cf2a7fa118f5fbbd80fbf860351374a9c9a1f28ef2dae5",
+      "sourceSHA256": "85b60cebb12de4b8eb9a29509c409ab8879e0d3567cae604099536ad0aaa63b8",
+      "sceneSHA256": "70dff850970da25969fbdb2fc6ae2a1f84a4964ec29cf7a9c7eb81c13fe23cd1",
+      "capturedSceneSHA256": "b79845d11e9c24f3df69a1380720ac56d03618eb2e5fb9aa36abb21aa8aca550",
+      "tatamiVersion": "1.13.0",
+      "video": "floating.mp4",
+      "poster": "floating.jpg"
+    },
+    {
+      "scene": "shared",
+      "title": "作業が変わっても同じ状態ウインドウを使う",
+      "description": "共有アプリを最前面表示にすると、どのワークスペースでも表示されます。",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        },
+        {
+          "key": "settings.shortcuts.toggleSharedFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 13.5,
+      "bytes": 792210,
+      "sha256": "e6a8d2a5ef7162aea41681e9430e59dd9877e78497fcd042dd5f1c32609e3847",
+      "sourceSHA256": "71f95e2c3dda228e72140370ea43cd29fb63e65c60cb4c0dd03e94777350d691",
+      "sceneSHA256": "32c517bc3492b9020713a2b8a4e7513a2eb16f578401ae8e01d79cce403658d4",
+      "capturedSceneSHA256": "0cd9a012c0c920a0c0ebc50256179dbfde942abee5d6212ce0f64df8e0480582",
+      "tatamiVersion": "1.13.0",
+      "video": "shared.mp4",
+      "poster": "shared.jpg"
+    },
+    {
+      "scene": "unmanaged",
+      "title": "置いた場所にウインドウを残す",
+      "description": "共有アプリを通常の重なり順にすると、作業が変わっても位置と大きさが保たれます。",
+      "section": "floating",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "seedOptions": [
+        "--pulse",
+        "unmanaged"
+      ],
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 17.67,
+      "bytes": 816454,
+      "sha256": "15aa2e601e7a83e8eb45ce566ed2c51b867ce137244534378d5bca95eacdcc03",
+      "sourceSHA256": "d46b9ca117e583f57af01790fc43ade89836aefd058390e803fd9c692f13a96c",
+      "sceneSHA256": "e0c31dcf10324ee07a6c2100c948bff8116237cc9a3a319489543e67516a1684",
+      "capturedSceneSHA256": "db10b9eb5df7b820424487bc5cb276cec4155bcb579e3e0b86d1511b5c6be8a0",
+      "tatamiVersion": "1.13.0",
+      "video": "unmanaged.mp4",
+      "poster": "unmanaged.jpg"
+    },
+    {
+      "scene": "cli",
+      "title": "CLI で集中できる環境を用意する",
+      "description": "実際のワークスペース一覧を確認し、切り替え・均等配置・借りる操作をまとめたスクリプトを実行します。",
+      "section": "automation",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 14.03,
+      "bytes": 639681,
+      "sha256": "51af62e1d49fc2a07c457518cfd48b36948cd2aa35d5be64c9c60cdbd24525bf",
+      "sourceSHA256": "9184ef959ad572544e80b2a7008ed699aa5d5765a79d9747f9a7fae42acf4847",
+      "sceneSHA256": "5aead0451f79504381ce9498fe7acd406f688c3492c1d6d8303d01fd889dc858",
+      "capturedSceneSHA256": "45f10e6f60185082c742359ede8312cf13c7882926969504a8a8481791fa76d3",
+      "tatamiVersion": "1.13.0",
+      "video": "cli.mp4",
+      "poster": "cli.jpg"
+    },
+    {
+      "scene": "hooks",
+      "title": "ワークスペースの切り替えをほかのツールに届ける",
+      "description": "ワークスペースが変わると、フックで外部ツールに通知できます。",
+      "section": "automation",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "hooks",
+          "anchor": "hooks"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 18.3,
+      "bytes": 1237585,
+      "sha256": "99ce366dac3feccc439c3012aa012e92d3aeb0c465edb951e678a53eddfd91de",
+      "sourceSHA256": "be98767379501b5726838d0260b105c6d5c5b0e5ac41cd9f4bd7af90ddc14b3d",
+      "sceneSHA256": "f7f05b73dd10d46f5372c203d45acc21b3955771f7e21f18e9e97d7133b5428f",
+      "capturedSceneSHA256": "ffaa1acf3b59f4a1caae77f471a243e9d5fa1ecec25cb09b892214ee655e68d4",
+      "tatamiVersion": "1.13.0",
+      "video": "hooks.mp4",
+      "poster": "hooks.jpg"
+    },
+    {
+      "scene": "configuration",
+      "title": "TOML を編集して、その場で確認する",
+      "description": "Tatami の起動中に TOML を編集して、ウインドウの間隔を変えられます。",
+      "section": "automation",
+      "maxSeconds": 33,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.gapInner",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.gapOuter",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 18.87,
+      "bytes": 721603,
+      "sha256": "5442f962551d27992c214efcf54505755fdb6def6cfd6953f45256482f37d8c5",
+      "sourceSHA256": "ba3772668b122fa5fa2ae7e231d5a01539ce7b5261eef0aea5afa6f97922d545",
+      "sceneSHA256": "86c742c47891e350d6ff3a55d9ef7c28dd91c1cdbd0bb54c7fa3c0d76ac8eb73",
+      "capturedSceneSHA256": "784c59e8dace78760a9d4343d28f9f13a6bc717479424a40b347bd4e9ac445ac",
+      "tatamiVersion": "1.13.0",
+      "video": "configuration.mp4",
+      "poster": "configuration.jpg"
+    },
+    {
+      "scene": "desk",
+      "title": "二つの画面で、一つの作業",
+      "description": "デザインと資料を別々の画面に置き、一つのショートカットでチェーンを切り替えます。",
+      "section": "profiles",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "presentation": "dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaceChains",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.displayHint",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 15.67,
+      "bytes": 654861,
+      "sha256": "cde5fe6a76dba137cdec0c021e54f1fdaf75d35c355f77633da071342d1ab4d8",
+      "sourceSHA256": "986d97f7cb0941d37931c3aeffce86bf676b77db46654167450bb122049dff30",
+      "sceneSHA256": "c7d472b323f2d6e48ec4be3810156684fe6c5cc73587e5ca66c200bfd1f23c00",
+      "capturedSceneSHA256": "0d5b945e1463b8f8bc44555e6a831d5371d6440d58653dbe67fa952e6eedb824",
+      "tatamiVersion": "1.13.0",
+      "video": "desk.mp4",
+      "poster": "desk.jpg"
+    },
+    {
+      "scene": "hotplug",
+      "title": "画面に合わせて環境を切り替える",
+      "description": "2 台目を接続すると Desk プロファイルに切り替わります。外すと Laptop の配置に戻ります。",
+      "section": "profiles",
+      "maxSeconds": 36,
+      "maxMB": 16,
+      "presentation": "dynamic-dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.autoActivation.displayCount",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 7.83,
+      "bytes": 396976,
+      "sha256": "907ed00cb1b9fe3ea21af72f54b75eadd9992afad5d4fc640a530049744be34d",
+      "sourceSHA256": "907b44e31cd6422805af92725613ef38e937e1e1c214396fc2123b4a0b0b8c5b",
+      "sceneSHA256": "b3dcc5f4affa60330eec4008cc7784379e8fea85a22e23f1e92977609eaa8530",
+      "capturedSceneSHA256": "b3dcc5f4affa60330eec4008cc7784379e8fea85a22e23f1e92977609eaa8530",
+      "tatamiVersion": "1.13.0",
+      "video": "hotplug.mp4",
+      "poster": "hotplug.jpg"
+    },
+    {
+      "scene": "layout-editor",
+      "title": "見ながら配置を決める",
+      "description": "ワークスペースを開く前に、保存するウインドウ配置を編集できます。",
+      "section": "tiling",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 15.6,
+      "bytes": 685500,
+      "sha256": "67db975bb8dc1f91de8e35f5e4122ebb2db6adc8fbab9f1233bc102d9090f49e",
+      "sourceSHA256": "f31221f2b6e0192593e01a573e5b6d77c9a028081ca4f40ecf88a0d3094df281",
+      "sceneSHA256": "dd1c68fd7ff78622925fad052b3aabb9691f54ff646a47af626196356e2aaf1e",
+      "capturedSceneSHA256": "dd1c68fd7ff78622925fad052b3aabb9691f54ff646a47af626196356e2aaf1e",
+      "tatamiVersion": "1.13.0",
+      "video": "layout-editor.mp4",
+      "poster": "layout-editor.jpg"
+    },
+    {
+      "scene": "guided-setup",
+      "title": "使いながら覚える",
+      "description": "実際の画面を動かさずに、ジェスチャのプレビューとショートカットを練習します。実機のトラックパッド入力は含みません。",
+      "section": "guided-setup",
+      "maxSeconds": 45,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 29.73,
+      "bytes": 899806,
+      "sha256": "02b8779efbf68992d4e76b65301fa0626b91498e885dddaad036a0f9c1f76395",
+      "sourceSHA256": "c338879d5687a9a75caea2591b0bb5d46a1650a7aceffc54a887f5ac7c0de4d6",
+      "sceneSHA256": "beaa5e2c101978fa2cac8d5a5440507346f4cd869e14d973468bd92f2614cf82",
+      "capturedSceneSHA256": "ce29cc847f45838604a747371730ea57273392f7cf8a88f316862addaaca1825",
+      "tatamiVersion": "1.13.0",
+      "video": "guided-setup.mp4",
+      "poster": "guided-setup.jpg"
+    },
+    {
+      "scene": "ai-draft",
+      "title": "提案された構成を確認する",
+      "description": "AI 提案の例を検証し、下書きに反映します。この録画では外部の AI サービスを呼び出していません。",
+      "section": "guided-setup",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "ja",
+      "durationSeconds": 14.73,
+      "bytes": 553701,
+      "sha256": "17da3997cef91f92049660300ef967de0ceada47aa2e6a008ee3cefeab279fee",
+      "sourceSHA256": "1cc8372f251e253c6a8734c61a45fe18072870ba1b8691921e43de4bc2da09f0",
+      "sceneSHA256": "e8124ba4e5c78d1a88a9f80d5a9d541ce4640f52871ab8b474fd0c43c2f60c29",
+      "capturedSceneSHA256": "9ae64731cca394500e5bc5eb026373cdb0c307b70b0ace50fb3a8c60bcdd0a4f",
+      "tatamiVersion": "1.13.0",
+      "video": "ai-draft.mp4",
+      "poster": "ai-draft.jpg"
+    }
+  ]
+}

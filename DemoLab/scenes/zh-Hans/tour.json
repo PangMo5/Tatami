@@ -1,0 +1,582 @@
+{
+  "name": "tour",
+  "title": "为整个工作流程腾出空间。",
+  "summary": "设计、写作、评审、借用、自动化，再适应更大的桌面。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "Tatami / 设计"
+    },
+    {
+      "kind": "caption",
+      "text": "每个工作区分别保存一项任务所需的应用和窗口布局。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "caption",
+      "text": "将一个窗口放大到整个工作区。"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "expectStory",
+      "field": "theme",
+      "value": "sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.forest"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "caption",
+      "text": "退出放大，恢复原来的窗口布局。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.content"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 写作"
+    },
+    {
+      "kind": "caption",
+      "text": "切换工作区，一起调出下一项任务需要的应用。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.headline"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - a"
+    },
+    {
+      "kind": "typeText",
+      "app": "Editor",
+      "text": "让工作更从容。",
+      "ms": 65
+    },
+    {
+      "kind": "expectValue",
+      "app": "Editor",
+      "identifier": "editor.headline",
+      "value": "让工作更从容。"
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.save"
+    },
+    {
+      "kind": "expectStory",
+      "field": "headline",
+      "value": "让工作更从容。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "回到 Design，之前的应用仍在原来的位置。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 2
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "saveLayout",
+      "text": "design"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.export"
+    },
+    {
+      "kind": "expectStory",
+      "field": "exported",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 评审"
+    },
+    {
+      "kind": "caption",
+      "text": "用工作区快捷键一次切换整组应用。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.check"
+    },
+    {
+      "kind": "expectStory",
+      "field": "checksPassed",
+      "value": "3"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.comment"
+    },
+    {
+      "kind": "typeText",
+      "app": "Review",
+      "text": "准备好了，预览也已导出。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.approve"
+    },
+    {
+      "kind": "expectStory",
+      "field": "approved",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "caption",
+      "text": "返回时，窗口的位置和大小会恢复。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 借用"
+    },
+    {
+      "kind": "caption",
+      "text": "用借用功能，把另一个工作区显示在当前工作区旁边。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.task.1"
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "准备发布公告。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "准备发布公告。"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 置顶"
+    },
+    {
+      "kind": "caption",
+      "text": "设为始终置顶的窗口会一直显示在其他应用上方。"
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Monitor",
+      "target": "Docs",
+      "x": 0.3,
+      "y": 0.7
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 自动化"
+    },
+    {
+      "kind": "caption",
+      "text": "用 CLI 将多项工作区操作组合成脚本。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 4"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Build"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "focus-session",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "focus-session",
+      "code": 0
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 适应环境"
+    },
+    {
+      "kind": "caption",
+      "text": "连接显示器后，自动切换到符合条件的配置方案。"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": true
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "expectHook",
+      "field": "profile",
+      "value": "Desk"
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    },
+    {
+      "kind": "caption",
+      "text": "断开显示器后，恢复笔记本的配置方案和布局。"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": false
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI"
+    },
+    {
+      "kind": "caption",
+      "text": "工具和工作位置，都为你保留。 | 支持 BSP 窗口平铺的 macOS 工作区管理器。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

@@ -1,17 +1,21 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](COVERAGE.md) · [한국어](ko/COVERAGE.md) · [日本語](ja/COVERAGE.md) · [简体中文](zh-Hans/COVERAGE.md) · [繁體中文](zh-Hant/COVERAGE.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Demo coverage and verification
 
-The v4 delivery contains 27 real recordings: an approximately 80-second complete
-workflow and 26 focused films. The website places them in seven always-visible
-collections beside the feature they demonstrate. Total video duration is 7:48;
-H.264 deliveries total approximately 18 MiB, with media loaded on demand.
+The publication inventory contains 27 scenarios: a complete workflow and 26
+focused demonstrations. Every supported locale has its own app language,
+fixture content, typed input, captions and capture assertions. Accepted takes
+are selected by locale, recorded actions and capture quality, then exported separately.
 
 ## Captured coverage
 
 | Collection | Films | Demonstrated behavior |
 | --- | --- | --- |
 | Workspaces | 3 | Direct/recent/ordered switching, auto-open/reopen, app membership moves. |
-| Profiles and displays | 4 | Profile switching, profile/workspace duplication, two-screen chains, cross-display focus, automatic profile activation on connect/disconnect. |
-| Tiling and focus | 8 | Insert/close, swap, split orientation, resize/balance, drag, workspace zoom, pause/resume, directional focus, MFF/FFM, held/quick window switcher, native visual layout editor. |
+| Profiles and displays | 5 | Profile switching, GUI profile duplication, selective workspace copying, two-screen chains, cross-display focus, automatic profile activation on connect/disconnect. |
+| Tiling and focus | 7 | Insert/close, swap, split orientation, resize/balance, drag, workspace zoom, directional focus, MFF/FFM, held/quick window switcher, native visual layout editor. |
 | Borrow | 3 | Conversation alongside work, persistent scratchpad, edge selection, cross-block focus, full activation and return. |
 | Window modes | 3 | Per-workspace Always on Top, Shared Always on Top, interactive mirrors, Leave As Is and its inclusion in the window switcher. |
 | Automation | 3 | Real CLI output, a multi-command focus-session script, lifecycle/HUD hooks, atomic TOML edits with live reload. |
@@ -23,27 +27,22 @@ changes into one continuous task. Canvas, Editor, Docs, Review, Chat, Notes,
 Terminal and Monitor are interactive local fixtures. Tatami performs the window
 management; hook and CLI outputs are produced by actual processes.
 
-## Evidence
+## Evidence and acceptance
 
-- Every accepted take passed its real action/state/layout assertions and matches
-  the current scene SHA256. Failed attempts remain in separate recording batches.
-- The recorder reports per-display frame drops and first-frame timestamps.
-  All accepted outputs are below the 1% drop threshold.
-- All 27 delivered MP4s passed full FFmpeg decode, duration/size budgets,
-  opening-caption timing, H.264/yuv420p format and source/timeline clock checks.
-- Offline OCR inspected 482 one-second samples across all videos. No configured
-  permission-request or macOS-first-run phrases were detected. This is a sampled
-  check, supplemented by the live permission gate and visual frame review.
-- Swift: 55 tests passed. Python export rejection/acceptance: 6 tests passed.
-- Browser: native playback, single-video playback, visible thumbnail choices,
-  keyboard selection, per-film links and a 390px responsive layout verified.
-- Film colors are generated from the website dark palette. HTML uses a content
-  hash for both video and poster URLs, preventing mixed generations in cache.
+Every accepted take must pass its real action/state/layout assertions, match the
+current localized capture actions and timing, and stay below the 1% frame-drop threshold.
+Text-only revisions preserve the source scene hash and add the edited scene hash.
+Exports check the whole MP4, H.264/yuv420p encoding, editorial duration/size
+budgets, first-caption timing and the shared movie/timeline clock.
 
-The delivery's `evidence/` folder contains frozen scene JSON, take metadata,
-timing, captions, sample/contact frames and the OCR report. `selection.json`
-records the exact raw batch chosen for each film. The original v3 review and
-original user-provided output remain separate.
+The delivery's `evidence/` directory records the actual results: frozen scene
+JSON, capture metadata, subtitles, timing, sampled frames, OCR and browser
+verification. Use those reports for a specific batch's counts and review status.
+Do not treat an old report as evidence for a new language or take.
+
+Film colors come from the website dark palette. Caption fonts are selected for
+the recorded language. Media URLs include the delivery hash, so a replacement
+movie and its poster cannot silently mix with the previous generation.
 
 ## Boundaries and an unresolved reproduction
 

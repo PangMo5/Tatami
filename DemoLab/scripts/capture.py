@@ -7,11 +7,14 @@ import argparse
 import json
 import os
 import subprocess
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', required=True, type=Path)
 parser.add_argument('--scenes', nargs='+')
+parser.add_argument('--fps', type=int, choices=[30,60], default=30)
+parser.add_argument('--locale', choices=['en','ko','ja','zh-Hans','zh-Hant'], default='en')
 parser.add_argument('--continue-on-error', action='store_true', help='keep failed takes, cleanly seed the next independent scene, and exit nonzero at the end')
 args = parser.parse_args()
 assets = json.loads((ROOT/'publication.json').read_text())['assets']
@@ -25,10 +28,14 @@ for asset in assets:
     name = asset['scene']
     if list(args.output.glob(name+'.*')) or list(args.output.glob(name+'-[0-9].*')):
         parser.error(f'existing take: {name}; use a new output directory')
-env = dict(os.environ, DEMOLAB_NO_BUILD='1')
+env = dict(os.environ, DEMOLAB_NO_BUILD='1', DEMOLAB_LOCALE=args.locale, DEMOLAB_LOCALIZATION_DIR=str(ROOT/'.build/DemoLab/Localization'))
 
 def ctl(*parts):
-    subprocess.run([str(ROOT/'bin/democtl'), *parts], check=True, env=env)
+    start = time.monotonic()
+    try:
+        subprocess.run([str(ROOT/'bin/democtl'), *parts], check=True, env=env)
+    finally:
+        print(f'PHASE {parts[0]} {time.monotonic()-start:.2f}s', flush=True)
 
 results = []
 try:
@@ -41,7 +48,7 @@ try:
             if asset.get('presentation') == 'dual':
                 ctl('display', 'connect')
             ctl('seed', *asset.get('seedOptions', []))
-            ctl('take', name, '--display', 'all' if asset.get('presentation') == 'dual' else 'main',
+            ctl('take', name, '--fps', str(args.fps), '--display', 'all' if asset.get('presentation') == 'dual' else 'main',
                 '--output', str(args.output.resolve()/(name+'.mov')))
             records = list(args.output.glob(name+'*.take.json'))
             if len(records) != (2 if asset.get('presentation') == 'dual' else 1):

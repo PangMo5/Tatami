@@ -1,0 +1,582 @@
+{
+  "name": "tour",
+  "title": "모든 작업에 알맞은 자리를 만들어요.",
+  "summary": "디자인하고, 쓰고, 검토하고, 빌려오고, 자동화해요. 넓은 책상에 맞춰 구성도 바꿔요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "Tatami / 디자인"
+    },
+    {
+      "kind": "caption",
+      "text": "작업 공간마다 필요한 앱과 창 배치를 따로 관리해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "caption",
+      "text": "창 하나를 작업 공간 전체 크기로 확대해요."
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "expectStory",
+      "field": "theme",
+      "value": "sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.forest"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "caption",
+      "text": "확대를 해제하면 이전 창 배치로 돌아와요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "click",
+      "app": "Docs",
+      "identifier": "docs.content"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 글쓰기"
+    },
+    {
+      "kind": "caption",
+      "text": "작업 공간을 바꾸면 다음 작업에 필요한 앱이 함께 나타나요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Write"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.headline"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - a"
+    },
+    {
+      "kind": "typeText",
+      "app": "Editor",
+      "text": "더 차분하게 일해요.",
+      "ms": 65
+    },
+    {
+      "kind": "expectValue",
+      "app": "Editor",
+      "identifier": "editor.headline",
+      "value": "더 차분하게 일해요."
+    },
+    {
+      "kind": "click",
+      "app": "Editor",
+      "identifier": "editor.save"
+    },
+    {
+      "kind": "expectStory",
+      "field": "headline",
+      "value": "더 차분하게 일해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "Design으로 돌아오면 사용하던 앱이 제자리에 나타나요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 2
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "saveLayout",
+      "text": "design"
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.export"
+    },
+    {
+      "kind": "expectStory",
+      "field": "exported",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 검토"
+    },
+    {
+      "kind": "caption",
+      "text": "작업 공간 단축키로 사용하는 앱 구성을 한 번에 바꿔요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.check"
+    },
+    {
+      "kind": "expectStory",
+      "field": "checksPassed",
+      "value": "3"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.comment"
+    },
+    {
+      "kind": "typeText",
+      "app": "Review",
+      "text": "준비됐어요. 미리보기도 내보냈어요.",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "click",
+      "app": "Review",
+      "identifier": "review.approve"
+    },
+    {
+      "kind": "expectStory",
+      "field": "approved",
+      "value": "true"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "caption",
+      "text": "돌아오면 창의 위치와 크기가 그대로 복원돼요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "beat",
+      "ms": 800
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 빌려오기"
+    },
+    {
+      "kind": "caption",
+      "text": "빌려오기로 다른 작업 공간을 현재 작업 옆에 띄워요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Notes"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.task.1"
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "출시 안내를 준비해요.",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "출시 안내를 준비해요."
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "assertLayout",
+      "text": "design"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 항상 위"
+    },
+    {
+      "kind": "caption",
+      "text": "항상 위로 설정한 창은 다른 앱 위에 계속 보여요."
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Monitor",
+      "identifier": "monitor.mode"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Monitor",
+      "target": "Docs",
+      "x": 0.3,
+      "y": 0.7
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - return"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 자동화"
+    },
+    {
+      "kind": "caption",
+      "text": "CLI로 작업 공간 동작들을 스크립트에 묶어 실행해요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 4"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Build"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Terminal"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Terminal",
+      "identifier": "terminal.command"
+    },
+    {
+      "kind": "typeText",
+      "app": "Terminal",
+      "text": "focus-session",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectCommand",
+      "text": "focus-session",
+      "code": 0
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "expectHook",
+      "field": "workspace",
+      "value": "Design"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - /"
+    },
+    {
+      "kind": "chapter",
+      "text": "Tatami / 화면에 맞추기"
+    },
+    {
+      "kind": "caption",
+      "text": "화면을 연결하면 조건에 맞는 프로필이 자동으로 켜져요."
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": true
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Desk",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "expectHook",
+      "field": "profile",
+      "value": "Desk"
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    },
+    {
+      "kind": "caption",
+      "text": "화면 연결을 해제하면 노트북용 프로필과 배치로 돌아와요."
+    },
+    {
+      "kind": "virtualDisplay",
+      "connected": false
+    },
+    {
+      "kind": "waitProfile",
+      "profile": "Laptop",
+      "timeoutMs": 12000
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Canvas"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "chapter",
+      "text": "TATAMI"
+    },
+    {
+      "kind": "caption",
+      "text": "도구도, 하던 자리도 그대로예요. | BSP 타일링을 갖춘 macOS 작업 공간 관리자예요."
+    },
+    {
+      "kind": "beat",
+      "ms": 2600
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

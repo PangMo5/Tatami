@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](VM-TART.md) · [한국어](ko/VM-TART.md) · [日本語](ja/VM-TART.md) · [简体中文](zh-Hans/VM-TART.md) · [繁體中文](zh-Hant/VM-TART.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Recording in a Tart VM
 
 The dedicated `tatami-demo` guest isolates personal windows, preferences and

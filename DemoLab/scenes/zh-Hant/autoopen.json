@@ -1,0 +1,120 @@
+{
+  "name": "autoopen",
+  "title": "一次開啟所需工具",
+  "summary": "啟用工作空間時，自動開啟指派給它的 App。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Chat",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "quitApps"
+    },
+    {
+      "kind": "beat",
+      "ms": 500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "自動開啟"
+    },
+    {
+      "kind": "caption",
+      "text": "啟用工作空間時，自動開啟指派給它的 App。"
+    },
+    {
+      "kind": "beat",
+      "ms": 200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "啟用自動開啟後，返回工作空間也會重新開啟已關閉的視窗。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ],
+  "openingApps": []
+}

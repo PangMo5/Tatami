@@ -18,6 +18,7 @@ class ExportAcceptanceTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.movie = Path(self.temp.name) / 'tour.mov'
+        self.movie.with_suffix('.scene.json').write_bytes((exporter.ROOT / 'scenes/tour.json').read_bytes())
         self.asset = dict(scene='tour', maxSeconds=48)
         self.record = dict(schemaVersion=2, status='passed', scene='tour', overlay='off',
                            frames=1800, droppedFrames=0,
@@ -65,6 +66,20 @@ class ExportAcceptanceTests(unittest.TestCase):
         self.info['format']['duration'] = '60'
         with self.assertRaisesRegex(ValueError, 'editorial budget'):
             self.validate()
+
+
+class FontAcceptanceTests(unittest.TestCase):
+    def test_missing_family_is_rejected_instead_of_rendering_boxes(self):
+        from video_theme import require_font
+        with patch('video_theme.subprocess.check_output', return_value='Verdana\n20-7e\n'):
+            with self.assertRaisesRegex(ValueError, 'Required caption font'):
+                require_font('zh-Hant', ['視窗'])
+
+    def test_selected_font_must_cover_the_actual_caption_characters(self):
+        from video_theme import require_font
+        with patch('video_theme.subprocess.check_output', return_value='Heiti TC\n20-7e\n'):
+            with self.assertRaisesRegex(ValueError, 'lacks caption glyphs'):
+                require_font('zh-Hant', ['視窗'])
 
 if __name__ == '__main__':
     unittest.main()

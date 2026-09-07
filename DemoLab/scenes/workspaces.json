@@ -1,7 +1,7 @@
 {
   "name": "workspaces",
   "title": "Move between tasks",
-  "summary": "Switch to a conversation, return to design, then move through the workspace order.",
+  "summary": "A shortcut switches to another workspace and its apps.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "Each task has a place."
+      "text": "A shortcut switches to another workspace and its apps."
     },
     {
       "kind": "click",
@@ -113,7 +113,7 @@
     },
     {
       "kind": "caption",
-      "text": "Recent takes you straight back."
+      "text": "The recent-workspace shortcut returns to the previous task."
     },
     {
       "kind": "key",

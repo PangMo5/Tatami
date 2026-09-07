@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import DemoAppKit
 import Foundation
@@ -27,12 +28,46 @@ public enum CaptureGate {
         .contains { normalized.contains($0) }
       let systemDialog = ["UserNotificationCenter", "SecurityAgent", "System Settings", "Software Update", "universalAccessAuthWarn"]
         .contains(owner)
-      if permission || systemDialog { problems.append("\(owner): \(title)") }
+      // Notification Center also owns permanent desktop widgets and a
+      // transparent full-screen host. Inspect actual notification text;
+      // the existence of that host window alone does not mean a banner exists.
+      if ["NotificationCenter", "Notification Center"].contains(owner),
+         (window[kCGWindowLayer as String] as? Int ?? 0) > 0,
+         let pid = window[kCGWindowOwnerPID as String] as? Int32 {
+        problems += notificationTitles(pid: pid, windowTitle: title).map { "Notification: \($0)" }
+      }
+      let updateDialog = ["software update", "소프트웨어 업데이트", "ソフトウェアアップデート", "软件更新", "軟體更新"].contains(normalized)
+      if permission || systemDialog || updateDialog { problems.append("\(owner): \(title)") }
     }
     guard problems.isEmpty else {
       throw DemoCtlError.usage("capture blocked by visible system UI: \(problems.joined(separator: "; ")). "
         + "Resolve it before recording. Recorder access does not prove Tatami has Screen Recording access.")
     }
+  }
+
+  private static func notificationTitles(pid: Int32, windowTitle: String) -> [String] {
+    func attribute(_ element: AXUIElement, _ key: String) -> CFTypeRef? {
+      var value: CFTypeRef?
+      guard AXUIElementCopyAttributeValue(element, key as CFString, &value) == .success else { return nil }
+      return value
+    }
+    var titles: [String] = []
+    func walk(_ element: AXUIElement, depth: Int) {
+      guard depth < 12 else { return }
+      if attribute(element, kAXIdentifierAttribute) as? String == "title",
+         let text = attribute(element, kAXValueAttribute) as? String, !text.isEmpty {
+        titles.append(text)
+      }
+      for child in attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+        walk(child, depth: depth + 1)
+      }
+    }
+    let app = AXUIElementCreateApplication(pid)
+    for window in attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []
+      where attribute(window, kAXTitleAttribute) as? String == windowTitle {
+      walk(window, depth: 0)
+    }
+    return titles
   }
 
   public static func requireOpening(_ names: [String]) throws {

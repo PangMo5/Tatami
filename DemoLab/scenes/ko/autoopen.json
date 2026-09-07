@@ -1,0 +1,120 @@
+{
+  "name": "autoopen",
+  "title": "필요한 도구 한 번에 열기",
+  "summary": "작업 공간을 켜면 배정한 앱들이 자동으로 열려요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Chat",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "quitApps"
+    },
+    {
+      "kind": "beat",
+      "ms": 500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "자동 열기"
+    },
+    {
+      "kind": "caption",
+      "text": "작업 공간을 켜면 배정한 앱들이 자동으로 열려요."
+    },
+    {
+      "kind": "beat",
+      "ms": 200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "자동 열기를 켜두면 다시 들어올 때 닫았던 창도 열려요."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ],
+  "openingApps": []
+}

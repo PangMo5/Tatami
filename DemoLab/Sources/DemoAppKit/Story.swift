@@ -21,25 +21,33 @@ public struct CopyCheck: Codable, Identifiable, Equatable, Sendable {
   public let passed: Bool
 }
 public struct LaunchStory: Codable, Equatable, Sendable {
-  public var headline = "A better way to manage all the windows on your desktop."
-  public var body = "Give every task its own workspace. Bring the apps you need together, keep their layout, and return to your work without rearranging windows."
+  public let locale: DemoLocale
+  public var headline: String
+  public var body: String
   public var designTheme = "cobalt"
   public var exported = false
   public var revision = 1
   public var approved = false
   public var reviewComment = ""
   public var checks: [CopyCheck] = []
-  public var tasks = [StoryTask(id: 1, text: "Review the launch copy", done: false),
-                      StoryTask(id: 2, text: "Add a product screenshot", done: false)]
-  public var messages = [StoryMessage(id: 1, author: "Mina", text: "The launch brief is ready. Can you make the headline a little shorter?"),
-                         StoryMessage(id: 2, author: "You", text: "On it. I’ll send the updated copy here."),
-                         StoryMessage(id: 3, author: "Mina", text: "Thanks! Let’s keep it calm and easy to understand.")]
-  public init() {}
+  public var tasks: [StoryTask]
+  public var messages: [StoryMessage]
+
+  public init(locale: DemoLocale = .selected) {
+    self.locale = locale
+    headline = locale.string("A better way to manage all the windows on your desktop.")
+    body = locale.string("Give every task its own workspace. Bring the apps you need together, keep their layout, and return to your work without rearranging windows.")
+    tasks = [StoryTask(id: 1, text: locale.string("Review the launch copy"), done: false),
+             StoryTask(id: 2, text: locale.string("Add a product screenshot"), done: false)]
+    messages = [StoryMessage(id: 1, author: "Mina", text: locale.string("The launch brief is ready. Can you make the headline a little shorter?")),
+                StoryMessage(id: 2, author: "You", text: locale.string("On it. I’ll send the updated copy here.")),
+                StoryMessage(id: 3, author: "Mina", text: locale.string("Thanks! Let’s keep it calm and easy to understand."))]
+  }
 
   public func evaluateCopy() -> [CopyCheck] {
-    [CopyCheck(id: "headline", title: "Headline is 1–40 characters", passed: (1...40).contains(headline.count)),
-     CopyCheck(id: "body", title: "Description explains the workflow", passed: body.count >= 40),
-     CopyCheck(id: "workspace", title: "The main idea is workspaces", passed: body.lowercased().contains("workspace"))]
+    [CopyCheck(id: "headline", title: locale.string("Headline is 1–40 characters"), passed: (1...40).contains(headline.count)),
+     CopyCheck(id: "body", title: locale.string("Description explains the workflow"), passed: body.count >= 40),
+     CopyCheck(id: "workspace", title: locale.string("The main idea is workspaces"), passed: body.localizedCaseInsensitiveContains(locale.workspaceTerm))]
   }
 }
 
@@ -60,7 +68,7 @@ public struct StoryRepository: Sendable {
   public static let changed = Notification.Name("dev.PangMo5.DemoLab.storyChanged")
 }
 
-/// Shared persisted work, observed across the seven independent app processes.
+/// Shared persisted work, observed across the eight independent app processes.
 @MainActor @Observable
 public final class StorySession {
   public var story = LaunchStory()

@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-Hans.md) · [繁體中文](README.zh-Hant.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Tatami <img src="Resources/Marketing/app-icon.png" align="right" height="128" />
 
 [![Latest release](https://img.shields.io/github/v/release/PangMo5/Tatami?sort=semver)](https://github.com/PangMo5/Tatami/releases/latest)

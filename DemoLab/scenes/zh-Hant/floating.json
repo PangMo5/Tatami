@@ -1,0 +1,148 @@
+{
+  "name": "floating",
+  "title": "把便箋放在工作空間上方",
+  "summary": "在置頂和參與並排之間切換便箋，並使用其實際控制項。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Focus",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Notes"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "置頂"
+    },
+    {
+      "kind": "caption",
+      "text": "設為保持最上層的視窗，會持續顯示在工作空間上方。"
+    },
+    {
+      "kind": "click",
+      "app": "Notes",
+      "identifier": "notes.newTask"
+    },
+    {
+      "kind": "typeText",
+      "app": "Notes",
+      "text": "檢查較小尺寸下的預覽。",
+      "ms": 65
+    },
+    {
+      "kind": "key",
+      "chord": "return"
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "檢查較小尺寸下的預覽。"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    },
+    {
+      "kind": "caption",
+      "text": "切換為並排，讓視窗加入自動排列。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Notes"
+    },
+    {
+      "kind": "key",
+      "chord": "alt + cmd - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "caption",
+      "text": "需要時，可以再次切換為保持最上層。"
+    },
+    {
+      "kind": "key",
+      "chord": "alt + cmd - return"
+    },
+    {
+      "kind": "beat",
+      "ms": 400
+    },
+    {
+      "kind": "restoreWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Notes"
+    }
+  ]
+}

@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](THIRD_PARTY_NOTICES.md) · [한국어](THIRD_PARTY_NOTICES.ko.md) · [日本語](THIRD_PARTY_NOTICES.ja.md) · [简体中文](THIRD_PARTY_NOTICES.zh-Hans.md) · [繁體中文](THIRD_PARTY_NOTICES.zh-Hant.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Third-Party Notices
 
 Tatami incorporates or is built with the dependencies listed below. Versions and

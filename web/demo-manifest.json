@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "locale": "en",
   "assets": [
     {
       "scene": "tour",
@@ -8,10 +9,23 @@
       "section": "demo",
       "maxSeconds": 150,
       "maxMB": 30,
-      "durationSeconds": 79.85,
-      "bytes": 2881355,
-      "sha256": "b5e80c70d100a89fc4efe0d40f6ff29968125a7d3d6c5a68e068094c34d27c52",
-      "sourceSHA256": "476817d50ccfaadd5004357949752b0933af05b6ea6edbc19406659e948bfa3b",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 84.27,
+      "bytes": 3469957,
+      "sha256": "297ca528607f2bc3d4b82ba13a7f4711ca2fa676db99b6e6de531de5ba540b71",
+      "sourceSHA256": "82a8c9e1cf45e753e2ccab2b99fefe0fde5cf39e5f33252db28969ee02755e30",
+      "sceneSHA256": "1f13ad4f28f2f418891c9e5e220be4c8efa2558915563261f50a99498490d980",
+      "capturedSceneSHA256": "867a92a9c4d54fcab2169c3879647261c2f54652b69071d2e79bb1320871c82d",
       "tatamiVersion": "1.13.0",
       "video": "tour.mp4",
       "poster": "tour.jpg"
@@ -19,14 +33,27 @@
     {
       "scene": "workspaces",
       "title": "Move between tasks",
-      "description": "Switch to a conversation, return to design, then move through the workspace order.",
+      "description": "A shortcut switches to another workspace and its apps.",
       "section": "workspaces",
       "maxSeconds": 32,
       "maxMB": 16,
-      "durationSeconds": 18.8,
-      "bytes": 902510,
-      "sha256": "d4e767ad21cf3a73dcc099e952ec8f73dec2f9abc7c90e1f0568fe5d28564dc0",
-      "sourceSHA256": "288c7d67f934f24b739a94045c16ca2a7608c997eda1bc2de691bb6089d84bbf",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.keyEquivalentModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.recentAcrossDisplays",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 19.2,
+      "bytes": 1049405,
+      "sha256": "436631ced8fb03e8d4430fcea2aa622a21c6bbf8155b78ed284842a16c64acc2",
+      "sourceSHA256": "75ef1af73264d3b6c4678811303e4aec5032362e0b8474ec172295f93e2a0f71",
+      "sceneSHA256": "a1381d3014ce24fb63e35454a8d38b8bb35b00732f430b131097330f40436ac7",
+      "capturedSceneSHA256": "093314ead4455aacf73eaa581561fb3d192c42d75db963567eed61912e924902",
       "tatamiVersion": "1.13.0",
       "video": "workspaces.mp4",
       "poster": "workspaces.jpg"
@@ -34,15 +61,28 @@
     {
       "scene": "autoopen",
       "title": "Open the whole toolset",
-      "description": "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.",
+      "description": "Activating a workspace automatically opens its assigned apps.",
       "section": "workspaces",
       "maxSeconds": 25,
       "maxMB": 16,
       "posterCaptionIndex": 1,
-      "durationSeconds": 12.73,
-      "bytes": 964403,
-      "sha256": "6836b8038372ac485cfdd221e4e234b62a33cd813744366aba464babac7e2ff0",
-      "sourceSHA256": "85c66bded5c283cde8efb65f9d39d10d94748639ce7d5f4dc3c8d0f9f9c72426",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.autoOpen",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.keyEquivalent",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 14.93,
+      "bytes": 1263643,
+      "sha256": "39f7decf7c362fc05211f83dc34a95f2e7bb81b48cd8d4259c7a49f1374373a2",
+      "sourceSHA256": "8d934f0a9f82a26dccf8987c06f3f8b7a763bde67604b0d6ef535f6d316976c6",
+      "sceneSHA256": "0822b720c7c4dfc91014c95791cf2f83866352b85620bcb61791d0e28dbec4ea",
+      "capturedSceneSHA256": "623f6098cd4ceb8f73d47491a93016bcb0f9ea73ce2d66d3807d468cdecc0d4b",
       "tatamiVersion": "1.13.0",
       "video": "autoopen.mp4",
       "poster": "autoopen.jpg"
@@ -50,14 +90,27 @@
     {
       "scene": "membership",
       "title": "Move an app with the task",
-      "description": "Send the reference from Write to Review, then move it back using the keyboard.",
+      "description": "Move the focused app to a different workspace with a shortcut.",
       "section": "workspaces",
       "maxSeconds": 28,
       "maxMB": 16,
-      "durationSeconds": 13.73,
-      "bytes": 642467,
-      "sha256": "2b6551f32b2dcc7bebebc9353d38d912da02320b1e78bd3b7ecb4c3466101785",
-      "sourceSHA256": "3a17ae218b627ceab881fe9b9c902e236b7c6c7526d4ec12db9e8cafa085dc0a",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.assignModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.moveToNextWorkspace",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 13.67,
+      "bytes": 733617,
+      "sha256": "5c8128b790a46dfcddd97ab85423bfd846677520d52ecfab4e3bd3156aa16061",
+      "sourceSHA256": "f025b880bfe58f6d40b1968a00abfb0a20a897bc6086c49dce476dc3b910baa5",
+      "sceneSHA256": "b0c2a7acd04bc9bc1bd6f4d6c10912c7a40864338c9fec2c9c148abbd0d3958e",
+      "capturedSceneSHA256": "a918cf5ead5dd702f55911cab7d877097a818ab83d7651c2e69aa81dbc57f4b3",
       "tatamiVersion": "1.13.0",
       "video": "membership.mp4",
       "poster": "membership.jpg"
@@ -65,14 +118,27 @@
     {
       "scene": "profiles",
       "title": "Switch the complete setup",
-      "description": "A profile changes the workspace set and restores the arrangement belonging to that context.",
+      "description": "Switching profiles changes the complete workspace configuration.",
       "section": "profiles",
       "maxSeconds": 22,
       "maxMB": 16,
-      "durationSeconds": 7.75,
-      "bytes": 362743,
-      "sha256": "2a794cb4229a40b10b9ac5ecf1ec20141ff4f27d7d15a9bea365b3aee37195b4",
-      "sourceSHA256": "c2cf3cfaaf785c40a30d19e9dbc3732528cf40b123425dd2a40d3db3a015d99b",
+      "relatedSettings": [
+        {
+          "key": "profiles.shortcut",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 7.73,
+      "bytes": 377282,
+      "sha256": "cc70e86a5b3a4f44444f333b3d99563ff8f2d37be213a4b19d5bda5608455a4c",
+      "sourceSHA256": "0b07d20f70bb46276ef81420910a9aad579e3714f2e5cac9b32fec12369e0b00",
+      "sceneSHA256": "80f4e2779a4808f4aec10961d5302e778a4778f7ee8c59f4b6b049ab1b19bff6",
+      "capturedSceneSHA256": "55555c9eaadd9fa3ad0037412d4d11467138a47c7ebf1186257d36a5ddfa50bf",
       "tatamiVersion": "1.13.0",
       "video": "profiles.mp4",
       "poster": "profiles.jpg"
@@ -80,29 +146,89 @@
     {
       "scene": "profile-copy",
       "title": "Reuse an existing setup",
-      "description": "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.",
+      "description": "Duplicate a profile in the settings window and review the workspaces to include.",
       "section": "profiles",
       "maxSeconds": 35,
       "maxMB": 16,
-      "durationSeconds": 24.05,
-      "bytes": 277529,
-      "sha256": "00d26190731f277c2646c2de36b77ed688de62f10c8ad5beaeea031d64d57b04",
-      "sourceSHA256": "fd19df2aee65a05284bd16b3827cb222bac77117d586a571110d1bcf6de49a48",
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 12.0,
+      "bytes": 464745,
+      "sha256": "5454eac2f9c3b6a36dfd0cbfa1beb412c858cbb4c238f776af4370b8ed421465",
+      "sourceSHA256": "f37317571fb388059773c26237c97ff37ec9102989007ef8b7e5ad9eb1bbab0b",
+      "sceneSHA256": "caa91b137e4722e22610578cc9671fa0a4fcf0e6f4bb6521e644b0e7c3c474ad",
+      "capturedSceneSHA256": "caa91b137e4722e22610578cc9671fa0a4fcf0e6f4bb6521e644b0e7c3c474ad",
       "tatamiVersion": "1.13.0",
       "video": "profile-copy.mp4",
       "poster": "profile-copy.jpg"
     },
     {
+      "scene": "workspace-copy",
+      "title": "Copy settings between workspaces",
+      "description": "Use Copy from to review another workspace’s apps and settings, then apply the selected changes.",
+      "section": "profiles",
+      "maxSeconds": 40,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 18.63,
+      "bytes": 938667,
+      "sha256": "b0471e3b5f53de5d65bfe3010a057e3d5152b8e777f384518c27c7b9e5c5a1df",
+      "sourceSHA256": "0a040c4cf40a38da0095f7e73837b9361ea4cd08143e5eee231ece4af84283c1",
+      "sceneSHA256": "30184208a2d396970611e1fd154ff3912ce280df4b3f2dff2b105cf6c460c333",
+      "capturedSceneSHA256": "30184208a2d396970611e1fd154ff3912ce280df4b3f2dff2b105cf6c460c333",
+      "tatamiVersion": "1.13.0",
+      "video": "workspace-copy.mp4",
+      "poster": "workspace-copy.jpg"
+    },
+    {
       "scene": "tiling",
       "title": "Let new windows find their place",
-      "description": "Open a second reference next to the canvas. Close it and the layout reclaims the space.",
+      "description": "A new window splits the space beside the focused window.",
       "section": "tiling",
       "maxSeconds": 20,
       "maxMB": 16,
-      "durationSeconds": 12.52,
-      "bytes": 457881,
-      "sha256": "9fd2e38278cf97c181496df139c6f0dc168d8c52cd9ff97612f30beca560eb9d",
-      "sourceSHA256": "b03e07cea25a4d6f4be9c6b4535b825e1bd9801d17513d2279c97f869266fefb",
+      "relatedSettings": [
+        {
+          "key": "settings.layout.splitType",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.windowPlacement",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 13.83,
+      "bytes": 551411,
+      "sha256": "10b8218251dc0b65b66f97f31b4793c3d0d2c83d2a6102b3d13d067b70cb8e18",
+      "sourceSHA256": "b468b6ddd909ab0f6ad76168ec8cecacbdec67294a22e25d3bec8c5a6acd1bd5",
+      "sceneSHA256": "1ffc8a95af0ab3724773dc8f514c5ddfba6660f10c61c561363946778fc85061",
+      "capturedSceneSHA256": "b23d14cd4f6bd9ccc435791074af6ad3918b97f3ba354d3d20b8e5b7bddec116",
       "tatamiVersion": "1.13.0",
       "video": "tiling.mp4",
       "poster": "tiling.jpg"
@@ -114,10 +240,27 @@
       "section": "tiling",
       "maxSeconds": 27,
       "maxMB": 16,
-      "durationSeconds": 12.22,
-      "bytes": 486185,
-      "sha256": "7c89b9f18a646f5f642976c9dfc780b38d68b51b61601f8a39f187db587fc5f1",
-      "sourceSHA256": "333b2f1c8a379330ae925b298066306aa7ffcbc726a5a828cbae0744687cd5e2",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.resizeGrow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.balance",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 13.77,
+      "bytes": 737586,
+      "sha256": "dd024e23b3323a5d045aabd7fb77e70d8186d78c5a6cdab03db3a2b53c49534e",
+      "sourceSHA256": "0b37c996f0899478fd7ff469c71a0fd40900bdf25c1be02f4b300d177a2319ad",
+      "sceneSHA256": "63132ad894be5491bd8fb9a3350da55065fa0cdfb33d4c41bb9f7515f61668bb",
+      "capturedSceneSHA256": "63132ad894be5491bd8fb9a3350da55065fa0cdfb33d4c41bb9f7515f61668bb",
       "tatamiVersion": "1.13.0",
       "video": "layouts.mp4",
       "poster": "layouts.jpg"
@@ -129,10 +272,23 @@
       "section": "tiling",
       "maxSeconds": 32,
       "maxMB": 16,
-      "durationSeconds": 16.5,
-      "bytes": 1212587,
-      "sha256": "0fac479566950ed35181bec6b8c31ef3b7b5267052910de0a983bec2cce9e9aa",
-      "sourceSHA256": "2622630eccaa42e7ae4eb8052953cef4c061188358e1f7b3f96013cff4ee0d7e",
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 16.63,
+      "bytes": 1362551,
+      "sha256": "3e083062ef2f9f5fb6ca2c1785b696fdb957dadad39dbd9a514926a981281583",
+      "sourceSHA256": "163a9da236b92c9b96eb6b7903d63662b2412e576c06a39f4a7bd7c58f4f5e5f",
+      "sceneSHA256": "1fdf2073e4a2e5027745f08314c31d0024c7591044e551803db56b0d6d480b9b",
+      "capturedSceneSHA256": "164f7cfeabe6d92cdaf400dd68b6fdfbf64fdd21c9378b3797021888cc1464be",
       "tatamiVersion": "1.13.0",
       "video": "drag.mp4",
       "poster": "drag.jpg"
@@ -144,43 +300,58 @@
       "section": "tiling",
       "maxSeconds": 30,
       "maxMB": 16,
-      "durationSeconds": 7.03,
-      "bytes": 282036,
-      "sha256": "6ee8aba5ada8f6c235edc69a7eae396d81bc7eb53e4cb8b91213d066b5c6789f",
-      "sourceSHA256": "b8670d1621dd4ddfb71472d4e49385738955130902ed382d0695bc8e3126eb85",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.toggleFullscreen",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 6.93,
+      "bytes": 352472,
+      "sha256": "56d49cbda0fb4c334b93feb9843f974c85ad50913f121e6d2cd2a97b2d4b81a2",
+      "sourceSHA256": "128df4c3d4c172ccb6121fa77dcf5698f0cf68aece263a2c9600d7df7484299a",
+      "sceneSHA256": "43ee032c4407d0049f313daa70cc093a391446605713aa0c91c889c1682a26c7",
+      "capturedSceneSHA256": "39f911b2a7e5c90a5afd82b5acad226c8b3cc5a3be550343c3ba47f941351e20",
       "tatamiVersion": "1.13.0",
       "video": "fullscreen.mp4",
       "poster": "fullscreen.jpg"
     },
     {
-      "scene": "pause",
-      "title": "Take manual control",
-      "description": "Pause automatic tiling, position a window freely, and resume the arranged workspace.",
-      "section": "tiling",
-      "maxSeconds": 23,
-      "maxMB": 16,
-      "durationSeconds": 15.43,
-      "bytes": 831091,
-      "sha256": "67b8c9017fa7c2d387b4f3c0af4ce44dbd2723b4ba9b018d991fb8441132436e",
-      "sourceSHA256": "dd9b7b60eb4331b828cf8b00be509617c6144657369a14da0789e569b9b36152",
-      "tatamiVersion": "1.13.0",
-      "video": "pause.mp4",
-      "poster": "pause.jpg"
-    },
-    {
       "scene": "focus",
       "title": "Focus follows your intent",
-      "description": "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.",
+      "description": "Use shortcuts to select neighboring windows and move the pointer, or select windows by hovering.",
       "section": "tiling",
-      "maxSeconds": 29,
+      "maxSeconds": 38,
       "maxMB": 16,
       "seedOptions": [
         "--focus-follows-mouse"
       ],
-      "durationSeconds": 12.05,
-      "bytes": 355942,
-      "sha256": "241322013950da7f8c68d0c7fa2dffd9475c91224d8c0b607f74062a55005a08",
-      "sourceSHA256": "531af33d46e0d3b8bc25899f7aeb27faec5c1500cd91e9abf68cc8f0c492db84",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.focusLeft",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.focusRight",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.focus.mouseFollowsFocus",
+          "anchor": "settingsfocus"
+        },
+        {
+          "key": "settings.focus.focusFollowsMouse",
+          "anchor": "settingsfocus"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 21.27,
+      "bytes": 617065,
+      "sha256": "7427e627d856d0f65e28fa731803876bbe80a4969918752f76c2105788fe2676",
+      "sourceSHA256": "ce5721cfa4a0f8c565a248cbe69118d6be971eb39774269fbad952f40720629f",
+      "sceneSHA256": "bd35fccb3396c944b18e4f85ad76de48157f4bd7660f45b4e8f32e61c3691619",
+      "capturedSceneSHA256": "8f659164cdd5f4ac4af29525ce03cffff4d79e393f438807c78fa2acbee64ad7",
       "tatamiVersion": "1.13.0",
       "video": "focus.mp4",
       "poster": "focus.jpg"
@@ -192,10 +363,23 @@
       "section": "tiling",
       "maxSeconds": 20,
       "maxMB": 16,
-      "durationSeconds": 9.55,
-      "bytes": 355437,
-      "sha256": "e104087838a7b0c852ddfe6368ee2aab9bdbdcbcf7f87d577690f5b3536914f8",
-      "sourceSHA256": "d0c748e184dca06acc944f35d7d959ceafe8fd749ee9c0d5a2a3999d7a0c29bd",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.cycleNextWindow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.cycleSameAppWindows",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 9.73,
+      "bytes": 441994,
+      "sha256": "abf350f624b6e43078596f3adb33abc3818823429f2af3187502d7b8e9a5b0cf",
+      "sourceSHA256": "3a9571b6cbc4818e249461c28c0fb0c518a9c3fd3264376b730a92f82b76080e",
+      "sceneSHA256": "f77be9376167c5e89279b92069a655d7b8e74743225667d11f0352cfbda81510",
+      "capturedSceneSHA256": "149e5508f428ae34e926fde81928f2a0ab1d90973fc11998dfa2498a1d1a7d67",
       "tatamiVersion": "1.13.0",
       "video": "switching.mp4",
       "poster": "switching.jpg"
@@ -203,14 +387,27 @@
     {
       "scene": "borrow",
       "title": "Bring a conversation alongside",
-      "description": "Answer a teammate without replacing the canvas and reference you are using.",
+      "description": "Borrow another workspace without leaving the current task.",
       "section": "borrow",
       "maxSeconds": 24,
       "maxMB": 16,
-      "durationSeconds": 13.53,
-      "bytes": 565632,
-      "sha256": "31451bc258bc9e50cc7b339d19e2bc443c30c09d175e4638247a9153e635c7fb",
-      "sourceSHA256": "1cc3ed99adaab50e2bafb4fe157f9f54194d1a199ffd6a8da7ec85c087b7cdbb",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.borrowModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 14.03,
+      "bytes": 705341,
+      "sha256": "48927c64274cf223ac811a9a2f88e496eb02a2cec0414e092ad88b0e6a7f1845",
+      "sourceSHA256": "26748230515849d455626f57b1808c6b8faf5aa8b05c05d64071312b591736bc",
+      "sceneSHA256": "f9fdbd1b08ac1f919275820c1215fc699d68d5e50bad77c377527030d76ade67",
+      "capturedSceneSHA256": "2fe6a693264faaf33ddbf2c3f623fd7d3599e41cabda915e246d69ff78ecbf6d",
       "tatamiVersion": "1.13.0",
       "video": "borrow.mp4",
       "poster": "borrow.jpg"
@@ -218,14 +415,27 @@
     {
       "scene": "scratchpad",
       "title": "Keep a reusable scratchpad",
-      "description": "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.",
+      "description": "Borrow the scratchpad again; its apps keep their contents.",
       "section": "borrow",
       "maxSeconds": 25,
       "maxMB": 16,
-      "durationSeconds": 16.1,
-      "bytes": 685004,
-      "sha256": "806407a3e2737f22bc8eeef8af835e447ba2a223cfe9fccb78459b118a469ff3",
-      "sourceSHA256": "a0dd1a59611a8b5479146adf71e1841f0d1907a7519c4fa32b726d93f15b3bda",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.kind",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.borrowEdge",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 16.37,
+      "bytes": 830757,
+      "sha256": "dd38dc5854ef529dc70663c33fafbc5b58a2f1206cb23f11fd157309a3588b6f",
+      "sourceSHA256": "abf7e7299bb6bcfe9b1ef3388f87209e5233358130b3e3bc619c4fa33fbd7eb2",
+      "sceneSHA256": "6132ae5d5d7b2488fc2f65e4d6c61a43914dd14b3fc17c00e30653a5d06af533",
+      "capturedSceneSHA256": "541cd6862061281b7f9baf221f8efe563d139b999343d48ad13c1d40e24ab75b",
       "tatamiVersion": "1.13.0",
       "video": "scratchpad.mp4",
       "poster": "scratchpad.jpg"
@@ -237,10 +447,23 @@
       "section": "borrow",
       "maxSeconds": 30,
       "maxMB": 16,
-      "durationSeconds": 16.88,
-      "bytes": 907846,
-      "sha256": "beca04275f0f83f91ab1752f57d4189d780546ba47e101b269aadf4baa9ba29b",
-      "sourceSHA256": "f0abe563bfe764e422b5fedad15b9319cb85980afff7c887ff5a378979807a47",
+      "relatedSettings": [
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        },
+        {
+          "key": "settings.switching.borrowFraction",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 17.1,
+      "bytes": 1168422,
+      "sha256": "a8131f61861d32e134a0f8dbaf814d5818fdaaac4d5cd0e514edab970a03c63a",
+      "sourceSHA256": "6cd24baa01806bc8173ad3f0b8307063bfa263292153cbfdf3f515ca466908ce",
+      "sceneSHA256": "a9ee3de5ad5c781e85dfb0cf6f3cc2a6e2b27cb1e3c8a86617fc984d46dff79b",
+      "capturedSceneSHA256": "e6541d7cac8083ed6576a85f78b5ebabfb5aca1cf7dde385518c356740bae382",
       "tatamiVersion": "1.13.0",
       "video": "borrow-placement.mp4",
       "poster": "borrow-placement.jpg"
@@ -252,10 +475,23 @@
       "section": "floating",
       "maxSeconds": 28,
       "maxMB": 16,
-      "durationSeconds": 16.8,
-      "bytes": 407044,
-      "sha256": "095bb4837f62743938c055626f9981ea95d07d613dd53b816c8a9b2763f757f6",
-      "sourceSHA256": "8bff83c2ac006bfbbeb2ebd968dfaf27e2aa04a0ebc3bf83f69b6dae5b5e97e9",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.shortcuts.toggleFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 24.47,
+      "bytes": 710360,
+      "sha256": "bcf69873e5d17fc542a19030f3f2624a8f1757bfaedd723bef907abbaf68e1a5",
+      "sourceSHA256": "7cec8a1e426594e9c4138a42612eb45d8c473688ae2c19394525f4a0186cfdb1",
+      "sceneSHA256": "6b803bc3a386e13789b79b74c3901f23580ff94d3712756767332e17b62991e9",
+      "capturedSceneSHA256": "cd29da43fae0452145b86ba204dd813ab607fd37c544c31fae67429225d2cfd7",
       "tatamiVersion": "1.13.0",
       "video": "floating.mp4",
       "poster": "floating.jpg"
@@ -263,14 +499,27 @@
     {
       "scene": "shared",
       "title": "One status window across tasks",
-      "description": "A Shared Always on Top monitor receives real workspace and HUD hook events.",
+      "description": "A shared Always on Top window stays visible across workspaces.",
       "section": "floating",
       "maxSeconds": 28,
       "maxMB": 16,
-      "durationSeconds": 13.42,
-      "bytes": 548395,
-      "sha256": "a7527a81b209bc67541fd2bbda8c49fdadac4a9d61debc226bf73067548150f8",
-      "sourceSHA256": "14ea5b31aeb6e03ac8392aa118f582536fd468d5feb11220524a0c8042e839b4",
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        },
+        {
+          "key": "settings.shortcuts.toggleSharedFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 13.83,
+      "bytes": 666816,
+      "sha256": "58cc3d2e25d621c99d7af36a63f7a0a0d840090468030b7d26cb2dd249257b68",
+      "sourceSHA256": "b07174e6112a7913ef1d7d4a94ecf87c1aa378e8db6f7583dac09baeadf0814a",
+      "sceneSHA256": "82c7bcc1e463c5af83eafe566b56e79a4224eb256c0973cd390c9bb1e5b37432",
+      "capturedSceneSHA256": "0c697bafbf1e350720fb7cb225934940fe88b47d0ad7faa1f8904d7d73f7fb2e",
       "tatamiVersion": "1.13.0",
       "video": "shared.mp4",
       "poster": "shared.jpg"
@@ -286,10 +535,19 @@
         "--pulse",
         "unmanaged"
       ],
-      "durationSeconds": 18.2,
-      "bytes": 670935,
-      "sha256": "6f115d34a9db7132c32a0505a40d59500e1e9797cea6e5052c91a31ae69d6728",
-      "sourceSHA256": "99804c58cc24b29942f92647ee1381961c938ce06548f5f69997ac9abfed9ff2",
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 18.17,
+      "bytes": 765350,
+      "sha256": "4fb53311e87d5fa402a0d4b176b664c75035713035452b33d2e5f156f38b4063",
+      "sourceSHA256": "2ddcaac4d7c5350df5f039f9cdd156289d1db4a60969c575b447cc81b4e7e5f2",
+      "sceneSHA256": "d024109f7a8c791887c8d781f613d0f68e03f579c51d74304f9f3501a4d1ca50",
+      "capturedSceneSHA256": "e1a262bb505e7a02cfacaf52e4ab362a57134f7f2660018dc03882c83c6d974a",
       "tatamiVersion": "1.13.0",
       "video": "unmanaged.mp4",
       "poster": "unmanaged.jpg"
@@ -301,10 +559,23 @@
       "section": "automation",
       "maxSeconds": 34,
       "maxMB": 16,
-      "durationSeconds": 13.55,
-      "bytes": 452490,
-      "sha256": "e7fc23ab5dce13e7692266cb6c82c59544823b3b5814c194ee105d43f5af2819",
-      "sourceSHA256": "cfc6751861ff65147f4f6196568ccc4900af164214e74ef22ed4c4cd27b1eb74",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 13.3,
+      "bytes": 574040,
+      "sha256": "4c91f85948d6ac8579fa860c723b37fe0048e64685546552d47e53b7d9ba5d7c",
+      "sourceSHA256": "d418b2d82f7956dae242de66f626f64db2aec1d582ad3812441876b42e9e06f0",
+      "sceneSHA256": "1697bf90adbecbc94da81a8810e67d68243810db11882e8adbf4a1c638e1a5f9",
+      "capturedSceneSHA256": "0a39b79e98cfdc889763a0d9683405961f8195598744a823b9ffcf0a98a0118b",
       "tatamiVersion": "1.13.0",
       "video": "cli.mp4",
       "poster": "cli.jpg"
@@ -312,14 +583,23 @@
     {
       "scene": "hooks",
       "title": "Make workspace changes useful elsewhere",
-      "description": "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.",
+      "description": "Hooks notify external tools when the workspace changes.",
       "section": "automation",
       "maxSeconds": 30,
       "maxMB": 16,
-      "durationSeconds": 18.07,
-      "bytes": 1082114,
-      "sha256": "77467516d42bf5492edb13a0489ab0e52cb2b519f55f866dfae1d0ef471179db",
-      "sourceSHA256": "26758c8e124a81c39c0b36514c5ccce74a1c38d2457ac8f4c35f801633410c15",
+      "relatedSettings": [
+        {
+          "key": "hooks",
+          "anchor": "hooks"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 17.93,
+      "bytes": 1208141,
+      "sha256": "3a934cd823e0fbe2ee761cba86803c300d10625fd18d4752368c18d57b46a47f",
+      "sourceSHA256": "3101c9cc4441be0e5e64a702d54d67d1bc3abc9ec1c1cdb7022e7b51120dd1d2",
+      "sceneSHA256": "148821027cb9d1bd838d0c87c93ab12a933d5f05af5635cde9ffe4a75105c8ea",
+      "capturedSceneSHA256": "4c12a5b425b7d692f9261a7823dadc39ad203b7a4263e7880d7ea06aa7979a9a",
       "tatamiVersion": "1.13.0",
       "video": "hooks.mp4",
       "poster": "hooks.jpg"
@@ -327,14 +607,27 @@
     {
       "scene": "configuration",
       "title": "Edit plain TOML, see a live change",
-      "description": "A small script edits the real gap setting. Tatami reloads it without a restart.",
+      "description": "Edit TOML to change window gaps while Tatami is running.",
       "section": "automation",
       "maxSeconds": 33,
       "maxMB": 16,
-      "durationSeconds": 19.23,
-      "bytes": 632913,
-      "sha256": "250a726a56ae44ead47649bb42832d4f0841fc76180a69a286a79d5581ba22d7",
-      "sourceSHA256": "ab2867243ace0b9fbf8a14820aab91761fe73ea58c1ccab30e43a2593d1c62cc",
+      "relatedSettings": [
+        {
+          "key": "settings.layout.gapInner",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.gapOuter",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 18.4,
+      "bytes": 693337,
+      "sha256": "e1ccb22de8915e4a4192bc1686e64a7064776cd2c75c9288fee8494ac990fc27",
+      "sourceSHA256": "b2db3f6439c731d6f0150f472cddf8bf6b2528c16653be12acf7fcde2ebf7987",
+      "sceneSHA256": "eb2ed653eb02c8e9187f205616d49d441530083b2a3185e4e18cdac27103ef8f",
+      "capturedSceneSHA256": "1d8af5a3ceb71e4cefbcad54a34cd19dbb05bfc175ad72d316f6174030fc9ff3",
       "tatamiVersion": "1.13.0",
       "video": "configuration.mp4",
       "poster": "configuration.jpg"
@@ -347,10 +640,23 @@
       "maxSeconds": 34,
       "maxMB": 16,
       "presentation": "dual",
-      "durationSeconds": 15.9,
-      "bytes": 510565,
-      "sha256": "64d2c71124da76663c8e3cc52b8e2d40de8394cbb6fa2866feaf6ea053db4705",
-      "sourceSHA256": "3cf03336f69a1d2a505426d2ff06fcfcdf549ccd11fe0c9239142b6d959280f1",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaceChains",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.displayHint",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 15.97,
+      "bytes": 587262,
+      "sha256": "c8a217704f2ac70bd4a512d1e15bc622c61932b7ee5aaec9a419a39ea6ba6bf5",
+      "sourceSHA256": "b1f9dddfeaa28c143f84b67467769af787fe1a02c006bd556482c502c348df56",
+      "sceneSHA256": "b6f48661c36f2577c2293b81c39bbfcd9312ae5335be0a392dd092cf3a392469",
+      "capturedSceneSHA256": "0b81003b3ae790a1595596dadd511b3904e408651195d9ba8678d325368d0c52",
       "tatamiVersion": "1.13.0",
       "video": "desk.mp4",
       "poster": "desk.jpg"
@@ -360,12 +666,22 @@
       "title": "Your setup follows the displays",
       "description": "Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.",
       "section": "profiles",
-      "maxSeconds": 30,
+      "maxSeconds": 36,
       "maxMB": 16,
-      "durationSeconds": 6.43,
-      "bytes": 378878,
-      "sha256": "26c71ee4f3abd5c4802bd07d60ae8a79e7c792ac5fdff44bc966f963daa42574",
-      "sourceSHA256": "1dbe1a29110e935f2edb3a3ff4232058e230689b50cfdeb9b0dccb1271471c66",
+      "presentation": "dynamic-dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.autoActivation.displayCount",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 7.87,
+      "bytes": 339007,
+      "sha256": "57b264e9de53124e5b5069b5eae206a31a29c62712800274c843172805c2443b",
+      "sourceSHA256": "a1049efc6c019a842a077c813bd6a75066c4f25f809f77bd0c8cee674d773f0b",
+      "sceneSHA256": "c3ede3dced5deef68a2073186b0ad31e0f870d56f5617fbb7c6aa82153d54707",
+      "capturedSceneSHA256": "e1f24fb361c8702d980dec5111edaab08878389319cd510022e63021a409b1c5",
       "tatamiVersion": "1.13.0",
       "video": "hotplug.mp4",
       "poster": "hotplug.jpg"
@@ -373,17 +689,30 @@
     {
       "scene": "layout-editor",
       "title": "Plan the layout visually",
-      "description": "Rotate, mirror and balance a saved layout in Tatami\u2019s native editor, then activate it.",
+      "description": "Edit the saved layout before activating the workspace.",
       "section": "tiling",
       "maxSeconds": 35,
       "maxMB": 16,
       "seedOptions": [
         "--keep-window"
       ],
-      "durationSeconds": 14.6,
-      "bytes": 502290,
-      "sha256": "cf6576f6acf2cfb57cedbbd8f1aeea7affd30ea4179483d8a2db635a080b3e11",
-      "sourceSHA256": "957738dc9bf47c9eb42ae979171b0c0f9a2874fa6476682b08b988730e082f61",
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 15.33,
+      "bytes": 672601,
+      "sha256": "fb9646e34bf4679672718e92905031b9440f2b209dfcac863c7e5aa5fda9e624",
+      "sourceSHA256": "c45dbf23e042dbe6ecc2e73de29f8d2c366be7c9cc89154106c2992872c59ad7",
+      "sceneSHA256": "b976b0ab270b18d833a94ae7136eca8da11f192a3229e81ceb7c3cd540d4ec8f",
+      "capturedSceneSHA256": "eb02a9e9e657c72bd7d69fd515c04bc19539113a24be8924d0918d97f515c78e",
       "tatamiVersion": "1.13.0",
       "video": "layout-editor.mp4",
       "poster": "layout-editor.jpg"
@@ -398,10 +727,23 @@
       "seedOptions": [
         "--keep-window"
       ],
-      "durationSeconds": 30.15,
-      "bytes": 839024,
-      "sha256": "8d82fb8c71917c9d4c41562aaccd017896db0f2ab6e1af238e1e6dc5fc08ffd6",
-      "sourceSHA256": "a7747110bbe62045367229f6080596bc0e2b6f508b7cc875b5669d5dbf390ba4",
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 29.0,
+      "bytes": 874051,
+      "sha256": "0939c9aaff1c54242c8b8da74a159197ca1c3f7ebccf92a094525ea2323844e6",
+      "sourceSHA256": "8bb0eef9c38f265f053b651d465844bc30007b0ca551c2178230561ffc62082d",
+      "sceneSHA256": "158a47fca59792bf3e0e8916fd6b066f6f03bb81e1d73f4408aea016f63eedd4",
+      "capturedSceneSHA256": "6e9e3382b0287684297e38428dce361ed79b422fae33bbe4367829c32fab202d",
       "tatamiVersion": "1.13.0",
       "video": "guided-setup.mp4",
       "poster": "guided-setup.jpg"
@@ -416,10 +758,23 @@
       "seedOptions": [
         "--keep-window"
       ],
-      "durationSeconds": 12.93,
-      "bytes": 682792,
-      "sha256": "5fa069fa8663c3aab7581e9f0f06a7c8bc718ad38d79ed6d73133d2dda9a2633",
-      "sourceSHA256": "28c16b164713018467b7959b62bd2e534f33e1a940e66a5f96fb37a256b800a7",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "en",
+      "durationSeconds": 13.1,
+      "bytes": 525562,
+      "sha256": "79a4f7ef5cdd371947d504aad5d64c08187677fc35f19df44c397fd21c72e630",
+      "sourceSHA256": "1e72b4d774c080d07ec312f4b899efd37fa080b7e3c60c260c8457ab31579958",
+      "sceneSHA256": "1a2ae0aaca016b3d10337bf3eea50bc55d2d7ea2a9510424da373ac220f839e4",
+      "capturedSceneSHA256": "90bc0c5839f8c526ff1b4f7dfa71f03874c5154d54651f02e25bd7051eb47ba9",
       "tatamiVersion": "1.13.0",
       "video": "ai-draft.mp4",
       "poster": "ai-draft.jpg"

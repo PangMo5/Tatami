@@ -27,7 +27,7 @@ remote_sha="$(tart exec "${VM_NAME}" /usr/bin/env \
   shopt -s nullglob
   movies=(*.mov)
   [ "${#movies[@]}" -gt 0 ] || { echo "no movies in ${LAB_BATCH}" >&2; exit 6; }
-  files=("${movies[@]}" *.ass *.timeline.json *.take.json *.scene.json)
+  files=("${movies[@]}" *.ass *.timeline.json *.take.json *.scene.json *.secondary.json)
   [ ! -f capture-report.json ] || files+=(capture-report.json)
   tar cf "${LAB_SHARE}/${LAB_ARCHIVE}" -- "${files[@]}"
   shasum -a 256 "${LAB_SHARE}/${LAB_ARCHIVE}" | cut -d " " -f 1

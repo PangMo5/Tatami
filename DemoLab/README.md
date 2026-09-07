@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](README.md) · [한국어](ko/README.md) · [日本語](ja/README.md) · [简体中文](zh-Hans/README.md) · [繁體中文](zh-Hant/README.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Tatami Demo Lab
 
 Record the real Tatami, export a consistent set of marketing videos, and place
@@ -48,8 +52,10 @@ python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
 
 Host requirements: `tart`, Python 3.11+, `mpv` with libass/libx264, `ffmpeg` and
 `ffprobe`. The recorder is a separate SwiftPM package; it does not change
-Tatami's Tuist build graph. The guest needs Xcode Command Line Tools and Python 3
-for the suite inventory, with no third-party Python packages.
+Tatami's Tuist build graph. The guest needs Xcode Command Line Tools and Python 3, with no third-party
+Python packages. The plain string catalog compiler does not require full Xcode.
+
+The export host also needs Fontconfig. Before encoding, the lab verifies the requested font family and coverage of every caption character. The OCR audit separately compares overlaid narration with the narration timeline.
 
 ## A small set of useful apps
 
@@ -103,24 +109,27 @@ first-frame monotonic timestamp so subtitles share the movie's clock.
 
 ## Presentation
 
-The raw `.mov` contains the entire captured desktop, without lab captions.
-The export uses a 1920×1200 canvas: a 1664×1040 desktop at (128, 48), a slim
-chapter header, and a footer for narration and shortcut labels. The chapter text,
-letterbox and captions derive directly from the website dark palette through
-`video_theme.py`: charcoal, off-white and Tatami gold. Wide dual-screen films
-use a 1920×800 canvas. Changing the palette does not require re-recording.
-Tatami's own HUD remains inside the untouched captured desktop.
+Original MOV files contain the full captured desktop. Exports keep that image at
+1920×1200, or 1920×600 for two screens. Narration appears over the lower part of
+the image, with a chapter label at the upper left and actual keystrokes at the
+upper right. Translucent backgrounds keep text readable over light and dark apps.
+The colors come from the website palette; changing presentation needs no new capture.
+
+Caption edits may reuse an original only when every recorded action, typed input,
+assertion and delay is unchanged. The exporter verifies the frozen scene hash and
+compares those actions before replacing narration on the original timeline.
+Original and edited scenes and timelines are both included in the evidence.
 
 Every take has:
 
 - `.mov`: clean camera original.
 - `.ass`: editable narration and actual keycast timing.
 - `.timeline.json`: all events with start/end times.
-- `.take.json`: pass/fail, scene hash, Tatami version, per-output frame/drop counts, capture epochs and overlay mode.
+- `.take.json`: pass/fail, scene hash, Tatami version, locale, per-output frame/drop counts, capture epochs and overlay mode.
 - `.scene.json`: the exact scene bytes frozen when recording began.
 
 A failed take stays available for diagnosis but cannot enter the exporter.
-Exports require a matching current scene hash, clean narration, less than 1%
+Exports require a verified capture contract, clean narration, less than 1%
 dropped frames, timely opening captions and matching movie/timeline duration.
 The output must fit its time/size budget, use H.264/yuv420p, and survive a complete
 FFmpeg decode. `faststart` places the MP4 header before the media payload.
@@ -131,6 +140,7 @@ watching the action: in particular, shared-window mirroring and focus targets
 still need visible verification. Website players use native controls and
 `preload="none"`; playback is deliberate and only one video plays at a time.
 Every collection exposes its thumbnail playlist, count and previous/next buttons.
+Each film links to its related configuration keys.
 Arrow keys, Home/End and per-film links work without opening a disclosure.
 
 For two-screen capture, the suite connects a real guest-side virtual display,
@@ -171,3 +181,37 @@ python3 -m unittest discover -s Tests -p 'test_*.py'
 - [VM setup](docs/VM-TART.md)
 - [Permissions](docs/PERMISSIONS.md)
 - [Real multi-display capture](docs/MULTI-DISPLAY.md)
+
+## Five-language production
+
+The supported languages are `en`, `ko`, `ja`, `zh-Hans` and `zh-Hant`.
+`Localization/Localizable.xcstrings` owns fixture UI and seeded content;
+`Localization/Films.json` owns film titles, narration and scripted human input.
+`Localization/Interface.json` owns the review gallery. The product's existing
+catalog supplies native Tatami AX labels when a stable control identifier is
+not available. User-chosen app, workspace and profile names remain unchanged.
+
+```sh
+python3 scripts/localize-scenes.py
+./vm/tart/sync.sh
+# Inside the guest:
+python3 scripts/capture.py --locale ko --output recordings/ko-batch
+# After fetching that explicit batch to the host:
+python3 scripts/export.py --locale ko --takes recordings/ko-batch --output ~/Downloads/Tatami-ko
+```
+
+Each recording seeds the fixture and Tatami language together. Human input and
+its assertions come from the same reviewed text. CLI commands and their actual
+machine output remain unchanged. The final delivery is 30 fps, so the batch
+also captures at 30 fps without unnecessary 60 fps sampling.
+
+`record-locales.py` identifies missing or rejected takes for each locale.
+It never treats an English capture as proof of a translated UI. A failed scene
+stays available for diagnosis; another language can continue independently.
+
+Small utility windows start near the lower-right corner. The hero moves the
+status window to the lower-left corner as a visible action. Keep the document's
+main reading area clear when adjusting a scenario.
+
+For a local website preview that outlives the terminal command, run
+`python3 ../scripts/preview-site.py --background` from this directory.

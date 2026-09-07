@@ -45,16 +45,20 @@ public struct RecorderController {
 
   // MARK: Lifecycle
 
-  public init(paths: LabPaths) {
+  public init(paths: LabPaths, recordingName: String = "recorder") {
     self.paths = paths
+    self.recordingName = recordingName
   }
 
   // MARK: Public
 
   public let paths: LabPaths
+  private let recordingName: String
+  private var pidFile: URL { paths.runRoot.appendingPathComponent(recordingName + ".pid") }
+  private var resultFile: URL { pidFile.deletingPathExtension().appendingPathExtension("json") }
 
   public var runningPID: Int32? {
-    guard let text = try? String(contentsOf: paths.recorderPidFile, encoding: .utf8),
+    guard let text = try? String(contentsOf: pidFile, encoding: .utf8),
           let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
           pid > 0
     else { return nil }
@@ -62,7 +66,7 @@ public struct RecorderController {
     return kill(pid, 0) == 0 ? pid : nil
   }
 
-  private var readyFile: URL { paths.recorderPidFile.deletingPathExtension().appendingPathExtension("ready.json") }
+  private var readyFile: URL { pidFile.deletingPathExtension().appendingPathExtension("ready.json") }
 
   public func elapsedSinceFirstFrame() throws -> Double {
     let object = try JSONSerialization.jsonObject(with: Data(contentsOf: readyFile)) as? [String: Any]
@@ -84,7 +88,7 @@ public struct RecorderController {
     return metadata
   }
   public func outputStatistics(for movie:URL) throws -> [String:Int] {
-    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: paths.recorderResultFile)) as? [String:Any]
+    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: resultFile)) as? [String:Any]
     guard let stats=(object?["outputStatistics"] as? [String:[String:Int]])?[movie.lastPathComponent] else {
       throw DemoCtlError.usage("recorder did not report per-output statistics")
     }
@@ -135,7 +139,7 @@ public struct RecorderController {
     // Both handshake files, and loudly: a result file left by the previous take
     // would be read as this one's verdict, which is the exact silent difference
     // between takes this lab exists to prevent.
-    for stale in [paths.recorderPidFile, paths.recorderResultFile, readyFile]
+    for stale in [pidFile, resultFile, readyFile]
       where FileManager.default.fileExists(atPath: stale.path) {
       try FileManager.default.removeItem(at: stale)
     }
@@ -144,7 +148,7 @@ public struct RecorderController {
       "--output", output.path,
       "--display", display,
       "--fps", String(fps),
-      "--pidfile", paths.recorderPidFile.path,
+      "--pidfile", pidFile.path,
     ]
 
     // `auto`: if this process can already capture the screen, a direct child
@@ -165,7 +169,7 @@ public struct RecorderController {
       try Shell.launchDetached(
         executable,
         arguments,
-        log: paths.runRoot.appendingPathComponent("recorder-stdout.log")
+        log: paths.runRoot.appendingPathComponent(recordingName + "-stdout.log")
       )
 
     case .viaLaunchServices:
@@ -182,7 +186,7 @@ public struct RecorderController {
     // result during startup means the run is already over. Failing here beats
     // driving a whole scene against a recorder that exited seconds in.
     let started = try Shell.wait(timeout: .seconds(20)) { () throws -> Bool in
-      if FileManager.default.fileExists(atPath: paths.recorderResultFile.path) {
+      if FileManager.default.fileExists(atPath: resultFile.path) {
         throw DemoCtlError.recorderFailedToStart(detail: try? readResult().failureReason)
       }
       return runningPID != nil
@@ -262,7 +266,7 @@ public struct RecorderController {
   /// The recorder's verdict. Absent or unparseable is a failure, never a
   /// success: an unverified take is exactly the thing that must not pass.
   private func readResult() throws -> RecorderResult {
-    let file = paths.recorderResultFile
+    let file = resultFile
     guard let data = try? Data(contentsOf: file) else {
       throw DemoCtlError.recordingFailed([
         "the recorder exited without writing \(file.path), so nothing about this take was verified",

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Foundation
+import DemoAppKit
 
 // MARK: - LabPaths
 
@@ -160,7 +161,8 @@ public struct LabPaths: Sendable {
   public var scenesRoot: URL { packageRoot.appendingPathComponent("scenes") }
 
   public func sceneFile(_ name: String) -> URL {
-    scenesRoot.appendingPathComponent("\(name).json")
+    (DemoLocale.selected == .en ? scenesRoot : scenesRoot.appendingPathComponent(DemoLocale.selected.rawValue))
+      .appendingPathComponent("\(name).json")
   }
 
   public func appBundle(_ name: String) -> URL {

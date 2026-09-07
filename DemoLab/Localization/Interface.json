@@ -1,0 +1,117 @@
+{
+  "en": {
+    "explore": "Explore the workflow",
+    "previous": "Previous video",
+    "next": "Next video",
+    "playHint": "Use the play control",
+    "collection": "{name} video collection",
+    "choose": "Choose a {name} demonstration",
+    "watch": "Watch {title}",
+    "library": "Demo library",
+    "headline": "Make room for the whole workflow.",
+    "intro": "Real Tatami, interactive demo apps, and focused demonstrations.",
+    "sections": {
+      "demo": "The complete workflow",
+      "workspaces": "Workspaces",
+      "profiles": "Profiles and displays",
+      "tiling": "Tiling and focus",
+      "borrow": "Borrow",
+      "floating": "Window modes",
+      "automation": "CLI and hooks",
+      "guided-setup": "Guided Setup"
+    },
+    "relatedSettings": "Related settings"
+  },
+  "ko": {
+    "explore": "실제 작업 살펴보기",
+    "previous": "이전 영상",
+    "next": "다음 영상",
+    "playHint": "재생 버튼을 눌러주세요",
+    "collection": "{name} 영상 모음",
+    "choose": "{name} 영상 선택",
+    "watch": "{title} 보기",
+    "library": "데모 영상 모음",
+    "headline": "모든 작업에 알맞은 자리를 만들어요.",
+    "intro": "실제 Tatami와 직접 조작하는 데모 앱으로 주요 기능을 살펴봐요.",
+    "sections": {
+      "demo": "전체 작업 흐름",
+      "workspaces": "작업 공간",
+      "profiles": "프로필과 화면",
+      "tiling": "타일링과 포커스",
+      "borrow": "빌려오기",
+      "floating": "창 표시 방식",
+      "automation": "CLI와 훅",
+      "guided-setup": "시작 안내"
+    },
+    "relatedSettings": "관련 설정"
+  },
+  "ja": {
+    "explore": "実際の作業を見る",
+    "previous": "前の動画",
+    "next": "次の動画",
+    "playHint": "再生ボタンを押してください",
+    "collection": "{name}の動画集",
+    "choose": "{name}の動画を選ぶ",
+    "watch": "{title}を見る",
+    "library": "デモ動画集",
+    "headline": "仕事の流れに、必要な場所を。",
+    "intro": "実際の Tatami と操作できるデモアプリで、主な機能を紹介します。",
+    "sections": {
+      "demo": "一連の作業",
+      "workspaces": "ワークスペース",
+      "profiles": "プロファイルと画面",
+      "tiling": "タイル表示とフォーカス",
+      "borrow": "借りる",
+      "floating": "ウインドウの表示方法",
+      "automation": "CLI とフック",
+      "guided-setup": "使いながら設定"
+    },
+    "relatedSettings": "関連する設定"
+  },
+  "zh-Hans": {
+    "explore": "看看实际工作",
+    "previous": "上一个视频",
+    "next": "下一个视频",
+    "playHint": "请使用播放按钮",
+    "collection": "{name}视频集",
+    "choose": "选择{name}演示",
+    "watch": "观看{title}",
+    "library": "演示视频集",
+    "headline": "为整个工作流程腾出空间。",
+    "intro": "通过实际的 Tatami 和可操作的演示应用了解主要功能。",
+    "sections": {
+      "demo": "完整工作流程",
+      "workspaces": "工作区",
+      "profiles": "配置方案与显示器",
+      "tiling": "平铺与焦点",
+      "borrow": "借用",
+      "floating": "窗口显示方式",
+      "automation": "CLI 与钩子",
+      "guided-setup": "设置向导"
+    },
+    "relatedSettings": "相关设置"
+  },
+  "zh-Hant": {
+    "explore": "看看實際工作",
+    "previous": "上一部影片",
+    "next": "下一部影片",
+    "playHint": "請使用播放按鈕",
+    "collection": "{name}影片集",
+    "choose": "選擇{name}示範",
+    "watch": "觀看{title}",
+    "library": "示範影片集",
+    "headline": "為整個工作流程騰出空間。",
+    "intro": "透過實際的 Tatami 和可操作的示範 App 認識主要功能。",
+    "sections": {
+      "demo": "完整工作流程",
+      "workspaces": "工作空間",
+      "profiles": "設定組合與顯示器",
+      "tiling": "並排與焦點",
+      "borrow": "借用",
+      "floating": "視窗顯示方式",
+      "automation": "CLI 與掛鉤",
+      "guided-setup": "設定導覽"
+    },
+    "relatedSettings": "相關設定"
+  }
+}

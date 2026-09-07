@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "A note stays above the preview."
+      "text": "Always on Top keeps this window above the workspace."
     },
     {
       "kind": "click",
@@ -85,12 +85,16 @@
       "value": "Check the preview at a smaller size."
     },
     {
+      "kind": "saveWindow",
+      "app": "Notes"
+    },
+    {
       "kind": "beat",
       "ms": 1200
     },
     {
       "kind": "caption",
-      "text": "Tile it when you want it in the arrangement."
+      "text": "Switch to tiled placement to include the window in the layout."
     },
     {
       "kind": "activateApp",
@@ -106,7 +110,7 @@
     },
     {
       "kind": "caption",
-      "text": "Or put it back above the workspace."
+      "text": "Switch back to Always on Top whenever you need it."
     },
     {
       "kind": "key",
@@ -114,7 +118,19 @@
     },
     {
       "kind": "beat",
-      "ms": 1600
+      "ms": 400
+    },
+    {
+      "kind": "restoreWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Notes"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
     },
     {
       "kind": "activateApp",
@@ -123,6 +139,10 @@
     {
       "kind": "beat",
       "ms": 1100
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Notes"
     }
   ]
 }

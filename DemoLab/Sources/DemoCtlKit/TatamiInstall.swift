@@ -101,7 +101,7 @@ public enum TatamiProcess {
   public static func running() -> [NSRunningApplication] {
     NSWorkspace.shared.runningApplications.filter {
       guard let identifier = $0.bundleIdentifier else { return false }
-      return TatamiInstall.isTatami(identifier)
+      return TatamiInstall.isTatami(identifier) && Shell.processExists($0.processIdentifier)
     }
   }
 

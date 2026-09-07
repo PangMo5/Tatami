@@ -1,0 +1,120 @@
+{
+  "name": "autoopen",
+  "title": "必要なツールをまとめて開く",
+  "summary": "ワークスペースを開くと、割り当てたアプリが自動で起動します。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Chat",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "quitApps"
+    },
+    {
+      "kind": "beat",
+      "ms": 500
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "自動で開く"
+    },
+    {
+      "kind": "caption",
+      "text": "ワークスペースを開くと、割り当てたアプリが自動で起動します。"
+    },
+    {
+      "kind": "beat",
+      "ms": 200
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "click",
+      "app": "Canvas",
+      "identifier": "canvas.sand"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "自動起動を有効にすると、戻ったときに閉じたウインドウも開きます。"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - w"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Chat"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ]
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1700
+    }
+  ],
+  "openingApps": []
+}

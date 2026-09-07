@@ -152,6 +152,38 @@ struct BSPTreeTests {
     #expect(frames[2]?.width == 700)
   }
 
+  @Test(arguments: [BSPSplitAxis.horizontal, .vertical], [1, 2])
+  func `focused resize follows its parent split on either side`(
+    axis: BSPSplitAxis, window: Int
+  ) {
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let tree = BSPNode.branch(BSPBranch(split: axis, ratio: 0.5, left: .leaf(1), right: .leaf(2)))
+    let grown = tree.resizing(window: window, delta: 0.2)
+    let frame = grown.frames(in: display, gap: 0)[window]
+    if axis == .horizontal {
+      #expect(frame?.height == 420)
+      #expect(frame?.width == 1000)
+    } else {
+      #expect(frame?.width == 700)
+      #expect(frame?.height == 600)
+    }
+    #expect(grown.resizing(window: window, delta: -0.2).frames(in: display, gap: 0) == tree.frames(in: display, gap: 0))
+  }
+
+  @Test
+  func `focused resize adjusts nested parent without widening its ancestor`() {
+    let tree = BSPNode.branch(BSPBranch(
+      split: .vertical, ratio: 0.5, left: .leaf(1),
+      right: .branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(2), right: .leaf(3)))
+    ))
+    let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
+    let frames = tree.resizing(window: 3, delta: 0.2).frames(in: display, gap: 0)
+    #expect(frames[1] == CGRect(x: 0, y: 0, width: 500, height: 600))
+    #expect(frames[3] == CGRect(x: 500, y: 180, width: 500, height: 420))
+    #expect(BSPNode.leaf(1).resizing(window: 1, delta: 0.2) == .leaf(1))
+    #expect(tree.resizing(window: 99, delta: 0.2) == tree)
+  }
+
   @Test
   func `path to finds the leaf`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)

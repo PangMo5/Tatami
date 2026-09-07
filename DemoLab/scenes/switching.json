@@ -82,7 +82,7 @@
     },
     {
       "kind": "caption",
-      "text": "Choose from the windows in this workspace."
+      "text": "Hold the shortcut to choose a window in the current workspace."
     },
     {
       "kind": "activateApp",
@@ -103,7 +103,7 @@
     },
     {
       "kind": "caption",
-      "text": "A quick tap returns to the recent window."
+      "text": "Tap the shortcut to return to the last-used window."
     },
     {
       "kind": "key",

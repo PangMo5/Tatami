@@ -41,7 +41,7 @@
     },
     {
       "kind": "caption",
-      "text": "Learn in a safe virtual desktop."
+      "text": "Guided Setup lets you practise without moving your real windows."
     },
     {
       "kind": "beat",
@@ -71,7 +71,7 @@
     },
     {
       "kind": "caption",
-      "text": "Your real shortcuts work in the preview too."
+      "text": "Practise the configured shortcuts inside the preview."
     },
     {
       "kind": "key",
@@ -94,7 +94,7 @@
     },
     {
       "kind": "caption",
-      "text": "Practise the layout before changing real windows."
+      "text": "Try tiling controls on the virtual windows first."
     },
     {
       "kind": "click",
@@ -144,7 +144,7 @@
     {
       "kind": "click",
       "app": "Tatami",
-      "identifier": "help:Zoom window"
+      "identifier": "arrow.up.left.and.arrow.down.right"
     },
     {
       "kind": "beat",
@@ -153,7 +153,7 @@
     {
       "kind": "click",
       "app": "Tatami",
-      "identifier": "help:Zoom window"
+      "identifier": "arrow.up.left.and.arrow.down.right"
     },
     {
       "kind": "beat",
@@ -182,5 +182,6 @@
       "kind": "beat",
       "ms": 2100
     }
-  ]
+  ],
+  "summary": "Preview gesture actions and practise real shortcuts without moving the live desktop. Physical trackpad input is not shown."
 }

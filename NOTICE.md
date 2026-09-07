@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](NOTICE.md) · [한국어](NOTICE.ko.md) · [日本語](NOTICE.ja.md) · [简体中文](NOTICE.zh-Hans.md) · [繁體中文](NOTICE.zh-Hant.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Notice
 
 Tatami is an independent project, not a fork. Its design draws on prior work:

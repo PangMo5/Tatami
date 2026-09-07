@@ -112,6 +112,7 @@ extension WorkspaceActivationFeature {
     if abs(newFrame.maxY - expected.maxY) > tolerance { adjust(.south, edge: newFrame.maxY) }
 
     guard newTree != tree else { return .none }
+    state.pendingLayoutRestorations[workspaceId] = nil
     state.tilingTrees[workspaceId] = newTree
 
     return .merge(
@@ -212,6 +213,7 @@ extension WorkspaceActivationFeature {
       }
     state.tilingTrees[workspaceId] = newTree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
+    state.pendingLayoutRestorations[workspaceId] = nil
 
     return .merge(
       flushPointerDrivenLayout(workspaceId: workspaceId, state: &state),

@@ -4402,6 +4402,84 @@ struct WorkspaceActivationFeatureTests {
     #expect(discovered.value.count(where: { $0 == "app.shared" }) == 1)
   }
 
+  @Test(arguments: [false, true])
+  func `saved layout survives partial activation until late windows arrive`(startsEmpty: Bool) async {
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let late = WindowKey(pid: 2, windowID: 202, bundleId: "app.late")
+    let workspace = Workspace(name: "Saved", apps: [first, late].map {
+      AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId, autoOpen: true)
+    })
+    let expected = BSPNode.branch(BSPBranch(
+      split: .horizontal, ratio: 0.35, left: .leaf(late), right: .leaf(first)
+    ))
+    let slots = slotAssignment(expected.windows)
+    let saved = LayoutSnapshot(tree: expected.mapWindows { slots[$0]! })
+    let writes = LockIsolated<[LayoutSnapshot]>([])
+    let workArea = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = .none
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.workArea = { _ in workArea }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowSnapshot.cachedKeys = { bundles, _ in
+        !startsEmpty && bundles.contains(first.bundleId) ? [first] : []
+      }
+      $0.layoutStore.load = { _ in saved }
+      $0.layoutStore.save = { _, snapshot in writes.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: workspace.id, setFocus: false))
+    await store.receive {
+      guard case .activationCompleted = $0 else { return false }
+      return true
+    }
+    await store.finish()
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == saved)
+    #expect(writes.value.isEmpty)
+    if startsEmpty {
+      await store.send(.syncAppWindowsResolved(
+        bundleId: first.bundleId, resizableKeys: [first], onScreenFrames: [first.windowID: workArea]
+      ))
+      await store.finish()
+      #expect(writes.value.isEmpty)
+    }
+    await store.send(.syncAppWindowsResolved(
+      bundleId: late.bundleId, resizableKeys: [late],
+      onScreenFrames: [first.windowID: workArea, late.windowID: workArea]
+    ))
+    await store.finish()
+    #expect(store.state.tilingTrees[workspace.id] == expected)
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == nil)
+    #expect(writes.value.last == saved)
+  }
+
+  @Test
+  func `explicit layout edit cancels a pending startup shape`() async {
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")
+    let workspace = Workspace(name: "Work")
+    let initial = BSPNode.branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(first), right: .leaf(second)))
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = initial
+      $0.pendingLayoutRestorations[workspace.id] = LayoutSnapshot(tree: .leaf(SlotID(bundleId: "app.late", occurrence: 0)))
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
+    store.exhaustivity = .off
+    await store.send(.bspOpResolved(windowKey: second, op: .resizeFocused(delta: 0.2)))
+    await store.finish()
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == nil)
+    #expect(store.state.tilingTrees[workspace.id] == initial.resizing(window: second, delta: 0.2))
+  }
+
   @Test(arguments: AutoBalanceMode.allCases)
   func `fresh activation initializes a missing layout from auto balance`(
     mode: AutoBalanceMode

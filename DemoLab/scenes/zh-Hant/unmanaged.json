@@ -1,0 +1,180 @@
+{
+  "name": "unmanaged",
+  "title": "讓視窗留在原處",
+  "summary": "讓共用 App 維持一般堆疊順序，跨工作保留視窗的位置和大小。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "launch",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Monitor"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "維持原狀"
+    },
+    {
+      "kind": "caption",
+      "text": "設為維持原狀的視窗不會參與自動並排。"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Monitor",
+      "target": "Canvas",
+      "x": 0.8,
+      "y": 0.22
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Monitor"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "設為共用 App 後，切換工作空間也會保留它的位置與大小。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 2"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Review"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Review",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Monitor"
+    },
+    {
+      "kind": "hold",
+      "modifiers": "alt",
+      "keys": [
+        "tab"
+      ],
+      "gapMs": 800,
+      "releaseAfterMs": 1200
+    },
+    {
+      "kind": "expectFront",
+      "app": "Monitor"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Monitor"
+    },
+    {
+      "kind": "hold",
+      "modifiers": "alt",
+      "keys": [
+        "tab"
+      ],
+      "gapMs": 800,
+      "releaseAfterMs": 1200
+    },
+    {
+      "kind": "expectFront",
+      "app": "Monitor"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs",
+    "Monitor"
+  ]
+}

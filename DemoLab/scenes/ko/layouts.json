@@ -1,0 +1,170 @@
+{
+  "name": "layouts",
+  "title": "키보드로 배치 다듬기",
+  "summary": "창을 바꾸고 나누는 방향과 크기를 조절한 뒤 전체 비율을 맞춰요.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "appWindows",
+      "app": "Docs",
+      "count": 2
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Docs",
+        "Canvas"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "배치 조절"
+    },
+    {
+      "kind": "caption",
+      "text": "선택한 창과 옆 창의 위치를 바꿔요."
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - left"
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "창을 나누는 방향을 좌우에서 위아래로 바꿔요."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - s"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "caption",
+      "text": "선택한 창이 속한 영역을 더 크게 늘려요."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "before-grow"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 3
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "before-grow"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "자동 균등 배치가 꺼져 있으면 기본 BSP 배치로 되돌려요."
+    },
+    {
+      "kind": "saveLayout",
+      "text": "before-balance"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - e"
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "before-balance"
+    },
+    {
+      "kind": "beat",
+      "ms": 2000
+    }
+  ],
+  "openingApps": [
+    "Docs",
+    "Docs",
+    "Canvas"
+  ]
+}

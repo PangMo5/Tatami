@@ -1,0 +1,131 @@
+{
+  "name": "layout-editor",
+  "title": "直覺規劃排列",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "prepareSettings"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "text:Design"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "排列編輯器"
+    },
+    {
+      "kind": "caption",
+      "text": "啟用工作空間之前，先編輯儲存的視窗排列。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:旋轉 90°"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "canvas-tile"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "在排列預覽中交換上下位置。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "before-mirror"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:上下翻轉"
+    },
+    {
+      "kind": "expectControlMoved",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "before-mirror"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
+    },
+    {
+      "kind": "caption",
+      "text": "啟用工作空間後，剛才編輯的排列會套用至實際視窗。"
+    },
+    {
+      "kind": "saveControlFrame",
+      "app": "Tatami",
+      "identifier": "text:Canvas",
+      "text": "final-canvas-tile"
+    },
+    {
+      "kind": "closeSettings"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 5"
+    },
+    {
+      "kind": "waitWorkspace",
+      "workspace": "Design"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Canvas",
+      "target": "Docs",
+      "value": "above"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    }
+  ],
+  "summary": "啟用工作空間之前，先編輯儲存的視窗排列。"
+}

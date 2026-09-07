@@ -74,7 +74,7 @@ let package = Package(
 
     .testTarget(
       name: "DemoLabTests",
-      dependencies: ["DemoCtlKit", "DemoAppKit", "DemoDriverKit"],
+      dependencies: ["DemoCtlKit", "DemoAppKit", "DemoDriverKit", "DemoRecorderKit"],
       path: "Tests/DemoLabTests"
     ),
   ]

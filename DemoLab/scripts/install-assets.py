@@ -1,47 +1,42 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 # SPDX-License-Identifier: AGPL-3.0-only
-"""Install a complete, reviewed export into the local marketing site. Does not publish."""
+"""Install reviewed locale bundles into the checkout; never push or deploy."""
 import argparse
 import hashlib
 import json
 from pathlib import Path
 import shutil
-
-root = Path(__file__).resolve().parents[2]
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('bundle', type=Path)
-args = parser.parse_args()
-manifest = json.loads((args.bundle / 'manifest.json').read_text())
-contract = json.loads((root / 'DemoLab/publication.json').read_text())
-if {a['scene'] for a in manifest['assets']} != {a['scene'] for a in contract['assets']}:
-    parser.error('the bundle must contain every publication asset')
-for asset in manifest['assets']:
-    movie = args.bundle / asset['video']
-    if asset['video'] != asset['scene'] + '.mp4' or asset['poster'] != asset['scene'] + '.jpg' or not (args.bundle / asset['poster']).is_file():
-        parser.error('unexpected or missing media')
-    with movie.open('rb') as file:
-        if hashlib.file_digest(file, 'sha256').hexdigest() != asset['sha256']:
-            parser.error(f'{movie} changed after verification')
-# Retire only files named by the previous local manifest, keeping a review copy.
-previous = root / 'web/demo-manifest.json'
-if previous.exists():
-    old = json.loads(previous.read_text())
-    current = {a[key] for a in manifest['assets'] for key in ['video', 'poster']}
-    for asset in old['assets']:
-        for key in ['video', 'poster']:
-            name = asset[key]
-            if Path(name).name != name:
-                parser.error('previous manifest contains a non-local media path')
-            path = root / 'web' / name
-            if name not in current and path.is_file():
-                archive = args.bundle / 'retired-site-media'
-                archive.mkdir(exist_ok=True)
-                shutil.move(path, archive / name)
-for asset in manifest['assets']:
-    for key in ['video', 'poster']:
-        shutil.copy2(args.bundle / asset[key], root / 'web' / asset[key])
-shutil.copy2(args.bundle / 'manifest.json', root / 'web/demo-manifest.json')
 import subprocess
-subprocess.run(['python3',str(root/'DemoLab/scripts/render-site.py')],check=True)
-print('Installed locally in web/. Review README and the site before any separate publication.')
+
+ROOT=Path(__file__).resolve().parents[2]
+LOCALES=['en','ko','ja','zh-Hans','zh-Hant']
+p=argparse.ArgumentParser(description=__doc__)
+p.add_argument('bundle',type=Path)
+p.add_argument('--all-locales',action='store_true')
+a=p.parse_args()
+expected={x['scene'] for x in json.loads((ROOT/'DemoLab/publication.json').read_text())['assets']}
+bundles=[a.bundle/locale for locale in LOCALES] if a.all_locales else [a.bundle]
+validated=[]
+for bundle in bundles:
+    manifest=json.loads((bundle/'manifest.json').read_text());locale=manifest.get('locale','en')
+    if locale not in LOCALES:p.error('unsupported bundle locale')
+    if a.all_locales and bundle.name!=locale:p.error('bundle directory and locale disagree')
+    if {x['scene'] for x in manifest['assets']}!=expected:p.error('each locale must contain every publication asset')
+    for asset in manifest['assets']:
+        for kind,suffix in [('video','.mp4'),('poster','.jpg')]:
+            if asset[kind]!=asset['scene']+suffix or not (bundle/asset[kind]).is_file():p.error('missing or unexpected media path')
+        with (bundle/asset['video']).open('rb') as file:
+            if hashlib.file_digest(file,'sha256').hexdigest()!=asset['sha256']:p.error('movie changed after verification')
+        scene=ROOT/'DemoLab/scenes'/f"{asset['scene']}.json" if locale=='en' else ROOT/'DemoLab/scenes'/locale/f"{asset['scene']}.json"
+        if hashlib.sha256(scene.read_bytes()).hexdigest()!=asset.get('sceneSHA256'):p.error('scene changed after export')
+    validated.append((bundle,locale,manifest))
+for bundle,locale,manifest in validated:
+    target=ROOT/'web' if locale=='en' else ROOT/'web/media'/locale
+    target.mkdir(parents=True,exist_ok=True)
+    for asset in manifest['assets']:
+        for kind in ['video','poster']:shutil.copy2(bundle/asset[kind],target/asset[kind])
+    shutil.copy2(bundle/'manifest.json',target/('demo-manifest.json' if locale=='en' else 'manifest.json'))
+if any(locale=='en' for _,locale,_ in validated):
+    subprocess.run(['python3',str(ROOT/'DemoLab/scripts/render-site.py')],check=True)
+print(f'Installed {len(validated)} reviewed locales locally in web/')

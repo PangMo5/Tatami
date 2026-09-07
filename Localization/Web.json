@@ -1,0 +1,851 @@
+{
+  "1377264ba3b0a717": {
+    "en": "Workspaces",
+    "ko": "작업 공간",
+    "ja": "ワークスペース",
+    "zh-Hans": "工作区",
+    "zh-Hant": "工作空間"
+  },
+  "535e52e4a2616ebe": {
+    "en": "Profiles",
+    "ko": "프로필",
+    "ja": "プロファイル",
+    "zh-Hans": "配置方案",
+    "zh-Hant": "設定組合"
+  },
+  "2edfb168b38b6272": {
+    "en": "Borrow",
+    "ko": "빌려오기",
+    "ja": "借りる",
+    "zh-Hans": "借用",
+    "zh-Hant": "借用"
+  },
+  "3fe02a548e905a06": {
+    "en": "Tiling",
+    "ko": "타일링",
+    "ja": "タイル表示",
+    "zh-Hans": "平铺",
+    "zh-Hant": "並排"
+  },
+  "25b01bd53e3c5f26": {
+    "en": "Always on Top",
+    "ko": "항상 위",
+    "ja": "常に手前",
+    "zh-Hans": "置顶",
+    "zh-Hant": "置頂"
+  },
+  "b50c780ec8f2aa52": {
+    "en": "Guided Setup",
+    "ko": "가이드 설정",
+    "ja": "ガイド設定",
+    "zh-Hans": "引导设置",
+    "zh-Hant": "引導設定"
+  },
+  "e21f935f11d7e966": {
+    "en": "Copy",
+    "ko": "복사",
+    "ja": "コピー",
+    "zh-Hans": "复制",
+    "zh-Hant": "拷貝"
+  },
+  "06d496fb1b96f603": {
+    "en": "__VERSION__",
+    "ko": "__VERSION__",
+    "ja": "__VERSION__",
+    "zh-Hans": "__VERSION__",
+    "zh-Hant": "__VERSION__"
+  },
+  "10c78a38a2006860": {
+    "en": "Make room for the whole workflow.",
+    "ko": "모든 작업에 알맞은 자리를 만들어요.",
+    "ja": "仕事の流れに、必要な場所を。",
+    "zh-Hans": "为整个工作流程腾出空间。",
+    "zh-Hant": "為整個工作流程騰出空間。"
+  },
+  "71bf90935fc231d2": {
+    "en": "Reference",
+    "ko": "참고 자료",
+    "ja": "参考資料",
+    "zh-Hans": "参考资料",
+    "zh-Hant": "參考資料"
+  },
+  "6de82c482cedab95": {
+    "en": "Command Line",
+    "ko": "명령줄",
+    "ja": "コマンドライン",
+    "zh-Hans": "命令行",
+    "zh-Hant": "命令列"
+  },
+  "c50ca3efacdd8990": {
+    "en": "Tatami: macOS workspace manager with BSP window tiling",
+    "ko": "Tatami: BSP 타일링을 갖춘 macOS 작업 공간 관리자",
+    "ja": "Tatami：BSP タイル表示を備えた macOS 用ワークスペースマネージャ",
+    "zh-Hans": "Tatami：支持 BSP 窗口平铺的 macOS 工作区管理器",
+    "zh-Hant": "Tatami：支援 BSP 視窗並排的 macOS 工作空間管理工具"
+  },
+  "6185894424b71dd4": {
+    "en": "Tatami is a native macOS workspace manager with BSP window tiling. Group apps into virtual workspaces, switch instantly, and restore each layout automatically.",
+    "ko": "Tatami는 BSP 창 타일링을 갖춘 macOS 작업 공간 관리자예요. 앱을 작업별로 모으고, 빠르게 전환하고, 쓰던 배치를 자동으로 복원해요.",
+    "ja": "Tatami は BSP タイル表示を備えた macOS 用ワークスペースマネージャです。アプリを作業ごとにまとめ、すぐに切り替え、配置も自動で復元します。",
+    "zh-Hans": "Tatami 是支持 BSP 窗口平铺的原生 macOS 工作区管理器。按任务组织应用，快速切换，并自动恢复各自的布局。",
+    "zh-Hant": "Tatami 是支援 BSP 視窗並排的原生 macOS 工作空間管理工具。依工作整理 App，快速切換，並自動還原各自的排列。"
+  },
+  "dfc1e6d16ba5e2e5": {
+    "en": "Toggle navigation",
+    "ko": "탐색 메뉴 열고 닫기",
+    "ja": "ナビゲーションを開く／閉じる",
+    "zh-Hans": "打开或关闭导航",
+    "zh-Hant": "開啟或關閉導覽"
+  },
+  "99af6606ff9d6cd5": {
+    "en": "Menu",
+    "ko": "메뉴",
+    "ja": "メニュー",
+    "zh-Hans": "菜单",
+    "zh-Hant": "選單"
+  },
+  "b332c3492d5eb10a": {
+    "en": "Configuration",
+    "ko": "설정 안내",
+    "ja": "設定ガイド",
+    "zh-Hans": "配置指南",
+    "zh-Hant": "設定指南"
+  },
+  "1a6f7cae06cc1fc9": {
+    "en": "Releases",
+    "ko": "릴리스",
+    "ja": "リリース",
+    "zh-Hans": "版本发布",
+    "zh-Hant": "版本發布"
+  },
+  "1ba07bcac12f39fc": {
+    "en": "Tatami app icon",
+    "ko": "Tatami 앱 아이콘",
+    "ja": "Tatami のアプリアイコン",
+    "zh-Hans": "Tatami 应用图标",
+    "zh-Hant": "Tatami App 圖像"
+  },
+  "57363a4fddb9d784": {
+    "en": "A macOS workspace manager,{0}with BSP window tiling.",
+    "ko": "작업 공간을 관리하고,{0}BSP로 창을 정리하는 macOS 앱이에요.",
+    "ja": "macOS のワークスペースを管理。{0}BSP でウインドウも整えます。",
+    "zh-Hans": "macOS 工作区管理器，{0}用 BSP 自动平铺窗口。",
+    "zh-Hant": "macOS 工作空間管理工具，{0}用 BSP 自動並排視窗。"
+  },
+  "5910c059eabab457": {
+    "en": "Download for macOS",
+    "ko": "macOS용 다운로드",
+    "ja": "macOS 版をダウンロード",
+    "zh-Hans": "下载 macOS 版",
+    "zh-Hant": "下載 macOS 版"
+  },
+  "908bcf850f90b6ba": {
+    "en": "View on GitHub ›",
+    "ko": "GitHub에서 보기 ›",
+    "ja": "GitHub で見る ›",
+    "zh-Hans": "在 GitHub 上查看 ›",
+    "zh-Hant": "在 GitHub 上查看 ›"
+  },
+  "8d525e5f158b9afe": {
+    "en": "Copied",
+    "ko": "복사했어요",
+    "ja": "コピーしました",
+    "zh-Hans": "已复制",
+    "zh-Hant": "已拷貝"
+  },
+  "7af785b85cf4730e": {
+    "en": "Select and copy the command",
+    "ko": "명령을 선택해서 복사해주세요",
+    "ja": "コマンドを選択してコピーしてください",
+    "zh-Hans": "请选择并复制命令",
+    "zh-Hant": "請選取並拷貝指令"
+  },
+  "d14ebe3837d29550": {
+    "en": "Version {0} · Requires macOS 14 · Free & open source",
+    "ko": "버전 {0} · macOS 14 이상 · 무료 오픈 소스",
+    "ja": "バージョン {0} · macOS 14 以降 · 無料のオープンソース",
+    "zh-Hans": "版本 {0} · 需要 macOS 14 或更新版本 · 免费开源",
+    "zh-Hant": "版本 {0} · 需要 macOS 14 或更新版本 · 免費開源"
+  },
+  "5eda2c99f4cf14a8": {
+    "en": "Available in English, 한국어, 日本語, 简体中文, and 繁體中文.",
+    "ko": "영어, 한국어, 일본어, 중국어 간체와 대만 번체를 지원해요.",
+    "ja": "英語、韓国語、日本語、中国語の簡体字・繁体字（台湾）に対応しています。",
+    "zh-Hans": "支持英语、韩语、日语、简体中文和繁体中文（台湾）。",
+    "zh-Hant": "支援英文、韓文、日文、簡體中文與繁體中文（台灣）。"
+  },
+  "26ceae0deed7525b": {
+    "en": "See it in action",
+    "ko": "실제 사용 모습",
+    "ja": "実際の使い方",
+    "zh-Hans": "看看实际操作",
+    "zh-Hant": "看看實際操作"
+  },
+  "ed6b6d0a3725de24": {
+    "en": "Design, write, review, borrow, and automate. Follow one piece of work through a setup that changes with you.",
+    "ko": "디자인하고, 쓰고, 검토하고, 빌려오고, 자동화해요. 작업에 맞춰 바뀌는 환경에서 하나의 일을 끝까지 이어가보세요.",
+    "ja": "デザイン、執筆、レビュー、借りる操作、自動化。仕事に合わせて変わる環境で、一つの作業を最後まで進めます。",
+    "zh-Hans": "设计、写作、评审、借用与自动化。跟随一项工作，看看环境如何随任务改变。",
+    "zh-Hant": "設計、撰寫、審閱、借用與自動化。跟著一項工作，看看環境如何隨任務改變。"
+  },
+  "d66808b110e020b7": {
+    "en": "Tatami overview: design, write, review, borrow, automate, and adapt to a second display",
+    "ko": "Tatami 종합 데모: 디자인, 글쓰기, 검토, 빌려오기, 자동화, 두 번째 화면 연결",
+    "ja": "Tatami の紹介：デザイン、執筆、レビュー、借りる操作、自動化、2 台目の画面への対応",
+    "zh-Hans": "Tatami 概览：设计、写作、评审、借用、自动化，以及连接第二个显示器",
+    "zh-Hant": "Tatami 概覽：設計、撰寫、審閱、借用、自動化，以及連接第二部顯示器"
+  },
+  "97d314a0d1916231": {
+    "en": "Real Tatami window management, with demo apps and sample content. Shortcuts shown are the demo’s configured bindings.",
+    "ko": "실제 Tatami로 창을 관리해요. 앱과 콘텐츠는 데모용이며, 표시한 단축키는 이 데모에서 설정한 키예요.",
+    "ja": "実際の Tatami でウインドウを管理しています。アプリと内容はデモ用で、表示するキーはこのデモの設定です。",
+    "zh-Hans": "窗口由实际的 Tatami 管理，应用和内容为演示素材。画面中的快捷键采用本次演示的配置。",
+    "zh-Hant": "視窗由實際的 Tatami 管理，App 和內容為示範素材。畫面中的快速鍵採用本次示範的設定。"
+  },
+  "b3352d1dfbbe4502": {
+    "en": "Virtual workspaces",
+    "ko": "가상 작업 공간",
+    "ja": "仮想ワークスペース",
+    "zh-Hans": "虚拟工作区",
+    "zh-Hant": "虛擬工作空間"
+  },
+  "c7d15ac3e85325bf": {
+    "en": "A space for every task.",
+    "ko": "작업마다 알맞은 공간을 만들어요.",
+    "ja": "作業ごとに、使いやすい場所を。",
+    "zh-Hans": "每项任务，都有合适的空间。",
+    "zh-Hant": "每項工作，都有合適的空間。"
+  },
+  "519c37c6d50375c9": {
+    "en": "Group your apps into workspaces and jump between them in a keystroke. Each one brings exactly the windows you assigned it, on the display you want.",
+    "ko": "필요한 앱을 작업 공간에 모으고 단축키로 오가세요. 배정한 창이 원하는 화면에 함께 나타나요.",
+    "ja": "必要なアプリをワークスペースにまとめ、キー一つで切り替えます。割り当てたウインドウが、使いたい画面にそろいます。",
+    "zh-Hans": "把应用按任务分组，用一个快捷键切换。每个工作区都会在指定显示器上显示你分配的窗口。",
+    "zh-Hant": "依工作將 App 分組，用一個快速鍵切換。每個工作空間都會在指定顯示器上顯示你指派的視窗。"
+  },
+  "154785dfe762aab9": {
+    "en": "Switch your way",
+    "ko": "편한 방식으로 전환",
+    "ja": "使いやすい方法で切り替える",
+    "zh-Hans": "按习惯切换",
+    "zh-Hant": "依習慣切換"
+  },
+  "0b47c14cbd3b33f3": {
+    "en": "Use hotkeys or bind every three- and four-finger swipe direction to a shortcut action. Recent navigation can stay on one display or follow a global history.",
+    "ko": "단축키를 쓰거나 세 손가락·네 손가락 쓸기에 동작을 연결하세요. 최근 작업 공간은 한 화면 안에서만 찾거나 모든 화면을 함께 탐색할 수 있어요.",
+    "ja": "ショートカットや 3 本指・4 本指のスワイプに操作を割り当てられます。直前の作業への移動は、一つの画面内でも全画面共通でも使えます。",
+    "zh-Hans": "使用快捷键，或为三指、四指滑动的各个方向绑定操作。最近工作区可以只在当前显示器内查找，也可以共享所有显示器的历史。",
+    "zh-Hant": "使用快速鍵，或為三指、四指滑動的各個方向綁定操作。最近的工作空間可以只在目前顯示器內尋找，也可以共用所有顯示器的記錄。"
+  },
+  "a92ae51acb65bada": {
+    "en": "Per-display workspaces",
+    "ko": "화면별 작업 공간",
+    "ja": "画面ごとのワークスペース",
+    "zh-Hans": "每个显示器的工作区",
+    "zh-Hant": "每部顯示器的工作空間"
+  },
+  "5642a56e89203746": {
+    "en": "Pin a workspace to a monitor or let a dynamic workspace follow the pointer. Link an ordered set into a workspace chain to place available companions across connected displays while focus stays with the workspace you chose.",
+    "ko": "작업 공간을 특정 화면에 고정하거나 포인터가 있는 화면에 열 수 있어요. 여러 작업 공간을 체인으로 묶으면 연결된 화면에 함께 배치되고, 포커스는 선택한 작업에 남아요.",
+    "ja": "ワークスペースを画面に固定したり、ポインタのある画面に開いたりできます。チェーンにまとめると複数画面へ一緒に配置され、選んだ作業にフォーカスが残ります。",
+    "zh-Hans": "把工作区固定到显示器，或让动态工作区跟随指针。按顺序组成工作区链，在已连接的显示器上一起放置，同时保留所选工作区的焦点。",
+    "zh-Hant": "把工作空間固定到顯示器，或讓動態工作空間跟隨游標。依序組成工作空間鏈，在已連接的顯示器上一起放置，同時保留所選工作空間的焦點。"
+  },
+  "d8e54fce2e176849": {
+    "en": "Auto-open & shared apps",
+    "ko": "자동 열기와 공용 앱",
+    "ja": "自動で開く・共有アプリ",
+    "zh-Hans": "自动打开与共享应用",
+    "zh-Hant": "自動開啟與共用 App"
+  },
+  "190397df17135f42": {
+    "en": "Assigned apps launch when their workspace activates and reopen on re-entry. Shared apps join every workspace.",
+    "ko": "작업 공간에 들어가면 배정한 앱이 열려요. 닫았던 창도 다시 들어가면 열어줘요. 공용 앱은 모든 작업 공간에 함께해요.",
+    "ja": "ワークスペースを開くと、割り当てたアプリが起動します。閉じたウインドウも入り直すと開きます。共有アプリはどの作業でも使えます。",
+    "zh-Hans": "进入工作区时自动启动分配的应用，重新进入时打开之前关闭的窗口。共享应用会加入每个工作区。",
+    "zh-Hant": "進入工作空間時自動啟動指派的 App，重新進入時開啟先前關閉的視窗。共用 App 會加入每個工作空間。"
+  },
+  "a4c6160636e46dd7": {
+    "en": "Switch your whole setup at once.",
+    "ko": "작업 환경 전체를 한 번에 바꿔요.",
+    "ja": "作業環境を、まとめて切り替えます。",
+    "zh-Hans": "一次切换整个工作环境。",
+    "zh-Hant": "一次切換整個工作環境。"
+  },
+  "5b3da0f65315778e": {
+    "en": "Group workspaces into profiles, such as one for the laptop and one for the desk, then switch the entire set with a keystroke. Every display re-tiles for the new profile.",
+    "ko": "노트북용, 책상용처럼 작업 공간을 프로필로 묶어보세요. 단축키 하나로 전체 구성이 바뀌고 각 화면의 창도 다시 정리돼요.",
+    "ja": "ノートブック用、デスク用など、ワークスペースをプロファイルにまとめられます。キー一つで構成を切り替え、各画面のウインドウも整えます。",
+    "zh-Hans": "把工作区组成配置方案，例如笔记本用一套、办公桌用一套。一个快捷键即可切换，各显示器也会重新平铺窗口。",
+    "zh-Hant": "把工作空間組成設定組合，例如筆電用一套、辦公桌用一套。一個快速鍵即可切換，各顯示器也會重新並排視窗。"
+  },
+  "1eb74491ffca66c9": {
+    "en": "A setup for every situation",
+    "ko": "상황마다 다른 구성",
+    "ja": "場面に合った構成",
+    "zh-Hans": "适合不同场景的配置",
+    "zh-Hant": "適合不同情境的設定"
+  },
+  "ca7c27cc2fb9d22f": {
+    "en": "Each profile has its own workspaces, app assignments, and shortcuts. Switch by hotkey or from the menu bar, then return to the setup that fits your connected displays after relaunch.",
+    "ko": "프로필마다 작업 공간, 앱 배정, 단축키를 따로 저장해요. 단축키나 메뉴 막대에서 전환하고, 다시 실행해도 연결된 화면에 맞는 구성으로 돌아올 수 있어요.",
+    "ja": "プロファイルごとにワークスペース、アプリ、ショートカットを保存します。キーやメニューバーで切り替え、再起動後も接続中の画面に合う構成に戻れます。",
+    "zh-Hans": "每个配置方案分别保存工作区、应用分配和快捷键。通过快捷键或菜单栏切换，重新启动后也能恢复适合已连接显示器的配置。",
+    "zh-Hant": "每個設定組合分別儲存工作空間、App 指派與快速鍵。透過快速鍵或選單列切換，重新啟動後也能還原適合已連接顯示器的設定。"
+  },
+  "cd65b647f23aa922": {
+    "en": "Auto-switch by display",
+    "ko": "화면에 맞춰 자동 전환",
+    "ja": "画面に合わせて自動で切り替える",
+    "zh-Hans": "按显示器自动切换",
+    "zh-Hant": "依顯示器自動切換"
+  },
+  "e79b52920242502b": {
+    "en": "Activate a profile automatically by monitor count or by specific displays being connected or unplugged. Overlapping rules get flagged.",
+    "ko": "화면 수나 특정 화면의 연결 여부에 따라 프로필을 자동으로 켜요. 조건이 겹치면 미리 알려줘요.",
+    "ja": "画面の数や、特定の画面の接続・取り外しに合わせて切り替えます。条件が重なる場合はお知らせします。",
+    "zh-Hans": "根据显示器数量，或指定显示器的连接、断开状态自动激活配置方案。规则重叠时会提示。",
+    "zh-Hant": "根據顯示器數量，或指定顯示器的連接、中斷狀態自動啟用設定組合。規則重疊時會提示。"
+  },
+  "9cd7cce80c60ab65": {
+    "en": "Start from an existing setup",
+    "ko": "기존 구성에서 시작",
+    "ja": "今ある構成から始める",
+    "zh-Hans": "从现有配置开始",
+    "zh-Hant": "從現有設定開始"
+  },
+  "ec935612f34bb623": {
+    "en": "Copy selected workspaces and settings from another profile, or duplicate one as a starting point. Review what will be brought over before applying.",
+    "ko": "다른 프로필에서 필요한 작업 공간과 설정을 골라 복사하거나 프로필을 복제하세요. 적용하기 전에 가져올 내용을 확인할 수 있어요.",
+    "ja": "ほかのプロファイルから必要な作業や設定をコピーしたり、複製したりできます。適用前に、取り込む内容を確認できます。",
+    "zh-Hans": "从其他配置方案选择工作区和设置进行复制，或直接复制整个方案作为起点。应用前可以检查导入内容。",
+    "zh-Hant": "從其他設定組合選擇工作空間與設定進行拷貝，或直接複製整個組合作為起點。套用前可以檢查帶入的內容。"
+  },
+  "c99b73d04cb51614": {
+    "en": "Workspace composition",
+    "ko": "작업 공간 함께 쓰기",
+    "ja": "ワークスペースを組み合わせる",
+    "zh-Hans": "组合工作区",
+    "zh-Hant": "組合工作空間"
+  },
+  "5d424c01edb64a77": {
+    "en": "Two workspaces, side by side.",
+    "ko": "두 작업 공간을 나란히 써요.",
+    "ja": "二つのワークスペースを、並べて使う。",
+    "zh-Hans": "两个工作区，并排使用。",
+    "zh-Hant": "兩個工作空間，並排使用。"
+  },
+  "22ad22a2bf4eda9b": {
+    "en": "Need one workspace's window while you work in another? Borrow it beside the current one, docked to a screen edge, with each block keeping its own layout.",
+    "ko": "다른 작업 공간의 창이 필요할 땐 옆으로 빌려오세요. 화면 가장자리에 나란히 놓고, 각 공간의 배치는 따로 유지해요.",
+    "ja": "別の作業にあるウインドウが必要なら、横に借りてきましょう。画面の端に並べても、それぞれの配置は保たれます。",
+    "zh-Hans": "需要另一个工作区的窗口时，就把它借到当前工作区旁边。靠屏幕边缘放置，各自保留独立布局。",
+    "zh-Hant": "需要另一個工作空間的視窗時，就把它借到目前工作空間旁邊。靠螢幕邊緣放置，各自保留獨立排列。"
+  },
+  "80c842aa3c4e021d": {
+    "en": "Docked & tiled",
+    "ko": "나란히 두고 따로 정리",
+    "ja": "並べても、それぞれに整える",
+    "zh-Hans": "并排放置，独立平铺",
+    "zh-Hant": "並排放置，獨立整理"
+  },
+  "6011a24088fa6ca9": {
+    "en": "Pull a workspace to the top, bottom, left, or right. The two blocks tile beside each other with separate BSP layouts, and windows stay on their own side.",
+    "ko": "위·아래·왼쪽·오른쪽으로 작업 공간을 가져올 수 있어요. 두 영역은 각자 BSP 배치를 쓰고, 창은 자기 영역 안에 머물러요.",
+    "ja": "上下左右にワークスペースを呼び出せます。二つの領域は別々に BSP 配置され、ウインドウは自分の領域内に収まります。",
+    "zh-Hans": "把工作区放到上、下、左或右侧。两个区域各自使用 BSP 布局，窗口留在所属区域内。",
+    "zh-Hant": "把工作空間放到上、下、左或右側。兩個區域各自使用 BSP 排列，視窗留在所屬區域內。"
+  },
+  "d7cbdfcc23057375": {
+    "en": "Changes stay in sync",
+    "ko": "작업 내용은 그대로 유지",
+    "ja": "変更はそのまま残る",
+    "zh-Hans": "更改持续保留",
+    "zh-Hant": "變更持續保留"
+  },
+  "5cae9467f28b840c": {
+    "en": "The borrowed block {0}is{1} the real workspace, so changes stay with it. Directional focus and MFF cross the seam, while host and borrowed tiled windows share one switching order. Activate it to switch over fully, or borrow it again to return it.",
+    "ko": "빌려온 영역은 {0}실제 작업 공간{1}이에요. 작업한 내용도 그대로 남아요. 방향키 포커스와 포인터 이동은 경계를 넘나들고, 두 영역의 창을 함께 전환할 수 있어요. 해당 공간을 활성화하면 완전히 전환하고, 다시 빌려오면 돌려보내요.",
+    "ja": "借りた領域は{0}実際のワークスペース{1}なので、変更も残ります。方向によるフォーカスと MFF は境界を越え、両側のタイルを一緒に切り替えられます。開くと完全に移動し、もう一度借りると返せます。",
+    "zh-Hans": "借来的区域就是{0}实际工作区{1}，更改会保留。方向焦点和鼠标跟随焦点可以跨越边界，两侧平铺窗口也共享切换顺序。激活它即可完整切换，再次借用即可归还。",
+    "zh-Hant": "借來的區域就是{0}實際工作空間{1}，變更會保留。方向焦點與游標跟隨焦點可以跨越邊界，兩側並排視窗也共用切換順序。啟用它即可完整切換，再次借用即可歸還。"
+  },
+  "694d89283fa5b499": {
+    "en": "A key and a direction",
+    "ko": "키 하나와 방향 선택",
+    "ja": "キーと方向で選ぶ",
+    "zh-Hans": "一个按键，一个方向",
+    "zh-Hant": "一個按鍵，一個方向"
+  },
+  "30f094fb6e9879d5": {
+    "en": "Hold the borrow modifier with a workspace's key, then press a direction ({0} {1} {2} {3} or arrows). You can also set a default edge and size. Scratchpad workspaces are borrow-only.",
+    "ko": "빌려오기 보조키와 작업 공간 키를 누른 뒤 방향({0} {1} {2} {3} 또는 화살표)을 골라요. 기본 방향과 크기를 정할 수도 있어요. 임시 공간은 빌려오기로만 열려요.",
+    "ja": "借りる修飾キーとワークスペースのキーを押して、方向（{0} {1} {2} {3} または矢印）を選びます。既定の位置と大きさも設定できます。一時スペースは借りる操作で開きます。",
+    "zh-Hans": "按住借用修饰键并按下工作区按键，再选择方向（{0} {1} {2} {3} 或方向键）。也可以设置默认方向和大小。暂存区只能通过借用打开。",
+    "zh-Hant": "按住借用輔助鍵並按下工作空間按鍵，再選擇方向（{0} {1} {2} {3} 或方向鍵）。也可以設定預設方向與大小。暫存區只能透過借用開啟。"
+  },
+  "a4a516b0860ab946": {
+    "en": "Window tiling",
+    "ko": "창 타일링",
+    "ja": "ウインドウのタイル表示",
+    "zh-Hans": "窗口平铺",
+    "zh-Hant": "視窗並排"
+  },
+  "496f5a4bfdecd013": {
+    "en": "Tiled automatically, controlled precisely.",
+    "ko": "자동으로 정리하고, 원하는 대로 조절해요.",
+    "ja": "自動で整えて、細かく調整できます。",
+    "zh-Hans": "自动整理，也能精细调整。",
+    "zh-Hant": "自動整理，也能細緻調整。"
+  },
+  "aadde0b6a3f79330": {
+    "en": "A binary-space-partitioning engine tiles each workspace's windows as you open them. It is fully native and needs no shell scripting.",
+    "ko": "창을 열면 BSP 엔진이 각 작업 공간 안에서 창을 나눠 배치해요. macOS에 맞게 만들었고, 셸 스크립트 없이 사용할 수 있어요.",
+    "ja": "ウインドウを開くと、BSP エンジンが作業ごとにタイル表示します。macOS 向けのネイティブ実装で、シェルスクリプトは不要です。",
+    "zh-Hans": "打开窗口时，二叉空间分割引擎会在各工作区内自动平铺。采用原生实现，无需编写 shell 脚本。",
+    "zh-Hant": "開啟視窗時，二元空間分割引擎會在各工作空間內自動並排。採用原生實作，不必撰寫 shell 指令稿。"
+  },
+  "35acb2db3571b0de": {
+    "en": "Automatic BSP",
+    "ko": "BSP 자동 배치",
+    "ja": "BSP による自動配置",
+    "zh-Hans": "BSP 自动布局",
+    "zh-Hant": "BSP 自動排列"
+  },
+  "f2cefce3a6fed4c2": {
+    "en": "Control it from the keyboard",
+    "ko": "키보드로 세밀하게 조절",
+    "ja": "キーボードで細かく操作",
+    "zh-Hans": "用键盘精细控制",
+    "zh-Hant": "用鍵盤細緻控制"
+  },
+  "cf6399266cc4921a": {
+    "en": "Move focus with {0} {1} {2} {3}, swap windows with the arrow keys, and grow or shrink the focused split with {4} and {5}. Hold the window-switch shortcut for a compact, state-aware switcher scoped to the display under the pointer.",
+    "ko": "{0} {1} {2} {3}으로 포커스를 옮기고, 화살표로 창을 교체하고, {4}와 {5}로 영역을 늘이거나 줄여요. 창 전환 단축키를 길게 누르면 포인터가 있는 화면의 창과 상태를 한눈에 볼 수 있어요.",
+    "ja": "{0} {1} {2} {3} でフォーカスを移し、矢印で入れ替え、{4} と {5} で領域を広げたり縮めたりします。切り替えキーを長押しすると、ポインタのある画面のウインドウと状態を一覧できます。",
+    "zh-Hans": "用 {0} {1} {2} {3} 移动焦点，方向键交换窗口，{4} 和 {5} 调整分割区域大小。按住窗口切换快捷键，即可查看指针所在显示器上的窗口及其状态。",
+    "zh-Hant": "用 {0} {1} {2} {3} 移動焦點，方向鍵交換視窗，{4} 和 {5} 調整分割區域大小。按住視窗切換快速鍵，即可查看游標所在顯示器上的視窗及其狀態。"
+  },
+  "cf8a11afa7754d63": {
+    "en": "Drag to rearrange",
+    "ko": "드래그해서 배치",
+    "ja": "ドラッグして並べる",
+    "zh-Hans": "拖移调整布局",
+    "zh-Hant": "拖移調整排列"
+  },
+  "f5484aa9135f458e": {
+    "en": "Drag a window onto another and a live preview shows the swap or insertion before you drop. Resize an edge by hand and the layout remembers the ratio.",
+    "ko": "창을 다른 창 위로 옮기면 놓기 전에 교체·삽입 위치를 보여줘요. 가장자리를 직접 조절해도 비율이 저장돼요.",
+    "ja": "別のウインドウへドラッグすると、放す前に入れ替えや挿入位置が見えます。端を手で調整しても比率を覚えます。",
+    "zh-Hans": "把窗口拖到另一个窗口上，松开前即可预览交换或插入位置。手动调整边缘时，布局也会记住比例。",
+    "zh-Hant": "把視窗拖到另一個視窗上，放開前即可預覽交換或插入位置。手動調整邊緣時，排列也會記住比例。"
+  },
+  "028cb0b0e39fac2a": {
+    "en": "Keep important windows above the layout.",
+    "ko": "중요한 창은 항상 위에 두세요.",
+    "ja": "大切なウインドウは、いつも手前に。",
+    "zh-Hans": "重要窗口，始终可见。",
+    "zh-Hant": "重要視窗，隨時可見。"
+  },
+  "25d06ccdf3684bbf": {
+    "en": "Some windows should remain visible, including a video call, a simulator, or a music player. Choose Always on Top and Tatami keeps them above the layout.",
+    "ko": "영상 통화, 시뮬레이터, 음악 재생 창처럼 계속 보고 싶은 창이 있나요? 항상 위를 선택하면 다른 창 위에서 볼 수 있어요.",
+    "ja": "ビデオ通話、シミュレータ、音楽プレイヤーなど、見続けたいウインドウは「常に手前」で表示できます。",
+    "zh-Hans": "视频通话、模拟器或音乐播放器，有些窗口需要一直可见。选择置顶，Tatami 就会让它保持在其他窗口上方。",
+    "zh-Hant": "視訊通話、模擬器或音樂播放器，有些視窗需要一直可見。選擇置頂，Tatami 就會讓它保持在其他視窗上方。"
+  },
+  "6f2d06ebaf8a483d": {
+    "en": "Per-workspace or shared",
+    "ko": "한 작업 공간에서도, 모든 공간에서도",
+    "ja": "一つの作業でも、すべての作業でも",
+    "zh-Hans": "当前工作区或全部共享",
+    "zh-Hant": "目前工作空間或全部共用"
+  },
+  "de398c3c9889db47": {
+    "en": "Keep an app on top in one workspace or add it to Shared Apps to keep it on top everywhere. Use one setting in the app or one shortcut anywhere.",
+    "ko": "한 작업 공간에서만 앱을 항상 위에 두거나 공용 앱에 추가해 어디서나 볼 수 있어요. 설정 하나나 단축키로 바꿀 수 있어요.",
+    "ja": "一つのワークスペースだけで手前に置いたり、共有アプリにしてどこでも表示したりできます。設定やショートカットで切り替えられます。",
+    "zh-Hans": "只在一个工作区置顶应用，或把它加入共享应用，在所有工作区置顶。通过设置或快捷键即可切换。",
+    "zh-Hant": "只在一個工作空間置頂 App，或把它加入共用 App，在所有工作空間置頂。透過設定或快速鍵即可切換。"
+  },
+  "a024f0c4188be2c9": {
+    "en": "The real window, on demand",
+    "ko": "조작할 땐 실제 창으로",
+    "ja": "操作するときは実際のウインドウへ",
+    "zh-Hans": "需要操作时，使用实际窗口",
+    "zh-Hant": "需要操作時，使用實際視窗"
+  },
+  "675a5c1cf3cb4fb1": {
+    "en": "Reach for an always-on-top window and Tatami hands you the actual window. Type, drag, and resize as usual. Focused windows stack by recency.",
+    "ko": "항상 위에 둔 창을 조작하면 실제 창으로 이어져요. 평소처럼 입력하고, 옮기고, 크기를 바꿀 수 있어요. 최근 포커스한 창부터 위에 놓여요.",
+    "ja": "手前のウインドウに触れると、実際のウインドウに切り替わります。入力、ドラッグ、サイズ変更はいつもどおり。最近選んだ順に重なります。",
+    "zh-Hans": "操作置顶窗口时，Tatami 会交给你实际窗口。照常输入、拖移和调整大小，窗口按最近获得焦点的顺序堆叠。",
+    "zh-Hant": "操作置頂視窗時，Tatami 會交給你實際視窗。照常輸入、拖移與調整大小，視窗依最近取得焦點的順序堆疊。"
+  },
+  "bb32a1d2bc9dbc5c": {
+    "en": "System protection stays on",
+    "ko": "시스템 보호는 그대로",
+    "ja": "システムの保護はそのまま",
+    "zh-Hans": "保留系统保护",
+    "zh-Hant": "保留系統保護"
+  },
+  "b5dabf09652cba28": {
+    "en": "Tatami uses ScreenCaptureKit mirrors with Screen Recording permission instead of changing protected system settings. System Integrity Protection stays on.",
+    "ko": "보호된 시스템 설정을 바꾸지 않고, 화면 기록 권한으로 ScreenCaptureKit 미러를 사용해요. 시스템 무결성 보호는 켜둔 채로 쓸 수 있어요.",
+    "ja": "保護された設定を変えず、画面収録の許可を使って ScreenCaptureKit で表示します。システム整合性保護は有効なままで使えます。",
+    "zh-Hans": "Tatami 通过屏幕录制权限使用 ScreenCaptureKit 镜像，无需修改受保护的系统设置，系统完整性保护可以保持开启。",
+    "zh-Hant": "Tatami 透過螢幕錄製權限使用 ScreenCaptureKit 鏡像，不必修改受保護的系統設定，系統完整性保護可以維持開啟。"
+  },
+  "efae8d49def91967": {
+    "en": "Learn Tatami by using it.",
+    "ko": "Tatami를 직접 쓰면서 익혀요.",
+    "ja": "使いながら、Tatami を覚えよう。",
+    "zh-Hans": "实际操作，学会 Tatami。",
+    "zh-Hant": "實際操作，學會 Tatami。"
+  },
+  "99efff7151ab9c32": {
+    "en": "First launch turns this Mac's app metadata and displays into a draft, then teaches every major feature in order on a safe virtual display. Nothing moves and no configuration is written until you apply.",
+    "ko": "처음 실행하면 이 Mac의 앱 정보와 화면 구성으로 초안을 만들어요. 안전한 가상 화면에서 주요 기능을 순서대로 익히고, 적용하기 전까지 실제 창과 설정은 그대로 유지해요.",
+    "ja": "初回起動では、この Mac のアプリ情報と画面から下書きを作ります。安全な仮想画面で機能を順番に学び、適用するまで実際のウインドウや設定は変わりません。",
+    "zh-Hans": "首次启动时，根据这台 Mac 的应用信息和显示器生成草稿，再在安全的虚拟桌面中依次学习主要功能。应用前不会移动实际窗口或写入配置。",
+    "zh-Hant": "首次啟動時，依這部 Mac 的 App 資訊與顯示器產生草稿，再在安全的虛擬桌面中依序學習主要功能。套用前不會移動實際視窗或寫入設定。"
+  },
+  "3df59e4a41aa1971": {
+    "en": "Built around your setup",
+    "ko": "내 환경에서 시작",
+    "ja": "自分の環境から始める",
+    "zh-Hans": "从你的环境开始",
+    "zh-Hant": "從你的環境開始"
+  },
+  "e7cc4d4230488e97": {
+    "en": "Shape repeatable workspaces, assign the apps you already use, and carry those choices through switching, tiling, Borrow, window handling, focus, and window-switching lessons.",
+    "ko": "반복해서 쓰는 작업 공간을 만들고 익숙한 앱을 배정해보세요. 같은 구성을 이어서 쓰며 전환, 타일링, 빌려오기, 창 표시, 포커스와 창 전환을 배워요.",
+    "ja": "繰り返し使うワークスペースを作り、いつものアプリを割り当てます。その構成を使いながら、切り替え、タイル表示、借りる操作、表示方法、フォーカスを学べます。",
+    "zh-Hans": "按经常进行的任务组织工作区，分配熟悉的应用，再沿用这些选择学习切换、平铺、借用、窗口显示、焦点和窗口切换。",
+    "zh-Hant": "依經常進行的工作組織工作空間，指派熟悉的 App，再沿用這些選擇學習切換、並排、借用、視窗顯示、焦點與視窗切換。"
+  },
+  "ba8f4e2f6458113a": {
+    "en": "Practice on a virtual display",
+    "ko": "가상 화면에서 연습",
+    "ja": "仮想画面で練習",
+    "zh-Hans": "在虚拟桌面中练习",
+    "zh-Hant": "在虛擬桌面中練習"
+  },
+  "f0be7aef89d5c536": {
+    "en": "Use the real shortcuts and trackpad gestures you configured. Each later lesson keeps the earlier commands active, without touching your real windows.",
+    "ko": "설정한 실제 단축키와 트랙패드 제스처를 사용해요. 다음 단계에서도 앞서 배운 동작을 계속 쓸 수 있고, 실제 창은 움직이지 않아요.",
+    "ja": "設定したショートカットやトラックパッドのジェスチャを使えます。次のレッスンでも前の操作を使え、実際のウインドウには触れません。",
+    "zh-Hans": "使用已配置的实际快捷键和触控板手势。后续课程中，先前学过的操作仍然有效，不会影响实际窗口。",
+    "zh-Hant": "使用已設定的實際快速鍵與觸控式軌跡板手勢。後續課程中，先前學過的操作仍然有效，不會影響實際視窗。"
+  },
+  "e08c897c41b092bc": {
+    "en": "Bring your preferred AI",
+    "ko": "좋아하는 AI와 구성",
+    "ja": "好みの AI で構成を考える",
+    "zh-Hans": "使用喜欢的 AI 规划",
+    "zh-Hant": "使用喜歡的 AI 規劃"
+  },
+  "6532f6437087ec1e": {
+    "en": "Review a workspace proposal from ChatGPT, Claude, Gemini, another AI, or on-device Apple Intelligence on supported Macs. Tatami shares app metadata and display geometry, never screen contents.",
+    "ko": "ChatGPT, Claude, Gemini 등 원하는 AI가 제안한 작업 공간을 검토하세요. 지원하는 Mac에서는 기기의 Apple Intelligence도 쓸 수 있어요. 앱 정보와 화면 크기만 공유하고 화면 내용은 보내지 않아요.",
+    "ja": "ChatGPT、Claude、Gemini など、好みの AI の提案を確認できます。対応する Mac では Apple Intelligence も使えます。共有するのはアプリ情報と画面の形だけで、画面の内容は送りません。",
+    "zh-Hans": "检查 ChatGPT、Claude、Gemini 等 AI 提出的工作区建议；支持的 Mac 也可使用设备端 Apple Intelligence。只共享应用信息和显示器几何数据，不共享屏幕内容。",
+    "zh-Hant": "檢查 ChatGPT、Claude、Gemini 等 AI 提出的工作空間建議；支援的 Mac 也可使用裝置端 Apple Intelligence。只分享 App 資訊與顯示器幾何資料，不分享螢幕內容。"
+  },
+  "d9d820769716101b": {
+    "en": "For power users",
+    "ko": "더 깊이 활용하기",
+    "ja": "もっと使いこなす",
+    "zh-Hans": "进阶使用",
+    "zh-Hant": "進階使用"
+  },
+  "188cd3b0f37b4829": {
+    "en": "Make your routine a command.",
+    "ko": "반복하는 일을 명령 하나로 묶어요.",
+    "ja": "いつもの手順を、一つのコマンドに。",
+    "zh-Hans": "把日常步骤变成一个命令。",
+    "zh-Hant": "把日常步驟變成一個指令。"
+  },
+  "8f22403dd9c89492": {
+    "en": "Prepare a workspace with a script, connect another tool through hooks, or change your settings in a plain text file.",
+    "ko": "스크립트로 작업 공간을 준비하고, 훅으로 다른 도구를 연결하고, 텍스트 파일에서 설정을 바꿔보세요.",
+    "ja": "スクリプトで作業環境を用意し、フックでほかのツールにつなぎ、テキストファイルで設定を変えられます。",
+    "zh-Hans": "用脚本准备工作区，通过钩子连接其他工具，或直接编辑文本配置文件。",
+    "zh-Hant": "用指令稿準備工作空間，透過掛鉤連接其他工具，或直接編輯文字設定檔。"
+  },
+  "26f06c313ca674bb": {
+    "en": "Start with a command",
+    "ko": "명령으로 시작",
+    "ja": "コマンドで始める",
+    "zh-Hans": "从命令开始",
+    "zh-Hant": "從指令開始"
+  },
+  "04cfc284b2fd0d35": {
+    "en": "Activate workspaces, arrange windows, and inspect your setup from a script.",
+    "ko": "스크립트에서 작업 공간을 켜고, 창을 정리하고, 구성을 확인해요.",
+    "ja": "スクリプトからワークスペースを開き、ウインドウを整え、構成を確認できます。",
+    "zh-Hans": "从脚本激活工作区、排列窗口并检查配置。",
+    "zh-Hant": "從指令稿啟用工作空間、排列視窗並檢查設定。"
+  },
+  "de8a9db102e98dcb": {
+    "en": "Explore the CLI ›",
+    "ko": "CLI 살펴보기 ›",
+    "ja": "CLI を見る ›",
+    "zh-Hans": "了解 CLI ›",
+    "zh-Hant": "瞭解 CLI ›"
+  },
+  "f7970f23e75a0dd2": {
+    "en": "Connect your tools",
+    "ko": "도구 연결",
+    "ja": "ツールをつなぐ",
+    "zh-Hans": "连接工具",
+    "zh-Hant": "連接工具"
+  },
+  "f4aeb836cd27ebab": {
+    "en": "Let another tool react when your workspace changes or an action produces feedback.",
+    "ko": "작업 공간이 바뀌거나 화면 알림이 생기면 다른 도구도 반응하게 만들어요.",
+    "ja": "ワークスペースの切り替えや操作フィードバックに、ほかのツールを連動できます。",
+    "zh-Hans": "让其他工具响应工作区变化或操作反馈。",
+    "zh-Hant": "讓其他工具回應工作空間變化或操作回饋。"
+  },
+  "89b966fd241729d2": {
+    "en": "Explore hooks ›",
+    "ko": "훅 살펴보기 ›",
+    "ja": "フックを見る ›",
+    "zh-Hans": "了解钩子 ›",
+    "zh-Hant": "瞭解掛鉤 ›"
+  },
+  "4414ca652f1f99fe": {
+    "en": "Keep settings in a file",
+    "ko": "파일로 설정 관리",
+    "ja": "設定をファイルで管理",
+    "zh-Hans": "用文件管理配置",
+    "zh-Hant": "用檔案管理設定"
+  },
+  "d048c5552a5704a0": {
+    "en": "Edit plain TOML and see supported settings update without restarting Tatami.",
+    "ko": "TOML을 직접 수정하면 지원하는 설정이 Tatami를 다시 실행하지 않고 반영돼요.",
+    "ja": "TOML を編集すると、対応する設定は Tatami を再起動せずに反映されます。",
+    "zh-Hans": "直接编辑 TOML，支持的设置无需重启 Tatami 即可生效。",
+    "zh-Hant": "直接編輯 TOML，支援的設定不必重新啟動 Tatami 即可生效。"
+  },
+  "bd32f1575950135d": {
+    "en": "Read the configuration guide ›",
+    "ko": "설정 안내 읽기 ›",
+    "ja": "設定ガイドを読む ›",
+    "zh-Hans": "阅读配置指南 ›",
+    "zh-Hant": "閱讀設定指南 ›"
+  },
+  "c3c6a1379d19f5e3": {
+    "en": "Get Tatami.",
+    "ko": "Tatami를 시작해보세요.",
+    "ja": "Tatami を始めよう。",
+    "zh-Hans": "开始使用 Tatami。",
+    "zh-Hant": "開始使用 Tatami。"
+  },
+  "1b24bbc734869d66": {
+    "en": "Free, open source, and lives in your menu bar.",
+    "ko": "무료 오픈 소스 앱이에요. 메뉴 막대에서 편하게 쓸 수 있어요.",
+    "ja": "無料のオープンソース。メニューバーから使えます。",
+    "zh-Hans": "免费开源，随时从菜单栏使用。",
+    "zh-Hant": "免費開源，隨時從選單列使用。"
+  },
+  "bcd96ee792813746": {
+    "en": "Release notes ›",
+    "ko": "릴리스 노트 ›",
+    "ja": "リリースノート ›",
+    "zh-Hans": "版本说明 ›",
+    "zh-Hant": "版本說明 ›"
+  },
+  "c011d6097bfbc8e9": {
+    "en": "License",
+    "ko": "라이선스",
+    "ja": "ライセンス",
+    "zh-Hans": "许可证",
+    "zh-Hant": "授權條款"
+  },
+  "e87b87d1b729140e": {
+    "en": "Project notices",
+    "ko": "프로젝트 고지",
+    "ja": "プロジェクトの告知",
+    "zh-Hans": "项目声明",
+    "zh-Hant": "專案聲明"
+  },
+  "8fadbc8de2733658": {
+    "en": "Third-party notices",
+    "ko": "외부 라이브러리 고지",
+    "ja": "外部ライブラリの告知",
+    "zh-Hans": "第三方声明",
+    "zh-Hant": "第三方聲明"
+  },
+  "60b9881fa40e6d6a": {
+    "en": "Tatami is open source under the AGPL-3.0-only license and uses a native BSP window engine. Not affiliated with Apple Inc.",
+    "ko": "Tatami는 AGPL-3.0-only 라이선스의 오픈 소스이며 macOS용 BSP 창 배치 엔진을 사용해요. Apple Inc.와는 관련이 없어요.",
+    "ja": "Tatami は AGPL-3.0-only のオープンソースで、ネイティブの BSP エンジンを使っています。Apple Inc. とは関係ありません。",
+    "zh-Hans": "Tatami 采用 AGPL-3.0-only 许可证开源，使用原生 BSP 窗口引擎，与 Apple Inc. 无关联。",
+    "zh-Hant": "Tatami 採用 AGPL-3.0-only 授權開源，使用原生 BSP 視窗引擎，與 Apple Inc. 無關聯。"
+  },
+  "dde83db7774f47c4": {
+    "en": "Apps by {0}: {1} · {2} · {3}",
+    "ko": "{0}의 앱: {1} · {2} · {3}",
+    "ja": "{0} のアプリ：{1} · {2} · {3}",
+    "zh-Hans": "{0} 的应用：{1} · {2} · {3}",
+    "zh-Hant": "{0} 的 App：{1} · {2} · {3}"
+  },
+  "f7ea16e20c9a211b": {
+    "en": "Release Notes: Tatami",
+    "ko": "릴리스 노트: Tatami",
+    "ja": "リリースノート：Tatami",
+    "zh-Hans": "版本说明：Tatami",
+    "zh-Hant": "版本說明：Tatami"
+  },
+  "acf5f53c2c508df1": {
+    "en": "Tatami release notes and version history.",
+    "ko": "Tatami 릴리스 노트와 버전 기록이에요.",
+    "ja": "Tatami のリリースノートとバージョン履歴です。",
+    "zh-Hans": "Tatami 版本说明和更新历史。",
+    "zh-Hant": "Tatami 版本說明與更新記錄。"
+  },
+  "1254829bd9996472": {
+    "en": "Release notes",
+    "ko": "릴리스 노트",
+    "ja": "リリースノート",
+    "zh-Hans": "版本说明",
+    "zh-Hant": "版本說明"
+  },
+  "135e912e89054ffa": {
+    "en": "What's new",
+    "ko": "새로운 기능",
+    "ja": "新機能",
+    "zh-Hans": "新功能",
+    "zh-Hant": "新功能"
+  },
+  "52d04d944b64da3b": {
+    "en": "Every version of Tatami, newest first. Release notes are shown in their original language.",
+    "ko": "최신 버전부터 확인할 수 있어요. 과거 릴리스 노트는 작성된 언어의 원문으로 보여줘요.",
+    "ja": "新しいバージョンから順に紹介します。過去のリリースノートは原文で表示します。",
+    "zh-Hans": "按最新版本优先排列。版本说明保留发布时的原文。",
+    "zh-Hant": "依最新版本優先排列。版本說明保留發布時的原文。"
+  },
+  "95104354cf021bb8": {
+    "en": "Could not load the changelog. Read the original releases on",
+    "ko": "변경 기록을 불러오지 못했어요. 다음 링크에서 원문을 확인해주세요.",
+    "ja": "変更履歴を読み込めませんでした。次のリンクで原文を確認してください。",
+    "zh-Hans": "无法加载更新记录，请通过以下链接查看原文。",
+    "zh-Hant": "無法載入更新記錄，請透過以下連結查看原文。"
+  },
+  "d767e73566b2627e": {
+    "en": "No notes.",
+    "ko": "작성된 내용이 없어요.",
+    "ja": "記載された内容はありません。",
+    "zh-Hans": "暂无说明。",
+    "zh-Hant": "尚無說明。"
+  },
+  "eea11a93e678c44b": {
+    "en": "Loading releases…",
+    "ko": "릴리스 정보를 불러오고 있어요…",
+    "ja": "リリース情報を読み込んでいます…",
+    "zh-Hans": "正在加载版本信息…",
+    "zh-Hant": "正在載入版本資訊…"
+  },
+  "3b8c94fdc381d392": {
+    "en": "All releases",
+    "ko": "모든 릴리스",
+    "ja": "すべてのリリース",
+    "zh-Hans": "全部版本",
+    "zh-Hant": "所有版本"
+  },
+  "97170b76c91fc465": {
+    "en": "Rendered from {0} on the {1} branch as the single source of truth. Not affiliated with Apple Inc.",
+    "ko": "{1} 브랜치의 {0} 원문을 보여줘요. Apple Inc.와는 관련이 없어요.",
+    "ja": "{1} ブランチの {0} を原文として表示します。Apple Inc. とは関係ありません。",
+    "zh-Hans": "内容来自 {1} 分支中的 {0} 原文，与 Apple Inc. 无关联。",
+    "zh-Hant": "內容來自 {1} 分支中的 {0} 原文，與 Apple Inc. 無關聯。"
+  },
+  "838c58eabfc67f80": {
+    "en": "Configuration: Tatami",
+    "ko": "설정 안내: Tatami",
+    "ja": "設定ガイド：Tatami",
+    "zh-Hans": "配置指南：Tatami",
+    "zh-Hant": "設定指南：Tatami"
+  },
+  "388df8f071b9dfde": {
+    "en": "Tatami configuration reference: every config.toml key, its default, and the shortcut syntax.",
+    "ko": "Tatami의 config.toml 항목과 기본값, 단축키 문법을 설명해요.",
+    "ja": "Tatami の config.toml の各項目、既定値、ショートカットの書き方を説明します。",
+    "zh-Hans": "Tatami 配置参考：config.toml 中的各个键、默认值和快捷键语法。",
+    "zh-Hant": "Tatami 設定參考：config.toml 中的各個鍵、預設值與快速鍵語法。"
+  },
+  "eac7d70478a3ca2a": {
+    "en": "Could not load this guide. Read the source document on",
+    "ko": "안내를 불러오지 못했어요. 다음 링크에서 원문을 확인해주세요.",
+    "ja": "ガイドを読み込めませんでした。次のリンクで元の文書を確認してください。",
+    "zh-Hans": "无法加载本指南，请通过以下链接查看源文档。",
+    "zh-Hant": "無法載入本指南，請透過以下連結查看來源文件。"
+  },
+  "bc8fd86dcffdd94e": {
+    "en": "Loading configuration…",
+    "ko": "설정 안내를 불러오고 있어요…",
+    "ja": "設定ガイドを読み込んでいます…",
+    "zh-Hans": "正在加载配置指南…",
+    "zh-Hant": "正在載入設定指南…"
+  },
+  "6605efe3f2ad8fa7": {
+    "en": "Source document",
+    "ko": "원본 문서",
+    "ja": "元の文書",
+    "zh-Hans": "源文档",
+    "zh-Hant": "來源文件"
+  },
+  "1f6909f54b71eaa5": {
+    "en": "This page uses the documentation included with this version of the site. Not affiliated with Apple Inc.",
+    "ko": "이 사이트 버전에 포함된 문서를 보여줘요. Apple Inc.와는 관련이 없어요.",
+    "ja": "このサイトのバージョンに含まれる文書を表示しています。Apple Inc. とは関係ありません。",
+    "zh-Hans": "本页显示随此版本网站提供的文档，与 Apple Inc. 无关联。",
+    "zh-Hant": "本頁顯示隨此版本網站提供的文件，與 Apple Inc. 無關聯。"
+  },
+  "537cf5cb4dcfcd92": {
+    "en": "Command Line: Tatami",
+    "ko": "커맨드라인: Tatami",
+    "ja": "コマンドライン：Tatami",
+    "zh-Hans": "命令行：Tatami",
+    "zh-Hant": "命令列：Tatami"
+  },
+  "a7dee0a499d488d6": {
+    "en": "Tatami CLI reference: profile and workspace management, gesture-equivalent domain commands, JSON output, and scripting.",
+    "ko": "Tatami CLI의 프로필·작업 공간 관리, 제스처와 같은 동작 명령, JSON 출력과 스크립트 사용법을 설명해요.",
+    "ja": "Tatami CLI のプロファイル・ワークスペース管理、ジェスチャに相当する操作、JSON 出力、スクリプトでの使い方を説明します。",
+    "zh-Hans": "Tatami CLI 参考：配置方案和工作区管理、对应手势的领域命令、JSON 输出与脚本使用。",
+    "zh-Hant": "Tatami CLI 參考：設定組合與工作空間管理、對應手勢的領域指令、JSON 輸出與指令稿使用。"
+  },
+  "2515a897e2f98a21": {
+    "en": "Loading CLI reference…",
+    "ko": "CLI 안내를 불러오고 있어요…",
+    "ja": "CLI ガイドを読み込んでいます…",
+    "zh-Hans": "正在加载 CLI 参考…",
+    "zh-Hant": "正在載入 CLI 參考…"
+  },
+  "a4fe65264ef7dbb3": {
+    "en": "Language",
+    "ko": "언어",
+    "ja": "言語",
+    "zh-Hans": "语言",
+    "zh-Hant": "語言"
+  },
+  "70f689a42c724165": {
+    "en": "Tatami makes room for new windows by splitting a tile, with configurable inner and outer gaps. Each workspace keeps its layout and ratios across relaunches and system sleep.",
+    "context": "web/index.html",
+    "ko": "새 창이 열리면 영역을 나눠 자리를 만들어요. 창 사이와 화면 바깥 여백도 정할 수 있어요. 다시 실행하거나 잠자기에서 깨어나도 작업 공간별 배치와 비율을 기억해요.",
+    "ja": "新しいウインドウが開くと、領域を分割して配置します。ウインドウ間と画面の外側の余白も設定できます。再起動やスリープからの復帰後も、ワークスペースごとの配置と比率を保ちます。",
+    "zh-Hans": "新窗口打开时，Tatami 会分割平铺区域，为它腾出空间。窗口之间和屏幕边缘的间距均可设置。重新启动或从睡眠中唤醒后，各工作区仍保留自己的布局和比例。",
+    "zh-Hant": "新視窗開啟時，Tatami 會分割並排區域，為它騰出空間。視窗之間與螢幕邊緣的間距皆可設定。重新啟動或從睡眠中喚醒後，各工作空間仍保留自己的排列與比例。"
+  },
+  "50b00b910c64521d": {
+    "en": "Related settings",
+    "context": "demo settings label",
+    "ko": "관련 설정",
+    "ja": "関連する設定",
+    "zh-Hans": "相关设置",
+    "zh-Hant": "相關設定"
+  }
+}

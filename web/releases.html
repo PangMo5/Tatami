@@ -29,10 +29,10 @@
 <header class="releases-head">
   <p class="eyebrow">Release notes</p>
   <h1>What's new</h1>
-  <p class="sub">Every version of Tatami, newest first.</p>
+  <p class="sub">Every version of Tatami, newest first. Release notes are shown in their original language.</p>
 </header>
 
-<div class="release-list" id="list">
+<div class="release-list" id="list" data-no-notes="No notes." data-load-error="Could not load the changelog. Read the original releases on">
   <p class="state">Loading releases…</p>
 </div>
 
@@ -66,7 +66,7 @@
   function fmtDate(s) {
     const d = new Date(s);
     if (isNaN(d)) return s;
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    return d.toLocaleDateString(document.documentElement.lang, { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
   }
   function escapeHTML(s) {
     return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -119,19 +119,23 @@
           '<a class="release-tag" href="' + REPO + '/releases/tag/' + encodeURIComponent(tag) + '">' + escapeHTML(tag) + '</a>' +
           (date ? '<span class="release-date">' + escapeHTML(date) + '</span>' : "") +
         '</div>' +
-        '<div class="md">' + (body ? DOMPurify.sanitize(marked.parse(body)) : "<p>No notes.</p>") + '</div>';
+        '<div class="md">' + (body ? DOMPurify.sanitize(marked.parse(body)) : "<p>" + escapeHTML(list.dataset.noNotes) + "</p>") + '</div>';
       list.appendChild(el);
     }
   }
 
   function fail() {
-    list.innerHTML =
-      '<p class="state">Couldn\'t load the changelog. ' +
-      'See releases on <a href="' + REPO + '/releases">GitHub</a>.</p>';
+    const message = document.createElement('p');
+    message.className = 'state';
+    message.textContent = list.dataset.loadError + ' ';
+    const link = document.createElement('a');
+    link.href = REPO + '/releases'; link.textContent = 'GitHub';
+    message.append(link); list.replaceChildren(message);
   }
 
   load();
 </script>
 
+<script src="./site.js" defer></script>
 </body>
 </html>

@@ -11,56 +11,150 @@
       "description": "Design, write, review, borrow, automate, and adapt to a bigger desk.",
       "section": "demo",
       "maxSeconds": 150,
-      "maxMB": 30
+      "maxMB": 30,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        }
+      ]
     },
     {
       "scene": "workspaces",
       "title": "Move between tasks",
-      "description": "Switch to a conversation, return to design, then move through the workspace order.",
+      "description": "A shortcut switches to another workspace and its apps.",
       "section": "workspaces",
       "maxSeconds": 32,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.keyEquivalentModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.recentAcrossDisplays",
+          "anchor": "settingsswitching"
+        }
+      ]
     },
     {
       "scene": "autoopen",
       "title": "Open the whole toolset",
-      "description": "One workspace shortcut launches the preview and reference. Close a window and re-enter to reopen it.",
+      "description": "Activating a workspace automatically opens its assigned apps.",
       "section": "workspaces",
       "maxSeconds": 25,
       "maxMB": 16,
-      "posterCaptionIndex": 1
+      "posterCaptionIndex": 1,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.autoOpen",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.keyEquivalent",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "membership",
       "title": "Move an app with the task",
-      "description": "Send the reference from Write to Review, then move it back using the keyboard.",
+      "description": "Move the focused app to a different workspace with a shortcut.",
       "section": "workspaces",
       "maxSeconds": 28,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.assignModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.moveToNextWorkspace",
+          "anchor": "settingsshortcuts"
+        }
+      ]
     },
     {
       "scene": "profiles",
       "title": "Switch the complete setup",
-      "description": "A profile changes the workspace set and restores the arrangement belonging to that context.",
+      "description": "Switching profiles changes the complete workspace configuration.",
       "section": "profiles",
       "maxSeconds": 22,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.shortcut",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "profile-copy",
       "title": "Reuse an existing setup",
-      "description": "Duplicate a profile and a workspace through the real CLI, then inspect the resulting configuration.",
+      "description": "Duplicate a profile in the settings window and review the workspaces to include.",
       "section": "profiles",
       "maxSeconds": 35,
-      "maxMB": 16
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
+    },
+    {
+      "scene": "workspace-copy",
+      "title": "Copy settings between workspaces",
+      "description": "Use Copy from to review another workspace’s apps and settings, then apply the selected changes.",
+      "section": "profiles",
+      "maxSeconds": 40,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "tiling",
       "title": "Let new windows find their place",
-      "description": "Open a second reference next to the canvas. Close it and the layout reclaims the space.",
+      "description": "A new window splits the space beside the focused window.",
       "section": "tiling",
       "maxSeconds": 20,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.splitType",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.windowPlacement",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ]
     },
     {
       "scene": "layouts",
@@ -68,7 +162,21 @@
       "description": "Swap windows, change a split, resize it, and balance the workspace.",
       "section": "tiling",
       "maxSeconds": 27,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.resizeGrow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.balance",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ]
     },
     {
       "scene": "drag",
@@ -76,7 +184,17 @@
       "description": "Drag one window onto another, resize an edge, and return to the saved arrangement.",
       "section": "tiling",
       "maxSeconds": 32,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ]
     },
     {
       "scene": "fullscreen",
@@ -84,25 +202,41 @@
       "description": "Inspect one tile at full workspace size, then return to the exact arrangement.",
       "section": "tiling",
       "maxSeconds": 30,
-      "maxMB": 16
-    },
-    {
-      "scene": "pause",
-      "title": "Take manual control",
-      "description": "Pause automatic tiling, position a window freely, and resume the arranged workspace.",
-      "section": "tiling",
-      "maxSeconds": 23,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.toggleFullscreen",
+          "anchor": "settingsshortcuts"
+        }
+      ]
     },
     {
       "scene": "focus",
       "title": "Focus follows your intent",
-      "description": "Move focus by direction, let the pointer follow, then focus a reference simply by hovering.",
+      "description": "Use shortcuts to select neighboring windows and move the pointer, or select windows by hovering.",
       "section": "tiling",
-      "maxSeconds": 29,
+      "maxSeconds": 38,
       "maxMB": 16,
       "seedOptions": [
         "--focus-follows-mouse"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.focusLeft",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.focusRight",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.focus.mouseFollowsFocus",
+          "anchor": "settingsfocus"
+        },
+        {
+          "key": "settings.focus.focusFollowsMouse",
+          "anchor": "settingsfocus"
+        }
       ]
     },
     {
@@ -111,23 +245,53 @@
       "description": "Hold the switcher shortcut to inspect the windows in this workspace, then switch back with a quick tap.",
       "section": "tiling",
       "maxSeconds": 20,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.cycleNextWindow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.cycleSameAppWindows",
+          "anchor": "settingsswitching"
+        }
+      ]
     },
     {
       "scene": "borrow",
       "title": "Bring a conversation alongside",
-      "description": "Answer a teammate without replacing the canvas and reference you are using.",
+      "description": "Borrow another workspace without leaving the current task.",
       "section": "borrow",
       "maxSeconds": 24,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.borrowModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        }
+      ]
     },
     {
       "scene": "scratchpad",
       "title": "Keep a reusable scratchpad",
-      "description": "Add a follow-up in a borrow-only workspace. It is still there the next time you summon it.",
+      "description": "Borrow the scratchpad again; its apps keep their contents.",
       "section": "borrow",
       "maxSeconds": 25,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.kind",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.borrowEdge",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "borrow-placement",
@@ -135,7 +299,17 @@
       "description": "Dock a workspace left or below, cross the boundary with focus, then activate it fully.",
       "section": "borrow",
       "maxSeconds": 30,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        },
+        {
+          "key": "settings.switching.borrowFraction",
+          "anchor": "settingsswitching"
+        }
+      ]
     },
     {
       "scene": "floating",
@@ -143,15 +317,35 @@
       "description": "Switch a note between Always on Top and tiled placement, and interact with its real controls.",
       "section": "floating",
       "maxSeconds": 28,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.shortcuts.toggleFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ]
     },
     {
       "scene": "shared",
       "title": "One status window across tasks",
-      "description": "A Shared Always on Top monitor receives real workspace and HUD hook events.",
+      "description": "A shared Always on Top window stays visible across workspaces.",
       "section": "floating",
       "maxSeconds": 28,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        },
+        {
+          "key": "settings.shortcuts.toggleSharedFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ]
     },
     {
       "scene": "unmanaged",
@@ -163,6 +357,12 @@
       "seedOptions": [
         "--pulse",
         "unmanaged"
+      ],
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        }
       ]
     },
     {
@@ -171,23 +371,49 @@
       "description": "Inspect the real workspace list, then run a short script that activates, balances and borrows.",
       "section": "automation",
       "maxSeconds": 34,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "hooks",
       "title": "Make workspace changes useful elsewhere",
-      "description": "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.",
+      "description": "Hooks notify external tools when the workspace changes.",
       "section": "automation",
       "maxSeconds": 30,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "hooks",
+          "anchor": "hooks"
+        }
+      ]
     },
     {
       "scene": "configuration",
       "title": "Edit plain TOML, see a live change",
-      "description": "A small script edits the real gap setting. Tatami reloads it without a restart.",
+      "description": "Edit TOML to change window gaps while Tatami is running.",
       "section": "automation",
       "maxSeconds": 33,
-      "maxMB": 16
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.gapInner",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.gapOuter",
+          "anchor": "settingslayout"
+        }
+      ]
     },
     {
       "scene": "desk",
@@ -196,25 +422,52 @@
       "section": "profiles",
       "maxSeconds": 34,
       "maxMB": 16,
-      "presentation": "dual"
+      "presentation": "dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaceChains",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.displayHint",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "hotplug",
       "title": "Your setup follows the displays",
       "description": "Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.",
       "section": "profiles",
-      "maxSeconds": 30,
-      "maxMB": 16
+      "maxSeconds": 36,
+      "maxMB": 16,
+      "presentation": "dynamic-dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.autoActivation.displayCount",
+          "anchor": "profiles-and-workspaces"
+        }
+      ]
     },
     {
       "scene": "layout-editor",
       "title": "Plan the layout visually",
-      "description": "Rotate, mirror and balance a saved layout in Tatami\u2019s native editor, then activate it.",
+      "description": "Edit the saved layout before activating the workspace.",
       "section": "tiling",
       "maxSeconds": 35,
       "maxMB": 16,
       "seedOptions": [
         "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        }
       ]
     },
     {
@@ -226,6 +479,16 @@
       "maxMB": 16,
       "seedOptions": [
         "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
       ]
     },
     {
@@ -237,6 +500,16 @@
       "maxMB": 16,
       "seedOptions": [
         "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
       ]
     }
   ]

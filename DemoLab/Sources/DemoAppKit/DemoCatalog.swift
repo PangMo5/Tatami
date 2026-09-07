@@ -41,7 +41,7 @@ public struct DemoAppSpec: Sendable, Equatable {
     accent: DemoAccent,
     defaultWindowCount: Int,
     windowSize: CGSize,
-    windowTitles: [String],
+    windowTitles: [LocalizedStringResource],
     categoryType: String
   ) {
     self.id = id
@@ -71,7 +71,7 @@ public struct DemoAppSpec: Sendable, Equatable {
   /// fixtures, and never a date, a counter that survives across launches, or
   /// anything else that drifts between takes. A title array shorter than the
   /// view's fixture list would name a window after something it is not showing.
-  public let windowTitles: [String]
+  public let windowTitles: [LocalizedStringResource]
   /// LaunchServices category used by the app bundler.
   public let categoryType: String
 
@@ -87,7 +87,7 @@ public struct DemoAppSpec: Sendable, Equatable {
     guard !windowTitles.isEmpty else { return name }
     // The same wrap every view uses to pick its fixture (`index % fixtures`),
     // so a title always names what its window is actually showing.
-    let base = windowTitles[index % windowTitles.count]
+    let base = String(localized: windowTitles[index % windowTitles.count])
     guard index >= windowTitles.count else { return base }
     // Extra windows opened live on camera stay identifiable and stable: the
     // suffix keeps them distinct from the titles they wrap onto.

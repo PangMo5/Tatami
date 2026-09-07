@@ -1,7 +1,7 @@
 {
   "name": "hooks",
   "title": "Make workspace changes useful elsewhere",
-  "summary": "Real lifecycle and HUD events update an external status window as you switch, zoom and borrow.",
+  "summary": "Hooks notify external tools when the workspace changes.",
   "requires": {
     "displays": 1
   },
@@ -78,7 +78,7 @@
     },
     {
       "kind": "caption",
-      "text": "Let another tool follow the workspace."
+      "text": "Hooks notify external tools when the workspace changes."
     },
     {
       "kind": "click",
@@ -130,7 +130,7 @@
     },
     {
       "kind": "caption",
-      "text": "Action feedback can leave Tatami too."
+      "text": "HUD hooks also send action feedback to external tools."
     },
     {
       "kind": "activateApp",

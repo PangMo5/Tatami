@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](MULTI-DISPLAY.md) · [한국어](ko/MULTI-DISPLAY.md) · [日本語](ja/MULTI-DISPLAY.md) · [简体中文](zh-Hans/MULTI-DISPLAY.md) · [繁體中文](zh-Hant/MULTI-DISPLAY.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Multiple displays inside the recording VM
 
 The macOS 26.6.2 Tart guest can create an additional **guest-side CoreGraphics
@@ -50,11 +54,12 @@ by duplicating or animating a screenshot.
 
 ## Hotplug is a separate scene
 
-`hotplug` captures only the primary screen while the helper connects and
-disconnects the secondary. These are real display-topology changes, so Tatami's
-display-count rules activate Desk and Laptop automatically. Recording the
-removed display itself would stop its capture stream; the primary-only capture
-is deliberate.
+The hotplug scene records the main screen continuously. Once the second virtual
+display is connected, a separate recorder captures it until just before removal.
+Both streams use their actual first-frame clocks. The compositor places them
+side by side and leaves the second region blank outside its captured interval.
+It never duplicates the main screen or keeps a frozen screen after disconnection.
+The capture manifest retains both source hashes and the secondary interval.
 
 Physical monitor cables, docking hardware, HDR behavior, mixed DPI hardware,
 and actual trackpad gesture recognition remain separate hardware checks.

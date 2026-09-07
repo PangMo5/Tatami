@@ -1,7 +1,7 @@
 {
   "name": "fullscreen",
   "title": "Focus with workspace zoom",
-  "summary": "Zoom one tile and restore the exact arrangement.",
+  "summary": "Inspect one tile at full workspace size, then return to the exact arrangement.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,7 @@
     },
     {
       "kind": "caption",
-      "text": "Zoom a tile. Keep the rest of the layout."
+      "text": "Enlarge one tile without losing the saved layout."
     },
     {
       "kind": "saveLayout",
@@ -95,7 +95,7 @@
     },
     {
       "kind": "caption",
-      "text": "Focus on the preview, then return to the layout."
+      "text": "Press the shortcut again to restore the previous layout."
     },
     {
       "kind": "beat",

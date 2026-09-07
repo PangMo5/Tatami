@@ -1,0 +1,783 @@
+{
+  "schemaVersion": 1,
+  "locale": "zh-Hans",
+  "assets": [
+    {
+      "scene": "tour",
+      "title": "为整个工作流程腾出空间。",
+      "description": "设计、写作、评审、借用、自动化，再适应更大的桌面。",
+      "section": "demo",
+      "maxSeconds": 150,
+      "maxMB": 30,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 78.77,
+      "bytes": 3358858,
+      "sha256": "228ba4324e42fe922437c8704e5b15e00fc37ce6c337b2dcf00066e9299572cd",
+      "sourceSHA256": "79af477129f18cdd227f01cf8170dfd2668e500ff8098dd9f0d8f6d990bef555",
+      "sceneSHA256": "2e44fb41c468b5dc331f17b8233e3a72d98cbd9e1a51e8185ce90749c7ccb62e",
+      "capturedSceneSHA256": "6c40767b47897917dbcb4e699338ea4cd076c0f42a7569e0e19304d3247154f2",
+      "tatamiVersion": "1.13.0",
+      "video": "tour.mp4",
+      "poster": "tour.jpg"
+    },
+    {
+      "scene": "workspaces",
+      "title": "在任务之间切换",
+      "description": "用快捷键切换工作区及其中的应用。",
+      "section": "workspaces",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.keyEquivalentModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.recentAcrossDisplays",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 16.6,
+      "bytes": 1156415,
+      "sha256": "0052b45f0062d083ead513588b0134530c2237cdd772b39eebdcc9cec9127ab6",
+      "sourceSHA256": "d69ae8c87ee9ab6910c3445fbcffcb73f3af9004af0536636d93c4dac82f5e28",
+      "sceneSHA256": "030946b6730798db0a24b679e5be334a66d304043c4a550dd7df7740acf9d6b0",
+      "capturedSceneSHA256": "951e851d8fd31721af6fd49e34e23bf1c56e863b4d12a697d21a24d2ac616f6c",
+      "tatamiVersion": "1.13.0",
+      "video": "workspaces.mp4",
+      "poster": "workspaces.jpg"
+    },
+    {
+      "scene": "autoopen",
+      "title": "一次打开所需工具",
+      "description": "激活工作区时，自动打开分配给它的应用。",
+      "section": "workspaces",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "posterCaptionIndex": 1,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.autoOpen",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.keyEquivalent",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 14.37,
+      "bytes": 1294011,
+      "sha256": "b3f7cd2fe521a77221c455b12018c043de6300ab2faedfe477db765b37cefde8",
+      "sourceSHA256": "23bc96634765634f87a7a6ada82f67f5e3bac0b1109698e73f892e5ffe9dd8c2",
+      "sceneSHA256": "74cd3d486514ea2a4f774835f16c856253a5f7fce6008e15750d84d8d915f8ee",
+      "capturedSceneSHA256": "afbfbe7e6358e070f5a5309632ec67807d9af252087ee7b9b9962c72641052f9",
+      "tatamiVersion": "1.13.0",
+      "video": "autoopen.mp4",
+      "poster": "autoopen.jpg"
+    },
+    {
+      "scene": "membership",
+      "title": "随任务移动应用",
+      "description": "用快捷键把当前应用移到另一个工作区。",
+      "section": "workspaces",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.assignModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.moveToNextWorkspace",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 13.8,
+      "bytes": 880931,
+      "sha256": "a8bb6cb62865bcc0d072b80e2d9ce4635ede766bbd404fc7ee66cea67e1aad16",
+      "sourceSHA256": "12697fc6ff96c8185c427d3be59c9b35edffcca3029ce206d531bdeaa94f2f0f",
+      "sceneSHA256": "0f2953d5816f9b156f71551d78c3213f95f2a71f17b1debfc84b3a2388ce71cd",
+      "capturedSceneSHA256": "af96f7b97bca28ef7c2820c5413d2175a51af991eee217db4000b6f749af88e0",
+      "tatamiVersion": "1.13.0",
+      "video": "membership.mp4",
+      "poster": "membership.jpg"
+    },
+    {
+      "scene": "profiles",
+      "title": "切换整套配置",
+      "description": "切换配置方案会更换整套工作区配置。",
+      "section": "profiles",
+      "maxSeconds": 22,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.shortcut",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 8.0,
+      "bytes": 558948,
+      "sha256": "23e0ad139c6a815bcc52ed6861d3d120a87b3ac9ed2feac54e692af1040090fb",
+      "sourceSHA256": "5f20cdb0a16a4ebe209e26935011033ae7b9ad5b460127efb0036332e74bf4a9",
+      "sceneSHA256": "6b85943abef778042d0b7a4f11c2b82c16a8a437b441408c5533ec06e564638d",
+      "capturedSceneSHA256": "88f5590937fceed1535d04e27bdfdff119ceea2f22e3dc650c118c3521f1d148",
+      "tatamiVersion": "1.13.0",
+      "video": "profiles.mp4",
+      "poster": "profiles.jpg"
+    },
+    {
+      "scene": "profile-copy",
+      "title": "复用现有配置",
+      "description": "在设置窗口中复制配置方案，并检查要包含的工作区。",
+      "section": "profiles",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 12.1,
+      "bytes": 443481,
+      "sha256": "241c4257efb1968f4ca36c03fba926bfc1c626769a39ca9b8a723978b5b6ab56",
+      "sourceSHA256": "e0711db8cf6e46b0062e89177ae0727da9bb2e958332a5232b1bafa44d3b57a4",
+      "sceneSHA256": "67b200ff5b62289978941388f4a286f6aceff95c1e76ad9825c3d43831648fed",
+      "capturedSceneSHA256": "67b200ff5b62289978941388f4a286f6aceff95c1e76ad9825c3d43831648fed",
+      "tatamiVersion": "1.13.0",
+      "video": "profile-copy.mp4",
+      "poster": "profile-copy.jpg"
+    },
+    {
+      "scene": "workspace-copy",
+      "title": "在工作区之间复制设置",
+      "description": "检查另一个工作区的应用和设置，然后应用所选更改。",
+      "section": "profiles",
+      "maxSeconds": 40,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 18.9,
+      "bytes": 886832,
+      "sha256": "fb11e7f8ad3fd8819a967c93f50e2243bca52f2286df4abc5c7ea9a2ec9ee17b",
+      "sourceSHA256": "14317144fe84d3ec70bb1d656fc648e56ba34353518aa370005069173a8938bc",
+      "sceneSHA256": "f8efca76cca0e4cb5507c11dc664da20728311b7f2b7970185416ce4d257235a",
+      "capturedSceneSHA256": "f8efca76cca0e4cb5507c11dc664da20728311b7f2b7970185416ce4d257235a",
+      "tatamiVersion": "1.13.0",
+      "video": "workspace-copy.mp4",
+      "poster": "workspace-copy.jpg"
+    },
+    {
+      "scene": "tiling",
+      "title": "让新窗口找到位置",
+      "description": "新窗口会分割当前选中窗口的区域，自动排列。",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.splitType",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.windowPlacement",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 13.93,
+      "bytes": 554403,
+      "sha256": "23e64b454a93cab24addeef567668e0e41424ffa41e4d0045e6498b746563d40",
+      "sourceSHA256": "654a22e2089c66f8bc57b7a53111a74d24557d153cc7b538a5f5f81b7e0b2764",
+      "sceneSHA256": "07c00b0332968c73fac038f1be6ba9076c4fd6178f37f3e201c189f4cd32d437",
+      "capturedSceneSHA256": "931189ae51041ea159a13d32f99d1898c44257a792d35d04a5ea5e87bfe33937",
+      "tatamiVersion": "1.13.0",
+      "video": "tiling.mp4",
+      "poster": "tiling.jpg"
+    },
+    {
+      "scene": "layouts",
+      "title": "用键盘调整布局",
+      "description": "交换窗口、改变分割方向、调整大小，再均衡整个布局。",
+      "section": "tiling",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.resizeGrow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.balance",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 13.67,
+      "bytes": 743113,
+      "sha256": "c6bf88eccccb1ace7c884ce3475122e92ea61fea46865e6658c68708243580ef",
+      "sourceSHA256": "f101c44099346c418720778af3597507dfc8b2d8b1af5b4c8bfd375239d09a5a",
+      "sceneSHA256": "ad3dcd3e7bd8864cc7215629d0c5d08384861fce7af2e51d73b618f1c8f6a4be",
+      "capturedSceneSHA256": "ad3dcd3e7bd8864cc7215629d0c5d08384861fce7af2e51d73b618f1c8f6a4be",
+      "tatamiVersion": "1.13.0",
+      "video": "layouts.mp4",
+      "poster": "layouts.jpg"
+    },
+    {
+      "scene": "drag",
+      "title": "用鼠标排列",
+      "description": "拖移窗口、调整边缘，再恢复保存的布局。",
+      "section": "tiling",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 16.53,
+      "bytes": 1447512,
+      "sha256": "29e45b8e21c31ce5ac92ed8d7dcf95da0b24922071fb8beab1f142c80a0cabe1",
+      "sourceSHA256": "22ba6a799a4735db403edd294924d17e12113fa349914feb78ed1a30ccd5e19b",
+      "sceneSHA256": "1299323b6bb38ffaa0eb28fb94c7522e97174459e766c77104d72b4b51599359",
+      "capturedSceneSHA256": "aab370a4cdfaee3c3b4431af96a361d8552fb2fd3fc96d13e491df22cd7611a8",
+      "tatamiVersion": "1.13.0",
+      "video": "drag.mp4",
+      "poster": "drag.jpg"
+    },
+    {
+      "scene": "fullscreen",
+      "title": "放大工作区，集中注意力",
+      "description": "将一个窗口放大到工作区大小，再准确恢复原来的布局。",
+      "section": "tiling",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.toggleFullscreen",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 7.07,
+      "bytes": 365021,
+      "sha256": "b44fdb80ff67ce61edcf9e819be3137cb6c19476ddc50d4811b51a6daf72d2ed",
+      "sourceSHA256": "a85e3d8c65827d27b9ee51344e30e89c3ba34eae001fc9f5e8c7b47664e7608e",
+      "sceneSHA256": "1a46b632974b0dbd073e21cd656b5ab818953d792b0010a61db7ad47436e2a25",
+      "capturedSceneSHA256": "0a5f10cd02c6c629c642973524f9ac8573915a14067868a823c45c033f20b07f",
+      "tatamiVersion": "1.13.0",
+      "video": "fullscreen.mp4",
+      "poster": "fullscreen.jpg"
+    },
+    {
+      "scene": "focus",
+      "title": "让焦点跟随你的意图",
+      "description": "用快捷键选择相邻窗口并移动鼠标指针，也可以将指针移入窗口来选中它。",
+      "section": "tiling",
+      "maxSeconds": 38,
+      "maxMB": 16,
+      "seedOptions": [
+        "--focus-follows-mouse"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.focusLeft",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.shortcuts.focusRight",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.focus.mouseFollowsFocus",
+          "anchor": "settingsfocus"
+        },
+        {
+          "key": "settings.focus.focusFollowsMouse",
+          "anchor": "settingsfocus"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 20.7,
+      "bytes": 660532,
+      "sha256": "b8537c9a774da96802d7a6544b4e1989ee1109a8f3addb3ff265e7ef18480177",
+      "sourceSHA256": "dc15a231c3efba0027a911cfe4e395d38eea23837f738a12f8b0e1b72345e720",
+      "sceneSHA256": "608299986c6333e8d0e18693d0f7155c2f74f342f2ac2fa34de9340913ef270a",
+      "capturedSceneSHA256": "8e61da42b149f057e734640bec3c0ae944dda139a6ec728f048f57a564ba9c95",
+      "tatamiVersion": "1.13.0",
+      "video": "focus.mp4",
+      "poster": "focus.jpg"
+    },
+    {
+      "scene": "switching",
+      "title": "选择需要的窗口",
+      "description": "按住切换快捷键查看当前窗口，轻按即可快速返回。",
+      "section": "tiling",
+      "maxSeconds": 20,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.cycleNextWindow",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.cycleSameAppWindows",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 9.77,
+      "bytes": 450462,
+      "sha256": "daa689be9cdb08efd03dbec91e41e343eff0cef29050344996815b0229874bb7",
+      "sourceSHA256": "c9888a4f9b2c94ea83bd4b63a0930b9ad94d0daf695e6824679a8f871fd8d1c1",
+      "sceneSHA256": "672e8bbaf12561325ae05ca0323c782a286d875b87af5f4ec226b65a6e3e1e26",
+      "capturedSceneSHA256": "b3454c5cf0ee1c63edd431b7833d02a92dc6fdfe89dae851ac0c4f2464479793",
+      "tatamiVersion": "1.13.0",
+      "video": "switching.mp4",
+      "poster": "switching.jpg"
+    },
+    {
+      "scene": "borrow",
+      "title": "把对话放到旁边",
+      "description": "无需离开当前任务，就能借用另一个工作区。",
+      "section": "borrow",
+      "maxSeconds": 24,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts.borrowModifiers",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 10.8,
+      "bytes": 584714,
+      "sha256": "b466bbda775a800805ad8ae7edc115ee8e798079de32c65d880d656e8f805213",
+      "sourceSHA256": "d6c301efeb51d9a813cb3610b89c4630dea017f29b66e9b3dad45f261477f97a",
+      "sceneSHA256": "5c932824b027f6945f56918ed4de0becdd07882a707399f837b60ee59f622fff",
+      "capturedSceneSHA256": "b47748042fe20350246c6bb24e4bd5f8a2f6a63c87efd844f77134f4d9aea19d",
+      "tatamiVersion": "1.13.0",
+      "video": "borrow.mp4",
+      "poster": "borrow.jpg"
+    },
+    {
+      "scene": "scratchpad",
+      "title": "随时调出的暂存区",
+      "description": "再次借用时，应用中的内容仍然保留。",
+      "section": "borrow",
+      "maxSeconds": 25,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.kind",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.borrowEdge",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 13.23,
+      "bytes": 868328,
+      "sha256": "a9d7b3de830ea841be6e6bcca4209984a79a4dac2ac25a5b7094809ebe2b0f14",
+      "sourceSHA256": "063fe3d695993e534b5f88310d9da8238ae04c52182367ab21583ce853f28581",
+      "sceneSHA256": "7d71294da3dc1f97560fd51f7ac14f2d38e9cd3e703deaa126feec90f2800fe8",
+      "capturedSceneSHA256": "20d14cda7ee5594194b75e645670631316e7d02d99ea7fb1084dfca6dd780bdb",
+      "tatamiVersion": "1.13.0",
+      "video": "scratchpad.mp4",
+      "poster": "scratchpad.jpg"
+    },
+    {
+      "scene": "borrow-placement",
+      "title": "选择位置和工作环境",
+      "description": "把工作区借到左侧或下方，跨过边界移动焦点，再完整切换过去。",
+      "section": "borrow",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.switching.borrowDefaultEdge",
+          "anchor": "settingsswitching"
+        },
+        {
+          "key": "settings.switching.borrowFraction",
+          "anchor": "settingsswitching"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 17.07,
+      "bytes": 1343405,
+      "sha256": "b9e39c3e63ed6d1d4760b62d7a8dc72512c9424d17d4f2f7cd7b4bf17c9fa1d5",
+      "sourceSHA256": "1c6580fc252d3650c26772da3a0f362274bd69a907c962d3926fbe76462d66a6",
+      "sceneSHA256": "36af3514ee6ef875ddb76c1ad962a4c9d41b3e7d7f03fc17d6badad79743d720",
+      "capturedSceneSHA256": "7ce1f480d832458029e05589d1b828000bbbb9854535b7417e3b3e2958d21fe4",
+      "tatamiVersion": "1.13.0",
+      "video": "borrow-placement.mp4",
+      "poster": "borrow-placement.jpg"
+    },
+    {
+      "scene": "floating",
+      "title": "把便笺放在工作区上方",
+      "description": "在置顶和参与平铺之间切换便笺，并使用其实际控件。",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "settings.shortcuts.toggleFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 21.77,
+      "bytes": 778032,
+      "sha256": "7a43427221ed85a7fc302f6e1de2041b812cfd64dcf096176f2c6ec4b271f250",
+      "sourceSHA256": "feffbb317c89cbda13ef0c4badbbed6be4106f9ebe84f6e02928f98edbbfbd9a",
+      "sceneSHA256": "45c214fefb6a4c17197c9576f8d6853a2fd8fbf3d8201b0a13c5d73a5fd3eca0",
+      "capturedSceneSHA256": "781b9fc9b31014348505090af6bb114faa1bef204736f5472067c43ea4b64bed",
+      "tatamiVersion": "1.13.0",
+      "video": "floating.mp4",
+      "poster": "floating.jpg"
+    },
+    {
+      "scene": "shared",
+      "title": "跨任务使用同一个状态窗口",
+      "description": "将共享应用设为始终置顶，在每个工作区都能看到它。",
+      "section": "floating",
+      "maxSeconds": 28,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        },
+        {
+          "key": "settings.shortcuts.toggleSharedFloating",
+          "anchor": "settingsshortcuts"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 13.6,
+      "bytes": 659886,
+      "sha256": "d7d820e2057dc14b275e07c57d7428236af29a50b6d68e37b228220b07d17a3b",
+      "sourceSHA256": "ebe525aeee415443694a2591286065d6aba327ef7b5d9e3b0390b0ce471cc49b",
+      "sceneSHA256": "b8118516e42ceb12694d3d99c3f3cc7ebff8e0d5102e38799af950ca1c4fc815",
+      "capturedSceneSHA256": "acb9d0f802adf0073240fbfb556e3bd1922304bdcbcaffdced718e27a2412d3b",
+      "tatamiVersion": "1.13.0",
+      "video": "shared.mp4",
+      "poster": "shared.jpg"
+    },
+    {
+      "scene": "unmanaged",
+      "title": "让窗口留在原处",
+      "description": "让共享应用保持普通堆叠顺序，跨任务保留窗口的位置和大小。",
+      "section": "floating",
+      "maxSeconds": 27,
+      "maxMB": 16,
+      "seedOptions": [
+        "--pulse",
+        "unmanaged"
+      ],
+      "relatedSettings": [
+        {
+          "key": "sharedApps.layout",
+          "anchor": "sharedapps"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 17.63,
+      "bytes": 802468,
+      "sha256": "8c660cba2b776505da91e94dc59bc40942fe34d7a1d960b8883cdee4a383a67b",
+      "sourceSHA256": "2cccc35831fa72532474f36bfd9688c8452724f0d08931f2651e21366245ed19",
+      "sceneSHA256": "f624464311e224cc18c6e807cc653acfe56116e08bd1c0db889dffba4db0db70",
+      "capturedSceneSHA256": "8aba62f04c000dd99b6d3766354c979fdfad4e122fe49eef439528ce9c1785d2",
+      "tatamiVersion": "1.13.0",
+      "video": "unmanaged.mp4",
+      "poster": "unmanaged.jpg"
+    },
+    {
+      "scene": "cli",
+      "title": "用 CLI 准备专注环境",
+      "description": "查看实际工作区列表，再运行包含激活、均衡布局和借用操作的脚本。",
+      "section": "automation",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 13.8,
+      "bytes": 636292,
+      "sha256": "e3f13e382decc1268ce05e635e0d34ba4ade97d31f06eb5513278525c404584f",
+      "sourceSHA256": "dec1faef06f47199d065bc16a1263e142e049a1783223485e9c3168be063683f",
+      "sceneSHA256": "98b838f79e6bb14fac87060112e6ce5052d6d0c0d52dc4fd02843a6c00bd7f9f",
+      "capturedSceneSHA256": "d3e0cba2d263d11dc6992a222ca3ca9b62d612b955a80a0fe39099ec950ffc4b",
+      "tatamiVersion": "1.13.0",
+      "video": "cli.mp4",
+      "poster": "cli.jpg"
+    },
+    {
+      "scene": "hooks",
+      "title": "把工作区变化连接到其他工具",
+      "description": "工作区变化时，通过钩子通知外部工具。",
+      "section": "automation",
+      "maxSeconds": 30,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "hooks",
+          "anchor": "hooks"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 18.27,
+      "bytes": 1324286,
+      "sha256": "20db06c3ae1877bdc70216cadf98e01ce53dab07c322d0eee3311d7a654f174c",
+      "sourceSHA256": "c1db38d60215fe32b56705e0bd39c52ecb589a978afe846df57d19bfb6e86c21",
+      "sceneSHA256": "f86c4998ab59b6e028f6abfac20b40773bdd44c5eade3059c2d64e6666bd8f9f",
+      "capturedSceneSHA256": "13e2bbdb753f8425df6d5b17b41dacc3cfb9c1cdcc7e74b378238f059777ce83",
+      "tatamiVersion": "1.13.0",
+      "video": "hooks.mp4",
+      "poster": "hooks.jpg"
+    },
+    {
+      "scene": "configuration",
+      "title": "编辑 TOML，立即查看变化",
+      "description": "Tatami 运行时，编辑 TOML 即可调整窗口间距。",
+      "section": "automation",
+      "maxSeconds": 33,
+      "maxMB": 16,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.gapInner",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "settings.layout.gapOuter",
+          "anchor": "settingslayout"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 18.43,
+      "bytes": 734569,
+      "sha256": "a34669ab3edf3fb297a40346b2c8f1812775bb928c6b476482eac29fbeeec672",
+      "sourceSHA256": "ce2814f0a9621458a1f6d84d448e1fd19eabca568f6042b59df4bddc92d4c2c6",
+      "sceneSHA256": "9a996b94de7d8def9883545a474491b53a44985970b00ee3d02adaeddf3249b6",
+      "capturedSceneSHA256": "dcf5ad6239cd2fb135e04ccdffb50c02e24beaee087126e6b9aca34bb9d6e597",
+      "tatamiVersion": "1.13.0",
+      "video": "configuration.mp4",
+      "poster": "configuration.jpg"
+    },
+    {
+      "scene": "desk",
+      "title": "两个显示器，一套工作流程",
+      "description": "把设计和参考资料放在不同显示器上，用一个快捷键切换工作区链。",
+      "section": "profiles",
+      "maxSeconds": 34,
+      "maxMB": 16,
+      "presentation": "dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaceChains",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces.displayHint",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 15.3,
+      "bytes": 499683,
+      "sha256": "5b9a4cd8cfaa0afaf012f064a577f0dce967a30126e9d31d96315f7baa81bf00",
+      "sourceSHA256": "17610675ec5d3c028d7cbc309caa9f9da43994cb2e148ba2b4286c5e5a095131",
+      "sceneSHA256": "4a1c70f34db2d3083556c4adf8c950077bf58a993d7cc7b4972818953b34f505",
+      "capturedSceneSHA256": "27e792c37a023210897d6d787e3818a075e8e3e415aee28a4048cf03380d8c36",
+      "tatamiVersion": "1.13.0",
+      "video": "desk.mp4",
+      "poster": "desk.jpg"
+    },
+    {
+      "scene": "hotplug",
+      "title": "配置跟随显示器变化",
+      "description": "连接第二个显示器，激活 Desk 配置方案；断开后恢复 Laptop 布局。",
+      "section": "profiles",
+      "maxSeconds": 36,
+      "maxMB": 16,
+      "presentation": "dynamic-dual",
+      "relatedSettings": [
+        {
+          "key": "profiles.autoActivation.displayCount",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 7.73,
+      "bytes": 362645,
+      "sha256": "5af677f2a66c903525e025cf84b46104341a11ab6dd88e291206092c683a63e2",
+      "sourceSHA256": "0b2d6ed695a116f8b15b797cb71f2b930d65b47f2b0a4389ac5c8264e9b96789",
+      "sceneSHA256": "288bf97a0b1a3f2b436291a8a07a33196c54566143ffb4674d128886dd84ee74",
+      "capturedSceneSHA256": "288bf97a0b1a3f2b436291a8a07a33196c54566143ffb4674d128886dd84ee74",
+      "tatamiVersion": "1.13.0",
+      "video": "hotplug.mp4",
+      "poster": "hotplug.jpg"
+    },
+    {
+      "scene": "layout-editor",
+      "title": "直观规划布局",
+      "description": "激活工作区之前，先编辑保存的窗口布局。",
+      "section": "tiling",
+      "maxSeconds": 35,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.layout",
+          "anchor": "settingslayout"
+        },
+        {
+          "key": "profiles.workspaces.apps.layout",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 15.87,
+      "bytes": 678737,
+      "sha256": "805eace914eded7b593dbef33758b0808a52071eea8c617481ca481d853d4826",
+      "sourceSHA256": "ee7ebfec163721c9d33c2340b6c4c990de48cc501511f47c13969fac0958781a",
+      "sceneSHA256": "c31bbedecc84da23f961dc096acfce6595a0715cd7d2a174a56855fc027c2448",
+      "capturedSceneSHA256": "c31bbedecc84da23f961dc096acfce6595a0715cd7d2a174a56855fc027c2448",
+      "tatamiVersion": "1.13.0",
+      "video": "layout-editor.mp4",
+      "poster": "layout-editor.jpg"
+    },
+    {
+      "scene": "guided-setup",
+      "title": "边用边学",
+      "description": "不移动实际桌面，预览手势操作并练习快捷键。本片不展示物理触控板输入。",
+      "section": "guided-setup",
+      "maxSeconds": 45,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.shortcuts",
+          "anchor": "settingsshortcuts"
+        },
+        {
+          "key": "settings.gestures",
+          "anchor": "settingsgestures"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 29.43,
+      "bytes": 812743,
+      "sha256": "5306548eab92120202e164494217c1075fa997576f2e0f6786b32ae2c823955b",
+      "sourceSHA256": "7520634ecc1b4afe7de60ed569a4231079a8d0ee2cdae7d8c39f1dd4400518bb",
+      "sceneSHA256": "e63c1c20dde13153d7a3e0e69997b7c49e9ab43ebbad17b35d280da76b703f97",
+      "capturedSceneSHA256": "e2fb845ce727ed8718da75191c9c5aea6274d34f6030aca9802a47816a02280b",
+      "tatamiVersion": "1.13.0",
+      "video": "guided-setup.mp4",
+      "poster": "guided-setup.jpg"
+    },
+    {
+      "scene": "ai-draft",
+      "title": "检查建议的配置",
+      "description": "验证示例 AI 建议并应用到草稿。本次录制未调用外部 AI 服务。",
+      "section": "guided-setup",
+      "maxSeconds": 32,
+      "maxMB": 16,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "profiles.workspaces.apps",
+          "anchor": "profiles-and-workspaces"
+        },
+        {
+          "key": "profiles.workspaces",
+          "anchor": "profiles-and-workspaces"
+        }
+      ],
+      "locale": "zh-Hans",
+      "durationSeconds": 12.93,
+      "bytes": 500696,
+      "sha256": "262483b81239d3f70a3d588a28954ee9e1110f28566869d3cf7a7716745b51fc",
+      "sourceSHA256": "058df78e4824e9a8a62fe57f5a868ac010087f9b7f0ccd4399d75bc1ccbafdbe",
+      "sceneSHA256": "ab421cccf8ff26629a48f647a2872c362a083ac43f383c2d0ba113074eafd13c",
+      "capturedSceneSHA256": "1a4452f8672f9ec5815a8cdedac58542f4c3c4210f3a13d637286226a4db8dd8",
+      "tatamiVersion": "1.13.0",
+      "video": "ai-draft.mp4",
+      "poster": "ai-draft.jpg"
+    }
+  ]
+}

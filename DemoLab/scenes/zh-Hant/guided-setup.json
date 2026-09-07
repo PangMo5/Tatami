@@ -1,0 +1,187 @@
+{
+  "name": "guided-setup",
+  "title": "邊用邊學",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "gearshape"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:執行引導設定…"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:繼續"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:繼續"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:繼續"
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "設定導覽"
+    },
+    {
+      "kind": "caption",
+      "text": "在引導設定中練習功能，不會移動實際視窗。"
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "caption",
+      "text": "用導覽內的按鈕預覽手勢操作。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:3F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:4F →"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "caption",
+      "text": "在預覽中練習已設定的快速鍵。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "beat",
+      "ms": 1100
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "description:繼續"
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:5/9",
+      "value": "5/9"
+    },
+    {
+      "kind": "caption",
+      "text": "先用虛擬視窗練習並排操作。"
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:向右聚焦"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:與左側交換"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:下一個視窗"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:放大視窗"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:翻轉分割區"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "arrow.up.left.and.arrow.down.right"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "help:平衡佈局"
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "expectValue",
+      "app": "Tatami",
+      "identifier": "text:你已體驗完整的並排工具組",
+      "value": "你已體驗完整的並排工具組"
+    },
+    {
+      "kind": "caption",
+      "text": "套用草稿前，實際桌面保持不變。"
+    },
+    {
+      "kind": "beat",
+      "ms": 2100
+    }
+  ],
+  "summary": "不移動實際桌面，預覽手勢操作並練習快速鍵。本片不展示實體觸控式軌跡板輸入。"
+}

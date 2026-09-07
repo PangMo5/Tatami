@@ -334,20 +334,20 @@ public enum SceneSubtitles {
     let row: String
   }
 
-  /// The export canvas reserves a header and footer outside the captured desktop.
-  /// These styles are deliberately unboxed: no narration obscures real app UI.
+  /// Narration, chapters and actual keys are drawn inside the desktop image.
+  /// A translucent backing keeps them readable over both light and dark apps.
   private static func styles(for resolution: Resolution) -> [Style] {
     func style(_ name: String, size: Double, color: String, bold: Int, alignment: Int,
                left: Double, right: Double, vertical: Double) -> Style {
-      Style(row: "Style: \(name),Helvetica Neue,\(scaled(size, resolution)),\(color),\(color),&HFF000000,&HFF000000,\(bold),0,0,0,100,100,0,0,1,0,0,\(alignment),\(scaled(left, resolution)),\(scaled(right, resolution)),\(scaled(vertical, resolution)),1")
+      Style(row: "Style: \(name),Helvetica Neue,\(scaled(size, resolution)),\(color),\(color),&H40141414,&H40141414,\(bold),0,0,0,100,100,0,0,3,10,0,\(alignment),\(scaled(left, resolution)),\(scaled(right, resolution)),\(scaled(vertical, resolution)),1")
     }
     return [
-      style("Caption", size: 36, color: FilmTheme.text, bold: -1, alignment: 1,
-            left: 128, right: 530, vertical: 24),
-      style("Chapter", size: 22, color: FilmTheme.accent, bold: -1, alignment: 7,
-            left: 128, right: 128, vertical: 12),
-      style("Keys", size: 34, color: FilmTheme.accent, bold: 0, alignment: 3,
-            left: 1400, right: 128, vertical: 46),
+      style("Caption", size: 42, color: FilmTheme.text, bold: -1, alignment: 2,
+            left: 110, right: 110, vertical: 96),
+      style("Chapter", size: 26, color: FilmTheme.accent, bold: -1, alignment: 7,
+            left: 32, right: 700, vertical: 54),
+      style("Keys", size: 38, color: FilmTheme.accent, bold: 0, alignment: 9,
+            left: 1300, right: 32, vertical: 54),
     ]
   }
 
@@ -397,7 +397,7 @@ public enum SceneSubtitles {
   }
 
   /// A caption is `"<headline> | <why>"`. The headline carries the sentence, the
-  /// explanation goes below it, smaller and dimmer, inside the reserved footer.
+  /// explanation goes below it, smaller and dimmer, over the captured desktop.
   private static func captionText(_ raw: String, resolution: Resolution) -> String {
     let parts = raw.components(separatedBy: SceneTimeline.captionSeparator)
     let headline = parts.first?.trimmingCharacters(in: .whitespaces) ?? ""

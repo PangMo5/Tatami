@@ -1,7 +1,7 @@
 {
   "name": "hotplug",
   "title": "Your setup follows the displays",
-  "summary": "Creating and removing a real guest virtual display triggers automatic Desk and Laptop profile activation.",
+  "summary": "Connect a second display to activate the Desk profile. Disconnect it to return to the Laptop arrangement.",
   "requires": {
     "displays": 1
   },
@@ -62,7 +62,11 @@
     },
     {
       "kind": "caption",
-      "text": "Connect a second display. The profile adapts."
+      "text": "Connect a second display to trigger the two-display profile rule."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
     },
     {
       "kind": "saveLayout",
@@ -88,7 +92,7 @@
     },
     {
       "kind": "caption",
-      "text": "Disconnect it. Return to the laptop arrangement."
+      "text": "Disconnect it to trigger the single-display profile rule."
     },
     {
       "kind": "virtualDisplay",
@@ -118,5 +122,6 @@
   "openingApps": [
     "Canvas",
     "Docs"
-  ]
+  ],
+  "captureSecondary": true
 }

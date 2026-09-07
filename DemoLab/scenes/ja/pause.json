@@ -1,0 +1,119 @@
+{
+  "name": "pause",
+  "title": "自分でウインドウを配置する",
+  "summary": "自動タイル表示を止めて自由に配置し、再開すると整った配置に戻ります。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "一時停止と再開"
+    },
+    {
+      "kind": "caption",
+      "text": "自由に置きたいときは、タイル表示を一時停止します。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - z"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Docs",
+      "target": "Canvas",
+      "x": 0.65,
+      "y": 0.35
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "caption",
+      "text": "再開すると、Tatami がウインドウを整えます。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - z"
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - e"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

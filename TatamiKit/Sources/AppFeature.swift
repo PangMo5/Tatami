@@ -254,8 +254,8 @@ public struct AppFeature {
                 await send(.settingsChanged(settings))
               }
             },
-            // Reading `updater` starts Sparkle's background schedule; keep
-            // its auto-check preference + interval in sync with settings.
+            // Apply the saved preferences before Sparkle starts its schedule,
+            // then keep them synchronized with live settings changes.
             .run { [updater, sharedConfig] _ in
               for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
                 await updater.configure(
@@ -1092,10 +1092,10 @@ public struct AppFeature {
       return .send(.activation(.membershipEdit(.toggleShared)))
 
     case .resizeGrow:
-      return .send(.activation(.bspResize(direction: .east, delta: 0.05)))
+      return .send(.activation(.bspResizeFocused(delta: 0.05)))
 
     case .resizeShrink:
-      return .send(.activation(.bspResize(direction: .east, delta: -0.05)))
+      return .send(.activation(.bspResizeFocused(delta: -0.05)))
 
     case .swapLeft:
       return .send(.activation(.bspSwap(.west)))

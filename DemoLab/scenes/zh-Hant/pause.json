@@ -1,0 +1,119 @@
+{
+  "name": "pause",
+  "title": "手動控制排列",
+  "summary": "暫停自動並排，自由擺放視窗，再恢復整理好的工作空間。",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "clearOverlay"
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Design",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ]
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "cli",
+      "args": [
+        "layout",
+        "balance"
+      ]
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "暫停與恢復"
+    },
+    {
+      "kind": "caption",
+      "text": "需要自由擺放時，暫停並排。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - z"
+    },
+    {
+      "kind": "saveLayout",
+      "text": "home"
+    },
+    {
+      "kind": "dragWindow",
+      "app": "Docs",
+      "target": "Canvas",
+      "x": 0.65,
+      "y": 0.35
+    },
+    {
+      "kind": "expectLayoutChanged",
+      "text": "home"
+    },
+    {
+      "kind": "beat",
+      "ms": 1500
+    },
+    {
+      "kind": "caption",
+      "text": "恢復後，Tatami 會重新排列視窗。"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift + cmd - z"
+    },
+    {
+      "kind": "beat",
+      "ms": 1900
+    },
+    {
+      "kind": "activateApp",
+      "app": "Canvas"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - e"
+    },
+    {
+      "kind": "beat",
+      "ms": 1200
+    }
+  ],
+  "openingApps": [
+    "Canvas",
+    "Docs"
+  ]
+}

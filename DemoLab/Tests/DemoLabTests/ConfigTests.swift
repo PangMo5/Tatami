@@ -110,7 +110,7 @@ struct ConfigTemplateTests {
     }
   }
 
-  @Test("only Scratch is borrow-only, and it has an edge to dock to")
+  @Test("only Notes is borrow-only, and it has an edge to dock to")
   func scratchpadIsConfigured() throws {
     let profiles = try #require(TomlLite.parse(try renderedConfig())["profiles"]?.tableArray)
     var scratchpads = [String]()
