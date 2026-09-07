@@ -15,14 +15,14 @@ macOS 26.6.2 Tart 게스트는 **게스트 내부 CoreGraphics 가상 화면**�
 전용 게스트 안에서 실행하세요.
 
 ```sh
-./scripts/build-virtual-display.sh
-./bin/democtl display connect
-./bin/democtl displays
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl take desk --display all --output recordings/desk.mov
-./bin/democtl quit
-./bin/democtl display disconnect
+.build/tools/tatami-tools build-virtual-display
+.build/DemoLab/bin/democtl display connect
+.build/DemoLab/bin/democtl displays
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl take desk --display all --output recordings/desk.mov
+.build/DemoLab/bin/democtl quit
+.build/DemoLab/bin/democtl display disconnect
 ```
 
 비공개 `CGVirtualDisplay` API는 Demo Lab 도구에만 쓰고 Tatami에는 넣지 않아요. [DeskPad CoreGraphics 인터페이스](https://github.com/Stengo/DeskPad/blob/main/DeskPad/CGVirtualDisplayPrivate.h)를 참고했어요. 1920×1200 일반 해상도 화면을 만들고 해제나 제한 시간까지 유지해요. PID의 실행 파일을 확인한 뒤 신호를 보내며 없거나 지원하지 않으면 명시적으로 실패해요.
@@ -33,7 +33,7 @@ macOS 26.6.2 Tart 게스트는 **게스트 내부 CoreGraphics 가상 화면**�
 `--display all`은 화면마다 원본을 하나씩 써요. 공통 단조 시계에 대한 첫 프레임 차이, 화면 원점, 각각의 프레임·손실 수를 남겨요. 호스트로 가져온 뒤 다음처럼 사용해요.
 
 ```sh
-python3 scripts/compose-displays.py recordings desk
+Tools/.build/release/tatami-tools compose-displays DemoLab/recordings desk
 ```
 
 화면 원점 순서와 기록한 시간 차이로 영상을 맞춰요. 원본 두 개를 유지하고 무손실 중간 파일을 만들어요. 한 화면 영상과 같은 팔레트의 넓은 영상으로 내보내며, 스크린샷을 복제하거나 움직여 두 번째 화면을 꾸미지 않아요.

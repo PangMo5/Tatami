@@ -1,0 +1,231 @@
+// SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import Hummingbird
+#if os(Linux)
+import Glibc
+#else
+import Darwin
+#endif
+
+// MARK: - PreviewServer
+
+struct PreviewServer: Sendable {
+
+  // MARK: Internal
+
+  let directory: URL
+  let workspace: Workspace
+  let port: UInt16
+
+  var address: String {
+    "http://127.0.0.1:\(port)/"
+  }
+
+  var rootHash: String {
+    sha(Data(directory.resolvingSymlinksInPath().path.utf8))
+  }
+
+  func application() -> some ApplicationProtocol {
+    let router = Router()
+    let provider = PreviewFileProvider(directory: directory, workspace: workspace)
+    router.add(middleware: PreviewHeaders(provider: provider, rootHash: rootHash))
+    router.add(middleware: FileMiddleware(fileProvider: provider, searchForIndexHtml: true))
+    return Application(router: router, configuration: .init(address: .hostname("127.0.0.1", port: Int(port))))
+  }
+
+  func start(background: Bool, detached: Bool) async throws {
+    try require(directory.at("index.html").exists, "index.html is missing in \(directory.path)")
+    if background { try await startBackground()
+      return
+    }
+    if detached { _ = setsid() }
+    print("\(address) → \(directory.path)")
+    try await application().runService()
+  }
+
+  // MARK: Private
+
+  private func probe() async -> HTTPURLResponse? {
+    var request = URLRequest(url: URL(string: address)!, timeoutInterval: 0.3)
+    request.httpMethod = "HEAD"
+    return try? await URLSession.shared.data(for: request).1 as? HTTPURLResponse
+  }
+
+  private func startBackground() async throws {
+    if let existing = await probe() {
+      try require(
+        existing.value(forHTTPHeaderField: "X-Tatami-Preview-Root") == rootHash,
+        "Port is occupied by another server; use another port",
+      )
+      print("\(address) (already serving \(directory.path))")
+      return
+    }
+    let state = workspace.root.at(".build/site-preview")
+    try state.makeDirectory()
+    let logURL = state.at("\(port).log")
+    if !logURL.exists { try logURL.write("") }
+    let log = try FileHandle(forWritingTo: logURL)
+    try log.seekToEnd()
+    defer { try? log.close() }
+    // Subprocess owns task-scoped children. An explicitly persistent preview must
+    // outlive this command, so Foundation's independent process handle is used here.
+    let child = Process()
+    child.executableURL = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+    child.arguments = [
+      "preview-site",
+      "--root",
+      workspace.root.path,
+      "--directory",
+      directory.path,
+      "--port",
+      String(port),
+      "--detached",
+    ]
+    child.standardInput = FileHandle.nullDevice
+    child.standardOutput = log
+    child.standardError = log
+    try child.run()
+    for _ in 0..<50 {
+      try require(child.isRunning, "Server exited; inspect \(logURL.path)")
+      if await probe()?.value(forHTTPHeaderField: "X-Tatami-Preview-PID") == String(child.processIdentifier) {
+        try state.at("\(port).pid").write(String(child.processIdentifier))
+        print("\(address) (PID \(child.processIdentifier); serving \(directory.path))")
+        return
+      }
+      try await Task.sleep(for: .milliseconds(100))
+    }
+    child.terminate()
+    throw ToolError("Server did not become ready")
+  }
+
+}
+
+// MARK: - PreviewFileProvider
+
+/// Only the three source-preview aliases differ from Hummingbird's filesystem provider.
+private struct PreviewFileProvider: FileProvider {
+
+  // MARK: Lifecycle
+
+  init(directory: URL, workspace: Workspace) {
+    self.directory = directory.resolvingSymlinksInPath()
+    aliases = self.directory == workspace.root.at("web").resolvingSymlinksInPath()
+      ? [
+        "/icon.png": workspace.root.at("Resources/Marketing/app-icon.png"),
+        "/content/en/CLI.md": workspace.root.at("docs/CLI.md"),
+        "/content/en/CONFIGURATION.md": workspace.root.at("docs/CONFIGURATION.md"),
+      ]
+      : [:]
+    filesystem = LocalFileSystem(rootFolder: directory.path, threadPool: .singleton, logger: .init(label: "tatami-preview"))
+  }
+
+  // MARK: Internal
+
+  typealias FileIdentifier = String
+  typealias FileAttributes = LocalFileSystem.FileAttributes
+
+  let directory: URL
+  let aliases: [String: URL]
+  let filesystem: LocalFileSystem
+
+  func getFileIdentifier(_ path: String) -> String? {
+    if let alias = aliases[path] { return alias.path }
+    let file = directory.at(String(path.drop(while: { $0 == "/" }))).resolvingSymlinksInPath()
+    guard file == directory || file.path.hasPrefix(directory.path + "/") else { return nil }
+    return file.path
+  }
+
+  func getAttributes(id: String) async throws -> FileAttributes? {
+    try await filesystem.getAttributes(id: id)
+  }
+
+  func loadFile(id: String, context: some RequestContext) async throws -> ResponseBody {
+    try await filesystem.loadFile(
+      id: id,
+      context: context,
+    )
+  }
+
+  func loadFile(
+    id: String,
+    range: ClosedRange<Int>,
+    context: some RequestContext,
+  ) async throws -> ResponseBody {
+    try await filesystem.loadFile(
+      id: id,
+      range: range,
+      context: context,
+    )
+  }
+
+}
+
+// MARK: - PreviewHeaders
+
+private struct PreviewHeaders: RouterMiddleware {
+
+  // MARK: Internal
+
+  typealias Context = BasicRequestContext
+
+  let provider: PreviewFileProvider
+  let rootHash: String
+
+  func handle(_ request: Request, context: Context, next: (Request, Context) async throws -> Response) async throws -> Response {
+    guard request.method == .get || request.method == .head else { throw HTTPError(.methodNotAllowed) }
+    var head = request.head
+    // Hummingbird 2.26 interprets suffix ranges as prefixes and does not reject a
+    // start beyond EOF. Normalize to a bounded explicit range before FileMiddleware.
+    // Remove this compatibility adapter when upstream passes the preview range tests.
+    if
+      let range = request.headers[.range], let path = request.uri.path.removingPercentEncoding,
+      let file = provider.getFileIdentifier(path), let attributes = try await provider.getAttributes(id: file),
+      !attributes.isFolder
+    {
+      do {
+        let bounded = try PreviewRange.resolve(range, size: attributes.size)
+        head.headerFields[.range] = "bytes=\(bounded.lowerBound)-\(bounded.upperBound)"
+      } catch {
+        var response = Response(status: .rangeNotSatisfiable)
+        response.headers[.contentRange] = "bytes */\(attributes.size)"
+        return identify(response)
+      }
+    }
+    return identify(try await next(Request(head: head, body: request.body), context))
+  }
+
+  // MARK: Private
+
+  private func identify(_ value: Response) -> Response {
+    var response = value
+    response.headers[.init("X-Tatami-Preview-PID")!] = String(getpid())
+    response.headers[.init("X-Tatami-Preview-Root")!] = rootHash
+    response.headers[.cacheControl] = "no-cache"
+    return response
+  }
+
+}
+
+// MARK: - PreviewRange
+
+enum PreviewRange {
+  static func resolve(_ value: String, size: Int) throws -> ClosedRange<Int> {
+    guard
+      let match = matches(#"^bytes=(\d*)-(\d*)$"#, value).first,
+      !match[1].isEmpty || !match[2].isEmpty
+    else { throw ToolError("Invalid byte range") }
+    let first = Int(match[1])
+    let last = Int(match[2])
+    try require(match[1].isEmpty || first != nil, "Invalid byte range")
+    try require(match[2].isEmpty || last != nil, "Invalid byte range")
+    let start = first ?? max(0, size - (last ?? 0))
+    let end = first != nil && last != nil ? min(last!, size - 1) : size - 1
+    try require(start <= end && start < size, "Invalid byte range")
+    return start...end
+  }
+}

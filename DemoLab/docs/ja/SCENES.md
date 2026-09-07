@@ -8,8 +8,8 @@
 場面は `name`、`title`、任意の `requires`、`setup`、`openingApps`、`steps` を持つ JSON です。`setup` は録画前、`steps` が映る操作です。実際の Tatami とネイティブのデモアプリを動かします。
 
 ```sh
-./bin/democtl scene tour --dry-run
-./bin/democtl take tour --output recordings/iteration/tour.mov
+.build/DemoLab/bin/democtl scene tour --dry-run
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
 ```
 
 <a id="preparation"></a>

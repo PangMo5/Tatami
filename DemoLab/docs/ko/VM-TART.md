@@ -10,24 +10,21 @@
 <a id="prepare-the-guest"></a>
 ## 게스트 준비
 
-호스트는 Apple silicon과 `exec` 지원 Tart가 필요해요. 게스트에는 Tart 에이전트, Command Line Tools, Python 3와 Tatami를 준비해요. 별도 표시가 없으면 `DemoLab/`에서 명령을 실행해요.
+호스트에는 Apple Silicon, Swift 6.2 이상, `exec`을 지원하는 Tart가 필요해요. 게스트에는 Tart 에이전트, Command Line Tools, Tatami가 필요해요. 호스트 명령은 저장소 루트에서, 게스트 명령은 `~/DemoLab`에서 실행해요.
 
 ```sh
-./vm/tart/host-bootstrap.sh
+swift build --package-path Tools -c release
+Tools/.build/release/tatami-tools vm-bootstrap
 ```
 
 `--no-display-refit`과 함께 `1920x1200px`으로 화면을 고정해 호스트 창 크기를 바꿔도 녹화 해상도가 바뀌지 않아요. 공유 폴더는 `/Volumes/My Shared Files/demolab`에 연결돼요.
 
-별도 공유 폴더로 촬영할 Tatami 빌드를 제공하세요.
+프로비저닝하기 전에 사용할 Tatami 빌드를 Demo Lab 공유 폴더에 복사해요.
 
 ```sh
-# Include both shares when starting the dedicated VM.
-tart run tatami-demo --dir="demolab:$PWD" --dir="tatami:/Applications"
-
-# From a separate host terminal:
-tart exec tatami-demo /bin/bash -lc \
-  'TATAMI_APP="/Volumes/My Shared Files/tatami/Tatami.app" \
-   "/Volumes/My Shared Files/demolab/vm/tart/guest-provision.sh"'
+ditto /Applications/Tatami.app DemoLab/.build/Tatami.app
+TATAMI_APP="/Volumes/My Shared Files/demolab/.build/Tatami.app" \
+  Tools/.build/release/tatami-tools vm-provision
 ```
 
 `TATAMI_APP` 대신 `TATAMI_DMG`도 사용할 수 있어요. SwiftPM은 공유 폴더가 아닌 게스트 디스크에서 빌드해요. 번들 생성 시 모든 앱을 LaunchServices에 등록해 배정한 ID를 찾을 수 있게 해요.
@@ -39,18 +36,18 @@ VM 창이나 화면 공유로 게스트를 열고 [PERMISSIONS.md](PERMISSIONS.m
 
 ```sh
 # Host: sync current sources and rebuild in the guest.
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools vm-sync
 
 # Guest: each scene gets fresh lab data and preferences suppression.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && python3 scripts/capture.py --continue-on-error \
-   --output /Users/admin/DemoLab/recordings/review-batch'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --continue-on-error \
+  --output /Users/admin/DemoLab/recordings/review-batch
 
 # Host: a new destination, retaining originals and all provenance sidecars.
 GUEST_DIR=DemoLab/recordings/review-batch \
-  ./vm/tart/fetch-recordings.sh recordings/review-batch
+  Tools/.build/release/tatami-tools vm-fetch-recordings DemoLab/recordings/review-batch
 
-python3 scripts/export.py --takes recordings/review-batch \
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/review-batch \
   --output ~/Downloads/TatamiDemoLab-review
 ```
 
@@ -69,8 +66,9 @@ python3 scripts/export.py --takes recordings/review-batch \
 ## 마치기와 이미지 보관
 
 ```sh
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./bin/democtl quit && ./bin/democtl display disconnect && ./bin/democtl restore'
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl quit
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl display disconnect
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl restore
 ```
 
 `restore`은 촬영 전에 백업한 환경설정을 복원해요. 개인 호스트 설정은 건드리지 않아요. 종료하고 검증한 게스트는 `tart clone`으로 보관할 수 있어요. VM을 정리하기 전에 원본과 증거를 밖에 보관하세요.

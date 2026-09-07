@@ -1,0 +1,31 @@
+name: Automation tools
+
+on:
+  pull_request:
+    paths:
+      - "Tools/**"
+      - "DemoLab/**"
+      - "Localization/**"
+      - "docs/**"
+      - "README*.md"
+      - "NOTICE*.md"
+      - "THIRD_PARTY_NOTICES*.md"
+      - "web/**"
+      - ".github/workflows/tools.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-tools:
+    runs-on: ubuntu-latest
+    container: swift:6.2-noble
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test native automation and generated content
+        run: |
+          swift test --package-path Tools
+          swift run --package-path Tools tatami-tools build-docs --check
+          swift run --package-path Tools tatami-tools localize-scenes --check
+          swift run --package-path Tools tatami-tools build-site --output /tmp/tatami-site

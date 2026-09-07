@@ -12,28 +12,25 @@ A guest-side virtual display provides a second real screen; see
 
 ## Prepare the guest
 
-The host needs Apple silicon and Tart with `exec` support. The guest needs the
-Tart agent, Command Line Tools, Python 3, and a copy of Tatami. Run commands
-from `DemoLab/` unless a command explicitly enters the guest.
+The host needs Apple silicon, Swift 6.2+ and Tart with `exec` support. The guest
+needs the Tart agent, Command Line Tools and a copy of Tatami. Run host commands
+from the repository root; guest commands use `~/DemoLab`.
 
 ```sh
-./vm/tart/host-bootstrap.sh
+swift build --package-path Tools -c release
+Tools/.build/release/tatami-tools vm-bootstrap
 ```
 
 Bootstrap fixes the display at `1920x1200px` with `--no-display-refit`, so moving
 the host's VM window cannot change the recording canvas. The lab share mounts
 at `/Volumes/My Shared Files/demolab`.
 
-Provide the Tatami build you want to demonstrate through a separate share:
+Place the Tatami build in the lab share before provisioning:
 
 ```sh
-# Include both shares when starting the dedicated VM.
-tart run tatami-demo --dir="demolab:$PWD" --dir="tatami:/Applications"
-
-# From a separate host terminal:
-tart exec tatami-demo /bin/bash -lc \
-  'TATAMI_APP="/Volumes/My Shared Files/tatami/Tatami.app" \
-   "/Volumes/My Shared Files/demolab/vm/tart/guest-provision.sh"'
+ditto /Applications/Tatami.app DemoLab/.build/Tatami.app
+TATAMI_APP="/Volumes/My Shared Files/demolab/.build/Tatami.app" \
+  Tools/.build/release/tatami-tools vm-provision
 ```
 
 Provisioning accepts `TATAMI_DMG` instead of `TATAMI_APP` as well. SwiftPM builds
@@ -51,18 +48,18 @@ Tatami's mirroring permission.
 
 ```sh
 # Host: sync current sources and rebuild in the guest.
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools vm-sync
 
 # Guest: each scene gets fresh lab data and preferences suppression.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && python3 scripts/capture.py --continue-on-error \
-   --output /Users/admin/DemoLab/recordings/review-batch'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --continue-on-error \
+  --output /Users/admin/DemoLab/recordings/review-batch
 
 # Host: a new destination, retaining originals and all provenance sidecars.
 GUEST_DIR=DemoLab/recordings/review-batch \
-  ./vm/tart/fetch-recordings.sh recordings/review-batch
+  Tools/.build/release/tatami-tools vm-fetch-recordings DemoLab/recordings/review-batch
 
-python3 scripts/export.py --takes recordings/review-batch \
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/review-batch \
   --output ~/Downloads/TatamiDemoLab-review
 ```
 
@@ -90,8 +87,9 @@ timeline, take metadata, frozen scene JSON and the batch report.
 ## Finish or preserve the image
 
 ```sh
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./bin/democtl quit && ./bin/democtl display disconnect && ./bin/democtl restore'
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl quit
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl display disconnect
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl restore
 ```
 
 `restore` returns the preferences domain backed up before the recording session.

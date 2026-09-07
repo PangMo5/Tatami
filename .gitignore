@@ -50,6 +50,3 @@ buildServer.json
 *.cer
 *.pem
 *.certSigningRequest
-
-# Python build tools
-__pycache__/

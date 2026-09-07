@@ -1,0 +1,132 @@
+// SPDX-FileCopyrightText: 2026 PangMo5 and contributors
+// SPDX-License-Identifier: AGPL-3.0-only
+
+import Foundation
+
+struct FilmPresentation {
+
+  // MARK: Lifecycle
+
+  init(workspace: Workspace) throws {
+    let blocks = try matches(#":root\s*\{([^}]+)\}"#, workspace.root.at("web/style.css").text())
+    try require(blocks.count >= 2, "Website dark palette is missing")
+    var tokens = [String: String]()
+    for block in blocks
+      .prefix(2) { for token in matches(#"--([\w-]+)\s*:\s*([^;]+);"#, block[1]) { tokens[token[1]] = token[2] } }
+    func color(_ key: String) throws -> String {
+      guard let value = tokens[key] else { throw ToolError("Missing CSS color: \(key)") }
+      var raw = trim(value).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+      if raw.count == 3 { raw = raw.map { "\($0)\($0)" }.joined() }
+      try require(fullMatch("[0-9a-fA-F]{6}", raw), "\(key) is not a hex color")
+      return raw.uppercased()
+    }
+    colors = try [
+      "background": color("bg-gray"),
+      "text": color("text"),
+      "secondary": color("text-secondary"),
+      "accent": color("accent"),
+    ]
+  }
+
+  // MARK: Internal
+
+  static let fonts = [
+    "en": "Helvetica Neue",
+    "ko": "Apple SD Gothic Neo",
+    "ja": "Hiragino Sans",
+    "zh-Hans": "Heiti SC",
+    "zh-Hant": "Heiti TC",
+  ]
+
+  let colors: [String: String]
+
+  var json: JSON {
+    .object(["background", "text", "secondary", "accent"].map { ($0, .string(colors[$0]!)) })
+  }
+
+  static func bgr(_ rgb: String) -> String {
+    let chars = Array(rgb)
+    return String(chars[4...5] + chars[2...3] + chars[0...1])
+  }
+
+  static func requireFont(_ locale: String, texts: [String], resolved: String? = nil) async throws {
+    guard let expected = fonts[locale] else { throw ToolError("Unsupported caption locale: \(locale)") }
+    let fontOutput: String =
+      if let resolved { resolved } else { try await runProcess(
+        ["fc-match", "-f", "%{family}\n%{charset}\n", expected],
+        capture: true,
+      ) }
+    let result = lines(fontOutput)
+    func normalize(_ value: String) -> String {
+      value.lowercased().filter { !$0.isWhitespace }
+    }
+    try require(
+      result.count >= 2 && result[0].components(separatedBy: ",").map(normalize).contains(normalize(expected)),
+      "Required caption font is unavailable: \(expected); resolved \(result.first ?? "nothing")",
+    )
+    let ranges = try result[1].split(whereSeparator: \.isWhitespace).map { entry -> ClosedRange<UInt32> in
+      let bounds = entry.split(separator: "-")
+      guard
+        let low = UInt32(bounds[0], radix: 16), let high = UInt32(bounds.last!, radix: 16),
+        low <= high
+      else { throw ToolError("Invalid font character range: \(entry)") }
+      return low...high
+    }
+    let missing = Set(texts.flatMap(\.unicodeScalars).filter { scalar in
+      !CharacterSet.whitespacesAndNewlines.contains(scalar) && !ranges.contains(where: { $0.contains(scalar.value) })
+    })
+    try require(
+      missing.isEmpty,
+      "\(expected) lacks caption glyphs: \(missing.sorted { $0.value < $1.value }.map(String.init).joined())",
+    )
+  }
+
+  func restyle(_ ass: String, locale: String = "en", dual: Bool = false) throws -> String {
+    guard let font = Self.fonts[locale] else { throw ToolError("Unsupported caption locale: \(locale)") }
+    var output = [String]()
+    for original in lines(ass) {
+      var line = original
+      if line.hasPrefix("Style: ") {
+        var fields = String(line.dropFirst(7)).components(separatedBy: ",")
+        try require(fields.count >= 23, "Incomplete ASS style")
+        if fields[0] != "Keys" { fields[1] = font }
+        if ["Caption", "Chapter", "Keys"].contains(fields[0]) {
+          let color = colors[fields[0] == "Caption" ? "text" : "accent"]!
+          fields[3] = "&H00" + Self.bgr(color)
+          fields[4] = fields[3]
+          fields[5] = "&H40141414"
+          fields[6] = fields[5]
+          fields.replaceSubrange(15..<18, with: ["3", "10", "0"])
+          switch fields[0] {
+          case "Caption": fields[2] = dual ? "36" : "42"
+            fields.replaceSubrange(18..<22, with: ["2", "110", "110", dual ? "52" : "96"])
+
+          case "Chapter": fields[2] = dual ? "22" : "26"
+            fields.replaceSubrange(18..<22, with: ["7", "32", "700", dual ? "36" : "54"])
+
+          default: fields[2] = dual ? "34" : "38"
+            fields.replaceSubrange(18..<22, with: ["9", "1300", "32", dual ? "36" : "54"])
+          }
+          line = "Style: " + fields.joined(separator: ",")
+        }
+      }
+      if
+        line
+          .contains(",Caption,,")
+      { line = replacing(#"\\1c&H[0-9A-Fa-f]+&"#, in: line) { _ in
+        #"\1c&H"# + Self.bgr(colors["secondary"]!) + "&"
+      } }
+      output.append(line)
+    }
+    return output.joined(separator: "\n") + "\n"
+  }
+
+  func writeSwift(workspace: Workspace) throws {
+    var text = "// Generated by tatami-tools video-theme from web/style.css.\n// SPDX-FileCopyrightText: 2026 PangMo5 and contributors\n// SPDX-License-Identifier: AGPL-3.0-only\nenum FilmTheme {\n"
+    text += "  static let background = \"\(colors["background"]!)\"\n"
+    for key in ["text", "secondary", "accent"] { text += "  static let \(key) = \"&H00\(Self.bgr(colors[key]!))\"\n" }
+    text += "}\n"
+    try workspace.lab.at("Sources/DemoCtlKit/FilmTheme.swift").write(text)
+  }
+
+}

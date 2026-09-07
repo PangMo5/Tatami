@@ -3590,13 +3590,6 @@
     "zh-Hans": "使用专用 Tart VM。{0} 和 {1} 会退出其运行机器上的 Tatami 并改变偏好。配置和布局隔离在 {2}，偏好域单独备份，可通过 {3} 恢复。",
     "zh-Hant": "使用專用 Tart VM。{0} 與 {1} 會結束其執行機器上的 Tatami 並變更偏好。設定與排列隔離在 {2}，偏好網域另行備份，可透過 {3} 還原。"
   },
-  "92968885859bc38d": {
-    "en": "Host requirements: {0}, Python 3.11+, {1} with libass/libx264, {2} and {3}. The recorder is a separate SwiftPM package; it does not change Tatami's Tuist build graph. The guest needs Xcode Command Line Tools and Python 3, with no third-party Python packages. The plain string catalog compiler does not require full Xcode.",
-    "ko": "호스트에는 {0}, Python 3.11 이상, libass/libx264가 있는 {1}, {2}, {3}이 필요해요. 녹화 도구는 별도 SwiftPM 패키지로 Tuist 구성을 바꾸지 않아요. 게스트는 Command Line Tools와 Python 3만 필요하고 외부 Python 패키지나 전체 Xcode는 필요하지 않아요.",
-    "ja": "ホストには {0}、Python 3.11 以降、libass/libx264 対応の {1}、{2}、{3} が必要です。録画は独立した SwiftPM で Tuist を変えません。ゲストは Command Line Tools と Python 3 だけで、外部 Python パッケージや完全な Xcode は不要です。",
-    "zh-Hans": "主机需要 {0}、Python 3.11+、支持 libass/libx264 的 {1}、{2} 和 {3}。录制器为独立 SwiftPM 包，不改变 Tuist 构建图。虚拟机需要 Command Line Tools 和 Python 3，不需要第三方 Python 包；纯字符串目录编译器不需要完整 Xcode。",
-    "zh-Hant": "主機需要 {0}、Python 3.11+、支援 libass/libx264 的 {1}、{2} 與 {3}。錄製器為獨立 SwiftPM 套件，不改變 Tuist 建置圖。虛擬機需要 Command Line Tools 與 Python 3，不需要第三方 Python 套件；純字串目錄編譯器不需要完整 Xcode。"
-  },
   "cda94e4462fc1787": {
     "en": "A small set of useful apps",
     "ko": "실제로 쓰는 작은 앱 모음",
@@ -3925,13 +3918,6 @@
     "ja": "小さなツール窓は右下から始め、主動画では左下へ実際に動かします。調整時も文書の主な読み取り領域を空けてください。",
     "zh-Hans": "小工具窗口从右下角开始，主视频以实际动作移到左下角。调整场景时保持文档主要阅读区域清晰。",
     "zh-Hant": "小工具視窗從右下角開始，主影片以實際動作移到左下角。調整場景時保持文件主要閱讀區域清楚。"
-  },
-  "8896e6ce1657db80": {
-    "en": "For a local website preview that outlives the terminal command, run {0} from this directory.",
-    "ko": "터미널 명령이 끝나도 유지되는 웹 미리보기는 이 폴더에서 {0}을 실행하세요.",
-    "ja": "端末コマンド終了後も残る Web プレビューは、このフォルダで {0} を実行します。",
-    "zh-Hans": "要让本地网页预览在终端命令结束后继续运行，请在此目录执行 {0}。",
-    "zh-Hant": "要讓本機網頁預覽在終端機指令結束後繼續執行，請在此目錄執行 {0}。"
   },
   "ea76f5a21d5b464b": {
     "en": "Demo coverage and verification",
@@ -4794,26 +4780,12 @@
     "zh-Hans": "准备虚拟机",
     "zh-Hant": "準備虛擬機"
   },
-  "c71153131a99e78f": {
-    "en": "The host needs Apple silicon and Tart with {0} support. The guest needs the Tart agent, Command Line Tools, Python 3, and a copy of Tatami. Run commands from {1} unless a command explicitly enters the guest.",
-    "ko": "호스트는 Apple silicon과 {0} 지원 Tart가 필요해요. 게스트에는 Tart 에이전트, Command Line Tools, Python 3와 Tatami를 준비해요. 별도 표시가 없으면 {1}에서 명령을 실행해요.",
-    "ja": "ホストには Apple silicon と {0} 対応 Tart、ゲストにはエージェント、Command Line Tools、Python 3、Tatami が必要です。明記がなければ {1} で実行します。",
-    "zh-Hans": "主机需 Apple silicon 和支持 {0} 的 Tart，VM 需代理、Command Line Tools、Python 3 和 Tatami。除非明确进入 VM，否则从 {1} 执行命令。",
-    "zh-Hant": "主機需 Apple silicon 和支援 {0} 的 Tart，VM 需代理程式、Command Line Tools、Python 3 與 Tatami。除非明確進入 VM，否則從 {1} 執行指令。"
-  },
   "c76ab61cb35deef6": {
     "en": "Bootstrap fixes the display at {0} with {1}, so moving the host's VM window cannot change the recording canvas. The lab share mounts at {2}.",
     "ko": "{1}과 함께 {0}으로 화면을 고정해 호스트 창 크기를 바꿔도 녹화 해상도가 바뀌지 않아요. 공유 폴더는 {2}에 연결돼요.",
     "ja": "{0} と {1} で固定し、ホストの窓サイズを変えても録画の解像度が変わらないようにします。共有は {2} です。",
     "zh-Hans": "通过 {0} 和 {1} 固定分辨率，调整主机 VM 窗口不改变录制画布，共享挂载于 {2}。",
     "zh-Hant": "透過 {0} 與 {1} 固定解析度，調整主機 VM 視窗不改變錄製畫布，共用掛載於 {2}。"
-  },
-  "4af10c49991f3270": {
-    "en": "Provide the Tatami build you want to demonstrate through a separate share:",
-    "ko": "별도 공유 폴더로 촬영할 Tatami 빌드를 제공하세요.",
-    "ja": "撮影する Tatami のビルドを、別の共有から渡します。",
-    "zh-Hans": "通过单独的共享提供要演示的 Tatami 构建：",
-    "zh-Hant": "透過獨立共用提供要示範的 Tatami 建置："
   },
   "8d52a8dfaeaf7dc6": {
     "en": "Provisioning accepts {0} instead of {1} as well. SwiftPM builds on the guest's local disk, not the shared filesystem. App bundling registers every fixture with LaunchServices so Tatami can resolve assigned bundle IDs.",
@@ -5110,5 +5082,40 @@
     "ja": "採用するテイクは、実際の操作・状態・配置の検証を通過し、現行の言語別シーンの操作とタイミングに一致し、フレーム欠落率が 1% 未満である必要があります。文面だけの修正では元シーンのハッシュを残し、編集後のハッシュを追加します。書き出し時に MP4 全編、H.264/yuv420p、長さ・容量の上限、冒頭字幕の時刻、映像とタイムラインの共通時計を確認します。",
     "zh-Hans": "验收的录制必须通过实际操作、状态和布局断言，与当前语言的拍摄操作及时间一致，且丢帧率低于 1%。仅修改文字时会保留原场景哈希并新增编辑后的场景哈希。导出会检查完整 MP4、H.264/yuv420p、时长和大小限制、首条字幕时间，以及视频与时间线的共同时间基准。",
     "zh-Hant": "驗收的錄製必須通過實際操作、狀態及排列驗證，與目前語言的拍攝操作及時間一致，且掉幀率低於 1%。只修改文字時會保留原場景雜湊，並新增編輯後的場景雜湊。匯出會檢查完整 MP4、H.264/yuv420p、長度及容量限制、首條字幕時間，以及影片與時間軸的共同時間基準。"
+  },
+  "7b77f2fd4c0e4572": {
+    "en": "Host requirements: Swift 6.2+, {0}, {1} with libass/libx264, {2} and {3}. Run host commands from the repository root. The guest needs Xcode Command Line Tools. Source sync carries the compiled automation executable, so the guest does not download packages. The recorder remains an independent SwiftPM package outside Tatami's Tuist graph.",
+    "ko": "호스트에는 Swift 6.2 이상, {0}, libass/libx264를 지원하는 {1}, {2}, {3}이 필요해요. 호스트 명령은 저장소 루트에서 실행해요. 게스트에는 Xcode Command Line Tools가 필요해요. 소스를 동기화할 때 빌드된 자동화 실행 파일을 함께 전달하므로 게스트에서 패키지를 다운로드하지 않아요. 녹화기는 Tatami의 Tuist 그래프와 분리된 독립 SwiftPM 패키지로 유지돼요.",
+    "ja": "ホストには Swift 6.2 以降、{0}、libass/libx264 に対応した {1}、{2}、{3} が必要です。ホストのコマンドはリポジトリのルートで実行します。ゲストには Xcode Command Line Tools が必要です。ソースの同期時にビルド済みの自動化実行ファイルも転送するため、ゲストでパッケージをダウンロードする必要はありません。レコーダーは Tatami の Tuist グラフから独立した SwiftPM パッケージです。",
+    "zh-Hans": "主机需要 Swift 6.2 或更新版本、{0}、支持 libass/libx264 的 {1}、{2} 和 {3}。主机命令在仓库根目录运行。虚拟机需要 Xcode Command Line Tools。同步源代码时会一并传入编译好的自动化程序，因此虚拟机无需下载依赖包。录制器仍是独立的 SwiftPM 包，不加入 Tatami 的 Tuist 构建图。",
+    "zh-Hant": "主機需要 Swift 6.2 或更新版本、{0}、支援 libass/libx264 的 {1}、{2} 和 {3}。主機指令請在儲存庫根目錄執行。虛擬機需要 Xcode Command Line Tools。同步原始碼時會一併傳入編譯好的自動化程式，因此虛擬機不需要下載套件。錄製工具仍是獨立的 SwiftPM 套件，不加入 Tatami 的 Tuist 建置圖。"
+  },
+  "5669c96a0fc1e286": {
+    "en": "Automation uses {0}, ArgumentParser, SwiftSoup, Hummingbird, {1}, {2} and Swift Crypto. Foundation handles JSON and property lists. Capture acceptance, localization units and editorial budgets remain Tatami-specific rules. {3} pins the dependency graph.",
+    "ko": "자동화에는 {0}, ArgumentParser, SwiftSoup, Hummingbird, {1}, {2}, Swift Crypto를 사용해요. JSON과 속성 목록은 Foundation으로 처리해요. 녹화 승인 조건, 번역 단위, 영상 길이·용량 제한은 Tatami 고유의 규칙으로 유지해요. {3}에서 의존성 버전을 고정해요.",
+    "ja": "自動化には {0}、ArgumentParser、SwiftSoup、Hummingbird、{1}、{2}、Swift Crypto を使います。JSON とプロパティリストは Foundation で処理します。録画の合格条件、翻訳単位、動画の時間・容量の上限は Tatami 固有のルールとして管理します。依存関係のバージョンは {3} で固定します。",
+    "zh-Hans": "自动化使用 {0}、ArgumentParser、SwiftSoup、Hummingbird、{1}、{2} 和 Swift Crypto。JSON 和属性列表由 Foundation 处理。录制验收条件、翻译单元和视频时长及大小限制仍由 Tatami 自身的规则决定。{3} 固定依赖版本。",
+    "zh-Hant": "自動化使用 {0}、ArgumentParser、SwiftSoup、Hummingbird、{1}、{2} 和 Swift Crypto。JSON 與屬性列表由 Foundation 處理。錄製驗收條件、翻譯單元，以及影片長度與大小限制仍由 Tatami 的專屬規則決定。{3} 固定相依套件版本。"
+  },
+  "a5d911eac3784dd3": {
+    "en": "For a local website preview that outlives the terminal command, run {0} from the repository root.",
+    "ko": "터미널 명령이 끝난 뒤에도 로컬 웹사이트 미리보기를 유지하려면 저장소 루트에서 {0}을 실행해요.",
+    "ja": "ターミナルのコマンド終了後もローカルサイトのプレビューを続けるには、リポジトリのルートで {0} を実行します。",
+    "zh-Hans": "如需在终端命令结束后继续运行本地网站预览，请在仓库根目录运行 {0}。",
+    "zh-Hant": "若要在終端機指令結束後繼續執行本機網站預覽，請在儲存庫根目錄執行 {0}。"
+  },
+  "4b98135e841b4558": {
+    "en": "The host needs Apple silicon, Swift 6.2+ and Tart with {0} support. The guest needs the Tart agent, Command Line Tools and a copy of Tatami. Run host commands from the repository root; guest commands use {1}.",
+    "ko": "호스트에는 Apple Silicon, Swift 6.2 이상, {0}을 지원하는 Tart가 필요해요. 게스트에는 Tart 에이전트, Command Line Tools, Tatami가 필요해요. 호스트 명령은 저장소 루트에서, 게스트 명령은 {1}에서 실행해요.",
+    "ja": "ホストには Apple シリコン、Swift 6.2 以降、{0} に対応した Tart が必要です。ゲストには Tart エージェント、Command Line Tools、Tatami が必要です。ホストのコマンドはリポジトリのルート、ゲストのコマンドは {1} で実行します。",
+    "zh-Hans": "主机需要 Apple 芯片、Swift 6.2 或更新版本，以及支持 {0} 的 Tart。虚拟机需要 Tart 代理、Command Line Tools 和 Tatami。主机命令在仓库根目录运行，虚拟机命令在 {1} 中运行。",
+    "zh-Hant": "主機需要 Apple 晶片、Swift 6.2 或更新版本，以及支援 {0} 的 Tart。虛擬機需要 Tart 代理程式、Command Line Tools 和 Tatami。主機指令請在儲存庫根目錄執行，虛擬機指令則在 {1} 中執行。"
+  },
+  "204cea8b77797a7d": {
+    "en": "Place the Tatami build in the lab share before provisioning:",
+    "ko": "프로비저닝하기 전에 사용할 Tatami 빌드를 Demo Lab 공유 폴더에 복사해요.",
+    "ja": "プロビジョニングの前に、使う Tatami のビルドを Demo Lab の共有フォルダへコピーします。",
+    "zh-Hans": "配置虚拟机之前，先将要使用的 Tatami 构建复制到 Demo Lab 共享文件夹。",
+    "zh-Hant": "設定虛擬機之前，先將要使用的 Tatami 版本複製到 Demo Lab 共用資料夾。"
   }
 }

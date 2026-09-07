@@ -19,14 +19,14 @@ ScreenCaptureKit recorded both screens into independent playable movies.
 Inside the dedicated guest:
 
 ```sh
-./scripts/build-virtual-display.sh
-./bin/democtl display connect
-./bin/democtl displays
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl take desk --display all --output recordings/desk.mov
-./bin/democtl quit
-./bin/democtl display disconnect
+.build/tools/tatami-tools build-virtual-display
+.build/DemoLab/bin/democtl display connect
+.build/DemoLab/bin/democtl displays
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl take desk --display all --output recordings/desk.mov
+.build/DemoLab/bin/democtl quit
+.build/DemoLab/bin/democtl display disconnect
 ```
 
 The helper uses private `CGVirtualDisplay` interfaces only in Demo Lab, never in
@@ -43,7 +43,7 @@ first-frame offset against the common monotonic clock, display origin and its
 own frame/drop counts. After fetching the batch to the host:
 
 ```sh
-python3 scripts/compose-displays.py recordings desk
+Tools/.build/release/tatami-tools compose-displays DemoLab/recordings desk
 ```
 
 The compositor orders screens by physical origin and aligns the streams using

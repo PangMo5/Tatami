@@ -22,25 +22,29 @@
 使用專用 Tart VM。`reset` 與 `seed` 會結束其執行機器上的 Tatami 並變更偏好。設定與排列隔離在 `.build/lab/`，偏好網域另行備份，可透過 `democtl restore` 還原。
 
 ```sh
-# Host: copy source into the running VM and rebuild the independent Swift package.
-./vm/tart/sync.sh
+# Host: run from the repository root.
+swift build --package-path Tools -c release
+TOOL=Tools/.build/release/tatami-tools
+"$TOOL" vm-sync
 
 # Guest: a fresh seed for every scene. Existing takes are never overwritten.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./scripts/record-suite.sh /Users/admin/DemoLab/recordings/publish'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --output /Users/admin/DemoLab/recordings/publish
 
 # Host: fetch that exact batch, including originals, metadata and scene snapshots.
-GUEST_DIR=DemoLab/recordings/publish ./vm/tart/fetch-recordings.sh recordings/publish
+GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordings/publish
 
 # Host: new output directory; no ambiguous “latest take” selection.
-python3 scripts/export.py --takes recordings/publish --output ~/Downloads/TatamiDemoLab-review
+"$TOOL" export --takes DemoLab/recordings/publish --output ~/Downloads/TatamiDemoLab-review
 
 # Open index.html and inspect playback, opening frames, actions and every feature.
 # Install the verified bundle into this checkout only; this does not push or deploy.
-python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
+"$TOOL" install-assets ~/Downloads/TatamiDemoLab-review
 ```
 
-主機需要 `tart`、Python 3.11+、支援 libass/libx264 的 `mpv`、`ffmpeg` 與 `ffprobe`。錄製器為獨立 SwiftPM 套件，不改變 Tuist 建置圖。虛擬機需要 Command Line Tools 與 Python 3，不需要第三方 Python 套件；純字串目錄編譯器不需要完整 Xcode。
+主機需要 Swift 6.2 或更新版本、`tart`、支援 libass/libx264 的 `mpv`、`ffmpeg` 和 `ffprobe`。主機指令請在儲存庫根目錄執行。虛擬機需要 Xcode Command Line Tools。同步原始碼時會一併傳入編譯好的自動化程式，因此虛擬機不需要下載套件。錄製工具仍是獨立的 SwiftPM 套件，不加入 Tatami 的 Tuist 建置圖。
+
+自動化使用 `swift-subprocess`、ArgumentParser、SwiftSoup、Hummingbird、`swift-markdown`、`swift-cmark` 和 Swift Crypto。JSON 與屬性列表由 Foundation 處理。錄製驗收條件、翻譯單元，以及影片長度與大小限制仍由 Tatami 的專屬規則決定。`Tools/Package.resolved` 固定相依套件版本。
 
 匯出主機也需要 Fontconfig。編碼前會驗證指定字型及其對全部字幕字元的支援。OCR 檢查會另外比對畫面上的字幕與說明時間軸。
 
@@ -103,16 +107,17 @@ python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
 在專用虛擬機內執行錄製指令：
 
 ```sh
-./bin/democtl doctor
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl scene tour --dry-run    # prints setup and visible steps
-./bin/democtl take tour --output recordings/iteration/tour.mov
-python3 scripts/export.py --takes recordings/iteration \
+.build/DemoLab/bin/democtl doctor
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl scene tour --dry-run    # prints setup and visible steps
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
+# Host: after fetching that batch; run from the repository root.
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/iteration \
   --output ~/Downloads/TatamiDemoLab-iteration --scenes tour
 ```
 
-`democtl scene` 使用即時疊加排練。錄製 `take` 預設 `--overlay off`，發布只接受該模式；排練面板不是輸出設計。`subtitle burn` 可產生觀看副本，預算檢查、網頁編碼與證據應使用 `export.py`。
+`democtl scene` 使用即時疊加排練。錄製 `take` 預設 `--overlay off`，發布只接受該模式；排練面板不是輸出設計。`subtitle burn` 可產生觀看副本，預算檢查、網頁編碼與證據應使用 `tatami-tools export`。
 
 結束後在虛擬機執行 `democtl quit` 與 `democtl restore`，主機原有偏好與 Tatami 不參與此流程。
 
@@ -120,9 +125,10 @@ python3 scripts/export.py --takes recordings/iteration \
 ## 開發與參考
 
 ```sh
-swift test
-./scripts/bundle-apps.sh
-python3 -m unittest discover -s Tests -p 'test_*.py'
+swift test --package-path Tools
+swift run --package-path Tools tatami-tools bundle-apps
+DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
+  swift test --package-path DemoLab
 ```
 
 - [場景語法](../docs/zh-Hant/SCENES.md)
@@ -136,18 +142,18 @@ python3 -m unittest discover -s Tests -p 'test_*.py'
 支援 `en`、`ko`、`ja`、`zh-Hans`、`zh-Hant`。`Localization/Localizable.xcstrings` 管理示範 UI 與初始內容，`Localization/Films.json` 管理影片標題、說明和輸入，`Localization/Interface.json` 管理檢查圖庫。沒有穩定識別碼時使用產品目錄的 Tatami AX 標籤。App、使用者命名的工作空間與設定組合名稱保持不變。
 
 ```sh
-python3 scripts/localize-scenes.py
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools localize-scenes
+Tools/.build/release/tatami-tools vm-sync
 # Inside the guest:
-python3 scripts/capture.py --locale ko --output recordings/ko-batch
+.build/tools/tatami-tools capture --locale ko --output recordings/ko-batch
 # After fetching that explicit batch to the host:
-python3 scripts/export.py --locale ko --takes recordings/ko-batch --output ~/Downloads/Tatami-ko
+Tools/.build/release/tatami-tools export --locale ko --takes DemoLab/recordings/ko-batch --output ~/Downloads/Tatami-ko
 ```
 
 每次錄製同步設定示範 App 與 Tatami 的語言，輸入和斷言使用相同文案，實際 CLI 指令及機器輸出不變。最終影片為 30 fps，因此錄製也使用 30 fps，避免不必要的 60 fps 取樣。
 
-`record-locales.py` 會找出各語言缺少或未通過驗證的錄製。它不會將英文影片視為已驗證翻譯 UI 的證據。失敗場景會保留供診斷使用，其他語言可以獨立繼續。
+`tatami-tools record-locales` 會找出各語言缺少或未通過驗證的錄製。它不會將英文影片視為已驗證翻譯 UI 的證據。失敗場景會保留供診斷使用，其他語言可以獨立繼續。
 
 小工具視窗從右下角開始，主影片以實際動作移到左下角。調整場景時保持文件主要閱讀區域清楚。
 
-要讓本機網頁預覽在終端機指令結束後繼續執行，請在此目錄執行 `python3 ../scripts/preview-site.py --background`。
+若要在終端機指令結束後繼續執行本機網站預覽，請在儲存庫根目錄執行 `Tools/.build/release/tatami-tools preview-site --background`。

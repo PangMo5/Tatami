@@ -44,6 +44,10 @@ public enum DemoCtl {
     do {
       switch command {
       case "help", "--help", "-h": print(usage)
+      case "catalog":
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        print(String(decoding: try encoder.encode(DemoCatalog.bundles), as: UTF8.self))
       case "build": try build(arguments)
       case "inspect":
         let paths = try resolvePaths()
@@ -94,6 +98,7 @@ public enum DemoCtl {
   democtl — Tatami Demo Lab control
 
   Setup
+    catalog                     Print bundle metadata from the shared app catalog as JSON
     build                       Build every demo app, the recorder and the tools into .build/DemoLab
     doctor                      Check everything that must be true before a take
     displays                    Print each screen's Tatami display-hint string
@@ -123,7 +128,7 @@ public enum DemoCtl {
     subtitle burn <movie> [--ass <file>] [--output <file>]
                                 Burn a take's .ass sidecar into a copy of the movie. Needs an
                                 ffmpeg with libass, or mpv. Neither is in the recording VM, so
-                                this is a host-side step after fetch-recordings.sh
+                                this is a host-side step after tatami-tools vm-fetch-recordings
     events [--all]              Print the Tatami lifecycle events the hooks logged
 
   Inspect
@@ -288,18 +293,14 @@ public enum DemoCtl {
 
   private static func build(_ arguments: [String]) throws {
     let paths = try resolvePaths()
-    let script = paths.packageRoot.appendingPathComponent("scripts/bundle-apps.sh")
-    guard FileManager.default.isExecutableFile(atPath: script.path) else {
-      throw DemoCtlError.usage("scripts/bundle-apps.sh is missing or not executable")
+    let executable = paths.automationExecutable
+    guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+      throw DemoCtlError.usage("Run swift run --package-path Tools tatami-tools bundle-apps in the checkout first")
     }
-    let result = try Shell.run(script, arguments, currentDirectory: paths.packageRoot)
+    let result = try Shell.run(executable, ["bundle-apps", "--root", paths.packageRoot.deletingLastPathComponent().path] + arguments, currentDirectory: paths.packageRoot)
     print(result.standardOutput, terminator: "")
-    if !result.standardError.isEmpty {
-      FileHandle.standardError.write(Data(result.standardError.utf8))
-    }
-    guard result.succeeded else {
-      throw DemoCtlError.usage("bundle-apps.sh failed with exit \(result.status)")
-    }
+    if !result.standardError.isEmpty { FileHandle.standardError.write(Data(result.standardError.utf8)) }
+    guard result.succeeded else { throw DemoCtlError.usage("tatami-tools bundle-apps failed with exit \(result.status)") }
   }
 
   private static func doctor(_ arguments: [String]) throws {
@@ -460,7 +461,7 @@ public enum DemoCtl {
     let renderer = ConfigRenderer(paths: paths)
     try StoryRepository(file: paths.controlDirectory.appendingPathComponent("launch-story.json")).write(LaunchStory())
     let cliContext = DemoCLIContext(executable: install.cli.path, socket: paths.socketPath.path,
-      scripts: paths.packageRoot.appendingPathComponent("config/automation").path, config: paths.configFile.path)
+      automationExecutable: paths.automationExecutable.path, config: paths.configFile.path)
     try JSONEncoder().encode(cliContext).write(to: DemoCLIContext.file, options: .atomic)
     try renderer.write(options)
     print("config: wrote \(paths.configFile.path)")
@@ -969,7 +970,7 @@ public enum DemoCtl {
   /// Deliberately a host-side step. ffmpeg is not installed in the recording VM
   /// and is on a typical developer's Mac, and putting one in the guest would
   /// spend VM time re-encoding a movie that has to be copied to the host anyway
-  /// (`vm/tart/fetch-recordings.sh`). So a missing ffmpeg is reported as exactly
+  /// (`tatami-tools vm-fetch-recordings`). So a missing ffmpeg is reported as exactly
   /// that, with the command to run somewhere else, and never quietly skipped: a
   /// "burned" take that turns out to have no subtitles in it is precisely the
   /// silent difference between two takes this lab exists to prevent.
@@ -1005,7 +1006,7 @@ public enum DemoCtl {
         """
         no subtitle sidecar at \(subtitles.path).
         `democtl take` writes one next to every movie it records, and
-        vm/tart/fetch-recordings.sh copies it out of the guest with the movie.
+        tatami-tools vm-fetch-recordings copies it out of the guest with the movie.
         Pass --ass <file> to burn a different one in.
         """
       )
@@ -1039,7 +1040,7 @@ public enum DemoCtl {
         mpv is not installed either, and it is the easier fix because it always ships libass.
 
         This step is host side on purpose: the recording VM has no ffmpeg, and the movie and its
-        sidecar have to be copied to the host anyway (vm/tart/fetch-recordings.sh).
+        sidecar have to be copied to the host anyway (tatami-tools vm-fetch-recordings).
 
           brew install mpv          # or a build of ffmpeg that lists `ass` in -filters
 

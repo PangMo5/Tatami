@@ -40,7 +40,7 @@ public struct TatamiEvent: Sendable, Equatable {
 
 // MARK: - EventLog
 
-/// Reads the append-only log the `demolab-hook` script writes.
+/// Reads the append-only log the `demohook event-log` executable writes.
 ///
 /// This is the lab's only reliable "it actually happened" signal for anything
 /// other than `workspace activate` / `profile activate`. Tatami's dispatcher

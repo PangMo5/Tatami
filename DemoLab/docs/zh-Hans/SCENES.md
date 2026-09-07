@@ -8,8 +8,8 @@
 场景为 JSON，包含 `name`、`title` 和可选的 `requires`、`setup`、`openingApps`、`steps`。`setup` 在录制前执行，`steps` 是可见过程，操作实际 Tatami 和原生演示应用。
 
 ```sh
-./bin/democtl scene tour --dry-run
-./bin/democtl take tour --output recordings/iteration/tour.mov
+.build/DemoLab/bin/democtl scene tour --dry-run
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
 ```
 
 <a id="preparation"></a>

@@ -32,28 +32,36 @@ Config and layout files are isolated under `.build/lab/`; the preferences domain
 is backed up separately and can be restored with `democtl restore`.
 
 ```sh
-# Host: copy source into the running VM and rebuild the independent Swift package.
-./vm/tart/sync.sh
+# Host: run from the repository root.
+swift build --package-path Tools -c release
+TOOL=Tools/.build/release/tatami-tools
+"$TOOL" vm-sync
 
 # Guest: a fresh seed for every scene. Existing takes are never overwritten.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./scripts/record-suite.sh /Users/admin/DemoLab/recordings/publish'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --output /Users/admin/DemoLab/recordings/publish
 
 # Host: fetch that exact batch, including originals, metadata and scene snapshots.
-GUEST_DIR=DemoLab/recordings/publish ./vm/tart/fetch-recordings.sh recordings/publish
+GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordings/publish
 
 # Host: new output directory; no ambiguous “latest take” selection.
-python3 scripts/export.py --takes recordings/publish --output ~/Downloads/TatamiDemoLab-review
+"$TOOL" export --takes DemoLab/recordings/publish --output ~/Downloads/TatamiDemoLab-review
 
 # Open index.html and inspect playback, opening frames, actions and every feature.
 # Install the verified bundle into this checkout only; this does not push or deploy.
-python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
+"$TOOL" install-assets ~/Downloads/TatamiDemoLab-review
 ```
 
-Host requirements: `tart`, Python 3.11+, `mpv` with libass/libx264, `ffmpeg` and
-`ffprobe`. The recorder is a separate SwiftPM package; it does not change
-Tatami's Tuist build graph. The guest needs Xcode Command Line Tools and Python 3, with no third-party
-Python packages. The plain string catalog compiler does not require full Xcode.
+Host requirements: Swift 6.2+, `tart`, `mpv` with libass/libx264, `ffmpeg` and
+`ffprobe`. Run host commands from the repository root. The guest needs Xcode
+Command Line Tools. Source sync carries the compiled automation executable, so
+the guest does not download packages. The recorder remains an independent
+SwiftPM package outside Tatami's Tuist graph.
+
+Automation uses `swift-subprocess`, ArgumentParser, SwiftSoup, Hummingbird,
+`swift-markdown`, `swift-cmark` and Swift Crypto. Foundation handles JSON and
+property lists. Capture acceptance, localization units and editorial budgets
+remain Tatami-specific rules. `Tools/Package.resolved` pins the dependency graph.
 
 The export host also needs Fontconfig. Before encoding, the lab verifies the requested font family and coverage of every caption character. The OCR audit separately compares overlaid narration with the narration timeline.
 
@@ -152,19 +160,20 @@ See [the verified VM setup](docs/MULTI-DISPLAY.md).
 Run the capture commands inside the dedicated guest:
 
 ```sh
-./bin/democtl doctor
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl scene tour --dry-run    # prints setup and visible steps
-./bin/democtl take tour --output recordings/iteration/tour.mov
-python3 scripts/export.py --takes recordings/iteration \
+.build/DemoLab/bin/democtl doctor
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl scene tour --dry-run    # prints setup and visible steps
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
+# Host: after fetching that batch; run from the repository root.
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/iteration \
   --output ~/Downloads/TatamiDemoLab-iteration --scenes tour
 ```
 
 `democtl scene` rehearses with a live overlay. Recorded `take` defaults to
 `--overlay off`; only that mode is accepted for publication. The live rehearsal
 panel is not the export design. `subtitle burn` can render the sidecar into a
-viewing copy, but use `export.py` for budget checks, web encoding and evidence.
+viewing copy, but use `tatami-tools export` for budget checks, web encoding and evidence.
 
 Finish a session with `democtl quit` and `democtl restore` in the guest.
 Original host preferences and host Tatami are not involved in the VM workflow.
@@ -172,9 +181,10 @@ Original host preferences and host Tatami are not involved in the VM workflow.
 ## Development and reference
 
 ```sh
-swift test
-./scripts/bundle-apps.sh
-python3 -m unittest discover -s Tests -p 'test_*.py'
+swift test --package-path Tools
+swift run --package-path Tools tatami-tools bundle-apps
+DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
+  swift test --package-path DemoLab
 ```
 
 - [Scene vocabulary](docs/SCENES.md)
@@ -192,12 +202,12 @@ catalog supplies native Tatami AX labels when a stable control identifier is
 not available. User-chosen app, workspace and profile names remain unchanged.
 
 ```sh
-python3 scripts/localize-scenes.py
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools localize-scenes
+Tools/.build/release/tatami-tools vm-sync
 # Inside the guest:
-python3 scripts/capture.py --locale ko --output recordings/ko-batch
+.build/tools/tatami-tools capture --locale ko --output recordings/ko-batch
 # After fetching that explicit batch to the host:
-python3 scripts/export.py --locale ko --takes recordings/ko-batch --output ~/Downloads/Tatami-ko
+Tools/.build/release/tatami-tools export --locale ko --takes DemoLab/recordings/ko-batch --output ~/Downloads/Tatami-ko
 ```
 
 Each recording seeds the fixture and Tatami language together. Human input and
@@ -205,7 +215,7 @@ its assertions come from the same reviewed text. CLI commands and their actual
 machine output remain unchanged. The final delivery is 30 fps, so the batch
 also captures at 30 fps without unnecessary 60 fps sampling.
 
-`record-locales.py` identifies missing or rejected takes for each locale.
+`tatami-tools record-locales` identifies missing or rejected takes for each locale.
 It never treats an English capture as proof of a translated UI. A failed scene
 stays available for diagnosis; another language can continue independently.
 
@@ -214,4 +224,4 @@ status window to the lower-left corner as a visible action. Keep the document's
 main reading area clear when adjusting a scenario.
 
 For a local website preview that outlives the terminal command, run
-`python3 ../scripts/preview-site.py --background` from this directory.
+`Tools/.build/release/tatami-tools preview-site --background` from the repository root.
