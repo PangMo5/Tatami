@@ -4,9 +4,13 @@
 
 # Scenes and acceptance
 
-A scene is a JSON file with `name`, `title`, optional `requires`, `setup`,
-`openingApps`, and `steps`. `setup` executes before recording. `steps` are the
-visible story. Their actions drive the installed Tatami and native fixture apps.
+A scene requires `name`, `title`, and `steps`. Optional fields are `summary`,
+`requires`, `setup`, `openingApps`, and `captureSecondary`. `setup` executes
+before recording; `steps` are the visible story. Their actions drive the
+installed Tatami and native fixture apps.
+
+Set `captureSecondary` to `true` for a hotplug scene that records the main
+display continuously and captures the second display only while it is connected.
 
 ```sh
 .build/DemoLab/bin/democtl scene tour --dry-run
@@ -49,9 +53,10 @@ a reason to correct preparation, not to trim away the unexpected window later.
 | `rightClick` | `app`, `identifier` | Open the native context menu for a control. |
 | `resizeWindow` | `app`, `x`, `y?` | Drag a native window edge. |
 | `virtualDisplay` | `connected` | Connect or disconnect the real guest virtual display helper. |
-| `configure` | `key`, `value` | Atomically edit an allowed live setting in the lab TOML. |
+| `configure` | `field`, `value` | Atomically edit an allowed live setting in the lab TOML. |
 | `clipboard` | `text` | Provide local example text, preserving and restoring all clipboard item types. |
 | `closeSettings` | — | Close the native settings window after authoring. |
+| `prepareSettings` | — | Size and position the native Tatami settings window before its controls are used. |
 | `appWindows` | `app`, `count` | Set native window count, primarily for preparation. |
 
 There is no `appState` command. Views cannot be jumped to a pre-rendered success
@@ -79,6 +84,7 @@ not. The chat is a local fixture and has no network transport.
 | `waitWorkspace` | `workspace`, `timeoutMs?` | Observe the activation hook from the immediately preceding step. |
 | `waitProfile` | `profile`, `timeoutMs?` | Observe the profile hook. |
 | `saveLayout` | `text` | Save visible demo window IDs and bounds under a checkpoint name. |
+| `expectLayoutChanged` | `text` | Require the visible layout to differ from the named saved checkpoint. |
 | `assertLayout` | `text` | Require that exact window set and bounds to return, within 4 points. |
 | `beat` | `ms`, `note?` | A declared reading pause; no hidden startup sleep. |
 | `note` | `text` | Log-only explanation. |
@@ -95,9 +101,11 @@ rehearsals but is forbidden in publication scenes, because it would imply a
 keyboard action that did not occur.
 
 `take` defaults to `--overlay off`: text is recorded in editable ASS and JSON
-sidecars. The export reserves a header/footer around the actual desktop, so the
-caption and keys cannot cover app content. `scene` uses a live rehearsal panel;
-that panel is not the final export design.
+sidecars. Exports place captions over the lower part of the captured image,
+with the chapter at the upper left and actual keycasts at the upper right.
+Translucent backgrounds keep text readable, but it can cover app content;
+keep important controls clear of those areas. `scene` uses a live rehearsal
+panel, which is separate from the final export design.
 
 Use [publication.json](../publication.json) for placement and duration/size
 budgets, and [README.md](../README.md) for capture, export and review commands.

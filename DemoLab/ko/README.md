@@ -126,6 +126,7 @@ Tools/.build/release/tatami-tools export --takes DemoLab/recordings/iteration \
 
 ```sh
 swift test --package-path Tools
+swift run --package-path Tools tatami-tools build-tool-notices --check
 swift run --package-path Tools tatami-tools bundle-apps
 DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
   swift test --package-path DemoLab
