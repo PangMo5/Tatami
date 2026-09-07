@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](../README.md) · [한국어](../ko/README.md) · [日本語](../ja/README.md) · [简体中文](../zh-Hans/README.md) · [繁體中文](README.md)
+[English](../../README.md) · [한국어](../ko/README.md) · [日本語](../ja/README.md) · [简体中文](../zh-Hans/README.md) · [繁體中文](README.md)
 <!-- LANGUAGE-LINKS:END -->
 
 <a id="tatami-demo-lab"></a>
@@ -10,11 +10,11 @@
 <a id="publication-contract"></a>
 ## 發布約定
 
-[`publication.json`](../publication.json) 定義影片清單與編輯預算，對應網站區塊並限制時間和檔案大小。
+[`publication.json`](../../publication.json) 定義影片清單與編輯預算，對應網站區塊並限制時間和檔案大小。
 
 主影片依序展示設計、撰寫、審閱、借用、自動化，最後實際改變顯示器拓樸。專題涵蓋工作空間、設定組合與顯示器、並排與焦點、借用、視窗模式、CLI/Hook 和引導設定。清單由 `publication.json` 產生，不必維護重複清單。
 
-主影片傳達**切換工作，保留工作位置**。專題展示不同活動，不重複主影片。完整範圍見[涵蓋與證據界線](../docs/zh-Hant/COVERAGE.md)。
+主影片傳達**切換工作，保留工作位置**。專題展示不同活動，不重複主影片。完整範圍見[涵蓋與證據界線](COVERAGE.md)。
 
 <a id="capture--export--review--install-locally"></a>
 ## 錄製 → 輸出 → 檢查 → 本機安裝
@@ -85,6 +85,8 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 原始 MOV 包含完整的桌面畫面。匯出保留 1920×1200 解析度，雙螢幕影片為 1920×600。說明字幕疊加在畫面下方，章節名稱位於左上角，實際按鍵位於右上角。半透明背景確保文字在深淺色 App 上都清楚可讀。顏色來自網站配色，調整呈現方式不必重新錄製。
 
+縮圖時間由 `publication.json` 中的 `posterSeconds` 或 `posterCaptionIndex` 指定。請選擇功能實際生效後的畫面。縮圖 URL 使用圖片雜湊，因此只替換圖片時不需要重新編碼影片。
+
 只修改字幕時，必須確保錄製的操作、輸入內容、驗證條件及等待時間皆未變更，才能重用原始影片。匯出工具會驗證錄製時固定的場景雜湊並比較操作，再替換原時間軸上的說明文字。驗證資料同時保留原始及編輯後的場景與時間軸。
 
 每次錄製包含：
@@ -99,7 +101,7 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 匯出套件包含播放圖庫、海報、抽樣驗證畫格、原始與輸出檔案的雜湊，以及所有附屬檔案。自動驗收不能取代觀看實際操作，尤其是共用視窗鏡像及焦點目標仍須目視確認。網頁播放器使用原生控制項和 `preload="none"`，由使用者主動播放，且一次只播放一部影片。每個影片集提供縮圖清單、數量及前後按鈕。每部影片也連結至相關設定鍵。方向鍵、Home/End 及個別影片連結，不必展開額外面板即可使用。
 
-雙螢幕錄製連接實際的虛擬顯示器，分別擷取並依首影格時間對齊。見[已驗證 VM 設定](../docs/zh-Hant/MULTI-DISPLAY.md)。
+雙螢幕錄製連接實際的虛擬顯示器，分別擷取並依首影格時間對齊。見[已驗證 VM 設定](MULTI-DISPLAY.md)。
 
 <a id="work-on-one-scene"></a>
 ## 調整單一場景
@@ -132,10 +134,10 @@ DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
   swift test --package-path DemoLab
 ```
 
-- [場景語法](../docs/zh-Hant/SCENES.md)
-- [VM 設定](../docs/zh-Hant/VM-TART.md)
-- [權限](../docs/zh-Hant/PERMISSIONS.md)
-- [實際多顯示器錄製](../docs/zh-Hant/MULTI-DISPLAY.md)
+- [場景語法](SCENES.md)
+- [VM 設定](VM-TART.md)
+- [權限](PERMISSIONS.md)
+- [實際多顯示器錄製](MULTI-DISPLAY.md)
 
 <a id="five-language-production"></a>
 ## 五語言製作

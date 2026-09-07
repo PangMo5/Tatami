@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](../README.md) · [한국어](README.md) · [日本語](../ja/README.md) · [简体中文](../zh-Hans/README.md) · [繁體中文](../zh-Hant/README.md)
+[English](../../README.md) · [한국어](README.md) · [日本語](../ja/README.md) · [简体中文](../zh-Hans/README.md) · [繁體中文](../zh-Hant/README.md)
 <!-- LANGUAGE-LINKS:END -->
 
 <a id="tatami-demo-lab"></a>
@@ -10,11 +10,11 @@
 <a id="publication-contract"></a>
 ## 공개용 영상 규칙
 
-[`publication.json`](../publication.json)에 영상 목록과 편집 예산을 정해요. 각 장면을 웹 섹션에 연결하고 길이와 파일 크기를 제한해요.
+[`publication.json`](../../publication.json)에 영상 목록과 편집 예산을 정해요. 각 장면을 웹 섹션에 연결하고 길이와 파일 크기를 제한해요.
 
 종합 영상은 디자인 → 글쓰기 → 검토 → 빌려오기 → 자동화에 이어 실제 화면 구성 변경으로 끝나요. 기능별 모음은 작업 공간, 프로필·화면, 타일링·포커스, 빌려오기, 창 표시, CLI·훅, 가이드 설정을 다뤄요. 목록은 `publication.json`에서 만들므로 별도로 중복 관리하지 않아요.
 
-종합 영상은 **작업을 바꿔도 하던 자리를 유지한다**는 약속을 보여줘요. 기능별 영상은 다른 활동을 보여주며 종합 영상을 반복하지 않아요. 전체 범위는 [기능과 검증 범위](../docs/ko/COVERAGE.md)에서 확인해요.
+종합 영상은 **작업을 바꿔도 하던 자리를 유지한다**는 약속을 보여줘요. 기능별 영상은 다른 활동을 보여주며 종합 영상을 반복하지 않아요. 전체 범위는 [기능과 검증 범위](COVERAGE.md)에서 확인해요.
 
 <a id="capture--export--review--install-locally"></a>
 ## 촬영 → 내보내기 → 검수 → 로컬 반영
@@ -85,6 +85,8 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 원본 MOV에는 촬영한 데스크톱 전체가 담겨요. 내보낼 때는 1920×1200을 유지하고, 두 화면 영상은 1920×600으로 만들어요. 자막은 영상 아래쪽에, 장면 이름은 왼쪽 위에, 실제 키 입력은 오른쪽 위에 겹쳐 표시해요. 반투명 배경으로 밝거나 어두운 앱 위에서도 읽기 쉽게 했어요. 색상은 웹사이트 팔레트를 사용하므로 표현을 바꿀 때 다시 촬영할 필요는 없어요.
 
+썸네일 시점은 `publication.json`의 `posterSeconds` 또는 `posterCaptionIndex`로 정해요. 기능이 실제로 적용된 뒤의 장면을 선택해요. 썸네일 URL에는 이미지 해시를 사용하므로 이미지만 교체할 때 영상을 다시 인코딩할 필요가 없어요.
+
 자막만 고칠 때는 촬영한 동작, 입력 내용, 검증 조건, 대기 시간이 모두 같아야 원본을 재사용할 수 있어요. 내보내기 도구는 촬영 당시 고정한 장면 파일의 해시와 동작을 검증한 뒤 원래 타임라인의 자막을 교체해요. 증거 자료에는 원본과 수정본의 장면 파일 및 타임라인을 모두 포함해요.
 
 각 테이크에는 다음 파일이 있어요.
@@ -99,7 +101,7 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 내보내기 묶음에는 재생 갤러리, 포스터, 추출한 검증 프레임, 원본·결과물 해시와 모든 부가 파일이 들어 있어요. 자동 검증이 실제 동작 확인을 대신하지는 않아요. 특히 공용 창 미러링과 포커스 대상은 화면으로 확인해야 해요. 웹 플레이어는 기본 컨트롤과 `preload="none"`를 사용하며, 직접 재생하고 한 번에 영상 하나만 재생돼요. 각 모음에는 썸네일 목록, 개수, 이전·다음 버튼이 있어요. 영상마다 관련 설정 키로 가는 링크도 제공해요. 방향키, Home/End, 개별 영상 링크는 별도 펼치기 없이 사용할 수 있어요.
 
-두 화면 촬영은 게스트에 실제 가상 디스플레이를 연결하고 각각 녹화한 뒤 첫 프레임 시각으로 맞춰요. [확인한 VM 구성](../docs/ko/MULTI-DISPLAY.md)을 참고하세요.
+두 화면 촬영은 게스트에 실제 가상 디스플레이를 연결하고 각각 녹화한 뒤 첫 프레임 시각으로 맞춰요. [확인한 VM 구성](MULTI-DISPLAY.md)을 참고하세요.
 
 <a id="work-on-one-scene"></a>
 ## 장면 하나 수정하기
@@ -132,10 +134,10 @@ DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
   swift test --package-path DemoLab
 ```
 
-- [장면 문법](../docs/ko/SCENES.md)
-- [VM 설정](../docs/ko/VM-TART.md)
-- [권한](../docs/ko/PERMISSIONS.md)
-- [실제 두 화면 촬영](../docs/ko/MULTI-DISPLAY.md)
+- [장면 문법](SCENES.md)
+- [VM 설정](VM-TART.md)
+- [권한](PERMISSIONS.md)
+- [실제 두 화면 촬영](MULTI-DISPLAY.md)
 
 <a id="five-language-production"></a>
 ## 다섯 언어 영상 제작

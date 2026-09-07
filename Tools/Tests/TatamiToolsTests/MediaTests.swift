@@ -230,3 +230,37 @@ func `invalid copy cannot remove an existing artifact`() throws {
   #expect(throws: (any Error).self) { try copy(fixture.directory.at("missing.json"), artifact) }
   #expect(try artifact.text() == "accepted evidence")
 }
+
+@Test
+func `replacing poster changes its cache key without changing the video URL`() throws {
+  let fixture = try TemporaryFixture()
+  defer { fixture.remove() }
+  let poster = fixture.directory.at("borrow.jpg")
+  try poster.write("first poster")
+  let asset = try JSON
+    .parse(
+      #"{"scene":"borrow","locale":"en","title":"Borrow","description":"Borrow","video":"borrow.mp4","poster":"borrow.jpg","sha256":"0123456789abcdef","durationSeconds":14}"#
+    )
+  let gallery = try VideoGallery(workspace: testWorkspace)
+  let first = try gallery.collection("borrow", assets: [asset], mediaDirectory: fixture.directory)
+  try poster.write("updated poster")
+  let second = try gallery.collection("borrow", assets: [asset], mediaDirectory: fixture.directory)
+  #expect(first != second)
+  #expect(first.contains("borrow.mp4?v=0123456789ab"))
+  #expect(second.contains("borrow.mp4?v=0123456789ab"))
+  #expect(try second.contains("borrow.jpg?v=" + sha(poster).prefix(12)))
+}
+
+@Test
+func `poster selection uses the configured time and rejects invalid frames`() throws {
+  let asset = try JSON.parse(#"{"posterSeconds":5}"#)
+  #expect(try VideoExporter.posterTime(asset: asset, timeline: .object([]), duration: 14) == 5)
+  for second in [-1, 14, 20] {
+    #expect(throws: (any Error).self) {
+      try VideoExporter.posterTime(asset: .object([("posterSeconds", .integer(second))]), timeline: .object([]), duration: 14)
+    }
+  }
+  #expect(throws: (any Error).self) {
+    try VideoExporter.posterTime(asset: asset.merging([("posterCaptionIndex", .integer(0))]), timeline: .object([]), duration: 14)
+  }
+}

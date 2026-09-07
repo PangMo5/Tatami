@@ -55,8 +55,8 @@ a reason to correct preparation, not to trim away the unexpected window later.
 | `virtualDisplay` | `connected` | Connect or disconnect the real guest virtual display helper. |
 | `configure` | `field`, `value` | Atomically edit an allowed live setting in the lab TOML. |
 | `clipboard` | `text` | Provide local example text, preserving and restoring all clipboard item types. |
-| `closeSettings` | — | Close the native settings window after authoring. |
-| `prepareSettings` | — | Size and position the native Tatami settings window before its controls are used. |
+| `closeSettings` | No fields | Close the native settings window after authoring. |
+| `prepareSettings` | No fields | Size and position the native Tatami settings window before its controls are used. |
 | `appWindows` | `app`, `count` | Set native window count, primarily for preparation. |
 
 There is no `appState` command. Views cannot be jumped to a pre-rendered success

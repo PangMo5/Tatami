@@ -48,8 +48,8 @@
 |`virtualDisplay`|`connected`|게스트의 실제 가상 화면 도구를 연결하거나 해제해요.|
 |`configure`|`field`, `value`|실험용 TOML의 허용한 설정을 원자적으로 바꿔요.|
 |`clipboard`|`text`|클립보드의 모든 데이터 형식을 백업·복원하며 예시 텍스트를 제공해요.|
-|`closeSettings`|—|편집 뒤 네이티브 설정 창을 닫아요.|
-|`prepareSettings`|—|컨트롤을 조작하기 전에 Tatami 설정 창의 크기와 위치를 맞춰요.|
+|`closeSettings`|필드 없음|편집 뒤 네이티브 설정 창을 닫아요.|
+|`prepareSettings`|필드 없음|컨트롤을 조작하기 전에 Tatami 설정 창의 크기와 위치를 맞춰요.|
 |`appWindows`|`app`, `count`|주로 준비 단계에서 실제 창 수를 정해요.|
 
 `appState` 명령은 없어요. 미리 만든 성공 화면으로 이동하지 않고 일반 컨트롤과 `StoryRepository`로 저장한 작업을 공유해요. 문구·검토·검사·할 일·메시지는 같은 제어 폴더에 저장해요. `seed`만 이야기를 초기화하고 공간 전환은 초기화하지 않아요. 대화는 네트워크 없는 로컬 데모예요.
@@ -88,4 +88,4 @@
 
 `take`의 기본값은 `--overlay off`이며, 텍스트는 편집 가능한 ASS와 JSON 부가 파일에 기록해요. 내보낸 영상은 화면 아래쪽에 자막을, 왼쪽 위에 챕터를, 오른쪽 위에 실제 키 입력을 겹쳐 보여줘요. 반투명 배경으로 가독성을 높이지만 앱 내용을 가릴 수 있으므로 중요한 컨트롤은 해당 영역을 피해서 배치해요. `scene`는 실시간 리허설 패널을 사용하며, 최종 영상의 표시 방식과는 달라요.
 
-배치 위치와 시간·용량 예산은 [publication.json](../../publication.json), 촬영·출력·검수 명령은 [README.md](../../ko/README.md)를 참고하세요.
+배치 위치와 시간·용량 예산은 [publication.json](../../publication.json), 촬영·출력·검수 명령은 [README.md](README.md)를 참고하세요.

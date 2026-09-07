@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](../README.md) · [한국어](../ko/README.md) · [日本語](../ja/README.md) · [简体中文](README.md) · [繁體中文](../zh-Hant/README.md)
+[English](../../README.md) · [한국어](../ko/README.md) · [日本語](../ja/README.md) · [简体中文](README.md) · [繁體中文](../zh-Hant/README.md)
 <!-- LANGUAGE-LINKS:END -->
 
 <a id="tatami-demo-lab"></a>
@@ -10,11 +10,11 @@
 <a id="publication-contract"></a>
 ## 发布约定
 
-[`publication.json`](../publication.json) 定义视频清单和编辑预算，映射网站区块并限制时长和文件大小。
+[`publication.json`](../../publication.json) 定义视频清单和编辑预算，映射网站区块并限制时长和文件大小。
 
 主视频依次展示设计、写作、评审、借用、自动化，最后实际改变显示器拓扑。专题涵盖工作区、配置方案与显示器、平铺与焦点、借用、窗口模式、CLI/钩子和引导设置。清单由 `publication.json` 生成，无需维护重复列表。
 
-主视频传达**切换任务，保留工作位置**。专题展示不同活动，不重复主视频。完整范围见[覆盖与证据边界](../docs/zh-Hans/COVERAGE.md)。
+主视频传达**切换任务，保留工作位置**。专题展示不同活动，不重复主视频。完整范围见[覆盖与证据边界](COVERAGE.md)。
 
 <a id="capture--export--review--install-locally"></a>
 ## 录制 → 导出 → 检查 → 本地安装
@@ -85,6 +85,8 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 原始 MOV 包含完整的桌面画面。导出保留 1920×1200 分辨率，双屏视频为 1920×600。说明字幕叠加在画面下方，章节名称位于左上角，实际按键位于右上角。半透明背景确保文字在深浅色应用上都清晰可读。颜色来自网站配色，调整呈现方式无需重新录制。
 
+缩略图时间由 `publication.json` 中的 `posterSeconds` 或 `posterCaptionIndex` 指定。请选择功能实际生效后的画面。缩略图 URL 使用图片哈希，因此仅替换图片时无需重新编码视频。
+
 仅修改字幕时，只有录制的操作、输入内容、断言和等待时间均未改变，才可复用原始视频。导出工具会验证录制时冻结的场景哈希并比较操作，然后替换原时间线上的说明文字。证据资料同时保留原始和编辑后的场景及时间线。
 
 每次录制包含：
@@ -99,7 +101,7 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 导出包包含播放图库、海报、抽样验证帧、原始与输出文件的哈希及所有附属文件。自动验收不能替代观看实际操作，尤其是共享窗口镜像和焦点目标仍需目视确认。网页播放器使用原生控件和 `preload="none"`，由用户主动播放，且一次只播放一个视频。每个视频集提供缩略图列表、数量和前后按钮。每个视频还链接到相关配置键。方向键、Home/End 和单独视频链接无需展开额外面板即可使用。
 
-双屏录制连接实际的虚拟显示器，分别捕获并按首帧时间对齐。见[已验证 VM 配置](../docs/zh-Hans/MULTI-DISPLAY.md)。
+双屏录制连接实际的虚拟显示器，分别捕获并按首帧时间对齐。见[已验证 VM 配置](MULTI-DISPLAY.md)。
 
 <a id="work-on-one-scene"></a>
 ## 调整单个场景
@@ -132,10 +134,10 @@ DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
   swift test --package-path DemoLab
 ```
 
-- [场景语法](../docs/zh-Hans/SCENES.md)
-- [VM 设置](../docs/zh-Hans/VM-TART.md)
-- [权限](../docs/zh-Hans/PERMISSIONS.md)
-- [实际多显示器录制](../docs/zh-Hans/MULTI-DISPLAY.md)
+- [场景语法](SCENES.md)
+- [VM 设置](VM-TART.md)
+- [权限](PERMISSIONS.md)
+- [实际多显示器录制](MULTI-DISPLAY.md)
 
 <a id="five-language-production"></a>
 ## 五语言制作

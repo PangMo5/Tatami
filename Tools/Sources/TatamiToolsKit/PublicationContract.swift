@@ -19,6 +19,8 @@ struct PublicationContract: Decodable {
     let maxSeconds: Double
     let maxMB: Double
     let presentation: Presentation?
+    let posterSeconds: Double?
+    let posterCaptionIndex: Int?
   }
 
   let assets: [Asset]

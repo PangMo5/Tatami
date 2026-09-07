@@ -60,6 +60,7 @@ struct SiteBuilder {
     for locale in selectedLocales {
       guard let manifest = manifests[locale] else { throw ToolError("Missing manifest: \(locale)") }
       let assets = manifest["assets"].array
+      let mediaDirectory = workspace.root.at(locale == "en" ? "web" : "web/media/" + locale)
       let groups = orderedGroups(assets.filter { $0["scene"].str != "tour" }.map { asset in
         asset.merging([
           ("locale", .string(locale)),
@@ -80,7 +81,8 @@ struct SiteBuilder {
             let name = URL(fileURLWithPath: URLComponents(string: poster)?.path ?? poster).stem
             guard let asset = assets.first(where: { $0["scene"].str == name })
             else { throw ToolError("Missing hero asset: \(name)") }
-            node["poster"] = mediaURL(asset, kind: "poster", locale: locale) + "?v=" + asset["sha256"].str.prefix(12)
+            node["poster"] = try mediaURL(asset, kind: "poster", locale: locale) + "?v=" +
+              sha(mediaDirectory.at(asset["poster"].str)).prefix(12)
           }
           if node.tag == "source", node["type"] == "video/mp4", let source = node["src"] {
             let name = URL(fileURLWithPath: URLComponents(string: source)?.path ?? source).stem
@@ -112,12 +114,8 @@ struct SiteBuilder {
             node["href"] = (locale == "en" ? "./" : "../") + "content/" + locale + "/" + URL(fileURLWithPath: href)
               .lastPathComponent
           }
-          if node.tag == "a", locale != "en" {
-            for notice in ["NOTICE", "THIRD_PARTY_NOTICES"] {
-              if
-                let href = node["href"],
-                href.hasSuffix("/" + notice + ".md") { node["href"] = String(href.dropLast(3)) + "." + locale + ".md" }
-            }
+          if node.tag == "a", let href = node["href"] {
+            node["href"] = DocumentBuilder(workspace: workspace).localizedNoticeLink(href, locale: locale)
           }
           for child in node.children { if let child = child.node { try walk(child) } }
           if node.tag == "div", node["class"] == "nav-inner" {
@@ -162,7 +160,7 @@ struct SiteBuilder {
         text = try replacing(#"<div data-collection="([^"]+)"></div>"#, in: text) { match in
           guard let assets = groups.first(where: { $0.0 == match[1] })?.1
           else { throw ToolError("Missing collection: \(match[1])") }
-          return try gallery.collection(match[1], assets: assets)
+          return try gallery.collection(match[1], assets: assets, mediaDirectory: mediaDirectory)
         }
         output.append(((locale == "en" ? "" : locale + "/") + page, text + "\n"))
       }

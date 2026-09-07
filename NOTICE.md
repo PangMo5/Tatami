@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](NOTICE.md) · [한국어](NOTICE.ko.md) · [日本語](NOTICE.ja.md) · [简体中文](NOTICE.zh-Hans.md) · [繁體中文](NOTICE.zh-Hant.md)
+[English](NOTICE.md) · [한국어](docs/ko/NOTICE.md) · [日本語](docs/ja/NOTICE.md) · [简体中文](docs/zh-Hans/NOTICE.md) · [繁體中文](docs/zh-Hant/NOTICE.md)
 <!-- LANGUAGE-LINKS:END -->
 
 # Notice

@@ -48,8 +48,8 @@
 |`virtualDisplay`|`connected`|連接或中斷實際虛擬顯示器工具。|
 |`configure`|`field`, `value`|不可分割地修改實驗 TOML 中允許的即時設定。|
 |`clipboard`|`text`|提供本機範例文字，同時保留並還原所有剪貼簿類型。|
-|`closeSettings`|—|編輯後關閉原生設定視窗。|
-|`prepareSettings`|—|操作控制項前，調整 Tatami 原生設定視窗的大小與位置。|
+|`closeSettings`|無欄位|編輯後關閉原生設定視窗。|
+|`prepareSettings`|無欄位|操作控制項前，調整 Tatami 原生設定視窗的大小與位置。|
 |`appWindows`|`app`, `count`|設定原生視窗數量，主要用於準備。|
 
 沒有 `appState` 指令，視圖不能跳到預製成功狀態。它們使用一般控制項，透過 `StoryRepository` 共用儲存的文案、審閱、檢查、待辦與訊息。`seed` 重設故事，切換工作空間不會。聊天是沒有網路傳輸的本機示範。
@@ -88,4 +88,4 @@
 
 `take` 預設為 `--overlay off`，文字會儲存在可編輯的 ASS 與 JSON 附屬檔案中。匯出的影片會在畫面下方疊加字幕、左上角顯示章節、右上角顯示實際按鍵。半透明背景提高了可讀性，但仍可能遮住 App 內容，因此重要控制項應避開這些區域。`scene` 使用即時排練面板，呈現方式與最終影片不同。
 
-位置與時間、容量預算見 [publication.json](../../publication.json)；錄製、輸出與檢查指令見 [README.md](../../zh-Hant/README.md)。
+位置與時間、容量預算見 [publication.json](../../publication.json)；錄製、輸出與檢查指令見 [README.md](README.md)。

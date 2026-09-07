@@ -12,6 +12,23 @@ struct VideoExporter {
     Narration(workspace: workspace)
   }
 
+  static func posterTime(asset: JSON, timeline: JSON, duration: Double) throws -> Double {
+    try require(
+      asset["posterSeconds"].isNull || asset["posterCaptionIndex"].isNull,
+      "Choose either posterSeconds or posterCaptionIndex",
+    )
+    var second = 0.5
+    if !asset["posterSeconds"].isNull { second = asset["posterSeconds"].double }
+    else if !asset["posterCaptionIndex"].isNull {
+      let captions = timeline["events"].array.filter { $0["track"].str == "caption" && !$0["text"].str.isEmpty }
+      let index = asset["posterCaptionIndex"].int
+      try require(captions.indices.contains(index), "Poster caption index out of range")
+      second = captions[index]["start"].double + 0.3
+    }
+    try require(second.isFinite && second >= 0 && second < duration, "Poster time is outside the film")
+    return second
+  }
+
   static func acceptedFrames(_ record: JSON) -> Bool {
     record["frames"].double > 0 && record["droppedFrames"].double >= 0 && record["droppedFrames"].double / record["frames"]
       .double <= 0.01
@@ -57,6 +74,7 @@ struct VideoExporter {
       let opening = timeline["events"].array.first(where: { $0["track"].str == "caption" && !$0["text"].str.isEmpty }),
       opening["start"].double <= 0.35
     else { throw ToolError("\(movie.path): opening narration is late or missing") }
+    _ = try Self.posterTime(asset: asset, timeline: timeline, duration: duration)
     return (record, duration)
   }
 
@@ -122,13 +140,7 @@ struct VideoExporter {
     try require(Double(bytes) <= asset["maxMB"].double * 1_048_576, "\(target.path): exceeds MB budget")
     try await runProcess(["ffmpeg", "-v", "error", "-xerror", "-i", target.path, "-f", "null", "-"])
     let poster = target.replacingExtension("jpg")
-    let captions = timeline["events"].array.filter { $0["track"].str == "caption" && !$0["text"].str.isEmpty }
-    var posterTime = 0.5
-    if !asset["posterCaptionIndex"].isNull {
-      let index = asset["posterCaptionIndex"].int
-      try require(captions.indices.contains(index), "Poster caption index out of range")
-      posterTime = captions[index]["start"].double + 0.3
-    }
+    let posterTime = try Self.posterTime(asset: asset, timeline: timeline, duration: duration)
     try await runProcess([
       "ffmpeg",
       "-v",

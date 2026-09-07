@@ -46,7 +46,10 @@ struct Publication {
         else { throw ToolError("Missing collection container: \(section)") }
         position = div.lowerBound
       }
-      text.insert(contentsOf: try "\n    " + gallery.collection(section, assets: assets), at: position)
+      text.insert(
+        contentsOf: try "\n    " + gallery.collection(section, assets: assets, mediaDirectory: workspace.root.at("web")),
+        at: position,
+      )
     }
     if !text.contains("src=\"./demos.js\"") { text = text.replacingOccurrences(
       of: "</body>",
@@ -56,9 +59,11 @@ struct Publication {
     text = replacing(#"(?s)<!-- DEMO-SETTINGS:tour:START -->.*?<!-- DEMO-SETTINGS:tour:END -->"#, in: text) { _ in
       "<!-- DEMO-SETTINGS:tour:START -->" + gallery.settingsLinks(hero) + "<!-- DEMO-SETTINGS:tour:END -->"
     }
-    for name in [hero["video"].str, hero["poster"].str] {
+    for kind in ["video", "poster"] {
+      let name = hero[kind].str
+      let token = try kind == "poster" ? sha(workspace.root.at("web/" + name)) : hero["sha256"].str
       text = replacing(NSRegularExpression.escapedPattern(for: name) + #"(?:\?v=[a-f0-9]+)?"#, in: text) { _ in
-        name + "?v=" + hero["sha256"].str.prefix(12)
+        name + "?v=" + token.prefix(12)
       }
     }
     try page.write(text)
