@@ -34,13 +34,6 @@
     "zh-Hans": "[![为整个工作流程腾出空间。]({0})]({1})",
     "zh-Hant": "[![為整個工作流程騰出空間。]({0})]({1})"
   },
-  "f3500adbf7d3a1b8": {
-    "en": "**[Watch the complete workflow]({0})** — design, write, review, borrow a follow-up, automate a focus session, and adapt to a second display. Real Tatami window management; demo apps and sample content. The displayed shortcuts are this demo's configured bindings.",
-    "ko": "**[전체 작업 흐름 보기]({0})**. 디자인, 글쓰기, 검토, 다음 할 일 빌려오기, 집중 환경 자동화, 두 번째 화면 연결까지 이어져요. 실제 Tatami로 창을 관리하며 앱과 내용은 데모용이에요. 표시한 단축키는 이 데모에서 설정한 키예요.",
-    "ja": "**[一連の作業を見る]({0})**。デザイン、執筆、レビュー、次の作業を借りる操作、集中環境の自動化、2 台目の画面への対応まで紹介します。実際の Tatami を使い、アプリと内容はデモ用です。表示するキーはこのデモの設定です。",
-    "zh-Hans": "**[观看完整工作流程]({0})**：设计、写作、评审、借用待办事项、自动准备专注环境，再连接第二个显示器。窗口由实际的 Tatami 管理，应用和内容为演示素材。快捷键采用本次演示的配置。",
-    "zh-Hant": "**[觀看完整工作流程]({0})**：設計、撰寫、審閱、借用待辦事項、自動準備專注環境，再連接第二部顯示器。視窗由實際的 Tatami 管理，App 和內容為示範素材。快速鍵採用本次示範的設定。"
-  },
   "5088d504cc27e8ca": {
     "en": "Settings and Guided Setup screenshots",
     "ko": "설정과 시작 안내 스크린샷",
@@ -90,13 +83,6 @@
     "zh-Hans": "主要功能",
     "zh-Hant": "主要功能"
   },
-  "272f97cb2b06613c": {
-    "en": "[![Move between tasks.]({0})]({1})",
-    "ko": "[![작업 사이를 오가기]({0})]({1})",
-    "ja": "[![作業を切り替える]({0})]({1})",
-    "zh-Hans": "[![在任务之间切换]({0})]({1})",
-    "zh-Hant": "[![在工作之間切換]({0})]({1})"
-  },
   "f06c5df8b334f0ad": {
     "en": "**Virtual workspaces:** Group apps with per-workspace assignments.",
     "ko": "**가상 작업 공간:** 작업 공간마다 필요한 앱을 배정해서 모아요.",
@@ -132,13 +118,6 @@
     "zh-Hans": "**可选切换行为：** 启用循环、跳过空工作区或跟随应用焦点。",
     "zh-Hant": "**可選切換行為：** 啟用循環、略過空工作空間或跟隨 App 焦點。"
   },
-  "804ab2a6ffa55907": {
-    "en": "**[Auto-open demo]({0}):** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.",
-    "ko": "**[자동 열기 데모]({0}):** 작업 공간에 들어가면 배정한 앱이 열려요. 창을 닫아도 다시 들어가면 열어줘요.",
-    "ja": "**[自動で開くデモ]({0})：** 作業を開くと割り当てたアプリが起動し、閉じたウインドウも入り直すと開きます。",
-    "zh-Hans": "**[自动打开演示]({0})：** 激活工作区时启动分配的应用，重新进入时打开之前关闭的窗口。",
-    "zh-Hant": "**[自動開啟示範]({0})：** 啟用工作空間時啟動指派的 App，重新進入時開啟先前關閉的視窗。"
-  },
   "a2a4c7eef067a833": {
     "en": "**Per-display workspaces:** Pin a workspace to a display or have dynamic workspaces open under the mouse. Each display keeps its own active and recent workspace across relaunches, while next/previous and recent navigation can independently stay local or span every display.",
     "ko": "**화면별 작업 공간:** 특정 화면에 고정하거나 마우스가 있는 화면에 열 수 있어요. 각 화면은 재실행 후에도 활성·최근 작업 공간을 기억해요. 다음·이전·최근 이동의 범위는 각각 현재 화면이나 전체 화면으로 정할 수 있어요.",
@@ -173,13 +152,6 @@
     "ja": "ウインドウのタイル表示（BSP）",
     "zh-Hans": "窗口平铺（BSP）",
     "zh-Hant": "視窗並排（BSP）"
-  },
-  "790aa2182df007c9": {
-    "en": "[![Let new windows find their place.]({0})]({1})",
-    "ko": "[![새 창이 제자리를 찾도록 하기]({0})]({1})",
-    "ja": "[![新しいウインドウが自然に収まる]({0})]({1})",
-    "zh-Hans": "[![让新窗口找到位置]({0})]({1})",
-    "zh-Hant": "[![讓新視窗找到位置]({0})]({1})"
   },
   "25c0497cea23b369": {
     "en": "**Interactive window switching:** Tap the window-switch shortcut for an immediate switch, or hold its modifier for a compact app / window switcher. It stays scoped to the display under the pointer, can include Shared Apps, shows each window's current state, and lets you choose the exact target with the keyboard or pointer.",
@@ -230,13 +202,6 @@
     "zh-Hans": "配置方案",
     "zh-Hant": "設定組合"
   },
-  "049ce189ea067ef4": {
-    "en": "[Watch the profile and two-display collection]({0}).",
-    "ko": "[프로필과 두 화면 영상 모음 보기]({0}).",
-    "ja": "[プロファイルと 2 画面の動画を見る]({0})。",
-    "zh-Hans": "[观看配置方案与双屏演示]({0})。",
-    "zh-Hant": "[觀看設定組合與雙螢幕示範]({0})。"
-  },
   "046fb607b89e0122": {
     "en": "**Independent profiles:** Group workspaces and switch the whole set at once. Each profile keeps its own workspaces, app assignments, and shortcuts.",
     "ko": "**독립 프로필:** 작업 공간을 묶어 전체 구성을 한 번에 바꿔요. 프로필마다 작업 공간·앱 배정·단축키를 따로 저장해요.",
@@ -278,13 +243,6 @@
     "ja": "借りる：二つの作業を組み合わせる",
     "zh-Hans": "借用：组合两个工作区",
     "zh-Hant": "借用：組合兩個工作空間"
-  },
-  "1c8ba14ba65d9ee2": {
-    "en": "[![Bring a conversation alongside.]({0})]({1})",
-    "ko": "[![대화를 옆으로 가져오기]({0})]({1})",
-    "ja": "[![会話を横に呼び出す]({0})]({1})",
-    "zh-Hans": "[![把对话放到旁边]({0})]({1})",
-    "zh-Hant": "[![把對話放到旁邊]({0})]({1})"
   },
   "81200624043ee970": {
     "en": "**Side-by-side composition:** Pull another workspace beside the current one, dock it to any screen edge, and tile both blocks independently. Windows cannot cross the boundary.",
@@ -335,13 +293,6 @@
     "zh-Hans": "置顶",
     "zh-Hant": "置頂"
   },
-  "2ba6ee5674637a65": {
-    "en": "[Watch: one shared monitor above different workspaces]({0}).",
-    "ko": "[여러 작업 공간 위에서 같은 상태 창 보기]({0}).",
-    "ja": "[作業が変わっても同じ状態ウインドウを見る]({0})。",
-    "zh-Hans": "[观看跨工作区的共享状态窗口]({0})。",
-    "zh-Hant": "[觀看跨工作空間的共用狀態視窗]({0})。"
-  },
   "bb02b50349a30601": {
     "en": "**Per-workspace or shared:** Keep an app on top in one workspace or add it to Shared Apps to keep it on top everywhere.",
     "ko": "**작업 공간별 또는 공용:** 한 공간에서만 앱을 항상 위에 두거나 공용 앱으로 추가해 어디서나 볼 수 있어요.",
@@ -377,13 +328,6 @@
     "zh-Hans": "焦点与指针",
     "zh-Hant": "焦點與游標"
   },
-  "75b3930ec022a97b": {
-    "en": "[Watch focus follow the keyboard and pointer]({0}).",
-    "ko": "[키보드와 포인터에 따른 포커스 이동 보기]({0}).",
-    "ja": "[キーとポインタに合わせたフォーカス移動を見る]({0})。",
-    "zh-Hans": "[观看焦点跟随键盘和指针]({0})。",
-    "zh-Hant": "[觀看焦點跟隨鍵盤和游標]({0})。"
-  },
   "385afb896896c51a": {
     "en": "**Two explicit focus models:** Focus-follows-mouse gives the window under the pointer keyboard focus. Mouse-follows-focus moves the pointer after Tatami changes windows, including switching to Always on Top, Shared Always on Top, or Leave As Is windows.",
     "ko": "**두 가지 포커스 방식:** 마우스 따라가기는 포인터 아래 창에 키보드 포커스를 줘요. 포커스 따라가기는 Tatami가 창을 바꿀 때 포인터를 옮겨요. 항상 위·공용 항상 위·그대로 두기 창에서도 동작해요.",
@@ -411,13 +355,6 @@
     "ja": "画面と設定",
     "zh-Hans": "界面与配置",
     "zh-Hant": "介面與設定"
-  },
-  "809bd7992c5d8416": {
-    "en": "[Watch real CLI commands, hooks and live configuration]({0}).",
-    "ko": "[실제 CLI·훅·설정 바로 적용 보기]({0}).",
-    "ja": "[実際の CLI、フック、設定の即時反映を見る]({0})。",
-    "zh-Hans": "[观看实际 CLI、钩子和实时配置]({0})。",
-    "zh-Hant": "[觀看實際 CLI、掛鉤與即時設定]({0})。"
   },
   "bd123cd78d805214": {
     "en": "**Five interface languages:** Use Tatami in English, Korean, Japanese, Simplified Chinese, or Traditional Chinese, following your macOS app-language preference.",
@@ -495,13 +432,6 @@
     "ja": "使いながら設定",
     "zh-Hans": "设置向导",
     "zh-Hant": "設定導覽"
-  },
-  "78be28a73719fae3": {
-    "en": "[Watch shortcut practice and proposal review]({0}).",
-    "ko": "[단축키 연습과 제안 검토 보기]({0}).",
-    "ja": "[ショートカットの練習と提案の確認を見る]({0})。",
-    "zh-Hans": "[观看快捷键练习和建议检查]({0})。",
-    "zh-Hant": "[觀看快速鍵練習與建議檢查]({0})。"
   },
   "4a814980608feca1": {
     "en": "**Learn by doing:** First launch walks through Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Always on Top / Leave As Is, MFF / FFM, and app / window switching in a safe virtual display.",
@@ -5152,5 +5082,96 @@
     "ja": "開発用の自動化は、{0} で固定された別のパッケージ群を使います。[開発ツールの依存関係の表示]({1})は原文でご確認ください。",
     "zh-Hans": "开发自动化使用另一组依赖包，其版本固定在 {0} 中。请阅读原文形式的[开发工具依赖声明]({1})。",
     "zh-Hant": "開發自動化使用另一組套件，其版本固定在 {0} 中。請閱讀原文形式的[開發工具相依套件聲明]({1})。"
+  },
+  "55eeaa68d1c11f4d": {
+    "en": "**[Watch the complete workflow]({0})**: design, write, review, borrow a follow-up, automate a focus session, and adapt to a second display. Real Tatami window management; demo apps and sample content. The displayed shortcuts are this demo's configured bindings.",
+    "ko": "**[전체 작업 흐름 보기]({0})**. 디자인, 글쓰기, 검토, 다음 할 일 빌려오기, 집중 환경 자동화, 두 번째 화면 연결까지 이어져요. 실제 Tatami로 창을 관리하며 앱과 내용은 데모용이에요. 표시한 단축키는 이 데모에서 설정한 키예요.",
+    "ja": "**[一連の作業を見る]({0})**。デザイン、執筆、レビュー、次の作業を借りる操作、集中環境の自動化、2 台目の画面への対応まで紹介します。実際の Tatami を使い、アプリと内容はデモ用です。表示するキーはこのデモの設定です。",
+    "zh-Hans": "**[观看完整工作流程]({0})**：设计、写作、评审、借用待办事项、自动准备专注环境，再连接第二个显示器。窗口由实际的 Tatami 管理，应用和内容为演示素材。快捷键采用本次演示的配置。",
+    "zh-Hant": "**[觀看完整工作流程]({0})**：設計、撰寫、審閱、借用待辦事項、自動準備專注環境，再連接第二部顯示器。視窗由實際的 Tatami 管理，App 和內容為示範素材。快速鍵採用本次示範的設定。"
+  },
+  "4162bdb9d01f2674": {
+    "en": "No fields",
+    "ko": "필드 없음",
+    "ja": "フィールドなし",
+    "zh-Hans": "无字段",
+    "zh-Hant": "無欄位"
+  },
+  "66020df68980e3d9": {
+    "en": "Move between tasks",
+    "ko": "작업 사이를 오가기",
+    "ja": "作業を切り替える",
+    "zh-Hans": "在任务之间切换",
+    "zh-Hant": "在工作之間切換"
+  },
+  "e2b559681c8ba5ad": {
+    "en": "Let new windows find their place",
+    "ko": "새 창이 제자리를 찾도록 하기",
+    "ja": "新しいウインドウが自然に収まる",
+    "zh-Hans": "让新窗口找到位置",
+    "zh-Hant": "讓新視窗找到位置"
+  },
+  "0ed46e81f88e5f75": {
+    "en": "Switch the complete setup",
+    "ko": "전체 구성 전환하기",
+    "ja": "作業環境ごと切り替える",
+    "zh-Hans": "切换整套配置",
+    "zh-Hant": "切換整套設定"
+  },
+  "32259433af68fde7": {
+    "en": "Bring a conversation alongside",
+    "ko": "대화를 옆으로 가져오기",
+    "ja": "会話を横に呼び出す",
+    "zh-Hans": "把对话放到旁边",
+    "zh-Hant": "把對話放到旁邊"
+  },
+  "5e82e96ee8c8a2ed": {
+    "en": "One status window across tasks",
+    "ko": "여러 작업에서 같은 상태 창 보기",
+    "ja": "作業が変わっても同じ状態ウインドウを使う",
+    "zh-Hans": "跨任务使用同一个状态窗口",
+    "zh-Hant": "跨工作使用同一個狀態視窗"
+  },
+  "495cfb550d5d1b8d": {
+    "en": "Focus follows your intent",
+    "ko": "내 의도에 따라 포커스 이동하기",
+    "ja": "意図に合わせてフォーカスを移す",
+    "zh-Hans": "让焦点跟随你的意图",
+    "zh-Hant": "讓焦點跟隨你的意圖"
+  },
+  "27faaab644291827": {
+    "en": "Build a focus session with the CLI",
+    "ko": "CLI로 집중할 환경 준비하기",
+    "ja": "CLI で集中できる環境を用意する",
+    "zh-Hans": "用 CLI 准备专注环境",
+    "zh-Hant": "用 CLI 準備專注環境"
+  },
+  "dce217589e5c6b16": {
+    "en": "Learn by doing",
+    "ko": "직접 사용하며 익히기",
+    "ja": "使いながら覚える",
+    "zh-Hans": "边用边学",
+    "zh-Hant": "邊用邊學"
+  },
+  "dbae3e9ba44b12b1": {
+    "en": "Watch video",
+    "ko": "영상 보기",
+    "ja": "動画を見る",
+    "zh-Hans": "观看视频",
+    "zh-Hant": "觀看影片"
+  },
+  "1a48b68d5c98b65b": {
+    "en": "**Auto-open:** Launch assigned apps when a workspace activates and reopen them on re-entry if their window was closed.",
+    "ko": "**자동 열기:** 작업 공간으로 전환하면 지정한 앱을 실행하고, 창을 닫았더라도 다시 들어올 때 열어요.",
+    "ja": "**自動起動：** ワークスペースを開くと割り当てたアプリを起動し、ウインドウを閉じた場合も次に開くときに再び表示します。",
+    "zh-Hans": "**自动打开：** 激活工作区时启动指定应用；如果关闭了窗口，再次进入时会重新打开。",
+    "zh-Hant": "**自動開啟：** 啟用工作空間時啟動指定的 App；如果關閉了視窗，再次進入時會重新開啟。"
+  },
+  "b71ef439a9954775": {
+    "en": "Poster frames use {0} or {1} from {2}. Choose a frame after the feature has taken effect. Poster URLs use the image hash so replacing a still does not require re-encoding its video.",
+    "ko": "썸네일 시점은 {2}의 {0} 또는 {1}로 정해요. 기능이 실제로 적용된 뒤의 장면을 선택해요. 썸네일 URL에는 이미지 해시를 사용하므로 이미지만 교체할 때 영상을 다시 인코딩할 필요가 없어요.",
+    "ja": "サムネイルの時点は、{2} の {0} または {1} で指定します。機能が実際に反映された後のフレームを選んでください。サムネイルの URL には画像のハッシュを使うため、画像だけを差し替える場合に動画を再エンコードする必要はありません。",
+    "zh-Hans": "缩略图时间由 {2} 中的 {0} 或 {1} 指定。请选择功能实际生效后的画面。缩略图 URL 使用图片哈希，因此仅替换图片时无需重新编码视频。",
+    "zh-Hant": "縮圖時間由 {2} 中的 {0} 或 {1} 指定。請選擇功能實際生效後的畫面。縮圖 URL 使用圖片雜湊，因此只替換圖片時不需要重新編碼影片。"
   }
 }

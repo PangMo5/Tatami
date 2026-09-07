@@ -48,8 +48,8 @@
 |`virtualDisplay`|`connected`|连接或断开实际虚拟显示器工具。|
 |`configure`|`field`, `value`|原子修改实验 TOML 中允许的实时设置。|
 |`clipboard`|`text`|提供本地示例文本，同时保留并恢复所有剪贴板类型。|
-|`closeSettings`|—|编辑后关闭原生设置窗口。|
-|`prepareSettings`|—|操作控件前，调整 Tatami 原生设置窗口的大小和位置。|
+|`closeSettings`|无字段|编辑后关闭原生设置窗口。|
+|`prepareSettings`|无字段|操作控件前，调整 Tatami 原生设置窗口的大小和位置。|
 |`appWindows`|`app`, `count`|设置原生窗口数量，主要用于准备。|
 
 没有 `appState` 命令，视图不能跳到预制成功状态。它们使用普通控件，通过 `StoryRepository` 共享保存的文案、评审、检查、任务和消息。`seed` 重置故事，切换工作区不会。聊天是无网络传输的本地演示。
@@ -88,4 +88,4 @@
 
 `take` 默认为 `--overlay off`，文字保存在可编辑的 ASS 和 JSON 附属文件中。导出的视频会在画面下方叠加字幕、左上角显示章节、右上角显示实际按键。半透明背景提高了可读性，但仍可能遮挡应用内容，因此重要控件应避开这些区域。`scene` 使用实时排练面板，其呈现方式与最终视频不同。
 
-位置和时间、容量预算见 [publication.json](../../publication.json)；录制、导出和检查命令见 [README.md](../../zh-Hans/README.md)。
+位置和时间、容量预算见 [publication.json](../../publication.json)；录制、导出和检查命令见 [README.md](README.md)。

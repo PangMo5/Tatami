@@ -7,9 +7,9 @@ on:
       - "DemoLab/**"
       - "Localization/**"
       - "docs/**"
-      - "README*.md"
-      - "NOTICE*.md"
-      - "THIRD_PARTY_NOTICES*.md"
+      - "README.md"
+      - "NOTICE.md"
+      - "THIRD_PARTY_NOTICES.md"
       - "web/**"
       - ".github/workflows/tools.yml"
   workflow_dispatch:

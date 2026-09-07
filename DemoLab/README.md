@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](README.md) · [한국어](ko/README.md) · [日本語](ja/README.md) · [简体中文](zh-Hans/README.md) · [繁體中文](zh-Hant/README.md)
+[English](README.md) · [한국어](docs/ko/README.md) · [日本語](docs/ja/README.md) · [简体中文](docs/zh-Hans/README.md) · [繁體中文](docs/zh-Hant/README.md)
 <!-- LANGUAGE-LINKS:END -->
 
 # Tatami Demo Lab
@@ -122,6 +122,8 @@ Original MOV files contain the full captured desktop. Exports keep that image at
 the image, with a chapter label at the upper left and actual keystrokes at the
 upper right. Translucent backgrounds keep text readable over light and dark apps.
 The colors come from the website palette; changing presentation needs no new capture.
+
+Poster frames use `posterSeconds` or `posterCaptionIndex` from `publication.json`. Choose a frame after the feature has taken effect. Poster URLs use the image hash so replacing a still does not require re-encoding its video.
 
 Caption edits may reuse an original only when every recorded action, typed input,
 assertion and delay is unchanged. The exporter verifies the frozen scene hash and

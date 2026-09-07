@@ -1,23 +1,23 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](NOTICE.md) · [한국어](NOTICE.ko.md) · [日本語](NOTICE.ja.md) · [简体中文](NOTICE.zh-Hans.md) · [繁體中文](NOTICE.zh-Hant.md)
+[English](../../NOTICE.md) · [한국어](NOTICE.md) · [日本語](../ja/NOTICE.md) · [简体中文](../zh-Hans/NOTICE.md) · [繁體中文](../zh-Hant/NOTICE.md)
 <!-- LANGUAGE-LINKS:END -->
 
 <a id="notice"></a>
-# プロジェクトの告知
+# 프로젝트 고지
 
-Tatami はフォークではない独立プロジェクトです。次の先行成果を参考にしています。
+Tatami는 포크가 아닌 독립 프로젝트예요. 다음 선행 작업을 참고했어요.
 
-- 仮想ワークスペースの切り替えは Wojciech Kulik の [FlashSpace]（GPL-3.0）に着想を得ました。ソースを複製せず、独自の構成で実装しています。
-- タイルのモデルと移動、均等化、回転、反転、境界によるサイズ変更は、MIT の koekeishiya による [yabai] を基にしています。該当する著作権表示を以下に原文で掲載します。
+- 가상 작업 공간 전환 개념은 GPL-3.0으로 제공되는 Wojciech Kulik의 [FlashSpace]에서 영감을 받았어요. 소스를 복사하지 않고 Tatami의 구조에서 동작을 다시 구현했어요.
+- 창 타일링 모델과 이동·균등 배치·회전·뒤집기·경계 기반 크기 조절은 MIT 라이선스인 koekeishiya의 [yabai]를 바탕으로 했어요. 해당 저작권 고지를 아래에 원문으로 실었어요.
 
-Tatami は [AGPL-3.0-only](LICENSE) で提供します。FlashSpace、yabai、その作者との提携や承認などの関係はありません。
+Tatami는 [AGPL-3.0-only](../../LICENSE)로 제공해요. FlashSpace, yabai 또는 저자와 제휴·보증 등의 관계는 없어요.
 
-依存パッケージのライセンスと著作権の原文は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) に掲載しています。
+패키지 의존성의 라이선스와 저작권 원문은 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)에 실었어요.
 
 <!-- REUSE-IgnoreStart -->
 
 <a id="yabai-mit-license"></a>
-## yabai（MIT ライセンス）
+## yabai(MIT 라이선스)
 
 ```
 MIT License

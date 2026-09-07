@@ -21,8 +21,19 @@ struct DocumentBuilder {
   func destination(_ source: String, _ locale: String) -> URL {
     let file = workspace.root.at(source)
     if locale == "en" { return file }
-    if !source.contains("/") { return file.deletingLastPathComponent().at(file.stem + "." + locale + "." + file.pathExtension) }
+    if !source.contains("/") { return workspace.root.at("docs").at(locale).at(file.lastPathComponent) }
+    if source == "DemoLab/README.md" { return workspace.lab.at("docs").at(locale).at(file.lastPathComponent) }
     return file.deletingLastPathComponent().at(locale).at(file.lastPathComponent)
+  }
+
+  func localizedNoticeLink(_ value: String, locale: String) -> String {
+    guard locale != "en" else { return value }
+    for source in ["NOTICE.md", "THIRD_PARTY_NOTICES.md"] where value.hasSuffix("/" + source) {
+      let localized = relativePath(destination(source, locale), from: workspace.root)
+      if value.hasSuffix("/" + localized) { return value }
+      return String(value.dropLast(source.count)) + localized
+    }
+    return value
   }
 
   func languageLinks(_ source: String, _ locale: String) -> String {

@@ -29,7 +29,7 @@ struct VideoGallery {
     return "<nav class=\"demo-settings\" aria-label=\"\(label)\"><span>\(label)</span>\(links)</nav>"
   }
 
-  func collection(_ section: String, assets: [JSON], cacheBust: Bool = true) throws -> String {
+  func collection(_ section: String, assets: [JSON], mediaDirectory: URL, cacheBust: Bool = true) throws -> String {
     try require(!assets.isEmpty, "Empty video collection: \(section)")
     let locale = assets[0]["locale"].string ?? "en"
     let ui = interface[locale]
@@ -44,7 +44,8 @@ struct VideoGallery {
       let title = htmlEscape(asset["title"].str)
       let suffix = cacheBust ? "?v=" + asset["sha256"].str.prefix(12) : ""
       let video = htmlEscape(asset["video"].str + suffix)
-      let poster = htmlEscape(asset["poster"].str + suffix)
+      let posterSuffix = try cacheBust ? "?v=" + sha(mediaDirectory.at(asset["scene"].str + ".jpg")).prefix(12) : ""
+      let poster = htmlEscape(asset["poster"].str + posterSuffix)
       let description = htmlEscape(asset["description"].string ?? asset["title"].str)
       let duration = String(format: "%d:%02d", asset["durationSeconds"].int / 60, asset["durationSeconds"].int % 60)
       let aspect = ["dual", "dynamic-dual"].contains(asset["presentation"].str) ? "16 / 5" : "16 / 10"
@@ -90,6 +91,7 @@ struct VideoGallery {
       try "<section id=\"\(name)\"><div class=\"wrap\"><h2>\(ui["sections"][name].string ?? name)</h2>" + collection(
         name,
         assets: assets,
+        mediaDirectory: destination,
         cacheBust: false,
       ) + "</div></section>"
     }
@@ -106,6 +108,9 @@ struct VideoGallery {
       let document = try translateHTML(workspace.root.at("web/" + page).text(), TextCatalog(values: values, locale: locale), page)
       try document.walk { node in
         if node.tag == "html" { node["lang"] = locale }
+        if node.tag == "a", let href = node["href"] {
+          node["href"] = DocumentBuilder(workspace: workspace).localizedNoticeLink(href, locale: locale)
+        }
         if let source = node["data-document-src"] {
           let name = URL(fileURLWithPath: source).lastPathComponent
           node["data-document-src"] = "./content/" + name

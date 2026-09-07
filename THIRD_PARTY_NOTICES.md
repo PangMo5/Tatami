@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](THIRD_PARTY_NOTICES.md) · [한국어](THIRD_PARTY_NOTICES.ko.md) · [日本語](THIRD_PARTY_NOTICES.ja.md) · [简体中文](THIRD_PARTY_NOTICES.zh-Hans.md) · [繁體中文](THIRD_PARTY_NOTICES.zh-Hant.md)
+[English](THIRD_PARTY_NOTICES.md) · [한국어](docs/ko/THIRD_PARTY_NOTICES.md) · [日本語](docs/ja/THIRD_PARTY_NOTICES.md) · [简体中文](docs/zh-Hans/THIRD_PARTY_NOTICES.md) · [繁體中文](docs/zh-Hant/THIRD_PARTY_NOTICES.md)
 <!-- LANGUAGE-LINKS:END -->
 
 # Third-Party Notices

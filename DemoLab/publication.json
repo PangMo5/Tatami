@@ -273,7 +273,8 @@
           "key": "settings.switching.borrowDefaultEdge",
           "anchor": "settingsswitching"
         }
-      ]
+      ],
+      "posterSeconds": 5
     },
     {
       "scene": "scratchpad",

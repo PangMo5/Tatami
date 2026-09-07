@@ -1,5 +1,5 @@
 <!-- LANGUAGE-LINKS:START -->
-[English](../README.md) · [한국어](../ko/README.md) · [日本語](README.md) · [简体中文](../zh-Hans/README.md) · [繁體中文](../zh-Hant/README.md)
+[English](../../README.md) · [한국어](../ko/README.md) · [日本語](README.md) · [简体中文](../zh-Hans/README.md) · [繁體中文](../zh-Hant/README.md)
 <!-- LANGUAGE-LINKS:END -->
 
 <a id="tatami-demo-lab"></a>
@@ -10,11 +10,11 @@
 <a id="publication-contract"></a>
 ## 公開用動画の規則
 
-[`publication.json`](../publication.json) が一覧と編集上限です。各場面を Web の区分に結び、時間とサイズを制限します。
+[`publication.json`](../../publication.json) が一覧と編集上限です。各場面を Web の区分に結び、時間とサイズを制限します。
 
 紹介動画はデザイン、執筆、レビュー、借りる操作、自動化から、実際の画面構成変更まで進みます。各動画集では作業、プロファイルと画面、配置とフォーカス、借りる操作、表示方法、CLI・フック、ガイドを扱います。一覧は `publication.json` から生成します。
 
-主動画は**作業を変えても元の場所に戻れる**ことを示します。機能別は別の活動を扱い、同じ動画を繰り返しません。[範囲と検証の境界](../docs/ja/COVERAGE.md)を参照してください。
+主動画は**作業を変えても元の場所に戻れる**ことを示します。機能別は別の活動を扱い、同じ動画を繰り返しません。[範囲と検証の境界](COVERAGE.md)を参照してください。
 
 <a id="capture--export--review--install-locally"></a>
 ## 録画 → 書き出し → 確認 → ローカル反映
@@ -85,6 +85,8 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 元の MOV には、撮影したデスクトップ全体が含まれます。書き出しは 1920×1200、2 画面の場合は 1920×600 です。説明字幕は映像の下部、章名は左上、実際のキー入力は右上に重ねます。半透明の背景により、明るいアプリでも暗いアプリでも読みやすくなります。色はウェブサイトの配色を使うため、表示の変更に再撮影は必要ありません。
 
+サムネイルの時点は、`publication.json` の `posterSeconds` または `posterCaptionIndex` で指定します。機能が実際に反映された後のフレームを選んでください。サムネイルの URL には画像のハッシュを使うため、画像だけを差し替える場合に動画を再エンコードする必要はありません。
+
 字幕の編集で元映像を再利用できるのは、撮影した操作、入力内容、検証条件、待機時間がすべて同じ場合だけです。書き出しツールは撮影時に固定したシーンのハッシュと操作を検証し、元のタイムライン上の説明文を差し替えます。検証資料には、編集前後のシーンとタイムラインを両方含めます。
 
 各テイクには次のファイルがあります。
@@ -99,7 +101,7 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 
 書き出しには再生ギャラリー、ポスター、検証用フレーム、元映像と出力のハッシュ、すべての付随ファイルが含まれます。自動検証だけでは実際の動作確認を代替できません。特に共有ウインドウのミラーリングとフォーカス先は目視確認が必要です。ウェブプレイヤーは標準コントロールと `preload="none"` を使い、手動で再生し、同時に再生する動画は一つです。各動画集にはサムネイル一覧、件数、前後のボタンがあります。各動画から関連する設定キーにも移動できます。矢印キー、Home/End、個別動画へのリンクは、一覧を別途展開せずに使えます。
 
-2 画面ではゲストに実際の仮想画面を接続し、別々に録画して最初の時刻で揃えます。[確認済み構成](../docs/ja/MULTI-DISPLAY.md)を参照してください。
+2 画面ではゲストに実際の仮想画面を接続し、別々に録画して最初の時刻で揃えます。[確認済み構成](MULTI-DISPLAY.md)を参照してください。
 
 <a id="work-on-one-scene"></a>
 ## 一つの場面を調整する
@@ -132,10 +134,10 @@ DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
   swift test --package-path DemoLab
 ```
 
-- [場面の語彙](../docs/ja/SCENES.md)
-- [VM の準備](../docs/ja/VM-TART.md)
-- [権限](../docs/ja/PERMISSIONS.md)
-- [実際の複数画面録画](../docs/ja/MULTI-DISPLAY.md)
+- [場面の語彙](SCENES.md)
+- [VM の準備](VM-TART.md)
+- [権限](PERMISSIONS.md)
+- [実際の複数画面録画](MULTI-DISPLAY.md)
 
 <a id="five-language-production"></a>
 ## 5 言語での制作
