@@ -6,6 +6,11 @@ import Foundation
 import FoundationNetworking
 #endif
 import Hummingbird
+#if canImport(System)
+import System
+#else
+import SystemPackage
+#endif
 #if os(Linux)
 import Glibc
 #else
@@ -114,7 +119,8 @@ private struct PreviewFileProvider: FileProvider {
 
   init(directory: URL, workspace: Workspace) {
     self.directory = directory.resolvingSymlinksInPath()
-    aliases = self.directory == workspace.root.at("web").resolvingSymlinksInPath()
+    directoryPath = Self.resolvedPath(directory)
+    aliases = directoryPath == Self.resolvedPath(workspace.root.at("web"))
       ? [
         "/icon.png": workspace.root.at("Resources/Marketing/app-icon.png"),
         "/content/en/CLI.md": workspace.root.at("docs/CLI.md"),
@@ -130,14 +136,17 @@ private struct PreviewFileProvider: FileProvider {
   typealias FileAttributes = LocalFileSystem.FileAttributes
 
   let directory: URL
+  let directoryPath: String
   let aliases: [String: URL]
   let filesystem: LocalFileSystem
 
   func getFileIdentifier(_ path: String) -> String? {
     if let alias = aliases[path] { return alias.path }
     let file = directory.at(String(path.drop(while: { $0 == "/" }))).resolvingSymlinksInPath()
-    guard file == directory || file.path.hasPrefix(directory.path + "/") else { return nil }
-    return file.path
+    let filePath = Self.resolvedPath(file)
+    let prefix = directoryPath == "/" ? "/" : directoryPath + "/"
+    guard filePath == directoryPath || filePath.hasPrefix(prefix) else { return nil }
+    return filePath
   }
 
   func getAttributes(id: String) async throws -> FileAttributes? {
@@ -161,6 +170,14 @@ private struct PreviewFileProvider: FileProvider {
       range: range,
       context: context,
     )
+  }
+
+  // MARK: Private
+
+  /// URL equality can distinguish directory hints and trailing separators.
+  /// Confinement compares resolved filesystem paths on both Darwin and Linux.
+  private static func resolvedPath(_ url: URL) -> String {
+    FilePath(url.resolvingSymlinksInPath().path).lexicallyNormalized().string
   }
 
 }

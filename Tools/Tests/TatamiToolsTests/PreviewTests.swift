@@ -49,3 +49,24 @@ func `preview streams full and ranged media`() async throws {
     try await client.execute(uri: "/%2e%2e/README.md", method: .get) { response in #expect(response.status != .ok) }
   }
 }
+
+@Test
+func `preview root accepts equivalent directory URL representations`() async throws {
+  let fixture = try TemporaryFixture()
+  defer { fixture.remove() }
+  try fixture.directory.at("index.html").write("root document")
+  let path = fixture.directory.path
+  for directory in [
+    URL(fileURLWithPath: path, isDirectory: false),
+    URL(fileURLWithPath: path, isDirectory: true),
+    URL(fileURLWithPath: path + "/", isDirectory: true),
+  ] {
+    let server = PreviewServer(directory: directory, workspace: testWorkspace, port: 8769)
+    try await server.application().test(.router) { client in
+      try await client.execute(uri: "/", method: .get) { response in
+        #expect(response.status == .ok, "Directory URL: \(directory.absoluteString)")
+        #expect(String(decoding: response.body.readableBytesView, as: UTF8.self) == "root document")
+      }
+    }
+  }
+}
