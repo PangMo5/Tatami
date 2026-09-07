@@ -10,24 +10,21 @@
 <a id="prepare-the-guest"></a>
 ## ゲストの準備
 
-ホストには Apple silicon と `exec` 対応 Tart、ゲストにはエージェント、Command Line Tools、Python 3、Tatami が必要です。明記がなければ `DemoLab/` で実行します。
+ホストには Apple シリコン、Swift 6.2 以降、`exec` に対応した Tart が必要です。ゲストには Tart エージェント、Command Line Tools、Tatami が必要です。ホストのコマンドはリポジトリのルート、ゲストのコマンドは `~/DemoLab` で実行します。
 
 ```sh
-./vm/tart/host-bootstrap.sh
+swift build --package-path Tools -c release
+Tools/.build/release/tatami-tools vm-bootstrap
 ```
 
 `1920x1200px` と `--no-display-refit` で固定し、ホストの窓サイズを変えても録画の解像度が変わらないようにします。共有は `/Volumes/My Shared Files/demolab` です。
 
-撮影する Tatami のビルドを、別の共有から渡します。
+プロビジョニングの前に、使う Tatami のビルドを Demo Lab の共有フォルダへコピーします。
 
 ```sh
-# Include both shares when starting the dedicated VM.
-tart run tatami-demo --dir="demolab:$PWD" --dir="tatami:/Applications"
-
-# From a separate host terminal:
-tart exec tatami-demo /bin/bash -lc \
-  'TATAMI_APP="/Volumes/My Shared Files/tatami/Tatami.app" \
-   "/Volumes/My Shared Files/demolab/vm/tart/guest-provision.sh"'
+ditto /Applications/Tatami.app DemoLab/.build/Tatami.app
+TATAMI_APP="/Volumes/My Shared Files/demolab/.build/Tatami.app" \
+  Tools/.build/release/tatami-tools vm-provision
 ```
 
 `TATAMI_APP` の代わりに `TATAMI_DMG` も使えます。SwiftPM はゲストのローカルでビルドし、全アプリを LaunchServices に登録して ID で探せるようにします。
@@ -39,18 +36,18 @@ VM の窓や画面共有で開き、[PERMISSIONS.md](PERMISSIONS.md) に従っ�
 
 ```sh
 # Host: sync current sources and rebuild in the guest.
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools vm-sync
 
 # Guest: each scene gets fresh lab data and preferences suppression.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && python3 scripts/capture.py --continue-on-error \
-   --output /Users/admin/DemoLab/recordings/review-batch'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --continue-on-error \
+  --output /Users/admin/DemoLab/recordings/review-batch
 
 # Host: a new destination, retaining originals and all provenance sidecars.
 GUEST_DIR=DemoLab/recordings/review-batch \
-  ./vm/tart/fetch-recordings.sh recordings/review-batch
+  Tools/.build/release/tatami-tools vm-fetch-recordings DemoLab/recordings/review-batch
 
-python3 scripts/export.py --takes recordings/review-batch \
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/review-batch \
   --output ~/Downloads/TatamiDemoLab-review
 ```
 
@@ -69,8 +66,9 @@ python3 scripts/export.py --takes recordings/review-batch \
 ## 終了とイメージの保存
 
 ```sh
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./bin/democtl quit && ./bin/democtl display disconnect && ./bin/democtl restore'
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl quit
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl display disconnect
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl restore
 ```
 
 `restore` は撮影前の設定を戻し、個人ホストには触れません。停止して確認したゲストは `tart clone` で保存できます。廃棄前に原本と証拠を外へ保管してください。

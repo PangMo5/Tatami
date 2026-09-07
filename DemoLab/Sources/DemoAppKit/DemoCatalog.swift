@@ -219,6 +219,27 @@ public enum DemoCatalog {
   /// Tatami's `settings.visibility.overlayAwareApps` instead.
   public static let overlayBundleIdentifier = "dev.PangMo5.DemoLab.Overlay"
 
+  public struct BundleSpecification: Codable, Sendable {
+    public let name: String
+    public let bundleIdentifier: String
+    public let categoryType: String
+    public let agent: Bool
+    public let captureUsageDescription: String?
+  }
+
+  public static var bundles: [BundleSpecification] {
+    all.map {
+      BundleSpecification(name: $0.name, bundleIdentifier: $0.bundleIdentifier,
+                          categoryType: $0.categoryType, agent: false, captureUsageDescription: nil)
+    } + [
+      BundleSpecification(name: "DemoRecorder", bundleIdentifier: "dev.PangMo5.DemoLab.DemoRecorder",
+                          categoryType: "public.app-category.video", agent: true,
+                          captureUsageDescription: "Demo Lab records the screen to produce Tatami demo videos."),
+      BundleSpecification(name: "DemoOverlay", bundleIdentifier: overlayBundleIdentifier,
+                          categoryType: "public.app-category.utilities", agent: true, captureUsageDescription: nil),
+    ]
+  }
+
   public static func spec(_ id: DemoAppID) -> DemoAppSpec {
     // Every case is present in `all`; a missing one is a programming error we
     // want to see immediately rather than paper over with a default app.

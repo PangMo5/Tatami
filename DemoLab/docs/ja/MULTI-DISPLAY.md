@@ -15,14 +15,14 @@ macOS 26.6.2 の Tart ゲストは**内部の CoreGraphics 仮想画面**を作�
 専用ゲスト内で実行します。
 
 ```sh
-./scripts/build-virtual-display.sh
-./bin/democtl display connect
-./bin/democtl displays
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl take desk --display all --output recordings/desk.mov
-./bin/democtl quit
-./bin/democtl display disconnect
+.build/tools/tatami-tools build-virtual-display
+.build/DemoLab/bin/democtl display connect
+.build/DemoLab/bin/democtl displays
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl take desk --display all --output recordings/desk.mov
+.build/DemoLab/bin/democtl quit
+.build/DemoLab/bin/democtl display disconnect
 ```
 
 非公開の `CGVirtualDisplay` はラボ専用で Tatami には含めません。[DeskPad の定義](https://github.com/Stengo/DeskPad/blob/main/DeskPad/CGVirtualDisplayPrivate.h)を参照し、1920×1200 の通常解像度の画面を作ります。切断や期限まで保持し、PID の実行ファイルを確認してから終了します。不在・未対応なら明示的に失敗します。
@@ -33,7 +33,7 @@ macOS 26.6.2 の Tart ゲストは**内部の CoreGraphics 仮想画面**を作�
 `--display all` は画面ごとに原本を書きます。共通時計からの最初の差、画面の原点、個別のフレームと損失数を記録し、ホストへ取得してから使います。
 
 ```sh
-python3 scripts/compose-displays.py recordings desk
+Tools/.build/release/tatami-tools compose-displays DemoLab/recordings desk
 ```
 
 物理原点の順と時刻差で揃え、原本を残して無損失の中間ファイルを作ります。単画面と同じ配色の横長動画にし、画像の複製やアニメーションで二画面を装いません。

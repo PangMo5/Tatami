@@ -14,7 +14,7 @@ public enum VirtualDisplayController {
   public static func connect(_ paths:LabPaths) throws {
     if hasSecondary() {return}
     let binary=paths.packageRoot.appendingPathComponent(".build/tools/demodisplay")
-    guard FileManager.default.isExecutableFile(atPath:binary.path) else {throw DemoCtlError.usage("run scripts/build-virtual-display.sh before adding a display")}
+    guard FileManager.default.isExecutableFile(atPath:binary.path) else {throw DemoCtlError.usage("run tatami-tools build-virtual-display before adding a display")}
     let process=try Shell.launchDetached(binary,["3600"],log:paths.packageRoot.appendingPathComponent(".build/virtual-display.log"))
     try Data(String(process.processIdentifier).utf8).write(to:pidFile(paths),options:.atomic)
     guard Shell.wait(timeout:.seconds(12),until:{hasSecondary()}) else {

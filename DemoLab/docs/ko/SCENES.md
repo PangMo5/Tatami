@@ -8,8 +8,8 @@
 장면은 `name`, `title`, 선택적인 `requires`, `setup`, `openingApps`, `steps`가 있는 JSON이에요. `setup`은 촬영 전에 실행하고 `steps`이 실제 영상이 돼요. 설치한 Tatami와 네이티브 데모 앱을 직접 조작해요.
 
 ```sh
-./bin/democtl scene tour --dry-run
-./bin/democtl take tour --output recordings/iteration/tour.mov
+.build/DemoLab/bin/democtl scene tour --dry-run
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
 ```
 
 <a id="preparation"></a>

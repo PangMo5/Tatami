@@ -6,10 +6,10 @@ import Observation
 public struct DemoCLIContext: Codable, Sendable {
   public let executable: String
   public let socket: String
-  public let scripts: String
+  public let automationExecutable: String
   public let config: String
-  public init(executable:String,socket:String,scripts:String,config:String) {
-    self.executable=executable;self.socket=socket;self.scripts=scripts;self.config=config
+  public init(executable:String,socket:String,automationExecutable:String,config:String) {
+    self.executable=executable;self.socket=socket;self.automationExecutable=automationExecutable;self.config=config
   }
   public static var file: URL { DemoControl.directory.appendingPathComponent("cli-context.json") }
 }
@@ -32,11 +32,11 @@ public enum DemoCommandRunner {
         executable=URL(fileURLWithPath:context.executable)
         arguments=Array(words.dropFirst())
       } else if words.first == "focus-session", words.count == 1 {
-        executable=URL(fileURLWithPath:context.scripts).appendingPathComponent("focus-session.sh")
-        arguments=[]
+        executable=URL(fileURLWithPath:context.automationExecutable)
+        arguments=["focus-session"]
       } else if words.first == "set-spacing", words.count == 2, let gap=Int(words[1]), (4...40).contains(gap) {
-        executable=URL(fileURLWithPath:context.scripts).appendingPathComponent("set-spacing.py")
-        arguments=[String(gap)]
+        executable=URL(fileURLWithPath:context.automationExecutable)
+        arguments=["set-spacing", String(gap)]
       } else {
         return TerminalResult(command:command,output:"Available: tatami <arguments>, focus-session, set-spacing <4...40>",exitCode:64)
       }

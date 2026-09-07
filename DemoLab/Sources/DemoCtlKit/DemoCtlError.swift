@@ -68,7 +68,7 @@ public enum DemoCtlError: Error, CustomStringConvertible {
     case .bundlesMissing(let names):
       """
       these demo app bundles are missing: \(names.joined(separator: ", "))
-      Run `./scripts/bundle-apps.sh` (or `democtl build`) first.
+      Run `swift run --package-path Tools tatami-tools bundle-apps` from the checkout root first.
       """
 
     case .sceneNotFound(let name, let available):

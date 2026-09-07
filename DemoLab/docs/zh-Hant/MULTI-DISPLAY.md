@@ -15,14 +15,14 @@ macOS 26.6.2 Tart VM 可以建立**虛擬機內的 CoreGraphics 虛擬顯示器*
 在專用 VM 內執行：
 
 ```sh
-./scripts/build-virtual-display.sh
-./bin/democtl display connect
-./bin/democtl displays
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl take desk --display all --output recordings/desk.mov
-./bin/democtl quit
-./bin/democtl display disconnect
+.build/tools/tatami-tools build-virtual-display
+.build/DemoLab/bin/democtl display connect
+.build/DemoLab/bin/democtl displays
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl take desk --display all --output recordings/desk.mov
+.build/DemoLab/bin/democtl quit
+.build/DemoLab/bin/democtl display disconnect
 ```
 
 私有 `CGVirtualDisplay` 僅用於 Demo Lab，不進入 Tatami。參考 [DeskPad 介面](https://github.com/Stengo/DeskPad/blob/main/DeskPad/CGVirtualDisplayPrivate.h)，建立 1920×1200 非 HiDPI 顯示器，持續到中斷或限時結束。傳送訊號前檢查 PID 對應執行檔；工具缺少或不支援時明確失敗。
@@ -33,7 +33,7 @@ macOS 26.6.2 Tart VM 可以建立**虛擬機內的 CoreGraphics 虛擬顯示器*
 `--display all` 為每部顯示器寫一個原始檔案，記錄相對共同單調時鐘的首影格偏移、顯示器原點與獨立影格數、遺失數。取回主機後：
 
 ```sh
-python3 scripts/compose-displays.py recordings desk
+Tools/.build/release/tatami-tools compose-displays DemoLab/recordings desk
 ```
 
 依物理原點排序並用記錄的偏移對齊，保留兩個原始檔案，產生無損中間檔，再使用相同 Tatami 配色輸出寬版雙螢幕影片。不會複製或動畫化截圖來偽造第二個螢幕。

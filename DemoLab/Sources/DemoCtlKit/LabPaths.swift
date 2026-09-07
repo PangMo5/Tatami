@@ -68,7 +68,7 @@ public struct LabPaths: Sendable {
   public let packageRoot: URL
 
   public var buildRoot: URL { packageRoot.appendingPathComponent(".build") }
-  /// Where `scripts/bundle-apps.sh` assembles the `.app` bundles.
+  /// Where `tatami-tools bundle-apps` assembles the `.app` bundles.
   public var bundlesRoot: URL { buildRoot.appendingPathComponent("DemoLab") }
   public var binRoot: URL { bundlesRoot.appendingPathComponent("bin") }
 
@@ -126,7 +126,7 @@ public struct LabPaths: Sendable {
   ///
   /// Static, and shaped only by the movie's own path, because three places have
   /// to agree on it and none of them can ask another: `democtl take` writes it,
-  /// `democtl subtitle burn` reads it, and `vm/tart/fetch-recordings.sh` copies
+  /// `democtl subtitle burn` reads it, and `tatami-tools vm-fetch-recordings` copies
   /// it out of the guest. A sidecar named by a rule that lives in only one of
   /// them is a sidecar the other two lose.
   public static func subtitleFile(for movie: URL) -> URL {
@@ -154,9 +154,9 @@ public struct LabPaths: Sendable {
     packageRoot.appendingPathComponent("config/tatami-demo.toml.in")
   }
 
-  public var hookScript: URL {
-    packageRoot.appendingPathComponent("config/hooks/demolab-hook")
-  }
+  public var hookExecutable: URL { binRoot.appendingPathComponent("demohook") }
+
+  public var automationExecutable: URL { buildRoot.appendingPathComponent("tools/tatami-tools") }
 
   public var scenesRoot: URL { packageRoot.appendingPathComponent("scenes") }
 

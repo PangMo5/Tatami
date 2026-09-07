@@ -73,10 +73,9 @@ public struct ConfigRenderer: Sendable {
     }
 
     let substitutions = [
-      "@STATUS_HOOK@": paths.packageRoot.appendingPathComponent("config/hooks/status-hook").path,
       "@STATUS_BINARY@": paths.bundlesRoot.appendingPathComponent("bin/demohook").path,
       "@CONTROL_DIR@": paths.controlDirectory.path,
-      "@HOOK@": paths.hookScript.path,
+      "@HOOK@": paths.hookExecutable.path,
       "@EVENT_LOG@": paths.eventLog.path,
       "@PULSE_LAYOUT@": options.pulseLayout,
       "@BORROW_EDGE@": options.borrowEdge,

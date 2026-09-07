@@ -22,25 +22,29 @@
 普段のデスクトップではなく専用の Tart VM を使います。`reset` と `seed` は実行先の Tatami を終了して設定を変えます。設定と配置は `.build/lab/` に隔離し、環境設定を別途保存して `democtl restore` で復元できます。
 
 ```sh
-# Host: copy source into the running VM and rebuild the independent Swift package.
-./vm/tart/sync.sh
+# Host: run from the repository root.
+swift build --package-path Tools -c release
+TOOL=Tools/.build/release/tatami-tools
+"$TOOL" vm-sync
 
 # Guest: a fresh seed for every scene. Existing takes are never overwritten.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./scripts/record-suite.sh /Users/admin/DemoLab/recordings/publish'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --output /Users/admin/DemoLab/recordings/publish
 
 # Host: fetch that exact batch, including originals, metadata and scene snapshots.
-GUEST_DIR=DemoLab/recordings/publish ./vm/tart/fetch-recordings.sh recordings/publish
+GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordings/publish
 
 # Host: new output directory; no ambiguous “latest take” selection.
-python3 scripts/export.py --takes recordings/publish --output ~/Downloads/TatamiDemoLab-review
+"$TOOL" export --takes DemoLab/recordings/publish --output ~/Downloads/TatamiDemoLab-review
 
 # Open index.html and inspect playback, opening frames, actions and every feature.
 # Install the verified bundle into this checkout only; this does not push or deploy.
-python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
+"$TOOL" install-assets ~/Downloads/TatamiDemoLab-review
 ```
 
-ホストには `tart`、Python 3.11 以降、libass/libx264 対応の `mpv`、`ffmpeg`、`ffprobe` が必要です。録画は独立した SwiftPM で Tuist を変えません。ゲストは Command Line Tools と Python 3 だけで、外部 Python パッケージや完全な Xcode は不要です。
+ホストには Swift 6.2 以降、`tart`、libass/libx264 に対応した `mpv`、`ffmpeg`、`ffprobe` が必要です。ホストのコマンドはリポジトリのルートで実行します。ゲストには Xcode Command Line Tools が必要です。ソースの同期時にビルド済みの自動化実行ファイルも転送するため、ゲストでパッケージをダウンロードする必要はありません。レコーダーは Tatami の Tuist グラフから独立した SwiftPM パッケージです。
+
+自動化には `swift-subprocess`、ArgumentParser、SwiftSoup、Hummingbird、`swift-markdown`、`swift-cmark`、Swift Crypto を使います。JSON とプロパティリストは Foundation で処理します。録画の合格条件、翻訳単位、動画の時間・容量の上限は Tatami 固有のルールとして管理します。依存関係のバージョンは `Tools/Package.resolved` で固定します。
 
 書き出し側の Mac には Fontconfig も必要です。エンコード前に指定したフォントと、すべての字幕文字が表示できるかを確認します。OCR 検証では、映像に重ねた字幕をタイムラインと照合します。
 
@@ -103,16 +107,17 @@ python3 scripts/install-assets.py ~/Downloads/TatamiDemoLab-review
 録画コマンドは専用ゲスト内で実行します。
 
 ```sh
-./bin/democtl doctor
-./bin/democtl reset
-./bin/democtl seed
-./bin/democtl scene tour --dry-run    # prints setup and visible steps
-./bin/democtl take tour --output recordings/iteration/tour.mov
-python3 scripts/export.py --takes recordings/iteration \
+.build/DemoLab/bin/democtl doctor
+.build/DemoLab/bin/democtl reset
+.build/DemoLab/bin/democtl seed
+.build/DemoLab/bin/democtl scene tour --dry-run    # prints setup and visible steps
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
+# Host: after fetching that batch; run from the repository root.
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/iteration \
   --output ~/Downloads/TatamiDemoLab-iteration --scenes tour
 ```
 
-`democtl scene` は実時間の表示で練習します。`take` の既定は `--overlay off` で、公開にはこのモードだけを使います。練習パネルと出力デザインは別です。`subtitle burn` は確認コピーを作れますが、上限・Web・証拠の検証は `export.py` を使います。
+`democtl scene` は実時間の表示で練習します。`take` の既定は `--overlay off` で、公開にはこのモードだけを使います。練習パネルと出力デザインは別です。`subtitle burn` は確認コピーを作れますが、上限・Web・証拠の検証は `tatami-tools export` を使います。
 
 終了後はゲストで `democtl quit`、`democtl restore` を実行します。ホスト側の Tatami や設定には関与しません。
 
@@ -120,9 +125,10 @@ python3 scripts/export.py --takes recordings/iteration \
 ## 開発と参考情報
 
 ```sh
-swift test
-./scripts/bundle-apps.sh
-python3 -m unittest discover -s Tests -p 'test_*.py'
+swift test --package-path Tools
+swift run --package-path Tools tatami-tools bundle-apps
+DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" \
+  swift test --package-path DemoLab
 ```
 
 - [場面の語彙](../docs/ja/SCENES.md)
@@ -136,18 +142,18 @@ python3 -m unittest discover -s Tests -p 'test_*.py'
 `en`、`ko`、`ja`、`zh-Hans`、`zh-Hant` に対応します。`Localization/Localizable.xcstrings` は UI と初期内容、`Localization/Films.json` は動画と入力、`Localization/Interface.json` は確認ギャラリーを管理します。固定 ID がなければ製品カタログの AX ラベルを使います。アプリ名やユーザーの作業・プロファイル名は保ちます。
 
 ```sh
-python3 scripts/localize-scenes.py
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools localize-scenes
+Tools/.build/release/tatami-tools vm-sync
 # Inside the guest:
-python3 scripts/capture.py --locale ko --output recordings/ko-batch
+.build/tools/tatami-tools capture --locale ko --output recordings/ko-batch
 # After fetching that explicit batch to the host:
-python3 scripts/export.py --locale ko --takes recordings/ko-batch --output ~/Downloads/Tatami-ko
+Tools/.build/release/tatami-tools export --locale ko --takes DemoLab/recordings/ko-batch --output ~/Downloads/Tatami-ko
 ```
 
 デモと Tatami の言語を揃え、入力と検証に同じ文を使います。実際の CLI コマンドと出力は保ちます。最終動画が 30 fps なので、録画も 30 fps にして不要な処理を減らします。
 
-`record-locales.py` は言語ごとに、未撮影または検証に失敗したテイクを見つけます。英語の映像を翻訳済み UI の検証とは見なしません。失敗したシーンは診断用に残し、ほかの言語は独立して進められます。
+`tatami-tools record-locales` は言語ごとに、未撮影または検証に失敗したテイクを見つけます。英語の映像を翻訳済み UI の検証とは見なしません。失敗したシーンは診断用に残し、ほかの言語は独立して進められます。
 
 小さなツール窓は右下から始め、主動画では左下へ実際に動かします。調整時も文書の主な読み取り領域を空けてください。
 
-端末コマンド終了後も残る Web プレビューは、このフォルダで `python3 ../scripts/preview-site.py --background` を実行します。
+ターミナルのコマンド終了後もローカルサイトのプレビューを続けるには、リポジトリのルートで `Tools/.build/release/tatami-tools preview-site --background` を実行します。

@@ -11,6 +11,12 @@ on:
     paths:
       - "web/**"
       - "Resources/Marketing/app-icon.png"
+      - "Tools/**"
+      - "Localization/**"
+      - "docs/**"
+      - "DemoLab/publication.json"
+      - "DemoLab/Localization/**"
+      - "DemoLab/scenes/**"
       - ".github/workflows/deploy-site.yml"
   workflow_dispatch:
 
@@ -48,6 +54,11 @@ jobs:
           echo "should-deploy=true" >> "$GITHUB_OUTPUT"
           echo "version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
 
+      - uses: swift-actions/setup-swift@v2
+        if: steps.release.outputs.should-deploy == 'true'
+        with:
+          swift-version: "6.2"
+
       - name: Assemble site
         if: steps.release.outputs.should-deploy == 'true'
         env:
@@ -64,8 +75,8 @@ jobs:
           # index.html (the page also resolves this live via the API).
           echo "Latest version: $VERSION"
 
-          python3 -m unittest discover -s scripts -p 'test_*.py'
-          python3 scripts/build-site.py --output "$SITE" --version "$VERSION"
+          swift test --package-path Tools
+          swift run --package-path Tools tatami-tools build-site --output "$SITE" --version "$VERSION"
 
           # Preserve the Sparkle feed. GitHub Pages replaces the whole site on
           # deploy, so re-publish appcast.xml. The canonical copy is the latest

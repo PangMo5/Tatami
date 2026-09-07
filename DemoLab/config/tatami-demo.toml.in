@@ -205,42 +205,42 @@ autoOpen = false
 id = "demolab-workspace"
 event = "workspaceActivated"
 enabled = true
-command = ["@HOOK@", "@EVENT_LOG@"]
+command = ["@HOOK@", "event-log", "@EVENT_LOG@"]
 timeoutMs = 3000
 
 [[hooks]]
 id = "demolab-profile"
 event = "profileChanged"
 enabled = true
-command = ["@HOOK@", "@EVENT_LOG@"]
+command = ["@HOOK@", "event-log", "@EVENT_LOG@"]
 timeoutMs = 3000
 
 [[hooks]]
 id = "demolab-launch"
 event = "tatamiLaunched"
 enabled = true
-command = ["@HOOK@", "@EVENT_LOG@"]
+command = ["@HOOK@", "event-log", "@EVENT_LOG@"]
 timeoutMs = 3000
 
 [[hooks]]
 id = "demolab-status-workspaceActivated"
 event = "workspaceActivated"
 enabled = true
-command = ["@STATUS_HOOK@", "@STATUS_BINARY@", "@CONTROL_DIR@"]
+command = ["@STATUS_BINARY@", "status", "@CONTROL_DIR@"]
 timeoutMs = 3000
 
 [[hooks]]
 id = "demolab-status-profileChanged"
 event = "profileChanged"
 enabled = true
-command = ["@STATUS_HOOK@", "@STATUS_BINARY@", "@CONTROL_DIR@"]
+command = ["@STATUS_BINARY@", "status", "@CONTROL_DIR@"]
 timeoutMs = 3000
 
 [[hooks]]
 id = "demolab-status-hud"
 event = "hud"
 enabled = true
-command = ["@STATUS_HOOK@", "@STATUS_BINARY@", "@CONTROL_DIR@"]
+command = ["@STATUS_BINARY@", "status", "@CONTROL_DIR@"]
 timeoutMs = 3000
 
 # ===========================================================================

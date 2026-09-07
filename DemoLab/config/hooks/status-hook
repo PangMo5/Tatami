@@ -1,6 +1,0 @@
-#!/bin/sh
-# SPDX-FileCopyrightText: 2026 PangMo5 and contributors
-# SPDX-License-Identifier: AGPL-3.0-only
-set -eu
-[ "$#" -eq 2 ] || { echo 'usage: status-hook <demohook executable> <control directory>' >&2; exit 64; }
-exec "$@"

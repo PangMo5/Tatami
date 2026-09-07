@@ -9,8 +9,8 @@ A scene is a JSON file with `name`, `title`, optional `requires`, `setup`,
 visible story. Their actions drive the installed Tatami and native fixture apps.
 
 ```sh
-./bin/democtl scene tour --dry-run
-./bin/democtl take tour --output recordings/iteration/tour.mov
+.build/DemoLab/bin/democtl scene tour --dry-run
+.build/DemoLab/bin/democtl take tour --output recordings/iteration/tour.mov
 ```
 
 ## Preparation

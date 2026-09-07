@@ -221,9 +221,9 @@ public struct Doctor {
   }
 
   private func hookCheck() -> Check {
-    FileManager.default.isExecutableFile(atPath: paths.hookScript.path)
-      ? Check(.ok, "hook script", paths.hookScript.path)
-      : Check(.fail, "hook script", "not executable: \(paths.hookScript.path) (chmod +x it)")
+    FileManager.default.isExecutableFile(atPath: paths.hookExecutable.path)
+      ? Check(.ok, "hook executable", paths.hookExecutable.path)
+      : Check(.fail, "hook executable", "not executable: \(paths.hookExecutable.path) (run tatami-tools bundle-apps)")
   }
 
   private func accessibilityCheck() -> Check {

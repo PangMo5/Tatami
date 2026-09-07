@@ -10,24 +10,21 @@
 <a id="prepare-the-guest"></a>
 ## 準備虛擬機
 
-主機需 Apple silicon 和支援 `exec` 的 Tart，VM 需代理程式、Command Line Tools、Python 3 與 Tatami。除非明確進入 VM，否則從 `DemoLab/` 執行指令。
+主機需要 Apple 晶片、Swift 6.2 或更新版本，以及支援 `exec` 的 Tart。虛擬機需要 Tart 代理程式、Command Line Tools 和 Tatami。主機指令請在儲存庫根目錄執行，虛擬機指令則在 `~/DemoLab` 中執行。
 
 ```sh
-./vm/tart/host-bootstrap.sh
+swift build --package-path Tools -c release
+Tools/.build/release/tatami-tools vm-bootstrap
 ```
 
 透過 `1920x1200px` 與 `--no-display-refit` 固定解析度，調整主機 VM 視窗不改變錄製畫布，共用掛載於 `/Volumes/My Shared Files/demolab`。
 
-透過獨立共用提供要示範的 Tatami 建置：
+設定虛擬機之前，先將要使用的 Tatami 版本複製到 Demo Lab 共用資料夾。
 
 ```sh
-# Include both shares when starting the dedicated VM.
-tart run tatami-demo --dir="demolab:$PWD" --dir="tatami:/Applications"
-
-# From a separate host terminal:
-tart exec tatami-demo /bin/bash -lc \
-  'TATAMI_APP="/Volumes/My Shared Files/tatami/Tatami.app" \
-   "/Volumes/My Shared Files/demolab/vm/tart/guest-provision.sh"'
+ditto /Applications/Tatami.app DemoLab/.build/Tatami.app
+TATAMI_APP="/Volumes/My Shared Files/demolab/.build/Tatami.app" \
+  Tools/.build/release/tatami-tools vm-provision
 ```
 
 也接受 `TATAMI_DMG` 取代 `TATAMI_APP`。SwiftPM 在虛擬機本機磁碟建置，打包時把全部示範 App 註冊到 LaunchServices，以便依套件 ID 解析。
@@ -39,18 +36,18 @@ tart exec tatami-demo /bin/bash -lc \
 
 ```sh
 # Host: sync current sources and rebuild in the guest.
-./vm/tart/sync.sh
+Tools/.build/release/tatami-tools vm-sync
 
 # Guest: each scene gets fresh lab data and preferences suppression.
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && python3 scripts/capture.py --continue-on-error \
-   --output /Users/admin/DemoLab/recordings/review-batch'
+tart exec tatami-demo /Users/admin/DemoLab/.build/tools/tatami-tools capture \
+  --root /Users/admin/DemoLab --continue-on-error \
+  --output /Users/admin/DemoLab/recordings/review-batch
 
 # Host: a new destination, retaining originals and all provenance sidecars.
 GUEST_DIR=DemoLab/recordings/review-batch \
-  ./vm/tart/fetch-recordings.sh recordings/review-batch
+  Tools/.build/release/tatami-tools vm-fetch-recordings DemoLab/recordings/review-batch
 
-python3 scripts/export.py --takes recordings/review-batch \
+Tools/.build/release/tatami-tools export --takes DemoLab/recordings/review-batch \
   --output ~/Downloads/TatamiDemoLab-review
 ```
 
@@ -69,8 +66,9 @@ python3 scripts/export.py --takes recordings/review-batch \
 ## 結束或保存映像
 
 ```sh
-tart exec tatami-demo /bin/bash -lc \
-  'cd ~/DemoLab && ./bin/democtl quit && ./bin/democtl display disconnect && ./bin/democtl restore'
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl quit
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl display disconnect
+tart exec tatami-demo /Users/admin/DemoLab/.build/DemoLab/bin/democtl restore
 ```
 
 `restore` 還原錄製前備份的偏好，不涉及個人主機設定。關閉並驗證的 VM 可用 `tart clone` 保存，淘汰映像前請先把原始檔案與證據存到外部。
