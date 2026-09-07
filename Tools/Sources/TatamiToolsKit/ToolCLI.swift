@@ -7,7 +7,12 @@ import Foundation
 // MARK: - ToolCLI
 
 public struct ToolCLI: AsyncParsableCommand {
+
+  // MARK: Lifecycle
+
   public init() { }
+
+  // MARK: Public
 
   public static let configuration = CommandConfiguration(
     commandName: "tatami-tools",
@@ -44,8 +49,10 @@ public struct ToolCLI: AsyncParsableCommand {
       VMSetup.self,
       JSONField.self,
       EmbedReleaseNotes.self,
+      BuildToolNotices.self,
     ],
   )
+
 }
 
 // MARK: - WorkspaceOptions
@@ -579,5 +586,19 @@ struct EmbedReleaseNotes: AsyncParsableCommand {
       file: URL(fileURLWithPath: appcast),
       version: version,
     )
+  }
+}
+
+// MARK: - BuildToolNotices
+
+struct BuildToolNotices: AsyncParsableCommand {
+  static let configuration =
+    CommandConfiguration(abstract: "Generate notices from the pinned development-tool dependency revisions.")
+
+  @OptionGroup var common: WorkspaceOptions
+  @Flag var check = false
+
+  mutating func run() async throws {
+    try await DependencyNotices(workspace: common.workspace).build(check: check)
   }
 }

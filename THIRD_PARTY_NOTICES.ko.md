@@ -5,6 +5,8 @@
 <a id="third-party-notices"></a>
 # 외부 라이브러리 고지
 
-Tatami는 원문 고지에 나열한 의존성을 사용해요. 버전과 리비전은 `Tuist/Package.resolved`을 기준으로 해요.
+Tatami 앱 의존성의 버전과 리비전은 `Tuist/Package.resolved`을 기준으로 해요.
 
-[전체 라이선스·저작권 고지](THIRD_PARTY_NOTICES.md)는 원문으로 확인할 수 있어요. 이 문서는 설명 부분만 번역했어요.
+[앱의 전체 라이선스 및 저작권 고지](THIRD_PARTY_NOTICES.md)는 원문으로 제공해요. 이 페이지는 개요 설명만 번역해요.
+
+개발 자동화는 `Tools/Package.resolved`에 고정된 별도의 패키지 집합을 사용해요. [개발 도구 의존성 고지](Tools/THIRD_PARTY_NOTICES.md)는 원문으로 제공해요.

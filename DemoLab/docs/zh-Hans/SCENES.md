@@ -5,7 +5,9 @@
 <a id="scenes-and-acceptance"></a>
 # 场景与验收
 
-场景为 JSON，包含 `name`、`title` 和可选的 `requires`、`setup`、`openingApps`、`steps`。`setup` 在录制前执行，`steps` 是可见过程，操作实际 Tatami 和原生演示应用。
+场景必须包含 `name`、`title` 和 `steps`。可选字段包括 `summary`、`requires`、`setup`、`openingApps` 和 `captureSecondary`。`setup` 在录制前执行，`steps` 定义视频中展示的过程。各项操作会实际控制已安装的 Tatami 和原生演示应用。
+
+对于持续录制主屏幕、仅在第二块屏幕连接期间录制该屏幕的热插拔场景，请将 `captureSecondary` 设为 `true`。
 
 ```sh
 .build/DemoLab/bin/democtl scene tour --dry-run
@@ -44,9 +46,10 @@
 |`rightClick`|`app`, `identifier`|打开控件的原生上下文菜单。|
 |`resizeWindow`|`app`, `x`, `y?`|拖动原生窗口边缘。|
 |`virtualDisplay`|`connected`|连接或断开实际虚拟显示器工具。|
-|`configure`|`key`, `value`|原子修改实验 TOML 中允许的实时设置。|
+|`configure`|`field`, `value`|原子修改实验 TOML 中允许的实时设置。|
 |`clipboard`|`text`|提供本地示例文本，同时保留并恢复所有剪贴板类型。|
 |`closeSettings`|—|编辑后关闭原生设置窗口。|
+|`prepareSettings`|—|操作控件前，调整 Tatami 原生设置窗口的大小和位置。|
 |`appWindows`|`app`, `count`|设置原生窗口数量，主要用于准备。|
 
 没有 `appState` 命令，视图不能跳到预制成功状态。它们使用普通控件，通过 `StoryRepository` 共享保存的文案、评审、检查、任务和消息。`seed` 重置故事，切换工作区不会。聊天是无网络传输的本地演示。
@@ -71,6 +74,7 @@
 |`waitWorkspace`|`workspace`, `timeoutMs?`|观察上一步产生的激活钩子。|
 |`waitProfile`|`profile`, `timeoutMs?`|观察配置方案钩子。|
 |`saveLayout`|`text`|按检查点名称保存可见演示窗口 ID 和边界。|
+|`expectLayoutChanged`|`text`|确认当前可见布局与指定名称的已保存检查点不同。|
 |`assertLayout`|`text`|要求相同窗口集合与边界在 4 点误差内恢复。|
 |`beat`|`ms`, `note?`|明确声明的阅读停顿，没有隐藏启动等待。|
 |`note`|`text`|仅记录到日志的说明。|
@@ -82,6 +86,6 @@
 
 `chapter`、`caption` 携带 `text`，字幕可使用 `headline | explanation`。空文本清除当前轨道，`clearOverlay` 清除全部说明；`key`、`hold` 自动生成按键显示。独立 `keys` 标签只允许手动排练，发布场景禁用，以免暗示未发生的输入。
 
-`take` 默认 `--overlay off`，文本保存在可编辑 ASS 和 JSON 中。输出在实际桌面上下预留区域，字幕和按键不遮挡应用。`scene` 的实时排练面板与最终设计不同。
+`take` 默认为 `--overlay off`，文字保存在可编辑的 ASS 和 JSON 附属文件中。导出的视频会在画面下方叠加字幕、左上角显示章节、右上角显示实际按键。半透明背景提高了可读性，但仍可能遮挡应用内容，因此重要控件应避开这些区域。`scene` 使用实时排练面板，其呈现方式与最终视频不同。
 
 位置和时间、容量预算见 [publication.json](../../publication.json)；录制、导出和检查命令见 [README.md](../../zh-Hans/README.md)。

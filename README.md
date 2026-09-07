@@ -62,8 +62,8 @@ Captured on an earlier version. Some labels have changed since these screenshots
 [![Let new windows find their place.](web/tiling.jpg)](https://pangmo5.dev/Tatami#demo-tiling)
 
 
-- **Automatic BSP layout:** Insert new windows at the shallowest tile.
-- **Keyboard operations:** Focus, swap, and resize directionally with vim-like `h`, `j`, `k`, and `l` keys.
+- **Automatic BSP layout:** Insert new windows beside the current insertion target or focused tile. Use the shallowest tile when neither is available.
+- **Keyboard operations:** With the recommended bindings, use `ctrl + alt` with `h`, `j`, `k`, or `l` to focus, arrow keys to swap, and `=` or `-` to grow or shrink the focused tile.
 - **Interactive window switching:** Tap the window-switch shortcut for an immediate switch, or hold its modifier for a compact app / window switcher. It stays scoped to the display under the pointer, can include Shared Apps, shows each window's current state, and lets you choose the exact target with the keyboard or pointer.
 - **Zoom and splits:** Fill the workspace with one window or toggle split orientation.
 - **Tree transforms:** Rotate, mirror, and balance the layout.
@@ -156,6 +156,9 @@ Or download the signed & notarized `.dmg` from the
 release also links its exact corresponding source archive.
 
 ### Build from source
+
+Use Xcode 26 or later with a Swift 6.2 or later toolchain. The app runs on macOS
+14 or later; its runtime requirement is separate from the tools needed to build it.
 
 ```sh
 brew install tuist                     # or: mise install

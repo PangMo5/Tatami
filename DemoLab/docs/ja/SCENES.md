@@ -5,7 +5,9 @@
 <a id="scenes-and-acceptance"></a>
 # 場面と合格条件
 
-場面は `name`、`title`、任意の `requires`、`setup`、`openingApps`、`steps` を持つ JSON です。`setup` は録画前、`steps` が映る操作です。実際の Tatami とネイティブのデモアプリを動かします。
+シーンには `name`、`title`、`steps` が必要です。`summary`、`requires`、`setup`、`openingApps`、`captureSecondary` は任意のフィールドです。`setup` は録画前に実行され、`steps` が映像に映る操作を定義します。各操作は、インストール済みの Tatami とネイティブのデモアプリを実際に動かします。
+
+メイン画面を録画し続け、2 台目の画面は接続中だけ録画するホットプラグのシーンでは、`captureSecondary` を `true` に設定します。
 
 ```sh
 .build/DemoLab/bin/democtl scene tour --dry-run
@@ -44,9 +46,10 @@
 |`rightClick`|`app`, `identifier`|コントロールの標準コンテキストメニューを開きます。|
 |`resizeWindow`|`app`, `x`, `y?`|実際の窓の端をドラッグします。|
 |`virtualDisplay`|`connected`|ゲストの実際の仮想画面ヘルパーを接続・切断します。|
-|`configure`|`key`, `value`|ラボの TOML で許可された設定を原子的に変更します。|
+|`configure`|`field`, `value`|ラボの TOML で許可された設定を原子的に変更します。|
 |`clipboard`|`text`|クリップボードの全形式を保存・復元し、例文を渡します。|
 |`closeSettings`|—|編集後に設定ウインドウを閉じます。|
+|`prepareSettings`|—|コントロールを操作する前に、Tatami のネイティブ設定ウインドウのサイズと位置を整えます。|
 |`appWindows`|`app`, `count`|主に準備時に、実際のウインドウ数を設定します。|
 
 `appState` はありません。用意した成功画面へ飛ばず、通常の操作と `StoryRepository` で文章、レビュー、チェック、タスク、会話を同じ場所に保存します。`seed` でだけ初期化し、作業の切り替えでは戻しません。会話はネット接続のないローカル例です。
@@ -71,6 +74,7 @@
 |`waitWorkspace`|`workspace`, `timeoutMs?`|直前の操作による有効化フックを確認します。|
 |`waitProfile`|`profile`, `timeoutMs?`|プロファイルのフックを確認します。|
 |`saveLayout`|`text`|見えるデモ窓の ID と枠を、名前付きの確認点に保存します。|
+|`expectLayoutChanged`|`text`|現在表示されている配置が、指定した名前の保存済みチェックポイントと異なることを確認します。|
 |`assertLayout`|`text`|同じ窓と枠へ、4 pt 以内で戻ることを要求します。|
 |`beat`|`ms`, `note?`|明示した読む時間です。隠れた起動待ちはありません。|
 |`note`|`text`|ログだけに残す説明です。|
@@ -82,6 +86,6 @@
 
 `chapter`、`caption` は `text` を持ち、字幕には `headline | explanation` を使えます。空文字はそのトラック、`clearOverlay` は全説明を消します。`key`、`hold` は実際のキー表示を作ります。独立した `keys` は手動練習専用で、公開では未実行の入力に見えるため禁止します。
 
-`take` の既定は `--overlay off` です。編集可能な ASS・JSON に残し、画面の上下に余白を設けて内容を隠しません。`scene` の練習パネルは最終デザインとは別です。
+`take` の既定値は `--overlay off` で、テキストは編集可能な ASS と JSON のサイドカーファイルに記録します。書き出した映像では、画面下部に字幕、左上にチャプター、右上に実際のキー入力を重ねます。半透明の背景で読みやすくしていますが、アプリの内容に重なるため、重要なコントロールはその領域を避けて配置してください。`scene` はライブのリハーサルパネルを使い、最終映像とは表示方法が異なります。
 
 配置と時間・容量上限は [publication.json](../../publication.json)、録画・出力・確認のコマンドは [README.md](../../ja/README.md) を参照してください。

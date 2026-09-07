@@ -181,20 +181,6 @@
     "zh-Hans": "[![让新窗口找到位置]({0})]({1})",
     "zh-Hant": "[![讓新視窗找到位置]({0})]({1})"
   },
-  "5d8d94b751470fba": {
-    "en": "**Automatic BSP layout:** Insert new windows at the shallowest tile.",
-    "ko": "**BSP 자동 배치:** 가장 얕게 나뉜 영역에 새 창을 넣어요.",
-    "ja": "**BSP 自動配置：** 最も浅いタイルに新しいウインドウを入れます。",
-    "zh-Hans": "**自动 BSP 布局：** 把新窗口插入层级最浅的区域。",
-    "zh-Hant": "**自動 BSP 排列：** 把新視窗插入層級最淺的區域。"
-  },
-  "364dec7dd7d69e81": {
-    "en": "**Keyboard operations:** Focus, swap, and resize directionally with vim-like {0}, {1}, {2}, and {3} keys.",
-    "ko": "**키보드 조작:** vim 방식의 {0}, {1}, {2}, {3} 키로 방향에 따라 포커스·위치·크기를 바꿔요.",
-    "ja": "**キーボード操作：** vim 風の {0}、{1}、{2}、{3} で、方向に合わせてフォーカス・入れ替え・サイズを操作できます。",
-    "zh-Hans": "**键盘操作：** 用类似 vim 的 {0}、{1}、{2}、{3} 按方向移动焦点、交换和调整大小。",
-    "zh-Hant": "**鍵盤操作：** 用類似 vim 的 {0}、{1}、{2}、{3} 依方向移動焦點、交換與調整大小。"
-  },
   "25c0497cea23b369": {
     "en": "**Interactive window switching:** Tap the window-switch shortcut for an immediate switch, or hold its modifier for a compact app / window switcher. It stays scoped to the display under the pointer, can include Shared Apps, shows each window's current state, and lets you choose the exact target with the keyboard or pointer.",
     "ko": "**창 선택:** 전환 단축키를 짧게 누르면 바로 전환하고, 보조키를 길게 누르면 앱·창 목록이 나타나요. 포인터가 있는 화면 안에서 동작하고 공용 앱도 포함할 수 있어요. 각 창의 상태를 보며 키보드나 마우스로 정확히 고를 수 있어요.",
@@ -4388,13 +4374,6 @@
     "zh-Hans": "场景与验收",
     "zh-Hant": "場景與驗收"
   },
-  "273c38d139f64908": {
-    "en": "A scene is a JSON file with {0}, {1}, optional {2}, {3}, {4}, and {5}. {6} executes before recording. {7} are the visible story. Their actions drive the installed Tatami and native fixture apps.",
-    "ko": "장면은 {0}, {1}, 선택적인 {2}, {3}, {4}, {5}가 있는 JSON이에요. {6}은 촬영 전에 실행하고 {7}이 실제 영상이 돼요. 설치한 Tatami와 네이티브 데모 앱을 직접 조작해요.",
-    "ja": "場面は {0}、{1}、任意の {2}、{3}、{4}、{5} を持つ JSON です。{6} は録画前、{7} が映る操作です。実際の Tatami とネイティブのデモアプリを動かします。",
-    "zh-Hans": "场景为 JSON，包含 {0}、{1} 和可选的 {2}、{3}、{4}、{5}。{6} 在录制前执行，{7} 是可见过程，操作实际 Tatami 和原生演示应用。",
-    "zh-Hant": "場景為 JSON，包含 {0}、{1} 與可選的 {2}、{3}、{4}、{5}。{6} 在錄製前執行，{7} 是可見過程，操作實際 Tatami 與原生示範 App。"
-  },
   "cf2befb0f1a62829": {
     "en": "Preparation",
     "ko": "준비",
@@ -4745,13 +4724,6 @@
     "zh-Hans": "{0}、{1} 携带 {2}，字幕可使用 {3}。空文本清除当前轨道，{4} 清除全部说明；{5}、{6} 自动生成按键显示。独立 {7} 标签只允许手动排练，发布场景禁用，以免暗示未发生的输入。",
     "zh-Hant": "{0}、{1} 攜帶 {2}，字幕可使用 {3}。空文字清除目前軌道，{4} 清除全部說明；{5}、{6} 自動產生按鍵顯示。獨立 {7} 標籤只允許手動排練，發布場景停用，以免暗示未發生的輸入。"
   },
-  "3542261f9b9c34d1": {
-    "en": "{0} defaults to {1}: text is recorded in editable ASS and JSON sidecars. The export reserves a header/footer around the actual desktop, so the caption and keys cannot cover app content. {2} uses a live rehearsal panel; that panel is not the final export design.",
-    "ko": "{0}의 기본값은 {1}이에요. 수정 가능한 ASS·JSON에 문구를 남기고, 출력은 실제 화면 위아래에 공간을 마련해 내용을 가리지 않아요. {2}의 실시간 연습 패널은 최종 디자인과 달라요.",
-    "ja": "{0} の既定は {1} です。編集可能な ASS・JSON に残し、画面の上下に余白を設けて内容を隠しません。{2} の練習パネルは最終デザインとは別です。",
-    "zh-Hans": "{0} 默认 {1}，文本保存在可编辑 ASS 和 JSON 中。输出在实际桌面上下预留区域，字幕和按键不遮挡应用。{2} 的实时排练面板与最终设计不同。",
-    "zh-Hant": "{0} 預設 {1}，文字儲存在可編輯 ASS 與 JSON 中。輸出在實際桌面上下預留區域，字幕和按鍵不遮擋 App。{2} 的即時排練面板與最終設計不同。"
-  },
   "0c00cfd4c9e6de21": {
     "en": "Use [publication.json]({0}) for placement and duration/size budgets, and [README.md]({1}) for capture, export and review commands.",
     "ko": "배치 위치와 시간·용량 예산은 [publication.json]({0}), 촬영·출력·검수 명령은 [README.md]({1})를 참고하세요.",
@@ -4926,20 +4898,6 @@
     "ja": "外部ライブラリの告知",
     "zh-Hans": "第三方声明",
     "zh-Hant": "第三方聲明"
-  },
-  "feb3c550558d5432": {
-    "en": "Tatami uses the dependencies listed in the original notices. Their versions and revisions come from {0}.",
-    "ko": "Tatami는 원문 고지에 나열한 의존성을 사용해요. 버전과 리비전은 {0}을 기준으로 해요.",
-    "ja": "Tatami は原文に記載した依存関係を使います。バージョンとリビジョンは {0} に基づきます。",
-    "zh-Hans": "Tatami 使用原始声明中列出的依赖，其版本和修订来自 {0}。",
-    "zh-Hant": "Tatami 使用原始聲明中列出的相依套件，其版本與修訂來自 {0}。"
-  },
-  "41d19ffa516729ae": {
-    "en": "Read [the complete license and copyright notices]({0}) in their original language. This page translates the explanatory overview only.",
-    "ko": "[전체 라이선스·저작권 고지]({0})는 원문으로 확인할 수 있어요. 이 문서는 설명 부분만 번역했어요.",
-    "ja": "[ライセンスと著作権の全文]({0})は原文で確認できます。この文書は概要の説明だけを翻訳しています。",
-    "zh-Hans": "请以原文阅读[完整许可证与版权声明]({0})。本页只翻译概述说明。",
-    "zh-Hant": "請以原文閱讀[完整授權與著作權聲明]({0})。本頁只翻譯概述說明。"
   },
   "2c959ad8d949c5b1": {
     "en": "The export host also needs Fontconfig. Before encoding, the lab verifies the requested font family and coverage of every caption character. The OCR audit separately compares rendered footer text with the narration timeline.",
@@ -5117,5 +5075,82 @@
     "ja": "プロビジョニングの前に、使う Tatami のビルドを Demo Lab の共有フォルダへコピーします。",
     "zh-Hans": "配置虚拟机之前，先将要使用的 Tatami 构建复制到 Demo Lab 共享文件夹。",
     "zh-Hant": "設定虛擬機之前，先將要使用的 Tatami 版本複製到 Demo Lab 共用資料夾。"
+  },
+  "fa8da33aff1da070": {
+    "en": "**Automatic BSP layout:** Insert new windows beside the current insertion target or focused tile. Use the shallowest tile when neither is available.",
+    "ko": "**자동 BSP 배치:** 새 창을 현재 삽입 지점이나 포커스된 타일 옆에 배치해요. 둘 다 없으면 트리에서 가장 얕은 타일을 사용해요.",
+    "ja": "**自動 BSP 配置：** 新しいウインドウは、現在の挿入先またはフォーカス中のタイルの隣に配置します。どちらもなければ、ツリーで最も浅いタイルを使います。",
+    "zh-Hans": "**自动 BSP 布局：** 将新窗口放在当前插入目标或焦点窗口所在区域的旁边。两者都不可用时，使用树中层级最浅的区域。",
+    "zh-Hant": "**自動 BSP 配置：** 將新視窗放在目前插入目標或取得焦點的區塊旁。兩者都不可用時，使用樹狀結構中最淺層的區塊。"
+  },
+  "99857bfc0d0c159e": {
+    "en": "**Keyboard operations:** With the recommended bindings, use {0} with {1}, {2}, {3}, or {4} to focus, arrow keys to swap, and {5} or {6} to grow or shrink the focused tile.",
+    "ko": "**키보드 조작:** 권장 단축키에서는 {0}과 {1}, {2}, {3}, {4}로 포커스를 옮기고, 화살표 키로 창 위치를 바꾸며, {5} 또는 {6}으로 포커스된 타일을 키우거나 줄여요.",
+    "ja": "**キーボード操作：** 推奨設定では、{0} と {1}、{2}、{3}、{4} でフォーカスを移動し、矢印キーでウインドウを入れ替え、{5} または {6} でフォーカス中のタイルを拡大・縮小します。",
+    "zh-Hans": "**键盘操作：** 使用推荐快捷键时，按住 {0}，配合 {1}、{2}、{3} 或 {4} 移动焦点，配合方向键交换窗口，配合 {5} 或 {6} 放大或缩小焦点窗口所在的区域。",
+    "zh-Hant": "**鍵盤操作：** 使用建議快速鍵時，按住 {0}，搭配 {1}、{2}、{3} 或 {4} 移動焦點，搭配方向鍵交換視窗，搭配 {5} 或 {6} 放大或縮小取得焦點的區塊。"
+  },
+  "add4ca695d67c690": {
+    "en": "Use Xcode 26 or later with a Swift 6.2 or later toolchain. The app runs on macOS 14 or later; its runtime requirement is separate from the tools needed to build it.",
+    "ko": "Xcode 26 이상과 Swift 6.2 이상의 툴체인을 사용해요. 앱은 macOS 14 이상에서 실행되며, 실행 환경과 빌드 도구의 요구사항은 별개예요.",
+    "ja": "Xcode 26 以降と Swift 6.2 以降のツールチェーンを使ってください。アプリは macOS 14 以降で動作します。実行環境とビルドツールの要件は別です。",
+    "zh-Hans": "请使用 Xcode 26 或更新版本，以及 Swift 6.2 或更新版本的工具链。应用可在 macOS 14 或更新版本上运行；运行环境要求与构建工具要求不同。",
+    "zh-Hant": "請使用 Xcode 26 或更新版本，以及 Swift 6.2 或更新版本的工具鏈。App 可在 macOS 14 或更新版本執行；執行環境與建置工具的需求不同。"
+  },
+  "565c83066cbf2ed4": {
+    "en": "A scene requires {0}, {1}, and {2}. Optional fields are {3}, {4}, {5}, {6}, and {7}. {8} executes before recording; {9} are the visible story. Their actions drive the installed Tatami and native fixture apps.",
+    "ko": "장면에는 {0}, {1}, {2}가 필요해요. {3}, {4}, {5}, {6}, {7}은 선택 필드예요. {8}은 녹화 전에 실행되고, {9}는 영상에 보이는 과정을 담아요. 각 동작은 설치된 Tatami와 네이티브 데모 앱을 직접 조작해요.",
+    "ja": "シーンには {0}、{1}、{2} が必要です。{3}、{4}、{5}、{6}、{7} は任意のフィールドです。{8} は録画前に実行され、{9} が映像に映る操作を定義します。各操作は、インストール済みの Tatami とネイティブのデモアプリを実際に動かします。",
+    "zh-Hans": "场景必须包含 {0}、{1} 和 {2}。可选字段包括 {3}、{4}、{5}、{6} 和 {7}。{8} 在录制前执行，{9} 定义视频中展示的过程。各项操作会实际控制已安装的 Tatami 和原生演示应用。",
+    "zh-Hant": "場景必須包含 {0}、{1} 和 {2}。選填欄位包括 {3}、{4}、{5}、{6} 和 {7}。{8} 在錄製前執行，{9} 定義影片中呈現的過程。各項操作會實際控制已安裝的 Tatami 與原生示範 App。"
+  },
+  "9b2ada4fffe0b28c": {
+    "en": "Set {0} to {1} for a hotplug scene that records the main display continuously and captures the second display only while it is connected.",
+    "ko": "주 화면을 계속 녹화하면서 두 번째 화면은 연결된 동안만 촬영하는 핫플러그 장면에서는 {0}을 {1}로 설정해요.",
+    "ja": "メイン画面を録画し続け、2 台目の画面は接続中だけ録画するホットプラグのシーンでは、{0} を {1} に設定します。",
+    "zh-Hans": "对于持续录制主屏幕、仅在第二块屏幕连接期间录制该屏幕的热插拔场景，请将 {0} 设为 {1}。",
+    "zh-Hant": "若場景會持續錄製主螢幕，並只在第二個螢幕連接期間錄製該螢幕，請將 {0} 設為 {1}。"
+  },
+  "a877808f1aafb12a": {
+    "en": "Size and position the native Tatami settings window before its controls are used.",
+    "ko": "컨트롤을 조작하기 전에 Tatami 설정 창의 크기와 위치를 맞춰요.",
+    "ja": "コントロールを操作する前に、Tatami のネイティブ設定ウインドウのサイズと位置を整えます。",
+    "zh-Hans": "操作控件前，调整 Tatami 原生设置窗口的大小和位置。",
+    "zh-Hant": "操作控制項前，調整 Tatami 原生設定視窗的大小與位置。"
+  },
+  "983ca98ad633be2d": {
+    "en": "Require the visible layout to differ from the named saved checkpoint.",
+    "ko": "현재 보이는 배치가 이름으로 지정한 저장 지점과 달라졌는지 확인해요.",
+    "ja": "現在表示されている配置が、指定した名前の保存済みチェックポイントと異なることを確認します。",
+    "zh-Hans": "确认当前可见布局与指定名称的已保存检查点不同。",
+    "zh-Hant": "確認目前顯示的配置與指定名稱的已儲存檢查點不同。"
+  },
+  "d03dbebdd6f32483": {
+    "en": "{0} defaults to {1}: text is recorded in editable ASS and JSON sidecars. Exports place captions over the lower part of the captured image, with the chapter at the upper left and actual keycasts at the upper right. Translucent backgrounds keep text readable, but it can cover app content; keep important controls clear of those areas. {2} uses a live rehearsal panel, which is separate from the final export design.",
+    "ko": "{0}의 기본값은 {1}이며, 텍스트는 편집 가능한 ASS와 JSON 부가 파일에 기록해요. 내보낸 영상은 화면 아래쪽에 자막을, 왼쪽 위에 챕터를, 오른쪽 위에 실제 키 입력을 겹쳐 보여줘요. 반투명 배경으로 가독성을 높이지만 앱 내용을 가릴 수 있으므로 중요한 컨트롤은 해당 영역을 피해서 배치해요. {2}는 실시간 리허설 패널을 사용하며, 최종 영상의 표시 방식과는 달라요.",
+    "ja": "{0} の既定値は {1} で、テキストは編集可能な ASS と JSON のサイドカーファイルに記録します。書き出した映像では、画面下部に字幕、左上にチャプター、右上に実際のキー入力を重ねます。半透明の背景で読みやすくしていますが、アプリの内容に重なるため、重要なコントロールはその領域を避けて配置してください。{2} はライブのリハーサルパネルを使い、最終映像とは表示方法が異なります。",
+    "zh-Hans": "{0} 默认为 {1}，文字保存在可编辑的 ASS 和 JSON 附属文件中。导出的视频会在画面下方叠加字幕、左上角显示章节、右上角显示实际按键。半透明背景提高了可读性，但仍可能遮挡应用内容，因此重要控件应避开这些区域。{2} 使用实时排练面板，其呈现方式与最终视频不同。",
+    "zh-Hant": "{0} 預設為 {1}，文字會儲存在可編輯的 ASS 與 JSON 附屬檔案中。匯出的影片會在畫面下方疊加字幕、左上角顯示章節、右上角顯示實際按鍵。半透明背景提高了可讀性，但仍可能遮住 App 內容，因此重要控制項應避開這些區域。{2} 使用即時排練面板，呈現方式與最終影片不同。"
+  },
+  "b1a74651529b32af": {
+    "en": "Tatami's app dependency versions and revisions come from {0}.",
+    "ko": "Tatami 앱 의존성의 버전과 리비전은 {0}을 기준으로 해요.",
+    "ja": "Tatami アプリの依存関係のバージョンとリビジョンは、{0} に基づいています。",
+    "zh-Hans": "Tatami 应用依赖项的版本和修订号以 {0} 为准。",
+    "zh-Hant": "Tatami App 相依套件的版本與修訂版本以 {0} 為準。"
+  },
+  "a4f4a10cfde85e94": {
+    "en": "Read [the complete app license and copyright notices]({0}) in their original language. This page translates the explanatory overview only.",
+    "ko": "[앱의 전체 라이선스 및 저작권 고지]({0})는 원문으로 제공해요. 이 페이지는 개요 설명만 번역해요.",
+    "ja": "[アプリのライセンスと著作権表示の全文]({0})は原文でご確認ください。このページでは概要の説明のみを翻訳しています。",
+    "zh-Hans": "请阅读原文形式的[应用完整许可证和版权声明]({0})。本页仅翻译概述说明。",
+    "zh-Hant": "請閱讀原文形式的[App 完整授權條款與著作權聲明]({0})。本頁僅翻譯概述說明。"
+  },
+  "14144cb7ccd165ca": {
+    "en": "Development automation uses a separate set of packages pinned in {0}. Read [the development tool notices]({1}) in their original language.",
+    "ko": "개발 자동화는 {0}에 고정된 별도의 패키지 집합을 사용해요. [개발 도구 의존성 고지]({1})는 원문으로 제공해요.",
+    "ja": "開発用の自動化は、{0} で固定された別のパッケージ群を使います。[開発ツールの依存関係の表示]({1})は原文でご確認ください。",
+    "zh-Hans": "开发自动化使用另一组依赖包，其版本固定在 {0} 中。请阅读原文形式的[开发工具依赖声明]({1})。",
+    "zh-Hant": "開發自動化使用另一組套件，其版本固定在 {0} 中。請閱讀原文形式的[開發工具相依套件聲明]({1})。"
   }
 }

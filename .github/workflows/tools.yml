@@ -26,6 +26,7 @@ jobs:
       - name: Test native automation and generated content
         run: |
           swift test --package-path Tools
+          swift run --package-path Tools tatami-tools build-tool-notices --check
           swift run --package-path Tools tatami-tools build-docs --check
           swift run --package-path Tools tatami-tools localize-scenes --check
           swift run --package-path Tools tatami-tools build-site --output /tmp/tatami-site
