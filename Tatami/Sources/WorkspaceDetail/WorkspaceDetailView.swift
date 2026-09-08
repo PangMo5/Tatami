@@ -773,26 +773,50 @@ struct AppIcon: View {
   let iconPath: String?
 
   var body: some View {
-    if let image = Self.resolvedIcon(bundleIdentifier: bundleIdentifier, iconPath: iconPath) {
-      Image(nsImage: image)
-        .resizable()
-        .scaledToFit()
-    } else {
-      Image(systemName: "app.dashed")
-        .foregroundStyle(.secondary)
+    Group {
+      if loaded?.identity == identity, let image = loaded?.image {
+        Image(decorative: image, scale: 1)
+          .resizable()
+          .scaledToFit()
+      } else {
+        Image(systemName: "app.dashed")
+          .foregroundStyle(.secondary)
+      }
+    }
+    .task(id: identity) {
+      let requested = identity
+      let image = await AppIconLoader.shared.load(bundleIdentifier: bundleIdentifier, iconPath: iconPath)
+      guard !Task.isCancelled else { return }
+      loaded = (requested, image)
     }
   }
 
   // MARK: Private
 
-  /// Decoding an icon from disk (`NSImage(contentsOfFile:)`) or resolving it
-  /// via `NSWorkspace` ran on every `body` pass — in the app lists each row
-  /// re-decoded its icon on every keystroke/scroll. Memoize by icon path
-  /// (else bundle id) so a given icon is decoded once.
-  private static let cache = NSCache<NSString, NSImage>()
+  @State private var loaded: (identity: String, image: CGImage?)?
 
-  private static func resolvedIcon(bundleIdentifier: String, iconPath: String?) -> NSImage? {
-    let key = (iconPath ?? bundleIdentifier) as NSString
+  private var identity: String {
+    bundleIdentifier + "\n" + (iconPath ?? "")
+  }
+
+}
+
+// MARK: - AppIconLoader
+
+/// Mutable AppKit images remain on this serial worker. Only an immutable,
+/// rasterized CGImage crosses to SwiftUI; scrolling never performs disk I/O.
+private actor AppIconLoader {
+
+  // MARK: Internal
+
+  static let shared = AppIconLoader()
+
+  nonisolated var unownedExecutor: UnownedSerialExecutor {
+    executor.asUnownedSerialExecutor()
+  }
+
+  func load(bundleIdentifier: String, iconPath: String?) -> CGImage? {
+    let key = (bundleIdentifier + "\n" + (iconPath ?? "")) as NSString
     if let hit = cache.object(forKey: key) { return hit }
     let image: NSImage? =
       if let iconPath, let fromFile = NSImage(contentsOfFile: iconPath) {
@@ -802,9 +826,19 @@ struct AppIcon: View {
       } else {
         nil
       }
-    if let image { cache.setObject(image, forKey: key) }
-    return image
+    guard let bitmap = image?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+    cache.setObject(bitmap, forKey: key)
+    return bitmap
   }
+
+  // MARK: Private
+
+  private let executor = DispatchSerialQueue(label: "dev.PangMo5.Tatami.app-icons", qos: .userInitiated)
+  private let cache: NSCache<NSString, CGImage> = {
+    let cache = NSCache<NSString, CGImage>()
+    cache.countLimit = 256
+    return cache
+  }()
 
 }
 

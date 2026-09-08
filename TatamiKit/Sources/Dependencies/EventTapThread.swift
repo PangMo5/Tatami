@@ -7,7 +7,7 @@ import Foundation
 /// A single, process-lifetime background thread that runs its own
 /// `CFRunLoop`. `CGEventTap` run-loop sources are attached here instead of
 /// to the main run loop, so the per-event work the taps do — window
-/// hit-testing via `CGWindowListCopyWindowInfo`, throttle bookkeeping —
+/// input capture and latest-sample bookkeeping —
 /// runs off the main thread. Only AppKit identity and UI state hop back via
 /// `MainActor`; timeout-prone Accessibility focus messaging stays on its own
 /// worker. This mirrors how yabai isolates its event tap from the UI.

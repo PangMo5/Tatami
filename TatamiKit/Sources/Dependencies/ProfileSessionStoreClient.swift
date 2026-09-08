@@ -113,9 +113,19 @@ struct ProfileSession: Codable, Hashable, Sendable {
 /// Single small JSON file (`profile-session.json`) next to `config.toml`. One
 /// serial actor owns all I/O; the whole thing is tiny so a full rewrite per
 /// save is fine.
-private actor ProfileSessionStore {
+actor ProfileSessionStore {
+
+  // MARK: Lifecycle
+
+  init(fileURL: URL = ConfigLocation.directory.appendingPathComponent("profile-session.json", isDirectory: false)) {
+    self.fileURL = fileURL
+  }
 
   // MARK: Internal
+
+  nonisolated var unownedExecutor: UnownedSerialExecutor {
+    executor.asUnownedSerialExecutor()
+  }
 
   func load() -> ProfileSession {
     loaded()
@@ -125,8 +135,7 @@ private actor ProfileSessionStore {
     var session = loaded()
     guard session.activeProfileId != id else { return }
     session.activeProfileId = id
-    cached = session
-    write(session)
+    if write(session) { cached = session }
   }
 
   func saveWorkspaceState(
@@ -150,14 +159,14 @@ private actor ProfileSessionStore {
     else { return }
     session.displayWorkspaceHistory = history
     session.workspaceMRU = workspaceMRU
-    cached = session
-    write(session)
+    if write(session) { cached = session }
   }
 
   // MARK: Private
 
-  private let fileURL = ConfigLocation.directory
-    .appendingPathComponent("profile-session.json", isDirectory: false)
+  private let executor = DispatchSerialQueue(label: "dev.PangMo5.Tatami.ProfileSessionStore", qos: .utility)
+
+  private let fileURL: URL
   private var cached: ProfileSession?
 
   private func loaded() -> ProfileSession {
@@ -175,13 +184,15 @@ private actor ProfileSessionStore {
     return (try? JSONDecoder().decode(ProfileSession.self, from: data)) ?? ProfileSession()
   }
 
-  private func write(_ session: ProfileSession) {
+  private func write(_ session: ProfileSession) -> Bool {
     do {
-      try ConfigLocation.ensureDirectoryExists()
+      try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
       let data = try JSONEncoder().encode(session)
       try data.write(to: fileURL, options: .atomic)
+      return true
     } catch {
       logger.error("profile-session save failed: \(error.localizedDescription, privacy: .public)")
+      return false
     }
   }
 

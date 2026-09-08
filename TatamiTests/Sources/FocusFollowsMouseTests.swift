@@ -9,6 +9,36 @@ import Testing
 @testable import TatamiKit
 
 struct FocusFollowsMouseTests {
+  @Test
+  func `the final move is consumed without waiting for another event`() {
+    var inputs = LatestFocusInputBuffer<Int>()
+    let starts = [inputs.offer(1), inputs.offer(2), inputs.offer(3)]
+    let last = inputs.takeLatest()
+    let restarts = inputs.offer(4)
+    let next = inputs.takeLatest()
+    #expect(starts == [true, false, false])
+    #expect(last == 3)
+    #expect(restarts)
+    #expect(next == 4)
+  }
+
+  @Test
+  func `disable or return to the current window revokes queued input`() {
+    var inputs = LatestFocusInputBuffer<Int>()
+    let starts = inputs.offer(1)
+    inputs.invalidate()
+    let cancelled = inputs.takeLatest()
+    let restarts = inputs.offer(2)
+    inputs.invalidate()
+    let overlaps = inputs.offer(3)
+    let latest = inputs.takeLatest()
+    #expect(starts)
+    #expect(cancelled == nil)
+    #expect(restarts)
+    #expect(!overlaps)
+    #expect(latest == 3)
+  }
+
   @Test(arguments: [
     (frontmostPID: pid_t(41), targetPID: pid_t(41), expected: false),
     (frontmostPID: pid_t(41), targetPID: pid_t(42), expected: true),

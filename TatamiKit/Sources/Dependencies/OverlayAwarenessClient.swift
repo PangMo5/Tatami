@@ -81,6 +81,7 @@ struct OverlayAwarenessClient: Sendable {
   ) async -> Set<OverlayAwareProcess> = { _, _ in [] }
   var setBackgrounded: @Sendable (_ process: OverlayAwareProcess, _ isBackgrounded: Bool) -> Void
   var clearBackgroundedProcess: @Sendable (_ pid: pid_t) -> Void
+  var processDidHide: @Sendable (_ pid: pid_t) -> Void
   var clearBackgroundedBundle: @Sendable (_ bundleId: String) -> Void
   var isBackgroundedBundle: @Sendable (_ bundleId: String) -> Bool = { _ in false }
   var isBackgroundedProcess: @Sendable (_ pid: pid_t) -> Bool = { _ in false }
@@ -100,6 +101,7 @@ extension OverlayAwarenessClient: DependencyKey {
       processesToKeepVisible: { await state.processesToKeepVisible($1, from: $0) },
       setBackgrounded: { state.setBackgrounded($0, $1) },
       clearBackgroundedProcess: { state.clearBackgrounded(pid: $0) },
+      processDidHide: { state.processDidHide(pid: $0) },
       clearBackgroundedBundle: { state.clearBackgrounded(bundleId: $0) },
       isBackgroundedBundle: { state.isBackgrounded(bundleId: $0) },
       isBackgroundedProcess: { state.isBackgrounded(pid: $0) },
@@ -115,6 +117,7 @@ extension OverlayAwarenessClient: DependencyKey {
     processesToKeepVisible: { _, _ in [] },
     setBackgrounded: { _, _ in },
     clearBackgroundedProcess: { _ in },
+    processDidHide: { _ in },
     clearBackgroundedBundle: { _ in },
     isBackgroundedBundle: { _ in false },
     isBackgroundedProcess: { _ in false },
@@ -353,6 +356,20 @@ final class OverlayAwarenessState: @unchecked Sendable {
       state.lastOverlayEvidence = state.lastOverlayEvidence.filter {
         $0.key.pid != pid
       }
+    }
+  }
+
+  /// Hiding is a visibility edge, not a transfer of workspace ownership.
+  /// Overlay apps may recreate a control and unhide all their normal windows
+  /// immediately afterward. Keep their exclusion until a target workspace or
+  /// a verified native foreground work window explicitly adopts the process.
+  func processDidHide(pid: pid_t) {
+    lock.withLock { state in
+      let owned = state.backgrounded.union(
+        state.provisionalBackgrounded.values.reduce(into: Set<OverlayAwareProcess>()) { $0.formUnion($1) }
+      ).filter { $0.pid == pid && state.configuredBundleIds.contains($0.bundleId) }
+      state.backgrounded = state.backgrounded.filter { $0.pid != pid }
+      state.backgrounded.formUnion(owned)
     }
   }
 

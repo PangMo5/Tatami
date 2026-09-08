@@ -158,12 +158,14 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       else { return }
       let pid = Self.liveProcessIdentifier(app)
       guard pid > 0 else { return }
-      // hide() can return before AppKit acknowledges it. Keeping suppression
-      // after the app is actually hidden would block its next native reopen.
+      // A meeting control can recreate itself and unhide its app immediately
+      // after this notification. Visibility does not revoke background ownership.
       @Dependency(\.overlayAwareness) var overlayAwareness
-      overlayAwareness.clearBackgroundedProcess(pid)
+      overlayAwareness.processDidHide(pid)
       @Dependency(\.debugLog) var debugLog
-      debugLog.log("OverlayAware", "confirmed hidden \(app.bundleIdentifier ?? "?") pid=\(pid); clear suppression")
+      if overlayAwareness.isBackgroundedProcess(pid) {
+        debugLog.log("OverlayAware", "confirmed hidden \(app.bundleIdentifier ?? "?") pid=\(pid); retain background ownership")
+      }
     }
     // Native macOS Space changes don't fire any per-app notification.
     // Without this the on-screen window set silently drifts away from

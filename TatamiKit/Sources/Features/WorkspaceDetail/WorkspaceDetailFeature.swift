@@ -11,13 +11,35 @@ import Sharing
 /// through `state.$config.withLock` and persist to the TOML file.
 @Reducer
 public struct WorkspaceDetailFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
+
+    // MARK: Lifecycle
+
+    public init(workspaceId: Workspace.ID) {
+      self.workspaceId = workspaceId
+      layout = WorkspaceLayoutFeature.State(workspaceId: workspaceId)
+    }
+
+    // MARK: Public
+
+    public struct ScrollRequest: Equatable {
+      public var bundleId: String
+      public var token: Int
+    }
+
     @Shared(.tatamiConfig) public var config
     public var workspaceId: Workspace.ID
     public var isAppPickerPresented = false
-    public var availableRunningApps: [MacApp] = []
-    public var availableDisplays: [DisplayName] = []
+    public var availableRunningApps = [MacApp]()
+    public var availableDisplays = [DisplayName]()
     /// The layout-preview concern (resolve/edit/persist), owned by its own
     /// reducer.
     public var layout: WorkspaceLayoutFeature.State
@@ -26,16 +48,6 @@ public struct WorkspaceDetailFeature {
     /// requests for the same app so the view's scroll refires.
     public var appScrollRequest: ScrollRequest?
     @Presents public var alert: AlertState<Action.Alert>?
-
-    public struct ScrollRequest: Equatable {
-      public var bundleId: String
-      public var token: Int
-    }
-
-    public init(workspaceId: Workspace.ID) {
-      self.workspaceId = workspaceId
-      self.layout = WorkspaceLayoutFeature.State(workspaceId: workspaceId)
-    }
 
     public var workspace: Workspace? {
       config.workspace(id: workspaceId)
@@ -55,7 +67,8 @@ public struct WorkspaceDetailFeature {
     /// Same, for the assign-app-shortcut recorder.
     public func assignShortcutConflict(for candidate: HotKey) -> String? {
       shortcutConflict(
-        for: candidate, excluding: .assignFocusedAppToWorkspace(workspaceId)
+        for: candidate,
+        excluding: .assignFocusedAppToWorkspace(workspaceId),
       )
     }
 
@@ -64,16 +77,24 @@ public struct WorkspaceDetailFeature {
       shortcutConflict(for: candidate, excluding: .borrowWorkspace(workspaceId))
     }
 
+    // MARK: Internal
+
+    var persistenceRequestID: UUID?
+
+    // MARK: Private
+
     private func shortcutConflict(
       for candidate: HotKey,
-      excluding action: HotKeyAction
+      excluding action: HotKeyAction,
     ) -> String? {
       guard let profileId = config.profileId(owning: workspaceId) else { return nil }
       return config.shortcutConflict(for: candidate, excluding: action, in: profileId)
     }
+
   }
 
   public enum Action: BindableAction {
+    case persistenceFinished(UUID, Workspace.ID, Result<Void, any Error>)
     case binding(BindingAction<State>)
     case onAppear
     case addAppButtonTapped
@@ -114,11 +135,13 @@ public struct WorkspaceDetailFeature {
       sourceWorkspace: Workspace.ID,
       baseline: AppConfig,
       excludingApps: Set<String>,
-      excludingFields: Set<String>
+      excludingFields: Set<String>,
     )
     case layout(WorkspaceLayoutFeature.Action)
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
+
+    // MARK: Public
 
     public enum Alert: Equatable {
       case confirmAppRemoval(bundleIdentifier: String)
@@ -132,19 +155,23 @@ public struct WorkspaceDetailFeature {
     }
   }
 
-  @Dependency(\.runningApps) var runningApps
-  @Dependency(\.displays) var displays
-  @Dependency(\.hotKeys) var hotKeys
-  @Dependency(\.appChooser) var appChooser
-  @Dependency(\.configPersistence) var configPersistence
-
-  public init() {}
-
   public var body: some ReducerOf<Self> {
     BindingReducer()
     Scope(state: \.layout, action: \.layout) { WorkspaceLayoutFeature() }
     Reduce { state, action in
       switch action {
+      case .persistenceFinished(let requestID, let target, let result):
+        guard state.persistenceRequestID == requestID else { return .none }
+        state.persistenceRequestID = nil
+        switch result {
+        case .success:
+          return .send(.delegate(.importApplied(target)))
+        case .failure(let error):
+          guard state.workspaceId == target else { return .none }
+          state.alert = isStaleReview(error) ? configurationChangedAlert() : copyFailedAlert(error)
+          return .none
+        }
+
       case .binding:
         return .none
 
@@ -348,13 +375,13 @@ public struct WorkspaceDetailFeature {
       case .activateTapped:
         return .none
 
-      case let .importWorkspace(
-        targetWorkspace,
-        sourceProfile,
-        sourceWorkspace,
-        baseline,
-        excludingApps,
-        excludingFields
+      case .importWorkspace(
+        let targetWorkspace,
+        let sourceProfile,
+        let sourceWorkspace,
+        let baseline,
+        let excludingApps,
+        let excludingFields,
       ):
         guard
           state.workspaceId == targetWorkspace,
@@ -363,7 +390,7 @@ public struct WorkspaceDetailFeature {
             from: sourceProfile,
             sourceWorkspace: sourceWorkspace,
             excludingApps: excludingApps,
-            excludingFields: excludingFields
+            excludingFields: excludingFields,
           )
         else {
           state.alert = configurationChangedAlert()
@@ -374,26 +401,32 @@ public struct WorkspaceDetailFeature {
           return .none
         }
 
-        do {
-          let revision = try configPersistence.captureRevision(baseline)
-          try configPersistence.commit(
-            state.$config,
-            baseline,
-            revision,
-            projection.config,
-            { true }
-          )
-          return .send(.delegate(.importApplied(targetWorkspace)))
-        } catch {
-          state.alert = isStaleReview(error)
-            ? configurationChangedAlert()
-            : copyFailedAlert(error)
-          return .none
+        let requestID = UUID()
+        state.persistenceRequestID = requestID
+        let config = state.$config
+        return .run { [configPersistence] send in
+          do {
+            let revision = try await configPersistence.captureRevision(baseline)
+            try await configPersistence.commit(config, baseline, revision, projection.config) { true }
+            await send(.persistenceFinished(requestID, targetWorkspace, .success(())))
+          } catch {
+            await send(.persistenceFinished(requestID, targetWorkspace, .failure(error)))
+          }
         }
       }
     }
     .ifLet(\.$alert, action: \.alert)
   }
+
+  // MARK: Internal
+
+  @Dependency(\.runningApps) var runningApps
+  @Dependency(\.displays) var displays
+  @Dependency(\.hotKeys) var hotKeys
+  @Dependency(\.appChooser) var appChooser
+  @Dependency(\.configPersistence) var configPersistence
+
+  // MARK: Private
 
   private func configurationChangedAlert() -> AlertState<Action.Alert> {
     AlertState {
@@ -424,9 +457,12 @@ public struct WorkspaceDetailFeature {
   private func isStaleReview(_ error: any Error) -> Bool {
     guard let error = error as? ConfigPersistenceError else { return false }
     return switch error {
-    case .changedInMemory, .changedOnDisk, .transactionExpired:
+    case .changedInMemory,
+         .changedOnDisk,
+         .transactionExpired:
       true
-    case .outcomeUnknown:
+    case .notLoaded,
+         .outcomeUnknown:
       false
     }
   }
@@ -449,4 +485,5 @@ public struct WorkspaceDetailFeature {
       )
     }
   }
+
 }

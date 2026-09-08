@@ -46,6 +46,21 @@ struct FloatingMirrorVisibilityTests {
     #expect(exposed([otherDisplay, elevated, window(10, pid: 1)]))
   }
 
+  @Test
+  func `focus waits for the restored mirror identity geometry and opacity`() {
+    var panel = window(90, pid: 9)
+    panel.surface.layer = 5
+    let frames: [CGWindowID: CGRect] = [90: frame]
+    #expect(areFloatingMirrorsPresented(frames, ownerPID: 9, windows: [panel]))
+    #expect(!areFloatingMirrorsPresented(frames, ownerPID: 8, windows: [panel]))
+    #expect(!areFloatingMirrorsPresented(frames, ownerPID: 9, windows: []))
+    panel.alpha = 0.5
+    #expect(!areFloatingMirrorsPresented(frames, ownerPID: 9, windows: [panel]))
+    panel.alpha = 1
+    panel.surface.frame.origin.x += 20
+    #expect(!areFloatingMirrorsPresented(frames, ownerPID: 9, windows: [panel]))
+  }
+
   // MARK: Private
 
   private let key = WindowKey(pid: 1, windowID: 10, bundleId: "app.floating")

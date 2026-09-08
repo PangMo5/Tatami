@@ -58,7 +58,8 @@ struct OverlayAwareAppsFeatureTests {
       $0.runningApps.resolveInstalled = { _ in [notion] }
     }
 
-    await store.send(.onAppear) {
+    await store.send(.onAppear)
+    await store.receive(\.installedAppsResolved) {
       $0.knownApps[notion.bundleIdentifier] = notion
     }
 

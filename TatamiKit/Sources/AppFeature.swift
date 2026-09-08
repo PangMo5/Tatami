@@ -63,6 +63,14 @@ public struct AppFeature {
     /// I/O failures) surfaced via the menu bar until resolved or dismissed.
     public var errorReports: IdentifiedArrayOf<ErrorReport> = []
 
+    public var isConfigurationReady: Bool {
+      !$config.isLoading && $config.loadError == nil
+    }
+
+    public var configurationLoadError: String? {
+      $config.loadError.map(ErrorReportClient.describe)
+    }
+
     // MARK: Internal
 
     /// `.task` is driven by the main window's `.task` modifier, which
@@ -82,6 +90,7 @@ public struct AppFeature {
 
   public enum Action {
     case task
+    case configurationLoadFailed
     /// Startup profile reconciliation completed; publish its initial hook
     /// context without widening WorkspaceActivationFeature's delegate contract.
     case startupProfileRestored
@@ -143,8 +152,22 @@ public struct AppFeature {
     }
     Reduce { state, action in
       switch action {
+      case .configurationLoadFailed:
+        return .none
+
       case .task:
         guard !state.didStartUp else { return .none }
+        if state.$config.isLoading || state.$config.loadError != nil {
+          let config = state.$config
+          return .run { send in
+            do {
+              try await config.load()
+              await send(.task)
+            } catch {
+              await send(.configurationLoadFailed)
+            }
+          }
+        }
         state.didStartUp = true
         let settings = state.config.settings
         let sharedConfig = state.$config

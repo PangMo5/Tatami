@@ -507,6 +507,7 @@ struct WorkspaceListFeatureTests {
       guard case .duplicationPrepared(let preparation) = $0 else { return false }
       return preparation.layoutCopied
     }
+    await store.receive(\.duplicationCommitted)
     await store.finish()
 
     #expect(store.state.config.profiles[0].workspaces.count == 1)
@@ -729,6 +730,7 @@ struct ProfileCopyTransactionTests {
       excludedApps: [:],
       excludedFields: [:],
     ))
+    await store.receive(\.persistenceFinished)
     await store.finish()
 
     #expect(commitAttempts.value == 1)
@@ -760,6 +762,7 @@ struct ProfileCopyTransactionTests {
       excludedApps: [:],
       excludedFields: [:],
     ))
+    await store.receive(\.persistenceFinished)
     await store.finish()
 
     #expect(store.state.config == changed)
@@ -1594,6 +1597,7 @@ struct HotKeyRegistrationRefreshTests {
       excludingApps: [],
       excludingFields: [],
     ))))
+    await store.receive(\.workspaceList.detail.persistenceFinished)
     await store.finish()
 
     #expect(commitAttempts.value == 1)
@@ -1635,6 +1639,7 @@ struct HotKeyRegistrationRefreshTests {
       excludingApps: [],
       excludingFields: [],
     ))))
+    await store.receive(\.workspaceList.detail.persistenceFinished)
     await store.finish()
 
     #expect(registrations.value.isEmpty)

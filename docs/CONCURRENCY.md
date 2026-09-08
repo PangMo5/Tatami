@@ -72,25 +72,64 @@ defer the check until all focus/layout work finishes and inspect the current
 foreground rather than replaying the historical event. Window-focus events
 also trigger validation, so an already-active app can open its main document.
 
-An asynchronous `hide()` acknowledgement releases temporary suppression when
-`didHideApplication` confirms the app is hidden. A pending hide must not turn
-into a permanent exclusion for an app that had no elevated controls.
+A hide acknowledgement changes visibility, not workspace ownership. An
+allowlisted app may recreate an elevated control and unhide its normal windows
+immediately afterward. Retain its background exclusion across this edge until
+a target/shared/borrowed activation or a verified native foreground work window
+adopts it. Termination revokes the exact process; after allowlist removal, a
+confirmed hide can release its remaining exclusion.
 
-## Audit boundary
+## Persistence and resource loading
 
-The window interaction paths use worker-based reads: process resolution,
-workspace visibility, AX discovery/focus/geometry, visibility reconciliation,
-window cycling, HUD titles, floating-mirror verification, and changelog loading.
-Layout/session persistence and debug logging already have isolated writers.
+`AsyncConfigStore` owns initial reading, TOML decoding, file/directory watches,
+ordinary saves, and durable GUI/CLI transactions on one serial Dispatch lane.
+The UI admits an edit without waiting for disk. A load or watch publication
+checks the admitted edit generation before changing shared state. Startup gates
+configuration-dependent views and effects until loading succeeds; a parse error
+must not normalize an empty seed over the user's file.
 
-Configuration persistence still has a separate ownership constraint:
-`TatamiConfigKey` initial loading/saving and durable `ConfigPersistenceClient`
-transactions are synchronous. The transaction holds the shared configuration
-lock while performing an atomic compare-and-swap. Moving that function to a
-worker alone would still make main-actor readers wait for the shared lock.
-Changing this requires coordinating **all** config writers and testing
-concurrent UI edits, CLI commits, external file writes, and rollback behavior;
-do not weaken those guarantees just to label the function asynchronous.
+Durable changes retain the raw revision through asynchronous preparation. They
+perform the coordinated compare-and-swap off-main, then publish under a short
+shared-state lock on the main actor if the reviewed value is still current.
+Failed publication restores the displaced file using inode/revision ownership;
+unverified recovery bytes must never be deleted. No UI reader waits on the I/O
+lock. The worker may synchronously request a short main-actor publication, so
+main-actor code must never synchronously wait for the persistence lane.
+
+Session-only profile changes do not rewrite TOML. Normal application termination
+awaits already-admitted configuration writes and reports a failed write before
+allowing an explicit quit-without-saving choice. This does not cover crashes,
+forced termination, or writes not yet submitted by an effect.
+
+Layout and session actors use `DispatchSerialQueue` executors so their complete
+read/modify/write operations remain serial without occupying the cooperative
+pool. A failed write does not advance the successful-write cache. App icon
+loading, application metadata, bundled documents, and CLI filesystem/admin
+operations also use blocking workers; AppKit panels remain on the main actor.
+Only immutable icon bitmaps cross into SwiftUI.
+
+## Pointer input
+
+FFM captures events without a timed throttle. One WindowServer read may be in
+flight while one latest pointer sample is retained; completion hit-tests that
+latest sample even if movement has stopped. A native event window ID skips
+repeat scans within the already-selected normal window. Modifier suspension,
+teardown, returning to the current window, and programmatic cursor warps revoke
+obsolete work. WindowServer/display reads never run inside the event callback.
+
+## Floating presentation
+
+Hover reveals the real always-on-top window without independently requesting
+keyboard focus. The FFM event path owns mouse-driven focus policy; clicking uses
+the common focus pipeline. Both window-specific and first-app focus preparation
+restore mirrors before moving focus. WindowServer identity, geometry, layer, and
+opacity evidence replaces a fixed pre-focus delay. This is presentation-state
+evidence, not proof of the user's final display scanout.
+
+A source handover fades the mirror only after the real window is visible at the
+matching frame above overlapping normal surfaces. Capture restart completions
+belong to one stream instance and request token. Superseded callbacks must not
+show or hide a replacement mirror with the same window key.
 
 ## Validation
 

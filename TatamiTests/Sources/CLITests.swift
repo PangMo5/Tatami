@@ -645,12 +645,12 @@ struct CLIMutationTests {
     await store.send(.incomingRequest(
       .init(command: .renameWorkspace, arguments: [workspace.id.uuidString, "New"]),
       reply: CLIReply { response.setValue($0) },
-    )) {
-      $0.$config.withLock { $0.mutateWorkspace(workspace.id) { $0.name = "New" } }
-    }
-    await store.receive {
+    ))
+    await store.receive({
       guard case .delegate(.configurationChanged) = $0 else { return false }
       return true
+    }) {
+      $0.$config.withLock { $0.mutateWorkspace(workspace.id) { $0.name = "New" } }
     }
     await store.finish()
 
@@ -673,12 +673,12 @@ struct CLIMutationTests {
     await store.send(.incomingRequest(
       .init(command: .renameWorkspace, arguments: [workspace.id.uuidString, "New"]),
       reply: CLIReply { response.setValue($0) },
-    )) {
-      $0.$config.withLock { $0.mutateWorkspace(workspace.id) { $0.name = "New" } }
-    }
-    await store.receive {
+    ))
+    await store.receive({
       guard case .delegate(.configurationChanged) = $0 else { return false }
       return true
+    }) {
+      $0.$config.withLock { $0.mutateWorkspace(workspace.id) { $0.name = "New" } }
     }
     await store.finish()
 

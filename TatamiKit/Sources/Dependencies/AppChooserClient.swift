@@ -6,6 +6,8 @@ import Dependencies
 import DependenciesMacros
 import UniformTypeIdentifiers
 
+// MARK: - AppChooserClient
+
 /// Presents an open panel to pick an `.app` bundle from disk, for adding an
 /// app that isn't currently running. Wrapped in a dependency so reducers
 /// stay testable.
@@ -16,10 +18,12 @@ struct AppChooserClient: Sendable {
   var choose: @Sendable () async -> MacApp? = { nil }
 }
 
+// MARK: DependencyKey
+
 extension AppChooserClient: DependencyKey {
   static let liveValue = AppChooserClient(
     choose: {
-      await MainActor.run {
+      let url: URL? = await MainActor.run {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.application]
         panel.canChooseFiles = true
@@ -28,10 +32,11 @@ extension AppChooserClient: DependencyKey {
         panel.directoryURL = URL(fileURLWithPath: "/Applications")
         panel.prompt = "Add"
         panel.message = "Choose an application to add."
-        guard panel.runModal() == .OK, let url = panel.url,
-              let bundle = Bundle(url: url),
-              let bundleId = bundle.bundleIdentifier
-        else { return nil }
+        return panel.runModal() == .OK ? panel.url : nil
+      }
+      guard let url else { return nil }
+      return await BlockingWorkQueue(label: "dev.PangMo5.Tatami.chosen-app").run {
+        guard let bundle = Bundle(url: url), let bundleId = bundle.bundleIdentifier else { return nil }
         let name = bundle.infoDictionary?["CFBundleDisplayName"] as? String
           ?? bundle.infoDictionary?["CFBundleName"] as? String
           ?? url.deletingPathExtension().lastPathComponent

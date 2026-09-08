@@ -13,14 +13,14 @@ import Sharing
 /// work, and the custom shared key suppresses the matching didSet write after
 /// the transaction has already replaced the file.
 struct ConfigPersistenceClient: Sendable {
-  var captureRevision: @Sendable (_ expected: AppConfig) throws -> Data?
+  var captureRevision: @Sendable (_ expected: AppConfig) async throws -> Data?
   var commit: @Sendable (
     _ config: Shared<AppConfig>,
     _ baseline: AppConfig,
     _ revision: Data?,
     _ updated: AppConfig,
-    _ reserve: @Sendable () -> Bool,
-  ) throws -> Void
+    _ reserve: @escaping @Sendable () -> Bool,
+  ) async throws -> Void
 }
 
 // MARK: DependencyKey
@@ -28,21 +28,40 @@ struct ConfigPersistenceClient: Sendable {
 extension ConfigPersistenceClient: DependencyKey {
   static let liveValue = ConfigPersistenceClient(
     captureRevision: { expected in
-      try TatamiConfigTransactionCoordinator.shared.captureRevision(expected: expected)
+      try await onConfigQueue {
+        try TatamiConfigTransactionCoordinator.shared.captureRevision(expected: expected)
+      }
     },
     commit: { config, baseline, revision, updated, reserve in
-      try config.withLock { current in
-        guard current.hasSamePersistedContent(as: baseline) else {
+      try await onConfigQueue {
+        guard config.wrappedValue.hasSamePersistedContent(as: baseline) else {
           throw ConfigPersistenceError.changedInMemory
         }
-        var next = updated
-        next.activeProfileId = current.activeProfileId
-        try TatamiConfigTransactionCoordinator.shared.replace(
+        let committedData = try TatamiConfigTransactionCoordinator.shared.replace(
           revision: revision,
-          with: next,
+          with: updated,
           reserve: reserve,
+          suppressDidSet: false,
+          publish: {
+            DispatchQueue.main.sync {
+              ConfigPublication.$isPublishing.withValue(true) {
+                config.withLock { current in
+                  guard current.hasSamePersistedContent(as: baseline) else { return false }
+                  var next = updated
+                  next.activeProfileId = current.activeProfileId
+                  current = next
+                  AsyncConfigStore.shared.recordDurablePublication(next)
+                  return true
+                }
+              }
+            }
+          },
         )
-        current = next
+        let published = config.wrappedValue
+        var committed = updated
+        committed.activeProfileId = published.activeProfileId
+        TatamiConfigTransactionCoordinator.shared.recordSelfWrite(committed)
+        AsyncConfigStore.shared.didCommit(committed, data: committedData)
       }
     },
   )
@@ -71,9 +90,10 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
   // MARK: Internal
 
   static let shared = TatamiConfigTransactionCoordinator()
+  static let queue = DispatchQueue(label: "dev.PangMo5.Tatami.config-persistence", qos: .userInitiated)
 
   func serialize<R>(_ operation: () throws -> R) rethrows -> R {
-    try lock.withLock(operation)
+    try ioLock.withLock(operation)
   }
 
   func consumeSuppressedDidSet(_ value: AppConfig) -> Bool {
@@ -133,6 +153,7 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
     }
   }
 
+  @discardableResult
   func replace(
     revision: Data?,
     with updated: AppConfig,
@@ -140,7 +161,9 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
     reserve: @Sendable () -> Bool = { true },
     afterPreflightCheck: @Sendable () -> Void = { },
     afterInitialExchange: @Sendable () -> Void = { },
-  ) throws {
+    suppressDidSet: Bool = true,
+    publish: @Sendable () -> Bool = { true },
+  ) throws -> Data {
     try serialize {
       try FileManager.default.createDirectory(
         at: url.deletingLastPathComponent(),
@@ -162,6 +185,7 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
             reserve: reserve,
             afterPreflightCheck: afterPreflightCheck,
             afterInitialExchange: afterInitialExchange,
+            publish: publish,
           )
         } catch {
           operationError = error
@@ -169,15 +193,19 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
       }
       if let operationError { throw operationError }
       if let coordinationError { throw coordinationError }
-      suppressedDidSet = updated
-      sessionProfileID = updated.activeProfileId
-      recentSelfWrite = (updated, Date.now.addingTimeInterval(2))
+      lock.withLock {
+        if suppressDidSet { suppressedDidSet = updated }
+        sessionProfileID = updated.activeProfileId
+        recentSelfWrite = (updated, Date.now.addingTimeInterval(2))
+      }
+      return data
     }
   }
 
   // MARK: Private
 
-  private let lock = NSRecursiveLock()
+  private let ioLock = NSRecursiveLock()
+  private let lock = NSLock()
   private var recentSelfWrite: (value: AppConfig, expiresAt: Date)?
   private var sessionProfileID: Profile.ID?
   private var suppressedDidSet: AppConfig?
@@ -213,6 +241,7 @@ private func hasSameFreshSeedContent(_ config: AppConfig) -> Bool {
 // MARK: - ConfigPersistenceError
 
 enum ConfigPersistenceError: Error, LocalizedError {
+  case notLoaded
   case changedInMemory
   case changedOnDisk
   case outcomeUnknown(recoveryPath: String?)
@@ -222,6 +251,9 @@ enum ConfigPersistenceError: Error, LocalizedError {
 
   var errorDescription: String? {
     switch self {
+    case .notLoaded:
+      "Configuration has not finished loading"
+
     case .changedInMemory:
       "Configuration changed while the command was running"
 
@@ -259,6 +291,7 @@ private func compareAndSwapConfigFile(
   reserve: @Sendable () -> Bool,
   afterPreflightCheck: @Sendable () -> Void,
   afterInitialExchange: @Sendable () -> Void,
+  publish: @Sendable () -> Bool,
 ) throws {
   let temporaryURL = url.deletingLastPathComponent()
     .appendingPathComponent(".tatami-config-\(UUID().uuidString).tmp")
@@ -286,6 +319,31 @@ private func compareAndSwapConfigFile(
       if errno == EEXIST { throw ConfigPersistenceError.changedOnDisk }
       throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
+    guard publish() else {
+      // Move the new inode aside before inspecting it. If an external writer
+      // replaced it meanwhile, restore that writer without overwriting another.
+      guard renameConfigFile(url, temporaryURL, flags: UInt32(RENAME_EXCL)) == 0 else {
+        shouldRemoveTemporary = false
+        throw ConfigPersistenceError.outcomeUnknown(recoveryPath: nil)
+      }
+      let stillOwnsCandidate: Bool
+      do {
+        stillOwnsCandidate = try Data(contentsOf: temporaryURL) == updatedData
+          && configFileIdentity(at: temporaryURL) == candidateIdentity
+      } catch {
+        // Ownership is unknown. Preserve the displaced bytes for recovery;
+        // the cleanup defer must never delete an unverified external write.
+        shouldRemoveTemporary = false
+        throw ConfigPersistenceError.outcomeUnknown(recoveryPath: temporaryURL.path)
+      }
+      if !stillOwnsCandidate {
+        guard renameConfigFile(temporaryURL, url, flags: UInt32(RENAME_EXCL)) == 0 else {
+          shouldRemoveTemporary = false
+          throw ConfigPersistenceError.outcomeUnknown(recoveryPath: temporaryURL.path)
+        }
+      }
+      throw ConfigPersistenceError.changedInMemory
+    }
     return
   }
 
@@ -305,7 +363,8 @@ private func compareAndSwapConfigFile(
     shouldRemoveTemporary = false
     throw ConfigPersistenceError.outcomeUnknown(recoveryPath: temporaryURL.path)
   }
-  guard displaced == expectedRevision else {
+  let matchesRevision = displaced == expectedRevision
+  guard matchesRevision, publish() else {
     do {
       try restoreDisplacedConfig(
         at: url,
@@ -319,7 +378,7 @@ private func compareAndSwapConfigFile(
       shouldRemoveTemporary = false
       throw ConfigPersistenceError.outcomeUnknown(recoveryPath: temporaryURL.path)
     }
-    throw ConfigPersistenceError.changedOnDisk
+    throw matchesRevision ? ConfigPersistenceError.changedInMemory : ConfigPersistenceError.changedOnDisk
   }
 }
 
@@ -402,5 +461,25 @@ extension DependencyValues {
   var configPersistence: ConfigPersistenceClient {
     get { self[ConfigPersistenceClient.self] }
     set { self[ConfigPersistenceClient.self] = newValue }
+  }
+}
+
+// MARK: - ConfigPublication
+
+/// Synchronous Shared didSet callbacks inherit this task-local publication scope.
+/// It suppresses only this durable publication, never another caller's edit.
+enum ConfigPublication {
+  @TaskLocal static var isPublishing = false
+}
+
+private func onConfigQueue<Value: Sendable>(
+  _ operation: @escaping @Sendable () throws -> Value
+) async throws -> Value {
+  try await withEscapedDependencies { dependencies in
+    try await withCheckedThrowingContinuation { continuation in
+      TatamiConfigTransactionCoordinator.queue.async {
+        continuation.resume(with: Result { try dependencies.yield(operation) })
+      }
+    }
   }
 }

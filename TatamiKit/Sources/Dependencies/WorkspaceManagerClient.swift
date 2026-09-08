@@ -177,6 +177,8 @@ extension WorkspaceManagerClient: DependencyKey {
 
   // MARK: Private
 
+  private static let applicationLookupWorker = BlockingWorkQueue(label: "dev.PangMo5.Tatami.application-lookup")
+
   private static func _live(cursorHide: CursorHideSink) -> WorkspaceManagerClient {
     WorkspaceManagerClient(
       activate: { request in
@@ -236,7 +238,7 @@ extension WorkspaceManagerClient: DependencyKey {
           /// borrowed block itself rather than letting the manager pick — and
           /// reading that as "background restore" left a scratchpad's apps
           /// unopened.
-          func autoOpenIfNeeded(_ bundleId: String, summoned: Bool = false) {
+          func autoOpenIfNeeded(_ bundleId: String, summoned: Bool = false) async {
             let instances = runningByBundle[bundleId] ?? []
             let hasVisibleWindow = instances.contains {
               processIDs[$0].map(onScreenOwnerPids.contains) ?? false
@@ -274,12 +276,14 @@ extension WorkspaceManagerClient: DependencyKey {
               return
             }
             guard
-              let url = NSWorkspace.shared
-                .urlForApplication(withBundleIdentifier: bundleId)
+              let url = await Self.applicationLookupWorker.run({
+                NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId)
+              })
             else {
               debugLog.log("Manager", "autoOpen \(bundleId): no app URL — skipped")
               return
             }
+            guard !Task.isCancelled else { return }
             debugLog.log("Manager", "autoOpen \(bundleId) (running=\(!instances.isEmpty))")
             let config = NSWorkspace.OpenConfiguration()
             // On a followAppFocus switch (setFocus=false) auto-open must not
@@ -298,21 +302,22 @@ extension WorkspaceManagerClient: DependencyKey {
             }
           }
           for app in request.workspace.apps where app.autoOpen {
-            autoOpenIfNeeded(app.bundleIdentifier)
+            await autoOpenIfNeeded(app.bundleIdentifier)
           }
           // Borrowed apps auto-open too (a borrowed workspace should bring its
           // apps up when summoned); performBorrow forces this on for a
           // scratchpad so all of its apps open.
           for app in request.borrowedApps where app.autoOpen {
-            autoOpenIfNeeded(app.bundleIdentifier, summoned: true)
+            await autoOpenIfNeeded(app.bundleIdentifier, summoned: true)
           }
           // Shared apps are present in every workspace, so an auto-open one is
           // (re)opened on any activation — this is what restores a minimized
           // shared app now that focus no longer de-minimizes it.
           for app in request.sharedApps where app.autoOpen {
-            autoOpenIfNeeded(app.bundleIdentifier)
+            await autoOpenIfNeeded(app.bundleIdentifier)
           }
 
+          guard !Task.isCancelled else { return }
           // Resolve the focus target among the workspace's own apps.
           // No pinned app ("Most recently used") → the MRU window's app;
           // last registered app only as a final fallback.
@@ -439,7 +444,7 @@ extension WorkspaceManagerClient: DependencyKey {
               pid: pid,
             )
             if app.isHidden {
-              overlayAwareness.setBackgrounded(process, false)
+              overlayAwareness.processDidHide(process.pid)
               continue
             }
             hideCandidates.append((app, process))
@@ -465,19 +470,19 @@ extension WorkspaceManagerClient: DependencyKey {
               continue
             }
             if app.isHidden {
-              overlayAwareness.setBackgrounded(process, false)
+              overlayAwareness.processDidHide(process.pid)
               continue
             }
             if committedPreserves.contains(process) {
               overlayPreserved.append(process.bundleId)
               continue
             }
-            // Hide first, then re-enable automation. Reversing these two steps
-            // creates a brief FFM path onto the stray layer-zero window.
+            // Keep background ownership across hide/unhide. Overlay controls
+            // can recreate themselves and reveal their ordinary windows.
             let didHide = app.hide()
             hiddenCount += 1
             if didHide || app.isHidden {
-              overlayAwareness.setBackgrounded(process, false)
+              overlayAwareness.processDidHide(process.pid)
             } else if overlayAwareness.promoteBackgrounded(evaluation, process) {
               // `hide()` can complete asynchronously. Promote this process to
               // persistent suppression before the evaluation lease ends; the
@@ -560,7 +565,7 @@ extension WorkspaceManagerClient: DependencyKey {
               continue
             }
             if app.isHidden {
-              overlayAwareness.setBackgrounded(process, false)
+              overlayAwareness.processDidHide(process.pid)
               continue
             }
             if committedPreserves.contains(process) {
@@ -569,7 +574,7 @@ extension WorkspaceManagerClient: DependencyKey {
             let didHide = app.hide()
             hiddenCount += 1
             if didHide || app.isHidden {
-              overlayAwareness.setBackgrounded(process, false)
+              overlayAwareness.processDidHide(process.pid)
             } else if overlayAwareness.promoteBackgrounded(evaluation, process) {
               debugLog.log(
                 "OverlayAware",

@@ -38,14 +38,14 @@ public struct WorkspaceListFeature {
   /// snapshot in reducer state means the eventual clone matches the options
   /// the user reviewed even if config.toml changes while the sheet is open.
   public struct DuplicationReview: Equatable, Identifiable, Sendable {
-    public enum Source: Equatable, Sendable {
-      case profile(Profile)
-      case workspace(Workspace)
-    }
-
     public init(source: Source, baseline: AppConfig) {
       self.source = source
       self.baseline = baseline
+    }
+
+    public enum Source: Equatable, Sendable {
+      case profile(Profile)
+      case workspace(Workspace)
     }
 
     public let baseline: AppConfig
@@ -79,28 +79,6 @@ public struct WorkspaceListFeature {
     public static func layout(_ workspaceID: Workspace.ID) -> String {
       "\(workspaceID.uuidString):layout"
     }
-  }
-
-  /// Validate a duplicate chooser's entire effective selection and map every
-  /// collision back to the source row id shown by `SyncPreviewSheet`.
-  public static func duplicationShortcutConflicts(
-    review: DuplicationReview,
-    excluding excludedItemIDs: Set<String>
-  ) -> [String: [WorkspaceShortcutConflict]] {
-    guard let pending = prepareDuplication(
-      review: review,
-      excluding: excludedItemIDs,
-      selectionRevision: 0
-    ) else { return [:] }
-    var result = [String: [WorkspaceShortcutConflict]]()
-    for conflict in pending.updated.shortcutCopyConflicts(
-      for: pending.shortcutSelections,
-      comparedTo: pending.baseline
-    ) {
-      guard let itemID = pending.shortcutItemIDs[conflict.selection] else { continue }
-      result[itemID, default: []].append(conflict)
-    }
-    return result
   }
 
   public struct DuplicationPreparation: Equatable, Sendable {
@@ -230,6 +208,8 @@ public struct WorkspaceListFeature {
     case duplicateWorkspaceTapped(Workspace.ID)
     case duplicationReviewConfirmed(excluding: Set<String>)
     case duplicationPrepared(DuplicationPreparation)
+    case duplicationCommitted(DuplicationPreparation, Result<Void, any Error>)
+    case duplicationPreparationFailed(String)
     case selectDuplicateIfUnchanged(NameTarget, selectionRevision: UInt64)
     case deleteProfileRequested(Profile.ID)
     case profilesReordered(IndexSet, Int)
@@ -442,7 +422,7 @@ public struct WorkspaceListFeature {
         else { return .none }
         let conflicts = pending.updated.shortcutCopyConflicts(
           for: pending.shortcutSelections,
-          comparedTo: pending.baseline
+          comparedTo: pending.baseline,
         )
         guard conflicts.isEmpty else {
           state.alert = shortcutConflictAlert(conflicts)
@@ -453,9 +433,17 @@ public struct WorkspaceListFeature {
         state.pendingDuplications.append(pending)
         return startNextDuplication(state: &state)
 
-      case .duplicationPrepared(let preparation):
+      case .duplicationPreparationFailed(let message):
         state.isDuplicationInFlight = false
+        state.pendingDuplications.removeAll()
+        state.projectedDuplicationConfig = nil
+        state.duplicationReview = nil
+        errorReporter.report("Duplication", String(localized: "Configuration changed before duplication started"), message)
+        return .none
+
+      case .duplicationPrepared(let preparation):
         guard preparation.layoutCopied else {
+          state.isDuplicationInFlight = false
           state.pendingDuplications.removeAll()
           state.projectedDuplicationConfig = nil
           state.duplicationReview = nil
@@ -463,24 +451,35 @@ public struct WorkspaceListFeature {
         }
         let conflicts = preparation.updated.shortcutCopyConflicts(
           for: preparation.shortcutSelections,
-          comparedTo: preparation.baseline
+          comparedTo: preparation.baseline,
         )
         guard conflicts.isEmpty else {
+          state.isDuplicationInFlight = false
           state.alert = shortcutConflictAlert(conflicts)
           state.pendingDuplications.removeAll()
           state.projectedDuplicationConfig = nil
           state.duplicationReview = nil
           return clearLayouts(preparation.newWorkspaceIDs)
         }
-        do {
-          try configPersistence.commit(
-            state.$config,
-            preparation.baseline,
-            preparation.configRevision,
-            preparation.updated,
-            { true },
-          )
-        } catch {
+        let config = state.$config
+        return .run { [configPersistence] send in
+          do {
+            try await configPersistence.commit(
+              config,
+              preparation.baseline,
+              preparation.configRevision,
+              preparation.updated,
+              { true },
+            )
+            await send(.duplicationCommitted(preparation, .success(())))
+          } catch {
+            await send(.duplicationCommitted(preparation, .failure(error)))
+          }
+        }
+
+      case .duplicationCommitted(let preparation, let result):
+        state.isDuplicationInFlight = false
+        if case .failure(let error) = result {
           errorReporter.report(
             "Duplication",
             String(localized: "Configuration changed before duplication finished"),
@@ -596,6 +595,30 @@ public struct WorkspaceListFeature {
     .ifLet(\.$alert, action: \.alert)
   }
 
+  /// Validate a duplicate chooser's entire effective selection and map every
+  /// collision back to the source row id shown by `SyncPreviewSheet`.
+  public static func duplicationShortcutConflicts(
+    review: DuplicationReview,
+    excluding excludedItemIDs: Set<String>,
+  ) -> [String: [WorkspaceShortcutConflict]] {
+    guard
+      let pending = prepareDuplication(
+        review: review,
+        excluding: excludedItemIDs,
+        selectionRevision: 0,
+      )
+    else { return [:] }
+    var result = [String: [WorkspaceShortcutConflict]]()
+    for conflict in pending.updated.shortcutCopyConflicts(
+      for: pending.shortcutSelections,
+      comparedTo: pending.baseline,
+    ) {
+      guard let itemID = pending.shortcutItemIDs[conflict.selection] else { continue }
+      result[itemID, default: []].append(conflict)
+    }
+    return result
+  }
+
   // MARK: Internal
 
   struct PendingDuplication: Equatable, Sendable {
@@ -615,56 +638,19 @@ public struct WorkspaceListFeature {
 
   // MARK: Private
 
-  private func startNextDuplication(state: inout State) -> Effect<Action> {
-    guard !state.isDuplicationInFlight else { return .none }
-    guard !state.pendingDuplications.isEmpty else {
-      state.projectedDuplicationConfig = nil
-      return .none
-    }
-
-    let request = state.pendingDuplications.removeFirst()
-    let configRevision: Data?
-    do {
-      configRevision = try configPersistence.captureRevision(request.baseline)
-    } catch {
-      errorReporter.report(
-        "Duplication",
-        String(localized: "Configuration changed before duplication started"),
-        ErrorReportClient.describe(error),
-      )
-      state.pendingDuplications.removeAll()
-      state.projectedDuplicationConfig = nil
-      state.duplicationReview = nil
-      return .none
-    }
-    state.isDuplicationInFlight = true
-    // Prepare external layout state first. The clone is published to the
-    // shared config only after that atomic copy succeeds, so opening it can
-    // never race a nil first load.
-    return .run { [layoutStore] send in
-      let copied: Bool
-      if request.layoutMapping.isEmpty {
-        copied = true
-      } else {
-        copied = await layoutStore.copyLayouts(request.layoutMapping)
-      }
-      await send(.duplicationPrepared(DuplicationPreparation(
-        baseline: request.baseline,
-        configRevision: configRevision,
-        updated: request.updated,
-        target: request.target,
-        newWorkspaceIDs: Array(request.layoutMapping.values),
-        selectionRevision: request.selectionRevision,
-        layoutCopied: copied,
-        shortcutSelections: request.shortcutSelections,
-      )))
-    }
+  /// Builds the reviewed contents onto a clean workspace shell. Starting from
+  /// defaults makes every unchecked option mean "do not copy" instead of
+  /// needing to reverse fields after a full clone. Identity and Finder-style
+  /// naming still come from AppConfig's duplicate helpers.
+  private struct SelectiveWorkspaceCopy {
+    var shortcutSelections: Set<WorkspaceShortcutSelection>
+    var workspace: Workspace
   }
 
   private static func prepareDuplication(
     review: DuplicationReview,
     excluding excludedItemIDs: Set<String>,
-    selectionRevision: UInt64
+    selectionRevision: UInt64,
   ) -> PendingDuplication? {
     let baseline = review.baseline
     var updated = baseline
@@ -678,7 +664,7 @@ public struct WorkspaceListFeature {
       guard let result = updated.duplicateProfile(source.id) else { return nil }
       target = .profile(result.profileId)
       var selectedWorkspaces = [Workspace]()
-      var selectedLayouts: [Workspace.ID: Workspace.ID] = [:]
+      var selectedLayouts = [Workspace.ID: Workspace.ID]()
       for workspace in source.workspaces {
         guard
           !excludedItemIDs.contains(DuplicationOptionID.includeWorkspace(workspace.id)),
@@ -697,7 +683,7 @@ public struct WorkspaceListFeature {
         for selection in selectiveCopy.shortcutSelections {
           shortcutItemIDs[selection] = DuplicationOptionID.field(
             selection.field.rawValue,
-            in: workspace.id
+            in: workspace.id,
           )
         }
         if !excludedItemIDs.contains(DuplicationOptionID.layout(workspace.id)) {
@@ -743,21 +729,12 @@ public struct WorkspaceListFeature {
     )
   }
 
-  /// Builds the reviewed contents onto a clean workspace shell. Starting from
-  /// defaults makes every unchecked option mean "do not copy" instead of
-  /// needing to reverse fields after a full clone. Identity and Finder-style
-  /// naming still come from AppConfig's duplicate helpers.
-  private struct SelectiveWorkspaceCopy {
-    var shortcutSelections: Set<WorkspaceShortcutSelection>
-    var workspace: Workspace
-  }
-
   private static func selectiveWorkspaceCopy(
     of source: Workspace,
     id: Workspace.ID,
     name: String,
     excluding excludedItemIDs: Set<String>,
-    includeShortcuts: Bool
+    includeShortcuts: Bool,
   ) -> SelectiveWorkspaceCopy {
     var copy = Workspace(id: id, name: name)
 
@@ -805,16 +782,63 @@ public struct WorkspaceListFeature {
     }
     return SelectiveWorkspaceCopy(
       shortcutSelections: shortcutSelections,
-      workspace: copy
+      workspace: copy,
     )
   }
 
   private static func isShortcutIdentity(_ change: WorkspaceFieldChange) -> Bool {
     switch change {
-    case .keyEquivalent, .activateShortcut, .assignAppShortcut, .borrowShortcut:
+    case .keyEquivalent,
+         .activateShortcut,
+         .assignAppShortcut,
+         .borrowShortcut:
       true
-    case .icon, .kind, .appToFocus, .displayHint, .borrowEdge, .borrowFraction:
+    case .icon,
+         .kind,
+         .appToFocus,
+         .displayHint,
+         .borrowEdge,
+         .borrowFraction:
       false
+    }
+  }
+
+  private func startNextDuplication(state: inout State) -> Effect<Action> {
+    guard !state.isDuplicationInFlight else { return .none }
+    guard !state.pendingDuplications.isEmpty else {
+      state.projectedDuplicationConfig = nil
+      return .none
+    }
+
+    let request = state.pendingDuplications.removeFirst()
+    state.isDuplicationInFlight = true
+    // Prepare external layout state first. The clone is published to the
+    // shared config only after that atomic copy succeeds, so opening it can
+    // never race a nil first load.
+    return .run { [layoutStore, configPersistence] send in
+      let configRevision: Data?
+      do {
+        configRevision = try await configPersistence.captureRevision(request.baseline)
+      } catch {
+        await send(.duplicationPreparationFailed(ErrorReportClient.describe(error)))
+        return
+      }
+      let copied: Bool =
+        if request.layoutMapping.isEmpty {
+          true
+        } else {
+          await layoutStore.copyLayouts(request.layoutMapping)
+        }
+      await send(.duplicationPrepared(DuplicationPreparation(
+        baseline: request.baseline,
+        configRevision: configRevision,
+        updated: request.updated,
+        target: request.target,
+        newWorkspaceIDs: Array(request.layoutMapping.values),
+        selectionRevision: request.selectionRevision,
+        layoutCopied: copied,
+        shortcutSelections: request.shortcutSelections,
+      )))
     }
   }
 

@@ -151,27 +151,14 @@ private func focusWindow(
   // or the hop to the generic AX worker. Issuing this token inside the worker
   // lets an older suspended request start later and invalidate a newer focus.
   let request = focusAXLatestRequest.begin()
-  // Let the floating overlay put its mirrors back up *before* the focus
-  // moves, so a floating window never visibly drops behind the newly
-  // focused tile (see MirrorWindowRegistry.setWillFocusHandler). When a
-  // mirror was actually restored in this turn, give the window server one
-  // beat (~a frame) to commit it before activating — issuing both in the
-  // same runloop turn intermittently let the target's raise win the frame
-  // race, which showed as the floating window dipping behind for an
-  // instant. The focus-follows-mouse throttle (50 ms) dwarfs the delay.
+  // The overlay returns only after its restored panels are presented.
+  // Keep focus ordering across this suspension; no fixed timing beat is needed.
   guard let restoredMirrors = await MirrorWindowRegistry.shared.notifyWillFocus(pid: pid) else { return }
   @Dependency(\.debugLog) var debugLog
   debugLog.log(
     "FocusDiag",
     "focusWindow pid=\(pid) wid=\(windowID) deferred=\(restoredMirrors) front=\(forceFront)",
   )
-  if restoredMirrors {
-    do {
-      try await Task.sleep(for: mirrorCommitBeat)
-    } catch {
-      return
-    }
-  }
   guard
     !Task.isCancelled,
     focusAXLatestRequest.isCurrent(request),
@@ -189,6 +176,7 @@ private func focusWindow(
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
   @Dependency(\.sls) var sls
+  let focusStarted = ContinuousClock.now
   let result = await performFocusOffMain(
     pid: pid,
     windowID: windowID,
@@ -207,6 +195,13 @@ private func focusWindow(
   if case .activateApp = result {
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
+  debugLog.log(
+    "FocusDiag",
+    "focus completion pid=\(pid) wid=\(windowID) result=\(result) "
+      + "hidden=\(NSRunningApplication(processIdentifier: pid)?.isHidden ?? true) "
+      + "frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil") "
+      + "elapsed=\(focusStarted.duration(to: .now))",
+  )
 }
 
 /// Focus policy for a hover target. AX raise is sufficient within one app, but
@@ -256,6 +251,10 @@ public func focusAppFront(pid: pid_t) async {
   }
   guard !Task.isCancelled, isEligible() else { return }
   let request = focusAXLatestRequest.begin()
+  guard
+    await MirrorWindowRegistry.shared.notifyWillFocus(pid: pid) != nil,
+    !Task.isCancelled, focusAXLatestRequest.isCurrent(request), isEligible()
+  else { return }
   @Dependency(\.sls) var sls
   let result = await focusAppFrontOffMain(
     pid: pid,
@@ -272,14 +271,6 @@ public func focusAppFront(pid: pid_t) async {
     NSRunningApplication(processIdentifier: pid)?.activate()
   }
 }
-
-/// How long a just-restored mirror gets to commit to the window server
-/// before the activation raises the target — roughly two display frames.
-/// Issuing both in the same runloop turn intermittently let the raise win
-/// the frame race. This is an awaited suspension, so callers do not observe
-/// focus completion (or warp the pointer) before the delayed raise actually
-/// finishes.
-private let mirrorCommitBeat = Duration.milliseconds(30)
 
 // MARK: - FocusAXResult
 

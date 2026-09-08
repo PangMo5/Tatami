@@ -56,9 +56,14 @@ public struct ProfileDetailFeature {
       )
     }
 
+    // MARK: Internal
+
+    var persistenceRequestID: UUID?
+
   }
 
   public enum Action: BindableAction {
+    case persistenceFinished(UUID, Profile.ID, Result<Void, any Error>)
     case onAppear
     case nameChanged(String)
     case symbolIconChanged(String?)
@@ -107,6 +112,18 @@ public struct ProfileDetailFeature {
       BindingReducer()
       Reduce { state, action in
         switch action {
+        case .persistenceFinished(let requestID, let target, let result):
+          guard state.persistenceRequestID == requestID else { return .none }
+          state.persistenceRequestID = nil
+          switch result {
+          case .success:
+            return .send(.delegate(.profilesChanged))
+          case .failure(let error):
+            guard state.profileId == target else { return .none }
+            state.alert = isStaleReview(error) ? configurationChangedAlert() : copyFailedAlert(error)
+            return .none
+          }
+
         case .onAppear:
           // Connected displays + any pinned-to by a workspace, de-duplicated.
           let liveDisplays = displays.all()
@@ -225,21 +242,17 @@ public struct ProfileDetailFeature {
             return .none
           }
 
-          do {
-            let revision = try configPersistence.captureRevision(baseline)
-            try configPersistence.commit(
-              state.$config,
-              baseline,
-              revision,
-              projection.config,
-              { true },
-            )
-            return .send(.delegate(.profilesChanged))
-          } catch {
-            state.alert = isStaleReview(error)
-              ? configurationChangedAlert()
-              : copyFailedAlert(error)
-            return .none
+          let requestID = UUID()
+          state.persistenceRequestID = requestID
+          let config = state.$config
+          return .run { [configPersistence] send in
+            do {
+              let revision = try await configPersistence.captureRevision(baseline)
+              try await configPersistence.commit(config, baseline, revision, projection.config) { true }
+              await send(.persistenceFinished(requestID, target, .success(())))
+            } catch {
+              await send(.persistenceFinished(requestID, target, .failure(error)))
+            }
           }
 
         case .alert,
@@ -294,7 +307,8 @@ public struct ProfileDetailFeature {
          .changedOnDisk,
          .transactionExpired:
       true
-    case .outcomeUnknown:
+    case .notLoaded,
+         .outcomeUnknown:
       false
     }
   }

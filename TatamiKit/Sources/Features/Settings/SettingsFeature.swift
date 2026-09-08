@@ -35,6 +35,7 @@ public struct SettingsFeature {
     /// View appeared — read current status and start the updater stream.
     case task
     case refreshCLIStatus
+    case cliStatusLoaded(CLIStatus)
     case installCLITapped
     case hooks(HookSettingsFeature.Action)
     case overlayAwareApps(OverlayAwareAppsFeature.Action)
@@ -69,10 +70,10 @@ public struct SettingsFeature {
       Reduce { state, action in
         switch action {
         case .task:
-          state.cli = cliInstaller.status()
           state.hasAXPermission = accessibility.isTrusted()
           state.hasScreenRecordingPermission = screenRecording.isGranted()
           return .merge(
+            .send(.refreshCLIStatus),
             .send(.overlayAwareApps(.onAppear)),
             .run { [accessibility] send in
               // Trust-DB change / app re-activation → re-read permission
@@ -85,7 +86,15 @@ public struct SettingsFeature {
           )
 
         case .refreshCLIStatus:
-          state.cli = cliInstaller.status()
+          return .run { [cliInstaller] send in
+            let status = await cliInstaller.status()
+            guard !Task.isCancelled else { return }
+            await send(.cliStatusLoaded(status))
+          }
+          .cancellable(id: "cli-status", cancelInFlight: true)
+
+        case .cliStatusLoaded(let status):
+          state.cli = status
           return .none
 
         case .installCLITapped:

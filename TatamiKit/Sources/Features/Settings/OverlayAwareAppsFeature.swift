@@ -36,6 +36,7 @@ public struct OverlayAwareAppsFeature {
 
   public enum Action {
     case onAppear
+    case installedAppsResolved([MacApp])
     case addAppButtonTapped
     case appPickerDismissed
     case appPickerAppSelected(MacApp)
@@ -49,10 +50,17 @@ public struct OverlayAwareAppsFeature {
       case .onAppear:
         let registeredIds = state.config.settings.visibility.overlayAwareApps
         let registered = Set(registeredIds)
-        for app in runningApps.resolveInstalled(registeredIds) {
+        for app in runningApps.current() where registered.contains(app.bundleIdentifier) {
           state.knownApps[app.bundleIdentifier] = app
         }
-        for app in runningApps.current() where registered.contains(app.bundleIdentifier) {
+        return .run { [runningApps] send in
+          await send(.installedAppsResolved(await runningApps.resolveInstalled(registeredIds)))
+        }
+        .cancellable(id: "installed-app-metadata", cancelInFlight: true)
+
+      case .installedAppsResolved(let apps):
+        let registered = Set(state.config.settings.visibility.overlayAwareApps)
+        for app in apps where registered.contains(app.bundleIdentifier) && state.knownApps[app.bundleIdentifier] == nil {
           state.knownApps[app.bundleIdentifier] = app
         }
         return .none

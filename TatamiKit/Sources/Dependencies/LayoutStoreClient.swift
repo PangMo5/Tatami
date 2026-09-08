@@ -7,6 +7,8 @@ import Foundation
 import OSLog
 import YYJSON
 
+// MARK: - LayoutStoreClient
+
 /// Persists per-workspace BSP layout snapshots so every workspace keeps its
 /// split axes + ratios across app restarts. Snapshots are keyed by workspace
 /// UUID and store a
@@ -25,12 +27,27 @@ struct LayoutStoreClient: Sendable {
   var removeLayouts: @Sendable ([UUID]) async -> Bool = { _ in false }
 }
 
+// MARK: - LayoutSnapshot
+
 /// On-disk shape of one workspace's tiling memory. Stores the BSP layout keyed
 /// by `SlotID` (bundle id + windowID-rank occurrence) so two windows of one app
 /// keep distinct, arrangeable positions, plus which slots were fullscreen-zoomed
 /// at save time. Parent-zoom (per-leaf, single-tile) is carried by the leaf
 /// itself inside `tree`.
 public struct LayoutSnapshot: Codable, Hashable, Sendable {
+
+  // MARK: Lifecycle
+
+  public init(tree: BSPNode<SlotID>, fullscreenZoomedSlots: [SlotID] = []) {
+    version = Self.currentVersion
+    self.tree = tree
+    self.fullscreenZoomedSlots = fullscreenZoomedSlots
+  }
+
+  // MARK: Public
+
+  public static let currentVersion = 2
+
   /// Schema version. Absent/1 on disk = the legacy bundle-id shape
   /// (`BSPNode<String>` + `fullscreenZoomedBundleIds`), migrated on read.
   public var version: Int
@@ -41,13 +58,7 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
   /// count list) so which window of an app is zoomed is unambiguous.
   public var fullscreenZoomedSlots: [SlotID]
 
-  public static let currentVersion = 2
-
-  public init(tree: BSPNode<SlotID>, fullscreenZoomedSlots: [SlotID] = []) {
-    self.version = Self.currentVersion
-    self.tree = tree
-    self.fullscreenZoomedSlots = fullscreenZoomedSlots
-  }
+  // MARK: Internal
 
   /// Migrate a legacy v1 snapshot (bundle-id tree + bundle-id zoom list) to v2.
   /// Occurrence is assigned by per-bundle appearance order in tree traversal,
@@ -55,8 +66,8 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
   /// map to the Nth occurrence of their bundle by the same order.
   static func migratedFromV1(tree legacy: BSPNode<String>, zoomedBundleIds: [String]) -> LayoutSnapshot {
     let (tokenized, back) = legacy.tokenized()
-    var counts: [String: Int] = [:]
-    var slotForToken: [Int: SlotID] = [:]
+    var counts = [String: Int]()
+    var slotForToken = [Int: SlotID]()
     for token in tokenized.windows {
       let bundleId = back[token]!
       let occurrence = counts[bundleId, default: 0]
@@ -64,7 +75,7 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
       slotForToken[token] = SlotID(bundleId: bundleId, occurrence: occurrence)
     }
     let slotTree = tokenized.mapWindows { slotForToken[$0]! }
-    var zoomCounts: [String: Int] = [:]
+    var zoomCounts = [String: Int]()
     let zoomSlots = zoomedBundleIds.map { bundleId -> SlotID in
       let occurrence = zoomCounts[bundleId, default: 0]
       zoomCounts[bundleId] = occurrence + 1
@@ -72,17 +83,17 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
     }
     return LayoutSnapshot(tree: slotTree, fullscreenZoomedSlots: zoomSlots)
   }
+
 }
+
+// MARK: - MigratingSnapshot
 
 /// Per-entry decoder: reads a v2 snapshot, or migrates a legacy v1 one. Wrapped
 /// so a single unreadable entry can be skipped (see `readMap`) instead of
 /// resetting every workspace's layout.
 private struct MigratingSnapshot: Decodable {
-  let snapshot: LayoutSnapshot
 
-  private enum CodingKeys: String, CodingKey {
-    case version, tree, fullscreenZoomedSlots, fullscreenZoomedBundleIds
-  }
+  // MARK: Lifecycle
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -97,26 +108,35 @@ private struct MigratingSnapshot: Decodable {
       snapshot = LayoutSnapshot.migratedFromV1(tree: legacyTree, zoomedBundleIds: legacyZoom)
     }
   }
+
+  // MARK: Internal
+
+  let snapshot: LayoutSnapshot
+
+  // MARK: Private
+
+  private enum CodingKeys: String, CodingKey {
+    case version
+    case tree
+    case fullscreenZoomedSlots
+    case fullscreenZoomedBundleIds
+  }
+
 }
+
+// MARK: - ResilientSnapshotMap
 
 /// Decodes the whole `layouts.json` map, skipping any single entry that fails
 /// to decode/migrate instead of letting one bad workspace reset all of them.
 /// The top-level decode still throws if the file isn't a JSON object at all.
 private struct ResilientSnapshotMap: Decodable {
-  let map: [String: LayoutSnapshot]
-  let skipped: [String]
 
-  private struct AnyKey: CodingKey {
-    var stringValue: String
-    var intValue: Int? { nil }
-    init(stringValue: String) { self.stringValue = stringValue }
-    init?(intValue: Int) { nil }
-  }
+  // MARK: Lifecycle
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: AnyKey.self)
-    var out: [String: LayoutSnapshot] = [:]
-    var dropped: [String] = []
+    var out = [String: LayoutSnapshot]()
+    var dropped = [String]()
     for key in container.allKeys {
       if let entry = try? container.decode(MigratingSnapshot.self, forKey: key) {
         out[key.stringValue] = entry.snapshot
@@ -127,7 +147,33 @@ private struct ResilientSnapshotMap: Decodable {
     map = out
     skipped = dropped
   }
+
+  // MARK: Internal
+
+  let map: [String: LayoutSnapshot]
+  let skipped: [String]
+
+  // MARK: Private
+
+  private struct AnyKey: CodingKey {
+    init(stringValue: String) {
+      self.stringValue = stringValue
+    }
+
+    init?(intValue _: Int) {
+      nil
+    }
+
+    var stringValue: String
+
+    var intValue: Int? {
+      nil
+    }
+  }
+
 }
+
+// MARK: - LayoutStoreClient + DependencyKey
 
 extension LayoutStoreClient: DependencyKey {
   static let liveValue: LayoutStoreClient = {
@@ -166,14 +212,12 @@ extension DependencyValues {
 /// the file. The whole map is small (one snapshot per workspace) so a
 /// full rewrite per save is fine.
 private actor LayoutStore {
-  private let fileURL = ConfigLocation.directory
-    .appendingPathComponent("layouts.json", isDirectory: false)
-  /// In-memory source of truth, read from disk once; saves write through.
-  /// Re-reading + re-decoding the whole file before every save was pure
-  /// disk churn (one full decode per committed resize/drag/BSP operation).
-  private var cachedMap: [String: LayoutSnapshot]?
 
   // MARK: Internal
+
+  nonisolated var unownedExecutor: UnownedSerialExecutor {
+    executor.asUnownedSerialExecutor()
+  }
 
   func save(workspaceId: UUID, snapshot: LayoutSnapshot) {
     var map = loadedMap()
@@ -217,6 +261,17 @@ private actor LayoutStore {
     return true
   }
 
+  // MARK: Private
+
+  private let executor = DispatchSerialQueue(label: "dev.PangMo5.Tatami.LayoutStore", qos: .utility)
+
+  private let fileURL = ConfigLocation.directory
+    .appendingPathComponent("layouts.json", isDirectory: false)
+  /// In-memory source of truth, read from disk once; saves write through.
+  /// Re-reading + re-decoding the whole file before every save was pure
+  /// disk churn (one full decode per committed resize/drag/BSP operation).
+  private var cachedMap: [String: LayoutSnapshot]?
+
   private func loadedMap() -> [String: LayoutSnapshot] {
     if let cachedMap { return cachedMap }
     let loaded = readMap()
@@ -241,9 +296,9 @@ private actor LayoutStore {
           "Layouts",
           String(
             localized:
-              "\(decoded.skipped.count) workspace layout(s) could not be read and were reset"
+            "\(decoded.skipped.count) workspace layout(s) could not be read and were reset"
           ),
-          "workspaceIds: \(decoded.skipped.joined(separator: ", "))"
+          "workspaceIds: \(decoded.skipped.joined(separator: ", "))",
         )
       }
       return decoded.map
@@ -251,7 +306,7 @@ private actor LayoutStore {
       reporter.report(
         "Layouts",
         String(localized: "layouts.json could not be read — saved layouts reset"),
-        ErrorReportClient.describe(error)
+        ErrorReportClient.describe(error),
       )
       return [:]
     }
@@ -270,11 +325,12 @@ private actor LayoutStore {
       reporter.report(
         "Layouts",
         String(localized: "layouts.json could not be saved — layout changes won't persist"),
-        ErrorReportClient.describe(error)
+        ErrorReportClient.describe(error),
       )
       return false
     }
   }
+
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "LayoutStore")

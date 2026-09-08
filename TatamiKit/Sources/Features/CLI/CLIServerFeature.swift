@@ -394,29 +394,36 @@ public struct CLIServerFeature {
           }
           do {
             let baseline = state.config
-            let configRevision = try configPersistence.captureRevision(baseline)
             let profile = try resolveProfile(request.arguments[0], config: baseline)
             var updated = baseline
             updated.mutateProfile(profile.id) { $0.name = newName }
-            if
-              let failure = commitConfig(
-                updated,
-                baseline: baseline,
-                configRevision: configRevision,
-                config: state.$config,
-                reserve: { reply.claim() },
-              )
-            {
-              reply.send(.failure(failure))
-              return .none
-            }
             let response = response(
               plain: "Renamed profile to: \(newName)",
               value: CLIMessage.MutationInfo(id: profile.id.uuidString, name: newName),
               format: request.outputFormat,
             )
-            reply.finish(response)
-            return .send(.delegate(.configurationChanged))
+            let config = state.$config
+            return .run { [configPersistence, updated] send in
+              do {
+                let revision = try await configPersistence.captureRevision(baseline)
+                if
+                  let failure = await Self.commitConfig(
+                    updated,
+                    baseline: baseline,
+                    configRevision: revision,
+                    config: config,
+                    reserve: { reply.claim() },
+                  )
+                {
+                  reply.send(.failure(failure))
+                  return
+                }
+                reply.finish(response)
+                await send(.delegate(.configurationChanged))
+              } catch {
+                reply.send(.failure(String(describing: error)))
+              }
+            }
           } catch {
             return replyEffect(reply, .failure(String(describing: error)))
           }
@@ -434,7 +441,6 @@ public struct CLIServerFeature {
           }
           do {
             let baseline = state.config
-            let configRevision = try configPersistence.captureRevision(baseline)
             let profile = try resolveProfile(key, config: baseline)
             var updated = baseline
             guard let duplicated = updated.duplicateProfile(profile.id) else {
@@ -459,7 +465,6 @@ public struct CLIServerFeature {
             return prepareDuplication(
               baseline: baseline,
               updated: updated,
-              configRevision: configRevision,
               layoutMapping: duplicated.workspaceIdMap,
               response: response,
               reply: reply,
@@ -483,7 +488,6 @@ public struct CLIServerFeature {
           }
           do {
             let baseline = state.config
-            let configRevision = try configPersistence.captureRevision(baseline)
             let (_, workspace) = try resolveWorkspace(
               request.arguments[0],
               profileKey: request.option(.profile),
@@ -491,25 +495,33 @@ public struct CLIServerFeature {
             )
             var updated = baseline
             updated.mutateWorkspace(workspace.id) { $0.name = newName }
-            if
-              let failure = commitConfig(
-                updated,
-                baseline: baseline,
-                configRevision: configRevision,
-                config: state.$config,
-                reserve: { reply.claim() },
-              )
-            {
-              reply.send(.failure(failure))
-              return .none
-            }
             let response = response(
               plain: "Renamed workspace to: \(newName)",
               value: CLIMessage.MutationInfo(id: workspace.id.uuidString, name: newName),
               format: request.outputFormat,
             )
-            reply.finish(response)
-            return .send(.delegate(.configurationChanged))
+            let config = state.$config
+            return .run { [configPersistence, updated] send in
+              do {
+                let revision = try await configPersistence.captureRevision(baseline)
+                if
+                  let failure = await Self.commitConfig(
+                    updated,
+                    baseline: baseline,
+                    configRevision: revision,
+                    config: config,
+                    reserve: { reply.claim() },
+                  )
+                {
+                  reply.send(.failure(failure))
+                  return
+                }
+                reply.finish(response)
+                await send(.delegate(.configurationChanged))
+              } catch {
+                reply.send(.failure(String(describing: error)))
+              }
+            }
           } catch {
             return replyEffect(reply, .failure(String(describing: error)))
           }
@@ -529,7 +541,6 @@ public struct CLIServerFeature {
           }
           do {
             let baseline = state.config
-            let configRevision = try configPersistence.captureRevision(baseline)
             let (_, workspace) = try resolveWorkspace(
               key,
               profileKey: request.option(.profile),
@@ -556,7 +567,6 @@ public struct CLIServerFeature {
             return prepareDuplication(
               baseline: baseline,
               updated: updated,
-              configRevision: configRevision,
               layoutMapping: [workspace.id: duplicateID],
               response: response,
               reply: reply,
@@ -598,28 +608,26 @@ public struct CLIServerFeature {
             .failure("Saved layout could not be duplicated; configuration was not changed"),
           )
         }
-        // The persistence transaction reserves the still-live socket slot only
-        // after coordination and temp-file preparation, immediately before its
-        // atomic exchange.
-        if
-          let failure = commitConfig(
-            updated,
-            baseline: baseline,
-            configRevision: configRevision,
-            config: state.$config,
-            reserve: { reply.claim() },
-          )
-        {
-          reply.send(.failure(failure))
-          // An indeterminate exchange may already have published the config.
-          // Preserve its layouts so a watcher/relaunch cannot expose a clone
-          // whose copied layout was deleted by error handling.
-          return failure.hasPrefix("Command outcome is unknown")
-            ? .none
-            : clearLayouts(newWorkspaceIDs)
+        let config = state.$config
+        return .run { [layoutStore] send in
+          if
+            let failure = await Self.commitConfig(
+              updated,
+              baseline: baseline,
+              configRevision: configRevision,
+              config: config,
+              reserve: { reply.claim() },
+            )
+          {
+            reply.send(.failure(failure))
+            if !failure.hasPrefix("Command outcome is unknown") {
+              _ = await layoutStore.removeLayouts(newWorkspaceIDs)
+            }
+            return
+          }
+          reply.finish(response)
+          await send(.delegate(.configurationChanged))
         }
-        reply.finish(response)
-        return .send(.delegate(.configurationChanged))
 
       case .delegate:
         return .none
@@ -740,15 +748,17 @@ public struct CLIServerFeature {
 
   /// Durably replace the captured file revision, then publish the same value
   /// through the custom shared key without issuing a second write.
-  private func commitConfig(
+  private static func commitConfig(
     _ updated: AppConfig,
     baseline: AppConfig,
     configRevision: Data?,
     config: Shared<AppConfig>,
     reserve: @escaping @Sendable () -> Bool,
-  ) -> String? {
+  ) async -> String? {
+    @Dependency(\.configPersistence) var configPersistence
+    @Dependency(\.errorReporter) var errorReporter
     do {
-      try configPersistence.commit(config, baseline, configRevision, updated, reserve)
+      try await configPersistence.commit(config, baseline, configRevision, updated, reserve)
       errorReporter.resolve("ConfigSave")
       return nil
     } catch {
@@ -767,12 +777,18 @@ public struct CLIServerFeature {
   private func prepareDuplication(
     baseline: AppConfig,
     updated: AppConfig,
-    configRevision: Data?,
     layoutMapping: [Workspace.ID: Workspace.ID],
     response: CLIMessage.Response,
     reply: CLIReply,
   ) -> Effect<Action> {
-    .run { [layoutStore] send in
+    .run { [layoutStore, configPersistence] send in
+      let configRevision: Data?
+      do {
+        configRevision = try await configPersistence.captureRevision(baseline)
+      } catch {
+        reply.send(.failure(String(describing: error)))
+        return
+      }
       let (events, continuation) = AsyncStream<LayoutCopyOutcome>.makeStream()
       let copyTask = Task {
         let copied = await layoutStore.copyLayouts(layoutMapping)
