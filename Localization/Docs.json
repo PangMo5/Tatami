@@ -4473,5 +4473,1608 @@
     "ja": "サムネイルの時点は、{2} の {0} または {1} で指定します。機能が実際に反映された後のフレームを選んでください。サムネイルの URL には画像のハッシュを使うため、画像だけを差し替える場合に動画を再エンコードする必要はありません。",
     "zh-Hans": "缩略图时间由 {2} 中的 {0} 或 {1} 指定。请选择功能实际生效后的画面。缩略图 URL 使用图片哈希，因此仅替换图片时无需重新编码视频。",
     "zh-Hant": "縮圖時間由 {2} 中的 {0} 或 {1} 指定。請選擇功能實際生效後的畫面。縮圖 URL 使用圖片雜湊，因此只替換圖片時不需要重新編碼影片。"
+  },
+  "adab082d9767495e": {
+    "en": "A quick follow-up to 1.3.0.",
+    "ko": "1.3.0에 이은 빠른 수정 업데이트예요.",
+    "ja": "1.3.0に続く小さな修正更新です。",
+    "zh-Hans": "紧随 1.3.0 的快速修补更新。",
+    "zh-Hant": "緊接 1.3.0 的快速修補更新。"
+  },
+  "adac4a9ca83be836": {
+    "en": "**Preserve manually resized split ratios:** Focus-driven reconciliation and replacement window surfaces no longer reset a workspace to 50:50 when the logical tiled membership did not change. Auto Balance still applies to real insertions and removals according to its setting.",
+    "ko": "**직접 조절한 분할 비율 유지:** 타일의 논리적 구성원이 같다면 포커스 동기화나 창 표면 교체가 비율을 50:50으로 초기화하지 않아요. 실제 창 추가·제거에는 설정에 따라 자동 균등 배치를 적용해요.",
+    "ja": "**手動調整した分割比率を保持:** 論理的なタイル構成が同じなら、フォーカス同期や表示面の交換で50:50へ戻しません。実際の追加・削除には設定に従って自動均等配置を適用します。",
+    "zh-Hans": "**保留手动调整的分割比例**：逻辑平铺成员未变化时，焦点协调和窗口表面替换不再把工作区重置为 50:50。真实插入和移除仍按设置应用自动均衡。",
+    "zh-Hant": "**保留手動調整的分割比例**：邏輯並排成員未變更時，焦點協調與視窗表面替換不再把工作空間重設為 50:50。實際插入及移除仍依設定套用自動平均分配。"
+  },
+  "ae27a6288faac41f": {
+    "en": "**Reliable late, hidden, and reappearing windows:** Tatami reacts to WindowServer visibility changes immediately, removes a hidden surface without forgetting its identity, and keeps converging a reappearing app back to its tile if the app restores an older frame later. First windows from slow apps now recover their intended focus, fullscreen slot, and frame as soon as observation becomes ready.",
+    "ko": "**늦게 뜨거나 다시 나타나는 창 안정화:** WindowServer의 표시 변화를 즉시 반영하고, 창의 정체성을 기억한 채 숨긴 표면을 제거해요. 다시 나타난 앱이 나중에 예전 프레임을 복원해도 계속 올바른 타일로 맞춰요. 느린 앱의 첫 창도 관찰 준비가 되면 원래 포커스·전체 화면 자리·프레임을 복원해요.",
+    "ja": "**遅れて開く・再表示されるウインドウを安定化:** WindowServerの表示変更に即応し、IDを忘れずに隠れた表示面を取り除きます。再表示されたAppが後から古いフレームを戻してもタイルへ合わせ続けます。遅いAppの最初のウインドウも、監視の準備ができ次第、意図したフォーカス、全画面の位置、フレームを復元します。",
+    "zh-Hans": "**可靠处理延迟、隐藏和重现的窗口**：立即响应 WindowServer 可见性变化，移除隐藏表面但保留身份，并在应用重现后继续校正其稍后恢复的旧尺寸。慢启动应用的首个窗口也会在观察就绪后立即恢复预期焦点、全屏位置和尺寸。",
+    "zh-Hant": "**可靠處理延遲、隱藏與重現的視窗**：立即回應 WindowServer 可見性變更，移除隱藏表面但保留身分，並在 App 重現後持續校正稍後還原的舊尺寸。慢啟動 App 的首個視窗也會在觀察就緒後立即還原預期焦點、全螢幕位置與尺寸。"
+  },
+  "b037356552ec6355": {
+    "en": "**Global Shared Apps sidebar:** Shared apps join every workspace of every profile, so they moved out from under a single profile into an **Everywhere** section in the sidebar.",
+    "ko": "**전역 공용 앱 사이드바:** 공용 앱은 모든 프로필의 모든 공간에 참여하므로, 특정 프로필 아래에서 사이드바의 **모든 곳** 섹션으로 옮겼어요.",
+    "ja": "**共有Appのサイドバーを全体へ:** 共有Appは全プロファイルの全領域に参加するため、個別プロファイルからサイドバーの**すべての場所**へ移しました。",
+    "zh-Hans": "**全局共享应用侧边栏**：共享应用加入所有方案的所有工作区，因此从单个方案下移到了侧边栏的**所有位置**区段。",
+    "zh-Hant": "**全域共用 App 側邊欄**：共用 App 加入所有組合的所有工作空間，因此從單一組合下移至側邊欄的**所有位置**區段。"
+  },
+  "b08a192c93cfc80b": {
+    "en": "**One cumulative practice surface:** Guided Setup reuses the workspaces, app assignments, layout modes, shortcuts, and gestures in the user's draft. Later labs preserve MRU behavior and every command learned earlier, so the final Focus & Cycling lesson rehearses the complete setup rather than an isolated mock.",
+    "ko": "**하나로 이어지는 연습 화면:** 가이드 설정은 초안의 작업 공간·앱 할당·레이아웃·단축키·제스처를 그대로 사용해요. 뒤 연습에서도 최근 사용 순서와 앞서 배운 명령을 유지해, 마지막 포커스·전환 단계에서 독립 모형이 아닌 전체 설정을 연습해요.",
+    "ja": "**ひとつにつながる練習画面:** 下書きのワークスペース、App割り当て、配置、キー、ジェスチャーを再利用します。後の練習でも使用順と習得済みのコマンドを保ち、最後のフォーカス・切り替えでは個別の模型ではなく設定全体を試せます。",
+    "zh-Hans": "**累积式练习界面**：设置向导复用草稿中的工作区、应用分配、布局模式、快捷键和手势。后续练习保留最近使用行为和先前学过的所有命令，最后的焦点与切换课程演练完整设置，而非独立模拟。",
+    "zh-Hant": "**累積式練習介面**：設定導覽重用草稿中的工作空間、App 指派、配置模式、快速鍵與手勢。後續練習保留最近使用行為及先前學過的所有指令，最後的焦點與切換課程演練完整設定，而非獨立模擬。"
+  },
+  "b17da0363c1e83f7": {
+    "en": "**About tab:** version, creator, and open-source credits (FlashSpace, yabai, and the libraries Tatami is built with).",
+    "ko": "**정보 탭:** 버전·제작자·오픈소스 기여(FlashSpace, yabai, 사용 라이브러리)를 확인할 수 있어요.",
+    "ja": "**情報タブ:** バージョン、作者、オープンソースへの謝辞（FlashSpace、yabai、使用ライブラリ）を表示します。",
+    "zh-Hans": "**关于标签页**：显示版本、作者及开源致谢，包括 FlashSpace、yabai 和 Tatami 使用的库。",
+    "zh-Hant": "**關於標籤頁**：顯示版本、作者與開放原始碼致謝，包含 FlashSpace、yabai 及 Tatami 使用的函式庫。"
+  },
+  "b1d49c2dd41f22bd": {
+    "en": "**Layouts preserved through screen lock:** Locking the screen no longer lets temporary Accessibility or WindowServer snapshots remove windows from the active BSP layout. Tatami freezes destructive membership changes before the lock shield appears, waits for every overlapping sleep or session transition to finish, then reconnects the complete layout after unlock.",
+    "ko": "**화면 잠금 중 레이아웃 보존:** 잠금 중 일시적인 손쉬운 사용·WindowServer 조회 결과로 창이 BSP에서 빠지지 않아요. 잠금 화면이 나타나기 전에 소속 제거를 멈추고, 겹친 잠자기·세션 전환이 모두 끝난 뒤 잠금 해제 시 전체 레이아웃을 연결해요.",
+    "ja": "**画面ロック中も配置を保持:** 一時的なアクセシビリティやWindowServerの情報で、ウインドウをBSPから外しません。ロック画面の前に破壊的な所属変更を止め、重なるスリープ・セッション遷移がすべて終わってから配置全体を再接続します。",
+    "zh-Hans": "**锁屏期间保留布局**：锁屏时的临时辅助功能或 WindowServer 快照不再从活动 BSP 布局中移除窗口。锁屏遮罩出现前冻结破坏性的成员变更，等待所有重叠睡眠或会话转换结束，再在解锁后重新连接完整布局。",
+    "zh-Hant": "**鎖定螢幕期間保留配置**：鎖屏時暫時的輔助使用或 WindowServer 快照不再從作用中 BSP 配置移除視窗。鎖屏遮罩出現前凍結破壞性的成員變更，等待所有重疊睡眠或工作階段轉換結束，再於解鎖後重新連接完整配置。"
+  },
+  "b22c1aa57ae74e98": {
+    "en": "**Feature-based settings organization:** The separate Shortcuts pane is gone. Each shortcut now lives in the pane for the feature it controls (Tiling, Focus & Mouse, Workspaces), and the panes and sections are ordered by how often you reach for them.",
+    "ko": "**기능별 설정 구성:** 별도 단축키 화면을 없애고 각 단축키를 해당 기능인 타일링·포커스와 마우스·작업 공간에 배치했어요. 화면과 섹션도 사용 빈도에 따라 정렬했어요.",
+    "ja": "**機能ごとに設定を整理:** 独立したショートカット画面をなくし、各キーをタイル表示、フォーカスとマウス、ワークスペースへ配置しました。画面とセクションも利用頻度に合わせて並べています。",
+    "zh-Hans": "**按功能组织设置**：移除独立快捷键面板，将快捷键放到其控制的平铺、焦点与鼠标、工作区面板内，并按使用频率排列面板及区段。",
+    "zh-Hant": "**依功能組織設定**：移除獨立快速鍵面板，將快速鍵放至所控制的並排、焦點與滑鼠、工作空間面板內，並依使用頻率排列面板及區段。"
+  },
+  "b37ddf1f6e0fac69": {
+    "en": "Compatibility",
+    "ko": "호환성",
+    "ja": "互換性",
+    "zh-Hans": "兼容性",
+    "zh-Hant": "相容性"
+  },
+  "b38f6a1503aedbb4": {
+    "en": "⚠️ Breaking Changes",
+    "ko": "⚠️ 호환되지 않는 변경",
+    "ja": "⚠️ 互換性に関わる変更",
+    "zh-Hans": "⚠️ 不兼容变更",
+    "zh-Hant": "⚠️ 不相容變更"
+  },
+  "b6ccb2f6d448655b": {
+    "en": "**Screen Recording permission for floating windows:** Floating windows now need the Screen Recording permission. They stay above the tiles via ScreenCaptureKit mirrors, and without the grant they will not stay on top. Grant it in **Settings → General → Permissions**, then relaunch.",
+    "ko": "**항상 위 창의 화면 기록 권한:** 항상 위 창은 ScreenCaptureKit 미러로 타일 위에 머물기 때문에 화면 기록 권한이 필요해요. 권한이 없으면 계속 위에 둘 수 없어요. **설정 → 일반 → 권한**에서 허용하고 다시 실행해 주세요.",
+    "ja": "**手前表示に画面収録の権限が必要:** ScreenCaptureKitのミラーでタイルの上に保つため、画面収録の許可が必要です。許可なしでは手前に保てません。**設定 → 一般 → 権限**で許可して再起動してください。",
+    "zh-Hans": "**浮动窗口需要屏幕录制权限**：窗口通过 ScreenCaptureKit 镜像保持在平铺窗口上方，未授权就无法置顶。请在**设置 → 通用 → 权限**中授权，然后重新启动。",
+    "zh-Hant": "**浮動視窗需要螢幕錄製權限**：視窗透過 ScreenCaptureKit 鏡像保持於並排視窗上方，未授權就無法置頂。請在**設定 → 一般 → 權限**中授權，然後重新啟動。"
+  },
+  "b6d3f0eecae0659c": {
+    "en": "**Untiled floating apps:** Floating apps never tile.",
+    "ko": "**항상 위 앱의 타일링 제외:** 항상 위 앱은 타일에 넣지 않아요.",
+    "ja": "**フローティングAppをタイル対象外に:** フローティングAppはタイル表示しません。",
+    "zh-Hans": "**浮动应用不平铺**：浮动应用不会加入平铺布局。",
+    "zh-Hant": "**浮動 App 不並排**：浮動 App 不會加入並排配置。"
+  },
+  "b72fbb579507f4c5": {
+    "en": "**Borrow lifecycle fixes:** Returning a borrow refocuses the block you were last using, releasing a borrow re-tiles the host's own windows, and unregistered floating apps stay visible while a borrow is docked.",
+    "ko": "**빌려오기 수명 주기 수정:** 반환하면 마지막으로 사용한 영역에 포커스하고, 해제하면 원래 공간의 창을 다시 배치해요. 빌려오기 중에도 등록되지 않은 항상 위 앱은 계속 보여요.",
+    "ja": "**借用のライフサイクルを修正:** 返却時に最後に使ったブロックへフォーカスし、解除時に元の領域を再配置します。借用中も未登録のフローティングAppは表示を保ちます。",
+    "zh-Hans": "**修复借用生命周期**：归还借用会重新聚焦最近使用的区域，解除借用会重新平铺主工作区的窗口；借用停靠期间未登记的浮动应用仍保持可见。",
+    "zh-Hant": "**修正借用生命週期**：歸還借用會重新聚焦最近使用的區域，解除借用會重新並排主工作空間的視窗；借用停靠期間未登錄的浮動 App 仍保持可見。"
+  },
+  "b8a6f40508624484": {
+    "en": "**Directional window controls:** Focus, swap, and resize windows with vim-like {0} {1} {2} {3} controls.",
+    "ko": "**방향별 창 제어:** vim 방식 {0} {1} {2} {3}으로 창 포커스·교환·크기 조절을 할 수 있어요.",
+    "ja": "**方向別のウインドウ操作:** vim風の {0} {1} {2} {3} でフォーカス、交換、サイズ変更ができます。",
+    "zh-Hans": "**按方向控制窗口**：使用 vim 风格的 {0} {1} {2} {3} 聚焦、交换及调整窗口尺寸。",
+    "zh-Hant": "**依方向控制視窗**：使用 vim 風格的 {0} {1} {2} {3} 聚焦、交換與調整視窗尺寸。"
+  },
+  "b9d1a3a9a11e2978": {
+    "en": "**Automatic BSP tiling:** Windows use automatic binary space partitioning with a dwindle (spiral) layout.",
+    "ko": "**자동 BSP 타일링:** 창을 dwindle(나선형) 방식의 이진 공간 분할로 자동 배치해요.",
+    "ja": "**BSPで自動配置:** dwindle（らせん状）の二分空間分割でウインドウを自動配置します。",
+    "zh-Hans": "**自动 BSP 平铺**：使用 dwindle（螺旋）布局的二叉空间分割自动排列窗口。",
+    "zh-Hant": "**自動 BSP 並排**：使用 dwindle（螺旋）配置的二元空間分割自動排列視窗。"
+  },
+  "bb80644600994c3e": {
+    "en": "**Drag-to-rearrange preview:** Drag a window and a live overlay previews the drop: the center **swaps** the two windows, while an edge **inserts** the dragged one on that side (left / right / top / bottom).",
+    "ko": "**드래그 배치 미리보기:** 창을 끌면 놓을 위치를 실시간으로 보여줘요. 가운데는 두 창을 **교환**하고, 가장자리는 해당 방향(상하좌우)에 끌어온 창을 **삽입**해요.",
+    "ja": "**ドラッグ配置のプレビュー:** ドラッグ中にドロップ結果を表示します。中央なら2つのウインドウを**交換**し、端なら上下左右のその側へ**挿入**します。",
+    "zh-Hans": "**拖动重排预览**：拖动窗口时实时预览放置结果：中央**交换**两个窗口，边缘则将拖动窗口**插入**对应的左、右、上或下方。",
+    "zh-Hant": "**拖移重排預覽**：拖移視窗時即時預覽放置結果：中央**交換**兩個視窗，邊緣則將拖移視窗**插入**對應的左、右、上或下方。"
+  },
+  "bb891fee244b08d1": {
+    "en": "**Lower workspace activation overhead:** Tatami skips redundant Accessibility frame writes, immediately drops cached windows when their process or window disappears, and cancels activation, focus, and mirror work that has already been superseded.",
+    "ko": "**작업 공간 활성화 비용 감소:** 중복된 손쉬운 사용 프레임 쓰기를 생략하고, 프로세스나 창이 사라지면 캐시에서 즉시 제거해요. 새 요청으로 대체된 활성화·포커스·미러 작업도 취소해요.",
+    "ja": "**有効化の負荷を削減:** 重複するフレーム書き込みを省き、プロセスやウインドウが消えたら直ちにキャッシュから外します。新しい要求に置き換わった有効化、フォーカス、ミラー処理も取り消します。",
+    "zh-Hans": "**降低工作区激活开销**：跳过冗余辅助功能尺寸写入，进程或窗口消失时立即清除缓存，并取消已被新请求取代的激活、焦点和镜像任务。",
+    "zh-Hant": "**降低工作空間啟用負擔**：略過多餘的輔助使用尺寸寫入，程序或視窗消失時立即清除快取，並取消已被新請求取代的啟用、焦點與鏡像任務。"
+  },
+  "bc1cbac065e971a6": {
+    "en": "**Keep automation changes transactional:** CLI mutations and reviewed duplication check the current configuration before saving. Layout copies are prepared before the duplicate is published and cleaned up if the configuration cannot be committed.",
+    "ko": "**자동화 변경의 트랜잭션 보장:** CLI 수정과 검토한 복제는 저장 전에 현재 설정을 확인해요. 복제본을 공개하기 전에 레이아웃을 준비하고, 설정을 확정할 수 없으면 정리해요.",
+    "ja": "**自動化変更をトランザクション化:** CLIの変更と確認済みの複製は、保存前に現在の設定を照合します。複製を公開する前に配置を準備し、設定を確定できなければ後片付けします。",
+    "zh-Hans": "**保持自动化修改的事务性**：CLI 修改和已审核复制会在保存前检查当前配置。复制项发布前先准备布局副本，无法提交配置时清理副本。",
+    "zh-Hant": "**維持自動化修改的交易性**：CLI 修改與已檢閱的複製會在儲存前檢查目前設定。複製項目發布前先準備配置副本，無法提交設定時清理副本。"
+  },
+  "bd04795f1e999cfd": {
+    "en": "**Adjacent-workspace app moves:** Relocate the focused app one workspace over and follow it there ({0} / {1}).",
+    "ko": "**옆 작업 공간으로 앱 이동:** 포커스 앱을 한 칸 옆으로 옮기고 함께 전환해요({0} / {1}).",
+    "ja": "**隣の領域へAppを移動:** フォーカス中のAppを隣へ移し、その領域へ切り替えます（{0} / {1}）。",
+    "zh-Hans": "**移动应用到相邻工作区**：将焦点应用移到相邻工作区并跟随切换（{0} / {1}）。",
+    "zh-Hant": "**移動 App 至相鄰工作空間**：將焦點 App 移至相鄰工作空間並跟隨切換（{0} / {1}）。"
+  },
+  "bdcb6029c57c1848": {
+    "en": "**Auto-open on workspace re-entry:** Auto-open apps reopen on workspace re-entry when their window was closed, not just on first activation.",
+    "ko": "**작업 공간 재진입 시 자동 열기:** 처음 활성화할 때뿐 아니라 창을 닫은 뒤 작업 공간에 다시 들어가도 자동 열기 앱을 다시 열어요.",
+    "ja": "**再入場時にも自動で開く:** 最初の有効化時だけでなく、ウインドウを閉じてからワークスペースへ戻ったときも自動起動Appを開き直します。",
+    "zh-Hans": "**重新进入工作区时自动打开**：自动打开应用在窗口关闭后重回工作区时也会重新打开，不再只在首次激活时执行。",
+    "zh-Hant": "**重新進入工作空間時自動開啟**：自動開啟 App 在視窗關閉後重回工作空間時也會重新開啟，不再只於首次啟用時執行。"
+  },
+  "bf981d0c3ca7ae10": {
+    "en": "**Side-by-side workspace borrowing:** Pull another workspace in beside the current one, docked to a screen edge (top / bottom / left / right) and tiled next to it. Each block keeps its own BSP layout, and windows cannot cross the boundary. The borrowed block is the *real* workspace, so edits there persist back to it. Hold the borrow modifier with a workspace's key (or {0} to return it), then steer the direction with {1} / {2} / {3} / {4} / arrows, or set a default edge and size, globally or per workspace. Directional focus crosses the boundary, activating a borrowed workspace fully switches to it, re-borrowing re-docks, and {5} cancels the direction pick.",
+    "ko": "**작업 공간 나란히 빌려오기:** 다른 공간을 현재 공간 옆의 상하좌우 가장자리에 붙여 함께 배치해요. 각 영역의 BSP를 유지하고 창은 경계를 넘지 않아요. 빌려온 곳은 *실제* 작업 공간이므로 편집도 그대로 남아요. 대표 키와 빌려오기 보조 키를 누르고({0}은 반환), {1} / {2} / {3} / {4} / 방향키로 위치를 정하거나 전체·개별 기본 방향과 크기를 설정할 수 있어요. 방향 포커스는 경계를 넘고, 빌려온 공간을 활성화하면 완전히 전환해요. 다시 빌리면 재배치하고 {5}로 방향 선택을 취소해요.",
+    "ja": "**ワークスペースを並べて借用:** 別の領域を現在の上下左右へドッキングして並べます。各ブロックのBSPを保ち、ウインドウは境界を越えません。借用先は*実際の*領域なので編集も残ります。借用修飾キーと代表キーを押し（{0} は返却）、{1} / {2} / {3} / {4} / 矢印で方向を選ぶか、全体・個別の方向とサイズを設定できます。方向フォーカスは境界を越え、有効化すれば完全にその領域へ切り替えます。再借用でドッキングし直し、{5} で方向選択を取り消します。",
+    "zh-Hans": "**并排借用工作区**：把其他工作区停靠在当前区域的上、下、左或右侧并一起平铺。每块保留独立 BSP 布局，窗口不能跨界。借来的区域是*真实*工作区，编辑会保留。按住借用修饰键与工作区键（{0} 归还），再用 {1} / {2} / {3} / {4} / 方向键指定方向，或设置全局、单工作区的默认边缘和尺寸。方向焦点可跨界；完整激活借用工作区会切换过去，再次借用会重新停靠，{5} 取消方向选择。",
+    "zh-Hant": "**並排借用工作空間**：把其他工作空間停靠於目前區域的上、下、左或右側並一起並排。每塊保留獨立 BSP 配置，視窗不能跨界。借來的區域是*實際*工作空間，編輯會保留。按住借用修飾鍵與工作空間鍵（{0} 歸還），再用 {1} / {2} / {3} / {4} / 方向鍵指定方向，或設定全域、單一工作空間的預設邊緣與尺寸。方向焦點可跨界；完整啟用借用工作空間會切換過去，再次借用會重新停靠，{5} 取消方向選擇。"
+  },
+  "bfddd8ed3570dbf3": {
+    "en": "**Last-used window restoration:** Activating a workspace with no pinned focus app now returns focus to the exact window you last used there, instead of a fixed app.",
+    "ko": "**마지막 창 복원:** 고정 포커스 앱이 없는 공간을 활성화하면 정해진 앱 대신 그곳에서 마지막으로 사용한 정확한 창으로 돌아가요.",
+    "ja": "**最後のウインドウを復元:** フォーカスAppを固定していない領域では、決まったAppではなくそこで最後に使った正確なウインドウへ戻ります。",
+    "zh-Hans": "**恢复上次使用的窗口**：激活未固定焦点应用的工作区时，返回在该区最后使用的精确窗口，而不是固定应用。",
+    "zh-Hant": "**還原上次使用的視窗**：啟用未固定焦點 App 的工作空間時，返回該區最後使用的精確視窗，而非固定 App。"
+  },
+  "c062abce151a9984": {
+    "en": "**Complete workspace feedback across displays:** Moving focus to a workspace already visible on another display once again shows its workspace HUD without disturbing a live Borrow composition. The display being left now names both the destination workspace and monitor, so every cross-display switch makes the result clear.",
+    "ko": "**화면 간 작업 공간 알림 완성:** 다른 화면에 이미 보이는 공간으로 포커스해도 빌려오기를 깨뜨리지 않고 알림을 표시해요. 떠난 화면에는 대상 공간과 모니터 이름을 함께 알려줘 전환 결과가 분명해요.",
+    "ja": "**画面をまたぐ通知を統一:** 別画面に表示済みの領域へフォーカスしても、借用構成を崩さず通知を表示します。出発側には移動先の領域と画面名を示し、結果を明確にします。",
+    "zh-Hans": "**完整的跨显示器工作区反馈**：移动焦点到其他显示器上已可见的工作区时，再次显示反馈而不打乱借用组合。来源显示器同时显示目标工作区与显示器名称，使每次跨屏切换结果清楚。",
+    "zh-Hant": "**完整的跨顯示器工作空間回饋**：移動焦點至其他顯示器上已可見的工作空間時，再次顯示回饋而不打亂借用組合。來源顯示器同時顯示目標工作空間與顯示器名稱，讓每次跨螢幕切換結果清楚。"
+  },
+  "c08ade0edb822cac": {
+    "en": "**Shared apps preserve each workspace's last-used window:** Returning to a workspace now restores the window you last focused there, instead of a shared tiled app that was focused while switching through another workspace.",
+    "ko": "**공용 앱도 공간별 최근 창 유지:** 돌아온 공간에서 마지막으로 포커스한 창을 복원해요. 다른 공간을 거치며 선택한 공용 타일 앱이 대신 포커스를 받지 않아요.",
+    "ja": "**共有Appでも領域ごとの最後の対象を保持:** 別の領域を経由して選んだ共有タイルAppではなく、戻った領域で最後に使ったウインドウを復元します。",
+    "zh-Hans": "**共享应用保留各工作区最近窗口**：返回工作区时恢复在那里最后聚焦的窗口，不再改为经过其他工作区时聚焦的共享平铺应用。",
+    "zh-Hant": "**共用 App 保留各工作空間最近視窗**：返回工作空間時還原在該處最後聚焦的視窗，不再改為經過其他工作空間時聚焦的共用並排 App。"
+  },
+  "c1f4c5aab3bec569": {
+    "en": "**Activation focus selection:** Choose which assigned app gets focus when a workspace activates (defaults to most-recently-used).",
+    "ko": "**활성화 시 포커스 선택:** 공간을 열 때 포커스할 할당 앱을 선택할 수 있어요. 기본은 최근 사용 앱이에요.",
+    "ja": "**有効化時のフォーカスを選択:** 領域を開いた際にフォーカスする割り当て済みAppを選べます。既定は最近使ったAppです。",
+    "zh-Hans": "**选择激活焦点**：可指定工作区激活时聚焦哪个已分配应用，默认使用最近使用项。",
+    "zh-Hant": "**選擇啟用焦點**：可指定工作空間啟用時聚焦哪個已指派 App，預設使用最近使用項目。"
+  },
+  "c3eb9e6f2b69b3ac": {
+    "en": "Improvements",
+    "ko": "개선 사항",
+    "ja": "改善",
+    "zh-Hans": "改进",
+    "zh-Hant": "改善"
+  },
+  "c4175a906b61bcf9": {
+    "en": "**Faster busy-workspace tiling:** The re-tile triggered by window and workspace changes now does less work. Its merge step dropped from quadratic to linear in the number of windows, with fewer layout-walk allocations. Tatami also avoids republishing an unchanged managed-window set, reducing steady-state CPU use.",
+    "ko": "**창이 많은 공간도 빠르게 배치:** 창·작업 공간 변경 시 다시 타일링하는 작업을 줄였어요. 병합을 창 수의 제곱이 아닌 선형 시간에 처리하고 트리 순회 할당도 줄였어요. 관리 창 집합이 같으면 다시 알리지 않아 평상시 CPU 사용도 낮춰요.",
+    "ja": "**ウインドウの多い領域も高速配置:** 変更時の再配置を軽量化しました。結合処理をウインドウ数の二乗から線形時間にし、ツリー走査の割り当ても削減しました。同じ管理対象集合は再通知せず、定常時のCPU使用も抑えます。",
+    "zh-Hans": "**更快平铺繁忙工作区**：减少窗口和工作区变化触发的重排工作。合并步骤从窗口数的平方复杂度降为线性，减少布局遍历分配；管理窗口集合未变化时也不重复发布，降低稳态 CPU 使用。",
+    "zh-Hant": "**更快並排忙碌的工作空間**：減少視窗與工作空間變更觸發的重排工作。合併步驟從視窗數量的平方複雜度降為線性，減少配置走訪配置量；管理視窗集合未變更時也不重複發布，降低穩定狀態的 CPU 使用。"
+  },
+  "c68eb82179a0122b": {
+    "en": "**Optional global recent workspace:** Recent-workspace actions can now use one MRU history across every display, focusing a workspace where it already lives instead of pulling it onto the pointer display. The existing per-display behavior remains the default.",
+    "ko": "**선택 가능한 전역 최근 작업 공간:** 모든 화면에서 하나의 최근 이력을 쓸 수 있어요. 공간을 포인터 화면으로 가져오는 대신 이미 있는 화면에서 포커스해요. 기본값은 기존 디스플레이별 동작을 유지해요.",
+    "ja": "**全画面共通の最近の領域を選択可能:** ひとつの使用履歴を全画面で使い、ポインタの画面へ引き寄せず元の場所でフォーカスできます。既定は従来の画面ごとの動作です。",
+    "zh-Hans": "**可选的全局最近工作区**：最近工作区操作可使用跨所有显示器的统一历史，在工作区原位置聚焦，而不是拉到指针显示器。默认仍是原有逐显示器行为。",
+    "zh-Hant": "**可選的全域最近工作空間**：最近工作空間操作可使用跨所有顯示器的統一歷程，在工作空間原位置聚焦，而非拉至游標顯示器。預設仍是原有逐顯示器行為。"
+  },
+  "c79f1f37991b75c1": {
+    "en": "**Correct monitor targeting for keyboard tiling:** Resize / move / rotate / balance and drag edits on a workspace shown on a non-cursor display now compute against that display.",
+    "ko": "**키보드 타일링의 정확한 화면 선택:** 포인터와 다른 화면에 있는 공간의 크기 조절·이동·회전·균등 배치·드래그 편집은 실제 그 화면을 기준으로 계산해요.",
+    "ja": "**キー操作で正しい画面を使用:** ポインタ以外の画面にある領域のサイズ変更、移動、回転、均等配置、ドラッグ編集は、その画面を基準に計算します。",
+    "zh-Hans": "**键盘平铺选对显示器**：对非指针显示器上的工作区进行调整、移动、旋转、均衡和拖动编辑时，均按其实际显示器计算。",
+    "zh-Hant": "**鍵盤並排選對顯示器**：對非游標顯示器上的工作空間進行調整、移動、旋轉、平均分配及拖移編輯時，皆依實際顯示器計算。"
+  },
+  "c80644d50f918757": {
+    "en": "**Reorganized settings:** Workspace key equivalents moved to their own **Workspace Keys** pane and trackpad gestures to a **Gestures** pane. Window-cycling settings and shortcuts are grouped together. A workspace's derived shortcuts link straight to Workspace Keys, and those derived combos now render as plain read-only text so it is clear they are configured elsewhere.",
+    "ko": "**설정 재구성:** 대표 키는 **작업 공간 키**, 트랙패드 제스처는 **제스처** 화면으로 옮겼어요. 창 전환 설정·단축키도 함께 묶었어요. 공간의 파생 단축키는 작업 공간 키로 바로 연결하고, 읽기 전용 일반 텍스트로 보여 다른 곳에서 설정한다는 점을 분명히 했어요.",
+    "ja": "**設定を再整理:** 代表キーを**ワークスペースキー**、トラックパッド操作を**ジェスチャー**へ移し、ウインドウ切り替えの設定とキーをまとめました。派生ショートカットからキー設定へ直接移動でき、読み取り専用の通常テキストで別の場所で設定することを明確にしました。",
+    "zh-Hans": "**重新组织设置**：工作区对应键移到独立的**工作区键**面板，触控板移到**手势**面板，窗口切换设置与快捷键集中显示。派生快捷键直接链接到工作区键，并以只读普通文本呈现，明确它们在其他位置配置。",
+    "zh-Hant": "**重新組織設定**：工作空間對應鍵移至獨立的**工作空間鍵**面板，觸控板移至**手勢**面板，視窗切換設定與快速鍵集中顯示。衍生快速鍵直接連結至工作空間鍵，並以唯讀一般文字呈現，明確表示它們在其他位置設定。"
+  },
+  "6f56cdb04e7b64ab": {
+    "en": "**Overhauled BSP operations:** BSP insert / swap / warp / balance semantics have been overhauled.",
+    "ko": "**BSP 작업 개편:** 삽입·교환·옮기기·균등 배치의 동작 규칙을 전반적으로 정리했어요.",
+    "ja": "**BSP操作を刷新:** 挿入、入れ替え、移動、均等配置の動作規則を見直しました。",
+    "zh-Hans": "**重构 BSP 操作**：全面调整插入、交换、移动和均衡的操作语义。",
+    "zh-Hant": "**重構 BSP 操作**：全面調整插入、交換、移動與平均分配的操作語意。"
+  },
+  "70182823d6b32403": {
+    "en": "**Workspaces restore correctly after unlocking with several displays:** macOS drops and re-adds monitors behind the lock shield, and Tatami reconciled every intermediate report. That tore down the display assignment, sometimes switched profiles through a display-count rule, and saved the result. Reconciliation now waits for the topology to settle, so a monitor that merely blinked out and back changes nothing and a real unplug is handled exactly once.",
+    "ko": "**여러 디스플레이에서 잠금 해제 후 복원:** 잠금 화면 뒤에서 macOS가 모니터를 제거·추가할 때 중간 상태마다 처리해 화면 할당이 풀리고, 화면 수 규칙으로 프로필이 바뀐 채 저장될 수 있었어요. 이제 화면 구성이 안정된 뒤 반영해 잠깐 사라졌다 돌아온 모니터는 그대로 유지하고 실제 분리는 한 번만 처리해요.",
+    "ja": "**複数画面でロック解除後も正しく復元:** ロック中にmacOSが画面を外して追加する中間状態を逐次処理し、割り当てが壊れたり、画面数ルールでプロファイルが変わったまま保存されたりしていました。構成が落ち着いてから反映し、一瞬消えただけなら何も変えず、実際の取り外しは一度だけ処理します。",
+    "zh-Hans": "**多显示器解锁后正确恢复**：macOS 会在锁屏背后移除并重新加入显示器，过去逐次处理所有中间状态，可能破坏分配、触发显示器数量规则切换方案并保存错误结果。现在等待拓扑稳定后再协调，短暂消失又返回的显示器不改变状态，真正拔出则只处理一次。",
+    "zh-Hant": "**多顯示器解鎖後正確還原**：macOS 會在鎖定畫面背後移除並重新加入顯示器，過去逐次處理所有中間狀態，可能破壞指派、觸發顯示器數量規則切換組合並儲存錯誤結果。現在等待拓樸穩定後再協調，短暫消失又返回的顯示器不改變狀態，真正拔除則只處理一次。"
+  },
+  "7069773836abbbfd": {
+    "en": "**Busy-app retention:** When an app is too loaded to answer an Accessibility query in time, Tatami keeps its last-known windows instead of reading the timeout as \"no windows\", so a momentarily-busy app no longer drops out of its tile, floating mirror, or marker dot. A single hung app can also no longer freeze the main thread for several seconds during a tiling pass.",
+    "ko": "**바쁜 앱의 창 유지:** 앱이 바빠 손쉬운 사용 조회에 제때 답하지 못해도 ‘창 없음’으로 판단하지 않고 마지막 창 정보를 유지해요. 잠깐 바쁜 앱이 타일·미러·표시 점에서 빠지지 않으며, 응답 없는 앱 하나가 타일링 중 메인 스레드를 몇 초씩 멈추지도 않아요.",
+    "ja": "**高負荷のAppを保持:** アクセシビリティの応答が時間内に戻らなくても「ウインドウなし」と見なさず、最後の情報を保持します。一時的に忙しいAppがタイル、ミラー、印から消えず、ひとつの停止したAppが配置中にメインスレッドを数秒止めることもありません。",
+    "zh-Hans": "**保留繁忙应用**：应用负载过高、辅助功能查询超时时，会保留最后已知窗口，而不视为“没有窗口”。短暂繁忙的应用不再从平铺、浮动镜像或标记点中消失；单个挂起应用也不会在平铺时冻结主线程数秒。",
+    "zh-Hant": "**保留忙碌的 App**：App 負載過高、輔助使用查詢逾時時，會保留最後已知的視窗，而非視為「沒有視窗」。短暫忙碌的 App 不再從並排、浮動鏡像或標記點中消失；單一停止回應的 App 也不會在並排時凍結主執行緒數秒。"
+  },
+  "70d3fe150e428aab": {
+    "en": "**Launch at Login:** Tatami can start automatically when you log in. Toggle in **Settings → General → Launch at login**.",
+    "ko": "**로그인할 때 실행:** Mac에 로그인하면 Tatami를 자동으로 시작할 수 있어요. **설정 → 일반 → 로그인 시 실행**에서 바꿀 수 있어요.",
+    "ja": "**ログイン時に起動:** Macへのログイン時にTatamiを自動起動できます。**設定 → 一般 → ログイン時に起動**で切り替えます。",
+    "zh-Hans": "**登录时启动**：登录 Mac 时可自动启动 Tatami，可在**设置 → 通用 → 登录时启动**中切换。",
+    "zh-Hant": "**登入時啟動**：登入 Mac 時可自動啟動 Tatami，可在**設定 → 一般 → 登入時啟動**中切換。"
+  },
+  "723604e895d62df9": {
+    "en": "**Cycle across all displays:** option to make next/previous workspace span every display's workspaces instead of only the one under the cursor ({0}).",
+    "ko": "**모든 디스플레이에서 순환:** 다음·이전 작업 공간이 포인터 화면뿐 아니라 모든 화면의 작업 공간을 순환하도록 설정할 수 있어요({0}).",
+    "ja": "**すべての画面で巡回:** 次・前のワークスペースで、ポインタの画面だけでなく全画面の領域を巡回できます（{0}）。",
+    "zh-Hans": "**跨所有显示器循环**：可让前后工作区操作遍历所有显示器的工作区，而不只限于指针所在显示器（{0}）。",
+    "zh-Hant": "**跨所有顯示器循環**：可讓前後工作空間操作遍歷所有顯示器的工作空間，而非只限於游標所在顯示器（{0}）。"
+  },
+  "72957c995361616d": {
+    "en": "**Hide-on-close window reclamation:** Hide-on-close windows are reclaimed even when they fire no Accessibility destroy event.",
+    "ko": "**닫으며 숨긴 창의 자리 회수:** 손쉬운 사용의 삭제 이벤트가 없어도 닫을 때 숨겨진 창의 자리를 회수해요.",
+    "ja": "**閉じて隠れたウインドウの領域を回収:** アクセシビリティの破棄イベントがなくても、閉じて隠れたウインドウの領域を回収します。",
+    "zh-Hans": "**回收关闭后隐藏的窗口**：即使没有辅助功能销毁事件，也会回收关闭后隐藏窗口的布局位置。",
+    "zh-Hant": "**回收關閉後隱藏的視窗**：即使沒有輔助使用銷毀事件，也會回收關閉後隱藏視窗的配置位置。"
+  },
+  "738be169f7bfa342": {
+    "en": "**Active-workspace menu bar item:** Show the active workspace with its icon and name in the menu bar.",
+    "ko": "**메뉴 막대에 현재 작업 공간 표시:** 활성 작업 공간의 아이콘과 이름을 메뉴 막대에 보여줘요.",
+    "ja": "**メニューバーに現在の領域を表示:** アクティブなワークスペースのアイコンと名前を表示します。",
+    "zh-Hans": "**菜单栏显示当前工作区**：在菜单栏显示活动工作区的图标和名称。",
+    "zh-Hant": "**選單列顯示目前工作空間**：在選單列顯示作用中工作空間的圖示與名稱。"
+  },
+  "757fb5a756c09d91": {
+    "en": "**Workspace restoration after display reconnection:** Replug an external display and the workspace that lived on it comes back: a workspace pinned to that monitor reclaims it (and the display it was borrowed onto falls back to what it last showed), otherwise the monitor restores its own most-recent workspace. Moving a workspace to another monitor now also refills the one it left.",
+    "ko": "**디스플레이 재연결 시 작업 공간 복원:** 외장 화면을 다시 연결하면 그곳의 작업 공간을 복원해요. 해당 화면에 고정한 공간이 우선 돌아가고, 임시로 머물던 화면은 이전 공간으로 돌아가요. 고정 공간이 없으면 화면 자체의 최근 공간을 복원해요. 공간을 다른 모니터로 옮기면 떠난 화면도 다시 채워요.",
+    "ja": "**画面の再接続で領域を復元:** 外部画面を戻すと、その画面のワークスペースが復帰します。固定された領域を優先して戻し、一時的に使っていた画面は以前の領域へ戻ります。固定対象がなければ、その画面で最近使った領域を復元します。別画面へ領域を移した際も空いた画面を補います。",
+    "zh-Hans": "**重新连接显示器后恢复工作区**：插回外接显示器会恢复原工作区。固定到该屏幕的工作区优先返回，临时承载它的屏幕恢复先前显示内容；否则恢复外接屏自己的最近工作区。移动工作区到其他显示器时，也会补回它离开的屏幕。",
+    "zh-Hant": "**重新連接顯示器後還原工作空間**：插回外接顯示器會還原原工作空間。固定至該螢幕的工作空間優先返回，暫時容納它的螢幕還原先前顯示內容；否則還原外接螢幕自己的最近工作空間。移動工作空間至其他顯示器時，也會補回它離開的螢幕。"
+  },
+  "75a49b0ceccda6a6": {
+    "en": "**Place and size compact action feedback:** Choose any edge, corner, or the center of the affected display, and select a small, default, or large HUD. Entrance and exit now use spring motion, while the configured duration counts only the fully visible interval between them.",
+    "ko": "**작은 화면 알림의 위치·크기 설정:** 해당 디스플레이의 가장자리·모서리·가운데와 작게·기본·크게를 선택할 수 있어요. 스프링 동작으로 나타나고 사라지며, 설정한 시간은 완전히 보이는 구간만 계산해요.",
+    "ja": "**操作フィードバックの位置と大きさ:** 対象画面の辺、角、中央と、小・標準・大を選べます。表示と終了にスプリング動作を使い、設定した時間は完全に見えている区間だけを数えます。",
+    "zh-Hans": "**设置紧凑反馈的位置与大小**：可选择目标显示器任意边缘、角落或中央，以及小、默认或大尺寸。进入和退出使用弹簧动画，配置时长只计算中间完全可见的时间。",
+    "zh-Hant": "**設定精簡回饋的位置與大小**：可選擇目標顯示器任一邊緣、角落或中央，以及小、預設或大尺寸。進入與離開使用彈簧動畫，設定時長只計算中間完全可見的時間。"
+  },
+  "77083ec17298be2d": {
+    "en": "**Workspace-switch cleanup:** Unregistered apps no longer linger across a workspace switch, and the cursor warps to the focused tile when a window closes even if that tile had expanded over the pointer.",
+    "ko": "**작업 공간 전환 정리:** 등록하지 않은 앱이 전환 후 남지 않아요. 창을 닫을 때 남은 타일이 포인터 위치까지 커졌더라도 포커스 타일로 포인터를 옮겨요.",
+    "ja": "**切り替え時の後処理を改善:** 未登録Appがワークスペース切り替え後に残りません。ウインドウを閉じた後のタイルがポインタ位置まで広がっていても、フォーカス先へポインタを移動します。",
+    "zh-Hans": "**清理工作区切换**：未登记应用不再在切换后残留。窗口关闭后，即使焦点平铺窗口已扩展到指针下方，指针仍会移到该窗口。",
+    "zh-Hant": "**整理工作空間切換**：未登錄的 App 不再於切換後殘留。視窗關閉後，即使焦點並排視窗已擴展至游標下方，游標仍會移到該視窗。"
+  },
+  "7753b2e0416eb6e9": {
+    "en": "Focus & interface",
+    "ko": "포커스와 인터페이스",
+    "ja": "フォーカスとインターフェイス",
+    "zh-Hans": "焦点与界面",
+    "zh-Hant": "焦點與介面"
+  },
+  "7854b03a3e479efc": {
+    "en": "**New shortcuts:** Balance the tree or toggle the focused app's workspace membership, plus a toolbar **Activate** button.",
+    "ko": "**새 단축키:** 트리 균등 배치와 포커스 앱의 작업 공간 소속 전환을 지원하고, 도구 막대에 **활성화** 버튼을 추가했어요.",
+    "ja": "**新しいショートカット:** ツリーの均等配置とフォーカス中Appの所属切り替えに対応し、ツールバーに**有効化**ボタンを追加しました。",
+    "zh-Hans": "**新增快捷键**：可均衡布局树或切换焦点应用的工作区成员关系，并新增工具栏**激活**按钮。",
+    "zh-Hant": "**新增快速鍵**：可平均分配配置樹或切換焦點 App 的工作空間成員關係，並新增工具列**啟用**按鈕。"
+  },
+  "7a2e7b21dd4b6d69": {
+    "en": "Displays are identified by a stable UUID (with a name fallback), so reconnecting the same monitor keeps its assignments. Everything falls back to the primary display when a monitor is absent.",
+    "ko": "디스플레이는 고정 UUID로 식별하고 필요하면 이름을 사용해요. 같은 모니터를 다시 연결하면 할당을 유지하고, 모니터가 없으면 기본 디스플레이를 사용해요.",
+    "ja": "ディスプレイは安定したUUIDで識別し、必要なら名前を使います。同じ画面を再接続しても割り当てを保ち、不在の間はメインディスプレイを使います。",
+    "zh-Hans": "显示器通过稳定 UUID 识别，必要时使用名称，因此重新连接同一显示器会保留分配。显示器缺席时统一使用主显示器。",
+    "zh-Hant": "顯示器透過穩定 UUID 識別，必要時使用名稱，因此重新連接同一顯示器會保留指派。顯示器未連接時統一使用主要顯示器。"
+  },
+  "7b1ef589dd1751d5": {
+    "en": "**Customizable menu bar:** Pick what the menu-bar item shows under **Settings → Appearance → Menu Bar:** the active workspace's icon and name, and, when you have more than one profile, the active profile's icon and name.",
+    "ko": "**메뉴 막대 꾸미기:** **설정 → 모양 → 메뉴 막대**에서 현재 작업 공간의 아이콘·이름을 선택해요. 프로필이 여러 개라면 현재 프로필의 아이콘·이름도 표시할 수 있어요.",
+    "ja": "**メニューバーをカスタマイズ:** **設定 → 外観 → メニューバー**で現在のワークスペースのアイコン・名前を選べます。プロファイルが複数あれば、現在のプロファイルのアイコン・名前も表示できます。",
+    "zh-Hans": "**自定义菜单栏**：在**设置 → 外观 → 菜单栏**选择显示当前工作区的图标和名称；存在多个方案时，也可显示活动方案的图标和名称。",
+    "zh-Hant": "**自訂選單列**：在**設定 → 外觀 → 選單列**選擇顯示目前工作空間的圖示和名稱；存在多個組合時，也可顯示作用中組合的圖示和名稱。"
+  },
+  "7c7c4a4ca11ca688": {
+    "en": "**Floating-window blink fixes:** With focus-follows-mouse off, two blinks are fixed: a sibling float dipped behind a clicked tile for a beat, and the focused float dipped behind an overlapping sibling when the cursor left it.",
+    "ko": "**항상 위 창 깜빡임 수정:** 마우스 포커스를 껐을 때 다른 항상 위 창이 클릭한 타일 뒤로 잠깐 내려가거나, 포인터가 떠나면 포커스 창이 겹친 다른 항상 위 창 뒤로 내려가던 두 문제를 수정했어요.",
+    "ja": "**手前表示のちらつきを修正:** マウス追従がオフのとき、隣のフローティングウインドウがクリックしたタイルの後ろへ一瞬落ちる問題と、ポインタが離れるとフォーカス中のウインドウが重なる別のウインドウの後ろへ落ちる問題を修正しました。",
+    "zh-Hans": "**修复浮动窗口闪烁**：关闭焦点跟随鼠标时，修复了兄弟浮动窗口短暂落到被点击的平铺窗口后方，以及指针离开焦点浮动窗口后它落到重叠兄弟窗口后方的问题。",
+    "zh-Hant": "**修正浮動視窗閃爍**：關閉焦點跟隨滑鼠時，修正兄弟浮動視窗短暫落到被點選的並排視窗後方，以及游標離開焦點浮動視窗後，它落到重疊兄弟視窗後方的問題。"
+  },
+  "7d78bd167e41a404": {
+    "en": "**Workspace shortcuts respect profile boundaries:** The same workspace key or explicit shortcut can now be reused in different profiles without a false conflict. Global shortcuts remain checked against every profile.",
+    "ko": "**프로필 경계를 지키는 작업 공간 단축키:** 서로 다른 프로필에서 같은 대표 키나 명시적 단축키를 재사용해도 잘못된 충돌로 보지 않아요. 전역 단축키는 모든 프로필과 계속 비교해요.",
+    "ja": "**プロファイル境界を守るキー:** 別々のプロファイルで同じ代表キーや明示的なショートカットを再利用しても、誤って競合と判断しません。グローバルキーは引き続き全プロファイルと照合します。",
+    "zh-Hans": "**工作区快捷键遵循方案边界**：不同配置方案可重用同一工作区键或显式快捷键，不再误报冲突。全局快捷键仍与全部方案比较。",
+    "zh-Hant": "**工作空間快速鍵遵循組合邊界**：不同設定組合可重用同一工作空間鍵或明確指定的快速鍵，不再誤報衝突。全域快速鍵仍與全部組合比對。"
+  },
+  "7e12cba6c9eb4648": {
+    "en": "**Post-update What's New window:** A one-time window summarizes setup-affecting changes (with a Screen Recording grant button when needed) and feature highlights. The full changelog is also viewable from **About → View Changelog**.",
+    "ko": "**업데이트 후 새로운 기능 안내:** 설정에 영향을 주는 변경 사항과 주요 기능을 한 번 보여줘요. 필요하면 화면 기록 권한 버튼도 제공해요. **정보 → 변경 기록 보기**에서 전체 기록을 읽을 수 있어요.",
+    "ja": "**更新後の新機能案内:** 設定に関わる変更と主な新機能を一度だけ表示し、必要なら画面収録の許可ボタンも案内します。**情報 → 変更履歴を見る**から全文を読めます。",
+    "zh-Hans": "**更新后的新功能窗口**：一次性窗口概述影响设置的变化和功能重点，必要时提供屏幕录制授权按钮。也可从**关于 → 查看更新日志**阅读完整记录。",
+    "zh-Hant": "**更新後的新功能視窗**：一次性視窗概述影響設定的變更與功能重點，必要時提供螢幕錄製授權按鈕。也可從**關於 → 查看更新紀錄**閱讀完整紀錄。"
+  },
+  "8300da8319ff3d7f": {
+    "en": "**Immediate Assign hotkey registration:** Hot keys re-register immediately after recording a workspace's **Assign** shortcut (previously needed a relaunch).",
+    "ko": "**할당 단축키 즉시 등록:** 작업 공간의 **할당** 단축키를 기록하면 바로 다시 등록해요. 다시 실행할 필요가 없어요.",
+    "ja": "**割り当てキーを即時登録:** ワークスペースの**割り当て**ショートカットを記録するとすぐ登録し直します。再起動は不要です。",
+    "zh-Hans": "**立即登记分配快捷键**：记录工作区的**分配**快捷键后立即重新注册，无须重启。",
+    "zh-Hant": "**立即登錄指派快速鍵**：記錄工作空間的**指派**快速鍵後立即重新註冊，無須重新啟動。"
+  },
+  "832b6943b2aa8056": {
+    "en": "**Display-based profile auto-activation:** Switch profiles automatically based on monitor count or specific displays being connected or unplugged. Tatami flags ambiguous rules so it is clear which profile wins and why another did not activate.",
+    "ko": "**디스플레이에 따른 프로필 자동 활성화:** 모니터 수나 특정 디스플레이의 연결·분리에 따라 프로필을 자동 전환해요. 모호한 규칙은 표시해 어떤 프로필이 선택되고 다른 프로필은 왜 실행되지 않았는지 알 수 있어요.",
+    "ja": "**画面条件でプロファイルを自動選択:** 画面数や特定ディスプレイの接続・切断に応じて自動で切り替えます。曖昧なルールを表示し、どのプロファイルが選ばれ、他が選ばれなかった理由を明確にします。",
+    "zh-Hans": "**按显示器自动激活方案**：根据显示器数量或指定显示器的连接、拔出自动切换方案。Tatami 会标出有歧义的规则，明确哪个方案生效以及其他方案未激活的原因。",
+    "zh-Hant": "**依顯示器自動啟用組合**：根據顯示器數量或指定顯示器的連接、拔除自動切換組合。Tatami 會標出有歧義的規則，明確指出哪個組合生效，以及其他組合未啟用的原因。"
+  },
+  "83463bb15e81fe78": {
+    "en": "**Workspace layout preview and editor:** Each workspace's settings now open with a live tile-layout editor. Drag dividers to resize, move a tile onto an edge to split, drop it in the center to swap, or rotate, mirror, balance, and change split orientation. A separate band holds fullscreen-zoomed windows. The editor also works for **inactive** workspaces, shows scratchpad borrow docks, and groups floating, ignored, and shared apps under \"Not tiled.\"",
+    "ko": "**작업 공간 레이아웃 미리보기·편집:** 각 공간 설정에 실시간 타일 편집기가 있어요. 경계를 끌어 크기를 바꾸고, 가장자리로 옮겨 분할하거나 가운데에 놓아 교환할 수 있어요. 회전·뒤집기·균등 배치·분할 방향 변경도 지원해요. 확대 창은 별도 줄에 표시해요. **비활성** 공간도 편집하고 임시 공간의 빌려오기 위치를 보여주며, 항상 위·그대로 두기·공용 앱은 ‘타일링하지 않음’으로 묶어요.",
+    "ja": "**配置のプレビューと編集:** 各領域の設定にライブ編集画面を表示します。境界をドラッグしてサイズ変更、端へ移動して分割、中央へ置いて交換でき、回転・反転・均等配置・分割方向変更も使えます。拡大ウインドウは別の帯に表示します。**非アクティブ**な領域の編集、一時領域の借用先表示にも対応し、手前表示・そのまま・共有Appを「タイル対象外」にまとめます。",
+    "zh-Hans": "**工作区布局预览与编辑**：各工作区设置先显示实时平铺编辑器。拖动分隔线调整尺寸，移到边缘分割，放在中央交换，也可旋转、镜像、均衡和更改分割方向。全屏缩放窗口位于独立区域。编辑器支持**非活动**工作区，显示暂存区借用停靠位置，并将浮动、忽略及共享应用归入“不平铺”。",
+    "zh-Hant": "**工作空間配置預覽與編輯**：各工作空間設定先顯示即時並排編輯器。拖移分隔線調整尺寸，移至邊緣分割，放在中央交換，也可旋轉、鏡像、平均分配與更改分割方向。全螢幕縮放視窗位於獨立區域。編輯器支援**非作用中**工作空間，顯示暫存區借用停靠位置，並將浮動、忽略及共用 App 歸入「不並排」。"
+  },
+  "84c398121bbf517f": {
+    "en": "**Cross-profile transient app tiling:** Apps assigned only to an inactive profile now tile normally when opened in the current profile, instead of being treated as owned by an unreachable workspace.",
+    "ko": "**다른 프로필 전용 앱도 임시 배치:** 비활성 프로필에만 등록한 앱을 현재 프로필에서 열어도 일반적으로 타일링해요. 접근할 수 없는 공간의 앱으로 처리하지 않아요.",
+    "ja": "**別プロファイル専用Appも一時配置:** 非アクティブなプロファイルだけに登録したAppを現在の環境で開いても、通常どおりタイル表示します。到達できない領域の所有物とは扱いません。",
+    "zh-Hans": "**跨方案临时平铺应用**：仅分配到非活动方案的应用，在当前方案打开时也会正常平铺，不再被视为属于不可访问的工作区。",
+    "zh-Hant": "**跨組合暫時並排 App**：僅指派至非作用中組合的 App，在目前組合開啟時也會正常並排，不再被視為屬於無法存取的工作空間。"
+  },
+  "85584066ae9e0a4e": {
+    "en": "**Copy and Duplicate cannot silently introduce shortcut conflicts:** Their previews identify conflicting choices and revalidate the current configuration before saving. A real conflict rejects the whole mutation instead of applying a partial copy.",
+    "ko": "**복사·복제로 단축키 충돌 방지:** 미리보기에서 충돌하는 선택을 알려주고 저장 전에 현재 설정을 다시 검사해요. 실제 충돌이 있으면 일부만 복사하지 않고 전체 변경을 거절해요.",
+    "ja": "**コピー・複製時のキー競合を防止:** プレビューで競合する選択を示し、保存前に現在の設定を再検証します。競合があれば一部だけを適用せず、変更全体を拒否します。",
+    "zh-Hans": "**复制不会静默引入快捷键冲突**：预览会指出冲突选项，并在保存前重新验证当前配置。真正发生冲突时拒绝整个修改，而不应用部分复制结果。",
+    "zh-Hant": "**複製不會默默引入快速鍵衝突**：預覽會指出衝突選項，並在儲存前重新驗證目前設定。真正發生衝突時拒絕整個修改，而非套用部分複製結果。"
+  },
+  "87f2415e7b8c6285": {
+    "en": "**Borrow layout after notification activation:** Clicking a notification for an app already visible in Borrow no longer lets the app restore a shorter saved frame and leave empty space below it. Tatami reasserts the complete borrowed block after the focused window settles.",
+    "ko": "**알림으로 활성화해도 빌려오기 배치 유지:** 빌려온 앱의 알림을 클릭했을 때 앱이 짧은 저장 프레임을 복원해 아래에 빈 공간이 생기지 않아요. 포커스 창이 안정되면 빌려온 영역 전체 배치를 다시 적용해요.",
+    "ja": "**通知から開いても借用配置を維持:** 借用中のAppの通知をクリックしても、保存済みの短いフレームを復元して下に空白を残しません。フォーカス先が落ち着いたら借用ブロック全体の配置を再適用します。",
+    "zh-Hans": "**通知激活后保持借用布局**：点击借用区域内已可见应用的通知，不再让应用恢复较短的保存尺寸并在下方留白。焦点窗口稳定后，会重新应用完整借用区域。",
+    "zh-Hant": "**通知啟用後保持借用配置**：點選借用區域內已可見 App 的通知，不再讓 App 還原較短的儲存尺寸並在下方留白。焦點視窗穩定後，會重新套用完整借用區域。"
+  },
+  "8836199be50898ae": {
+    "en": "**Tidier menu bar:** Scratchpads list under their own section, and the rarely-used \"Pause Tiling\" item was removed (pause/resume is still on the {0} shortcut).",
+    "ko": "**메뉴 막대 정리:** 임시 공간을 별도 섹션으로 모으고 잘 쓰지 않는 ‘타일링 일시 정지’를 제거했어요. 일시 정지·재개는 {0} 단축키로 계속 사용할 수 있어요.",
+    "ja": "**メニューバーを整理:** 一時領域を専用セクションへまとめ、使用頻度の低い「タイル表示を一時停止」を削除しました。停止・再開は {0} で引き続き使えます。",
+    "zh-Hans": "**更整洁的菜单栏**：暂存区归入独立区段，移除较少使用的“暂停平铺”菜单项；仍可用 {0} 快捷键暂停或恢复。",
+    "zh-Hant": "**更整齊的選單列**：暫存區歸入獨立區段，移除較少使用的「暫停並排」選單項目；仍可用 {0} 快速鍵暫停或恢復。"
+  },
+  "8b56b49528a82076": {
+    "en": "**Run programs from lifecycle hooks:** Run a program when Tatami launches, the active profile changes, or a workspace becomes visible on a display. Add and test hooks in Settings or keep them in {0}; each run receives versioned JSON and convenience environment variables, with explicit argv, working directory, environment, and timeout controls. Failures appear under Problems without blocking the profile or workspace change.",
+    "ko": "**수명 주기 훅으로 프로그램 실행:** Tatami 시작·활성 프로필 변경·디스플레이의 작업 공간 표시 시 프로그램을 실행할 수 있어요. 설정에서 추가·테스트하거나 {0}에 작성해요. 버전이 있는 JSON과 편의 환경 변수를 전달하며 argv·작업 폴더·환경·제한 시간을 명시할 수 있어요. 실패는 문제 목록에 표시하고 프로필·작업 공간 전환을 막지 않아요.",
+    "ja": "**ライフサイクルフックでプログラムを実行:** Tatamiの起動、プロファイル変更、画面へのワークスペース表示時に実行できます。設定で追加・テストするか {0} に記述します。バージョン付きJSONと環境変数を渡し、argv、作業ディレクトリ、環境、制限時間を指定できます。失敗は問題一覧に表示し、切り替えを妨げません。",
+    "zh-Hans": "**通过生命周期钩子运行程序**：可在 Tatami 启动、活动方案变化或某工作区在显示器上可见时运行程序。在设置中添加和测试，或写入 {0}；每次运行接收带版本的 JSON 和便利环境变量，并可显式控制 argv、工作目录、环境与超时。失败显示在问题列表，不阻塞方案或工作区切换。",
+    "zh-Hant": "**透過生命週期掛鉤執行程式**：可在 Tatami 啟動、作用中組合變更，或某工作空間在顯示器上可見時執行程式。在設定中新增與測試，或寫入 {0}；每次執行接收帶版本的 JSON 及便利環境變數，並可明確控制 argv、工作目錄、環境與逾時。失敗顯示於問題列表，不阻擋組合或工作空間切換。"
+  },
+  "8c0994483f3cd82f": {
+    "en": "**Pinned-workspace retention for disconnected displays:** Activating a workspace whose pinned monitor is not connected, then switching profiles away and back, no longer reverts it to a different workspace. Tatami keeps it where you last had it and returns it to its own monitor when that display reconnects.",
+    "ko": "**연결 해제된 화면의 고정 공간 유지:** 고정 모니터가 없는 상태에서 공간을 열고 프로필을 바꿨다 돌아와도 다른 공간으로 바뀌지 않아요. 마지막 위치를 유지하다가 모니터를 다시 연결하면 제자리로 돌려보내요.",
+    "ja": "**未接続画面の固定領域を保持:** 固定先がない状態で有効化してからプロファイルを往復しても、別の領域へ戻りません。最後の場所を保持し、画面を再接続したら本来の場所へ戻します。",
+    "zh-Hans": "**保留断开显示器的固定工作区**：固定显示器未连接时激活工作区，再切换方案离开并返回，不会变成其他工作区。Tatami 保留最后位置，显示器重连后再送回原屏幕。",
+    "zh-Hant": "**保留中斷顯示器的固定工作空間**：固定顯示器未連接時啟用工作空間，再切換組合離開並返回，不會變成其他工作空間。Tatami 保留最後位置，顯示器重新連接後再送回原螢幕。"
+  },
+  "8ccb637efd83aff7": {
+    "en": "**Fullscreen-zoom restoration after display reconnection:** Closing and reopening a display no longer drops a workspace's fullscreen-zoom. Display churn briefly hid the window and used to clear its zoom for good. Now the same window returns and stays zoomed. Genuinely closing a zoomed window still un-zooms the workspace, and reopening one starts fresh.",
+    "ko": "**화면 재연결 후 확대 상태 복원:** 디스플레이를 닫았다 열어도 작업 공간 확대가 풀리지 않아요. 화면 변경 중 창이 잠깐 숨겨지면 확대가 영구 해제되던 문제를 수정했어요. 같은 창은 다시 확대되어 돌아오며, 실제로 창을 닫으면 확대를 해제하고 다시 열 때 새로 시작해요.",
+    "ja": "**画面再接続後も拡大を復元:** 画面を閉じて開いても拡大状態を失いません。画面変更で一瞬隠れたときに拡大を解除していた問題を直し、同じウインドウを拡大したまま戻します。実際に閉じた場合は解除し、再び開くと新しい状態から始めます。",
+    "zh-Hans": "**显示器重连后恢复全屏缩放**：关闭并重新打开显示器不再丢失工作区缩放。过去显示器变动导致窗口短暂隐藏时，会永久清除缩放；现在同一窗口回来后继续保持缩放。真正关闭窗口仍会取消缩放，重新打开则从新状态开始。",
+    "zh-Hant": "**顯示器重新連接後還原全螢幕縮放**：關閉並重新開啟顯示器不再遺失工作空間縮放。過去顯示器變動造成視窗短暫隱藏時，會永久清除縮放；現在同一視窗返回後繼續保持縮放。真正關閉視窗仍會取消縮放，重新開啟則從新狀態開始。"
+  },
+  "8d473e790cfe6835": {
+    "en": "**Per-action HUD:** Floating changes, app membership, tiling pause, fullscreen zoom, and balance now show a brief overlay, each individually toggleable in **Settings → Appearance → Overlay** (plus the master switch and a configurable duration). Un-floating an app that stays in its workspace / Shared Apps shows a follow-up hint with the shortcut that removes it entirely.",
+    "ko": "**동작별 화면 알림:** 항상 위·앱 소속·타일링 일시 정지·전체 화면 확대·균등 배치를 짧게 알려줘요. **설정 → 모양 → 오버레이**에서 각각 켜고 끄거나 전체 스위치와 시간을 설정할 수 있어요. 항상 위를 해제해도 작업 공간·공용 앱에 남는 앱에는 완전히 제거하는 단축키를 이어서 안내해요.",
+    "ja": "**操作ごとのフィードバック:** 手前表示、Appの所属、一時停止、全画面拡大、均等配置を短く通知します。**設定 → 外観 → オーバーレイ**で個別・全体の有効化と時間を設定できます。手前表示を解除しても所属が残るAppには、完全に取り除くキーを追加で案内します。",
+    "zh-Hans": "**逐项操作反馈**：浮动变化、应用成员关系、暂停平铺、全屏缩放和均衡会显示简短反馈。可在**设置 → 外观 → 覆盖层**中分别开关，并设置总开关与时长。取消浮动后仍属于工作区或共享应用的应用，会接着显示彻底移除它的快捷键提示。",
+    "zh-Hant": "**逐項操作回饋**：浮動變更、App 成員關係、暫停並排、全螢幕縮放及平均分配會顯示簡短回饋。可在**設定 → 外觀 → 覆蓋層**中分別開關，並設定總開關與時長。取消浮動後仍屬於工作空間或共用 App 的 App，會接著顯示完全移除它的快速鍵提示。"
+  },
+  "8dbc41fbe3ca4d6a": {
+    "en": "**Per-window cycling:** The next/previous-window shortcuts walk all visible windows in the active workspace, tiled, floating, and unmanaged, cycling multiple windows of the same app individually.",
+    "ko": "**창마다 순서대로 전환:** 다음·이전 창 단축키로 현재 공간의 보이는 타일·항상 위·관리하지 않는 창을 모두 순환해요. 같은 앱의 여러 창도 각각 전환해요.",
+    "ja": "**ウインドウごとに切り替え:** 次・前のキーで、現在の領域に見えるタイル、フローティング、管理対象外のウインドウを巡回します。同じAppの複数ウインドウも個別に切り替えます。",
+    "zh-Hans": "**逐窗口切换**：前后窗口快捷键会遍历活动工作区所有可见的平铺、浮动及未管理窗口，同一应用的多个窗口也分别切换。",
+    "zh-Hant": "**逐視窗切換**：前後視窗快速鍵會遍歷作用中工作空間所有可見的並排、浮動與未管理視窗，同一 App 的多個視窗也分別切換。"
+  },
+  "8e2e179c5951fab9": {
+    "en": "**Window markers:** A small corner dot marks zoomed / floating windows. Configure its color, size, corner, and hover-fade.",
+    "ko": "**창 표시:** 모서리의 작은 점으로 확대·항상 위 창을 구분해요. 색상·크기·모서리·포인터를 올릴 때 숨기기를 설정할 수 있어요.",
+    "ja": "**ウインドウマーカー:** 角の小さな点で拡大・フローティング状態を示します。色、大きさ、角、ホバー時のフェードを設定できます。",
+    "zh-Hans": "**窗口标记**：角落的小圆点标识缩放或浮动窗口，可配置颜色、大小、角落位置及悬停淡出。",
+    "zh-Hant": "**視窗標記**：角落的小圓點標示縮放或浮動視窗，可設定顏色、大小、角落位置與游標停留時淡出。"
+  },
+  "8f1fb563367b585c": {
+    "en": "**Per-display multi-monitor workspaces:** Each display tracks its own active and recent workspaces. Activation, \"recent workspace\", and next/previous cycling all act on the display under the cursor, and new workspaces start pinned to the current display.",
+    "ko": "**디스플레이별 작업 공간:** 각 화면에서 현재·최근 작업 공간을 따로 기억해요. 활성화·최근 공간·이전·다음 전환은 포인터 화면을 대상으로 하며, 새 공간은 현재 디스플레이에 고정해요.",
+    "ja": "**画面ごとのワークスペース:** 各画面で現在と最近の領域を記憶します。有効化、最近の領域、前後の切り替えはポインタの画面を対象とし、新しい領域は現在の画面に固定します。",
+    "zh-Hans": "**每台显示器独立的工作区**：各显示器分别跟踪活动和最近工作区。激活、最近工作区及前后切换都作用于指针所在显示器，新建工作区默认固定到当前显示器。",
+    "zh-Hant": "**每台顯示器獨立的工作空間**：各顯示器分別追蹤作用中與最近工作空間。啟用、最近工作空間及前後切換都作用於游標所在顯示器，新建工作空間預設固定至目前顯示器。"
+  },
+  "92e087debc7df594": {
+    "en": "**Reliable relaunch failure handling:** When the relauncher fails to start, Tatami stays running and logs the failure instead of turning \"Relaunch\" into a plain quit.",
+    "ko": "**다시 실행 실패 처리:** 재실행 도구를 시작하지 못하면 종료하는 대신 Tatami를 계속 실행하고 실패를 기록해요.",
+    "ja": "**再起動失敗を適切に処理:** 再起動用ツールを開始できない場合、単に終了せずTatamiを動かしたまま失敗を記録します。",
+    "zh-Hans": "**可靠处理重启失败**：重启辅助程序无法启动时，Tatami 会继续运行并记录失败，不再把“重新启动”变成直接退出。",
+    "zh-Hant": "**可靠處理重新啟動失敗**：重新啟動輔助程式無法啟動時，Tatami 會繼續執行並記錄失敗，不再把「重新啟動」變成直接結束。"
+  },
+  "94346953562ba492": {
+    "en": "**Settings steppers save every click:** Gap, duration, marker-size, gesture-threshold, and Borrow-fraction changes now commit after each macOS Stepper update instead of relying on an editing-ended callback that ordinary clicks may never send.",
+    "ko": "**증감 버튼의 매 클릭 저장:** 간격·시간·표시 크기·제스처 기준·빌려오기 비율을 macOS 증감 버튼이 갱신될 때마다 저장해요. 일반 클릭에서는 오지 않을 수 있는 편집 종료 콜백을 기다리지 않아요.",
+    "ja": "**増減ボタンのクリックを毎回保存:** 間隔、時間、マーカーサイズ、ジェスチャーしきい値、借用比率をmacOSのStepper更新ごとに保存します。通常のクリックでは届かない場合がある編集終了コールバックには依存しません。",
+    "zh-Hans": "**步进按钮每次点击都保存**：间距、时长、标记尺寸、手势阈值和借用比例都会在 macOS Stepper 每次更新后提交，不再依赖普通点击可能永远不发送的编辑结束回调。",
+    "zh-Hant": "**增減按鈕每次點選都儲存**：間距、時長、標記尺寸、手勢門檻與借用比例都會在 macOS Stepper 每次更新後提交，不再依賴一般點選可能永遠不傳送的編輯結束回呼。"
+  },
+  "97ac189d38dccd15": {
+    "en": "All notable changes to Tatami. This file is the source of truth for the release notes shown on the website and on GitHub Releases (the release workflow appends an Install / Update section when publishing). Sparkle's in-app update dialog accumulates every patch in a release's minor series, so each section here only needs its own version's changes.",
+    "ko": "Tatami의 주요 변경 사항이에요. 이 파일은 웹사이트와 GitHub Releases에 표시하는 릴리즈 노트의 기준이며, 배포 과정에서 설치·업데이트 안내를 덧붙여요. Sparkle 업데이트 창은 같은 마이너 버전의 모든 패치 내역을 모아 보여주므로 각 섹션에는 해당 버전의 변경만 적어요.",
+    "ja": "Tatamiの主な変更点です。このファイルをウェブサイトとGitHub Releasesのリリースノートの基準とし、公開時にインストール・更新案内を追加します。Sparkleの更新画面は同じマイナーバージョンの全パッチをまとめるため、各節にはそのバージョンの変更だけを記載します。",
+    "zh-Hans": "Tatami 的主要变化。本文件是网站和 GitHub Releases 发行说明的权威来源，发布流程会追加安装与更新说明。Sparkle 的应用内更新窗口汇总同一小版本系列的所有补丁，因此各节只需记录自身版本的变化。",
+    "zh-Hant": "Tatami 的主要變更。本文件是網站與 GitHub Releases 版本說明的權威來源，發布流程會附加安裝及更新說明。Sparkle 的 App 內更新視窗彙整同一次要版本系列的所有修補，因此各節只需記錄自身版本的變更。"
+  },
+  "981f5fcc88a67e7b": {
+    "en": "**{0} config key:** {1} is now {2}. Configs migrate automatically on first launch: each floating entry becomes a shared app with {3}. Shared apps are part of *every* workspace, tiled into each layout by default, or floating everywhere. Manage them in **Workspaces → Shared Apps**. Dotfiles that template the config should switch to the new key.",
+    "ko": "**{0} 설정 키:** {1}을 {2}로 바꿨어요. 첫 실행 때 각 항상 위 항목을 {3}을 사용하는 공용 앱으로 자동 변환해요. 공용 앱은 *모든* 작업 공간에서 기본으로 타일링하거나 어디서나 항상 위로 둘 수 있어요. **작업 공간 → 공용 앱**에서 관리하며, 설정을 만드는 dotfiles 템플릿은 새 키로 바꿔 주세요.",
+    "ja": "**設定キー {0}:** {1} を {2} に変更しました。初回起動時、各フローティング項目を {3} の共有Appへ自動移行します。共有Appは*すべて*の領域に参加し、既定のタイル表示か全領域の手前表示を選べます。**ワークスペース → 共有App**で管理できます。設定を生成するdotfilesのテンプレートは新しいキーへ更新してください。",
+    "zh-Hans": "**{0} 配置键**：{1} 现改为 {2}。首次启动会自动迁移，将每个浮动条目转换为带 {3} 的共享应用。共享应用属于*所有*工作区，默认加入各布局平铺，也可在所有位置浮动。可在**工作区 → 共享应用**管理；生成配置的 dotfiles 模板应改用新键。",
+    "zh-Hant": "**{0} 設定鍵**：{1} 現改為 {2}。首次啟動會自動移轉，將每個浮動項目轉換為帶 {3} 的共用 App。共用 App 屬於*所有*工作空間，預設加入各配置並排，也可在所有位置浮動。可於**工作空間 → 共用 App**管理；產生設定的 dotfiles 範本應改用新鍵。"
+  },
+  "982ca39225eeac58": {
+    "en": "**Bundled CLI installer:** Install or uninstall the {0} CLI from **Settings → Command Line** (Homebrew installs are detected). Accessibility permission status and a one-click grant now live in **Settings → Permissions**.",
+    "ko": "**번들 CLI 설치기:** **설정 → 명령줄**에서 {0} CLI를 설치·제거할 수 있고 Homebrew 설치도 감지해요. 손쉬운 사용 권한 상태와 허용 버튼은 **설정 → 권한**에서 제공해요.",
+    "ja": "**同梱CLIのインストール:** **設定 → コマンドライン**から {0} をインストール・削除でき、Homebrewも検出します。アクセシビリティの権限状態と許可ボタンは**設定 → 権限**にあります。",
+    "zh-Hans": "**内置 CLI 安装器**：在**设置 → 命令行**安装或卸载 {0} CLI，并识别 Homebrew 安装。辅助功能权限状态及一键授权位于**设置 → 权限**。",
+    "zh-Hant": "**內建 CLI 安裝工具**：在**設定 → 命令列**安裝或移除 {0} CLI，並辨識 Homebrew 安裝。輔助使用權限狀態及一鍵授權位於**設定 → 權限**。"
+  },
+  "98e364f502439165": {
+    "en": "**Automatic return from empty workspaces:** With {0} enabled (off by default), closing the active workspace's last window switches to the recent workspace instead of leaving an empty desktop. Shared apps do not count as content because they join every workspace. A deliberately empty workspace never bounces you out. Only an actual close triggers the switch.",
+    "ko": "**빈 작업 공간에서 자동 돌아가기:** 기본으로 꺼진 {0}을 켜면 현재 공간의 마지막 창을 닫을 때 최근 공간으로 전환해요. 공용 앱은 모든 곳에 있으므로 내용으로 세지 않아요. 일부러 빈 공간을 열었을 때는 돌아가지 않고 실제 닫기만 전환을 일으켜요.",
+    "ja": "**空になった領域から自動で戻る:** 既定でオフの {0} を有効にすると、最後のウインドウを閉じた際に最近の領域へ戻ります。共有Appは全領域にあるため内容に数えません。意図的に空の領域を開いても戻らず、実際に閉じた場合だけ切り替えます。",
+    "zh-Hans": "**自动离开变空的工作区**：启用默认关闭的 {0} 后，关闭活动工作区最后一个窗口会切换到最近工作区。共享应用遍布所有工作区，不算作内容。刻意打开空工作区不会被弹回，只有真实关闭窗口才触发切换。",
+    "zh-Hant": "**自動離開變空的工作空間**：啟用預設關閉的 {0} 後，關閉作用中工作空間最後一個視窗會切換到最近工作空間。共用 App 遍布所有工作空間，不算作內容。刻意開啟空工作空間不會被跳回，只有實際關閉視窗才觸發切換。"
+  },
+  "9a5a646d05b703a1": {
+    "en": "**Reworked shortcut recording:** The recorder shows layout-independent glyphs (⌘S regardless of your keyboard layout), records on a single click, flags conflicts with another binding by name, and suspends global hotkeys while you're recording, so the combo you press lands in the field instead of firing its action. Global hotkeys now run on Magnet (Carbon) under the hood.",
+    "ko": "**단축키 기록기 개편:** 키보드 배열과 무관한 기호(항상 ⌘S 등)를 표시하고 한 번 클릭해 기록해요. 다른 단축키와 충돌하면 이름으로 알려줘요. 기록 중에는 전역 단축키를 멈춰 누른 조합이 실행되지 않고 입력란에 들어가요. 전역 단축키는 Magnet(Carbon)을 사용해요.",
+    "ja": "**ショートカット記録を刷新:** 配列に依存しない記号（どの配列でも⌘Sなど）を表示し、1クリックで記録できます。競合する操作名を示し、記録中はグローバルキーを停止するため、押した組み合わせは実行されず入力欄へ入ります。内部ではMagnet（Carbon）を使用します。",
+    "zh-Hans": "**重做快捷键录制**：记录器显示与键盘布局无关的符号，例如始终显示 ⌘S，单击即可记录，并按名称提示冲突。录制时暂停全局快捷键，使按键组合进入输入框而非执行操作。全局快捷键底层改用 Magnet（Carbon）。",
+    "zh-Hant": "**重做快速鍵錄製**：記錄器顯示與鍵盤配置無關的符號，例如始終顯示 ⌘S，按一下即可記錄，並依名稱提示衝突。錄製時暫停全域快速鍵，讓按鍵組合進入輸入欄而非執行操作。全域快速鍵底層改用 Magnet（Carbon）。"
+  },
+  "9aa84dcfc52a8d34": {
+    "en": "**Keep browser Picture-in-Picture out of the layout:** Chrome and Dia PiP windows are identified from their WindowServer layer and no longer become BSP tiles, while failed metadata queries still preserve otherwise valid ordinary windows.",
+    "ko": "**브라우저 화면 속 화면 타일링 제외:** Chrome·Dia의 PiP 창을 WindowServer 레이어로 구분해 BSP 타일에 넣지 않아요. 메타데이터 조회가 실패해도 정상적인 일반 창은 계속 유지해요.",
+    "ja": "**ブラウザのPiPを配置から除外:** ChromeとDiaのピクチャインピクチャをWindowServerのレイヤーで識別し、BSPタイルに含めません。情報取得に失敗しても有効な通常ウインドウは保持します。",
+    "zh-Hans": "**将浏览器画中画排除在布局外**：通过 WindowServer 层级识别 Chrome 和 Dia 的 PiP 窗口，不再将它们作为 BSP 平铺窗口；元数据查询失败时仍保留有效的普通窗口。",
+    "zh-Hant": "**將瀏覽器子母畫面排除於配置外**：透過 WindowServer 層級識別 Chrome 與 Dia 的 PiP 視窗，不再將它們列為 BSP 並排視窗；中繼資料查詢失敗時仍保留有效的一般視窗。"
+  },
+  "9b467a59b5ca404a": {
+    "en": "**AI-assisted workspace planning:** Describe your role and a typical week, then review a task-oriented workspace proposal before it changes the draft. Tatami can prepare a privacy-labelled prompt for ChatGPT, Claude, Gemini, or another AI, or use the on-device Apple Intelligence model on supported Macs. Recommendations account for app metadata, display count and usable geometry, keep one-app scratchpads deliberate, and never inspect screen contents.",
+    "ko": "**AI로 작업 공간 계획:** 역할과 평소 일주일을 설명하면 작업 중심 제안을 검토한 뒤 초안에 반영할 수 있어요. ChatGPT·Claude·Gemini 등에서 쓸 개인정보 안내가 포함된 프롬프트를 만들거나, 지원 Mac에서 기기 내 Apple Intelligence 모델을 쓸 수 있어요. 앱 정보·화면 수·실제 사용 영역을 고려하고 한 앱만 있는 임시 공간은 의도적으로 구성하며 화면 내용은 읽지 않아요.",
+    "ja": "**AIによるワークスペース計画:** 役割と普段の1週間を説明し、タスク中心の提案を確認してから下書きへ反映できます。ChatGPT、Claude、Geminiなど向けのプライバシー表示付きプロンプト、または対応Macの端末内Apple Intelligenceを使えます。App情報、画面数、使用可能領域を考慮し、1つのAppだけの一時領域を意図的に構成します。画面の内容は調べません。",
+    "zh-Hans": "**AI 辅助规划工作区**：描述角色和典型一周，先审核以任务为中心的建议，再修改草稿。Tatami 可为 ChatGPT、Claude、Gemini 等准备带隐私说明的提示词，也可在受支持 Mac 上使用设备端 Apple Intelligence 模型。建议考虑应用元数据、显示器数量及可用区域，有意安排单应用暂存区，绝不查看屏幕内容。",
+    "zh-Hant": "**AI 協助規劃工作空間**：描述角色與典型一週，先檢閱以任務為中心的建議，再修改草稿。Tatami 可為 ChatGPT、Claude、Gemini 等準備帶隱私說明的提示詞，也可在支援的 Mac 上使用裝置端 Apple Intelligence 模型。建議考量 App 中繼資料、顯示器數量及可用區域，有意安排單 App 暫存區，絕不查看螢幕內容。"
+  },
+  "9b4c796c3460c92b": {
+    "en": "**Stable MFF and FFM interaction:** When both focus modes are enabled, pointer-driven focus no longer feeds its Accessibility notification back into mouse-follows-focus and snaps the pointer again. Tatami ignores synthetic movement from its own cursor warps, drops stale focus echoes, and lets Borrow repair its layout without reclaiming a pointer the user already moved.",
+    "ko": "**MFF·FFM 함께 사용 시 안정화:** 포인터로 옮긴 포커스의 손쉬운 사용 알림이 MFF로 되돌아와 포인터를 다시 옮기지 않아요. 자체 포인터 이동의 합성 이벤트와 오래된 포커스 알림을 제외하고, 빌려오기 레이아웃을 복구할 때도 사용자가 옮긴 포인터를 되찾지 않아요.",
+    "ja": "**MFFとFFMの連携を安定化:** ポインタ起因のフォーカス通知がMFFへ戻り、再びポインタを動かすことがなくなりました。自分で移動した合成イベントと古いフォーカス通知を除外し、借用配置を修復する際も利用者が移動したポインタを引き戻しません。",
+    "zh-Hans": "**稳定 MFF 与 FFM 的交互**：同时启用时，指针触发的焦点通知不会再反馈到鼠标跟随焦点并再次移动指针。Tatami 会忽略自身跳转产生的合成移动、丢弃旧焦点回声，并允许借用修复布局而不抢回用户已经移动的指针。",
+    "zh-Hant": "**穩定 MFF 與 FFM 的互動**：同時啟用時，游標觸發的焦點通知不會再回饋至滑鼠跟隨焦點並再次移動游標。Tatami 會忽略自身跳轉產生的合成移動、捨棄舊焦點回音，並允許借用修復配置而不搶回使用者已經移動的游標。"
+  },
+  "9d95fbc602098b21": {
+    "en": "**Faster focus and tiling response:** Focus-follows-mouse and tiling-debounce timings are snappier.",
+    "ko": "**더 빠른 포커스·타일링 반응:** 마우스 포커스와 타일링 디바운스 시간을 줄였어요.",
+    "ja": "**フォーカスと配置の応答を高速化:** マウス追従とタイル表示のデバウンス時間を短くしました。",
+    "zh-Hans": "**更快的焦点与平铺响应**：缩短焦点跟随鼠标及平铺防抖的时间。",
+    "zh-Hant": "**更快的焦點與並排反應**：縮短焦點跟隨滑鼠及並排防抖的時間。"
+  },
+  "9de85b35c1621696": {
+    "en": "**In-app failure reporting:** A broken {0} (syntax error, invalid shortcut string), a {1} that will not read or write, a CLI server that fails to start, unavailable floating mirrors, or a failed Launch-at-Login registration now shows a warning HUD with error details and a ⚠️ in the menu bar (with a Problems section). Fixing the problem clears the badge with a confirmation HUD.",
+    "ko": "**앱에서 실패 확인:** {0} 문법·단축키 오류, {1} 읽기·쓰기 실패, CLI 서버 시작 실패, 미러 사용 불가, 로그인 실행 등록 실패를 오류 설명과 경고 알림으로 보여줘요. 메뉴 막대에는 ⚠️와 문제 목록이 나타나요. 해결하면 확인 알림과 함께 표시를 지워요.",
+    "ja": "**App内で失敗を確認:** {0} の構文・キーの不備、{1} の読み書き失敗、CLIサーバー起動失敗、ミラー利用不可、ログイン登録失敗を詳細付きの警告で表示します。メニューバーには⚠️と問題一覧を出し、解決すると確認通知とともに印を消します。",
+    "zh-Hans": "**应用内错误报告**：{0} 的语法或快捷键错误、{1} 读写失败、CLI 服务器无法启动、浮动镜像不可用及登录启动登记失败，会显示包含详情的警告反馈，并在菜单栏显示 ⚠️ 和问题区段。问题修复后会清除标记并显示确认反馈。",
+    "zh-Hant": "**App 內錯誤回報**：{0} 的語法或快速鍵錯誤、{1} 讀寫失敗、CLI 伺服器無法啟動、浮動鏡像無法使用及登入啟動登錄失敗，會顯示包含詳細資訊的警告回饋，並在選單列顯示 ⚠️ 和問題區段。問題修正後會清除標記並顯示確認回饋。"
+  },
+  "9e23b4e81f061b75": {
+    "en": "**The cursor stays where you release a drag:** Dragging a window to a new tile could teleport the cursor moments after the drop, because repairing the frame some apps restore behind the drag counted as a layout change worth following. A layout the pointer caused no longer moves the pointer, inside a Borrow composition as well.",
+    "ko": "**드래그를 놓은 곳에 포인터 유지:** 일부 앱이 복원한 프레임을 고치는 작업을 포인터가 따라가야 할 배치 변경으로 판단해, 놓은 직후 포인터가 이동하곤 했어요. 이제 포인터로 시작한 배치는 포인터를 다시 옮기지 않으며 빌려오기에서도 같아요.",
+    "ja": "**ドラッグを離した場所にポインタを保持:** Appが戻したフレームの修復を追従すべき配置変更と判断し、ドロップ直後にポインタが飛ぶことがありました。ポインタ起因の配置では再移動せず、借用中も同じ動作になります。",
+    "zh-Hans": "**指针留在结束拖动的位置**：拖动窗口到新平铺位置后，修复某些应用恢复的旧尺寸曾被视为应跟随的布局变化，导致指针突然跳走。现在由指针触发的布局不会再移动指针，借用组合内也一样。",
+    "zh-Hant": "**游標留在結束拖移的位置**：拖移視窗至新並排位置後，修復某些 App 還原的舊尺寸曾被視為應跟隨的配置變更，造成游標突然跳走。現在由游標觸發的配置不會再移動游標，借用組合內也一樣。"
+  },
+  "9eb299a6d5353363": {
+    "en": "**In-app shortcut and display guidance:** In-app descriptions explain the non-obvious shortcuts, and a Pinned-vs-Dynamic explainer appears in a workspace's Display section.",
+    "ko": "**앱 안의 단축키·디스플레이 안내:** 헷갈리기 쉬운 단축키를 설명하고, 작업 공간의 디스플레이 섹션에서 고정·동적의 차이를 안내해요.",
+    "ja": "**App内のキー・画面案内:** わかりにくいショートカットを説明し、ワークスペースの画面設定に固定と動的の違いを表示します。",
+    "zh-Hans": "**应用内快捷键与显示器说明**：界面解释不直观的快捷键，并在工作区显示器区段说明固定与动态的区别。",
+    "zh-Hant": "**App 內快速鍵與顯示器說明**：介面解釋不直觀的快速鍵，並在工作空間顯示器區段說明固定與動態的差異。"
+  },
+  "9edb97dce0f33091": {
+    "en": "**Exact same-app window restoration:** Before leaving a workspace, Tatami reconciles the exact focused window against the visible layout. Returning now restores the window you actually used even when another window from the same app had the older MRU position or a focus notification was missed.",
+    "ko": "**같은 앱의 정확한 창 복원:** 공간을 떠나기 전에 실제 포커스 창을 보이는 레이아웃과 대조해요. 같은 앱의 다른 창에 오래된 최근 순서가 있거나 알림을 놓쳐도 실제 사용하던 창으로 돌아와요.",
+    "ja": "**同じAppの正確なウインドウを復元:** 領域を離れる前に、実際のフォーカス先を表示中の配置と照合します。同じAppの別ウインドウに古い使用順が残っていても、通知を逃しても、実際に使ったウインドウへ戻ります。",
+    "zh-Hans": "**准确恢复同应用窗口**：离开工作区前，将精确焦点窗口与可见布局核对。即使同应用另一窗口保留较旧的最近使用位置，或漏掉焦点通知，返回时也会恢复真正使用过的窗口。",
+    "zh-Hant": "**準確還原同 App 視窗**：離開工作空間前，將精確焦點視窗與可見配置核對。即使同 App 另一視窗保留較舊的最近使用位置，或漏掉焦點通知，返回時也會還原真正使用過的視窗。"
+  },
+  "a062c05c7f4617f0": {
+    "en": "**Source-display focus announcements:** Cross-monitor focus moves are announced on the monitor you left, so it is now clear where focus went on multi-display setups.",
+    "ko": "**떠난 디스플레이에서 포커스 이동 알림:** 모니터를 넘겨 포커스하면 떠난 화면에 알려줘요. 여러 화면에서 포커스가 어디로 갔는지 알기 쉬워요.",
+    "ja": "**移動元の画面でフォーカスを案内:** 画面をまたいだ移動を出発側に表示し、フォーカスがどこへ行ったかわかりやすくします。",
+    "zh-Hans": "**在来源显示器提示焦点移动**：跨显示器移动焦点时，会在离开的显示器上提示，让多屏环境中的焦点去向更清楚。",
+    "zh-Hant": "**在來源顯示器提示焦點移動**：跨顯示器移動焦點時，會在離開的顯示器上提示，讓多螢幕環境中的焦點去向更清楚。"
+  },
+  "a0d16d8b35adfb3a": {
+    "en": "**Stable multi-display lifecycle:** Window creation, destruction, synchronization, display reconnects, and background layout work now stay scoped to the owning display, preventing unrelated displays from stealing focus or changing workspace order.",
+    "ko": "**다중 디스플레이 수명 주기 안정화:** 창 생성·삭제·동기화·화면 재연결·백그라운드 레이아웃을 소유 디스플레이 안에서 처리해요. 관련 없는 화면이 포커스를 가져가거나 작업 공간 순서를 바꾸지 않아요.",
+    "ja": "**複数画面のライフサイクルを安定化:** ウインドウの生成・破棄・同期、画面再接続、バックグラウンド配置を所有する画面に限定し、無関係な画面によるフォーカス奪取や順序変更を防ぎます。",
+    "zh-Hans": "**稳定多显示器生命周期**：窗口创建、销毁、同步、显示器重连及后台布局工作都限制在所属显示器，防止无关显示器抢走焦点或改变工作区顺序。",
+    "zh-Hant": "**穩定多顯示器生命週期**：視窗建立、銷毀、同步、顯示器重新連接及背景配置工作都限制於所屬顯示器，防止無關顯示器搶走焦點或改變工作空間順序。"
+  },
+  "a2f8b01e7e2a52f1": {
+    "en": "**Layouts preserved through sleep and wake:** WindowServer teardown during system sleep no longer erases the live BSP tree. On wake, Tatami reconnects surviving windows or replaces recycled surfaces as one completed layout, without persisting a transient half-restored state.",
+    "ko": "**잠자기·깨우기 중 레이아웃 유지:** 잠자기 때 WindowServer가 창을 정리해도 BSP 트리를 지우지 않아요. 깨우면 남은 창을 연결하고 재생성된 표면을 교체해 완성된 레이아웃으로 복원하며, 반만 복원된 중간 상태를 저장하지 않아요.",
+    "ja": "**スリープ・復帰中も配置を保持:** スリープ時にWindowServerが表示を解体してもBSPツリーを消しません。復帰後、生きているウインドウを再接続し、再作成された表示面を置き換えて完成した配置として戻します。途中の半端な状態は保存しません。",
+    "zh-Hans": "**睡眠与唤醒期间保留布局**：系统睡眠时 WindowServer 拆除显示结构不会清空实时 BSP 树。唤醒后重新连接存活窗口或替换回收后的表面，以完整布局恢复，不保存半恢复的临时状态。",
+    "zh-Hant": "**睡眠與喚醒期間保留配置**：系統睡眠時 WindowServer 拆除顯示結構不會清空即時 BSP 樹。喚醒後重新連接存活的視窗或替換回收後的表面，以完整配置還原，不儲存半還原的暫時狀態。"
+  },
+  "a2fcd7ebe464f14a": {
+    "en": "**Cross-app focus-follows-mouse:** Moving focus between windows owned by different apps now transfers the frontmost application as well as raising the window, including when the windows are on different displays.",
+    "ko": "**앱 사이 마우스 포커스:** 다른 앱의 창으로 포커스를 옮기면 창을 올리는 것과 함께 최전면 앱도 바꿔요. 창들이 다른 디스플레이에 있어도 동작해요.",
+    "ja": "**App間のマウス追従:** 別のAppのウインドウへ移ると、前に出すだけでなく最前面のAppも変更します。異なる画面にある場合も動作します。",
+    "zh-Hans": "**跨应用焦点跟随鼠标**：在不同应用的窗口间移动焦点时，既置前窗口也转移最前台应用，窗口位于不同显示器时同样适用。",
+    "zh-Hant": "**跨 App 焦點跟隨滑鼠**：在不同 App 的視窗間移動焦點時，既置前視窗也轉移最前方 App，視窗位於不同顯示器時同樣適用。"
+  },
+  "a350cc1ffefb64ed": {
+    "en": "**Workspace app assignments:** Assign apps per workspace and switch by hotkey, swipe, or \"recent\".",
+    "ko": "**작업 공간별 앱 지정:** 앱을 공간마다 할당하고 단축키·스와이프·최근 공간으로 전환해요.",
+    "ja": "**ワークスペースへのApp割り当て:** 領域ごとにAppを指定し、キー、スワイプ、最近の領域で切り替えます。",
+    "zh-Hans": "**工作区应用分配**：按工作区分配应用，通过快捷键、滑动或最近工作区切换。",
+    "zh-Hant": "**工作空間 App 指派**：依工作空間指派 App，透過快速鍵、滑動或最近工作空間切換。"
+  },
+  "a4297c811dd93d4c": {
+    "en": "**Send action feedback to external surfaces:** The new {0} hook publishes the localized title, symbols, subtitle, fully visible duration, position, size, and resolved display used by Tatami's compact feedback. Integrations such as SketchyBar can mirror the same information without parsing logs, and hook-failure feedback is not republished recursively.",
+    "ko": "**다른 화면 요소로 동작 알림 전달:** 새 {0} 훅으로 작은 화면 알림의 번역된 제목·기호·부제·완전 표시 시간·위치·크기·결정된 디스플레이를 전달해요. SketchyBar 같은 연동 도구가 로그를 해석하지 않고 같은 정보를 표시할 수 있고, 훅 실패 알림은 재귀적으로 다시 전달하지 않아요.",
+    "ja": "**操作フィードバックを外部へ共有:** 新しい {0} フックが、通知の翻訳済みタイトル、記号、副題、完全表示時間、位置、サイズ、確定した画面を送ります。SketchyBarなどでログを解析せず同じ情報を表示でき、フック失敗の通知は再帰的に再送しません。",
+    "zh-Hans": "**向外部界面发送操作反馈**：新增 {0} 钩子发布紧凑反馈所用的本地化标题、符号、副标题、完全可见时长、位置、尺寸和已确定显示器。SketchyBar 等集成可直接镜像信息，无须解析日志；钩子失败反馈不会递归发布。",
+    "zh-Hant": "**向外部介面傳送操作回饋**：新增 {0} 掛鉤發布精簡回饋所用的在地化標題、符號、副標題、完全可見時長、位置、尺寸及已確定顯示器。SketchyBar 等整合可直接鏡像資訊，無須解析記錄；掛鉤失敗回饋不會遞迴發布。"
+  },
+  "a4a4ff8ecffa3c50": {
+    "en": "**Accurate CLI version reporting:** {0} reports the running app's real version.",
+    "ko": "**정확한 CLI 버전 표시:** {0}이 실행 중인 앱의 실제 버전을 알려줘요.",
+    "ja": "**CLIのバージョン表示を正確に:** {0} が実行中Appの実際のバージョンを返します。",
+    "zh-Hans": "**准确报告 CLI 版本**：{0} 返回正在运行的应用的真实版本。",
+    "zh-Hant": "**準確回報 CLI 版本**：{0} 返回正在執行的 App 的實際版本。"
+  },
+  "a4b6bf2bf64e50e6": {
+    "en": "A patch release that removes the Input Monitoring prompt, prevents empty workspaces from bouncing back, and shows the HUD on the display you are actually looking at.",
+    "ko": "입력 모니터링 요청을 없애고, 빈 작업 공간이 되돌아가는 문제를 막으며, 보고 있는 디스플레이에 화면 알림을 표시하는 패치예요.",
+    "ja": "入力監視の要求をなくし、空のワークスペースから戻る問題を防ぎ、実際に見ている画面へ通知を表示する修正リリースです。",
+    "zh-Hans": "本次补丁移除输入监控提示，防止空工作区跳回，并在实际关注的显示器上显示反馈。",
+    "zh-Hant": "本次修補移除輸入監控提示，防止空工作空間跳回，並在實際關注的顯示器上顯示回饋。"
+  },
+  "a54fa6967e61e1a0": {
+    "en": "**Writing designed for each locale:** Every translation is written around the task and next action instead of following English word for word, with terminology and tone reviewed for each supported locale.",
+    "ko": "**언어마다 맞춘 문장:** 영어를 그대로 옮기기보다 사용자의 작업과 다음 행동에 맞춰 작성하고, 지원 언어별 용어와 말투를 검토했어요.",
+    "ja": "**言語に合わせた文章:** 英語を逐語訳せず、タスクと次の操作に合わせて書き、各言語の用語と語調を見直しました。",
+    "zh-Hans": "**为各语言设计文案**：围绕任务和下一步操作编写，而非逐字跟随英语，并为每种支持语言检查术语和语气。",
+    "zh-Hant": "**為各語言設計文案**：圍繞任務與下一步操作撰寫，而非逐字跟隨英語，並為每種支援語言檢查用語與語氣。"
+  },
+  "a5bdd912a50ed775": {
+    "en": "**App metadata retention during workspace moves:** Moving an app to another workspace keeps its name, icon, and auto-open setting instead of relabeling it with the bundle id.",
+    "ko": "**작업 공간 이동 시 앱 정보 유지:** 다른 공간으로 옮겨도 번들 ID로 이름을 바꾸지 않고 앱 이름·아이콘·자동 열기 설정을 유지해요.",
+    "ja": "**移動時もApp情報を保持:** 別の領域へ移しても名前をバンドルIDへ置き換えず、名前、アイコン、自動起動設定を保ちます。",
+    "zh-Hans": "**移动工作区时保留应用元数据**：应用移到其他工作区后保留名称、图标和自动打开设置，不再用 bundle ID 替换名称。",
+    "zh-Hant": "**移動工作空間時保留 App 中繼資料**：App 移至其他工作空間後保留名稱、圖示與自動開啟設定，不再用 bundle ID 取代名稱。"
+  },
+  "a7a98c9dc82cc061": {
+    "en": "First public release. A macOS workspace manager with yabai-style window tiling. Group your apps into virtual workspaces, switch with a keystroke or trackpad swipe, and tile their windows automatically. No SIP changes, no shell scripting.",
+    "ko": "첫 공개 버전이에요. yabai 방식 창 타일링을 갖춘 macOS 작업 공간 관리자로, 앱을 가상 작업 공간으로 묶고 단축키나 트랙패드 스와이프로 전환하며 창을 자동 배치해요. SIP 변경이나 셸 스크립트는 필요 없어요.",
+    "ja": "初の公開版です。yabai方式のタイル表示を備えたmacOSワークスペース管理ツールです。Appを仮想領域にまとめ、キーやトラックパッドのスワイプで切り替え、自動配置できます。SIPの変更やシェルスクリプトは不要です。",
+    "zh-Hans": "首个公开版本。这是一款采用 yabai 风格窗口平铺的 macOS 工作区管理器。将应用分组到虚拟工作区，用快捷键或触控板滑动切换，并自动平铺窗口。无须修改 SIP 或编写 shell 脚本。",
+    "zh-Hant": "首個公開版本。這是一款採用 yabai 風格視窗並排的 macOS 工作空間管理工具。將 App 分組至虛擬工作空間，用快速鍵或觸控板滑動切換，並自動並排視窗。無須修改 SIP 或撰寫 shell 指令稿。"
+  },
+  "a85e8c05d14f0a9b": {
+    "en": "**A borrowed workspace is returned when its host moves:** Pulling a Borrow host to another monitor left the borrowed windows behind on the display it came from until something else happened to redraw that display.",
+    "ko": "**원래 작업 공간이 이동하면 빌려오기 반환:** 빌려오기 중 원래 공간을 다른 모니터로 가져오면, 이전 화면이 다시 그려질 때까지 빌려온 창이 남던 문제를 수정했어요.",
+    "ja": "**元の領域を移すと借用を返却:** 借用中の元のワークスペースを別画面へ移した際、再描画まで借りたウインドウが前の画面に残る問題を修正しました。",
+    "zh-Hans": "**主工作区移动时归还借用**：将借用主工作区拉到其他显示器后，借用窗口曾留在原屏幕，直到其他操作触发重绘。现已修复。",
+    "zh-Hant": "**主工作空間移動時歸還借用**：將借用主工作空間拉至其他顯示器後，借用視窗曾留在原螢幕，直到其他操作觸發重繪。現已修正。"
+  },
+  "ab2cfeb99793fedc": {
+    "en": "**Fully configurable trackpad gestures:** Bind left, right, up, and down swipes independently for both three and four fingers to any Tatami shortcut action. The picker includes profile and workspace submenus for switching profiles, activating or assigning to a workspace, and borrowing from the active profile. Existing {0} configurations migrate to equivalent horizontal bindings automatically.",
+    "ko": "**자유로운 트랙패드 제스처 설정:** 세 손가락·네 손가락의 상하좌우 스와이프를 각각 Tatami 단축키 동작에 연결할 수 있어요. 선택기에서 프로필 전환, 작업 공간 활성화·앱 할당, 현재 프로필의 빌려오기를 하위 메뉴로 제공해요. 기존 {0} 설정은 같은 의미의 가로 동작으로 자동 변환해요.",
+    "ja": "**トラックパッドを自由に設定:** 3本指・4本指の上下左右をそれぞれ任意のTatami操作へ割り当てられます。選択メニューにプロファイル切り替え、領域の有効化・割り当て、現在のプロファイルからの借用を用意しました。既存の {0} は相当する左右の操作へ自動移行します。",
+    "zh-Hans": "**完全可配置的触控板手势**：三指和四指的上下左右滑动均可独立绑定任意 Tatami 快捷键操作。选择器包含方案和工作区子菜单，可切换方案、激活或分配到工作区，以及从活动方案借用。现有 {0} 配置会自动迁移到等效水平绑定。",
+    "zh-Hant": "**完全可設定的觸控板手勢**：三指與四指的上下左右滑動皆可獨立綁定任意 Tatami 快速鍵操作。選擇器包含組合及工作空間子選單，可切換組合、啟用或指派至工作空間，以及從作用中組合借用。現有 {0} 設定會自動移轉至等效的水平綁定。"
+  },
+  "ad4c1e693a2fe413": {
+    "en": "**Tiling-only pause:** Toggling pause from the menu bar (or the {0} hotkey) used to block workspace switching too. It now suspends only the BSP tile pass while workspace switches, show/hide, and focus keep working. The pause flag is also no longer persisted to config. It is runtime-only, and every launch starts unpaused.",
+    "ko": "**타일링만 일시 정지:** 메뉴 막대나 {0} 단축키로 멈추면 작업 공간 전환까지 막던 동작을 바꿨어요. BSP 배치만 멈추고 전환·표시·숨김·포커스는 계속 동작해요. 일시 정지는 설정에 저장하지 않는 실행 중 상태이며, 앱을 열 때마다 해제된 상태로 시작해요.",
+    "ja": "**タイル表示だけを一時停止:** メニューや {0} で停止すると領域切り替えまで止まっていた動作を変更しました。BSP配置だけを止め、切り替え、表示・非表示、フォーカスは継続します。停止状態は設定へ保存せず、起動時には必ず解除します。",
+    "zh-Hans": "**仅暂停平铺**：菜单栏或 {0} 快捷键过去还会阻止工作区切换。现在只暂停 BSP 平铺流程，切换、显示隐藏及焦点继续工作。暂停标志不再保存到配置，只在运行时生效，每次启动都从未暂停状态开始。",
+    "zh-Hant": "**僅暫停並排**：選單列或 {0} 快速鍵過去還會阻止工作空間切換。現在只暫停 BSP 並排流程，切換、顯示隱藏及焦點繼續運作。暫停旗標不再儲存至設定，只在執行時生效，每次啟動都從未暫停狀態開始。"
+  },
+  "e564f17c8a060a8e": {
+    "en": "**Reliable HUD fade-out:** The panel's window-alpha animation only ran reliably once per launch, so overlays sometimes vanished instantly instead of fading out. The fade now runs on the content view.",
+    "ko": "**알림 페이드아웃 안정화:** 창 투명도 애니메이션이 실행 후 한 번만 제대로 동작해 알림이 즉시 사라지곤 했어요. 이제 콘텐츠 뷰에서 페이드를 처리해요.",
+    "ja": "**通知のフェードアウトを安定化:** ウインドウ透明度のアニメーションが起動後1回しか正しく動かず、突然消える場合がありました。内容ビューでフェードするよう変更しました。",
+    "zh-Hans": "**可靠的反馈淡出**：面板窗口透明度动画每次启动后只有第一次可靠，导致后续反馈有时直接消失。现在改为对内容视图执行淡出。",
+    "zh-Hant": "**可靠的回饋淡出**：面板視窗透明度動畫每次啟動後只有第一次可靠，導致後續回饋有時直接消失。現在改為對內容視圖執行淡出。"
+  },
+  "e6adb0e5f18662aa": {
+    "en": "**The window switcher no longer clips its shadow:** The switcher panel is sized from its shadow, so the drop shadow renders fully at every width.",
+    "ko": "**전환기 그림자 잘림 방지:** 그림자까지 고려해 패널 크기를 정하므로 어떤 너비에서도 전체 그림자를 보여줘요.",
+    "ja": "**切り替え一覧の影を切らない:** 影を含めてパネルの大きさを決め、どの幅でも影全体を表示します。",
+    "zh-Hans": "**切换器阴影不再裁切**：面板尺寸包含阴影范围，各种宽度下都能完整显示投影。",
+    "zh-Hant": "**切換器陰影不再裁切**：面板尺寸包含陰影範圍，各種寬度下都能完整顯示投影。"
+  },
+  "e7f4c6fd52d09ce0": {
+    "en": "**Immediate marker removal after app quit:** Quitting a floating app now removes its marker dot immediately instead of on the next focus change.",
+    "ko": "**앱 종료 시 표시 즉시 제거:** 항상 위 앱을 종료하면 다음 포커스 변경을 기다리지 않고 표시 점을 바로 지워요.",
+    "ja": "**App終了時に印を即座に削除:** フローティングAppを終了すると、次のフォーカス変更を待たずにマーカーを消します。",
+    "zh-Hans": "**应用退出后立即移除标记**：退出浮动应用会马上移除标记点，无须等到下一次焦点变化。",
+    "zh-Hant": "**App 結束後立即移除標記**：結束浮動 App 會馬上移除標記點，無須等到下一次焦點變更。"
+  },
+  "e8e7f24983f54903": {
+    "en": "**Smoother gesture-sensitivity slider:** Dragging it in Settings no longer re-renders the whole form on every tick.",
+    "ko": "**부드러운 제스처 민감도 슬라이더:** 설정에서 끌 때 매 단계마다 전체 양식을 다시 그리지 않아요.",
+    "ja": "**感度スライダーを滑らかに:** ドラッグの各段階で設定フォーム全体を再描画しなくなりました。",
+    "zh-Hans": "**更流畅的手势灵敏度滑块**：在设置中拖动时，不再每一步都重绘整个表单。",
+    "zh-Hant": "**更流暢的手勢靈敏度滑桿**：在設定中拖移時，不再每一步都重繪整個表單。"
+  },
+  "e95e38a0961f90de": {
+    "en": "**Per-app layout modes:** Assigned apps and shared apps carry a {0} of {1} / {2} / {3} instead of {4}. Existing configs (including a pre-1.4 {5} bool and legacy {6}) migrate automatically on load. Once saved, the config uses the new {7} key, so **downgrading to an older Tatami reads every app as tiled**. Hand-edited configs should switch to {8}.",
+    "ko": "**앱별 레이아웃 모드:** 할당 앱과 공용 앱이 {4} 대신 {1} / {2} / {3} 값을 갖는 {0}을 사용해요. 1.4 이전 {5} 불리언과 구형 {6}을 포함한 기존 설정은 읽을 때 자동 변환해요. 저장하면 새 {7} 키를 사용하므로 **이전 Tatami로 낮추면 모든 앱을 타일링으로 읽어요**. 직접 편집하는 설정은 {8}로 바꿔 주세요.",
+    "ja": "**Appごとの配置モード:** 割り当て・共有Appは {4} に代わり、{1} / {2} / {3} を持つ {0} を使います。1.4以前の {5} 真偽値と旧 {6} を含め、読み込み時に自動移行します。保存後は {7} を使うため、**旧Tatamiへ戻すと全Appがタイル表示として読まれます**。手動設定は {8} へ変更してください。",
+    "zh-Hans": "**逐应用布局模式**：已分配及共享应用改用取值为 {1} / {2} / {3} 的 {0}，替代 {4}。旧配置，包括 1.4 前的 {5} 布尔值和旧 {6}，在加载时自动迁移。保存后使用新 {7} 键，因此**降级到旧版 Tatami 会把所有应用读为平铺**。手动配置应改用 {8}。",
+    "zh-Hant": "**逐 App 配置模式**：已指派及共用 App 改用值為 {1} / {2} / {3} 的 {0}，取代 {4}。舊設定，包含 1.4 前的 {5} 布林值與舊 {6}，在載入時自動移轉。儲存後使用新 {7} 鍵，因此**降級至舊版 Tatami 會把所有 App 讀為並排**。手動設定應改用 {8}。"
+  },
+  "ead07c84baac57a9": {
+    "en": "Changelog",
+    "ko": "변경 기록",
+    "ja": "変更履歴",
+    "zh-Hans": "更新日志",
+    "zh-Hant": "更新紀錄"
+  },
+  "eb066f0ed41b8fd4": {
+    "en": "**Persistent floating-window markers:** Floating windows' marker dots are always visible (not just on the focused window), and dots follow window drags with a smooth glide.",
+    "ko": "**항상 위 창의 지속 표시:** 포커스한 창뿐 아니라 모든 항상 위 창에 점을 보여주고, 창을 끌면 점도 부드럽게 따라가요.",
+    "ja": "**フローティングの印を常時表示:** フォーカス中だけでなくすべてのフローティングウインドウに点を表示し、ドラッグにも滑らかに追従します。",
+    "zh-Hans": "**持续显示浮动窗口标记**：标记点始终显示，不只出现在焦点窗口上，并平滑跟随窗口拖动。",
+    "zh-Hant": "**持續顯示浮動視窗標記**：標記點始終顯示，不只出現在焦點視窗上，並平滑跟隨視窗拖移。"
+  },
+  "ec440da5dce1dcbc": {
+    "en": "**More responsive window tracking:** Window identity, capabilities, geometry, focus, mirrors, and markers now share cache-first, coalesced update paths instead of repeating synchronous Accessibility work. Per-app operations preserve their order without letting one busy app stall unrelated apps, and superseded scans or focus requests can no longer publish stale results.",
+    "ko": "**더 빠른 창 추적:** 창 ID·기능·위치·포커스·미러·표시가 캐시 우선의 묶인 갱신 경로를 공유해 동기 AX 작업을 반복하지 않아요. 앱별 순서는 유지하되 바쁜 앱 하나가 다른 앱을 막지 않고, 대체된 검색·포커스 요청은 오래된 결과를 반영하지 못해요.",
+    "ja": "**ウインドウ追跡の応答を改善:** ID、機能、位置、フォーカス、ミラー、印がキャッシュ優先の集約更新を共有し、同期AX処理を繰り返しません。Appごとの順序を保ちつつ高負荷のAppが他を止めないようにし、置き換わった検索やフォーカス要求は古い結果を反映できません。",
+    "zh-Hans": "**响应更快的窗口跟踪**：窗口身份、能力、位置、焦点、镜像和标记共用缓存优先、合并更新的路径，不重复同步辅助功能工作。每个应用保持操作顺序，但繁忙应用不会阻塞其他应用，已被取代的扫描或焦点请求也不能发布旧结果。",
+    "zh-Hant": "**反應更快的視窗追蹤**：視窗身分、能力、位置、焦點、鏡像與標記共用快取優先、合併更新的路徑，不重複同步輔助使用工作。各 App 保持操作順序，但忙碌的 App 不會阻擋其他 App，已被取代的掃描或焦點請求也不能發布舊結果。"
+  },
+  "ec557a371c8a7cae": {
+    "en": "**Every release exposes its corresponding source:** GitHub release notes and the website now link to the tagged source archive plus the project and third-party notices used for that build.",
+    "ko": "**릴리즈에 해당 소스 공개:** GitHub 릴리즈 노트와 웹사이트에서 태그가 지정된 소스 압축 파일, 해당 빌드의 프로젝트·서드파티 고지로 연결해요.",
+    "ja": "**各リリースに対応するソースを公開:** GitHubとウェブサイトから、タグ付きソースのアーカイブとそのビルドのプロジェクト・第三者告知へリンクします。",
+    "zh-Hans": "**每个发行版提供对应源码**：GitHub 发行说明和网站现在链接到带标签的源码归档，以及该构建使用的项目与第三方声明。",
+    "zh-Hant": "**每個發行版提供對應原始碼**：GitHub 版本說明與網站現在連結至帶標籤的原始碼封存檔，以及該建置使用的專案與第三方聲明。"
+  },
+  "f0ca0465b8b49673": {
+    "en": "**App-level or window-level cycling:** Next/previous-window now steps app-by-app by default, one representative window per app, so a press lands on the next app. For the previous behavior (every window individually, including multiple windows of the same app), turn on \"Cycle through every window\" in Settings → Workspace Switching.",
+    "ko": "**앱 단위·창 단위 전환:** 다음·이전 창은 기본으로 앱마다 대표 창 하나씩 이동해 다음 앱으로 전환해요. 같은 앱의 창을 포함해 모든 창을 개별 순환하려면 설정 → 작업 공간 전환에서 ‘모든 창 순환’을 켜세요.",
+    "ja": "**App単位・ウインドウ単位の切り替え:** 既定では各Appの代表ウインドウをひとつずつたどり、次のAppへ移ります。従来の同じAppを含む全ウインドウ巡回は、設定 → ワークスペース切り替えの「すべてのウインドウを巡回」をオンにします。",
+    "zh-Hans": "**按应用或窗口切换**：前后窗口默认逐应用移动，每个应用一个代表窗口，因此每次按键到达下一个应用。若要恢复逐个遍历所有窗口的行为，包括同应用多个窗口，请在设置 → 工作区切换开启“循环所有窗口”。",
+    "zh-Hant": "**依 App 或視窗切換**：前後視窗預設逐 App 移動，各 App 一個代表視窗，因此每次按鍵抵達下一個 App。若要恢復逐一遍歷所有視窗的行為，包含同 App 多個視窗，請在設定 → 工作空間切換開啟「循環所有視窗」。"
+  },
+  "f2d5d8438342950d": {
+    "en": "**A summoned Borrow always focuses its block:** Summoning a scratchpad sometimes left the borrowed block on screen with focus and cursor still on the host, depending on whether an unrelated layout write superseded the one carrying the Borrow.",
+    "ko": "**호출한 빌려오기 영역에 항상 포커스:** 다른 레이아웃 쓰기가 빌려오기 작업을 대체하면 임시 공간은 보여도 포커스와 포인터가 원래 공간에 남던 문제를 수정했어요.",
+    "ja": "**呼び出した借用領域へ必ずフォーカス:** 無関係な配置書き込みが借用処理を置き換えると、一時領域は見えてもフォーカスとポインタが元に残る問題を修正しました。",
+    "zh-Hans": "**调用借用后始终聚焦借用区域**：修复无关布局写入取代借用写入时，暂存区虽已显示，焦点和指针却留在主区域的问题。",
+    "zh-Hant": "**呼叫借用後始終聚焦借用區域**：修正無關配置寫入取代借用寫入時，暫存區雖已顯示，焦點與游標卻留在主區域的問題。"
+  },
+  "f2e9f730d000b288": {
+    "en": "**Searchable app picker:** The app picker searches running apps, and you can add one straight from a file.",
+    "ko": "**검색 가능한 앱 선택기:** 실행 중인 앱을 검색하고 파일에서 바로 추가할 수 있어요.",
+    "ja": "**検索できるApp選択:** 実行中のAppを検索し、ファイルから直接追加できます。",
+    "zh-Hans": "**可搜索的应用选择器**：支持搜索运行中的应用，也可直接从文件添加。",
+    "zh-Hant": "**可搜尋的 App 選擇器**：支援搜尋執行中的 App，也可直接從檔案新增。"
+  },
+  "f8aa6fd7a2d132ed": {
+    "en": "**Dynamic workspaces follow the pointer:** Activating a dynamic workspace from a Tatami shortcut or an external launcher now opens it on the display under the mouse. Background reflows stay on the display that already owns the workspace instead of pulling it elsewhere.",
+    "ko": "**포인터를 따르는 동적 작업 공간:** Tatami 단축키나 외부 실행기로 열면 마우스 화면에 표시해요. 백그라운드 재배치는 다른 곳으로 끌어오지 않고 이미 소유한 화면에 남아요.",
+    "ja": "**ポインタに追従する動的領域:** Tatamiのキーや外部ランチャーで有効化するとマウスの画面に開きます。バックグラウンド再配置は既存の所有画面に留まり、別の場所へ引き寄せません。",
+    "zh-Hans": "**动态工作区跟随指针**：从 Tatami 快捷键或外部启动器激活动态工作区时，会在鼠标所在显示器打开；后台重排留在已拥有该工作区的显示器，不会拉到别处。",
+    "zh-Hant": "**動態工作空間跟隨游標**：從 Tatami 快速鍵或外部啟動器啟用動態工作空間時，會在滑鼠所在顯示器開啟；背景重排留在已擁有該工作空間的顯示器，不會拉至別處。"
+  },
+  "f9486bf84687511b": {
+    "en": "**Correct cross-display window sizing:** Moving a workspace to another monitor no longer leaves its windows short or at the wrong ratio. If macOS clamps a window to its old display mid-move, Tatami now reapplies the frame for the destination monitor.",
+    "ko": "**화면 간 창 크기 수정:** 공간을 다른 모니터로 옮겨도 창이 짧아지거나 비율이 틀어지지 않아요. 이동 중 macOS가 이전 화면에 창을 제한하면 대상 화면 프레임을 다시 적용해요.",
+    "ja": "**画面間のサイズを修正:** 別の画面へ領域を移しても、短いサイズや誤った比率になりません。移動中にmacOSが旧画面へ制限した場合、移動先のフレームを再適用します。",
+    "zh-Hans": "**正确的跨显示器窗口尺寸**：移动工作区到其他显示器后不再留下过短或比例错误的窗口。若 macOS 在移动中将窗口限制到旧屏幕，会重新应用目标显示器尺寸。",
+    "zh-Hant": "**正確的跨顯示器視窗尺寸**：移動工作空間至其他顯示器後不再留下過短或比例錯誤的視窗。若 macOS 在移動中將視窗限制至舊螢幕，會重新套用目標顯示器尺寸。"
+  },
+  "faa8db4d5fe17038": {
+    "en": "**Preserved minimized windows:** Switching workspaces keeps minimized windows minimized instead of restoring them.",
+    "ko": "**최소화 창 유지:** 작업 공간을 전환해도 최소화한 창을 복원하지 않아요.",
+    "ja": "**最小化を維持:** ワークスペースを切り替えても最小化したウインドウを復元しません。",
+    "zh-Hans": "**保留最小化窗口**：切换工作区时让最小化窗口维持最小化，不会将其恢复。",
+    "zh-Hant": "**保留最小化視窗**：切換工作空間時讓最小化視窗維持最小化，不會將其還原。"
+  },
+  "fc7a1943a3c07198": {
+    "en": "Per-display dot colors in the sidebar show which monitor each workspace is active on.",
+    "ko": "사이드바의 화면별 점 색상으로 각 작업 공간이 어느 모니터에 활성화되어 있는지 보여줘요.",
+    "ja": "サイドバーの画面別の点の色で、各ワークスペースがどの画面にあるかを示します。",
+    "zh-Hans": "侧边栏以各显示器的圆点颜色显示每个工作区在哪台显示器上活动。",
+    "zh-Hant": "側邊欄以各顯示器的圓點顏色顯示每個工作空間在哪台顯示器上作用。"
+  },
+  "fd5e34ed2fcb1270": {
+    "en": "**Configurable gaps:** Configure inner and outer gaps.",
+    "ko": "**간격 설정:** 안쪽·바깥쪽 간격을 조절할 수 있어요.",
+    "ja": "**間隔を設定:** 内側と外側の間隔を調整できます。",
+    "zh-Hans": "**可配置间距**：可调整内部和外部间距。",
+    "zh-Hant": "**可設定間距**：可調整內部及外部間距。"
+  },
+  "fdae54aa046a23d9": {
+    "en": "**SIP-safe floating windows above tiles:** Mark any app as floating per workspace (the Float toggle next to Auto-open, or the {0} hotkey): its windows stay untiled and are kept on top by mirroring them onto Tatami-owned ScreenCaptureKit panels. Reach for a floating window and the real one is handed back to you. While a floating app has focus, the mirrors (and the screen-recording indicator) get out of the way. Multiple floating windows stack by focus recency.",
+    "ko": "**SIP 변경 없이 타일 위에 항상 위 창:** 작업 공간마다 자동 열기 옆의 항상 위 스위치나 {0} 단축키로 지정해요. 창을 타일링하지 않고 Tatami의 ScreenCaptureKit 패널에 미러로 올려 유지해요. 조작하려 하면 실제 창으로 넘겨주고, 앱에 포커스가 있는 동안 미러와 화면 기록 표시를 숨겨요. 여러 항상 위 창은 최근 포커스 순서로 쌓아요.",
+    "ja": "**SIPを変更せずタイルより手前に:** 領域ごとに自動起動の横の切り替え、または {0} で指定できます。タイル対象外とし、TatamiのScreenCaptureKitパネルへミラー表示して手前に保ちます。操作時は実際のウインドウへ渡し、フォーカス中はミラーと画面収録表示を隠します。複数のウインドウは最近のフォーカス順に重ねます。",
+    "zh-Hans": "**无须更改 SIP 的置顶浮动窗口**：在各工作区中用自动打开旁的浮动开关或 {0} 快捷键指定。窗口不参与平铺，通过 Tatami 的 ScreenCaptureKit 面板镜像保持置顶；操作时交还真实窗口。浮动应用聚焦期间隐藏镜像及录屏指示器，多个浮动窗口按最近焦点顺序堆叠。",
+    "zh-Hant": "**無須更改 SIP 的置頂浮動視窗**：在各工作空間以自動開啟旁的浮動開關或 {0} 快速鍵指定。視窗不參與並排，透過 Tatami 的 ScreenCaptureKit 面板鏡像保持置頂；操作時交還實際視窗。浮動 App 聚焦期間隱藏鏡像及螢幕錄製指示器，多個浮動視窗依最近焦點順序堆疊。"
+  },
+  "fe9a2ce8b58e155f": {
+    "en": "**Correct foreground app on workspace activation:** When activating an app pulls its workspace forward, an always-open app in that workspace no longer steals the foreground.",
+    "ko": "**공간 활성화 시 올바른 최전면 앱:** 앱을 활성화해 작업 공간을 앞으로 가져와도 그 안의 상시 실행 앱이 최전면을 가져가지 않아요.",
+    "ja": "**有効化時に正しいAppを最前面へ:** Appから領域を呼び出したとき、その領域の常時起動Appが最前面を奪わなくなりました。",
+    "zh-Hans": "**工作区激活时保持正确前台应用**：激活应用带出其工作区时，该工作区中始终打开的应用不再抢到前台。",
+    "zh-Hant": "**工作空間啟用時保持正確前景 App**：啟用 App 帶出所屬工作空間時，該工作空間中始終開啟的 App 不再搶到前景。"
+  },
+  "ff204f5a245e724e": {
+    "en": "**Profiles:** Group your workspaces into named profiles and switch the whole set at once. Each profile has its own workspaces, app assignments, shortcuts, and SF Symbol icon, shown in the sidebar, menu bar, and switch HUD. Switch by hotkey or from the menu bar, reorder profiles by dragging, and re-tile every display for the new profile.",
+    "ko": "**프로필:** 작업 공간을 이름 있는 프로필로 묶어 전체를 한 번에 바꿔요. 프로필마다 공간·앱 할당·단축키·SF Symbol 아이콘을 갖고 사이드바·메뉴 막대·전환 알림에 표시해요. 단축키나 메뉴 막대로 전환하고, 드래그로 순서를 바꾸며 새 프로필에 맞춰 모든 화면을 다시 배치해요.",
+    "ja": "**プロファイル:** ワークスペースを名前付きの組にまとめ、一括で切り替えられます。各プロファイルに領域、App割り当て、キー、SF Symbolを持ち、サイドバー、メニューバー、切り替え通知へ表示します。キーやメニューで切り替え、ドラッグで並べ替え、新しい設定ですべての画面を再配置できます。",
+    "zh-Hans": "**配置方案**：将工作区归入命名方案，一次切换整套。每个方案拥有独立工作区、应用分配、快捷键和 SF Symbol 图标，并显示于侧边栏、菜单栏和切换反馈。可用快捷键或菜单切换，拖动排序，并按新方案重新平铺所有显示器。",
+    "zh-Hant": "**設定組合**：將工作空間歸入命名組合，一次切換整套。各組合擁有獨立工作空間、App 指派、快速鍵與 SF Symbol 圖示，並顯示於側邊欄、選單列和切換回饋。可用快速鍵或選單切換，拖移排序，並依新組合重新並排所有顯示器。"
+  },
+  "c83c50c74b655099": {
+    "en": "**End-to-end software updates:** Sparkle is fully wired up. Tatami checks for and installs updates in the background. Pick the frequency (hourly / daily / weekly) or check manually from Settings or the menu bar.",
+    "ko": "**소프트웨어 업데이트 전체 지원:** Sparkle로 백그라운드 업데이트 확인·설치를 지원해요. 매시간·매일·매주 주기를 정하거나 설정·메뉴 막대에서 직접 확인할 수 있어요.",
+    "ja": "**ソフトウェア更新に完全対応:** Sparkleでバックグラウンドの確認・インストールを行えます。毎時・毎日・毎週を選ぶか、設定やメニューバーから手動で確認できます。",
+    "zh-Hans": "**完整的软件更新流程**：Sparkle 已完整接入，可在后台检查和安装更新。可选择每小时、每天、每周，或从设置及菜单栏手动检查。",
+    "zh-Hant": "**完整的軟體更新流程**：Sparkle 已完整整合，可在背景檢查與安裝更新。可選擇每小時、每天、每週，或從設定及選單列手動檢查。"
+  },
+  "c9be4af43ec0847b": {
+    "en": "**Workspace switch HUD:** Show an on-screen HUD when switching, with per-workspace SF Symbol icons.",
+    "ko": "**작업 공간 전환 알림:** 전환할 때 공간별 SF Symbol 아이콘과 화면 알림을 보여줘요.",
+    "ja": "**切り替えの操作フィードバック:** ワークスペースを切り替えると、領域ごとのSF Symbolアイコン付きで表示します。",
+    "zh-Hans": "**工作区切换反馈**：切换时显示屏幕反馈，并使用各工作区的 SF Symbol 图标。",
+    "zh-Hant": "**工作空間切換回饋**：切換時顯示螢幕回饋，並使用各工作空間的 SF Symbol 圖示。"
+  },
+  "c9da93186fb9226d": {
+    "en": "**Ignore-tiling layout mode:** A third per-app mode beside tiled and floating lets an *unmanaged* app stay a full workspace member. Auto-open, show/hide, focus, focus-follows-mouse, and window cycling all apply, but its window is never tiled into the BSP tree nor mirrored onto an on-top panel, and it needs no Screen Recording. Set it per workspace and per shared app with the Tiled / Float / Ignore picker.",
+    "ko": "**타일링하지 않고 그대로 두기:** 타일·항상 위 외에 *배치를 관리하지 않는* 앱도 공간의 정식 구성원으로 둘 수 있어요. 자동 열기·표시·숨김·포커스·마우스 포커스·창 전환은 적용하지만 BSP 배치나 항상 위 미러는 사용하지 않아 화면 기록 권한이 필요 없어요. 공간별·공용 앱별 타일링 / 항상 위 / 그대로 두기 선택기에서 지정해요.",
+    "ja": "**配置を管理せずそのまま:** タイル・フローティングに加え、*配置を管理しない*Appも正式な領域のメンバーにできます。自動起動、表示・非表示、フォーカス、マウス追従、切り替えは使えますが、BSP配置や手前ミラーは使わず画面収録も不要です。領域・共有Appごとに「タイル／フローティング／そのまま」で指定します。",
+    "zh-Hans": "**忽略平铺模式**：除平铺和浮动外，第三种模式让*不管理布局*的应用仍作为完整工作区成员。自动打开、显示隐藏、焦点、焦点跟随鼠标和窗口切换仍有效，但不会进入 BSP 树或生成置顶镜像，也无须屏幕录制权限。可在每个工作区和共享应用的平铺／浮动／忽略选择器中设置。",
+    "zh-Hant": "**忽略並排模式**：除並排與浮動外，第三種模式讓*不管理配置*的 App 仍作為完整工作空間成員。自動開啟、顯示隱藏、焦點、焦點跟隨滑鼠及視窗切換仍有效，但不會進入 BSP 樹或產生置頂鏡像，也無須螢幕錄製權限。可在各工作空間與共用 App 的並排／浮動／忽略選擇器設定。"
+  },
+  "ca097c779c8e05f1": {
+    "en": "**Multi-display placement:** Pin a workspace to a display or follow apps dynamically.",
+    "ko": "**여러 디스플레이 배치:** 작업 공간을 화면에 고정하거나 앱을 동적으로 따라가게 할 수 있어요.",
+    "ja": "**複数画面への配置:** ワークスペースを画面に固定するか、Appへ動的に追従させられます。",
+    "zh-Hans": "**多显示器布局**：可将工作区固定到显示器，或动态跟随应用。",
+    "zh-Hant": "**多顯示器配置**：可將工作空間固定至顯示器，或動態跟隨 App。"
+  },
+  "caa313f91a963ca1": {
+    "en": "**Shared Apps editor:** Add or remove shared apps and flip their Float toggle from a special workspace in the Workspaces sidebar.",
+    "ko": "**공용 앱 편집기:** 작업 공간 사이드바의 전용 공간에서 공용 앱을 추가·제거하고 항상 위를 켜거나 끌 수 있어요.",
+    "ja": "**共有Appエディタ:** サイドバーの専用領域で共有Appを追加・削除し、フローティングを切り替えられます。",
+    "zh-Hans": "**共享应用编辑器**：在工作区侧边栏的专用区域添加、移除共享应用，并切换浮动状态。",
+    "zh-Hant": "**共用 App 編輯器**：在工作空間側邊欄的專用區域新增、移除共用 App，並切換浮動狀態。"
+  },
+  "cb24641e0400aca1": {
+    "en": "**Include Shared Apps in app and window switching:** During Borrow, shared floating and Leave As Is windows now join the switcher after the host and borrowed tiled blocks. A default-on setting can exclude Shared Apps when a narrower switching list is preferred.",
+    "ko": "**앱·창 전환에 공용 앱 포함:** 빌려오기 중에도 원래 공간과 빌려온 타일 영역 뒤에 공용 항상 위·그대로 두기 창을 보여줘요. 기본으로 켜진 설정을 끄면 더 좁은 목록에서 공용 앱을 제외할 수 있어요.",
+    "ja": "**切り替えに共有Appを含める:** 借用中も元と借りたタイル領域の後ろに、共有のフローティング・そのままウインドウが並びます。既定でオンの設定を無効にすれば、共有Appを除いた小さな一覧にできます。",
+    "zh-Hans": "**应用与窗口切换包含共享应用**：借用期间，共享浮动及保持原样窗口会排在主区域和借用平铺区域之后。该设置默认开启，也可关闭以排除共享应用，缩小切换列表。",
+    "zh-Hant": "**App 與視窗切換包含共用 App**：借用期間，共用浮動及維持原狀視窗會排在主區域與借用並排區域之後。此設定預設開啟，也可關閉以排除共用 App，縮小切換列表。"
+  },
+  "ccb24a11b6ff6112": {
+    "en": "**Per-display profile switch HUD:** Switching a profile now shows, on each monitor, the workspace that lands there, instead of one HUD listing everything.",
+    "ko": "**디스플레이별 프로필 전환 알림:** 전체 목록 하나 대신 각 모니터에 그곳에 표시될 작업 공간을 알려줘요.",
+    "ja": "**画面ごとのプロファイル切り替え通知:** ひとつの一覧にまとめず、各画面へそこに表示されるワークスペースを案内します。",
+    "zh-Hans": "**逐显示器的方案切换反馈**：切换方案时，各显示器分别显示落在其上的工作区，而不是单个反馈列出全部内容。",
+    "zh-Hant": "**逐顯示器的組合切換回饋**：切換組合時，各顯示器分別顯示落在其上的工作空間，而非單一回饋列出全部內容。"
+  },
+  "cf66dbc28f95f5d1": {
+    "en": "**Correct close refocus and cursor centering:** Closing the focused window now selects the intended most-recent window after the window list has settled and centers the cursor on its live frame.",
+    "ko": "**창을 닫은 뒤 정확히 포커스·중앙 이동:** 창 목록이 안정된 뒤 의도한 최근 창을 선택하고 실제 프레임 가운데로 포인터를 옮겨요.",
+    "ja": "**閉じた後のフォーカスと中央移動を修正:** 一覧が落ち着いてから意図した最近のウインドウを選び、実際のフレーム中央へポインタを移します。",
+    "zh-Hans": "**正确处理关闭后的焦点与居中**：关闭焦点窗口后，待窗口列表稳定再选中预期的最近窗口，并将指针置于其实际位置中央。",
+    "zh-Hant": "**正確處理關閉後的焦點與置中**：關閉焦點視窗後，待視窗列表穩定再選取預期的最近視窗，並將游標置於其實際位置中央。"
+  },
+  "d0ff833c10d61b63": {
+    "en": "**Optional debug logging:** Debug logging to {0} helps diagnose tiling.",
+    "ko": "**선택적 디버그 기록:** 타일링 문제를 진단하도록 {0}에 기록할 수 있어요.",
+    "ja": "**任意のデバッグログ:** タイル表示の診断に役立つ記録を {0} に出力できます。",
+    "zh-Hans": "**可选调试日志**：可将日志写入 {0}，协助诊断平铺问题。",
+    "zh-Hant": "**可選偵錯記錄**：可將記錄寫入 {0}，協助診斷並排問題。"
+  },
+  "d26ac4330841ffed": {
+    "en": "**Visible Screen Recording prompts:** Missing Screen Recording no longer fails silently. The first activation that needs floating mirrors shows the system prompt and a warning HUD pointing at the Settings row.",
+    "ko": "**눈에 보이는 화면 기록 권한 안내:** 권한이 없어도 조용히 실패하지 않아요. 처음 미러가 필요한 활성화 때 시스템 요청과 설정 항목을 가리키는 경고 알림을 보여줘요.",
+    "ja": "**画面収録の許可を明確に案内:** 権限がなくても黙って失敗しません。初めてミラーが必要になった際、システムの許可画面と設定項目を案内する警告を表示します。",
+    "zh-Hans": "**明确显示屏幕录制授权提示**：缺少权限时不再静默失败。首次需要浮动镜像的激活会显示系统提示，并以警告反馈指向设置项目。",
+    "zh-Hant": "**明確顯示螢幕錄製授權提示**：缺少權限時不再默默失敗。首次需要浮動鏡像的啟用會顯示系統提示，並以警告回饋指向設定項目。"
+  },
+  "d58a58035466535e": {
+    "en": "**Refilling a vacated display no longer steals focus:** When a dynamic workspace leaves a monitor and another takes its place, that background switch no longer pulls keyboard focus (and the cursor with it) away from the workspace the user just moved to.",
+    "ko": "**빈 화면을 채워도 포커스 유지:** 동적 공간이 떠난 모니터에 다른 공간이 들어와도 백그라운드 전환이 사용자의 새 공간에서 키보드 포커스와 포인터를 가져가지 않아요.",
+    "ja": "**空いた画面の補充でフォーカスを奪わない:** 動的領域が移った後に別の領域で画面を補っても、利用者が移動した先からキーボードフォーカスやポインタを引き戻しません。",
+    "zh-Hans": "**填补空出显示器不再抢焦点**：动态工作区离开后由其他工作区补位的后台切换，不再从用户刚到达的工作区拉走键盘焦点及指针。",
+    "zh-Hant": "**補上空出顯示器不再搶焦點**：動態工作空間離開後由其他工作空間補位的背景切換，不再從使用者剛抵達的工作空間拉走鍵盤焦點及游標。"
+  },
+  "d5e5f4027cce68fc": {
+    "en": "**Cross-profile workspace copying:** Profiles keep independent workspaces, so their apps and settings can drift apart. Open **Copy from…** in a profile or workspace detail to review each app, layout, auto-open, and settings difference, then copy only the checked changes.",
+    "ko": "**프로필 사이 작업 공간 복사:** 프로필마다 독립된 공간이라 앱·설정이 달라질 수 있어요. 프로필·공간 세부 정보에서 **가져오기**…를 열어 앱·레이아웃·자동 열기·설정 차이를 검토하고 체크한 변경만 복사해요.",
+    "ja": "**プロファイル間で領域をコピー:** 領域は各プロファイルで独立し、Appや設定が異なる場合があります。詳細の**コピー元**…でApp、配置、自動起動、設定の差分を確認し、チェックした変更だけをコピーできます。",
+    "zh-Hans": "**跨方案复制工作区**：各方案拥有独立工作区，应用和设置可能不同。在方案或工作区详情打开**复制自…**，审核应用、布局、自动打开及设置差异，只复制勾选的变化。",
+    "zh-Hant": "**跨組合複製工作空間**：各組合擁有獨立工作空間，App 與設定可能不同。在組合或工作空間詳細資訊開啟**複製自…**，檢閱 App、配置、自動開啟及設定差異，只複製勾選的變更。"
+  },
+  "d61e02c4f5590e08": {
+    "en": "**Managed-window-only focus following:** Focus-follows-mouse only follows into windows Tatami manages, so notification and HUD panels can no longer steal focus.",
+    "ko": "**관리 창으로만 마우스 포커스:** Tatami가 관리하는 창만 따라가므로 알림이나 화면 알림 패널이 포커스를 가져가지 않아요.",
+    "ja": "**管理対象のウインドウだけに追従:** Tatamiが管理するウインドウだけへ移るため、通知や操作フィードバックがフォーカスを奪いません。",
+    "zh-Hans": "**仅跟随管理窗口**：焦点跟随鼠标只进入 Tatami 管理的窗口，通知和反馈面板不再抢走焦点。",
+    "zh-Hant": "**僅跟隨管理視窗**：焦點跟隨滑鼠只進入 Tatami 管理的視窗，通知與回饋面板不再搶走焦點。"
+  },
+  "d7a3c5dea0e04888": {
+    "en": "**Fully localized dynamic feedback:** Workspace and profile names, app actions, Borrow results, layout changes, errors, and other runtime messages now use locale-aware formatting without changing user-entered names.",
+    "ko": "**동적 알림도 전체 현지화:** 작업 공간·프로필 이름, 앱 동작, 빌려오기 결과, 레이아웃 변경, 오류 등 실행 중 메시지에 언어별 형식을 적용하고 사용자가 입력한 이름은 유지해요.",
+    "ja": "**動的な通知も多言語化:** 領域・プロファイル名、App操作、借用結果、配置変更、エラーなどの実行時メッセージを言語に合わせて整えます。利用者が入力した名前は変更しません。",
+    "zh-Hans": "**完整本地化动态反馈**：工作区与方案名称、应用操作、借用结果、布局变化、错误及其他运行时消息使用区域感知格式，同时保持用户输入名称不变。",
+    "zh-Hant": "**完整在地化動態回饋**：工作空間與組合名稱、App 操作、借用結果、配置變更、錯誤及其他執行時訊息使用地區感知格式，同時保持使用者輸入名稱不變。"
+  },
+  "d9b9c5ea647309ad": {
+    "en": "**Event-driven marker tracking:** Window markers track their windows **event-driven** (no polling timer), with ~zero idle CPU.",
+    "ko": "**이벤트 기반 창 표시 추적:** 폴링 타이머 없이 **이벤트에 따라** 창을 추적해 유휴 CPU 사용이 거의 없어요.",
+    "ja": "**イベント駆動のマーカー追跡:** ポーリングタイマーを使わず**イベント駆動**で追跡し、待機中のCPU使用をほぼゼロに抑えます。",
+    "zh-Hans": "**事件驱动标记跟踪**：窗口标记采用**事件驱动**方式，无轮询计时器，空闲 CPU 使用接近零。",
+    "zh-Hant": "**事件驅動標記追蹤**：視窗標記採用**事件驅動**方式，無輪詢計時器，閒置 CPU 使用接近零。"
+  },
+  "da0e8ddbf86c97d3": {
+    "en": "**Reworked concurrency:** AX window hit-testing, the CLI socket server, and the mouse / gesture event taps no longer block the main thread or the Swift cooperative pool.",
+    "ko": "**동시성 구조 개선:** AX 창 위치 판정, CLI 소켓 서버, 마우스·제스처 이벤트 탭이 메인 스레드나 Swift 협력 실행기를 막지 않아요.",
+    "ja": "**並行処理を改善:** AXのウインドウ判定、CLIソケットサーバー、マウス・ジェスチャーのイベントタップがメインスレッドやSwiftの協調実行プールをブロックしなくなりました。",
+    "zh-Hans": "**重做并发结构**：AX 窗口命中测试、CLI 套接字服务器及鼠标、手势事件监听不再阻塞主线程或 Swift 协作线程池。",
+    "zh-Hant": "**重做並行結構**：AX 視窗命中測試、CLI 通訊端伺服器及滑鼠、手勢事件監聽不再阻擋主執行緒或 Swift 協作執行緒池。"
+  },
+  "daf3b3c91677f8fa": {
+    "en": "**Mouse-up move and resize commits:** Manual move / resize commits on **mouse-up** (not a timer), so dragging stays smooth and never fights you mid-drag.",
+    "ko": "**마우스를 놓을 때 이동·크기 확정:** 타이머 대신 **마우스 버튼을 놓을 때** 수동 변경을 적용해요. 드래그 중 끊기거나 사용자 조작과 맞서지 않아요.",
+    "ja": "**マウスを離して移動・サイズを確定:** タイマーではなく**マウスボタンを離したとき**に確定し、ドラッグを滑らかに保ち、途中で操作に逆らいません。",
+    "zh-Hans": "**松开鼠标时提交移动和尺寸**：手动移动、缩放在**鼠标抬起**时提交，而非依赖计时器，拖动保持流畅，不会中途与操作冲突。",
+    "zh-Hant": "**放開滑鼠時提交移動與尺寸**：手動移動、縮放在**滑鼠放開**時提交，而非依賴計時器，拖移保持流暢，不會中途與操作衝突。"
+  },
+  "daf5d962f95b7cdd": {
+    "en": "**Stable layouts during native tab changes:** Creating, closing, or switching native tabs no longer lets transient WindowServer surface identities enter the BSP tree as separate windows. Tatami preserves the existing tile, focus history, zoom state, and presentation state while the real window surface changes, even during rapid tab churn.",
+    "ko": "**네이티브 탭 변경 중 레이아웃 유지:** 탭을 만들거나 닫거나 바꿀 때 임시 WindowServer 표면 ID를 별도 창으로 BSP에 넣지 않아요. 빠른 탭 변경 중에도 실제 표면만 바꾸며 기존 타일·포커스 이력·확대·표시 상태를 유지해요.",
+    "ja": "**ネイティブタブ変更中も配置を保持:** タブの生成・終了・切り替え時に一時的な表示面IDを別ウインドウとしてBSPへ追加しません。素早い変更でも実際の表示面だけを替え、タイル、フォーカス履歴、拡大、表示状態を保ちます。",
+    "zh-Hans": "**原生标签页变化时保持布局**：创建、关闭或切换标签页时，临时 WindowServer 表面标识不再作为独立窗口进入 BSP 树。即使快速变动，也在实际表面替换时保留原平铺位置、焦点历史、缩放及呈现状态。",
+    "zh-Hant": "**原生分頁變動時保持配置**：建立、關閉或切換分頁時，暫時的 WindowServer 表面識別不再作為獨立視窗進入 BSP 樹。即使快速變動，也在實際表面替換時保留原並排位置、焦點歷程、縮放及呈現狀態。"
+  },
+  "dcfe5df911f0e0a9": {
+    "en": "**Refocus after window closure:** When the focused window closes and focus would otherwise be stranded on a now-windowless app (e.g. KakaoTalk, Notion Calendar, which keep running with no window), focus moves to a remaining window in the workspace. Toggle in **Settings → Mouse & Focus**.",
+    "ko": "**창을 닫은 뒤 다른 창에 포커스:** KakaoTalk·Notion Calendar처럼 창 없이 실행되는 앱에 포커스가 남지 않도록 공간의 남은 창으로 옮겨요. **설정 → 마우스와 포커스**에서 바꿀 수 있어요.",
+    "ja": "**閉じた後に残りへフォーカス:** KakaoTalkやNotion Calendarのようにウインドウなしで動くAppへフォーカスを残さず、領域内の別ウインドウへ移します。**設定 → マウスとフォーカス**で切り替えられます。",
+    "zh-Hans": "**关闭窗口后重新聚焦**：KakaoTalk、Notion Calendar 等应用在无窗口时仍运行，关闭焦点窗口后不会把焦点困在它们身上，而会移到工作区剩余窗口。可在**设置 → 鼠标与焦点**切换。",
+    "zh-Hant": "**關閉視窗後重新聚焦**：KakaoTalk、Notion Calendar 等 App 在無視窗時仍執行，關閉焦點視窗後不會把焦點困在它們身上，而會移至工作空間剩餘視窗。可於**設定 → 滑鼠與焦點**切換。"
+  },
+  "dd5c2fdbb0414979": {
+    "en": "**Faster Borrow and menu-bar interaction:** Borrow now lays out its blocks before transferring focus, then orders keyboard focus and MFF pointer movement against the resulting live frame. It also skips redundant Accessibility frame writes, reuses a known hidden scratchpad window instead of reopening it, and keeps the menu-bar runtime latency-sensitive under App Nap.",
+    "ko": "**빌려오기·메뉴 막대 반응 개선:** 영역을 먼저 배치한 뒤 실제 프레임에 맞춰 키보드 포커스와 포인터 이동을 순서대로 처리해요. 중복 AX 쓰기를 생략하고 알려진 숨김 임시 창은 다시 열지 않고 사용해요. App Nap 중에도 메뉴 막대 실행의 반응성을 유지해요.",
+    "ja": "**借用とメニューバーの応答を改善:** 先に領域を配置し、実際のフレームに対してキーボードフォーカスとポインタ移動を順序付けます。重複AX書き込みを省き、既知の隠れた一時ウインドウは再起動せず再利用します。App Nap中もメニューバーの応答性を維持します。",
+    "zh-Hans": "**更快的借用与菜单栏交互**：先布局区域，再根据实际尺寸依序转移键盘焦点和 MFF 指针。跳过冗余辅助功能写入，复用已知的隐藏暂存窗口而不重新打开，并在 App Nap 下维持菜单栏运行时的低延迟。",
+    "zh-Hant": "**更快的借用與選單列互動**：先配置區域，再依實際尺寸依序轉移鍵盤焦點與 MFF 游標。略過多餘的輔助使用寫入，重用已知隱藏的暫存視窗而不重新開啟，並在 App Nap 下維持選單列執行時的低延遲。"
+  },
+  "dffb4371f923db72": {
+    "en": "**Unified permission prompts:** The startup HUD shows whenever Accessibility is missing, and Accessibility and Screen Recording are surfaced together.",
+    "ko": "**권한 요청 통합:** 손쉬운 사용 권한이 없으면 시작 알림을 항상 보여주고, 화면 기록 권한과 함께 안내해요.",
+    "ja": "**権限案内を統一:** アクセシビリティがない場合は起動時に通知し、画面収録の権限も合わせて案内します。",
+    "zh-Hans": "**统一权限提示**：缺少辅助功能权限时始终显示启动反馈，并与屏幕录制权限一起提示。",
+    "zh-Hant": "**統一權限提示**：缺少輔助使用權限時始終顯示啟動回饋，並與螢幕錄製權限一起提示。"
+  },
+  "e02bae042b40d657": {
+    "en": "**Legal documents open inside Tatami:** About now shows the copyright and warranty notice, links to the project source, and presents the license, project notices, and third-party notices in selectable in-app sheets.",
+    "ko": "**법적 문서를 앱 안에서 열기:** 정보에서 저작권·보증 고지와 프로젝트 소스를 확인하고, 라이선스·프로젝트 고지·서드파티 고지를 선택 가능한 앱 내 시트로 읽을 수 있어요.",
+    "ja": "**法的文書をApp内で表示:** 情報画面に著作権・保証の告知とソースへのリンクを表示し、ライセンス、プロジェクト告知、第三者告知を選択可能なシートで読めます。",
+    "zh-Hans": "**法律文档在 Tatami 内打开**：关于页面显示版权及担保声明、项目源码链接，并以可选择文本的应用内面板呈现许可证、项目声明和第三方声明。",
+    "zh-Hant": "**法律文件在 Tatami 內開啟**：關於頁面顯示著作權及擔保聲明、專案原始碼連結，並以可選取文字的 App 內面板呈現授權、專案聲明與第三方聲明。"
+  },
+  "e1164aee8cf0272f": {
+    "en": "**Pointer-scoped borrowing:** Borrow, recent / next / previous borrow, direction selection, and dismiss now consistently operate on the display under the mouse. Direction selection also remembers the display where it began.",
+    "ko": "**포인터 기준 빌려오기:** 빌려오기·최근·다음·이전·방향 선택·해제를 모두 포인터 화면에서 처리해요. 방향 선택도 시작한 디스플레이를 기억해요.",
+    "ja": "**ポインタ基準の借用:** 借用、最近・次・前、方向選択、解除をポインタの画面で統一し、方向選択は開始した画面を記憶します。",
+    "zh-Hans": "**按指针范围借用**：借用、最近及前后借用、方向选择和收起统一作用于鼠标所在显示器，方向选择也记住开始时的显示器。",
+    "zh-Hant": "**依游標範圍借用**：借用、最近及前後借用、方向選擇和收起統一作用於滑鼠所在顯示器，方向選擇也記住開始時的顯示器。"
+  },
+  "e1822acb6c4d2adf": {
+    "en": "**Check for Updates responds to the first click:** Choosing it from the menu bar opened its window behind whatever was frontmost, so it read as nothing happening until the second click.",
+    "ko": "**한 번 클릭으로 업데이트 확인:** 메뉴 막대에서 열면 다른 앱 뒤에 창이 떠 두 번 눌러야 동작하는 것처럼 보이던 문제를 수정했어요.",
+    "ja": "**更新確認が1クリックで反応:** メニューバーから開くと別のAppの後ろへ出て、2回押すまで動かないように見えた問題を修正しました。",
+    "zh-Hans": "**检查更新首次点击即响应**：修复菜单栏打开的窗口藏在前台应用后方，看起来必须点击第二次才生效的问题。",
+    "zh-Hant": "**檢查更新首次點選即回應**：修正選單列開啟的視窗藏在前景 App 後方，看起來必須點第二次才生效的問題。"
+  },
+  "e18972b31a9625d0": {
+    "en": "**Scratchpad workspaces:** A borrow-only workspace kind, excluded from cycling, never activated on its own, summoned beside another workspace with a borrow (its apps auto-open when you do). Pick the kind in a workspace's settings. Scratchpads get their own menu-bar section.",
+    "ko": "**임시 작업 공간:** 순환과 단독 활성화에서 제외하고 다른 공간 옆에 빌려올 때만 여는 유형이에요. 호출하면 앱을 자동으로 열어요. 작업 공간 설정에서 선택하며 메뉴 막대에서도 별도 섹션으로 보여줘요.",
+    "ja": "**一時ワークスペース:** 巡回や単独有効化の対象外で、別の領域へ借りる場合だけ開く種類です。呼び出すとAppを自動起動します。領域設定で選択でき、メニューバーにも専用セクションを設けました。",
+    "zh-Hans": "**暂存工作区**：仅供借用的工作区类型，不参与循环，也不单独激活；借用时出现在其他工作区旁并自动打开应用。可在工作区设置中选择，菜单栏有独立区段。",
+    "zh-Hant": "**暫存工作空間**：僅供借用的工作空間類型，不參與循環，也不單獨啟用；借用時出現在其他工作空間旁並自動開啟 App。可在工作空間設定中選擇，選單列有獨立區段。"
+  },
+  "e1c2b56a661a42db": {
+    "en": "**Focus next / previous display:** move focus to the active workspace on the next monitor, looping around ({0} / {1}).",
+    "ko": "**다음·이전 디스플레이 포커스:** 다음 모니터의 활성 공간으로 포커스를 옮기며 끝에서는 처음으로 돌아와요({0} / {1}).",
+    "ja": "**次・前の画面へフォーカス:** 次の画面のアクティブな領域へ移り、端では先頭へ戻ります（{0} / {1}）。",
+    "zh-Hans": "**聚焦前后显示器**：焦点移到相邻显示器的活动工作区，并循环回绕（{0} / {1}）。",
+    "zh-Hant": "**聚焦前後顯示器**：焦點移至相鄰顯示器的作用中工作空間，並循環回繞（{0} / {1}）。"
+  },
+  "e26dcfa855d986f5": {
+    "en": "**Reliable main-window foregrounding:** Opening Tatami's window no longer lets it sink behind other apps' windows.",
+    "ko": "**메인 창을 확실히 앞으로:** Tatami 창을 열어도 다른 앱의 창 뒤로 내려가지 않아요.",
+    "ja": "**メインウインドウを確実に手前へ:** Tatamiのウインドウを開いたとき、別のAppの後ろへ沈まなくなりました。",
+    "zh-Hans": "**可靠置前主窗口**：打开 Tatami 窗口时不再沉到其他应用窗口后方。",
+    "zh-Hant": "**可靠置前主視窗**：開啟 Tatami 視窗時不再沉至其他 App 視窗後方。"
+  },
+  "e29655a005437f1b": {
+    "en": "**Manual resizing:** Manual resize now drags any window edge and re-tiles against the correct join. Height resizes work even when the immediate split is vertical. A drag that changes nothing snaps the window back to its tile.",
+    "ko": "**수동 크기 조절:** 어느 창 가장자리든 끌 수 있고 올바른 연결 경계로 다시 배치해요. 바로 위 분할이 세로여도 높이를 조절할 수 있어요. 실제 변화 없는 드래그는 원래 타일로 돌려놓아요.",
+    "ja": "**手動サイズ変更:** どの辺でもドラッグでき、正しい接合部に対して再配置します。直近の分割が縦でも高さを変えられます。変化のないドラッグは元のタイルへ戻します。",
+    "zh-Hans": "**手动调整尺寸**：可拖动任意窗口边缘，并按正确连接边界重新平铺。即使直接分割为垂直方向，也能调整高度。未产生变化的拖动会把窗口吸附回原位置。",
+    "zh-Hant": "**手動調整尺寸**：可拖移任一視窗邊緣，並依正確接合邊界重新並排。即使直接分割為垂直方向，也能調整高度。未產生變更的拖移會把視窗吸附回原位置。"
+  },
+  "e3fe6fc7eecdc062": {
+    "en": "**Stable focus for multi-membership apps:** If an app belongs to several workspaces, clicking it while you're already in one of them no longer jumps you to a different workspace.",
+    "ko": "**여러 공간 소속 앱의 포커스 안정화:** 앱이 여러 공간에 속해 있어도 그중 하나에 이미 있다면 앱을 클릭할 때 다른 공간으로 이동하지 않아요.",
+    "ja": "**複数所属Appのフォーカスを安定化:** Appが複数の領域に属していても、そのうちのひとつにいる場合はクリックで別の領域へ移りません。",
+    "zh-Hans": "**稳定多工作区应用的焦点**：应用属于多个工作区时，若已位于其中一个，点击该应用不会跳到其他工作区。",
+    "zh-Hant": "**穩定多工作空間 App 的焦點**：App 屬於多個工作空間時，若已位於其中一個，點選該 App 不會跳至其他工作空間。"
+  },
+  "e5322715b2513558": {
+    "en": "**Focus-follows-mouse behavior for floating mirrors:** With focus-follows-mouse off, hovering a mirror no longer steals focus. Scrolls, clicks, and drags on a mirror now forward to the real window, and focus moves on click. With focus-follows-mouse on, hover keeps handing focus over as before.",
+    "ko": "**미러의 마우스 포커스 동작:** 마우스 포커스를 끄면 포인터를 올려도 포커스를 가져가지 않아요. 미러의 스크롤·클릭·드래그를 실제 창에 전달하며 클릭하면 포커스를 옮겨요. 마우스 포커스를 켜면 이전처럼 포인터를 올릴 때 전달해요.",
+    "ja": "**ミラーのマウス追従動作:** 追従がオフならホバーでフォーカスを奪いません。スクロール、クリック、ドラッグを実際のウインドウへ渡し、クリック時にフォーカスを移します。オンなら従来どおりホバーで移します。",
+    "zh-Hans": "**浮动镜像的焦点跟随鼠标行为**：关闭此功能时，悬停镜像不再抢焦点。滚动、点击和拖动会传到真实窗口，点击时转移焦点；开启时仍像以前一样通过悬停移交焦点。",
+    "zh-Hant": "**浮動鏡像的焦點跟隨滑鼠行為**：關閉此功能時，游標停留不再搶焦點。捲動、點選和拖移會傳至實際視窗，點選時轉移焦點；開啟時仍如以往透過游標停留移交焦點。"
+  },
+  "53d6c4de4811923c": {
+    "en": "**Borrowed-window badges:** The borrowed workspace's icon makes what is on loan clear at a glance. Configure its color and visibility under **Settings → Appearance → Window Markers**.",
+    "ko": "**빌려온 창 표시:** 빌려온 작업 공간 아이콘으로 어느 창을 빌렸는지 한눈에 알 수 있어요. **설정 → 모양 → 창 표시**에서 색상과 표시 여부를 바꿀 수 있어요.",
+    "ja": "**借りたウインドウの印:** 借用元のアイコンで、借りているウインドウがひと目でわかります。**設定 → 外観 → ウインドウマーカー**で色と表示を変更できます。",
+    "zh-Hans": "**借用窗口标记**：借用工作区的图标让借来的窗口一目了然。可在**设置 → 外观 → 窗口标记**中配置颜色和显示状态。",
+    "zh-Hant": "**借用視窗標記**：借用工作空間的圖示讓借來的視窗一目了然。可在**設定 → 外觀 → 視窗標記**中設定顏色和顯示狀態。"
+  },
+  "556e91e06e7dcafa": {
+    "en": "**Cross-display window cycling:** The window-cycle shortcut (alt/opt+tab by default, on since 1.7.0) could get stuck cycling between the same two windows or operate on the wrong monitor's workspace. Focus now transfers the frontmost application via the window server (not just an Accessibility raise), so cycling between apps and across displays lands correctly.",
+    "ko": "**디스플레이를 넘는 창 전환:** 1.7.0부터 기본으로 켜진 alt/opt+tab 창 전환이 두 창 사이에 갇히거나 다른 모니터의 공간에서 동작할 수 있었어요. 이제 손쉬운 사용으로 창을 올리는 데 그치지 않고 WindowServer로 최전면 앱을 바꿔 앱·디스플레이 사이를 올바르게 전환해요.",
+    "ja": "**画面をまたぐウインドウ切り替え:** 1.7.0から既定で有効なalt/opt+tabが、同じ2つのウインドウを往復したり別の画面で動いたりする問題を修正しました。アクセシビリティで前に出すだけでなく、WindowServerで最前面のAppも切り替えるため、App間・画面間で正しく移動します。",
+    "zh-Hans": "**跨显示器切换窗口**：自 1.7.0 默认开启的 alt/opt+tab 可能困在两个窗口之间，或操作错误显示器的工作区。现在通过窗口服务器转移最前台应用，而不只是执行辅助功能置前，从而正确跨应用和显示器切换。",
+    "zh-Hant": "**跨顯示器切換視窗**：自 1.7.0 預設開啟的 alt/opt+tab 可能困在兩個視窗之間，或操作錯誤顯示器的工作空間。現在透過視窗伺服器轉移最前方 App，而非只執行輔助使用置前，從而正確跨 App 與顯示器切換。"
+  },
+  "56d004809d31b4ae": {
+    "en": "**Stable Settings steppers:** Gap and dot-size steppers no longer run away on a single click.",
+    "ko": "**설정 증감 버튼 안정화:** 간격과 점 크기 버튼을 한 번 눌러도 값이 계속 바뀌지 않아요.",
+    "ja": "**設定の増減ボタンを安定化:** 間隔や点のサイズを1回押しただけで、値が変わり続けることがなくなりました。",
+    "zh-Hans": "**稳定设置步进按钮**：间距和圆点大小的步进按钮不再因单击而持续变化。",
+    "zh-Hant": "**穩定設定增減按鈕**：間距與圓點大小的增減按鈕不再因按一下而持續變動。"
+  },
+  "576aefb5af28e106": {
+    "en": "**Report multi-display changes on the correct HUD:** Chain identity appears only when a visible chain actually caused the result, focus transfers and Borrow returns can share the same two-line feedback, and each HUD and hook payload targets the display where that change occurred. Workspace icons also retain their accent tint when their row is not selected.",
+    "ko": "**변경된 디스플레이에 정확히 알림:** 보이는 체인이 실제 결과를 만들었을 때만 체인을 표시해요. 포커스 이동과 빌려오기 반환은 같은 두 줄 알림을 쓸 수 있고, 각 알림·훅 데이터는 변경된 디스플레이를 대상으로 해요. 선택하지 않은 작업 공간 아이콘도 강조색을 유지해요.",
+    "ja": "**変更した画面に正しく通知:** 表示中のチェーンが実際に結果を生んだ場合だけチェーン名を表示します。フォーカス移動と借用の返却は同じ2行の通知を使え、各通知とフックのデータは変更先の画面を指します。未選択のワークスペースアイコンもアクセント色を保ちます。",
+    "zh-Hans": "**在正确的显示器上报告变化**：只有可见链实际产生结果时才显示链标识。焦点转移和借用归还可共用两行反馈，各反馈及钩子数据都指向发生变化的显示器。未选中行的工作区图标也会保留强调色。",
+    "zh-Hant": "**在正確的顯示器上回報變更**：只有可見鏈實際產生結果時才顯示鏈識別。焦點轉移與借用歸還可共用兩行回饋，各回饋及掛鉤資料都指向發生變更的顯示器。未選取列的工作空間圖示也會保留強調色。"
+  },
+  "57fb90ebe7a03532": {
+    "en": "**Native fullscreen and fullscreen-zoom stability:** Entering native fullscreen no longer bounces back to the Desktop, fullscreen-zoom carries across a native-tab window swap, and a fullscreen-zoomed window's stale tile is no longer a drag drop-target.",
+    "ko": "**네이티브 전체 화면·확대 안정화:** 네이티브 전체 화면에 들어갈 때 데스크톱으로 돌아가지 않아요. 네이티브 탭의 창이 교체돼도 확대 상태를 이어가며, 확대한 창의 예전 타일을 드래그 대상으로 쓰지 않아요.",
+    "ja": "**ネイティブ全画面と拡大を安定化:** ネイティブ全画面へ入ってもデスクトップへ戻りません。タブのウインドウが入れ替わっても拡大状態を引き継ぎ、拡大前の古いタイルをドロップ先にしなくなりました。",
+    "zh-Hans": "**稳定原生全屏与全屏缩放**：进入原生全屏不再跳回桌面；原生标签页交换窗口时保留全屏缩放；已缩放窗口的旧平铺位置不再成为拖放目标。",
+    "zh-Hant": "**穩定原生全螢幕與全螢幕縮放**：進入原生全螢幕不再跳回桌面；原生分頁交換視窗時保留全螢幕縮放；已縮放視窗的舊並排位置不再成為拖放目標。"
+  },
+  "5880a7a57c1808f3": {
+    "en": "**Stable workspace reopening:** Reopening a workspace after one of its windows was closed no longer briefly reserves space for the missing window or temporarily squeezes the remaining windows.",
+    "ko": "**작업 공간 다시 열기 안정화:** 일부 창을 닫은 뒤 작업 공간을 다시 열어도 없는 창의 자리를 잠깐 남기거나 남은 창을 일시적으로 압축하지 않아요.",
+    "ja": "**ワークスペースの再表示を安定化:** 一部のウインドウを閉じてから戻っても、消えたウインドウの場所を一時的に確保したり、残ったウインドウを押し縮めたりしません。",
+    "zh-Hans": "**稳定重新打开工作区**：某个窗口关闭后再打开工作区，不再短暂为已不存在的窗口预留位置，也不会临时挤压剩余窗口。",
+    "zh-Hant": "**穩定重新開啟工作空間**：某個視窗關閉後再開啟工作空間，不再短暫為已不存在的視窗預留位置，也不會暫時擠壓剩餘視窗。"
+  },
+  "58b46265eb0639ed": {
+    "en": "Tiling (yabai-style BSP)",
+    "ko": "타일링(yabai 방식 BSP)",
+    "ja": "タイル表示（yabai方式のBSP）",
+    "zh-Hans": "平铺（yabai 风格 BSP）",
+    "zh-Hant": "並排（yabai 風格 BSP）"
+  },
+  "5989acbb0ebada7c": {
+    "en": "**Tatami is now licensed under AGPL-3.0-only:** This release moves the project from GPL-3.0 to the GNU Affero General Public License v3. Distributions now include the license, project notices, and exact third-party license texts.",
+    "ko": "**AGPL-3.0-only로 라이선스 변경:** 이번 릴리즈부터 GPL-3.0 대신 GNU Affero General Public License v3를 적용해요. 배포 파일에 라이선스·프로젝트 고지·정확한 서드파티 라이선스 원문을 포함해요.",
+    "ja": "**ライセンスをAGPL-3.0-onlyへ変更:** このリリースからGPL-3.0に代わりGNU Affero General Public License v3を採用します。配布物にライセンス、プロジェクトの告知、第三者ライセンスの正確な原文を含めます。",
+    "zh-Hans": "**许可证改为 AGPL-3.0-only**：此版本将项目从 GPL-3.0 迁移到 GNU Affero General Public License v3。发行包包含许可证、项目声明及准确的第三方许可证原文。",
+    "zh-Hant": "**授權改為 AGPL-3.0-only**：此版本將專案從 GPL-3.0 移轉至 GNU Affero General Public License v3。發行套件包含授權、專案聲明及正確的第三方授權原文。"
+  },
+  "59e5965495d92fee": {
+    "en": "Fixes",
+    "ko": "수정 사항",
+    "ja": "修正",
+    "zh-Hans": "修复",
+    "zh-Hant": "修正"
+  },
+  "5b9ceb44a5ed0341": {
+    "en": "**Floating support for fixed-size windows:** Fixed-size windows (e.g. the iOS **Simulator**) can float. Resizability is only required for tiling.",
+    "ko": "**고정 크기 창도 항상 위로:** iOS **Simulator**처럼 크기가 고정된 창도 띄울 수 있어요. 크기 조절은 타일링할 때만 필요해요.",
+    "ja": "**固定サイズのウインドウも手前表示:** iOSの**Simulator**など、サイズ固定のウインドウもフローティング表示できます。サイズ変更への対応が必要なのはタイル表示だけです。",
+    "zh-Hans": "**固定尺寸窗口也可浮动**：iOS **Simulator** 等固定尺寸窗口现在可浮动显示。只有平铺才要求窗口可调整大小。",
+    "zh-Hant": "**固定尺寸視窗也可浮動**：iOS **Simulator** 等固定尺寸視窗現在可浮動顯示。只有並排才要求視窗可調整大小。"
+  },
+  "5e50477ec5e4e3d2": {
+    "en": "**A clearer, more precise window switcher:** The held-shortcut switcher now shows focused, Borrowed, Shared Apps, Always on Top, and fullscreen status on each app icon. Pointer hover updates the real selection, so Return or modifier release commits the exact highlighted window even when one app has several windows; the refreshed layout is more compact and honors Reduce Motion.",
+    "ko": "**더 명확하고 정확한 창 전환기:** 앱 아이콘마다 포커스·빌려옴·공용 앱·항상 위·전체 화면 상태를 표시해요. 포인터를 올리면 실제 선택도 바뀌므로, 같은 앱의 창이 여러 개여도 Return이나 보조 키 해제로 강조한 창을 정확히 선택해요. 배치는 더 작아지고 동작 줄이기를 반영해요.",
+    "ja": "**わかりやすく正確な切り替え:** 各Appアイコンにフォーカス、借用、共有、常に手前、全画面の状態を表示します。ホバーで実際の選択も変わるので、同じAppに複数のウインドウがあってもReturnや修飾キーを離す操作で強調中のものを確定できます。よりコンパクトになり、「視差効果を減らす」にも対応します。",
+    "zh-Hans": "**更清晰准确的窗口切换器**：各应用图标会显示焦点、借用、共享应用、置顶和全屏状态。悬停会更新真实选择，即使同一应用有多个窗口，Return 或松开修饰键也会确认当前高亮窗口。布局更紧凑，并遵循减少动态效果设置。",
+    "zh-Hant": "**更清楚準確的視窗切換器**：各 App 圖示會顯示焦點、借用、共用 App、置頂及全螢幕狀態。游標停留會更新實際選取，即使同一 App 有多個視窗，Return 或放開修飾鍵也會確認目前反白的視窗。配置更精簡，並遵循減少動態效果設定。"
+  },
+  "5f1d926c66a9191f": {
+    "en": "**Existing configurations upgrade without changes:** New visibility, switcher, feedback, and workspace-chain fields all have backward-compatible defaults. Before downgrading to Tatami 1.12, back up {0} and remove hooks whose event is {1}; that version does not recognize the event and does not preserve 1.13-only workspace-chain or setting fields on its next successful save.",
+    "ko": "**기존 설정 그대로 업그레이드:** 표시·전환기·화면 알림·작업 공간 체인의 새 필드는 이전 설정과 호환되는 기본값을 제공해요. Tatami 1.12로 낮추기 전에는 {0}을 백업하고 이벤트가 {1}인 훅을 제거해 주세요. 그 버전은 해당 이벤트를 모르며, 다음 저장 때 1.13 전용 체인·설정 필드를 보존하지 않아요.",
+    "ja": "**既存設定のままアップグレード:** 表示、切り替え、通知、ワークスペースチェーンの新しい項目には互換性のある既定値があります。Tatami 1.12へ戻す前に {0} をバックアップし、イベントが {1} のフックを削除してください。1.12はこのイベントに対応せず、次の保存時に1.13専用のチェーンや設定項目を保持しません。",
+    "zh-Hans": "**无需修改原配置即可升级**：新增的可见性、切换器、反馈和工作区链字段都有向后兼容的默认值。降级到 Tatami 1.12 前，请备份 {0} 并移除事件为 {1} 的钩子；该版本不识别此事件，且下次成功保存时不会保留 1.13 专用的链和设置字段。",
+    "zh-Hant": "**無須修改原設定即可升級**：新增的可見性、切換器、回饋及工作空間鏈欄位都有向下相容的預設值。降級至 Tatami 1.12 前，請備份 {0} 並移除事件為 {1} 的掛鉤；該版本不識別此事件，且下次成功儲存時不會保留 1.13 專用的鏈與設定欄位。"
+  },
+  "60465ea350a6e97d": {
+    "en": "**Read shortcut conflicts at any width:** Shortcut recorders now show the same compact warning at every size and expose the complete conflicting action in a popover and to VoiceOver.",
+    "ko": "**어떤 너비에서도 단축키 충돌 확인:** 기록기 크기와 관계없이 같은 작은 경고를 보여주고, 충돌한 전체 동작은 팝오버와 VoiceOver로 확인할 수 있어요.",
+    "ja": "**どの幅でもショートカット競合を確認:** 記録コントロールの幅に関係なく同じ小さな警告を表示し、競合する操作の全文をポップオーバーとVoiceOverで確認できます。",
+    "zh-Hans": "**任意宽度都能读取快捷键冲突**：记录控件在各种尺寸下显示一致的紧凑警告，并通过弹出框和 VoiceOver 提供完整的冲突操作。",
+    "zh-Hant": "**任何寬度都能讀取快速鍵衝突**：記錄控制項在各種尺寸下顯示一致的精簡警告，並透過彈出視窗與 VoiceOver 提供完整的衝突操作。"
+  },
+  "615ee0d9696de720": {
+    "en": "**Stable Borrow completion and focus:** A cold app whose first window appears after Borrow starts is tiled and focused immediately. Borrow now preserves exact host focus and window badges while settling, clears stale badges before a full activation, and remains composed when focus moves to another display or back to an already visible host.",
+    "ko": "**빌려오기 완료·포커스 안정화:** 늦게 실행된 앱의 첫 창도 나타나는 즉시 배치하고 포커스해요. 구성 중 원래 포커스와 창 표시를 유지하며, 전체 활성화 전에는 오래된 표시를 지워요. 다른 디스플레이로 포커스를 옮기거나 이미 보이는 원래 공간으로 돌아와도 빌려오기 구성을 유지해요.",
+    "ja": "**借用の完了とフォーカスを安定化:** 起動の遅いAppの最初のウインドウも、現れたらすぐ配置してフォーカスします。処理中は元のフォーカスと印を保持し、全体の有効化前に古い印を消します。別の画面や、すでに表示中の元の領域へフォーカスを戻しても借用構成を保ちます。",
+    "zh-Hans": "**稳定借用完成与焦点**：冷启动应用的首个窗口在借用开始后出现，也会立即平铺并聚焦。借用稳定过程中保留精确的主区域焦点和窗口标记，在完整激活前清除旧标记，并在焦点转到其他显示器或返回已可见主区域时保持组合。",
+    "zh-Hant": "**穩定借用完成與焦點**：冷啟動 App 的首個視窗在借用開始後出現，也會立即並排並聚焦。借用穩定過程中保留精確的主區域焦點及視窗標記，在完整啟用前清除舊標記，並在焦點轉至其他顯示器或返回已可見主區域時保持組合。"
+  },
+  "63d23b07955363cf": {
+    "en": "**Full-screen exclusion from focus-follows-mouse:** An option (on by default) keeps focus-follows-mouse from grabbing a window that fills the whole display as the cursor skims across it.",
+    "ko": "**전체 화면 창의 마우스 포커스 제외:** 기본으로 켜지는 옵션으로, 포인터가 스쳐 지나갈 때 디스플레이를 가득 채운 창에 포커스가 넘어가지 않게 해요.",
+    "ja": "**全画面をマウス追従から除外:** 既定でオンの設定により、ポインタが横切っても画面いっぱいのウインドウへフォーカスが移りません。",
+    "zh-Hans": "**焦点跟随鼠标排除全屏**：默认开启的选项可防止指针掠过填满显示器的窗口时抢走焦点。",
+    "zh-Hant": "**焦點跟隨滑鼠排除全螢幕**：預設開啟的選項可防止游標掠過填滿顯示器的視窗時搶走焦點。"
+  },
+  "64a280c715b44a43": {
+    "en": "**Guided Setup fullscreen matches the app:** The virtual layout editor now tracks fullscreen windows as a set, supports more than one fullscreen window across the practice workspaces, and preserves that state when resuming a saved or legacy setup draft.",
+    "ko": "**가이드 설정의 전체 화면도 앱과 일치:** 가상 편집기가 전체 화면 창을 집합으로 관리해 연습 공간 여러 곳의 전체 화면 창을 지원해요. 저장된 초안이나 이전 형식 초안을 이어갈 때도 상태를 보존해요.",
+    "ja": "**ガイド付き設定の全画面動作を統一:** 仮想配置エディタが全画面ウインドウを集合として管理し、練習用ワークスペースで複数の全画面ウインドウを使えます。保存済みや旧形式の下書きを再開しても状態を保ちます。",
+    "zh-Hans": "**设置向导的全屏行为与应用一致**：虚拟布局编辑器按集合跟踪全屏窗口，支持练习工作区中的多个全屏窗口，并在恢复已保存或旧格式草稿时保留状态。",
+    "zh-Hant": "**設定導覽的全螢幕行為與 App 一致**：虛擬配置編輯器以集合追蹤全螢幕視窗，支援練習工作空間中的多個全螢幕視窗，並在還原已儲存或舊格式草稿時保留狀態。"
+  },
+  "6514812b68b4ad0b": {
+    "en": "**Distinct tiles for same-app windows:** Layouts track each window by its position among the app's windows, so multiple windows keep distinct, arrangeable spots and remember which one was fullscreen. Layout memory is also hardened: one unreadable entry no longer wipes every workspace, and older layouts migrate automatically.",
+    "ko": "**같은 앱의 창에도 각각 자리 기억:** 앱 창 목록의 위치로 각 창을 추적해 여러 창을 개별 배치하고 전체 화면이던 창도 기억해요. 읽지 못하는 레이아웃 항목 하나가 모든 공간을 초기화하지 않으며, 이전 레이아웃은 자동 변환해요.",
+    "ja": "**同じAppのウインドウにも別々の位置:** App内の順番で各ウインドウを追跡し、複数の配置と全画面だった対象を保持します。読めない配置がひとつあっても他のワークスペースを消さず、古い配置は自動移行します。",
+    "zh-Hans": "**同应用窗口保留独立位置**：布局按窗口在应用中的位置进行跟踪，使多个窗口各有可排列的位置，并记住哪个处于全屏。布局记忆也得到加固：单个不可读条目不再清空全部工作区，旧布局会自动迁移。",
+    "zh-Hant": "**同 App 視窗保留獨立位置**：配置依視窗在 App 中的位置追蹤，讓多個視窗各有可排列的位置，並記住哪個處於全螢幕。配置記憶也獲得強化：單一無法讀取的項目不再清空全部工作空間，舊配置會自動移轉。"
+  },
+  "653952fd91aafe40": {
+    "en": "**Configuration and automation:** Use skhd-style shortcut syntax, a plain-TOML config, and a scripting CLI.",
+    "ko": "**설정과 자동화:** skhd 방식 단축키 문법, 일반 TOML 설정, 스크립트용 CLI를 사용할 수 있어요.",
+    "ja": "**設定と自動化:** skhd形式のショートカット、通常のTOML設定、スクリプト用CLIを利用できます。",
+    "zh-Hans": "**配置与自动化**：支持 skhd 风格快捷键语法、纯 TOML 配置和脚本 CLI。",
+    "zh-Hant": "**設定與自動化**：支援 skhd 風格快速鍵語法、純 TOML 設定與腳本 CLI。"
+  },
+  "66914a6007c6fc56": {
+    "en": "**Shared app hotkeys:** {0} floats the focused app everywhere, joining Shared Apps as floating if needed and changing it to shared tiled when toggled off. {1} adds or removes the focused app in Shared Apps.",
+    "ko": "**공용 앱 단축키:** {0}으로 포커스 앱을 모든 공간에 띄워요. 필요하면 공용 앱에 항상 위로 추가하고, 끄면 공용 타일 앱으로 바꿔요. {1}은 공용 앱에서 추가·제거해요.",
+    "ja": "**共有Appのショートカット:** {0} はフォーカス中のAppを全領域で手前表示し、必要なら共有Appへ追加します。オフにすると共有のタイル表示へ戻ります。{1} は共有Appへの追加・削除を切り替えます。",
+    "zh-Hans": "**共享应用快捷键**：{0} 让焦点应用在所有工作区浮动，必要时以浮动状态加入共享应用，关闭时改为共享平铺。{1} 将焦点应用加入或移出共享应用。",
+    "zh-Hant": "**共用 App 快速鍵**：{0} 讓焦點 App 在所有工作空間浮動，必要時以浮動狀態加入共用 App，關閉時改為共用並排。{1} 將焦點 App 加入或移出共用 App。"
+  },
+  "67673898f4aa7724": {
+    "en": "**Single-key workspace controls:** Give a workspace a single **key equivalent** and hold it with the switch (⌃⌥), assign (⌃⌥⇧), or borrow (⌃⌥⌘) modifier to switch to it, assign the focused app to it, or borrow it. The same keys drive the recent / next / previous targets, and every action still takes an explicit shortcut override. The modifier combos are configurable.",
+    "ko": "**한 글자로 작업 공간 제어:** 작업 공간에 **대표 키**를 지정하고 전환(⌃⌥), 할당(⌃⌥⇧), 빌려오기(⌃⌥⌘) 보조 키와 함께 눌러 해당 동작을 실행해요. 같은 키 체계로 최근·다음·이전 대상도 다루며, 모든 동작에 별도 단축키를 지정할 수 있어요. 보조 키 조합도 변경할 수 있어요.",
+    "ja": "**1文字でワークスペースを操作:** **代表キー**を指定し、切り替え（⌃⌥）、割り当て（⌃⌥⇧）、借用（⌃⌥⌘）の修飾キーと押すと各操作を実行できます。最近・次・前にも同じキー体系を使い、各操作の個別ショートカットも指定できます。修飾キーの組み合わせは変更可能です。",
+    "zh-Hans": "**单键控制工作区**：为工作区指定一个**对应键**，配合切换（⌃⌥）、分配（⌃⌥⇧）或借用（⌃⌥⌘）修饰键，即可切换过去、分配焦点应用或借用。最近、下一个、上一个目标也使用同一体系，每项操作仍可单独覆盖快捷键，修饰键组合可配置。",
+    "zh-Hant": "**單鍵控制工作空間**：為工作空間指定一個**對應鍵**，搭配切換（⌃⌥）、指派（⌃⌥⇧）或借用（⌃⌥⌘）修飾鍵，即可切換過去、指派焦點 App 或借用。最近、下一個、上一個目標也使用同一套方式，每項操作仍可個別覆寫快速鍵，修飾鍵組合可設定。"
+  },
+  "69f31cdcb7be460a": {
+    "en": "**Working tiling hotkeys:** {0} / {1} / {2} now work in common layouts.",
+    "ko": "**타일링 단축키 수정:** 일반적인 레이아웃에서 {0} / {1} / {2}가 동작해요.",
+    "ja": "**タイル表示のショートカットを修正:** 一般的な配置で {0} / {1} / {2} が動作します。",
+    "zh-Hans": "**修复平铺快捷键**：{0} / {1} / {2} 现在可在常见布局中正常工作。",
+    "zh-Hant": "**修正並排快速鍵**：{0} / {1} / {2} 現在可在常見配置中正常運作。"
+  },
+  "6a4406872a628a74": {
+    "en": "**Resume the last workspace on every display:** Tatami now restores the last eligible profile, each display's workspace history, and the global workspace recency order after relaunch. A manually selected profile stays selected; a display-conditioned profile is restored only while its rule still matches, then Tatami falls back to the best profile for the connected displays.",
+    "ko": "**모든 디스플레이에서 마지막 작업 공간 복원:** 다시 실행하면 마지막으로 조건을 충족한 프로필, 디스플레이별 작업 공간 이력, 전체 최근 사용 순서를 복원해요. 직접 선택한 프로필은 유지하고, 조건부 프로필은 규칙이 여전히 맞을 때만 복원해요. 맞지 않으면 연결된 디스플레이에 가장 적절한 프로필을 선택해요.",
+    "ja": "**各画面で最後のワークスペースを再開:** 再起動後に最後の有効なプロファイル、画面ごとの履歴、全体の使用順を復元します。手動選択は維持し、条件付きプロファイルはルールが一致する場合だけ戻します。一致しなければ接続画面に最適なプロファイルを選びます。",
+    "zh-Hans": "**恢复每台显示器的上次工作区**：重新启动后恢复最近符合条件的方案、各显示器的工作区历史及全局使用顺序。手动选择的方案继续保留；按显示器条件选择的方案只在规则仍匹配时恢复，否则使用最适合当前连接显示器的方案。",
+    "zh-Hant": "**還原各顯示器的上次工作空間**：重新啟動後還原最近符合條件的組合、各顯示器的工作空間歷程與全域使用順序。手動選擇的組合繼續保留；依顯示器條件選擇的組合只在規則仍符合時還原，否則使用最適合目前連接顯示器的組合。"
+  },
+  "6a5257899ff2fd62": {
+    "en": "**First-window tiling for slow-launching apps:** Heavy apps (e.g. Electron) whose accessibility layer comes up late now have their first window picked up and tiled instead of missed.",
+    "ko": "**늦게 실행되는 앱의 첫 창 배치:** Electron 같은 무거운 앱의 손쉬운 사용 준비가 늦어도 첫 창을 놓치지 않고 찾아 배치해요.",
+    "ja": "**起動の遅いAppの最初のウインドウを配置:** Electronなどでアクセシビリティの準備が遅れても、最初のウインドウを見逃さずタイル表示します。",
+    "zh-Hans": "**平铺慢启动应用的首个窗口**：Electron 等大型应用的辅助功能层较晚就绪时，也能发现并平铺第一个窗口，不再漏掉。",
+    "zh-Hant": "**並排慢啟動 App 的首個視窗**：Electron 等大型 App 的輔助使用層較晚就緒時，也能找到並排第一個視窗，不再遺漏。"
+  },
+  "6a890150a09cd449": {
+    "en": "**Most-recently-used window restoration:** Switching back to an app with several windows using {0} now lands on its most recently focused one instead of an arbitrary window.",
+    "ko": "**최근 창 복원:** 창이 여러 개인 앱으로 {0}을 통해 돌아오면 임의의 창 대신 최근 포커스한 창을 열어요.",
+    "ja": "**最近のウインドウを復元:** 複数のウインドウを持つAppへ {0} で戻ると、任意のものではなく最後にフォーカスしたウインドウへ移ります。",
+    "zh-Hans": "**恢复最近使用的窗口**：通过 {0} 返回拥有多个窗口的应用时，会定位到最近聚焦的窗口，而不是随机窗口。",
+    "zh-Hant": "**還原最近使用的視窗**：透過 {0} 返回擁有多個視窗的 App 時，會定位到最近聚焦的視窗，而非任意視窗。"
+  },
+  "6b02e0d363a4af1c": {
+    "en": "Added",
+    "ko": "추가 사항",
+    "ja": "追加",
+    "zh-Hans": "新增",
+    "zh-Hant": "新增"
+  },
+  "6c890510b26462db": {
+    "en": "**Most-recently-used focus after window closure:** When the focused window closed, focus could jump to the first tile instead of the window you were last on, most noticeably right after creating a second window and quickly toggling another app's tiling on and off. Refocus-on-close now follows per-workspace most-recently-used order, falling back through it to the next on-screen window.",
+    "ko": "**창을 닫은 뒤 최근 순서로 포커스:** 포커스한 창을 닫으면 최근 창 대신 첫 타일로 이동할 수 있었어요. 두 번째 창을 만든 직후 다른 앱의 타일링을 빠르게 켰다 끌 때 특히 두드러졌어요. 이제 작업 공간의 최근 사용 순서를 따라 화면에 남은 다음 창을 선택해요.",
+    "ja": "**閉じた後も最近の順でフォーカス:** フォーカス中のウインドウを閉じると、直前の対象ではなく先頭のタイルへ移る場合がありました。2つ目の作成直後に別のAppのタイル表示を素早く切り替えると顕著でした。ワークスペースごとの使用順をたどり、次に画面上にあるウインドウを選びます。",
+    "zh-Hans": "**关闭窗口后按最近使用顺序聚焦**：关闭焦点窗口后可能跳到第一个平铺窗口，而非最近使用的窗口，尤其是在新建第二个窗口后快速切换其他应用的平铺状态时。现在按各工作区的最近使用顺序查找下一个仍在屏幕上的窗口。",
+    "zh-Hant": "**關閉視窗後依最近使用順序聚焦**：關閉焦點視窗後可能跳到第一個並排視窗，而非最近使用的視窗，尤其是在新建第二個視窗後快速切換其他 App 的並排狀態時。現在依各工作空間的最近使用順序尋找下一個仍在螢幕上的視窗。"
+  },
+  "6d1669a0521aff3a": {
+    "en": "**Interactive Guided Setup:** First launch now builds a draft from this Mac's running-app metadata and connected displays, then teaches Workspaces, switching and gestures, BSP tiling, Borrow and scratchpads, Float / Ignore, MFF / FFM, and app / window cycling in order. Every lesson runs in a safe virtual display, earlier shortcuts keep working in later lessons, and nothing touches real windows or {0} until **Apply Setup**. Run it again at any time from **Settings → General**.",
+    "ko": "**직접 연습하는 가이드 설정:** 첫 실행 때 이 Mac의 실행 앱 정보와 연결된 디스플레이로 초안을 만들어요. 작업 공간, 전환·제스처, BSP 타일링, 빌려오기·임시 공간, 항상 위·그대로 두기, MFF·FFM, 앱·창 전환을 차례로 배워요. 모든 연습은 안전한 가상 화면에서 진행하며 앞서 배운 단축키도 계속 써요. **설정 적용** 전에는 실제 창이나 {0}을 바꾸지 않아요. **설정 → 일반**에서 언제든 다시 시작할 수 있어요.",
+    "ja": "**実際に試せるガイド付き設定:** 初回起動で、このMacの実行中Appと接続画面から下書きを作成します。ワークスペース、切り替えとジェスチャー、BSP、借用と一時領域、手前表示とそのまま、MFF・FFM、App・ウインドウ切り替えを順に学べます。安全な仮想画面で練習し、前に覚えたキーも引き続き使えます。**設定を適用**するまで実際のウインドウや {0} は変更しません。**設定 → 一般**から再実行できます。",
+    "zh-Hans": "**交互式设置向导**：首次启动从本机运行应用的元数据和连接显示器生成草稿，依次教授工作区、切换与手势、BSP 平铺、借用与暂存区、浮动与忽略、MFF 与 FFM、应用与窗口切换。练习都在安全的虚拟显示器内进行，早先学到的快捷键在后续课程中仍有效。点击**应用设置**前不会修改真实窗口或 {0}，可随时从**设置 → 通用**重新开始。",
+    "zh-Hant": "**互動式設定導覽**：首次啟動從本機執行 App 的中繼資料與連接的顯示器產生草稿，依序教導工作空間、切換與手勢、BSP 並排、借用與暫存區、浮動與忽略、MFF 與 FFM、App 與視窗切換。練習都在安全的虛擬顯示器內進行，先前學到的快速鍵在後續課程中仍有效。按下**套用設定**前不會修改實際視窗或 {0}，可隨時從**設定 → 一般**重新開始。"
+  },
+  "6e228ef280d12a72": {
+    "en": "**Trackpad gesture stability:** A fast multi-finger swipe no longer crashes the app.",
+    "ko": "**트랙패드 제스처 안정화:** 여러 손가락으로 빠르게 스와이프해도 앱이 종료되지 않아요.",
+    "ja": "**トラックパッドジェスチャーを安定化:** 複数の指で素早くスワイプしてもAppがクラッシュしなくなりました。",
+    "zh-Hans": "**稳定触控板手势**：快速多指滑动不再导致应用崩溃。",
+    "zh-Hant": "**穩定觸控板手勢**：快速多指滑動不再造成 App 當機。"
+  },
+  "6e239d49858bf543": {
+    "en": "**Restore workspace sets across displays:** Create an ordered workspace chain in Profile Settings, then switch to any member to restore the companions that fit the current display setup. The workspace you chose keeps focus, connected pinned members claim their displays, Chain Dynamic members use the next free displays in priority order, and Tatami's existing fallback fills anything still empty. Sidebar indicators show each relationship, while every affected display receives its own result HUD.",
+    "ko": "**디스플레이 전체의 작업 공간 묶음 복원:** 프로필 설정에서 순서 있는 체인을 만들고 멤버 하나를 전환하면 현재 화면 구성에 맞는 나머지도 복원해요. 선택한 공간은 포커스를 유지하고, 연결된 고정 멤버는 지정 화면을 차지해요. 체인 동적 멤버는 우선순위대로 다음 빈 화면을 사용하고 남은 화면은 기존 규칙으로 채워요. 사이드바에 관계를 표시하며 변경된 각 디스플레이에 결과를 알려줘요.",
+    "ja": "**画面をまたぐワークスペース群を復元:** プロファイル設定で順序付きチェーンを作り、いずれかへ切り替えると現在の画面構成に合う仲間も復元します。選んだ領域がフォーカスを保ち、接続済みの固定メンバーが指定画面を使います。動的メンバーは優先順に次の空き画面を使い、残りは既存ルールで補います。サイドバーに関係を示し、変更した各画面に結果を表示します。",
+    "zh-Hans": "**跨显示器恢复工作区集合**：在方案设置中创建有序工作区链，切换任一成员即可恢复适合当前显示器布局的其他成员。所选工作区保留焦点，已连接的固定成员占用各自显示器，链中的动态成员按优先顺序使用下一块空闲屏幕，其余空位按现有规则填充。侧边栏显示关系，每台受影响显示器各自显示结果反馈。",
+    "zh-Hant": "**跨顯示器還原工作空間集合**：在組合設定中建立有序工作空間鏈，切換任一成員即可還原適合目前顯示器配置的其他成員。所選工作空間保留焦點，已連接的固定成員使用各自顯示器，鏈中的動態成員依優先順序使用下一塊空閒螢幕，其餘空位依現有規則填滿。側邊欄顯示關係，每台受影響的顯示器各自顯示結果回饋。"
+  },
+  "6eecfaea9e7efa38": {
+    "en": "**Workspace reordering and destructive-action confirmation:** Reorder workspaces by dragging them in the sidebar. Deleting a workspace or removing an app now prompts for confirmation.",
+    "ko": "**작업 공간 순서 변경·삭제 확인:** 사이드바에서 드래그해 순서를 바꿀 수 있어요. 작업 공간을 삭제하거나 앱을 제거하기 전에 확인해요.",
+    "ja": "**並べ替えと削除確認:** サイドバーでドラッグしてワークスペースを並べ替えられます。ワークスペースの削除やAppの取り除きには確認画面を表示します。",
+    "zh-Hans": "**工作区排序与删除确认**：可在侧边栏拖动工作区来排序。删除工作区或移除应用时会请求确认。",
+    "zh-Hant": "**工作空間排序與刪除確認**：可在側邊欄拖移工作空間來排序。刪除工作空間或移除 App 時會要求確認。"
+  },
+  "2d2d2ddb5ab00e9b": {
+    "en": "**Multi-process app window discovery:** Apps that run one process per window under a shared bundle id (e.g. **Neovide**) now tile. Window discovery scans every process, not just the first.",
+    "ko": "**여러 프로세스의 창 검색:** **Neovide**처럼 같은 번들 ID로 창마다 프로세스를 실행하는 앱도 타일링해요. 첫 프로세스뿐 아니라 모든 프로세스에서 창을 찾아요.",
+    "ja": "**複数プロセスのウインドウ検出:** **Neovide**のように共通のバンドルIDでウインドウごとにプロセスを起動するAppもタイル表示できます。最初だけでなく、すべてのプロセスを調べます。",
+    "zh-Hans": "**发现多进程应用窗口**：现在支持平铺 **Neovide** 等使用同一 bundle ID、每个窗口运行一个进程的应用。窗口发现会扫描所有进程，而不只扫描第一个。",
+    "zh-Hant": "**探索多程序 App 視窗**：現在支援並排 **Neovide** 等使用同一 bundle ID、每個視窗執行一個程序的 App。視窗探索會掃描所有程序，而非只有第一個。"
+  },
+  "2df60c704590cc63": {
+    "en": "**Sparkle release notes:** the in-app update dialog links to each release's notes page starting with this version.",
+    "ko": "**Sparkle 릴리즈 노트:** 이 버전부터 앱의 업데이트 창에서 각 릴리즈의 안내 페이지를 열 수 있어요.",
+    "ja": "**Sparkleのリリースノート:** このバージョンから、App内の更新画面に各リリースの案内ページへのリンクが表示されます。",
+    "zh-Hans": "**Sparkle 发行说明**：从此版本起，应用内更新对话框会链接到各版本的发行说明页面。",
+    "zh-Hant": "**Sparkle 版本說明**：從此版本起，App 內的更新對話框會連結到各版本的說明頁面。"
+  },
+  "30b2ef9343593433": {
+    "en": "**Timely floating-mirror capture shutdown:** Several races left ScreenCaptureKit streams (and the screen-recording indicator) running longer than intended. Capture now starts and stops in a strict order.",
+    "ko": "**미러 캡처를 제때 종료:** 여러 경합으로 ScreenCaptureKit 스트림과 화면 기록 표시가 의도보다 오래 유지되던 문제를 수정했어요. 이제 캡처 시작·종료 순서를 엄격하게 지켜요.",
+    "ja": "**ミラーキャプチャを適切に終了:** 競合によってScreenCaptureKitのストリームと画面収録の表示が長く残る問題を修正しました。開始と終了の順序を厳密に保ちます。",
+    "zh-Hans": "**及时停止浮动镜像采集**：修复多种竞争条件导致 ScreenCaptureKit 流和录屏指示器保留过久的问题。采集现在按严格顺序启动和停止。",
+    "zh-Hant": "**及時停止浮動鏡像擷取**：修正多種競爭條件造成 ScreenCaptureKit 串流與螢幕錄製指示器保留過久的問題。擷取現在依嚴格順序啟動及停止。"
+  },
+  "30c1f1dbfcb7b9c5": {
+    "en": "**Automate Tatami with a domain-based CLI:** The bundled {0} command now groups actions under profile, workspace, window, display, layout, and app subcommands, with hook inspection alongside them. Select profiles and workspaces by name or UUID, target inactive profiles where supported, and request stable JSON for scripts. The CLI exposes all 38 executable actions available to trackpad gestures. Gesture-equivalent commands other than profile and workspace activation reuse the same dispatcher as hotkeys and gestures. Activation commands wait for their activation pipeline to finish before returning. The original flat commands remain available as compatibility aliases.",
+    "ko": "**분야별 CLI로 Tatami 자동화:** 번들 {0} 명령은 프로필·작업 공간·창·디스플레이·레이아웃·앱 하위 명령과 훅 조회로 구성돼요. 이름이나 UUID로 선택하고, 지원하는 명령에서는 비활성 프로필도 대상으로 삼으며, 스크립트용 고정 JSON 형식을 받을 수 있어요. 트랙패드 제스처의 실행 동작 38개를 모두 제공해요. 프로필·작업 공간 활성화 외의 제스처 대응 명령은 단축키·제스처와 같은 디스패처를 사용해요. 활성화 명령은 처리가 끝난 뒤 반환하고, 기존 단일 명령도 호환 별칭으로 유지해요.",
+    "ja": "**分野別CLIでTatamiを自動化:** 同梱の {0} は、プロファイル、ワークスペース、ウインドウ、ディスプレイ、配置、Appのサブコマンドとフック確認を提供します。名前やUUIDで選択でき、対応する操作では非アクティブなプロファイルも指定できます。スクリプト向けの安定したJSON形式に対応し、トラックパッドの全38操作を利用できます。プロファイルとワークスペースの有効化以外は、キーやジェスチャーと共通の処理を使います。有効化は完了を待って戻り、旧コマンドも互換エイリアスとして残ります。",
+    "zh-Hans": "**按领域组织的 CLI 自动化**：内置 {0} 命令将操作分为配置方案、工作区、窗口、显示器、布局和应用子命令，并提供钩子查询。可按名称或 UUID 选择对象，在支持的操作中指定未激活方案，并请求稳定的 JSON 输出。CLI 提供触控板手势的全部 38 项可执行操作。除方案和工作区激活外，对应手势的命令与快捷键、手势共用分发器。激活命令等处理流程完成后才返回，原有平级命令仍作为兼容别名保留。",
+    "zh-Hant": "**依領域組織的 CLI 自動化**：內建 {0} 指令將操作分為設定組合、工作空間、視窗、顯示器、配置和 App 子指令，並提供掛鉤查詢。可依名稱或 UUID 選擇對象，在支援的操作中指定未啟用組合，並要求穩定的 JSON 輸出。CLI 提供觸控板手勢的全部 38 項可執行操作。除組合與工作空間啟用外，對應手勢的指令與快速鍵、手勢共用分派器。啟用指令等處理流程完成後才返回，原有平級指令仍保留為相容別名。"
+  },
+  "32d420e391f63315": {
+    "en": "**System Settings-style sidebar:** A System Settings-style sidebar (General, Tiling, Focus & Mouse, Workspaces, Shortcuts, Appearance) now includes a Screen Recording row under Permissions.",
+    "ko": "**시스템 설정 방식의 사이드바:** 일반·타일링·포커스와 마우스·작업 공간·단축키·모양으로 나누고, 권한에 화면 기록 항목을 추가했어요.",
+    "ja": "**システム設定風のサイドバー:** 一般、タイル表示、フォーカスとマウス、ワークスペース、ショートカット、外観に分類し、権限に画面収録の項目を追加しました。",
+    "zh-Hans": "**系统设置风格侧边栏**：侧边栏分为通用、平铺、焦点与鼠标、工作区、快捷键和外观，并在权限中加入屏幕录制项目。",
+    "zh-Hant": "**系統設定風格側邊欄**：側邊欄分為一般、並排、焦點與滑鼠、工作空間、快速鍵和外觀，並在權限中加入螢幕錄製項目。"
+  },
+  "33a6ac06c8964b88": {
+    "en": "**Review profile and workspace duplication before applying it:** Profile and workspace context menus now support Rename, and both kinds of Duplicate use the same selectable preview as Copy from. Choose individual workspaces, apps, settings, and saved layouts. Profile duplicates start without a switch shortcut or auto-activation rule, while same-profile workspace duplicates start without shortcut identities that would immediately conflict.",
+    "ko": "**적용 전에 복제 내용 검토:** 프로필·작업 공간 메뉴에서 이름을 바꿀 수 있고, 복제할 때도 가져오기와 같은 선택형 미리보기를 사용해요. 작업 공간·앱·설정·저장된 레이아웃을 개별 선택할 수 있어요. 프로필 복제본에는 전환 단축키와 자동 활성화 규칙을, 같은 프로필의 작업 공간 복제본에는 즉시 충돌할 단축키를 넣지 않아요.",
+    "ja": "**複製前に内容を確認:** プロファイルとワークスペースのメニューで名前を変更でき、複製にも「コピー元」と同じ選択式プレビューを使います。ワークスペース、App、設定、保存済み配置を個別に選べます。複製したプロファイルには切り替えキーと自動有効化ルールを含めず、同じプロファイル内の複製ワークスペースでは即座に競合するキーを除きます。",
+    "zh-Hans": "**应用前预览复制内容**：配置方案和工作区的上下文菜单支持重命名，两种复制操作都使用与“复制自”相同的可选预览。可单独选择工作区、应用、设置和已保存布局。复制的方案不带切换快捷键或自动激活规则；同一方案内复制的工作区不带会立即冲突的快捷键标识。",
+    "zh-Hant": "**套用前預覽複製內容**：設定組合與工作空間的快捷選單支援重新命名，兩種複製操作都使用與「複製自」相同的可選預覽。可個別選擇工作空間、App、設定與已儲存配置。複製的組合不含切換快速鍵或自動啟用規則；同一組合內複製的工作空間不含會立即衝突的快速鍵識別。"
+  },
+  "3442b17abab9454e": {
+    "en": "**Borrow-aware focus and cycling:** Host and borrowed tiled windows form one visible cycling context until the borrow is dismissed. App-level cycling recalls each app's most-recent window, window-level cycling preserves same-app windows, and focus plus MFF can cross the host / Borrow boundary.",
+    "ko": "**빌려오기를 고려한 포커스·전환:** 빌려오기를 해제할 때까지 원래 공간과 빌려온 공간의 타일 창을 하나의 전환 대상으로 다뤄요. 앱 단위는 최근 창을 복원하고, 창 단위는 같은 앱의 창을 구분해요. 포커스와 포인터 이동도 두 공간을 넘나들어요.",
+    "ja": "**借用を考慮したフォーカスと切り替え:** 借用を解除するまで、元の領域と借りた領域のタイルをひとつの切り替え対象として扱います。App単位では最近のウインドウを復元し、ウインドウ単位では同じAppの各ウインドウを保持します。フォーカスとポインタ追従も領域をまたげます。",
+    "zh-Hans": "**支持借用区域的焦点与切换**：借用结束前，主区域与借用区域的平铺窗口组成同一个可见切换范围。按应用切换恢复各应用最近的窗口，按窗口切换保留同应用的独立窗口，焦点与鼠标跟随焦点都能跨越两区边界。",
+    "zh-Hant": "**支援借用區域的焦點與切換**：借用結束前，主區域與借用區域的並排視窗組成同一個可見切換範圍。依 App 切換還原各 App 最近的視窗，依視窗切換保留同 App 的獨立視窗，焦點與滑鼠跟隨焦點都能跨越兩區邊界。"
+  },
+  "36a8db2d9950d31a": {
+    "en": "**Internal architecture cleanup:** Settings now use Perception's observation, dependency clients adopt {0}, and an unused {1} setting was removed.",
+    "ko": "**내부 구조 정리:** 설정은 Perception 관찰을 사용하고, 의존성 클라이언트는 {0}를 적용했어요. 사용하지 않던 {1} 설정도 제거했어요.",
+    "ja": "**内部構造を整理:** 設定にPerceptionの監視を採用し、依存クライアントを {0} に移行しました。未使用の {1} 設定も削除しました。",
+    "zh-Hans": "**清理内部架构**：设置改用 Perception 观察机制，依赖客户端采用 {0}，并移除未使用的 {1} 设置。",
+    "zh-Hant": "**整理內部架構**：設定改用 Perception 觀察機制，相依用戶端採用 {0}，並移除未使用的 {1} 設定。"
+  },
+  "36b697014bacacd9": {
+    "en": "**Corrupt-config protection:** A broken top-level section in {0} (profiles, shared apps, settings) now keeps your previous config instead of resetting it (which the next write would have made permanent, taking your workspaces with it), and an unparsable settings field is surfaced instead of silently ignored.",
+    "ko": "**손상된 설정 보호:** {0}의 최상위 프로필·공용 앱·설정 섹션이 손상돼도 초기화하지 않고 이전 설정을 유지해요. 초기화한 값이 다음 저장으로 굳어져 작업 공간까지 사라지던 문제를 막았어요. 해석할 수 없는 설정 필드도 조용히 무시하지 않고 알려줘요.",
+    "ja": "**壊れた設定を保護:** {0} のプロファイル、共有App、設定の最上位項目が壊れても、初期化せず以前の設定を保持します。初期化された内容が次回保存され、ワークスペースまで失われる問題を防ぎます。読み取れない設定項目も黙って無視せず通知します。",
+    "zh-Hans": "**保护损坏的配置**：{0} 的顶层配置方案、共享应用或设置节损坏时，会保留原配置而不是重置，避免下一次写入永久保存重置结果并丢失工作区。无法解析的设置字段也会明确报告，不再静默忽略。",
+    "zh-Hant": "**保護損壞的設定**：{0} 的頂層設定組合、共用 App 或設定區段損壞時，會保留原設定而非重設，避免下一次寫入永久儲存重設結果並遺失工作空間。無法解析的設定欄位也會明確回報，不再默默忽略。"
+  },
+  "37703e71dbefddd0": {
+    "en": "**Recent workspace spans displays by default:** New installs treat \"the workspace I was just in\" as one idea across the whole desk rather than one per monitor. Existing configurations keep whatever they already had.",
+    "ko": "**최근 작업 공간을 디스플레이 전체에서 기억:** 새 설치에서는 최근에 머문 작업 공간을 모니터별이 아닌 전체 데스크톱 기준으로 다뤄요. 기존 설정은 유지해요.",
+    "ja": "**最近のワークスペースを画面全体で共有:** 新規インストールでは、直前のワークスペースを画面ごとではなくデスクトップ全体で扱います。既存の設定は変更しません。",
+    "zh-Hans": "**默认跨显示器记忆最近工作区**：新安装将“刚才所在的工作区”视为整个桌面的统一记录，而非每台显示器各自记录。现有配置保持不变。",
+    "zh-Hant": "**預設跨顯示器記住最近工作空間**：新安裝將「剛才所在的工作空間」視為整個桌面的統一記錄，而非每台顯示器各自記錄。現有設定維持不變。"
+  },
+  "38bf13ac056de749": {
+    "en": "**Friendlier new-install defaults:** A brand-new config is seeded with a recommended set of shortcuts, and *follow app focus* (activating an app switches to the workspace that owns it) is on by default. Existing configs are left as-is.",
+    "ko": "**새 설치 기본값 개선:** 새 설정에는 추천 단축키를 넣고, 앱을 활성화하면 해당 작업 공간으로 전환하는 *앱 포커스 따라가기*를 기본으로 켜요. 기존 설정은 그대로 둬요.",
+    "ja": "**新規インストールの初期設定を改善:** 新しい設定には推奨ショートカットを追加し、Appの有効化時に所属ワークスペースへ移る*Appフォーカス追従*を既定でオンにします。既存設定はそのままです。",
+    "zh-Hans": "**更友好的初始默认值**：全新配置会包含推荐快捷键，并默认开启*跟随应用焦点*，激活应用时切换到它所属的工作区。已有配置不变。",
+    "zh-Hant": "**更友善的初始預設值**：全新設定會包含建議快速鍵，並預設開啟*跟隨 App 焦點*，啟用 App 時切換到所屬工作空間。既有設定不變。"
+  },
+  "3b41ab3e2e128ec3": {
+    "en": "**Persistent layouts:** The per-workspace \"session only\" tiling-memory option has been removed. Every workspace now keeps its layout across restarts. Existing configs that set it still load, but the setting is ignored and no longer appears in Settings or the config schema.",
+    "ko": "**레이아웃을 계속 기억:** 작업 공간별 ‘현재 세션만’ 옵션을 제거했어요. 모든 작업 공간의 레이아웃을 다시 실행해도 유지해요. 기존 설정은 읽을 수 있지만 이 옵션은 무시하며 설정 화면과 설정 스키마에서도 제거했어요.",
+    "ja": "**配置を永続保存:** ワークスペースごとの「このセッションのみ」を廃止し、すべての配置を再起動後も保持します。古い設定は読み込めますが、この項目は無視され、設定画面とスキーマには表示されません。",
+    "zh-Hans": "**持久保存布局**：移除每个工作区的“仅限当前会话”布局记忆选项。所有工作区的布局都会在重启后保留。旧配置仍可读取，但该设置会被忽略，并从设置界面和配置架构中移除。",
+    "zh-Hant": "**持續儲存配置**：移除各工作空間的「僅限目前階段」配置記憶選項。所有工作空間的配置都會在重新啟動後保留。舊設定仍可讀取，但此設定會被忽略，並從設定介面及結構定義中移除。"
+  },
+  "3dce00b691a0a615": {
+    "en": "The first stable release. Here's what changed since v0.1.3.",
+    "ko": "첫 안정 버전이에요. v0.1.3 이후 변경 사항을 정리했어요.",
+    "ja": "初の安定版です。v0.1.3以降の変更点をまとめました。",
+    "zh-Hans": "这是首个稳定版本。以下是自 v0.1.3 以来的变化。",
+    "zh-Hant": "這是首個穩定版本。以下是自 v0.1.3 以來的變更。"
+  },
+  "3e51689bcfa5c215": {
+    "en": "**Cursor-display workspace HUD:** The workspace HUD now shows on the display your cursor is on. It used to follow the key window, which after a switch could be a different monitor than the one you were looking at.",
+    "ko": "**포인터 디스플레이에 작업 공간 알림 표시:** 포인터가 있는 디스플레이에 화면 알림을 보여줘요. 이전에는 키 윈도우를 따라가서 전환 후 보고 있던 모니터와 다른 곳에 나타날 수 있었어요.",
+    "ja": "**ポインタの画面に切り替えを表示:** ワークスペースの操作フィードバックをポインタのあるディスプレイへ表示します。以前はキーウインドウを追っていたため、切り替え後に別の画面へ出ることがありました。",
+    "zh-Hans": "**在指针显示器上显示工作区反馈**：反馈现在出现在指针所在显示器。过去跟随键窗口，切换后可能显示在另一台并非正在注视的显示器上。",
+    "zh-Hant": "**在游標顯示器上顯示工作空間回饋**：回饋現在出現在游標所在顯示器。過去跟隨鍵視窗，切換後可能顯示在另一台並非正在注視的顯示器上。"
+  },
+  "46feb097ebead15a": {
+    "en": "**Multi-window zoom and layout memory:** Multi-window zoom is supported alongside per-workspace **layout memory** ({0} / {1}).",
+    "ko": "**여러 창 확대와 레이아웃 기억:** 여러 창을 확대하면서 작업 공간별 **레이아웃 기억**({0} / {1})도 사용할 수 있어요.",
+    "ja": "**複数ウインドウの拡大と配置記憶:** 複数ウインドウの拡大と、ワークスペースごとの**配置記憶**（{0} / {1}）を併用できます。",
+    "zh-Hans": "**多窗口缩放与布局记忆**：支持多窗口缩放，并可结合各工作区的**布局记忆**（{0} / {1}）。",
+    "zh-Hant": "**多視窗縮放與配置記憶**：支援多視窗縮放，並可搭配各工作空間的**配置記憶**（{0} / {1}）。"
+  },
+  "47e01fa5b9e35460": {
+    "en": "**Distinct fullscreen-zoom restoration:** Persistent layouts restore each fullscreen-zoomed window of the *same* app to a distinct window instead of collapsing them onto one.",
+    "ko": "**확대 창을 각각 복원:** *같은* 앱에서 전체 화면으로 확대한 여러 창을 저장했다가 복원할 때 하나로 합치지 않고 각각 다른 창에 적용해요.",
+    "ja": "**拡大ウインドウを個別に復元:** *同じ*Appで全画面拡大した複数のウインドウを保存・復元するとき、ひとつにまとめず別々のウインドウへ戻します。",
+    "zh-Hans": "**分别恢复全屏缩放窗口**：持久布局恢复*同一*应用的多个全屏缩放窗口时，会映射到不同窗口，不再合并到一个窗口上。",
+    "zh-Hant": "**分別還原全螢幕縮放視窗**：持續儲存的配置還原*同一* App 的多個全螢幕縮放視窗時，會對應到不同視窗，不再合併到同一個視窗上。"
+  },
+  "48e9f45604c78ba2": {
+    "en": "**Workspace-filling zoom and split controls:** Zoom a window to fill the workspace and toggle split orientation.",
+    "ko": "**작업 공간 확대와 분할 제어:** 창을 작업 공간 전체로 확대하고 분할 방향을 바꿀 수 있어요.",
+    "ja": "**ワークスペースいっぱいに拡大:** ウインドウをワークスペース全体へ拡大し、分割方向を切り替えられます。",
+    "zh-Hans": "**填满工作区与分割控制**：可将窗口缩放至填满工作区，并切换分割方向。",
+    "zh-Hant": "**填滿工作空間與分割控制**：可將視窗縮放至填滿工作空間，並切換分割方向。"
+  },
+  "48f226d5343726b1": {
+    "en": "**Display-reconfiguration coalescing:** A burst of identical screen-parameter notifications from the OS is now coalesced, so Tatami no longer spins re-evaluating an unchanged display setup.",
+    "ko": "**디스플레이 변경 알림 묶기:** 운영체제가 같은 화면 설정 알림을 연속으로 보내도 묶어서 처리해요. 바뀌지 않은 구성을 반복해서 평가하지 않아요.",
+    "ja": "**画面構成通知をまとめて処理:** OSから同じ画面設定の通知が連続して届いてもまとめて扱い、変わっていない構成を繰り返し評価しません。",
+    "zh-Hans": "**合并显示器重配通知**：操作系统连续发送相同屏幕参数通知时会合并处理，不再反复评估未变化的显示器配置。",
+    "zh-Hant": "**合併顯示器重設通知**：作業系統連續傳送相同螢幕參數通知時會合併處理，不再反覆評估未變更的顯示器設定。"
+  },
+  "490f225d9e4cd155": {
+    "en": "Removed / config change",
+    "ko": "제거·설정 변경",
+    "ja": "削除・設定変更",
+    "zh-Hans": "移除与配置变更",
+    "zh-Hant": "移除與設定變更"
+  },
+  "4917295f7146dab9": {
+    "en": "**Troubleshoot app-specific floating behavior:** The new guide explains when to register an app with a floating control, why browser Picture-in-Picture stays out of tiling automatically, and when keeping it visible across workspace switches still requires registration.",
+    "ko": "**앱별 항상 위 동작 문제 해결:** 새 안내에서 플로팅 컨트롤 앱을 언제 등록해야 하는지, 브라우저 화면 속 화면이 왜 타일링에서 자동 제외되는지, 작업 공간을 바꿔도 유지하려면 언제 등록이 필요한지 설명해요.",
+    "ja": "**Appごとの手前表示をトラブルシュート:** 新しいガイドで、フローティング操作部のあるAppを登録する場面、ブラウザのピクチャインピクチャが自動でタイル対象外になる理由、切り替え後も表示するために登録が必要な条件を説明します。",
+    "zh-Hans": "**排查应用浮动行为**：新指南说明何时需要登记带浮动控件的应用、浏览器画中画为何会自动排除在平铺之外，以及何时仍需登记才能让它跨工作区保持可见。",
+    "zh-Hant": "**排查 App 浮動行為**：新指南說明何時需要登錄帶浮動控制項的 App、瀏覽器子母畫面為何會自動排除於並排之外，以及何時仍需登錄才能讓它跨工作空間保持可見。"
+  },
+  "4a34a3baa4079895": {
+    "en": "**Flexible workspace cycling:** Use loop-around, skip-empty, and follow-app-focus options.",
+    "ko": "**유연한 작업 공간 전환:** 끝에서 처음으로 돌아가기, 빈 공간 건너뛰기, 앱 포커스 따라가기 옵션을 제공해요.",
+    "ja": "**柔軟なワークスペース切り替え:** 端から先頭へ戻る、空の領域を飛ばす、Appフォーカスに追従する設定を使えます。",
+    "zh-Hans": "**灵活切换工作区**：支持循环、跳过空工作区和跟随应用焦点选项。",
+    "zh-Hant": "**彈性切換工作空間**：支援循環、略過空工作空間和跟隨 App 焦點選項。"
+  },
+  "4bafc718727f28d8": {
+    "en": "**Dynamic workspaces follow the mouse again:** A workspace set to Dynamic (follows mouse) stopped moving once it had been shown anywhere, so it stayed on whichever monitor it last landed on. Activating one now brings it to the display under the pointer, while a workspace already on the pointer's display still keeps a live Borrow composition intact.",
+    "ko": "**동적 작업 공간이 다시 포인터를 따라가요:** 한 번 표시한 뒤 마지막 모니터에 고정되던 문제를 수정했어요. 동적 작업 공간을 활성화하면 포인터가 있는 디스플레이로 가져와요. 이미 그 디스플레이에 있다면 진행 중인 빌려오기 구성을 유지해요.",
+    "ja": "**動的ワークスペースが再びポインタに追従:** 一度表示すると最後の画面に固定される問題を修正しました。有効化するとポインタのあるディスプレイへ移動し、すでにそこにある場合は現在の借用構成を保ちます。",
+    "zh-Hans": "**动态工作区重新跟随鼠标**：修复动态工作区显示过一次后就停在最后一台显示器的问题。激活时会移到指针所在显示器；若本就在该显示器，则保留正在使用的借用组合。",
+    "zh-Hant": "**動態工作空間重新跟隨滑鼠**：修正動態工作空間顯示過一次後就停在最後一台顯示器的問題。啟用時會移到游標所在顯示器；若本就在該顯示器，則保留正在使用的借用組合。"
+  },
+  "4cd83889dab56c68": {
+    "en": "**Shortcut parsing and horizontal resizing fixes:** Shortcut strings now parse {0} (minus), and horizontal splits resize correctly.",
+    "ko": "**단축키 해석·가로 크기 조절 수정:** 단축키 문자열에서 {0}(빼기)를 읽고, 가로 분할의 크기를 올바르게 조절해요.",
+    "ja": "**キー解析と横方向のサイズ変更を修正:** ショートカット文字列の {0}（マイナス）を認識し、横方向の分割サイズを正しく変更します。",
+    "zh-Hans": "**修复快捷键解析与水平调整**：快捷键字符串现在可解析 {0}（减号），水平分割也能正确调整尺寸。",
+    "zh-Hant": "**修正快速鍵解析與水平調整**：快速鍵字串現在可解析 {0}（減號），水平分割也能正確調整尺寸。"
+  },
+  "4e0cbe7a3f569955": {
+    "en": "**Complete Display picker:** The workspace **Display picker** now lists every connected display when switching between workspaces.",
+    "ko": "**디스플레이 선택기 완성:** 작업 공간을 바꿀 때 **디스플레이 선택기**에 연결된 모든 디스플레이를 보여줘요.",
+    "ja": "**ディスプレイ選択を改善:** ワークスペースを切り替える際、**ディスプレイ選択**に接続中のすべての画面を表示します。",
+    "zh-Hans": "**完整的显示器选择器**：切换工作区时，**显示器选择器**会列出所有已连接显示器。",
+    "zh-Hant": "**完整的顯示器選擇器**：切換工作空間時，**顯示器選擇器**會列出所有已連接顯示器。"
+  },
+  "50671ba537aa4a89": {
+    "en": "**Removal of the Input Monitoring requirement:** Tatami no longer asks for Input Monitoring. Its event taps are now gated by the Accessibility permission alone, so the \"would like to receive keystrokes from any application\" dialog is gone, and a previously denied Input Monitoring entry no longer breaks focus-follows-mouse and swipe gestures. If Tatami still appears under Privacy & Security → Input Monitoring from an older version, you can remove the entry with \"−\".",
+    "ko": "**입력 모니터링 권한 요구 제거:** 이벤트 탭은 손쉬운 사용 권한만 사용해요. 모든 앱의 키 입력을 수신한다는 대화상자가 더는 뜨지 않고, 예전에 거절한 입력 모니터링 권한 때문에 마우스 포커스나 스와이프가 멈추지 않아요. 이전 버전의 Tatami 항목이 개인정보 보호 및 보안 → 입력 모니터링에 남아 있다면 ‘−’로 제거할 수 있어요.",
+    "ja": "**入力監視の権限を不要に:** イベントタップはアクセシビリティ権限だけを使います。「すべてのアプリケーションからキー入力を受信」の画面は表示されず、以前拒否した入力監視によってマウス追従やスワイプが停止することもありません。古いTatamiの項目が「プライバシーとセキュリティ → 入力監視」に残っている場合は「−」で削除できます。",
+    "zh-Hans": "**不再要求输入监控权限**：事件监听现在只依赖辅助功能权限，不再显示“接收来自任何应用的按键”对话框。此前拒绝输入监控也不会破坏焦点跟随鼠标和滑动手势。如旧版 Tatami 仍列在隐私与安全性 → 输入监控中，可用“−”移除该项目。",
+    "zh-Hant": "**不再要求輸入監控權限**：事件監聽現在只依賴輔助使用權限，不再顯示「接收來自任何 App 的按鍵」對話框。先前拒絕輸入監控也不會影響焦點跟隨滑鼠與滑動手勢。若舊版 Tatami 仍列在隱私權與安全性 → 輸入監控中，可用「−」移除該項目。"
+  },
+  "5077735880f290fd": {
+    "en": "**Balance that follows the layout setting:** The Balance command now applies the configured Auto-balance axes. With Auto-balance off, it rebuilds the canonical BSP tree instead of only equalizing ratios inside an already uneven topology.",
+    "ko": "**레이아웃 설정을 따르는 균등 배치:** 균등 배치 명령이 지정한 자동 균등 배치 축을 적용해요. 자동 옵션을 끄면 이미 불균형한 트리 안에서 비율만 같게 하는 대신 기본 BSP 트리를 다시 만들어요.",
+    "ja": "**配置設定に従う均等配置:** 均等配置コマンドが自動均等配置で指定した軸を使います。自動設定がオフの場合は、不均等な構造の比率だけを揃えず、標準のBSPツリーを再構築します。",
+    "zh-Hans": "**均衡遵循布局设置**：均衡命令现在应用配置的自动均衡轴。关闭自动均衡时，会重建标准 BSP 树，而不只是在已有的不均衡拓扑内均分比例。",
+    "zh-Hant": "**平均分配遵循配置設定**：平均分配指令現在套用設定的自動平均分配軸。關閉自動平均分配時，會重建標準 BSP 樹，而非只在既有不平均的拓樸內均分比例。"
+  },
+  "515f6ec8bb7f27b8": {
+    "en": "**Clearer feature names:** User-facing copy now uses **Always on Top**, **Leave As Is**, **Window Switching**, and **On-Screen Feedback** in place of internal implementation terms. Existing {0} keys remain compatible.",
+    "ko": "**더 명확한 기능 이름:** 내부 구현 용어 대신 **항상 위**, **그대로 두기**, **창 전환**, **화면 알림**을 사용해요. 기존 {0} 키와의 호환성은 유지해요.",
+    "ja": "**わかりやすい機能名:** 内部の実装用語を**常に手前**、**そのまま**、**ウインドウ切り替え**、**操作フィードバック**に置き換えました。既存の {0} キーは引き続き使えます。",
+    "zh-Hans": "**更清晰的功能名称**：界面使用**置顶**、**保持原样**、**窗口切换**和**操作反馈**，替代内部实现术语。原有 {0} 键保持兼容。",
+    "zh-Hant": "**更清楚的功能名稱**：介面使用**置頂**、**維持原狀**、**視窗切換**和**操作回饋**，取代內部實作術語。原有 {0} 鍵維持相容。"
+  },
+  "525fd45628618be9": {
+    "en": "**Focused-app workspace assignment:** A per-workspace shortcut adds the focused app (keeping its other memberships) and switches there.",
+    "ko": "**포커스 앱을 작업 공간에 추가:** 작업 공간별 단축키로 포커스한 앱을 추가하고 그곳으로 전환해요. 다른 공간의 소속은 유지해요.",
+    "ja": "**フォーカス中のAppを割り当て:** ワークスペースごとのキーでフォーカス中のAppを追加し、その領域へ切り替えます。他の所属先は保持します。",
+    "zh-Hans": "**分配焦点应用到工作区**：可用工作区快捷键添加当前焦点应用并切换过去，同时保留它在其他工作区的成员关系。",
+    "zh-Hant": "**指派焦點 App 到工作空間**：可用工作空間快速鍵加入目前焦點 App 並切換過去，同時保留它在其他工作空間的成員關係。"
+  },
+  "527b752ee24a9e12": {
+    "en": "**Keep apps with persistent floating controls available:** Register apps such as Notion with the existing app picker. While a registered app owns an on-screen elevated control, Tatami leaves that process unhidden so the control survives workspace switches, but excludes its ordinary windows from focus, tiling, cycling, drag, and membership actions. The windows may remain visible in Mission Control.",
+    "ko": "**지속적인 플로팅 컨트롤 유지:** 기존 앱 선택기로 Notion 같은 앱을 등록할 수 있어요. 등록한 앱의 높은 레이어 컨트롤이 화면에 보이는 동안 앱을 숨기지 않아 작업 공간을 전환해도 유지해요. 일반 창은 포커스·타일링·순환·드래그·소속 변경 대상에서 제외하지만 Mission Control에는 보일 수 있어요.",
+    "ja": "**常駐するフローティング操作部を維持:** 既存のApp選択からNotionなどを登録できます。登録したAppの高いレイヤーの操作部が画面上にある間はプロセスを隠さず、ワークスペースを切り替えても表示を保ちます。通常のウインドウはフォーカス、タイル表示、切り替え、ドラッグ、所属変更の対象外ですが、Mission Controlには表示される場合があります。",
+    "zh-Hans": "**保留常驻浮动控件**：可用现有应用选择器登记 Notion 等应用。只要登记应用拥有屏幕上高层级的控件，就不会隐藏该进程，使控件在切换工作区后仍可见；普通窗口则排除在焦点、平铺、循环切换、拖动和成员操作之外。它们仍可能出现在 Mission Control 中。",
+    "zh-Hant": "**保留常駐浮動控制項**：可用現有 App 選擇器登錄 Notion 等 App。只要登錄的 App 擁有螢幕上高層級的控制項，就不會隱藏該程序，使控制項在切換工作空間後仍可見；一般視窗則排除於焦點、並排、循環切換、拖移及成員操作之外。它們仍可能出現在 Mission Control 中。"
+  },
+  "53098d0a449d776a": {
+    "en": "**Deep-sleep fullscreen-zoom restoration:** A zoomed window whose surface the system recycles on wake no longer loses its zoom.",
+    "ko": "**깊은 잠자기 후 확대 복원:** 깨울 때 시스템이 창 표면을 다시 만들어도 전체 화면 확대 상태를 유지해요.",
+    "ja": "**深いスリープ後も拡大状態を復元:** 復帰時にシステムがウインドウの表示面を作り直しても、全画面拡大の状態を失いません。",
+    "zh-Hans": "**深度睡眠后恢复全屏缩放**：唤醒时即使系统重建窗口表面，也不会丢失缩放状态。",
+    "zh-Hant": "**深度睡眠後還原全螢幕縮放**：喚醒時即使系統重建視窗表面，也不會遺失縮放狀態。"
+  },
+  "014ab2b07d084bf9": {
+    "en": "**Removal of {0} tiling memory:** The {1} tiling-memory mode has been dropped. It rebuilt layouts from a focus-dependent order and reshuffled them on every workspace switch. Workspaces now use {2} (default) or {3}. Existing configs set to {4} fall back to {5}.",
+    "ko": "**{0} 타일링 기억 방식 제거:** 포커스 순서로 레이아웃을 다시 만들어 작업 공간을 전환할 때마다 배치가 바뀌던 {1} 모드를 제거했어요. 이제 {2}(기본값) 또는 {3}를 사용해요. 기존 {4} 설정은 {5}로 바뀌어요.",
+    "ja": "**{0} の配置記憶を廃止:** フォーカス順で配置を再構築し、切り替えるたびに並びが変わっていた {1} モードを廃止しました。今後は {2}（既定）または {3} を使用します。既存の {4} 設定は {5} に切り替わります。",
+    "zh-Hans": "**移除 {0} 平铺记忆模式**：{1} 模式按焦点顺序重建布局，导致每次切换工作区都会重新排列。现在使用 {2}（默认）或 {3}。原有的 {4} 设置会改用 {5}。",
+    "zh-Hant": "**移除 {0} 並排記憶模式**：{1} 模式會依焦點順序重建配置，造成每次切換工作空間都重新排列。現在使用 {2}（預設）或 {3}。原有的 {4} 設定會改用 {5}。"
+  },
+  "05525f40f5d9568c": {
+    "en": "**Three-column profile sidebar:** Settings now show your profiles, then the selected profile's contents, then the detail, so you can inspect and edit **any** profile (its workspaces, layouts, shortcuts) without switching to it first. The running profile is still marked with a green dot, distinct from the one you're viewing. Activating a workspace from a non-active profile switches to that profile and lands on it in one step.",
+    "ko": "**프로필 사이드바를 세 열로 구성:** 설정에서 프로필, 선택한 프로필의 내용, 세부 정보를 차례로 보여줘요. 먼저 전환하지 않아도 **모든** 프로필의 작업 공간·레이아웃·단축키를 확인하고 편집할 수 있어요. 실행 중인 프로필은 초록색 점으로 구분해요. 다른 프로필의 작업 공간을 활성화하면 프로필 전환과 작업 공간 열기를 한 번에 처리해요.",
+    "ja": "**3列のプロファイルサイドバー:** 設定にプロファイル、選択した内容、詳細を順に表示します。切り替えなくても**どの**プロファイルのワークスペース、配置、ショートカットも確認・編集できます。実行中のプロファイルは緑の点で区別します。別のプロファイルのワークスペースを開くと、プロファイルの切り替えも同時に行います。",
+    "zh-Hans": "**三栏配置方案侧边栏**：设置依次显示配置方案、所选方案的内容和详情。无需先切换，就能查看和编辑**任意**方案的工作区、布局和快捷键。运行中的方案仍用绿点标记，与正在查看的方案区分。激活其他方案中的工作区会一步完成方案切换和工作区打开。",
+    "zh-Hant": "**三欄設定組合側邊欄**：設定依序顯示設定組合、所選組合的內容和詳細資訊。無須先切換，就能查看及編輯**任何**組合的工作空間、配置和快速鍵。執行中的組合仍以綠點標示，與正在檢視的組合區分。啟用其他組合中的工作空間，會一次完成組合切換與工作空間開啟。"
+  },
+  "055fd12df9c5f966": {
+    "en": "**Richer diagnostics:** Behind the Debug logging toggle, hotkey receipt, gesture recognition (including why a swipe *didn't* fire), floating-mirror lifecycle, show/hide summaries, BSP operations, and drag commits now all land in {0}.",
+    "ko": "**진단 기록 확장:** 디버그 기록을 켜면 단축키 수신, 제스처 인식과 *실행되지 않은* 이유, 항상 위 미러의 수명 주기, 표시·숨김 요약, BSP 작업, 드래그 적용 결과를 모두 {0}에 기록해요.",
+    "ja": "**診断ログを拡充:** デバッグ記録を有効にすると、ショートカット受信、ジェスチャー認識とスワイプが*実行されなかった*理由、ミラーのライフサイクル、表示・非表示の概要、BSP操作、ドラッグの確定を {0} に記録します。",
+    "zh-Hans": "**更丰富的诊断**：开启调试日志后，快捷键接收、手势识别及滑动*未触发*的原因、置顶镜像生命周期、显示与隐藏摘要、BSP 操作和拖动提交都会记录到 {0}。",
+    "zh-Hant": "**更完整的診斷**：開啟偵錯記錄後，快速鍵接收、手勢辨識及滑動*未觸發*的原因、置頂鏡像生命週期、顯示與隱藏摘要、BSP 操作和拖移提交都會記錄到 {0}。"
+  },
+  "07783866c4b9853c": {
+    "en": "**Native-style window switcher:** The next / previous-window shortcuts now behave like macOS Command-Tab: a quick press switches without flashing a HUD, holding the shortcut shows a centered app or window strip that stays up while the modifier is down, and releasing the modifier commits focus before the HUD fades away. App-level cycling restores that app's most-recent window, while the existing every-window option keeps each same-app window separate.",
+    "ko": "**macOS 방식의 창 전환:** 다음·이전 창 단축키가 Command-Tab처럼 동작해요. 짧게 누르면 화면 알림 없이 전환하고, 길게 누르면 보조 키를 누르는 동안 중앙에 앱·창 목록을 보여줘요. 키를 놓으면 포커스를 적용한 뒤 목록을 숨겨요. 앱 단위 전환은 최근 창을 복원하고, 모든 창 전환 옵션은 같은 앱의 창도 각각 다뤄요.",
+    "ja": "**macOSらしいウインドウ切り替え:** 次・前のウインドウのショートカットがCommand-Tabのように動作します。短く押すと表示を挟まず切り替わり、長押しすると修飾キーを押している間、中央にAppやウインドウの一覧が表示されます。キーを離すとフォーカスを確定してから一覧が消えます。App単位では最近のウインドウを復元し、全ウインドウの設定では同じAppの各ウインドウを個別に扱います。",
+    "zh-Hans": "**原生风格窗口切换器**：前后窗口快捷键现在像 macOS Command-Tab 一样工作。轻按直接切换，不闪现操作反馈；按住时在中央显示应用或窗口列表，松开修饰键后先确认焦点再淡出列表。按应用切换会恢复其最近使用的窗口；原有的逐窗口选项仍分别显示同一应用的各个窗口。",
+    "zh-Hant": "**原生風格視窗切換器**：前後視窗快速鍵現在如同 macOS Command-Tab。輕按直接切換，不閃現操作回饋；按住時在中央顯示 App 或視窗列表，放開修飾鍵後先確定焦點再淡出列表。依 App 切換會還原最近使用的視窗；原有的逐視窗選項仍分別顯示同一 App 的各個視窗。"
+  },
+  "0830bd9b97d9fbd0": {
+    "en": "**Automatic app launching:** Auto-open assigned apps on activation.",
+    "ko": "**앱 자동 실행:** 작업 공간을 활성화할 때 지정한 앱을 자동으로 열어요.",
+    "ja": "**Appの自動起動:** ワークスペースの有効化時に、割り当てたAppを自動で開きます。",
+    "zh-Hans": "**自动启动应用**：激活工作区时自动打开已分配的应用。",
+    "zh-Hant": "**自動啟動 App**：啟用工作空間時自動開啟已指派的 App。"
+  },
+  "093d239be1d89222": {
+    "en": "**Interactive app / window switcher:** The held-shortcut HUD is now a compact switcher that fades in and out without interrupting cycling. Continue with the configured shortcut or arrow keys, commit with Return or modifier release, cancel with Escape, or point and click an item. Keyboard selection and pointer hover remain visually distinct; quick presses still switch immediately without flashing the HUD.",
+    "ko": "**직접 조작하는 앱·창 전환기:** 단축키를 누르고 있으면 전환을 방해하지 않고 나타났다 사라지는 작은 목록을 보여줘요. 설정한 단축키나 방향키로 이동하고, Return 또는 보조 키 해제로 확정하며, Escape로 취소하거나 항목을 클릭할 수 있어요. 키보드 선택과 포인터 강조를 구분하고, 짧게 누를 때는 목록 없이 즉시 전환해요.",
+    "ja": "**操作できるApp・ウインドウ切り替え:** 長押し中の表示が、切り替えを妨げずフェードする小さな一覧になりました。設定したショートカットや矢印キーで移動し、Returnまたは修飾キーを離して確定、Escapeで取消、クリックで選択できます。キー選択とホバー表示を区別し、短押しでは一覧を出さず即座に切り替えます。",
+    "zh-Hans": "**可交互的应用与窗口切换器**：按住快捷键时显示紧凑列表，淡入淡出不会中断切换。可用已设快捷键或方向键继续选择，用 Return 或松开修饰键确认，用 Escape 取消，也可直接点击。键盘选择与悬停保持不同的视觉状态；轻按仍立即切换，不闪现列表。",
+    "zh-Hant": "**可互動的 App 與視窗切換器**：按住快速鍵時顯示精簡列表，淡入淡出不會中斷切換。可用已設快速鍵或方向鍵繼續選擇，以 Return 或放開修飾鍵確認，以 Escape 取消，也可直接點選。鍵盤選取與游標停留維持不同的視覺狀態；輕按仍立即切換，不閃現列表。"
+  },
+  "09e0fff9905c33d3": {
+    "en": "**Full-screen gap focus protection:** Focus-follows-mouse no longer grabs a full-screen window showing through the gaps between tiled windows.",
+    "ko": "**전체 화면 틈새 포커스 보호:** 타일 사이로 보이는 전체 화면 창에 마우스 포커스가 넘어가지 않아요.",
+    "ja": "**全画面の隙間でのフォーカスを保護:** タイルの隙間に見える全画面ウインドウへ、マウス追従のフォーカスが移らなくなりました。",
+    "zh-Hans": "**保护全屏间隙中的焦点**：焦点跟随鼠标不再选中从平铺窗口间隙中露出的全屏窗口。",
+    "zh-Hant": "**保護全螢幕間隙中的焦點**：焦點跟隨滑鼠不再選取從並排視窗間隙露出的全螢幕視窗。"
+  },
+  "0a069825c6c88178": {
+    "en": "**Borrow again to dismiss:** Summoning a workspace that is already borrowed on the current display dismisses it and restores the host workspace by default. Turn the option off to keep re-docking the borrow instead.",
+    "ko": "**다시 빌려오면 닫기:** 현재 디스플레이에 이미 빌려온 작업 공간을 다시 호출하면 기본적으로 빌려오기를 해제하고 원래 작업 공간을 복원해요. 다시 배치하는 기존 동작을 원하면 이 옵션을 끌 수 있어요.",
+    "ja": "**再度呼び出して借用を解除:** 現在のディスプレイですでに借りているワークスペースをもう一度呼ぶと、既定では借用を解除して元のワークスペースを復元します。再配置する動作を使う場合は、この設定をオフにします。",
+    "zh-Hans": "**再次借用即可收起**：重复调用当前显示器上已借用的工作区，默认会结束借用并恢复主工作区。关闭此选项则继续重新停靠借用区域。",
+    "zh-Hant": "**再次借用即可收起**：重複呼叫目前顯示器上已借用的工作空間，預設會結束借用並還原主工作空間。關閉此選項則繼續重新停靠借用區域。"
+  },
+  "0e46c18a4b834fa4": {
+    "en": "**Hide-on-close window detection:** Electron apps like Discord hide their window on close (no Accessibility destroy event), which left a phantom tile slot. Tatami now prunes a tiled window once it leaves the screen and re-tiles the survivors.",
+    "ko": "**닫을 때 숨기는 창 감지:** Discord 같은 Electron 앱은 창을 닫아도 손쉬운 사용의 창 삭제 이벤트 없이 숨기기만 해서 빈 타일이 남았어요. 이제 화면에서 사라진 창을 타일에서 제거하고 나머지를 다시 배치해요.",
+    "ja": "**閉じると隠れるウインドウを検出:** DiscordなどのElectron Appは破棄イベントを送らずにウインドウを隠すため、空のタイルが残っていました。画面から消えたウインドウを取り除き、残りを再配置します。",
+    "zh-Hans": "**识别关闭后隐藏的窗口**：Discord 等 Electron 应用关闭窗口时只会隐藏，不发送辅助功能销毁事件，过去会留下空白平铺位置。现在窗口离开屏幕后会被移除，其余窗口重新排列。",
+    "zh-Hant": "**辨識關閉後隱藏的視窗**：Discord 等 Electron App 關閉視窗時只會隱藏，不傳送輔助使用的銷毀事件，過去會留下空白並排位置。現在視窗離開螢幕後會被移除，其餘視窗重新排列。"
+  },
+  "0f6299bbb11fb95e": {
+    "en": "**Keep command documentation close to Tatami:** Open the bundled CLI guide from Settings or read the live reference rendered from {0} on pangmo5.dev/Tatami. It covers selectors, JSON contracts, hook behavior, exit status, and scripting examples.",
+    "ko": "**앱 가까이에서 명령어 안내 확인:** 설정에서 번들 CLI 안내를 열거나 pangmo5.dev/Tatami에서 {0}으로 만든 안내를 읽을 수 있어요. 선택자, JSON 규약, 훅 동작, 종료 상태, 스크립트 예제를 다뤄요.",
+    "ja": "**コマンドの案内をすぐ確認:** 設定から同梱のCLIガイドを開くか、pangmo5.dev/Tatamiで {0} から生成された案内を読めます。選択方法、JSONの規約、フックの動作、終了ステータス、スクリプト例を説明します。",
+    "zh-Hans": "**随时查看命令文档**：在设置中打开内置 CLI 指南，或在 pangmo5.dev/Tatami 阅读由 {0} 生成的在线参考。内容包括选择器、JSON 约定、钩子行为、退出状态及脚本示例。",
+    "zh-Hant": "**隨時查看指令文件**：在設定中開啟內建 CLI 指南，或在 pangmo5.dev/Tatami 閱讀由 {0} 產生的線上參考。內容包含選擇器、JSON 規約、掛鉤行為、結束狀態及腳本範例。"
+  },
+  "130efab4303ed759": {
+    "en": "**Advanced layout operations:** Rotate, mirror, balance, drag-to-swap, and synchronize live resizes.",
+    "ko": "**고급 레이아웃 작업:** 회전, 뒤집기, 균등 배치, 드래그로 자리 바꾸기, 실시간 크기 조절 동기화를 지원해요.",
+    "ja": "**高度な配置操作:** 回転、反転、均等配置、ドラッグでの入れ替え、サイズ変更の即時同期に対応します。",
+    "zh-Hans": "**高级布局操作**：支持旋转、镜像、均衡布局、拖动交换和实时尺寸同步。",
+    "zh-Hant": "**進階配置操作**：支援旋轉、鏡像、平均分配、拖移交換與即時尺寸同步。"
+  },
+  "151a8af9053df0a1": {
+    "en": "**Last-used profile restored safely:** Relaunching Tatami no longer falls back to the first profile when the previous manual profile is still valid, and it no longer restores a conditioned profile whose display rule stopped matching.",
+    "ko": "**마지막 프로필을 안전하게 복원:** 이전에 직접 선택한 프로필이 유효하면 다시 실행해도 첫 프로필로 돌아가지 않아요. 디스플레이 조건이 더는 맞지 않는 자동 프로필도 복원하지 않아요.",
+    "ja": "**最後のプロファイルを安全に復元:** 手動で選んだプロファイルが有効なら、再起動しても先頭のプロファイルに戻りません。ディスプレイ条件が一致しなくなったプロファイルも復元しません。",
+    "zh-Hans": "**安全恢复最近的配置方案**：重新启动时，只要之前手动选择的方案仍有效，就不会回到第一个方案；显示器条件已不匹配的条件方案也不会被恢复。",
+    "zh-Hant": "**安全還原最近的設定組合**：重新啟動時，只要先前手動選擇的組合仍有效，就不會回到第一個組合；顯示器條件已不符的條件式組合也不會被還原。"
+  },
+  "156f6515bb50798a": {
+    "en": "**Reliable Electron window observation:** Some windows missed their resize/close events when the first attempt to observe them failed. Those subscriptions now retry like the rest, so a phantom tile no longer lingers.",
+    "ko": "**Electron 창 관찰 안정화:** 첫 관찰 등록이 실패하면 일부 창의 크기 변경·닫기 이벤트를 놓쳤어요. 이제 다른 등록처럼 재시도해 빈 타일이 남지 않아요.",
+    "ja": "**Electronのウインドウ監視を安定化:** 最初の監視登録に失敗すると、一部のサイズ変更や終了イベントを取り逃していました。他の登録と同様に再試行し、空のタイルが残らないようにしました。",
+    "zh-Hans": "**更可靠地观察 Electron 窗口**：首次观察失败时，部分窗口的尺寸变化和关闭事件会丢失。现在会像其他订阅一样重试，不再留下无效平铺位置。",
+    "zh-Hant": "**更可靠地觀察 Electron 視窗**：首次觀察失敗時，部分視窗的尺寸變更與關閉事件會遺失。現在會像其他訂閱一樣重試，不再留下無效並排位置。"
+  },
+  "1611cfe2e4e943bb": {
+    "en": "**More reliable window focus tracking:** Focus now follows to newly opened and refocused windows, to the surviving tile when a window closes, and, with focus-follows-mouse, to the window actually under the cursor even when the machine is busy. Windows that briefly flap their accessibility role are kept instead of dropped.",
+    "ko": "**창 포커스 추적 안정화:** 새로 열거나 다시 선택한 창, 닫힌 창 대신 남은 타일로 포커스가 이어져요. 시스템이 바쁠 때도 마우스 포커스는 실제 포인터 아래 창을 따라가요. 손쉬운 사용 역할이 잠깐 바뀌는 창도 유지해요.",
+    "ja": "**ウインドウのフォーカス追跡を改善:** 新しく開いたウインドウ、再選択したウインドウ、閉じた後に残るタイルへフォーカスが移ります。Macが高負荷でもマウスの下にある実際のウインドウを追従します。アクセシビリティの役割が一時的に変わるウインドウも保持します。",
+    "zh-Hans": "**更可靠的窗口焦点跟踪**：焦点会跟随新开或重新选中的窗口，并在窗口关闭后移到剩余平铺窗口。即使系统繁忙，焦点跟随鼠标也会定位到实际位于指针下的窗口。辅助功能角色短暂变化的窗口不会被移除。",
+    "zh-Hant": "**更可靠的視窗焦點追蹤**：焦點會跟隨新開或重新選取的視窗，並在視窗關閉後移到剩餘並排視窗。即使系統忙碌，焦點跟隨滑鼠也會定位到實際位於游標下的視窗。輔助使用角色短暫變動的視窗不會被移除。"
+  },
+  "163e17d4d6f52e98": {
+    "en": "**Switching to a workspace with no window works:** A workspace whose windows were all closed could swallow the switch entirely, with no app activation, no hide pass, and no HUD.",
+    "ko": "**창이 없는 작업 공간도 전환:** 창을 모두 닫은 작업 공간으로 전환할 때 앱 활성화·숨김·화면 알림이 모두 실행되지 않던 문제를 수정했어요.",
+    "ja": "**ウインドウのないワークスペースにも切り替え:** すべてのウインドウを閉じたワークスペースで、Appの有効化、非表示処理、操作フィードバックが実行されない問題を修正しました。",
+    "zh-Hans": "**可切换到没有窗口的工作区**：修复所有窗口都已关闭时，工作区切换被吞掉、应用激活与隐藏处理和操作反馈均不执行的问题。",
+    "zh-Hant": "**可切換到沒有視窗的工作空間**：修正所有視窗都已關閉時，工作空間切換被忽略，App 啟用、隱藏處理與操作回饋皆未執行的問題。"
+  },
+  "17a4b1aeead4ccad": {
+    "en": "A maintenance release with faster, steadier workspace switching and a batch of stability fixes on top of a large internal hardening pass.",
+    "ko": "내부 안정성 보강을 바탕으로 작업 공간 전환을 더 빠르고 일정하게 만들고 여러 안정성 문제를 수정한 유지보수 업데이트예요.",
+    "ja": "内部の堅牢性を大きく改善し、ワークスペース切り替えの高速化・安定化と複数の不具合修正を行ったメンテナンス更新です。",
+    "zh-Hans": "本次维护更新在全面增强内部可靠性的基础上，让工作区切换更快、更稳定，并修复多项稳定性问题。",
+    "zh-Hant": "本次維護更新在全面加強內部可靠性的基礎上，讓工作空間切換更快、更穩定，並修正多項穩定性問題。"
+  },
+  "18fdd549b2ed367a": {
+    "en": "New",
+    "ko": "새로운 기능",
+    "ja": "新機能",
+    "zh-Hans": "新增功能",
+    "zh-Hant": "新增功能"
+  },
+  "19522e198c9bf428": {
+    "en": "**Mouse-driven focus controls:** Use focus-follows-mouse, mouse-follows-focus, and optional cursor hiding.",
+    "ko": "**마우스 포커스 제어:** 마우스에 맞춰 포커스를 옮기거나 포커스에 맞춰 포인터를 옮기고, 필요하면 포인터를 숨길 수 있어요.",
+    "ja": "**マウスによるフォーカス制御:** マウスにフォーカスを追従させる、フォーカスにポインタを追従させる、必要に応じてポインタを隠す操作に対応します。",
+    "zh-Hans": "**鼠标焦点控制**：支持焦点跟随鼠标、鼠标跟随焦点，以及可选的指针隐藏。",
+    "zh-Hant": "**滑鼠焦點控制**：支援焦點跟隨滑鼠、滑鼠跟隨焦點，以及選用的游標隱藏。"
+  },
+  "19e7830d3f4476cb": {
+    "en": "**Five interface languages:** Tatami is now available in English, Korean, Japanese, Simplified Chinese, and Traditional Chinese across Settings, Guided Setup, the menu bar, on-screen feedback, errors, and confirmations. Tatami follows the macOS language preference selected for the app.",
+    "ko": "**다섯 가지 인터페이스 언어:** 설정, 가이드 설정, 메뉴 막대, 화면 알림, 오류, 확인 창을 영어·한국어·일본어·중국어 간체·번체로 사용할 수 있어요. macOS에서 Tatami에 지정한 앱 언어를 따라요.",
+    "ja": "**5つの表示言語:** 設定、ガイド付き設定、メニューバー、操作フィードバック、エラー、確認画面が英語・韓国語・日本語・簡体字中国語・繁体字中国語に対応しました。macOSでTatamiに指定したAppの言語に従います。",
+    "zh-Hans": "**五种界面语言**：设置、设置向导、菜单栏、操作反馈、错误和确认界面现已支持英语、韩语、日语、简体中文及繁体中文。Tatami 会遵循 macOS 为该应用选择的语言。",
+    "zh-Hant": "**五種介面語言**：設定、設定導覽、選單列、操作回饋、錯誤及確認畫面現已支援英語、韓語、日語、簡體中文及繁體中文。Tatami 會依循 macOS 為此 App 選擇的語言。"
+  },
+  "1e23c3ad5da3e903": {
+    "en": "**Stable native-tab workspace switching:** Switching to a workspace no longer bounces back when a native-tab app changes its window id. Apps with macOS native tabs (e.g. ghostty) swap window ids as you switch tabs, which could leave the BSP tree momentarily empty, and \"switch to recent\" would bounce you to the previous workspace. The active workspace now re-checks its own on-screen windows before switching.",
+    "ko": "**네이티브 탭 전환 안정화:** macOS 네이티브 탭 앱이 창 ID를 바꿔도 작업 공간 전환이 되돌아가지 않아요. ghostty 같은 앱은 탭 전환 시 ID가 바뀌어 BSP 트리가 잠깐 비고, 최근 작업 공간 동작이 이전 공간으로 돌아갈 수 있었어요. 이제 전환 전에 현재 작업 공간의 화면상 창을 다시 확인해요.",
+    "ja": "**ネイティブタブの切り替えを安定化:** macOSのネイティブタブを使うAppがウインドウIDを変えても、前のワークスペースへ戻らなくなりました。ghosttyなどではタブ切り替え時にBSPツリーが一時的に空になり、「最近のワークスペース」が発動していました。切り替える前に現在の画面上のウインドウを再確認します。",
+    "zh-Hans": "**稳定原生标签页切换**：使用 macOS 原生标签页的应用改变窗口 ID 时，工作区不会再跳回。ghostty 等应用切换标签页会交换窗口 ID，曾导致 BSP 树暂时为空，使“切换到最近工作区”返回上一工作区。现在切换前会重新检查当前工作区的屏幕窗口。",
+    "zh-Hant": "**穩定原生分頁切換**：使用 macOS 原生分頁的 App 改變視窗 ID 時，工作空間不會再跳回。ghostty 等 App 切換分頁會交換視窗 ID，曾造成 BSP 樹暫時為空，使「切換到最近工作空間」返回上一個工作空間。現在切換前會重新檢查目前工作空間的螢幕視窗。"
+  },
+  "20188724d37b6aa3": {
+    "en": "**MFF for non-tiled cycle targets:** Cycling to a Floating, Shared Floating, or Ignore-mode window now reads that window's live frame after focus and moves the pointer to its center instead of leaving it behind.",
+    "ko": "**타일이 아닌 창 전환에도 포인터 이동:** 항상 위·공용 항상 위·그대로 두기 창으로 전환하면 포커스 적용 후 실제 창 위치를 읽고 포인터를 가운데로 옮겨요.",
+    "ja": "**タイル外の切り替え先にもポインタを追従:** 常に手前、共有の常に手前、そのままモードのウインドウへ切り替えると、フォーカス後の実際の位置を読み取り、ポインタを中央へ移動します。",
+    "zh-Hans": "**非平铺切换目标也支持鼠标跟随焦点**：切换到浮动、共享浮动或忽略模式窗口后，会读取其实际位置并将指针移到中央，不再留在原处。",
+    "zh-Hant": "**非並排切換目標也支援滑鼠跟隨焦點**：切換到浮動、共用浮動或忽略模式視窗後，會讀取其實際位置並將游標移到中央，不再留在原處。"
+  },
+  "26bf31c226dee7ba": {
+    "en": "**Scope switching to the display under the pointer:** Previous/next workspace actions and app/window switching use the pointer's display instead of stale keyboard focus. A held Option-Tab session keeps the display where it began, filters non-tiled candidates from other displays, and does not jump after a late asynchronous focus lookup.",
+    "ko": "**포인터가 있는 디스플레이에서 전환:** 이전·다음 작업 공간과 앱·창 전환은 오래된 키보드 포커스 대신 포인터의 디스플레이를 사용해요. Option-Tab을 누르는 동안 처음 디스플레이를 유지하고, 다른 디스플레이의 비타일 창을 제외하며, 늦게 끝난 포커스 조회 때문에 이동하지 않아요.",
+    "ja": "**ポインタのあるディスプレイで切り替え:** 前後のワークスペースやApp・ウインドウの切り替えは、古いキーボードフォーカスではなくポインタのディスプレイを使います。Option-Tabを押している間は開始したディスプレイを保持し、他の画面のタイル外ウインドウを除外して、遅れて届くフォーカス結果で移動しないようにしました。",
+    "zh-Hans": "**在指针所在显示器上切换**：前后工作区及应用、窗口切换使用指针所在显示器，而不是过时的键盘焦点。按住 Option-Tab 时保持起始显示器，过滤其他显示器的非平铺候选，并避免延迟返回的异步焦点查询造成跳转。",
+    "zh-Hant": "**在游標所在顯示器上切換**：前後工作空間及 App、視窗切換使用游標所在顯示器，而非過時的鍵盤焦點。按住 Option-Tab 時保持起始顯示器，篩除其他顯示器的非並排候選，並避免延後返回的非同步焦點查詢造成跳轉。"
+  },
+  "270c83bb6eabde90": {
+    "en": "**Faster workspace switching:** Activations now read window identities from a cache instead of querying every window over Accessibility on the hot path, and a switch that arrives mid-activation supersedes the one still in flight, so rapid next/previous presses advance past a slow-to-settle workspace instead of stalling on it.",
+    "ko": "**더 빠른 작업 공간 전환:** 전환 경로에서 모든 창을 손쉬운 사용으로 조회하는 대신 캐시된 창 ID를 읽어요. 전환 중 새 요청이 오면 이전 요청을 대체하므로, 이전·다음을 빠르게 눌러도 느린 작업 공간에 멈추지 않고 진행해요.",
+    "ja": "**ワークスペース切り替えを高速化:** 毎回すべてのウインドウをアクセシビリティ経由で調べず、キャッシュ済みのIDを読みます。切り替え中の新しい要求が古い要求を置き換えるため、前後を素早く押しても遅いワークスペースで止まりません。",
+    "zh-Hans": "**更快的工作区切换**：激活时从缓存读取窗口标识，不再在关键路径上逐个查询辅助功能窗口。切换期间的新请求会取代进行中的请求，因此快速前后切换可越过响应缓慢的工作区，不会停在那里。",
+    "zh-Hant": "**更快的工作空間切換**：啟用時從快取讀取視窗識別，不再於關鍵路徑逐一查詢輔助使用視窗。切換期間的新請求會取代進行中的請求，因此快速前後切換可略過反應緩慢的工作空間，不會停在原處。"
+  },
+  "2821602448b5f809": {
+    "en": "**The cursor follows layout commands that reshape the focused window:** Toggling a split's orientation or entering and leaving fullscreen zoom now carries the cursor with the focused window, which previously stayed on the tile the window no longer occupied.",
+    "ko": "**레이아웃 명령을 따라 포인터 이동:** 분할 방향을 바꾸거나 전체 화면 확대를 켜고 끄면 포커스한 창과 함께 포인터를 옮겨요. 창이 떠난 예전 타일에 포인터가 남지 않아요.",
+    "ja": "**配置変更にポインタも追従:** 分割方向の変更や全画面拡大の切り替えで、フォーカス中のウインドウと一緒にポインタを移動します。ウインドウが離れた古いタイルに残りません。",
+    "zh-Hans": "**指针跟随改变焦点窗口形状的布局命令**：切换分割方向或进入、退出全屏缩放时，指针会随焦点窗口移动，不再留在窗口已离开的平铺位置。",
+    "zh-Hant": "**游標跟隨改變焦點視窗形狀的配置指令**：切換分割方向或進入、離開全螢幕縮放時，游標會隨焦點視窗移動，不再留在視窗已離開的並排位置。"
+  },
+  "2a6141e43be0c212": {
+    "en": "Changed",
+    "ko": "변경 사항",
+    "ja": "変更点",
+    "zh-Hans": "变更",
+    "zh-Hant": "變更"
+  },
+  "2c034adef13bc8fd": {
+    "en": "**Stable empty-workspace switching:** Switching to a workspace whose apps aren't running no longer bounces you back. With nothing to focus, hiding the outgoing windows let macOS resurrect the previously active app, and follow-app-focus would chase it straight back to its workspace. An empty workspace now lands on an empty desktop and stays there.",
+    "ko": "**빈 작업 공간 전환 안정화:** 앱이 실행되지 않는 작업 공간으로 전환해도 이전 공간으로 돌아가지 않아요. 이전 창을 숨기면 macOS가 직전 앱을 되살리고 앱 포커스 따라가기가 이를 따라가는 문제가 있었어요. 이제 빈 바탕 화면에서 그대로 유지해요.",
+    "ja": "**空のワークスペース切り替えを安定化:** Appが動いていないワークスペースへ切り替えても、元に戻らなくなりました。以前は元のウインドウを隠すとmacOSが直前のAppを復帰させ、Appフォーカス追従が追いかけていました。空のデスクトップでそのまま留まります。",
+    "zh-Hans": "**稳定切换空工作区**：切换到应用尚未运行的工作区时，不再跳回。过去隐藏原窗口会让 macOS 恢复先前的应用，焦点跟随应用又会追随它回到原工作区。现在空工作区会停留在空桌面。",
+    "zh-Hant": "**穩定切換空工作空間**：切換到 App 尚未執行的工作空間時，不再跳回。過去隱藏原視窗會讓 macOS 還原先前的 App，焦點跟隨 App 又會追隨它回到原工作空間。現在空工作空間會停留在空白桌面。"
+  },
+  "2c6845b94e621b2f": {
+    "en": "**Adaptive action HUDs:** Action feedback now enters and leaves with a compact spring transition, resizes around its content, and updates an already-visible HUD without replaying the whole presentation.",
+    "ko": "**내용에 맞는 화면 알림:** 작은 스프링 전환으로 알림을 표시하고 숨겨요. 내용에 맞춰 크기를 바꾸고, 이미 보이는 알림은 전체 표시 과정을 다시 실행하지 않고 갱신해요.",
+    "ja": "**内容に応じた操作フィードバック:** 小さなスプリング動作で表示・非表示になり、内容に合わせてサイズを調整します。表示中の内容は演出全体をやり直さず更新します。",
+    "zh-Hans": "**自适应操作反馈**：反馈以紧凑的弹簧过渡进入和退出，随内容调整大小，并直接更新已显示的反馈，不重播整个呈现过程。",
+    "zh-Hant": "**自適應操作回饋**：回饋以精簡的彈簧過渡進入與離開，隨內容調整大小，並直接更新已顯示的回饋，不重播整個呈現過程。"
+  },
+  "2cb1846b04d5268b": {
+    "en": "**No duplicate tiling for shared workspace apps:** An app that is both registered to a workspace and in Shared Apps no longer tiles twice in that workspace's layout.",
+    "ko": "**공용 앱 중복 타일링 방지:** 작업 공간과 공용 앱에 함께 등록한 앱이 같은 레이아웃에 두 번 배치되지 않아요.",
+    "ja": "**共有Appの二重配置を防止:** ワークスペースと共有Appの両方に登録したAppを、同じ配置に二重に含めなくなりました。",
+    "zh-Hans": "**避免共享应用重复平铺**：同时属于工作区和共享应用的应用，不会在该工作区布局中平铺两次。",
+    "zh-Hant": "**避免共用 App 重複並排**：同時屬於工作空間與共用 App 的 App，不會在該工作空間配置中並排兩次。"
+  },
+  "2cb9f4437200b2a6": {
+    "en": "**The cursor follows an app-driven switch:** With Mouse follows focus on, activating an app from the Dock, Spotlight, or the app switcher now moves the cursor to the window that was actually raised, not just to the workspace. Landing on a workspace holding several windows of that app no longer leaves it ambiguous which one took focus.",
+    "ko": "**앱에서 시작한 전환에도 포인터 이동:** 포인터가 포커스를 따라가도록 설정하면 Dock·Spotlight·앱 전환기로 앱을 열 때 실제로 앞으로 온 창으로 포인터를 옮겨요. 같은 앱의 창이 여러 개여도 어느 창이 포커스를 받았는지 분명해요.",
+    "ja": "**Appからの切り替えにもポインタが追従:** ポインタ追従を有効にすると、Dock、Spotlight、App切り替えから開いた際、実際に手前へ出たウインドウへ移動します。同じAppのウインドウが複数あっても、フォーカス先が明確になります。",
+    "zh-Hans": "**指针跟随应用触发的切换**：启用鼠标跟随焦点后，从 Dock、Spotlight 或应用切换器激活应用，会将指针移到实际被置前的窗口，而不只是工作区。同一工作区中有该应用的多个窗口时，也能明确知道哪个获得了焦点。",
+    "zh-Hant": "**游標跟隨 App 觸發的切換**：啟用滑鼠跟隨焦點後，從 Dock、Spotlight 或 App 切換器啟用 App，會將游標移到實際被置前的視窗，而不只是工作空間。同一工作空間中有該 App 的多個視窗時，也能明確知道哪個取得焦點。"
   }
 }

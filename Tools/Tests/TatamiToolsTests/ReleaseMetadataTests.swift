@@ -22,6 +22,13 @@ func `appcast accumulates only the current minor and preserves signatures`() thr
     ## 1.1.0 (2026-08-01)
     - Previous series.
     """)
+  let english = try fixture.directory.at("CHANGELOG.md").text()
+  for locale in locales.dropFirst() {
+    try fixture.directory.at("docs/\(locale)/CHANGELOG.md").write(english.replacingOccurrences(
+      of: "Keep **focus**",
+      with: "\(locale) **focus**",
+    ))
+  }
   let appcast = fixture.directory.at("appcast.xml")
   try appcast
     .write(
@@ -41,6 +48,11 @@ func `appcast accumulates only the current minor and preserves signatures`() thr
   let enclosure = try #require(item.elements(forName: "enclosure").first)
   #expect(enclosure.attribute(forName: "sparkle:edSignature")?.stringValue == "unchanged-signature")
   #expect(enclosure.attribute(forName: "length")?.stringValue == "123")
+  #expect(item.elements(forName: "description").count == 5)
+  #expect(Set(item.elements(forName: "description").compactMap { $0.attribute(forName: "xml:lang")?.stringValue }) ==
+    Set(locales))
+  #expect(item.elements(forName: "description").first { $0.attribute(forName: "xml:lang")?.stringValue == "ko" }?.stringValue?
+    .contains("ko <strong>focus</strong>") == true)
   let before = try appcast.text()
   try metadata.embedNotes(file: appcast, version: "1.2.2")
   #expect(try appcast.text() == before)

@@ -44,6 +44,7 @@ jobs:
         run: |
           swift test --package-path Tools
           swift build --package-path Tools -c release
+          Tools/.build/release/tatami-tools build-docs --check
 
       - name: Import Developer ID certificate
         env:

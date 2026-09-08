@@ -12,6 +12,7 @@ struct DocumentBuilder {
   /// Adding a contributor guide or local report under docs must not publish it.
   let documents = [
     "README.md",
+    "CHANGELOG.md",
     "docs/CLI.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",

@@ -1,3 +1,7 @@
+<!-- LANGUAGE-LINKS:START -->
+[English](CHANGELOG.md) · [한국어](docs/ko/CHANGELOG.md) · [日本語](docs/ja/CHANGELOG.md) · [简体中文](docs/zh-Hans/CHANGELOG.md) · [繁體中文](docs/zh-Hant/CHANGELOG.md)
+<!-- LANGUAGE-LINKS:END -->
+
 # Changelog
 
 All notable changes to Tatami. This file is the source of truth for the release
