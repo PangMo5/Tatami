@@ -159,7 +159,7 @@ private func focusWindow(
   // same runloop turn intermittently let the target's raise win the frame
   // race, which showed as the floating window dipping behind for an
   // instant. The focus-follows-mouse throttle (50 ms) dwarfs the delay.
-  let restoredMirrors = MirrorWindowRegistry.shared.notifyWillFocus(pid: pid)
+  guard let restoredMirrors = await MirrorWindowRegistry.shared.notifyWillFocus(pid: pid) else { return }
   @Dependency(\.debugLog) var debugLog
   debugLog.log(
     "FocusDiag",
@@ -230,7 +230,7 @@ func focusWindowFollowingMouse(
   windowID: CGWindowID,
   willPerformAXFocus: @escaping @Sendable () -> Void,
 ) async {
-  let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+  let frontmostPID = NSWorkspace.shared.frontmostApplication.flatMap(cachedApplicationProcessIdentifier)
   await focusWindow(
     pid: pid,
     windowID: windowID,

@@ -172,9 +172,7 @@ public struct AppFeature {
           // joins the later subscription merge.
           .run { [overlayAwareness, windowSnapshot] _ in
             overlayAwareness.configure(settings.visibility.overlayAwareApps)
-            let frontmost = await MainActor.run {
-              windowSnapshot.frontmostApp()
-            }
+            let frontmost = await windowSnapshot.frontmostAppOffMain()
             guard let frontmost else { return }
             let process = OverlayAwareProcess(
               bundleId: frontmost.bundleId,

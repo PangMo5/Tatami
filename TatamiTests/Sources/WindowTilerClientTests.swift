@@ -10,6 +10,132 @@ import Testing
 // MARK: - WindowTilerClientTests
 
 struct WindowTilerClientTests {
+  @Test
+  func `verified process identity reuses ownership without enumerating windows again`() {
+    var cache = ApplicationProcessIdentifierCache<String>()
+    var scans = 0
+    var validations = 0
+    for _ in 0..<10 {
+      let pid = cache.resolve(
+        application: "Preview instance",
+        reportedPID: -1,
+        belongsToApplication: { pid in
+          validations += 1
+          return pid == 20
+        },
+        windowOwnerPIDs: {
+          scans += 1
+          return [20]
+        },
+      )
+      #expect(pid == 20)
+    }
+    #expect(scans == 1)
+    #expect(validations == 10)
+  }
+
+  @Test
+  func `reused PID is rejected and a new owner is resolved`() {
+    var cache = ApplicationProcessIdentifierCache<String>()
+    #expect(cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { $0 == 20 },
+      windowOwnerPIDs: { [20] },
+    ) == 20)
+    #expect(cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { $0 == 30 },
+      windowOwnerPIDs: { [20, 30] },
+    ) == 30)
+    #expect(cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { _ in false },
+      windowOwnerPIDs: { [20, 30] },
+    ) == nil)
+  }
+
+  @Test
+  func `unresolved process is retried when a window appears`() {
+    var cache = ApplicationProcessIdentifierCache<String>()
+    #expect(cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { _ in true },
+      windowOwnerPIDs: { [] },
+    ) == nil)
+    #expect(cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { $0 == 20 },
+      windowOwnerPIDs: { [20] },
+    ) == 20)
+  }
+
+  @Test
+  func `terminated application identities are removed from the cache`() {
+    var cache = ApplicationProcessIdentifierCache<String>()
+    _ = cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { $0 == 20 },
+      windowOwnerPIDs: { [20] },
+    )
+    cache.removeTerminated { $0 == "Preview instance" }
+    var rescanned = false
+    #expect(cache.resolve(
+      application: "Preview instance",
+      reportedPID: -1,
+      belongsToApplication: { $0 == 20 },
+      windowOwnerPIDs: { rescanned = true
+        return [20]
+      },
+    ) == 20)
+    #expect(rescanned)
+  }
+
+  @Test
+  func `pidless live app resolves its verified window owner including hidden windows`() {
+    #expect(resolveApplicationProcessIdentifier(
+      reportedPID: -1,
+      windowOwnerPIDs: [-1, 0, 20, 20, 30],
+      belongsToApplication: { $0 == 20 },
+    ) == 20)
+  }
+
+  @Test
+  func `process identity never selects an unrelated or ambiguous owner`() {
+    #expect(resolveApplicationProcessIdentifier(
+      reportedPID: -1,
+      windowOwnerPIDs: [20, 30],
+      belongsToApplication: { _ in false },
+    ) == nil)
+    #expect(resolveApplicationProcessIdentifier(
+      reportedPID: -1,
+      windowOwnerPIDs: [20, 30],
+      belongsToApplication: { _ in true },
+    ) == nil)
+    #expect(resolveApplicationProcessIdentifier(
+      reportedPID: -1,
+      windowOwnerPIDs: [],
+      belongsToApplication: { _ in true },
+    ) == nil)
+  }
+
+  @Test
+  func `valid app PID needs no window owner lookup`() {
+    #expect(resolveApplicationProcessIdentifier(
+      reportedPID: 10,
+      windowOwnerPIDs: [20],
+      belongsToApplication: { _ in
+        Issue.record("A valid AppKit PID must not enumerate WindowServer owners")
+        return true
+      },
+    ) == 10)
+  }
+
   @Test(arguments: [
     (
       WindowServerLayerEvidence.value(0),

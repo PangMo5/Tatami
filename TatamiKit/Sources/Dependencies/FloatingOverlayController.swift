@@ -50,8 +50,8 @@ private final class FloatingOverlayAXCancellationFlag: @unchecked Sendable {
 // MARK: - FloatingOverlayVisibilityWorker
 
 /// Serializes the repeated WindowServer z-order probes used by suppression.
-/// The focus hook's one-shot synchronous decision remains on MainActor, but
-/// its 16 ms verification loop must never enqueue WindowServer work there.
+/// Pre-focus preparation and repeated verification both keep WindowServer IPC
+/// off the main actor; presentation is committed only after fresh evidence.
 private final class FloatingOverlayVisibilityWorker: @unchecked Sendable {
 
   // MARK: Internal
@@ -96,6 +96,19 @@ private final class FloatingOverlayVisibilityWorker: @unchecked Sendable {
       }
     } onCancel: {
       cancellation.cancel()
+    }
+  }
+
+  func windowExists(_ key: WindowKey) async -> Bool {
+    await withCheckedContinuation { continuation in
+      queue.async {
+        let entries = CGWindowListCopyWindowInfo(.optionIncludingWindow, key.windowID)
+          as? [[String: Any]] ?? []
+        continuation.resume(returning: entries.contains {
+          ($0[kCGWindowNumber as String] as? CGWindowID) == key.windowID
+            && ($0[kCGWindowOwnerPID as String] as? pid_t) == key.pid
+        })
+      }
     }
   }
 
@@ -157,10 +170,9 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
     )
   }
 
-  /// Snap a drifted real window to its mirror geometry and AX-raise it.
-  /// Callers await completion so AppKit activation preserves the existing
-  /// raise-before-activate ordering without blocking the main actor.
-  func raise(
+  /// Align the real window with its mirror before the shared focus pipeline
+  /// transfers keyboard focus. Geometry preparation never activates an app.
+  func prepareFocus(
     _ key: WindowKey,
     targetFrame: CGRect?,
   ) async -> Bool {
@@ -172,7 +184,7 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
     }
     return await withTaskCancellationHandler {
       await perform {
-        let shouldActivate = self.raiseOnThread(
+        let shouldActivate = self.prepareFocusOnThread(
           key,
           targetFrame: targetFrame,
           isValid: {
@@ -535,7 +547,7 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
     }
   }
 
-  private func raiseOnThread(
+  private func prepareFocusOnThread(
     _ key: WindowKey,
     targetFrame: CGRect?,
     isValid: @Sendable () -> Bool,
@@ -545,9 +557,7 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
       resolveMissingElements([key], isCancelled: { !isValid() })
     }
     guard isValid() else { return false }
-    // Preserve the existing best-effort fallback: even when AX cannot
-    // resolve the exact window, AppKit may still activate the owning app.
-    guard let element = elements[key] else { return true }
+    guard let element = elements[key] else { return false }
     AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
     if let targetFrame {
       let current = AXWindowGeometry.frame(of: element)
@@ -566,7 +576,6 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
       }
     }
     guard isValid() else { return false }
-    AXUIElementPerformAction(element, kAXRaiseAction as CFString)
     return isValid()
   }
 
@@ -636,7 +645,7 @@ final class FloatingOverlayController {
   init(debugLog: DebugLogClient) {
     self.debugLog = debugLog
     clickTap = MirrorClickTap { [weak self] in
-      Task { @MainActor [weak self] in self?.handleOutsideClick() }
+      Task { @MainActor [weak self] in await self?.handleOutsideClick() }
     }
   }
 
@@ -718,20 +727,26 @@ final class FloatingOverlayController {
   /// new focus — the didActivate notification alone arrives one beat too
   /// late. Returns whether any mirror was actually restored: the caller
   /// then delays the activation a beat so the restore commits first.
-  func handleWillFocus(_ pid: pid_t) -> Bool {
+  func handleWillFocus(_ pid: pid_t) async -> Bool? {
     noteFocus(pid)
+    let generation = focusPresentationGeneration
     let targetIsFloating = panels.keys.contains { $0.pid == pid }
     var needsCommit = false
     for key in Array(panels.keys) where key.pid != pid {
       // Same dead-window rule as didActivate.
-      guard windowExists(key) else {
+      let exists = await visibilityWorker.windowExists(key)
+      guard !Task.isCancelled, generation == focusPresentationGeneration else { return nil }
+      guard panels[key] != nil else { continue }
+      guard exists else {
         removeWindow(key)
         continue
       }
       // Same occlusion rule as didActivate: when focus moves to a float,
       // an unoccluded sibling float keeps showing its real window — no
       // mirror needed.
-      if targetIsFloating, isVisuallyOnTop(key) {
+      let isOnTop = targetIsFloating ? await isVisuallyOnTop(key) : false
+      guard !Task.isCancelled, generation == focusPresentationGeneration else { return nil }
+      if isOnTop {
         suppressMirror(key)
         continue
       }
@@ -809,6 +824,7 @@ final class FloatingOverlayController {
   /// Mirror interactions retain the old raise-before-AppKit-activate order,
   /// but only the latest hover/click request may complete the activation.
   private var activationTask: Task<Void, Never>?
+  private var focusPresentationGeneration: UInt64 = 0
   private var activationGeneration: UInt64 = 0
   private var activationKey: WindowKey?
   /// Mirrors currently hidden (click-through, stream stopped): the
@@ -928,7 +944,7 @@ final class FloatingOverlayController {
       // The mirrored app may already be frontmost (e.g. the user floated
       // the focused window) — start suppressed so the mirror doesn't cover
       // the live window they're using.
-      if NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid {
+      if isFrontmostApplication(pid: key.pid) {
         suppressMirror(key)
       }
     }
@@ -958,9 +974,8 @@ final class FloatingOverlayController {
     // switcher, where a fake duplicate window would look wrong.
     panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .transient]
     let view = MirrorView(videoLayer: capture.videoLayer)
-    // Touching the mirror = the user wants the real window. Activation is
-    // all that happens here; the didActivateApplication notification then
-    // suppresses the mirror once the raise actually lands.
+    // Mirror interaction uses the same verified focus handover as workspace
+    // and window switching, including transfer of keyboard focus across apps.
     //
     // Suppressed gate: `ignoresMouseEvents` only stops *click* routing —
     // tracking-area mouseEntered still fires for a hidden, event-ignoring
@@ -985,7 +1000,7 @@ final class FloatingOverlayController {
       // real window of the app that already has focus moves no focus.
       guard
         hoverActivates
-        || NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid
+        || isFrontmostApplication(pid: key.pid)
       else { return }
       activateRealWindow(key)
     }
@@ -1085,12 +1100,14 @@ final class FloatingOverlayController {
       object: nil,
       queue: .main,
     ) { [weak self] note in
-      let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
-        .processIdentifier
-      guard let pid else { return }
-      // Delivered on the main queue (`queue: .main`), so hopping straight
-      // onto the main actor is sound.
-      MainActor.assumeIsolated { self?.handleAppActivated(pid) }
+      guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+      Task { @MainActor [weak self] in
+        guard
+          let pid = await applicationProcessIdentifier(app),
+          NSWorkspace.shared.frontmostApplication?.isEqual(app) == true
+        else { return }
+        await self?.handleAppActivated(pid)
+      }
     }
   }
 
@@ -1113,20 +1130,26 @@ final class FloatingOverlayController {
   ///     no ghost panel trailing a drag, and no hidden panel for hover
   ///     events to fall through to. Only a sibling genuinely covered by
   ///     a tile keeps its mirror.
-  private func handleAppActivated(_ pid: pid_t) {
+  private func handleAppActivated(_ pid: pid_t) async {
     debugLog.log("FocusDiag", "didActivate pid=\(pid)")
     noteFocus(pid)
+    let generation = focusPresentationGeneration
     let targetIsFloating = panels.keys.contains { $0.pid == pid }
     for key in Array(panels.keys) where key.pid != pid {
       // A dead window's mirror is torn down, never shown: quitting a
       // floating app fires this activation (macOS focuses the next app)
       // *before* the reducer's terminate-sync removes the panel, which
       // used to resurrect the mirror as a frozen ghost.
-      guard windowExists(key) else {
+      let exists = await visibilityWorker.windowExists(key)
+      guard !Task.isCancelled, generation == focusPresentationGeneration else { return }
+      guard panels[key] != nil else { continue }
+      guard exists else {
         removeWindow(key)
         continue
       }
-      if targetIsFloating, isVisuallyOnTop(key) {
+      let isOnTop = targetIsFloating ? await isVisuallyOnTop(key) : false
+      guard !Task.isCancelled, generation == focusPresentationGeneration else { return }
+      if isOnTop {
         suppressMirror(key)
       } else {
         restoreMirror(key)
@@ -1144,6 +1167,7 @@ final class FloatingOverlayController {
   /// Record `pid` as the focus target: track whether a float holds focus
   /// and bump it in the floating recency order.
   private func noteFocus(_ pid: pid_t) {
+    focusPresentationGeneration &+= 1
     let isFloating = panels.keys.contains { $0.pid == pid }
     focusedFloatPid = isFloating ? pid : nil
     guard isFloating else { return }
@@ -1296,11 +1320,13 @@ final class FloatingOverlayController {
       // through.
       if
         let capture = captures[key],
-        let still = capture.stillImage(),
+        let still = await capture.stillImage(),
         let view = panel.contentView as? MirrorView
       {
+        guard !Task.isCancelled, suppressed.contains(key), captures[key] === capture else { return }
         view.setStill(still)
       }
+      guard !Task.isCancelled, suppressed.contains(key) else { return }
       // Stop the stream: it keeps the screen-recording indicator lit, and
       // while the mirror is hidden nothing is painted.
       captures[key]?.stop()
@@ -1312,9 +1338,9 @@ final class FloatingOverlayController {
   /// Floating apps' own windows are deliberately excluded: while a float
   /// holds focus, the floats sort themselves through native activation
   /// z-order, so a sibling float above is never a reason to keep a mirror.
-  private func isVisuallyOnTop(_ key: WindowKey) -> Bool {
+  private func isVisuallyOnTop(_ key: WindowKey) async -> Bool {
     guard let input = visibilityInput(for: key) else { return false }
-    return FloatingOverlayVisibilityWorker.isVisuallyOnTop(input)
+    return await visibilityWorker.isVisuallyOnTop(input)
   }
 
   private func visibilityInput(
@@ -1346,19 +1372,8 @@ final class FloatingOverlayController {
     onShown: (() -> Void)? = nil,
   ) {
     guard suppressed.contains(key) else { return }
-    // Funnel for every restore path (focus handlers, click tap, cursor
-    // exit): a dead window's mirror never comes back — tear it down. The
-    // cursor-exit path in particular can race the terminate cleanup and
-    // used to resurrect a quit app's mirror on the first mouse move.
-    guard windowExists(key) else {
-      debugLog.log(
-        "Mirror",
-        "restore \(key.bundleId)#\(key.windowID): window gone — removing",
-      )
-      removeWindow(key)
-      onShown?()
-      return
-    }
+    // Callers have verified existence off-main and revalidated their focus
+    // generation before reaching this synchronous presentation commit.
     debugLog.log(
       "Mirror",
       "restore \(key.bundleId)#\(key.windowID) waitForFrame=\(waitForFrame)",
@@ -1430,7 +1445,7 @@ final class FloatingOverlayController {
   private func ensureCursorMonitor() {
     guard cursorMonitor == nil else { return }
     cursorMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
-      Task { @MainActor [weak self] in self?.handleCursorMoved(NSEvent.mouseLocation) }
+      Task { @MainActor [weak self] in await self?.handleCursorMoved(NSEvent.mouseLocation) }
     }
   }
 
@@ -1446,7 +1461,8 @@ final class FloatingOverlayController {
   /// click, a hotkey) the mirror is already up. This is what removes the
   /// "floating dips behind for a moment" race: focus-time restores can
   /// never beat the z-order change; cursor-exit restores don't have to.
-  private func handleCursorMoved(_ cursor: NSPoint) {
+  private func handleCursorMoved(_ cursor: NSPoint) async {
+    let generation = focusPresentationGeneration
     for key in Array(suppressed) {
       // Only the *focused* float swaps back to its mirror when the cursor
       // leaves it. A hidden unoccluded sibling stays hidden — its real
@@ -1473,6 +1489,12 @@ final class FloatingOverlayController {
         // .floating mirror above the still-uncovered real window
         // (.normal), visibly dropping the focused float behind the
         // sibling at their overlap until the first fresh frame lands.
+        let exists = await visibilityWorker.windowExists(key)
+        guard !Task.isCancelled, generation == focusPresentationGeneration else { return }
+        guard suppressed.contains(key), let panel = panels[key], !panel.frame.contains(NSEvent.mouseLocation) else { continue }
+        guard exists else { removeWindow(key)
+          continue
+        }
         restoreMirror(key, waitForFrame: true) { [weak self] in
           self?.applyStackOrder()
         }
@@ -1491,7 +1513,7 @@ final class FloatingOverlayController {
     let targetFrame = lastFrame[key].map(AXWindowGeometry.flipToCG)
     let worker = axWorker
     activationTask = Task { @MainActor [weak self] in
-      let shouldActivate = await worker.raise(key, targetFrame: targetFrame)
+      let shouldActivate = await worker.prepareFocus(key, targetFrame: targetFrame)
       guard
         let self,
         shouldActivate,
@@ -1499,14 +1521,21 @@ final class FloatingOverlayController {
         activationGeneration == generation,
         panels[key] != nil
       else { return }
-      NSRunningApplication(processIdentifier: key.pid)?
-        .activate()
+      @Dependency(\.focusManager) var focusManager
+      await focusManager.focusWindow(key)
+      guard
+        !Task.isCancelled,
+        activationGeneration == generation,
+        panels[key] != nil
+      else { return }
       // An already-frontmost app fires no didActivate notification — settle
       // the suppression state directly (e.g. a mirror restored by a menu-bar
       // click while its app stayed active would otherwise stay up as an
       // event-eating picture over the live window).
-      if NSWorkspace.shared.frontmostApplication?.processIdentifier == key.pid {
-        handleAppActivated(key.pid)
+      if isFrontmostApplication(pid: key.pid) {
+        await handleAppActivated(key.pid)
+      } else {
+        debugLog.log("Mirror", "focus handover not confirmed \(key.bundleId)#\(key.windowID)")
       }
       if activationGeneration == generation {
         activationTask = nil
@@ -1518,11 +1547,16 @@ final class FloatingOverlayController {
   /// A mouse-down landed outside every suppressed floating window — focus
   /// is about to move to whatever was clicked. Put the mirrors back up
   /// ahead of the raise; the didActivate notification settles final state.
-  private func handleOutsideClick() {
+  private func handleOutsideClick() async {
+    focusPresentationGeneration &+= 1
+    let generation = focusPresentationGeneration
     guard !suppressed.isEmpty else { return }
     focusedFloatPid = nil
     for key in Array(panels.keys) {
-      guard windowExists(key) else {
+      let exists = await visibilityWorker.windowExists(key)
+      guard !Task.isCancelled, generation == focusPresentationGeneration else { return }
+      guard panels[key] != nil else { continue }
+      guard exists else {
         removeWindow(key)
         continue
       }
@@ -1530,17 +1564,6 @@ final class FloatingOverlayController {
       showPanel(key)
     }
     applyStackOrder()
-  }
-
-  /// The mirrored window is still on screen (cheap single-window
-  /// CGWindowList lookup).
-  private func windowExists(_ key: WindowKey) -> Bool {
-    let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, key.windowID)
-      as? [[String: Any]]
-    return (list ?? []).contains { entry in
-      (entry[kCGWindowNumber as String] as? CGWindowID) == key.windowID
-        && (entry[kCGWindowOwnerPID as String] as? pid_t) == key.pid
-    }
   }
 
   /// Publish the suppressed windows' frames (CG coordinates) for the

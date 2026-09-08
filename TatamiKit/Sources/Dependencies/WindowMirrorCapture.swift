@@ -4,6 +4,7 @@
 import AVFoundation
 import CoreImage
 import CoreMedia
+import os
 import OSLog
 import ScreenCaptureKit
 
@@ -26,14 +27,16 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Floating
 /// `pendingFirstFrame`) is `@MainActor`, so the main actor serializes all
 /// mutation — including across the `startCapture()` suspensions, which the
 /// generation check below makes explicit. The capture callback runs on
-/// `captureQueue` and touches only `videoLayer` (whose `enqueue` is
-/// thread-safe), the lock-guarded `lastBuffer` box, and the one-shot
-/// `firstFrameGate`.
+/// `captureQueue` and touches only the background-safe sample buffer renderer,
+/// the lock-guarded buffer/stream gates, and the one-shot `firstFrameGate`.
 final class WindowMirrorCapture: NSObject, @unchecked Sendable {
 
   // MARK: Lifecycle
 
   override init() {
+    let layer = AVSampleBufferDisplayLayer()
+    videoLayer = layer
+    renderer = layer.sampleBufferRenderer
     super.init()
     // The panel matches the window's aspect ratio, so a straight resize
     // (no letterboxing) fills the mirror exactly.
@@ -49,7 +52,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   }
 
   /// The layer the controller installs into the mirror panel's view.
-  let videoLayer = AVSampleBufferDisplayLayer()
+  let videoLayer: AVSampleBufferDisplayLayer
 
   /// Whether a stream is currently live. Read from the controller (main
   /// actor) to decide when a stopped mirror needs a prefetch resume.
@@ -75,10 +78,12 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       }
     }
     let startedGeneration = generation
+    frameGate.activate(ObjectIdentifier(stream))
     do {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
       guard generation == startedGeneration else {
+        frameGate.deactivate(ObjectIdentifier(stream))
         // A stop won the race while `startCapture` was in flight — the
         // mirror is no longer wanted; don't publish the stream.
         try? await stream.stopCapture()
@@ -88,6 +93,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       self.stream = stream
       return true
     } catch {
+      frameGate.deactivate(ObjectIdentifier(stream))
       logger.error("mirror start failed: \(error.localizedDescription, privacy: .public)")
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
@@ -105,6 +111,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   @MainActor
   func stop() {
     generation += 1
+    frameGate.invalidate()
     let activeStream = stream
     stream = nil
     finishPendingFirstFrame(outcome: .cancelled)
@@ -153,36 +160,40 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       addFirstFrameCallback(onFirstFrame, for: stream)
     }
     let startedGeneration = generation
+    frameGate.activate(ObjectIdentifier(stream))
     do {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
       guard generation == startedGeneration else {
+        frameGate.deactivate(ObjectIdentifier(stream))
         try? await stream.stopCapture()
         finishPendingFirstFrame(for: stream, outcome: .cancelled)
         return
       }
       self.stream = stream
     } catch {
+      frameGate.deactivate(ObjectIdentifier(stream))
       logger.error("mirror resume failed: \(error.localizedDescription, privacy: .public)")
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
     }
   }
 
-  /// CGImage of the most recent frame (call on the main thread). Backs the
+  /// CGImage of the most recent frame, rendered on a worker. Backs the
   /// mirror with a still while the stream is stopped: a focus change can
   /// force the panel visible *before* the stream restarts, and without the
   /// still the layer is empty — the panel sits on top but is transparent,
   /// so whatever raised behind it shows through (the FFM "window A pops
   /// over the floating area" flash).
-  @MainActor
-  func stillImage() -> CGImage? {
-    guard
-      let buffer = lastBuffer.load(),
-      let pixelBuffer = CMSampleBufferGetImageBuffer(buffer)
-    else { return nil }
-    let image = CIImage(cvPixelBuffer: pixelBuffer)
-    return Self.ciContext.createCGImage(image, from: image.extent)
+  func stillImage() async -> CGImage? {
+    await stillImageWorker.run {
+      guard
+        let buffer = self.lastBuffer.load(),
+        let pixelBuffer = CMSampleBufferGetImageBuffer(buffer)
+      else { return nil }
+      let image = CIImage(cvPixelBuffer: pixelBuffer)
+      return Self.ciContext.createCGImage(image, from: image.extent)
+    }
   }
 
   /// Resize the capture surface after the mirrored window changed size, so
@@ -207,6 +218,10 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   }
 
   private static let ciContext = CIContext()
+
+  private let renderer: AVSampleBufferVideoRenderer
+  private let frameGate = CaptureStreamFrameGate()
+  private let stillImageWorker = BlockingWorkQueue(label: "dev.PangMo5.Tatami.mirror-still-image")
 
   private var stream: SCStream?
   private let config = SCStreamConfiguration()
@@ -294,6 +309,37 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
 
 }
 
+// MARK: - CaptureStreamFrameGate
+
+/// Stream ownership can change on MainActor while old SCStream output remains
+/// queued. Only the currently requested stream may submit frames or update the
+/// retained still. A late stop callback cannot retire its replacement.
+final class CaptureStreamFrameGate: Sendable {
+
+  // MARK: Internal
+
+  func activate(_ stream: ObjectIdentifier) {
+    current.withLock { $0 = stream }
+  }
+
+  func deactivate(_ stream: ObjectIdentifier) {
+    current.withLock { if $0 == stream { $0 = nil } }
+  }
+
+  func invalidate() {
+    current.withLock { $0 = nil }
+  }
+
+  func accepts(_ stream: ObjectIdentifier) -> Bool {
+    current.withLock { $0 == stream }
+  }
+
+  // MARK: Private
+
+  private let current = OSAllocatedUnfairLock<ObjectIdentifier?>(initialState: nil)
+
+}
+
 // MARK: - FirstFrameGate
 
 /// Lock-guarded one-shot stream/token gate, armed from MainActor and
@@ -372,13 +418,14 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
     didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
     of type: SCStreamOutputType,
   ) {
-    guard type == .screen, sampleBuffer.isValid else { return }
-    // Enqueue straight from the capture queue —
-    // `AVSampleBufferDisplayLayer.enqueue` is thread-safe, and hopping
-    // every frame through the main queue cost N mirrors × up-to-120 Hz of
-    // main-queue blocks that piled up behind long AX passes.
-    if videoLayer.status == .failed { videoLayer.flush() }
-    videoLayer.enqueue(sampleBuffer)
+    guard
+      type == .screen, sampleBuffer.isValid,
+      frameGate.accepts(ObjectIdentifier(stream))
+    else { return }
+    // Apple explicitly supports background enqueuing through this renderer.
+    // The CALayer remains a presentation object owned by the main actor.
+    if renderer.status == .failed { renderer.flush() }
+    renderer.enqueue(sampleBuffer)
     lastBuffer.store(sampleBuffer)
     guard let token = firstFrameGate.take(for: stream) else { return }
     DispatchQueue.main.async { [weak self] in
@@ -395,6 +442,7 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
   func stream(_ stream: SCStream, didStopWithError error: Error) {
     logger.error("mirror stream stopped: \(error.localizedDescription, privacy: .public)")
     let stoppedStreamID = ObjectIdentifier(stream)
+    frameGate.deactivate(stoppedStreamID)
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       MainActor.assumeIsolated {

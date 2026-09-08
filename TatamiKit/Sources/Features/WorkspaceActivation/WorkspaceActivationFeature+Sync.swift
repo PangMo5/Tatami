@@ -273,7 +273,7 @@ extension WorkspaceActivationFeature {
         // Floating presentation owns its own all-visible-floats discovery.
         resizableKeys = nil
       }
-      let frames = snapshot.onScreenWindowFrames()
+      let frames = await snapshot.onScreenWindowFramesOffMain()
       await send(.syncAppWindowsResolved(
         bundleId: bundleId,
         resizableKeys: resizableKeys,
@@ -332,6 +332,7 @@ extension WorkspaceActivationFeature {
   /// the normal AX sync still follows as an eligibility/cache verification.
   func replaceInvisibleWindowServerSurface(
     windowID: CGWindowID,
+    surfaces suppliedSurfaces: [CGWindowID: WindowServerSurface]? = nil,
     state: inout State,
   ) -> Effect<Action>? {
     guard
@@ -344,7 +345,7 @@ extension WorkspaceActivationFeature {
       let outgoing = tree.windows.first(where: { $0.windowID == windowID })
     else { return nil }
 
-    let surfaces = windowSnapshot.onScreenWindowSurfaces()
+    let surfaces = suppliedSurfaces ?? windowSnapshot.onScreenWindowSurfaces()
     let knownWindowIDs = Set(
       state.visibleWorkspaceIDs.flatMap {
         state.tilingTrees[$0]?.windows.map(\.windowID) ?? []
@@ -423,6 +424,7 @@ extension WorkspaceActivationFeature {
   func pruneOffscreenWindows(
     knownDestroyedWindowIDs: Set<CGWindowID> = [],
     knownInvisibleWindowIDs: Set<CGWindowID> = [],
+    onScreenWindowIDs: Set<CGWindowID>? = nil,
     state: inout State,
   ) -> Effect<Action> {
     guard !state.isTilingPaused, !state.isActivating else { return .none }
@@ -444,7 +446,7 @@ extension WorkspaceActivationFeature {
     let targetIds = Array(state.visibleWorkspaceIDs)
     guard !targetIds.isEmpty else { return .none }
 
-    let onScreen = windowSnapshot.onScreenWindowIDs()
+    let onScreen = onScreenWindowIDs ?? windowSnapshot.onScreenWindowIDs()
     let settings = state.config.settings
     let axis = settings.layout.autoBalance
     // Focus notifications maintain this state continuously. A prune must not
@@ -1035,8 +1037,10 @@ extension WorkspaceActivationFeature {
       .subtracting(currentKeys)
     if !removedDuringSync.isEmpty {
       state.pendingLayoutRestorations[workspaceId] = nil
-    } else if let restoration = state.pendingLayoutRestorations[workspaceId],
-              let restored = BSPNode.hydrate(template: restoration.tree, keys: currentKeys) {
+    } else if
+      let restoration = state.pendingLayoutRestorations[workspaceId],
+      let restored = BSPNode.hydrate(template: restoration.tree, keys: currentKeys)
+    {
       tree = Self.mergeTree(
         existing: restored,
         target: currentKeys,

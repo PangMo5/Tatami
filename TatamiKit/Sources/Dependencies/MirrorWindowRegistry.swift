@@ -12,23 +12,20 @@ import os
 /// tile that happens to lie underneath the panel — or the two fight over
 /// focus and the hand-off flickers.
 final class MirrorWindowRegistry: Sendable {
-  static let shared = MirrorWindowRegistry()
+
+  // MARK: Internal
 
   struct Target: Sendable {
-    var pid: pid_t
-    var windowID: CGWindowID
-
     init(pid: pid_t, windowID: CGWindowID) {
       self.pid = pid
       self.windowID = windowID
     }
+
+    var pid: pid_t
+    var windowID: CGWindowID
   }
 
-  private let entries = OSAllocatedUnfairLock<[CGWindowID: Target]>(initialState: [:])
-  private let willFocusHandler =
-    OSAllocatedUnfairLock<(@Sendable (pid_t) -> Bool)?>(initialState: nil)
-  private let suppressedFrames =
-    OSAllocatedUnfairLock<[CGWindowID: CGRect]>(initialState: [:])
+  static let shared = MirrorWindowRegistry()
 
   /// Register (or, with `nil`, unregister) a mirror panel's window number.
   func set(mirror windowID: CGWindowID, target: Target?) {
@@ -50,17 +47,17 @@ final class MirrorWindowRegistry: Sendable {
   /// `didActivateApplication` afterwards is one beat too late and the
   /// floating window visibly drops behind the tile first.
   ///
-  /// Contract: `notifyWillFocus` is only called from `@MainActor` code
-  /// (`focusWindow`), so the handler may assume main-actor isolation. The
-  /// handler returns whether any mirror was actually restored — the caller
-  /// then gives the window server a beat to commit before activating.
-  func setWillFocusHandler(_ handler: (@Sendable (pid_t) -> Bool)?) {
+  /// The async handler verifies visibility off-main and commits presentation
+  /// on the main actor before focus can move. Nil means a newer focus intent
+  /// superseded preparation; Bool indicates whether a mirror commit is needed.
+  func setWillFocusHandler(_ handler: (@Sendable (pid_t) async -> Bool?)?) {
     willFocusHandler.withLock { $0 = handler }
   }
 
   /// Returns true when mirrors were restored and need a frame to commit.
-  func notifyWillFocus(pid: pid_t) -> Bool {
-    willFocusHandler.withLock { $0 }?(pid) ?? false
+  func notifyWillFocus(pid: pid_t) async -> Bool? {
+    guard let handler = willFocusHandler.withLock({ $0 }) else { return false }
+    return await handler(pid)
   }
 
   /// Frames (global top-left CG coordinates) of the floating windows whose
@@ -74,4 +71,13 @@ final class MirrorWindowRegistry: Sendable {
   func suppressedWindowFrames() -> [CGRect] {
     suppressedFrames.withLock { Array($0.values) }
   }
+
+  // MARK: Private
+
+  private let entries = OSAllocatedUnfairLock<[CGWindowID: Target]>(initialState: [:])
+  private let willFocusHandler =
+    OSAllocatedUnfairLock<(@Sendable (pid_t) async -> Bool?)?>(initialState: nil)
+  private let suppressedFrames =
+    OSAllocatedUnfairLock<[CGWindowID: CGRect]>(initialState: [:])
+
 }
