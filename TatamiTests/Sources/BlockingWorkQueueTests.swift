@@ -1,11 +1,32 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import Dependencies
 import Foundation
 import Testing
 @testable import TatamiKit
 
 struct BlockingWorkQueueTests {
+  @Test
+  func `worker restores caller dependencies across dispatch boundaries`() async throws {
+    let worker = BlockingWorkQueue(label: "test.dependencies")
+    let expected = UUID()
+    try await withDependencies {
+      $0.uuid = .constant(expected)
+    } operation: {
+      let value = await worker.run {
+        @Dependency(\.uuid) var uuid
+        return uuid()
+      }
+      let throwingValue = try await worker.runThrowing {
+        @Dependency(\.uuid) var uuid
+        return uuid()
+      }
+      #expect(value == expected)
+      #expect(throwingValue == expected)
+    }
+  }
+
   @Test @MainActor
   func `blocking work leaves the main actor available`() async {
     let worker = BlockingWorkQueue(label: "test.blocking-work")

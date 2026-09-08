@@ -155,6 +155,9 @@ final class OverlayAwarenessState: @unchecked Sendable {
     _ processes: [OverlayAwareProcess],
     from token: OverlayEvaluationToken,
   ) async -> Set<OverlayAwareProcess> {
+    // A focus admitted before beginEvaluation may still be inside AX IPC.
+    // Await that mutation off-main before reading evidence or hiding its app.
+    await awaitPendingWindowFocusMutations()
     let cancellation = OverlayScanCancellationFlag()
     return await withTaskCancellationHandler {
       let (configured, provisional) = lock.withLock {

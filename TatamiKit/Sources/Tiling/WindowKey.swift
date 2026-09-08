@@ -299,13 +299,17 @@ private let focusAXLatestRequest = FocusAXLatestRequest()
 private let focusAXMutationLock = NSLock()
 private let focusAXMessagingTimeout: Float = 0.25
 
-/// Invalidate queued focus reads and serialize that invalidation with the final
-/// AX mutation admission edge. Overlay evaluation calls this after publishing
-/// its provisional PID set, so a focus that wins the lock happened before the
-/// process became backgrounded; one that runs later observes the exclusion.
+private let focusAXFenceQueue = BlockingWorkQueue(label: "dev.PangMo5.Tatami.ax-focus-fence")
+
+/// Publish cancellation immediately, without waiting for in-flight AX IPC.
+/// Visibility transactions await the mutation fence before changing visibility.
 func invalidatePendingWindowFocus() {
-  focusAXMutationLock.withLock {
-    _ = focusAXLatestRequest.begin()
+  _ = focusAXLatestRequest.begin()
+}
+
+func awaitPendingWindowFocusMutations() async {
+  await focusAXFenceQueue.run {
+    focusAXMutationLock.withLock { }
   }
 }
 

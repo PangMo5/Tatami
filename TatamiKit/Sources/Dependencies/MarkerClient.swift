@@ -179,7 +179,6 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     thread.qualityOfService = .userInitiated
     self.thread = thread
     thread.start()
-    ready.wait()
   }
 
   // MARK: Internal
@@ -261,9 +260,10 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   // MARK: Private
 
   private let sink: GeometrySink
-  private let ready = DispatchSemaphore(value: 0)
+  private let schedulingLock = NSLock()
+  private var pendingOperations = [@Sendable () -> Void]()
   private var thread: Thread?
-  private nonisolated(unsafe) var runLoop: CFRunLoop!
+  private var runLoop: CFRunLoop?
 
   /// State below is confined to `runLoop`.
   private var targetGeneration: UInt64 = 0
@@ -290,9 +290,15 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   )?
 
   private func run() {
-    runLoop = CFRunLoopGetCurrent()
+    let workerRunLoop = CFRunLoopGetCurrent()
     RunLoop.current.add(NSMachPort(), forMode: .common)
-    ready.signal()
+    schedulingLock.withLock {
+      for operation in pendingOperations {
+        CFRunLoopPerformBlock(workerRunLoop, CFRunLoopMode.commonModes.rawValue, operation)
+      }
+      pendingOperations.removeAll(keepingCapacity: true)
+      runLoop = workerRunLoop
+    }
     while true {
       autoreleasepool {
         _ = CFRunLoopRunInMode(.defaultMode, 60, true)
@@ -304,16 +310,20 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     _ operation: @escaping @Sendable () -> T
   ) async -> T {
     await withCheckedContinuation { continuation in
-      CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
-        continuation.resume(returning: operation())
-      }
-      CFRunLoopWakeUp(runLoop)
+      enqueue { continuation.resume(returning: operation()) }
     }
   }
 
   private func enqueue(_ operation: @escaping @Sendable () -> Void) {
-    CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, operation)
-    CFRunLoopWakeUp(runLoop)
+    let workerRunLoop = schedulingLock.withLock { () -> CFRunLoop? in
+      guard let runLoop else {
+        pendingOperations.append(operation)
+        return nil
+      }
+      CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, operation)
+      return runLoop
+    }
+    if let workerRunLoop { CFRunLoopWakeUp(workerRunLoop) }
   }
 
   private func updateTargetsOnThread(
