@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import Dependencies
 import Foundation
 
 /// Executes synchronous IPC/I/O without occupying the main actor or a Swift
@@ -17,16 +18,24 @@ struct BlockingWorkQueue: Sendable {
   // MARK: Internal
 
   func run<Value: Sendable>(_ operation: @escaping @Sendable () -> Value) async -> Value {
-    await withCheckedContinuation { continuation in
-      queue.async { continuation.resume(returning: operation()) }
+    await withEscapedDependencies { dependencies in
+      await withCheckedContinuation { continuation in
+        queue.async {
+          continuation.resume(returning: dependencies.yield(operation))
+        }
+      }
     }
   }
 
   func runThrowing<Value: Sendable>(
     _ operation: @escaping @Sendable () throws -> Value
   ) async throws -> Value {
-    try await withCheckedThrowingContinuation { continuation in
-      queue.async { continuation.resume(with: Result(catching: operation)) }
+    try await withEscapedDependencies { dependencies in
+      try await withCheckedThrowingContinuation { continuation in
+        queue.async {
+          continuation.resume(with: Result { try dependencies.yield(operation) })
+        }
+      }
     }
   }
 

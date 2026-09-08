@@ -384,11 +384,6 @@ public struct AppFeature {
           .run { [client = focusFollowsMouse] _ in
             await client.configure(ffm)
           },
-          // Mirror hover-handover follows the same setting: with FFM off,
-          // hovering a floating mirror must not move focus.
-          .run { [client = floatingOverlay] _ in
-            await client.setHoverActivation(settings.focus.focusFollowsMouse)
-          },
           .run { [client = gestures] _ in
             await client.stop()
             if settings.gestures.enabled {

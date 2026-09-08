@@ -9,6 +9,13 @@ import ScreenCaptureKit
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "FloatingOverlay")
 
+// MARK: - FloatingMirrorInteraction
+
+enum FloatingMirrorInteraction: Equatable, Sendable {
+  case revealWithoutFocus
+  case focus
+}
+
 // MARK: - FloatingOverlayGeometryUpdate
 
 private struct FloatingOverlayGeometryUpdate: Sendable {
@@ -21,9 +28,34 @@ private struct FloatingOverlayGeometryUpdate: Sendable {
 // MARK: - FloatingOverlayVisibilityInput
 
 private struct FloatingOverlayVisibilityInput: Sendable {
-  var windowID: CGWindowID
+  var key: WindowKey
   var frame: CGRect
   var floatingPIDs: Set<pid_t>
+}
+
+func isFloatingMirrorSourceExposed(
+  _ key: WindowKey,
+  frame: CGRect,
+  ignoringPIDs: Set<pid_t>,
+  windows: [WindowServerWindow],
+) -> Bool {
+  guard
+    let index = windows.firstIndex(where: { $0.id == key.windowID && $0.surface.ownerPID == key.pid }),
+    windows[index].surface.layer == 0,
+    windows[index].alpha > 0
+  else { return false }
+  let liveFrame = windows[index].surface.frame
+  guard
+    abs(liveFrame.minX - frame.minX) <= 1,
+    abs(liveFrame.minY - frame.minY) <= 1,
+    abs(liveFrame.width - frame.width) <= 1,
+    abs(liveFrame.height - frame.height) <= 1
+  else { return false }
+  return !windows[..<index].contains {
+    $0.surface.layer == 0 && $0.alpha > 0
+      && !ignoringPIDs.contains($0.surface.ownerPID)
+      && $0.surface.frame.intersects(frame)
+  }
 }
 
 // MARK: - FloatingOverlayAXCancellationFlag
@@ -57,29 +89,12 @@ private final class FloatingOverlayVisibilityWorker: @unchecked Sendable {
   // MARK: Internal
 
   static func isVisuallyOnTop(_ input: FloatingOverlayVisibilityInput) -> Bool {
-    guard
-      let above = CGWindowListCopyWindowInfo(
-        .optionOnScreenAboveWindow,
-        input.windowID,
-      ) as? [[String: Any]]
-    else { return false }
-    for entry in above {
-      guard
-        (entry[kCGWindowLayer as String] as? Int) == 0,
-        let owner = entry[kCGWindowOwnerPID as String] as? pid_t,
-        !input.floatingPIDs.contains(owner),
-        ((entry[kCGWindowAlpha as String] as? Double) ?? 1) > 0,
-        let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat]
-      else { continue }
-      let rect = CGRect(
-        x: bounds["X"] ?? 0,
-        y: bounds["Y"] ?? 0,
-        width: bounds["Width"] ?? 0,
-        height: bounds["Height"] ?? 0,
-      )
-      if rect.intersects(input.frame) { return false }
-    }
-    return true
+    isFloatingMirrorSourceExposed(
+      input.key,
+      frame: input.frame,
+      ignoringPIDs: input.floatingPIDs,
+      windows: readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements]),
+    )
   }
 
   func isVisuallyOnTop(_ input: FloatingOverlayVisibilityInput) async -> Bool {
@@ -170,11 +185,12 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
     )
   }
 
-  /// Align the real window with its mirror before the shared focus pipeline
-  /// transfers keyboard focus. Geometry preparation never activates an app.
-  func prepareFocus(
+  /// Align the real window with its mirror. A passive hover raises only its
+  /// surface; intentional focus continues through the shared focus pipeline.
+  func prepareInteraction(
     _ key: WindowKey,
     targetFrame: CGRect?,
+    interaction: FloatingMirrorInteraction,
   ) async -> Bool {
     let cancellation = FloatingOverlayAXCancellationFlag()
     let interruptedReconcile = reconcileLock.withLock { () -> Bool in
@@ -184,9 +200,10 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
     }
     return await withTaskCancellationHandler {
       await perform {
-        let shouldActivate = self.prepareFocusOnThread(
+        let shouldActivate = self.prepareInteractionOnThread(
           key,
           targetFrame: targetFrame,
+          interaction: interaction,
           isValid: {
             !cancellation.isCancelled
               && self.isLatestRequestedTarget(key)
@@ -547,9 +564,10 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
     }
   }
 
-  private func prepareFocusOnThread(
+  private func prepareInteractionOnThread(
     _ key: WindowKey,
     targetFrame: CGRect?,
+    interaction: FloatingMirrorInteraction,
     isValid: @Sendable () -> Bool,
   ) -> Bool {
     guard isValid() else { return false }
@@ -576,6 +594,9 @@ private final class FloatingOverlayAXWorker: @unchecked Sendable {
       }
     }
     guard isValid() else { return false }
+    if case .revealWithoutFocus = interaction {
+      guard AXUIElementPerformAction(element, kAXRaiseAction as CFString) == .success else { return false }
+    }
     return isValid()
   }
 
@@ -650,12 +671,6 @@ final class FloatingOverlayController {
   }
 
   // MARK: Internal
-
-  /// Hover-handover gate, mirrored from the focus-follows-mouse setting
-  /// (`setHoverActivation`). With FFM off, hovering a mirror must not move
-  /// focus — only the already-focused app's mirror hands back on hover
-  /// (no focus change involved); other mirrors hand over on click.
-  var hoverActivates = true
 
   func setFloating(_ windows: Set<WindowKey>) {
     let changed = desired != windows
@@ -768,9 +783,8 @@ final class FloatingOverlayController {
   /// The only time-based values in the overlay — everything else is
   /// event- or verification-driven.
   private enum Timing {
-    /// One display frame between raise-verification checks. Not a poll:
-    /// the z-order has no change notification, so this is the finest
-    /// granularity at which "did the raise composite?" can be observed.
+    /// Sample raise completion at display-frame cadence because the window
+    /// server does not publish a composited-z-order notification.
     static let verifyStep = Duration.milliseconds(16)
     /// Give up verifying after ~640 ms and keep the mirror up (truthful
     /// fallback) instead of exposing whatever sits behind it.
@@ -820,10 +834,12 @@ final class FloatingOverlayController {
   /// exact-stream fresh-frame callback succeeds.
   private var captureUnavailable = Set<WindowKey>()
   private var captureRetryTasks = [WindowKey: Task<Void, Never>]()
+  private var captureResumeTokens = [WindowKey: UUID]()
   private var captureRetryAttempts = [WindowKey: Int]()
   /// Mirror interactions retain the old raise-before-AppKit-activate order,
   /// but only the latest hover/click request may complete the activation.
   private var activationTask: Task<Void, Never>?
+  private var activationInteraction: FloatingMirrorInteraction?
   private var focusPresentationGeneration: UInt64 = 0
   private var activationGeneration: UInt64 = 0
   private var activationKey: WindowKey?
@@ -832,6 +848,9 @@ final class FloatingOverlayController {
   /// focus — sibling floats whose real window isn't covered by any tile,
   /// which therefore show themselves and need no mirror.
   private var suppressed = Set<WindowKey>()
+  /// Real windows temporarily exposed by hover without keyboard focus.
+  /// They restore on cursor exit just like the focused floating window.
+  private var hoverRevealed = Set<WindowKey>()
   /// Sibling mirrors dropped to `.normal` level just below the focused
   /// float's real window (tile-occluded siblings that must keep their
   /// mirror while a float holds focus). Demotion happens only *after*
@@ -982,27 +1001,32 @@ final class FloatingOverlayController {
     // panel. Without the gate, brushing the cursor across a hidden
     // mirror's frame (e.g. the overlap of two floats) hover-activated its
     // app and stole focus from the float the user was actually on.
-    view.onHoverChange = { [weak self] hovering in
+    view.onHoverChange = { [weak self, weak panel] hovering in
       // Demoted gate: tracking areas fire on geometry, not occlusion — a
       // demoted mirror tucked *below* the focused float's real window
       // still gets mouseEntered at their overlap, and must not react.
+      guard let self, let panel else { return }
+      if !hovering {
+        guard !panel.frame.contains(NSEvent.mouseLocation) else { return }
+        if activationKey == key, activationInteraction == .revealWithoutFocus {
+          activationGeneration &+= 1
+          activationTask?.cancel()
+          activationTask = nil
+          activationKey = nil
+          activationInteraction = nil
+        }
+        if hoverRevealed.contains(key) { restoreMirror(key, waitForFrame: true) }
+        return
+      }
       guard
-        let self, hovering,
-        !self.suppressed.contains(key),
-        !self.demoted.contains(key),
-        !self.geometryUnavailable.contains(key),
-        !self.captureUnavailable.contains(key)
+        !suppressed.contains(key),
+        !demoted.contains(key),
+        !geometryUnavailable.contains(key),
+        !captureUnavailable.contains(key)
       else { return }
-      // With focus-follows-mouse off, hover must not move focus (that
-      // would be FFM in disguise, just for floats) — the mirror stays up
-      // and scrolls forward via `onScroll`; focus moves on click. The
-      // focused app's own mirror still hands back on hover: revealing the
-      // real window of the app that already has focus moves no focus.
-      guard
-        hoverActivates
-        || isFrontmostApplication(pid: key.pid)
-      else { return }
-      activateRealWindow(key)
+      // The event tap owns FFM, including its disable modifier and fullscreen
+      // policy. This tracking event only reveals the native window underneath.
+      interactWithRealWindow(key, interaction: .revealWithoutFocus)
     }
     view.onClick = { [weak self] in
       guard
@@ -1012,7 +1036,7 @@ final class FloatingOverlayController {
         !self.geometryUnavailable.contains(key),
         !self.captureUnavailable.contains(key)
       else { return }
-      activateRealWindow(key)
+      interactWithRealWindow(key, interaction: .focus)
     }
     // Input parity with real windows: with FFM off the mirror sits under
     // the cursor, so scrolls, clicks, and drags land on the panel. Repost
@@ -1068,9 +1092,11 @@ final class FloatingOverlayController {
     geometryRetryTasks.removeValue(forKey: key)?.cancel()
     captureUnavailable.remove(key)
     captureRetryTasks.removeValue(forKey: key)?.cancel()
+    captureResumeTokens[key] = nil
     captureRetryAttempts.removeValue(forKey: key)
     hideTasks.removeValue(forKey: key)?.cancel()
     suppressed.remove(key)
+    hoverRevealed.remove(key)
     demoted.remove(key)
     demotionAnchors.removeValue(forKey: key)
     let orphanedDemotions = demotionAnchors.compactMap { entry in
@@ -1263,13 +1289,14 @@ final class FloatingOverlayController {
   /// "raise composited" — a blind timer raced slow apps' raises (Xcode)
   /// and let the tile underneath flash through; the bounded per-frame
   /// z-order check is the only reliable gate.
-  private func suppressMirror(_ key: WindowKey) {
+  private func suppressMirror(_ key: WindowKey, fromHover: Bool = false) {
     guard !suppressed.contains(key), let panel = panels[key] else { return }
     debugLog.log("Mirror", "suppress \(key.bundleId)#\(key.windowID)")
     suppressed.insert(key)
+    captureResumeTokens[key] = nil
+    if fromHover { hoverRevealed.insert(key) }
     cursorInside[key] = panel.frame.contains(NSEvent.mouseLocation)
     syncSuppressedFrames()
-    panel.ignoresMouseEvents = true
     ensureCursorMonitor()
     captureRetryTasks.removeValue(forKey: key)?.cancel()
     captureRetryAttempts.removeValue(forKey: key)
@@ -1280,7 +1307,10 @@ final class FloatingOverlayController {
       var raised = false
       for _ in 0..<Timing.verifyMaxSteps {
         guard let self, !Task.isCancelled, suppressed.contains(key) else { return }
-        let input = visibilityInput(for: key)
+        let input = visibilityInput(
+          for: key,
+          ignoringFloatingWindows: !isFrontmostApplication(pid: key.pid) && !hoverRevealed.contains(key),
+        )
         let isOnTop =
           if let input {
             await visibilityWorker.isVisuallyOnTop(input)
@@ -1296,14 +1326,14 @@ final class FloatingOverlayController {
       }
       guard let self, !Task.isCancelled, suppressed.contains(key) else { return }
       if !raised {
-        // The mirror stays visible (truthfully) — when a float "won't hide",
-        // this is the path that decided so.
         debugLog.log(
           "Mirror",
-          "suppress \(key.bundleId)#\(key.windowID): raise never verified — mirror stays",
+          "suppress \(key.bundleId)#\(key.windowID): raise not verified — restore interaction",
         )
+        restoreMirror(key)
         return
       }
+      panel.ignoresMouseEvents = true
       // The focused window is verifiably above the tiles — now (and only
       // now) it's safe to slot still-mirrored siblings underneath it.
       if key.pid == focusedFloatPid {
@@ -1344,15 +1374,16 @@ final class FloatingOverlayController {
   }
 
   private func visibilityInput(
-    for key: WindowKey
+    for key: WindowKey,
+    ignoringFloatingWindows: Bool = true,
   ) -> FloatingOverlayVisibilityInput? {
     // Missing geometry is "unknown", never verified-on-top. Keeping the
     // mirror is the truthful fallback; hiding it could expose a tile.
     guard let frame = lastFrame[key].map(AXWindowGeometry.flipToCG) else { return nil }
     return FloatingOverlayVisibilityInput(
-      windowID: key.windowID,
+      key: key,
       frame: frame,
-      floatingPIDs: Set(panels.keys.map(\.pid)),
+      floatingPIDs: ignoringFloatingWindows ? Set(panels.keys.map(\.pid)) : [],
     )
   }
 
@@ -1379,6 +1410,7 @@ final class FloatingOverlayController {
       "restore \(key.bundleId)#\(key.windowID) waitForFrame=\(waitForFrame)",
     )
     suppressed.remove(key)
+    hoverRevealed.remove(key)
     cursorInside.removeValue(forKey: key)
     syncSuppressedFrames()
     hideTasks.removeValue(forKey: key)?.cancel()
@@ -1400,21 +1432,14 @@ final class FloatingOverlayController {
     panel.ignoresMouseEvents = false
     let capture = captures[key]
     if waitForFrame, let capture, !capture.isRunning {
-      Task {
-        await capture.resume(maxFPS: maxFPS) { [weak self] outcome in
-          guard let self, acceptCaptureOutcome(outcome, for: key) else { return }
-          showPanel(key)
-          onShown?()
-        }
+      resumeCapture(key, capture: capture) { [weak self] in
+        self?.showPanel(key)
+        onShown?()
       }
     } else {
       showPanel(key)
       if let capture, !capture.isRunning {
-        Task {
-          await capture.resume(maxFPS: maxFPS) { [weak self] outcome in
-            _ = self?.acceptCaptureOutcome(outcome, for: key)
-          }
-        }
+        resumeCapture(key, capture: capture)
       }
       onShown?()
     }
@@ -1469,7 +1494,7 @@ final class FloatingOverlayController {
       // window shows itself, and brushing the cursor across it must not
       // pop a mirror.
       guard
-        key.pid == focusedFloatPid,
+        key.pid == focusedFloatPid || hoverRevealed.contains(key),
         !geometryUnavailable.contains(key),
         !captureUnavailable.contains(key),
         let panel = panels[key]
@@ -1503,24 +1528,43 @@ final class FloatingOverlayController {
   }
 
   /// Bring the mirrored window's real counterpart to the front and focus it.
-  private func activateRealWindow(_ key: WindowKey) {
+  private func interactWithRealWindow(_ key: WindowKey, interaction: FloatingMirrorInteraction) {
     guard panels[key] != nil else { return }
-    debugLog.log("FocusDiag", "mirror hover/click activate \(key.bundleId)#\(key.windowID)")
+    debugLog.log("FocusDiag", "mirror \(interaction) \(key.bundleId)#\(key.windowID)")
     activationGeneration &+= 1
     let generation = activationGeneration
     activationTask?.cancel()
     activationKey = key
+    activationInteraction = interaction
     let targetFrame = lastFrame[key].map(AXWindowGeometry.flipToCG)
     let worker = axWorker
     activationTask = Task { @MainActor [weak self] in
-      let shouldActivate = await worker.prepareFocus(key, targetFrame: targetFrame)
+      let shouldActivate = await worker.prepareInteraction(key, targetFrame: targetFrame, interaction: interaction)
+      guard let self else { return }
+      defer {
+        if activationGeneration == generation {
+          activationTask = nil
+          activationKey = nil
+          activationInteraction = nil
+        }
+      }
       guard
-        let self,
-        shouldActivate,
         !Task.isCancelled,
         activationGeneration == generation,
         panels[key] != nil
       else { return }
+      guard shouldActivate else {
+        debugLog.log("Mirror", "interaction preparation failed \(key.bundleId)#\(key.windowID)")
+        return
+      }
+      if case .revealWithoutFocus = interaction {
+        guard
+          let panel = panels[key],
+          panel.frame.contains(NSEvent.mouseLocation)
+        else { return }
+        suppressMirror(key, fromHover: true)
+        return
+      }
       @Dependency(\.focusManager) var focusManager
       await focusManager.focusWindow(key)
       guard
@@ -1536,10 +1580,6 @@ final class FloatingOverlayController {
         await handleAppActivated(key.pid)
       } else {
         debugLog.log("Mirror", "focus handover not confirmed \(key.bundleId)#\(key.windowID)")
-      }
-      if activationGeneration == generation {
-        activationTask = nil
-        activationKey = nil
       }
     }
   }
@@ -1650,6 +1690,7 @@ final class FloatingOverlayController {
   private func invalidateGeometry(for key: WindowKey) {
     guard let panel = panels[key] else { return }
     let newlyUnavailable = geometryUnavailable.insert(key).inserted
+    captureResumeTokens[key] = nil
     if newlyUnavailable {
       debugLog.log(
         "Mirror",
@@ -1721,19 +1762,40 @@ final class FloatingOverlayController {
     _ key: WindowKey,
     capture: WindowMirrorCapture,
   ) {
+    resumeCapture(key, capture: capture) { [weak self] in
+      self?.showPanel(key)
+      self?.publishMirrorPanel(for: key)
+    }
+  }
+
+  /// Every restart completion belongs to one capture instance and request.
+  /// A retired stream must not hide/show a replacement panel with the same key.
+  private func resumeCapture(
+    _ key: WindowKey,
+    capture: WindowMirrorCapture,
+    onFreshFrame: (() -> Void)? = nil,
+  ) {
+    let token = UUID()
+    captureResumeTokens[key] = token
     let framesPerSecond = maxFPS
     Task { @MainActor [weak self, capture] in
-      await capture.resume(maxFPS: framesPerSecond) { [weak self] outcome in
+      guard
+        let self,
+        captures[key] === capture,
+        captureResumeTokens[key] == token,
+        !suppressed.contains(key),
+        !geometryUnavailable.contains(key)
+      else { return }
+      await capture.resume(maxFPS: framesPerSecond) { [weak self, weak capture] outcome in
         guard
-          let self,
-          acceptCaptureOutcome(outcome, for: key),
-          panels[key] != nil,
-          !suppressed.contains(key),
-          !geometryUnavailable.contains(key),
-          lastFrame[key] != nil
+          let self, let capture,
+          captures[key] === capture,
+          captureResumeTokens[key] == token
         else { return }
-        showPanel(key)
-        publishMirrorPanel(for: key)
+        captureResumeTokens[key] = nil
+        captureRetryTasks[key] = nil
+        guard acceptCaptureOutcome(outcome, for: key) else { return }
+        onFreshFrame?()
       }
     }
   }
@@ -1826,7 +1888,6 @@ final class FloatingOverlayController {
       return
     }
     captureRetryAttempts[key] = attempt
-    let framesPerSecond = maxFPS
     captureRetryTasks[key] = Task { @MainActor [weak self, capture] in
       do {
         try await Task.sleep(for: Timing.captureRetryStep)
@@ -1841,10 +1902,8 @@ final class FloatingOverlayController {
         !suppressed.contains(key),
         !geometryUnavailable.contains(key)
       else { return }
-      await capture.resume(maxFPS: framesPerSecond) { [weak self] outcome in
+      resumeCapture(key, capture: capture) { [weak self] in
         guard let self else { return }
-        captureRetryTasks[key] = nil
-        guard acceptCaptureOutcome(outcome, for: key) else { return }
         showPanel(key)
         publishMirrorPanel(for: key)
       }

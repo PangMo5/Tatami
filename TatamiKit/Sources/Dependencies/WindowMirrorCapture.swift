@@ -78,12 +78,12 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       }
     }
     let startedGeneration = generation
-    frameGate.activate(ObjectIdentifier(stream))
+    activateFrameSource(ObjectIdentifier(stream))
     do {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
       guard generation == startedGeneration else {
-        frameGate.deactivate(ObjectIdentifier(stream))
+        retireFrameSource(ObjectIdentifier(stream))
         // A stop won the race while `startCapture` was in flight — the
         // mirror is no longer wanted; don't publish the stream.
         try? await stream.stopCapture()
@@ -93,7 +93,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       self.stream = stream
       return true
     } catch {
-      frameGate.deactivate(ObjectIdentifier(stream))
+      retireFrameSource(ObjectIdentifier(stream))
       logger.error("mirror start failed: \(error.localizedDescription, privacy: .public)")
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
@@ -111,7 +111,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   @MainActor
   func stop() {
     generation += 1
-    frameGate.invalidate()
+    captureQueue.async { [self] in frameGate.invalidate() }
     let activeStream = stream
     stream = nil
     finishPendingFirstFrame(outcome: .cancelled)
@@ -160,19 +160,19 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       addFirstFrameCallback(onFirstFrame, for: stream)
     }
     let startedGeneration = generation
-    frameGate.activate(ObjectIdentifier(stream))
+    activateFrameSource(ObjectIdentifier(stream))
     do {
       try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: captureQueue)
       try await stream.startCapture()
       guard generation == startedGeneration else {
-        frameGate.deactivate(ObjectIdentifier(stream))
+        retireFrameSource(ObjectIdentifier(stream))
         try? await stream.stopCapture()
         finishPendingFirstFrame(for: stream, outcome: .cancelled)
         return
       }
       self.stream = stream
     } catch {
-      frameGate.deactivate(ObjectIdentifier(stream))
+      retireFrameSource(ObjectIdentifier(stream))
       logger.error("mirror resume failed: \(error.localizedDescription, privacy: .public)")
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
@@ -248,8 +248,19 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   private let firstFrameGate = FirstFrameGate()
 
   /// Most recent frame, kept for `stillImage()`. Written from the capture
-  /// queue, read from the main thread — hence the lock box.
+  /// queue, read from the still-image worker — hence the lock box.
   private let lastBuffer = BufferBox()
+
+  /// Serialize ownership changes with sample delivery. MainActor never waits
+  /// for renderer work, and a sample cannot pass the gate and enqueue after a
+  /// replacement source has been admitted on the same queue.
+  private func activateFrameSource(_ stream: ObjectIdentifier) {
+    captureQueue.async { [self] in frameGate.activate(stream) }
+  }
+
+  private func retireFrameSource(_ stream: ObjectIdentifier) {
+    captureQueue.async { [self] in frameGate.deactivate(stream) }
+  }
 
   /// Bind every waiter to one concrete stream/token pair. The stream
   /// identity rejects queued samples from a stopped predecessor; the token
@@ -442,7 +453,7 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
   func stream(_ stream: SCStream, didStopWithError error: Error) {
     logger.error("mirror stream stopped: \(error.localizedDescription, privacy: .public)")
     let stoppedStreamID = ObjectIdentifier(stream)
-    frameGate.deactivate(stoppedStreamID)
+    retireFrameSource(stoppedStreamID)
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       MainActor.assumeIsolated {

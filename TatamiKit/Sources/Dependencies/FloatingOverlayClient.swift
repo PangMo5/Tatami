@@ -21,7 +21,8 @@ import ScreenCaptureKit
 /// otherwise be covered by a non-floating window:
 ///
 ///   * non-floating app focused → every float needs its mirror (shown,
-///     streaming; hover/click hands focus to the real window).
+///     streaming; hover reveals the real window, while click or FFM transfers
+///     keyboard focus).
 ///   * floating app focused → its own mirrors hide, and so do sibling
 ///     floats' that sit unoccluded above the tiles — the real windows
 ///     show themselves and stack natively by activation recency. Only a
@@ -47,12 +48,6 @@ struct FloatingOverlayClient: Sendable {
   /// the tile pass and vanish noticeably later than the windows they
   /// mirror (`setFloating` reconciles the full set afterwards).
   var retainOnly: @MainActor @Sendable (_ bundleIds: Set<String>) -> Void
-  /// Whether hovering a mirror hands focus to its real window. Mirrored
-  /// from the focus-follows-mouse setting: with FFM off, focus must only
-  /// move on click — hover-activation would *be* focus-follows-mouse for
-  /// floating windows. (The focused app's own mirror still hands back on
-  /// hover either way; that moves no focus.)
-  var setHoverActivation: @MainActor @Sendable (_ enabled: Bool) -> Void
 }
 
 // MARK: DependencyKey
@@ -71,7 +66,6 @@ extension FloatingOverlayClient: DependencyKey {
     return FloatingOverlayClient(
       setFloating: { windows in controller.setFloating(windows) },
       retainOnly: { bundleIds in controller.retainOnly(bundleIds) },
-      setHoverActivation: { enabled in controller.hoverActivates = enabled },
     )
   }
 

@@ -24,19 +24,22 @@ final class EventTapThread: @unchecked Sendable {
 
   private init() {
     let thread = Thread { [self] in
-      runLoop = CFRunLoopGetCurrent()
+      let workerRunLoop = CFRunLoopGetCurrent()
       // A CFRunLoop with no input sources returns immediately from `run`.
       // Keep it alive with a no-op Mach port for the process lifetime.
       RunLoop.current.add(NSMachPort(), forMode: .common)
-      ready.signal()
+      schedulingLock.withLock {
+        for operation in pendingOperations {
+          CFRunLoopPerformBlock(workerRunLoop, CFRunLoopMode.commonModes.rawValue, operation)
+        }
+        pendingOperations.removeAll(keepingCapacity: true)
+        runLoop = workerRunLoop
+      }
       RunLoop.current.run()
     }
     thread.name = "dev.PangMo5.Tatami.event-tap"
     thread.qualityOfService = .userInteractive
     thread.start()
-    // One-time, sub-millisecond wait at first tap install so `addSource` /
-    // `perform` can't race the run loop coming up.
-    ready.wait()
   }
 
   // MARK: Internal
@@ -45,30 +48,42 @@ final class EventTapThread: @unchecked Sendable {
 
   /// Attach a run-loop source (e.g. a `CGEventTap`'s) to this thread.
   func addSource(_ source: CFRunLoopSource) {
-    CFRunLoopAddSource(runLoop, source, .commonModes)
-    CFRunLoopWakeUp(runLoop)
+    let transfer = SourceTransfer(source: source)
+    perform { CFRunLoopAddSource(CFRunLoopGetCurrent(), transfer.source, .commonModes) }
   }
 
   /// Detach a previously attached run-loop source.
   func removeSource(_ source: CFRunLoopSource) {
-    CFRunLoopRemoveSource(runLoop, source, .commonModes)
-    CFRunLoopWakeUp(runLoop)
+    let transfer = SourceTransfer(source: source)
+    perform { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), transfer.source, .commonModes) }
   }
 
   /// Schedule `work` to run on the event-tap thread. Tap install/teardown
   /// is routed through here so it mutates controller state from the same
   /// isolation as the tap callback (this thread) — no locks needed.
   func perform(_ work: @escaping @Sendable () -> Void) {
-    CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, work)
-    CFRunLoopWakeUp(runLoop)
+    let workerRunLoop = schedulingLock.withLock { () -> CFRunLoop? in
+      guard let runLoop else {
+        pendingOperations.append(work)
+        return nil
+      }
+      CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, work)
+      return runLoop
+    }
+    if let workerRunLoop { CFRunLoopWakeUp(workerRunLoop) }
   }
 
   // MARK: Private
 
-  /// The thread's run loop, captured once the thread is up. Written once
-  /// during startup and only read afterwards (readers wait on `ready`),
-  /// so the unsynchronized access is sound.
-  private nonisolated(unsafe) var runLoop: CFRunLoop!
-  private let ready = DispatchSemaphore(value: 0)
+  /// Retains a CF source across admission; attachment and removal both execute
+  /// on the event thread, and the wrapper never mutates its reference.
+  private struct SourceTransfer: @unchecked Sendable {
+    let source: CFRunLoopSource
+  }
+
+  /// Startup admission is buffered; UI callers never wait for thread creation.
+  private let schedulingLock = NSLock()
+  private var runLoop: CFRunLoop?
+  private var pendingOperations = [@Sendable () -> Void]()
 
 }
