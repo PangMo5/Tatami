@@ -8,15 +8,22 @@ struct DocumentBuilder {
 
   let workspace: Workspace
 
-  var documents: [String] {
-    get throws {
-      try ["README.md"] + workspace.root.at("docs").children().filter { $0.pathExtension == "md" }
-        .map { "docs/" + $0.lastPathComponent }
-        + ["DemoLab/README.md"] + workspace.lab.at("docs").children().filter { $0.pathExtension == "md" }
-        .map { "DemoLab/docs/" + $0.lastPathComponent }
-        + ["NOTICE.md", "THIRD_PARTY_NOTICES.md"]
-    }
-  }
+  /// Only user-facing documentation belongs in the translation pipeline.
+  /// Adding a contributor guide or local report under docs must not publish it.
+  let documents = [
+    "README.md",
+    "docs/CLI.md",
+    "docs/CONFIGURATION.md",
+    "docs/TROUBLESHOOTING.md",
+    "DemoLab/README.md",
+    "DemoLab/docs/COVERAGE.md",
+    "DemoLab/docs/MULTI-DISPLAY.md",
+    "DemoLab/docs/PERMISSIONS.md",
+    "DemoLab/docs/SCENES.md",
+    "DemoLab/docs/VM-TART.md",
+    "NOTICE.md",
+    "THIRD_PARTY_NOTICES.md",
+  ]
 
   func destination(_ source: String, _ locale: String) -> URL {
     let file = workspace.root.at(source)
@@ -79,7 +86,7 @@ struct DocumentBuilder {
 
   func rewriteLinks(_ text: String, _ source: String, _ locale: String) throws -> String {
     let current = destination(source, locale)
-    let known = try Set(documents)
+    let known = Set(documents)
     func url(_ value: String) -> String {
       guard var parts = URLComponents(string: value) else { return value }
       if parts.host == "pangmo5.dev" && (parts.path == "/Tatami" || parts.path.hasPrefix("/Tatami/")) {
@@ -119,7 +126,7 @@ struct DocumentBuilder {
   func outputs(selected: [String] = []) throws -> [(URL, String)] {
     let values = try JSON.read(workspace.root.at("Localization/Docs.json"))
     var outputs = [(URL, String)]()
-    for source in try documents where selected.isEmpty || selected.contains(source) {
+    for source in documents where selected.isEmpty || selected.contains(source) {
       let text = replacing(Self.navigationPattern, in: try workspace.root.at(source).text()) { _ in "" }
         .drop(while: { $0 == "\n" })
       let localizedSource = try source == "THIRD_PARTY_NOTICES.md"

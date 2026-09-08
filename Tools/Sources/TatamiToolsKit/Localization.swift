@@ -315,11 +315,8 @@ func markdownUnits(_ source: String, _ catalog: TextCatalog, _ context: String) 
   var result = [String]()
   var index = 0
   var fence: Character?
-  var referenceMatrix = false
   while index < input.count {
     let line = input[index]
-    if trim(line).isEmpty { referenceMatrix = false }
-    if context.hasSuffix("LOCALIZATION.md") && line.hasPrefix("| Concept |") { referenceMatrix = true }
     if let marker = matches(#"^\s*(`{3,}|~{3,})"#, line).first {
       if fence == nil { fence = marker[1].first } else if fence == marker[1].first { fence = nil }
       result.append(line)
@@ -374,7 +371,6 @@ func markdownUnits(_ source: String, _ catalog: TextCatalog, _ context: String) 
         let separated = replacing(#"\|(?=(?:[^`]*`[^`]*`)*[^`]*$)"#, in: line) { _ in "\u{0}" }.components(separatedBy: "\u{0}")
         let cells = try separated.enumerated().map { position, raw in
           let text = trim(raw)
-          if referenceMatrix && position >= 2 { return text }
           if context == "DemoLab/README.md" {
             if position == 1, ["Design", "Write", "Review", "Chat", "Build", "Focus"].contains(text) { return text }
             if

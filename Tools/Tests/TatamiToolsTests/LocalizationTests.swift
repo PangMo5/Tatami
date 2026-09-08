@@ -30,17 +30,17 @@ func `emphasis moves with the sentence`() throws {
 }
 
 @Test
-func `reference matrix preserves other languages`() throws {
-  let values = JSON.object([
-    (textKey("Concept"), .object([("ko", .string("개념"))])),
-    (textKey("Workspace"), .object([("ko", .string("작업 공간"))])),
-  ])
-  let output = try markdownUnits(
-    "| Concept | `en` | `ko` |\n| --- | --- | --- |\n| Workspace | Workspace | 작업 공간 |\n",
-    TextCatalog(values: values, locale: "ko"),
-    "docs/LOCALIZATION.md",
-  )
-  #expect(output.contains("|작업 공간|Workspace|작업 공간|"))
+func `translation scope excludes agent guidance and local reports`() throws {
+  let root = fm.temporaryDirectory.at(UUID().uuidString)
+  try root.at("docs").makeDirectory()
+  defer { try? fm.removeItem(at: root) }
+  for name in ["LOCALIZATION.md", "CONCURRENCY.md", "RESPONSIVENESS_AUDIT.md", "NEW_AGENT_GUIDE.md"] {
+    try root.at("docs").at(name).write("# Agent guidance")
+  }
+  let builder = DocumentBuilder(workspace: Workspace(root: root))
+  #expect(builder.documents.contains("docs/CLI.md"))
+  #expect(!builder.documents
+    .contains { $0.contains("LOCALIZATION") || $0.contains("CONCURRENCY") || $0.contains("AUDIT") || $0.contains("AGENT") })
 }
 
 @Test
