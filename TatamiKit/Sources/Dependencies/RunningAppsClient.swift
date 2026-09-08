@@ -171,7 +171,7 @@ private final class ApplicationProcessResolver: Sendable {
 @DependencyClient
 struct RunningAppsClient: Sendable {
   var current: @Sendable () -> [MacApp] = { [] }
-  var resolveInstalled: @Sendable ([String]) -> [MacApp] = { bundleIds in
+  var resolveInstalled: @Sendable ([String]) async -> [MacApp] = { bundleIds in
     bundleIds.map { MacApp(bundleIdentifier: $0, name: $0) }
   }
 
@@ -189,6 +189,7 @@ extension RunningAppsClient: DependencyKey {
   /// not an AppKit requirement.
   static let liveValue: RunningAppsClient = {
     let resolver = ApplicationProcessResolver()
+    let metadataWorker = BlockingWorkQueue(label: "dev.PangMo5.Tatami.installed-apps")
     return RunningAppsClient(
       current: {
         MainActor.assumeIsolated {
@@ -208,7 +209,7 @@ extension RunningAppsClient: DependencyKey {
         }
       },
       resolveInstalled: { bundleIds in
-        MainActor.assumeIsolated {
+        await metadataWorker.run {
           bundleIds.map { bundleId in
             guard
               let url = NSWorkspace.shared.urlForApplication(

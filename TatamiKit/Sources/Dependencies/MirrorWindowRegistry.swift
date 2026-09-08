@@ -49,12 +49,12 @@ final class MirrorWindowRegistry: Sendable {
   ///
   /// The async handler verifies visibility off-main and commits presentation
   /// on the main actor before focus can move. Nil means a newer focus intent
-  /// superseded preparation; Bool indicates whether a mirror commit is needed.
+  /// superseded preparation; Bool indicates whether a mirror was restored and its presentation verified.
   func setWillFocusHandler(_ handler: (@Sendable (pid_t) async -> Bool?)?) {
     willFocusHandler.withLock { $0 = handler }
   }
 
-  /// Returns true when mirrors were restored and need a frame to commit.
+  /// Returns true after restored mirrors have been verified as presented.
   func notifyWillFocus(pid: pid_t) async -> Bool? {
     guard let handler = willFocusHandler.withLock({ $0 }) else { return false }
     return await handler(pid)

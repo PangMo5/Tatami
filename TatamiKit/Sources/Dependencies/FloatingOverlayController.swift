@@ -33,6 +33,23 @@ private struct FloatingOverlayVisibilityInput: Sendable {
   var floatingPIDs: Set<pid_t>
 }
 
+func areFloatingMirrorsPresented(
+  _ frames: [CGWindowID: CGRect],
+  ownerPID: pid_t,
+  windows: [WindowServerWindow],
+) -> Bool {
+  frames.allSatisfy { id, frame in
+    windows.contains { window in
+      window.id == id && window.surface.ownerPID == ownerPID
+        && window.surface.layer > 0 && window.alpha >= 0.999
+        && abs(window.surface.frame.minX - frame.minX) <= 1
+        && abs(window.surface.frame.minY - frame.minY) <= 1
+        && abs(window.surface.frame.width - frame.width) <= 1
+        && abs(window.surface.frame.height - frame.height) <= 1
+    }
+  }
+}
+
 func isFloatingMirrorSourceExposed(
   _ key: WindowKey,
   frame: CGRect,
@@ -123,6 +140,18 @@ private final class FloatingOverlayVisibilityWorker: @unchecked Sendable {
           ($0[kCGWindowNumber as String] as? CGWindowID) == key.windowID
             && ($0[kCGWindowOwnerPID as String] as? pid_t) == key.pid
         })
+      }
+    }
+  }
+
+  func mirrorsArePresented(_ frames: [CGWindowID: CGRect], ownerPID: pid_t) async -> Bool {
+    await withCheckedContinuation { continuation in
+      queue.async {
+        continuation.resume(returning: areFloatingMirrorsPresented(
+          frames,
+          ownerPID: ownerPID,
+          windows: readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements]),
+        ))
       }
     }
   }
@@ -740,13 +769,13 @@ final class FloatingOverlayController {
   /// Restore the mirrors that need to be up *now*, before the activation,
   /// so they're already painted when the floating window drops behind the
   /// new focus — the didActivate notification alone arrives one beat too
-  /// late. Returns whether any mirror was actually restored: the caller
-  /// then delays the activation a beat so the restore commits first.
+  /// late. Returns only after WindowServer confirms any restored mirrors.
   func handleWillFocus(_ pid: pid_t) async -> Bool? {
     noteFocus(pid)
     let generation = focusPresentationGeneration
     let targetIsFloating = panels.keys.contains { $0.pid == pid }
     var needsCommit = false
+    var restoredFrames = [CGWindowID: CGRect]()
     for key in Array(panels.keys) where key.pid != pid {
       // Same dead-window rule as didActivate.
       let exists = await visibilityWorker.windowExists(key)
@@ -765,7 +794,7 @@ final class FloatingOverlayController {
         suppressMirror(key)
         continue
       }
-      // "Needs a commit beat" = this turn is flipping the panel visible.
+      // Include a cursor-exit restore that is still waiting for its frame.
       // Checking `suppressed` here is NOT equivalent: the cursor-exit
       // restore un-suppresses first and then waits for a fresh frame with
       // the panel still transparent — exactly the window in which the
@@ -773,8 +802,23 @@ final class FloatingOverlayController {
       if let panel = panels[key], panel.alphaValue < 1 { needsCommit = true }
       restoreMirror(key)
       showPanel(key)
+      if let panel = panels[key], panel.alphaValue == 1 {
+        restoredFrames[CGWindowID(panel.windowNumber)] = AXWindowGeometry.flipToCG(panel.frame)
+      }
     }
     applyStackOrder(liftDemoted: !targetIsFloating)
+    if needsCommit, !restoredFrames.isEmpty {
+      for _ in 0..<Timing.verifyMaxSteps {
+        guard !Task.isCancelled, generation == focusPresentationGeneration else { return nil }
+        let presented = await visibilityWorker.mirrorsArePresented(restoredFrames, ownerPID: getpid())
+        guard !Task.isCancelled, generation == focusPresentationGeneration else { return nil }
+        if presented { return true }
+        do { try await Task.sleep(for: Timing.verifyStep) }
+        catch { return nil }
+      }
+      debugLog.log("Mirror", "focus preparation rejected: restored mirror presentation not confirmed")
+      return nil
+    }
     return needsCommit
   }
 

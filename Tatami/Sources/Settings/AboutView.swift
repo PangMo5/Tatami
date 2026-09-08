@@ -140,18 +140,18 @@ private enum LegalDocument: String, CaseIterable, Identifiable, Sendable {
 
   func loadContents() async throws -> String {
     let resource = resource
-    guard
-      let url = Bundle.main.url(
-        forResource: resource.name,
-        withExtension: resource.extension,
-      )
-    else {
-      throw CocoaError(.fileNoSuchFile)
-    }
+    return try await AppResourceWorker.shared.run {
+      guard
+        let url = Bundle.main.url(
+          forResource: resource.name,
+          withExtension: resource.extension,
+        )
+      else {
+        throw CocoaError(.fileNoSuchFile)
+      }
 
-    return try await Task.detached(priority: .userInitiated) {
-      try String(contentsOf: url, encoding: .utf8)
-    }.value
+      return try String(contentsOf: url, encoding: .utf8)
+    }
   }
 
   // MARK: Private
@@ -218,5 +218,28 @@ private struct LegalDocumentView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var contents: String?
   @State private var loadErrorMessage: String?
+
+}
+
+// MARK: - AppResourceWorker
+
+/// Blocking bundled resource reads and parsing stay off the cooperative pool.
+actor AppResourceWorker {
+
+  // MARK: Internal
+
+  static let shared = AppResourceWorker()
+
+  nonisolated var unownedExecutor: UnownedSerialExecutor {
+    executor.asUnownedSerialExecutor()
+  }
+
+  func run<Value: Sendable>(_ operation: @Sendable () throws -> Value) rethrows -> Value {
+    try operation()
+  }
+
+  // MARK: Private
+
+  private let executor = DispatchSerialQueue(label: "dev.PangMo5.Tatami.app-resources", qos: .userInitiated)
 
 }

@@ -145,14 +145,14 @@ private struct MarkdownBlock: Identifiable, Sendable {
   let content: Content
 
   static func loadCLIReference() async throws -> [Self] {
-    guard let url = Bundle.main.url(forResource: "CLI", withExtension: "md") else {
-      throw CocoaError(.fileNoSuchFile)
-    }
+    try await AppResourceWorker.shared.run {
+      guard let url = Bundle.main.url(forResource: "CLI", withExtension: "md") else {
+        throw CocoaError(.fileNoSuchFile)
+      }
 
-    return try await Task.detached(priority: .userInitiated) {
       let source = try String(contentsOf: url, encoding: .utf8)
       return parse(source)
-    }.value
+    }
   }
 
   // MARK: Private

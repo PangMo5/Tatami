@@ -145,6 +145,35 @@ struct OverlayAwarenessClientTests {
     #expect(state.isBackgrounded(pid: process.pid))
   }
 
+  @Test
+  func `hide acknowledgment retains ownership across a meeting control reopen`() {
+    let state = OverlayAwarenessState()
+    let process = OverlayAwareProcess(bundleId: "notion.id", pid: 41)
+    state.configure([process.bundleId])
+    let evaluation = state.beginEvaluation([process])
+    // No elevated surface was present in the scan, so the manager hides it.
+    #expect(state.commitEvaluation(evaluation, preserving: []).isEmpty)
+    state.processDidHide(pid: process.pid)
+    state.endEvaluation(evaluation)
+    // An automatic unhide has no authority to release this exclusion.
+    #expect(state.isBackgrounded(pid: process.pid))
+    // A real target activation revokes both committed and provisional state.
+    state.clearBackgrounded(bundleId: process.bundleId)
+    state.processDidHide(pid: process.pid)
+    #expect(!state.isBackgrounded(pid: process.pid))
+  }
+
+  @Test
+  func `hide releases an app removed from the overlay allowlist`() {
+    let state = OverlayAwarenessState()
+    let process = OverlayAwareProcess(bundleId: "notion.id", pid: 41)
+    state.configure([process.bundleId])
+    state.setBackgrounded(process, true)
+    state.configure([])
+    state.processDidHide(pid: process.pid)
+    #expect(!state.isBackgrounded(pid: process.pid))
+  }
+
   // MARK: Private
 
   private let pid: pid_t = 41

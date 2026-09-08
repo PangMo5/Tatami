@@ -70,7 +70,7 @@ extension DependencyValues {
 
 // MARK: - LiveFocusFollowsMouseController
 
-/// Owns the system-wide event tap + throttle state for the lifetime
+/// Owns the system-wide event tap and latest-input state for the lifetime
 /// of the process. Reconfiguring tears the tap down and reinstalls it;
 /// disabling stops it. We use a `CGEventTap` (session-level, listen-
 /// only) rather than `NSEvent.addGlobalMonitorForEvents` so mouse
@@ -96,10 +96,8 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   // MARK: Internal
 
   func configure(_ next: FocusFollowsMouseConfig) async {
-    // Tap install/teardown runs on the shared event-tap thread so the tap
-    // callback (a `CGWindowListCopyWindowInfo` hit-test on every throttled
-    // mouse-move) executes off the main thread. The controller's state is
-    // only ever touched from that thread, so it stays lock-free.
+    // The event thread owns input bookkeeping; a separate serial worker reads
+    // WindowServer. Neither the main thread nor the event tap waits for IPC.
     EventTapThread.shared.perform { [self] in
       installOrTearDown(next)
     }
@@ -108,8 +106,6 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   // MARK: Fileprivate
 
   fileprivate var config = FocusFollowsMouseConfig(enabled: false, disableModifier: .option)
-  fileprivate var lastFireAt = Date.distantPast
-  fileprivate let throttleInterval: TimeInterval = 0.05
   fileprivate var lastFocusedWindowID: CGWindowID = 0
   fileprivate let debugLog: DebugLogClient
 
@@ -123,16 +119,21 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
   }
 
-  /// Runs on the event-tap thread. The hit-test (`CGWindowListCopyWindowInfo`)
-  /// and throttle bookkeeping stay off the main thread. The focus task hops
+  /// Runs on the event-tap thread. Capture the latest input without waiting
+  /// for WindowServer or imposing a timing interval. The focus task hops
   /// briefly to the main actor for AppKit identity + mirror handoff, while its
   /// timeout-prone Accessibility lookup/read/write runs on the focus worker.
   fileprivate func handle(
     location: CGPoint,
     flags: CGEventFlags,
     timestamp: CGEventTimestamp,
+    windowUnderPointer: CGWindowID,
   ) {
-    if modifiersIndicateDisable(flags) { return }
+    guard config.enabled else { return }
+    if modifiersIndicateDisable(flags) {
+      cancelPendingInput()
+      return
+    }
 
     let warpEvaluation = ProgrammaticPointerWarpGate.shared.evaluateMouseMove(
       at: location,
@@ -141,6 +142,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     if warpEvaluation.generation != lastObservedWarpGeneration {
       lastObservedWarpGeneration = warpEvaluation.generation
       lastLoggedSuppressedWarpGeneration = nil
+      pointerInputs.invalidate()
       lastFocusedWindowID = 0
       focusTask?.cancel()
       focusTask = nil
@@ -159,13 +161,78 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       return
     }
 
-    let now = Date()
-    guard now.timeIntervalSince(lastFireAt) >= throttleInterval else { return }
-    lastFireAt = now
+    // Native event identity avoids another WindowServer scan while moving
+    // within the already-selected normal window. Mirrors still need redirection.
+    if windowUnderPointer != 0, windowUnderPointer == lastFocusedWindowID {
+      // A quick departure and return must revoke the queued departure sample.
+      pointerInputs.invalidate()
+      return
+    }
+    let sample = PointerSample(location: location, warpGeneration: warpEvaluation.generation)
+    guard pointerInputs.offer(sample) else { return }
+    hitTestQueue.async { [self] in
+      let windows = readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+      let displays = Self.currentDisplayBounds()
+      EventTapThread.shared.perform { [self] in
+        guard let latest = pointerInputs.takeLatest(), config.enabled else { return }
+        applyHitTest(latest, windows: windows, displays: displays)
+      }
+    }
+  }
 
-    // CGEvent locations and CGWindowList bounds are both top-origin
-    // Quartz coords anchored to the primary screen, so no flip needed.
-    guard let info = topmostWindow(at: location) else { return }
+  fileprivate func modifiersChanged(_ flags: CGEventFlags) {
+    if modifiersIndicateDisable(flags) { cancelPendingInput() }
+  }
+
+  // MARK: Private
+
+  private struct PointerSample: Sendable {
+    var location: CGPoint
+    var warpGeneration: UInt64
+  }
+
+  private let hitTestQueue = DispatchQueue(label: "dev.PangMo5.Tatami.ffm-hit-test", qos: .userInteractive)
+  private var pointerInputs = LatestFocusInputBuffer<PointerSample>()
+  private var eventTap: CFMachPort?
+  private var runLoopSource: CFRunLoopSource?
+  /// The in-flight focus hop. A newer fire cancels it so only the latest
+  /// cursor target is applied — touched only on the event-tap thread, like
+  /// the rest of this controller's lock-free state.
+  private var focusTask: Task<Void, Never>?
+  /// Last MFF warp generation observed on the event-tap thread. A generation
+  /// change invalidates both the FFM window dedup and any queued focus hop.
+  private var lastObservedWarpGeneration: UInt64 = 0
+  private var lastLoggedSuppressedWarpGeneration: UInt64?
+  private let focusEventOrigin: FocusEventOriginClient
+  private let managedWindows: ManagedWindowsClient
+  private let overlayAwareness: OverlayAwarenessClient
+
+  /// Bounds of the display under `point`, in the global top-left Quartz space
+  /// that `CGWindowList` bounds and `CGEvent` locations also use. Uses Core
+  /// Graphics display services, which are safe to call off the main thread.
+  private static func currentDisplayBounds() -> [CGRect] {
+    var count: UInt32 = 0
+    guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+    var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+    guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
+    return ids.map(CGDisplayBounds)
+  }
+
+  private func cancelPendingInput() {
+    pointerInputs.invalidate()
+    focusTask?.cancel()
+    focusTask = nil
+    lastFocusedWindowID = 0
+  }
+
+  private func applyHitTest(_ sample: PointerSample, windows: [WindowServerWindow], displays: [CGRect]) {
+    guard ProgrammaticPointerWarpGate.shared.isCurrent(generation: sample.warpGeneration) else { return }
+    let location = sample.location
+    guard let info = topmostWindow(at: location, windows: windows, displays: displays) else {
+      focusTask?.cancel()
+      lastFocusedWindowID = 0
+      return
+    }
     // Dedup on the window, not the app — moving between two windows of
     // the same app (e.g. two Ghostty windows) must still move focus.
     if info.windowID == lastFocusedWindowID { return }
@@ -194,7 +261,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
         !Task.isCancelled,
         !overlayAwareness.isBackgroundedProcess(pid),
         ProgrammaticPointerWarpGate.shared.isCurrent(
-          generation: warpEvaluation.generation
+          generation: sample.warpGeneration
         )
       else { return }
       await focusWindowFollowingMouse(
@@ -207,24 +274,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
   }
 
-  // MARK: Private
-
-  private var eventTap: CFMachPort?
-  private var runLoopSource: CFRunLoopSource?
-  /// The in-flight focus hop. A newer fire cancels it so only the latest
-  /// cursor target is applied — touched only on the event-tap thread, like
-  /// the rest of this controller's lock-free state.
-  private var focusTask: Task<Void, Never>?
-  /// Last MFF warp generation observed on the event-tap thread. A generation
-  /// change invalidates both the FFM window dedup and any queued focus hop.
-  private var lastObservedWarpGeneration: UInt64 = 0
-  private var lastLoggedSuppressedWarpGeneration: UInt64?
-  private let focusEventOrigin: FocusEventOriginClient
-  private let managedWindows: ManagedWindowsClient
-  private let overlayAwareness: OverlayAwarenessClient
-
   /// Runs on the event-tap thread (via `configure` / the tap callback).
   private func installOrTearDown(_ next: FocusFollowsMouseConfig) {
+    if config != next { cancelPendingInput() }
     config = next
     if next.enabled, eventTap == nil {
       install()
@@ -238,6 +290,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // re-enable if the system hangs the tap.
     let mask =
       (1 << CGEventType.mouseMoved.rawValue) |
+      (1 << CGEventType.flagsChanged.rawValue) |
       (1 << CGEventType.tapDisabledByTimeout.rawValue) |
       (1 << CGEventType.tapDisabledByUserInput.rawValue)
     let info = Unmanaged.passUnretained(self).toOpaque()
@@ -282,8 +335,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     runLoopSource = nil
     // Drop any pending focus hop so a move captured just before disable
     // can't move focus after FFM was turned off.
-    focusTask?.cancel()
-    focusTask = nil
+    cancelPendingInput()
     debugLog.log("FocusDiag", "ffm tap removed")
   }
 
@@ -297,34 +349,29 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
   }
 
-  private func topmostWindow(at point: CGPoint) -> (pid: pid_t, windowID: CGWindowID, bounds: CGRect)? {
-    let raw = CGWindowListCopyWindowInfo(
-      [.optionOnScreenOnly, .excludeDesktopElements],
-      kCGNullWindowID,
-    ) as? [[String: Any]] ?? []
+  private func topmostWindow(
+    at point: CGPoint,
+    windows: [WindowServerWindow],
+    displays: [CGRect],
+  ) -> (pid: pid_t, windowID: CGWindowID, bounds: CGRect)? {
     // One lock acquisition for the mirror snapshot instead of one per entry.
     let mirrorTargets = MirrorWindowRegistry.shared.allTargets()
     // Single pass in front-to-back z-order (the list's natural order),
     // stopping at the first hit — materializing the full window array per
-    // fire (up to 20 Hz during mouse motion) was pure allocation churn.
+    // fire is unnecessary allocation churn.
     // Only the bounds of the layer-0 windows *in front of* the hit are
     // kept, for the full-screen gap guard below.
     var frontBounds = [CGRect]()
     var candidate: (pid: pid_t, windowID: CGWindowID, bounds: CGRect)?
-    for entry in raw {
-      guard
-        let pidNumber = entry[kCGWindowOwnerPID as String] as? pid_t,
-        let windowNumber = entry[kCGWindowNumber as String] as? CGWindowID,
-        let boundsDict = entry[kCGWindowBounds as String] as? [String: CGFloat],
-        let x = boundsDict["X"], let y = boundsDict["Y"],
-        let w = boundsDict["Width"], let h = boundsDict["Height"]
-      else { continue }
-      let bounds = CGRect(x: x, y: y, width: w, height: h)
+    for entry in windows {
+      let pidNumber = entry.surface.ownerPID
+      let windowNumber = entry.id
+      let bounds = entry.surface.frame
       // A visible floating-mirror panel stands in for the window it
       // mirrors: hovering the mirror must focus the real floating window,
       // not the tile that happens to sit underneath the panel — otherwise
       // FFM and the overlay fight over focus during the hand-off.
-      let alpha = (entry[kCGWindowAlpha as String] as? Double) ?? 1
+      let alpha = entry.alpha
       if
         alpha > 0,
         let target = mirrorTargets[windowNumber],
@@ -342,7 +389,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
         }
         continue
       }
-      guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else { continue }
+      guard entry.surface.layer == 0, alpha > 0 else { continue }
       if bounds.contains(point) {
         // Only follow into a window Tatami manages. An unmanaged window on
         // top (notification banner, our own overlay) means leave focus put
@@ -361,7 +408,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
 
     // The cursor's frontmost window fills its display (full-screen /
     // maximized).
-    if let display = displayBounds(containing: point), covers(candidate.bounds, display) {
+    if let display = displays.first(where: { $0.contains(point) }), covers(candidate.bounds, display) {
       // Opt-in: never hover-focus a full-screen window — you reach those by
       // clicking, not by skimming the cursor across them.
       if config.ignoreFullscreen { return nil }
@@ -389,17 +436,6 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     let displayArea = display.width * display.height
     guard displayArea > 0 else { return false }
     return (overlap.width * overlap.height) / displayArea >= 0.9
-  }
-
-  /// Bounds of the display under `point`, in the global top-left Quartz space
-  /// that `CGWindowList` bounds and `CGEvent` locations also use. Uses Core
-  /// Graphics display services, which are safe to call off the main thread.
-  private func displayBounds(containing point: CGPoint) -> CGRect? {
-    var count: UInt32 = 0
-    guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return nil }
-    var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
-    guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return nil }
-    return ids.lazy.map(CGDisplayBounds).first { $0.contains(point) }
   }
 
 }
@@ -430,7 +466,11 @@ private func focusFollowsMouseCallback(
       location: location,
       flags: flags,
       timestamp: timestamp,
+      windowUnderPointer: CGWindowID(clamping: event.getIntegerValueField(.mouseEventWindowUnderMousePointer)),
     )
+
+  case .flagsChanged:
+    controller.modifiersChanged(event.flags)
 
   case .tapDisabledByTimeout,
        .tapDisabledByUserInput:
@@ -443,3 +483,36 @@ private func focusFollowsMouseCallback(
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "FocusFollowsMouse")
+
+// MARK: - LatestFocusInputBuffer
+
+/// Confined to the event thread. At most one read is active and one newest
+/// sample is retained; completion consumes that sample even if motion stopped.
+struct LatestFocusInputBuffer<Value> {
+
+  // MARK: Internal
+
+  mutating func offer(_ value: Value) -> Bool {
+    latest = value
+    guard !isReading else { return false }
+    isReading = true
+    return true
+  }
+
+  mutating func takeLatest() -> Value? {
+    defer { latest = nil
+      isReading = false
+    }
+    return latest
+  }
+
+  mutating func invalidate() {
+    latest = nil
+  }
+
+  // MARK: Private
+
+  private var latest: Value?
+  private var isReading = false
+
+}

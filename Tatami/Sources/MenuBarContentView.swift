@@ -116,63 +116,69 @@ struct MenuBarContentView: View {
       Divider()
     }
 
-    if let workspaces = config.activeProfile?.workspaces, !workspaces.isEmpty {
-      let regular = workspaces.filter { $0.kind != .scratchpad }
-      let scratchpads = workspaces.filter { $0.kind == .scratchpad }
-      // Switchable workspaces: a Toggle renders the native trailing checkmark
-      // on the active one. We swallow the off-write so re-clicking the active
-      // workspace just re-activates it (matching the toolbar Activate button).
-      if !regular.isEmpty {
-        Section("Workspaces") {
-          ForEach(regular) { workspace in
-            Toggle(isOn: Binding(
-              get: { workspace.id == activeId },
-              set: { newValue in
-                guard newValue else { return }
+    if !store.isConfigurationReady {
+      Text(store.configurationLoadError == nil ? "Loading configuration…" : "Configuration could not be loaded")
+    }
+    Group {
+      if let workspaces = config.activeProfile?.workspaces, !workspaces.isEmpty {
+        let regular = workspaces.filter { $0.kind != .scratchpad }
+        let scratchpads = workspaces.filter { $0.kind == .scratchpad }
+        // Switchable workspaces: a Toggle renders the native trailing checkmark
+        // on the active one. We swallow the off-write so re-clicking the active
+        // workspace just re-activates it (matching the toolbar Activate button).
+        if !regular.isEmpty {
+          Section("Workspaces") {
+            ForEach(regular) { workspace in
+              Toggle(isOn: Binding(
+                get: { workspace.id == activeId },
+                set: { newValue in
+                  guard newValue else { return }
+                  store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+                },
+              )) {
+                Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.dashed")
+              }
+            }
+          }
+        }
+        // Scratchpads are borrow-only — they never become "active", so a plain
+        // button (clicking borrows onto the pointer display) reads truer than a
+        // Toggle, and the dedicated section header is what marks them.
+        if !scratchpads.isEmpty {
+          Section("Scratchpads") {
+            ForEach(scratchpads) { workspace in
+              Button {
                 store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
+              } label: {
+                Label(workspace.name, systemImage: workspace.symbolIconName ?? "tray.full")
+              }
+            }
+          }
+        }
+        Divider()
+      }
+
+      // Quick profile switcher (management — add / duplicate / rename — lives in
+      // the main window). Only shown when there's more than one to pick from; the
+      // active one carries the native checkmark.
+      if config.profiles.count > 1 {
+        Section("Profiles") {
+          ForEach(config.profiles) { profile in
+            Toggle(isOn: Binding(
+              get: { profile.id == (config.activeProfileId ?? config.profiles.first?.id) },
+              set: { on in
+                guard on else { return }
+                store.send(.activateProfile(profile.id, focus: nil))
               },
             )) {
-              Label(workspace.name, systemImage: workspace.symbolIconName ?? "square.dashed")
+              Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
             }
           }
         }
+        Divider()
       }
-      // Scratchpads are borrow-only — they never become "active", so a plain
-      // button (clicking borrows onto the pointer display) reads truer than a
-      // Toggle, and the dedicated section header is what marks them.
-      if !scratchpads.isEmpty {
-        Section("Scratchpads") {
-          ForEach(scratchpads) { workspace in
-            Button {
-              store.send(.activation(.activate(workspaceId: workspace.id, setFocus: true)))
-            } label: {
-              Label(workspace.name, systemImage: workspace.symbolIconName ?? "tray.full")
-            }
-          }
-        }
-      }
-      Divider()
     }
-
-    // Quick profile switcher (management — add / duplicate / rename — lives in
-    // the main window). Only shown when there's more than one to pick from; the
-    // active one carries the native checkmark.
-    if config.profiles.count > 1 {
-      Section("Profiles") {
-        ForEach(config.profiles) { profile in
-          Toggle(isOn: Binding(
-            get: { profile.id == (config.activeProfileId ?? config.profiles.first?.id) },
-            set: { on in
-              guard on else { return }
-              store.send(.activateProfile(profile.id, focus: nil))
-            },
-          )) {
-            Label(profile.name, systemImage: profile.symbolIconName ?? "rectangle.stack")
-          }
-        }
-      }
-      Divider()
-    }
+    .disabled(!store.isConfigurationReady)
 
     // Opens the main window (the Workspaces / Settings / About tab view).
     // ⌘, is also wired globally via the app's commands.

@@ -311,7 +311,8 @@ public struct HookSettingsFeature {
              .changedOnDisk,
              .transactionExpired:
           .staleConfiguration
-        case .outcomeUnknown:
+        case .notLoaded,
+             .outcomeUnknown:
           .writeFailed
         }
       } else {
@@ -341,8 +342,8 @@ public struct HookSettingsFeature {
   ) -> Effect<Action> {
     .run { [configPersistence] send in
       do {
-        let revision = try configPersistence.captureRevision(baseline)
-        try configPersistence.commit(
+        let revision = try await configPersistence.captureRevision(baseline)
+        try await configPersistence.commit(
           config,
           baseline,
           revision,

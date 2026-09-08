@@ -15,7 +15,6 @@ struct TatamiApp: App {
 
   init() {
     Self.applyProcessPathOverrides()
-    try? ConfigLocation.ensureDirectoryExists()
     _appStore = State(initialValue: Store(initialState: AppFeature.State()) {
       AppFeature()
     })
@@ -55,6 +54,8 @@ struct TatamiApp: App {
   }
 
   // MARK: Private
+
+  @NSApplicationDelegateAdaptor(ConfigTerminationDelegate.self) private var appDelegate
 
   @State private var appStore: StoreOf<AppFeature>
 
@@ -170,4 +171,39 @@ private struct OpenSettingsButton: View {
   }
 
   @Environment(\.openWindow) private var openWindow
+}
+
+// MARK: - ConfigTerminationDelegate
+
+@MainActor
+private final class ConfigTerminationDelegate: NSObject, NSApplicationDelegate {
+
+  // MARK: Internal
+
+  func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    guard !isCheckingWrites else { return .terminateLater }
+    isCheckingWrites = true
+    Task {
+      let failure = await flushConfigurationWrites()
+      let shouldQuit: Bool
+      if let failure {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Configuration could not be saved")
+        alert.informativeText = failure
+        alert.addButton(withTitle: String(localized: "Keep Tatami Open"))
+        alert.addButton(withTitle: String(localized: "Quit Without Saving"))
+        shouldQuit = alert.runModal() == .alertSecondButtonReturn
+      } else {
+        shouldQuit = true
+      }
+      isCheckingWrites = false
+      sender.reply(toApplicationShouldTerminate: shouldQuit)
+    }
+    return .terminateLater
+  }
+
+  // MARK: Private
+
+  private var isCheckingWrites = false
+
 }

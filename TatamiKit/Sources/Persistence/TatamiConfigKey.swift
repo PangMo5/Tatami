@@ -8,10 +8,8 @@ import TOML
 
 // MARK: - TatamiConfigKey
 
-/// FileStorage-backed key that keeps every mutation synchronous and routes it
-/// through Tatami's configuration transaction coordinator. The stock
-/// FileStorage key coalesces successive writes for one second, which is useful
-/// for generic values but makes config-file compare-and-swap ambiguous.
+/// Uses a dedicated persistence lane for live files. In-memory dependency
+/// storage remains synchronous and isolated in tests and previews.
 public struct TatamiConfigKey: SharedKey {
 
   // MARK: Public
@@ -24,14 +22,16 @@ public struct TatamiConfigKey: SharedKey {
     context: LoadContext<AppConfig>,
     continuation: LoadContinuation<AppConfig>,
   ) {
-    base.load(context: context, continuation: continuation)
+    if let store { store.load(continuation) }
+    else { base.load(context: context, continuation: continuation) }
   }
 
   public func subscribe(
     context: LoadContext<AppConfig>,
     subscriber: SharedSubscriber<AppConfig>,
   ) -> SharedSubscription {
-    base.subscribe(
+    if let store { return store.subscribe(subscriber) }
+    return base.subscribe(
       context: context,
       subscriber: SharedSubscriber(
         callback: { result in
@@ -56,11 +56,20 @@ public struct TatamiConfigKey: SharedKey {
     context: SaveContext,
     continuation: SaveContinuation,
   ) {
+    if context == .didSet, ConfigPublication.isPublishing {
+      continuation.resume()
+      return
+    }
     if
       context == .didSet,
+      store == nil,
       TatamiConfigTransactionCoordinator.shared.consumeSuppressedDidSet(value)
     {
       continuation.resume()
+      return
+    }
+    if let store {
+      store.save(value, continuation: continuation)
       return
     }
     // A user-initiated FileStorage save is immediate and cancels any old
@@ -85,6 +94,7 @@ public struct TatamiConfigKey: SharedKey {
   // MARK: Internal
 
   let base: FileStorageKey<AppConfig>
+  var store: AsyncConfigStore? = nil
 
 }
 
@@ -100,8 +110,9 @@ extension SharedReaderKey where Self == TatamiConfigKey.Default {
       decode: decodeTatamiConfig,
       encode: encodeTatamiConfig,
     )
+    @Dependency(\.defaultFileStorage) var fileStorage
     return Self[
-      TatamiConfigKey(base: storage),
+      TatamiConfigKey(base: storage, store: fileStorage == .fileSystem ? .shared : nil),
       default: AppConfig(settings: AppSettings(shortcuts: .recommended)),
     ]
   }
