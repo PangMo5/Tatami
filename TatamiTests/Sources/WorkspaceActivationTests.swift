@@ -18,6 +18,175 @@ struct WorkspaceActivationFeatureTests {
   // MARK: Internal
 
   @Test
+  func `window cycle leaves shared app when AX reorders its focused window`() async {
+    let tiled = WindowKey(pid: 1, windowID: 10, bundleId: "app.document")
+    let first = WindowKey(pid: 2, windowID: 20, bundleId: "app.shared")
+    let second = WindowKey(pid: 2, windowID: 30, bundleId: "app.shared")
+    let workspace = Workspace(name: "Document")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.sharedApps = [SharedApp(bundleIdentifier: first.bundleId, name: "Shared", layout: .unmanaged)]
+        $0.settings.switching.cycleSameAppWindows = true
+        $0.settings.focus.mouseFollowsFocus = false
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(tiled)
+    }
+    let axOrder = LockIsolated([first, second])
+    let focused = LockIsolated<[WindowKey]>([])
+    let frame = CGRect(x: 100, y: 100, width: 300, height: 300)
+    let store = TestStore(initialState: state) {
+      WorkspaceActivationFeature()
+    } withDependencies: {
+      $0.windowSnapshot.cachedKeys = { _, _ in axOrder.value }
+      $0.focusManager.focusWindow = { key in
+        focused.withValue { $0.append(key) }
+        axOrder.setValue(key == second ? [second, first] : [first, second])
+      }
+    }
+    store.exhaustivity = .off
+
+    for anchor in [tiled, first, second] {
+      await store.send(.cycleWindowResolved(
+        windowKey: anchor,
+        direction: .next,
+        interactionDisplay: Self.display,
+        onScreenFrames: [first.windowID: frame, second.windowID: frame],
+      ))
+      await store.finish()
+    }
+
+    #expect(focused.value == [first, second, tiled])
+  }
+
+  @Test(arguments: [false, true])
+  func `foreground work window releases overlay suppression without a launcher gesture`(windowEventOnly: Bool) async {
+    let old = Workspace(name: "Old")
+    let target = Workspace(name: "Notion", apps: [AppAssignment(bundleIdentifier: "notion.id", name: "Notion")])
+    let state = Self.makeState(workspaces: [old, target]) {
+      $0.$config.withLock { $0.settings.switching.followAppFocus = true }
+      $0.isTilingPaused = true
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = old.id
+    }
+    let backgrounded = LockIsolated(true)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 935, bundleId: "notion.id", name: "Notion") }
+      $0.windowSnapshot.focusedWindowKey = { nil }
+      $0.windowSnapshot.frontmostWorkWindowAsync = { _, _ in WindowKey(pid: 935, windowID: 70, bundleId: "notion.id") }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == 935 && backgrounded.value }
+      $0.overlayAwareness.isBackgroundedBundle = { $0 == "notion.id" && backgrounded.value }
+      $0.overlayAwareness.clearBackgroundedProcess = { pid in
+        if pid == 935 { backgrounded.setValue(false) }
+      }
+      $0.workspaceManager.activate = { _ in }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    if windowEventOnly {
+      await store.send(.windowChanged(.windowFocused(
+        bundleId: "notion.id",
+        pid: 935,
+        key: WindowKey(pid: 935, windowID: 70, bundleId: "notion.id"),
+      )))
+    } else {
+      await store.send(.appActivated(bundleId: "notion.id", pid: 935))
+    }
+    await store.receive {
+      guard case .activateFollowingAppFocus(let workspaceID, _) = $0 else { return false }
+      return workspaceID == target.id
+    }
+    await Self.receiveActivationCompletion(store, workspaceID: target.id, display: Self.display)
+    await store.finish()
+    #expect(!backgrounded.value)
+    #expect(store.state.activeWorkspacesByDisplay[Self.display] == target.id)
+  }
+
+  @Test
+  func `stale application activation cannot release a background process`() async {
+    let state = Self.makeState(workspaces: [Workspace(name: "Active")]) { $0.focusedDisplay = Self.display }
+    let cleared = LockIsolated(false)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 1, bundleId: "app.other", name: "Other") }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == 935 }
+      $0.overlayAwareness.clearBackgroundedProcess = { _ in cleared.setValue(true) }
+    }
+    await store.send(.appActivated(bundleId: "notion.id", pid: 935))
+    #expect(!cleared.value)
+  }
+
+  @Test
+  func `foreground proof from an older workspace transition is discarded`() async {
+    let key = WindowKey(pid: 935, windowID: 70, bundleId: "notion.id")
+    let state = Self.makeState(workspaces: [Workspace(name: "Active")]) {
+      $0.focusedDisplay = Self.display
+      $0.activationGeneration = 2
+    }
+    let cleared = LockIsolated(false)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: key.pid, bundleId: key.bundleId, name: "Notion") }
+      $0.overlayAwareness.isBackgroundedProcess = { _ in true }
+      $0.overlayAwareness.clearBackgroundedProcess = { _ in cleared.setValue(true) }
+    }
+    await store.send(.foregroundWorkWindowResolved(key, activationGeneration: 1, profileID: state.config.activeProfile?.id))
+    #expect(!cleared.value)
+  }
+
+  @Test
+  func `background foreground observation waits for Tatami activation to settle`() async {
+    let state = Self.makeState(workspaces: [Workspace(name: "Active")]) {
+      $0.focusedDisplay = Self.display
+      $0.isActivating = true
+      $0.activeActivationGeneration = 1
+    }
+    let queries = LockIsolated(0)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 935, bundleId: "notion.id", name: "Notion") }
+      $0.overlayAwareness.isBackgroundedProcess = { $0 == 935 }
+      $0.windowSnapshot.frontmostWorkWindowAsync = { _, _ in queries.withValue { $0 += 1 }
+        return nil
+      }
+    }
+    await store.send(.appActivated(bundleId: "notion.id", pid: 935)) { $0.pendingForegroundAdoption = true }
+    #expect(queries.value == 0)
+  }
+
+  @Test
+  func `window server snapshot is invalid after activation or profile context changes`() {
+    let workspace = Workspace(name: "Active")
+    var state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+    }
+    let snapshot = WorkspaceActivationFeature.WindowServerEventSnapshot(
+      surfaces: [:],
+      activationGeneration: state.activationGeneration,
+      profileID: state.config.activeProfile?.id,
+      visibleWorkspaceIDs: state.visibleWorkspaceIDs,
+      wasActivating: state.isActivating,
+    )
+    #expect(snapshot.matches(state))
+    state.isActivating = true
+    #expect(!snapshot.matches(state))
+    state.isActivating = false
+    state.activationGeneration &+= 1
+    #expect(!snapshot.matches(state))
+  }
+
+  @Test
+  func `cycle snapshot from an older activation cannot move focus`() async {
+    let state = Self.makeState(workspaces: [Workspace(name: "Active")]) { $0.activationGeneration = 2 }
+    let focused = LockIsolated(false)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.focusManager.focusWindow = { _ in focused.setValue(true) }
+    }
+    await store.send(.cycleWindowResolved(windowKey: nil, direction: .next, onScreenFrames: [:], activationGeneration: 1))
+    #expect(!focused.value)
+  }
+
+  @Test
   func `background overlay focus cannot change MRU or follow app focus`() async {
     let activeWindow = WindowKey(pid: 1, windowID: 101, bundleId: "app.active")
     let notionWindow = WindowKey(pid: 935, windowID: 70, bundleId: "notion.id")
@@ -4410,7 +4579,10 @@ struct WorkspaceActivationFeatureTests {
       AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId, autoOpen: true)
     })
     let expected = BSPNode.branch(BSPBranch(
-      split: .horizontal, ratio: 0.35, left: .leaf(late), right: .leaf(first)
+      split: .horizontal,
+      ratio: 0.35,
+      left: .leaf(late),
+      right: .leaf(first),
     ))
     let slots = slotAssignment(expected.windows)
     let saved = LayoutSnapshot(tree: expected.mapWindows { slots[$0]! })
@@ -4446,14 +4618,17 @@ struct WorkspaceActivationFeatureTests {
     #expect(writes.value.isEmpty)
     if startsEmpty {
       await store.send(.syncAppWindowsResolved(
-        bundleId: first.bundleId, resizableKeys: [first], onScreenFrames: [first.windowID: workArea]
+        bundleId: first.bundleId,
+        resizableKeys: [first],
+        onScreenFrames: [first.windowID: workArea],
       ))
       await store.finish()
       #expect(writes.value.isEmpty)
     }
     await store.send(.syncAppWindowsResolved(
-      bundleId: late.bundleId, resizableKeys: [late],
-      onScreenFrames: [first.windowID: workArea, late.windowID: workArea]
+      bundleId: late.bundleId,
+      resizableKeys: [late],
+      onScreenFrames: [first.windowID: workArea, late.windowID: workArea],
     ))
     await store.finish()
     #expect(store.state.tilingTrees[workspace.id] == expected)

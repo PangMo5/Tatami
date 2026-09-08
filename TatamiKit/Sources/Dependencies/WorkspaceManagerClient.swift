@@ -193,6 +193,8 @@ extension WorkspaceManagerClient: DependencyKey {
           let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
           }
+          let processIDs = await applicationProcessIdentifiers(running)
+          guard !Task.isCancelled else { return }
           // A target/shared/borrowed app is an ordinary visible member again.
           // Clear the background exclusion before unhide/focus can emit AX or
           // NSWorkspace activation notifications for it.
@@ -213,25 +215,19 @@ extension WorkspaceManagerClient: DependencyKey {
           // Only a Borrow carrying known WindowIDs pays for the all-windows
           // lookup needed to verify hidden windows. This avoids adding the
           // substantially larger snapshot to every ordinary workspace switch.
-          let onScreenWindows = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID,
-          ) as? [[String: Any]] ?? []
+          let onScreenWindows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
           let onScreenOwnerPids = Set(
-            onScreenWindows.compactMap { $0[kCGWindowOwnerPID as String] as? pid_t }
+            onScreenWindows.map { $0.surface.ownerPID }
           )
           let existingWindowIDs: Set<CGWindowID> =
             if request.knownWindows.isEmpty {
               []
             } else {
               Set(
-                (CGWindowListCopyWindowInfo(
-                  [.optionAll, .excludeDesktopElements],
-                  kCGNullWindowID,
-                ) as? [[String: Any]] ?? [])
-                  .compactMap { $0[kCGWindowNumber as String] as? CGWindowID }
+                await windowServerWindows([.optionAll, .excludeDesktopElements]).map(\.id)
               )
             }
+          guard !Task.isCancelled else { return }
           let runningByBundle = Dictionary(grouping: running) { $0.bundleIdentifier ?? "" }
           /// `summoned` marks an app the user just asked to come up: a Borrow
           /// forces auto-open on every app of the workspace it summons. Those
@@ -243,12 +239,12 @@ extension WorkspaceManagerClient: DependencyKey {
           func autoOpenIfNeeded(_ bundleId: String, summoned: Bool = false) {
             let instances = runningByBundle[bundleId] ?? []
             let hasVisibleWindow = instances.contains {
-              onScreenOwnerPids.contains($0.processIdentifier)
+              processIDs[$0].map(onScreenOwnerPids.contains) ?? false
             }
             let hasHiddenKnownWindow = instances.contains { instance in
               instance.isHidden
                 && request.knownWindows.contains {
-                  $0.pid == instance.processIdentifier
+                  $0.pid == processIDs[instance]
                     && $0.bundleId == bundleId
                     && existingWindowIDs.contains($0.windowID)
                 }
@@ -331,7 +327,7 @@ extension WorkspaceManagerClient: DependencyKey {
           // running set instead of falling back to a registered app.
           let toFocus = appsToShow.first { $0.bundleIdentifier == focusBundleId }
             ?? request.windowKeyToFocus.flatMap { mru in
-              running.first { $0.processIdentifier == mru.pid }
+              running.first { processIDs[$0] == mru.pid }
             }
             ?? appsToShow.first { workspaceBundleIds.contains($0.bundleIdentifier ?? "") }
 
@@ -358,20 +354,26 @@ extension WorkspaceManagerClient: DependencyKey {
             // display), which left a workspace switch focused on the wrong app.
             if
               let mruKey = request.windowKeyToFocus,
-              mruKey.bundleId == toFocus.bundleIdentifier
+              mruKey.bundleId == toFocus.bundleIdentifier,
+              processIDs[toFocus] == mruKey.pid
             {
               await focusWindow(
-                pid: toFocus.processIdentifier,
+                pid: mruKey.pid,
                 windowID: mruKey.windowID,
                 forceFront: true,
               )
-            } else {
+            } else if let pid = processIDs[toFocus] {
               // No specific target window (no MRU / pin yet) — front the app's
               // main window via SLPS too. Plain activate() didn't transfer the
               // frontmost app on a secondary display, so a switch to e.g. a
               // Figma workspace there left keyboard focus (and window cycling)
               // on the previous display's workspace.
-              await focusAppFront(pid: toFocus.processIdentifier)
+              await focusAppFront(pid: pid)
+            } else {
+              // A pidless application can still support AppKit activation,
+              // but cannot be addressed through Accessibility.
+              debugLog.log("Manager", "focus app without resolved process \(focusBundleId ?? "?")")
+              toFocus.activate()
             }
           } else if request.setFocus {
             // Empty workspace — none of its apps are running, so nothing
@@ -425,15 +427,16 @@ extension WorkspaceManagerClient: DependencyKey {
             // everything for plain switches that don't supply the universe.)
             if !managedBundleIds.isEmpty, !managedBundleIds.contains(bundleId) { continue }
             if app.isFinder, !isAnyWorkspaceAppRunning { continue }
+            guard let pid = processIDs[app] else { continue }
             if
               let pidsOnTargetDisplay,
-              !pidsOnTargetDisplay.contains(app.processIdentifier)
+              !pidsOnTargetDisplay.contains(pid)
             {
               continue
             }
             let process = OverlayAwareProcess(
               bundleId: bundleId,
-              pid: app.processIdentifier,
+              pid: pid,
             )
             if app.isHidden {
               overlayAwareness.setBackgrounded(process, false)
@@ -510,10 +513,8 @@ extension WorkspaceManagerClient: DependencyKey {
         @MainActor
         func returnOnMain() async -> Bool {
           guard !Task.isCancelled else { return false }
-          let onScreenWindows = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements],
-            kCGNullWindowID,
-          ) as? [[String: Any]] ?? []
+          let onScreenWindows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+          guard !Task.isCancelled else { return false }
           // Same exclusivity rule as the activation hide pass: an app with a
           // window on another monitor is left alone, because `hide()` is
           // process-wide and would blank that monitor too. Read *after* the
@@ -522,19 +523,23 @@ extension WorkspaceManagerClient: DependencyKey {
           let exclusive = Self.pidsExclusively(onDisplay: display, in: onScreenWindows)
           var hiddenCount = 0
           var hideCandidates = [(NSRunningApplication, OverlayAwareProcess)]()
-          for app in NSWorkspace.shared.runningApplications
-            where app.activationPolicy == .regular && !app.isTerminated
-          {
+          let running = NSWorkspace.shared.runningApplications.filter {
+            $0.activationPolicy == .regular && !$0.isTerminated
+          }
+          let processIDs = await applicationProcessIdentifiers(running)
+          guard !Task.isCancelled else { return false }
+          for app in running {
             guard
               let bundleId = app.bundleIdentifier,
+              let pid = processIDs[app],
               bundleIds.contains(bundleId),
               !MacApp.isTatami(bundleId),
-              exclusive.contains(app.processIdentifier),
+              exclusive.contains(pid),
               !app.isHidden
             else { continue }
             let process = OverlayAwareProcess(
               bundleId: bundleId,
-              pid: app.processIdentifier,
+              pid: pid,
             )
             hideCandidates.append((app, process))
           }
@@ -593,7 +598,7 @@ extension WorkspaceManagerClient: DependencyKey {
   @MainActor
   private static func pidsExclusively(
     onDisplay ref: DisplayName,
-    in windows: [[String: Any]],
+    in windows: [WindowServerWindow],
   ) -> Set<pid_t> {
     guard
       let primary = DisplayResolver.primaryScreen(),
@@ -611,13 +616,10 @@ extension WorkspaceManagerClient: DependencyKey {
     )
     var locations = [pid_t: (target: Bool, elsewhere: Bool)]()
     for entry in windows {
-      guard
-        (entry[kCGWindowLayer as String] as? Int) == 0,
-        let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
-        let b = entry[kCGWindowBounds as String] as? [String: CGFloat],
-        let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"]
-      else { continue }
-      let isOnTarget = target.contains(CGPoint(x: x + w / 2, y: y + h / 2))
+      guard entry.surface.layer == 0 else { continue }
+      let pid = entry.surface.ownerPID
+      let frame = entry.surface.frame
+      let isOnTarget = target.contains(CGPoint(x: frame.midX, y: frame.midY))
       var location = locations[pid] ?? (target: false, elsewhere: false)
       if isOnTarget {
         location.target = true

@@ -9,11 +9,12 @@ import SwiftUI
 /// everything else falls through as body text. Good enough for our
 /// changelog's strict structure without pulling in a markdown engine.
 public struct ChangelogView: View {
-  @Environment(\.dismiss) private var dismiss
 
-  public init() {}
+  // MARK: Lifecycle
 
-  private static let lines: [Line] = load()
+  public init() { }
+
+  // MARK: Public
 
   public var body: some View {
     VStack(spacing: 0) {
@@ -30,7 +31,7 @@ public struct ChangelogView: View {
 
       ScrollView {
         VStack(alignment: .leading, spacing: 6) {
-          ForEach(Array(Self.lines.enumerated()), id: \.offset) { _, line in
+          ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
             render(line)
           }
         }
@@ -39,59 +40,39 @@ public struct ChangelogView: View {
       }
     }
     .frame(width: 600, height: 520)
-  }
-
-  @ViewBuilder
-  private func render(_ line: Line) -> some View {
-    switch line {
-    case .version(let text):
-      Text(text)
-        .font(.title3.weight(.semibold))
-        .padding(.top, 14)
-    case .section(let text):
-      // Breaking-change sections get the warning tint so they stand out
-      // when skimming.
-      Text(text)
-        .font(.headline)
-        .foregroundStyle(
-          text.localizedCaseInsensitiveContains("breaking")
-            ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary)
-        )
-        .padding(.top, 6)
-    case .bullet(let text):
-      HStack(alignment: .top, spacing: 8) {
-        Text("•")
-          .foregroundStyle(.secondary)
-        Text(inline(text))
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      .font(.callout)
-    case .body(let text):
-      Text(inline(text))
-        .font(.callout)
-        .foregroundStyle(.secondary)
-        .fixedSize(horizontal: false, vertical: true)
+    .overlay {
+      if isLoading { ProgressView() }
+    }
+    .task {
+      let loaded = await Self.loader.run { Self.load() }
+      guard !Task.isCancelled else { return }
+      lines = loaded
+      isLoading = false
     }
   }
 
-  /// Inline markdown (bold / code / links); falls back to the raw string.
-  private func inline(_ text: String) -> AttributedString {
-    (try? AttributedString(markdown: text)) ?? AttributedString(text)
-  }
+  // MARK: Private
 
-  private enum Line {
+  private enum Line: Sendable {
     case version(String)
     case section(String)
     case bullet(String)
     case body(String)
   }
 
-  private static func load() -> [Line] {
-    guard let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
-          let content = try? String(contentsOf: url, encoding: .utf8)
+  private static let loader = BlockingWorkQueue(label: "dev.PangMo5.Tatami.changelog")
+
+  @Environment(\.dismiss) private var dismiss
+  @State private var lines = [Line]()
+  @State private var isLoading = true
+
+  nonisolated private static func load() -> [Line] {
+    guard
+      let url = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md"),
+      let content = try? String(contentsOf: url, encoding: .utf8)
     else { return [.body("Changelog not bundled with this build.")] }
 
-    var lines: [Line] = []
+    var lines = [Line]()
     for raw in content.split(separator: "\n", omittingEmptySubsequences: true) {
       let line = String(raw)
       if line.hasPrefix("# ") {
@@ -113,4 +94,47 @@ public struct ChangelogView: View {
     }
     return lines
   }
+
+  @ViewBuilder
+  private func render(_ line: Line) -> some View {
+    switch line {
+    case .version(let text):
+      Text(text)
+        .font(.title3.weight(.semibold))
+        .padding(.top, 14)
+
+    case .section(let text):
+      // Breaking-change sections get the warning tint so they stand out
+      // when skimming.
+      Text(text)
+        .font(.headline)
+        .foregroundStyle(
+          text.localizedCaseInsensitiveContains("breaking")
+            ? AnyShapeStyle(.orange)
+            : AnyShapeStyle(.primary)
+        )
+        .padding(.top, 6)
+
+    case .bullet(let text):
+      HStack(alignment: .top, spacing: 8) {
+        Text("•")
+          .foregroundStyle(.secondary)
+        Text(inline(text))
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .font(.callout)
+
+    case .body(let text):
+      Text(inline(text))
+        .font(.callout)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  /// Inline markdown (bold / code / links); falls back to the raw string.
+  private func inline(_ text: String) -> AttributedString {
+    (try? AttributedString(markdown: text)) ?? AttributedString(text)
+  }
+
 }

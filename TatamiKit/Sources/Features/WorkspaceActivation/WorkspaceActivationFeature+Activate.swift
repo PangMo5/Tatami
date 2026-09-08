@@ -2607,12 +2607,12 @@ extension WorkspaceActivationFeature {
             if !isPaused {
               // Layouts always persist now. Restore the saved template whenever
               // there's no in-memory tree yet (fresh launch / first activation).
-              let persistedSnapshot: LayoutSnapshot?
-              if let pendingRestoration {
-                persistedSnapshot = pendingRestoration
-              } else {
-                persistedSnapshot = sessionTree == nil ? await store.load(workspaceId) : nil
-              }
+              let persistedSnapshot: LayoutSnapshot? =
+                if let pendingRestoration {
+                  pendingRestoration
+                } else {
+                  sessionTree == nil ? await store.load(workspaceId) : nil
+                }
               guard !Task.isCancelled else { return }
               // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
               // AX round trips. AX scans block on each target app's run loop
@@ -2636,7 +2636,7 @@ extension WorkspaceActivationFeature {
                 return results.sorted { $0.0 < $1.0 }.flatMap(\.1)
               }
               guard !Task.isCancelled else { return }
-              let onScreenFrames = snapshot.onScreenWindowFrames()
+              let onScreenFrames = await snapshot.onScreenWindowFramesOffMain()
               let keys = await MainActor.run {
                 Self.scopedWindowKeys(
                   discovered,
@@ -2800,7 +2800,7 @@ extension WorkspaceActivationFeature {
               guard !Task.isCancelled else { return }
               if warpMouse {
                 var fallbackFrames = [WindowKey: CGRect]()
-                let liveWindowServerFrames = snapshot.onScreenWindowFrames()
+                let liveWindowServerFrames = await snapshot.onScreenWindowFramesOffMain()
                 if let mruWindow, frames[mruWindow] == nil {
                   if let frame = liveWindowServerFrames[mruWindow.windowID] {
                     fallbackFrames[mruWindow] = frame
@@ -3434,7 +3434,7 @@ extension WorkspaceActivationFeature {
       // `.optionOnScreenOnly`; filtering there erased a live cached KakaoTalk
       // window and left the Borrow block empty until another window was opened.
       // Exact WindowServer existence still rejects a retired/reused key.
-      let existingKeys = snapshot.existingWindowKeys(discovered)
+      let existingKeys = await snapshot.existingWindowKeysOffMain(discovered)
       let keys = discovered.filter(existingKeys.contains)
       let tree = await MainActor.run { () -> BSPNode<WindowKey>? in
         let workArea = displays.workArea(display).insetBy(

@@ -101,7 +101,7 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         .launched(
           bundleId: bundleId,
           name: app.localizedName ?? bundleId,
-          pid: app.processIdentifier,
+          pid: Self.liveProcessIdentifier(app),
         )
       )
     }
@@ -116,7 +116,7 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      self?.broadcast(.activated(bundleId: bundleId, pid: app.processIdentifier))
+      self?.broadcast(.activated(bundleId: bundleId, pid: Self.liveProcessIdentifier(app)))
     }
     // Unhide fires when a previously-hidden app's windows come back —
     // e.g. a Borrow reveals KakaoTalk while deliberately leaving the host
@@ -133,7 +133,7 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
-      self?.broadcast(.unhidden(bundleId: bundleId, pid: app.processIdentifier))
+      self?.broadcast(.unhidden(bundleId: bundleId, pid: Self.liveProcessIdentifier(app)))
     }
     nc.addObserver(
       forName: NSWorkspace.didTerminateApplicationNotification,
@@ -146,6 +146,24 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
         let bundleId = app.bundleIdentifier, !bundleId.isEmpty
       else { return }
       self?.broadcast(.terminated(bundleId: bundleId, pid: app.processIdentifier))
+    }
+    nc.addObserver(
+      forName: NSWorkspace.didHideApplicationNotification,
+      object: nil,
+      queue: .main,
+    ) { notification in
+      guard
+        let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+        app.isHidden
+      else { return }
+      let pid = Self.liveProcessIdentifier(app)
+      guard pid > 0 else { return }
+      // hide() can return before AppKit acknowledges it. Keeping suppression
+      // after the app is actually hidden would block its next native reopen.
+      @Dependency(\.overlayAwareness) var overlayAwareness
+      overlayAwareness.clearBackgroundedProcess(pid)
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log("OverlayAware", "confirmed hidden \(app.bundleIdentifier ?? "?") pid=\(pid); clear suppression")
     }
     // Native macOS Space changes don't fire any per-app notification.
     // Without this the on-screen window set silently drifts away from
@@ -237,6 +255,12 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
 
   private let lock = NSLock()
   private var continuations = [UUID: AsyncStream<AppLaunchEvent>.Continuation]()
+
+  private static func liveProcessIdentifier(_ app: NSRunningApplication) -> pid_t {
+    // NSWorkspace callbacks use queue: .main. Preserve the event's bundle
+    // even when a newly launched app does not own a process/window yet.
+    cachedApplicationProcessIdentifier(app) ?? 0
+  }
 
   private func broadcast(_ event: AppLaunchEvent) {
     let live = lock.withLock { Array(continuations.values) }

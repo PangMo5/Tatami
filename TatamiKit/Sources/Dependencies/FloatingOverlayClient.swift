@@ -8,6 +8,8 @@ import DependenciesMacros
 import OSLog
 import ScreenCaptureKit
 
+// MARK: - FloatingOverlayClient
+
 /// Keeps "floating" windows visually on top of the tiled layout without
 /// SIP, by mirroring each one into an always-on-top panel of our own
 /// (the Topit / Floaty technique — see `WindowMirrorCapture`).
@@ -53,6 +55,8 @@ struct FloatingOverlayClient: Sendable {
   var setHoverActivation: @MainActor @Sendable (_ enabled: Bool) -> Void
 }
 
+// MARK: DependencyKey
+
 extension FloatingOverlayClient: DependencyKey {
   static let liveValue: FloatingOverlayClient = MainActor.assumeIsolated {
     @Dependency(\.debugLog) var debugLog
@@ -62,12 +66,12 @@ extension FloatingOverlayClient: DependencyKey {
     // instead of one notification later. Returns whether anything was
     // restored, so the caller can let it commit before activating.
     MirrorWindowRegistry.shared.setWillFocusHandler { pid in
-      MainActor.assumeIsolated { controller.handleWillFocus(pid) }
+      await controller.handleWillFocus(pid)
     }
     return FloatingOverlayClient(
       setFloating: { windows in controller.setFloating(windows) },
       retainOnly: { bundleIds in controller.retainOnly(bundleIds) },
-      setHoverActivation: { enabled in controller.hoverActivates = enabled }
+      setHoverActivation: { enabled in controller.hoverActivates = enabled },
     )
   }
 

@@ -776,7 +776,7 @@ private final class WorkspaceHUDController {
     indicators: [WindowKey: WindowSwitcherIndicators],
     autoDismissAfterMs: Int?,
     display: DisplayName?,
-  ) {
+  ) async {
     guard
       !windows.isEmpty,
       let screen = resolveScreen(display),
@@ -788,6 +788,23 @@ private final class WorkspaceHUDController {
         + "selected=\(selected.bundleId)#\(selected.windowID) "
         + "display=\(display?.name ?? "cursor")",
     )
+    windowSwitcherRequestGeneration &+= 1
+    let requestGeneration = windowSwitcherRequestGeneration
+    if byWindow {
+      let now = Date()
+      let hasNewWindow = windows.contains { !resolvedWindowTitleKeys.contains($0) }
+      if hasNewWindow || now.timeIntervalSince(windowTitlesUpdatedAt) >= 0.5 {
+        let snapshot = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        guard !Task.isCancelled, windowSwitcherRequestGeneration == requestGeneration else { return }
+        let wanted = Dictionary(uniqueKeysWithValues: windows.map { ($0.windowID, $0) })
+        windowTitlesByKey = Dictionary(uniqueKeysWithValues: snapshot.compactMap { window in
+          guard let key = wanted[window.id], let title = window.title, !title.isEmpty else { return nil }
+          return (key, title)
+        })
+        resolvedWindowTitleKeys = Set(windows)
+        windowTitlesUpdatedAt = now
+      }
+    }
     let items = windowSwitcherItems(
       windows,
       byWindow: byWindow,
@@ -894,6 +911,7 @@ private final class WorkspaceHUDController {
   }
 
   func dismissWindowSwitcher(display: DisplayName?) {
+    windowSwitcherRequestGeneration &+= 1
     guard
       let screenID = resolveScreen(display)?.displayID,
       entries[screenID]?.kind == .windowSwitcher
@@ -902,6 +920,7 @@ private final class WorkspaceHUDController {
   }
 
   func dismiss() {
+    windowSwitcherRequestGeneration &+= 1
     for screenID in Array(entries.keys) { fadeOut(screenID) }
   }
 
@@ -954,6 +973,7 @@ private final class WorkspaceHUDController {
   private var entries = [CGDirectDisplayID: Entry]()
   private var interactiveWindowSwitcherScreenID: CGDirectDisplayID?
   private var appMetadataByBundleID = [String: (name: String, icon: NSImage)]()
+  private var windowSwitcherRequestGeneration: UInt64 = 0
   private var windowTitlesByKey = [WindowKey: String]()
   private var resolvedWindowTitleKeys = Set<WindowKey>()
   private var windowTitlesUpdatedAt = Date.distantPast
@@ -1156,22 +1176,10 @@ private final class WorkspaceHUDController {
 
   private func windowSwitcherItems(
     _ windows: [WindowKey],
-    byWindow: Bool,
+    byWindow _: Bool,
     indicators: [WindowKey: WindowSwitcherIndicators],
   ) -> [WindowSwitcherItem] {
-    if byWindow {
-      let now = Date()
-      let hasNewWindow = windows.contains { !resolvedWindowTitleKeys.contains($0) }
-      if hasNewWindow || now.timeIntervalSince(windowTitlesUpdatedAt) >= 0.5 {
-        // Reuse one snapshot during rapid key repeat, but refresh on the next
-        // cycle sequence so document/tab title changes never stay stale for
-        // the lifetime of the process.
-        windowTitlesByKey = windowTitles(windows)
-        resolvedWindowTitleKeys = Set(windows)
-        windowTitlesUpdatedAt = now
-      }
-    }
-    return windows.map { key in
+    windows.map { key in
       let appMetadata: (name: String, icon: NSImage)
       if let cached = appMetadataByBundleID[key.bundleId] {
         appMetadata = cached
@@ -1196,27 +1204,6 @@ private final class WorkspaceHUDController {
         indicators: indicators[key] ?? WindowSwitcherIndicators(),
       )
     }
-  }
-
-  /// One WindowServer snapshot for the whole strip. This stays presentation-
-  /// only and avoids serial AX title calls on the latency-sensitive focus path.
-  private func windowTitles(_ windows: [WindowKey]) -> [WindowKey: String] {
-    let wanted = Dictionary(uniqueKeysWithValues: windows.map { ($0.windowID, $0) })
-    let info = CGWindowListCopyWindowInfo(
-      [.optionOnScreenOnly, .excludeDesktopElements],
-      kCGNullWindowID,
-    ) as? [[String: Any]] ?? []
-    var result = [WindowKey: String]()
-    for entry in info {
-      guard
-        let id = entry[kCGWindowNumber as String] as? CGWindowID,
-        let key = wanted[id],
-        let title = entry[kCGWindowName as String] as? String,
-        !title.isEmpty
-      else { continue }
-      result[key] = title
-    }
-    return result
   }
 
 }

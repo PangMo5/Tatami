@@ -695,13 +695,58 @@ enum ScreenGeometry {
 
 // MARK: - WindowServerSurface
 
-/// Fresh WindowServer geometry in AX/CG top-origin coordinates. Unlike AX,
-/// this is one local snapshot with no target-app run-loop wait, so reducers can
-/// safely use it to partition already-discovered keys without blocking input.
+/// WindowServer geometry in AX/CG top-origin coordinates, captured off-main
+/// before reducers use it to partition already-discovered window identities.
 struct WindowServerSurface: Equatable, Sendable {
   var ownerPID: pid_t
   var layer: Int
   var frame: CGRect
+}
+
+// MARK: - WindowServerWindow
+
+struct WindowServerWindow: Sendable {
+  var id: CGWindowID
+  var surface: WindowServerSurface
+  var title: String?
+  var alpha: Double = 1
+}
+
+private let windowServerReadQueue = BlockingWorkQueue(label: "dev.PangMo5.Tatami.window-server-read")
+
+func windowServerWindows(_ options: CGWindowListOption) async -> [WindowServerWindow] {
+  await windowServerReadQueue.run { readWindowServerWindows(options) }
+}
+
+/// Synchronous core for the dedicated frame writer and snapshot workers only.
+func readWindowServerWindows(_ options: CGWindowListOption) -> [WindowServerWindow] {
+  precondition(!Thread.isMainThread, "WindowServer IPC must run on a worker")
+  let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+  return entries.compactMap { entry in
+    guard
+      let id = entry[kCGWindowNumber as String] as? CGWindowID,
+      let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+      let layer = entry[kCGWindowLayer as String] as? Int,
+      let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
+      let x = bounds["X"], let y = bounds["Y"],
+      let width = bounds["Width"], let height = bounds["Height"]
+    else { return nil }
+    return WindowServerWindow(
+      id: id,
+      surface: WindowServerSurface(
+        ownerPID: pid,
+        layer: layer,
+        frame: CGRect(x: x, y: y, width: width, height: height),
+      ),
+      title: entry[kCGWindowName as String] as? String,
+      alpha: (entry[kCGWindowAlpha as String] as? Double) ?? 1,
+    )
+  }
+}
+
+private func currentOnScreenWindowFrames() -> [CGWindowID: CGRect] {
+  Dictionary(uniqueKeysWithValues: readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+    .map { ($0.id, $0.surface.frame) })
 }
 
 // MARK: - WindowServerLayerEvidence
@@ -795,39 +840,6 @@ private func windowServerLayers(
   return layers
 }
 
-/// One local WindowServer snapshot with enough ownership metadata to
-/// distinguish a native-tab surface replacement from an ordinary hide/close.
-/// Native tabs swap CGWindowIDs inside the same process; popup/menu layers are
-/// excluded by consumers without paying an AX round trip.
-func currentOnScreenWindowSurfaces() -> [CGWindowID: WindowServerSurface] {
-  let raw = CGWindowListCopyWindowInfo(
-    [.optionOnScreenOnly, .excludeDesktopElements],
-    kCGNullWindowID,
-  ) as? [[String: Any]] ?? []
-  var surfaces = [CGWindowID: WindowServerSurface]()
-  surfaces.reserveCapacity(raw.count)
-  for entry in raw {
-    guard
-      let windowID = entry[kCGWindowNumber as String] as? CGWindowID,
-      let ownerPID = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
-      let layer = (entry[kCGWindowLayer as String] as? NSNumber)?.intValue,
-      let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
-      let x = bounds["X"], let y = bounds["Y"],
-      let width = bounds["Width"], let height = bounds["Height"]
-    else { continue }
-    surfaces[windowID] = WindowServerSurface(
-      ownerPID: ownerPID,
-      layer: layer,
-      frame: CGRect(x: x, y: y, width: width, height: height),
-    )
-  }
-  return surfaces
-}
-
-func currentOnScreenWindowFrames() -> [CGWindowID: CGRect] {
-  currentOnScreenWindowSurfaces().mapValues(\.frame)
-}
-
 /// Bound every AX message this process sends (call once at startup).
 ///
 /// The per-app-element `AXUIElementSetMessagingTimeout(axApp, …)` calls
@@ -916,46 +928,20 @@ struct WindowCapabilityDiscovery: Sendable {
 /// write the window's size. Floating discovery passes `false` — a mirror
 /// only needs the window to be movable, and fixed-size windows (the iOS
 /// Simulator's device windows report `AXSize` as not settable) float fine.
-@MainActor
-func discoverWindowKeys(
-  forBundleIds bundleIds: [String],
-  sls: SLSClient,
-  requireResizable: Bool = true,
-) -> WindowDiscovery {
-  discoverWindowCapabilities(
-    forBundleIds: bundleIds,
-    pidsByBundle: runningPIDsByBundle(bundleIds),
-    sls: sls,
-  ).discovery(requireResizable: requireResizable)
-}
-
-/// Main-actor entry point that captures the running-process snapshot and
-/// returns both eligibility views from one AX pass.
-@MainActor
-func discoverWindowCapabilities(
-  forBundleIds bundleIds: [String],
-  sls: SLSClient,
-) -> WindowCapabilityDiscovery {
-  discoverWindowCapabilities(
-    forBundleIds: bundleIds,
-    pidsByBundle: runningPIDsByBundle(bundleIds),
-    sls: sls,
-  )
-}
-
 /// Capture the AppKit-owned running-application snapshot briefly, before AX
 /// discovery moves to Tatami's serialized worker. Apple exposes AX observer
 /// run-loop selection but does not explicitly document general AX thread
 /// safety, so AX references stay confined to the worker that creates them.
-@MainActor
-func runningPIDsByBundle(_ bundleIds: [String]) -> [String: [pid_t]] {
+func runningPIDsByBundle(_ bundleIds: [String]) async -> [String: [pid_t]] {
   let requested = Set(bundleIds)
   var pidsByBundle = [String: [pid_t]]()
-  for app in NSWorkspace.shared.runningApplications
-    where !app.isTerminated && app.activationPolicy == .regular
-  {
-    if let bundleId = app.bundleIdentifier, requested.contains(bundleId) {
-      pidsByBundle[bundleId, default: []].append(app.processIdentifier)
+  let running = NSWorkspace.shared.runningApplications.filter {
+    !$0.isTerminated && $0.activationPolicy == .regular
+      && requested.contains($0.bundleIdentifier ?? "")
+  }
+  for (app, pid) in await applicationProcessIdentifiers(running) {
+    if let bundleId = app.bundleIdentifier {
+      pidsByBundle[bundleId, default: []].append(pid)
     }
   }
   for bundleId in pidsByBundle.keys {
@@ -966,20 +952,6 @@ func runningPIDsByBundle(_ bundleIds: [String]) -> [String: [pid_t]] {
 
 /// AX-only discovery core. Callers provide a main-actor-captured process
 /// snapshot, allowing the synchronous IPC to run on an ordinary worker.
-func discoverWindowKeys(
-  forBundleIds bundleIds: [String],
-  pidsByBundle: [String: [pid_t]],
-  sls: SLSClient,
-  requireResizable: Bool = true,
-  isCancelled: @escaping @Sendable () -> Bool = { false },
-) -> WindowDiscovery {
-  discoverWindowCapabilities(
-    forBundleIds: bundleIds,
-    pidsByBundle: pidsByBundle,
-    sls: sls,
-    isCancelled: isCancelled,
-  ).discovery(requireResizable: requireResizable)
-}
 
 /// Enumerate each process once and classify every eligible window into both
 /// movable and resizable views from the same AX capability reads.

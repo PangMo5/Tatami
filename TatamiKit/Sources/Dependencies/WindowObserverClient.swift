@@ -603,9 +603,15 @@ private final class WindowObserverCenter: @unchecked Sendable {
   }
 
   func observe(bundleIds: [String]) async {
-    let snapshot = await MainActor.run {
-      self.captureRunningAppsSnapshot(requestedBundleIds: bundleIds)
+    let generation = await MainActor.run {
+      self.installDragEndMonitorIfNeeded()
+      self.runningAppsSnapshotGeneration &+= 1
+      return self.runningAppsSnapshotGeneration
     }
+    let snapshot = await RunningAppsSnapshot.capture(
+      generation: generation,
+      requestedBundleIds: bundleIds,
+    )
     await registry.installOrUpdate(
       snapshotGeneration: snapshot.generation,
       bundleIds: bundleIds,
@@ -642,18 +648,6 @@ private final class WindowObserverCenter: @unchecked Sendable {
   private func broadcast(_ event: WindowChangeEvent) {
     let live = lock.withLock { Array(subscribers.values) }
     for subscriber in live { subscriber.yield(event) }
-  }
-
-  @MainActor
-  private func captureRunningAppsSnapshot(
-    requestedBundleIds: [String]
-  ) -> RunningAppsSnapshot {
-    installDragEndMonitorIfNeeded()
-    runningAppsSnapshotGeneration &+= 1
-    return RunningAppsSnapshot.capture(
-      generation: runningAppsSnapshotGeneration,
-      requestedBundleIds: requestedBundleIds,
-    )
   }
 
   @MainActor
@@ -738,24 +732,25 @@ private struct RunningAppsSnapshot: Sendable {
   var candidates: [RunningAppSnapshot]
   var livePids: Set<pid_t>
 
-  @MainActor
   static func capture(
     generation: UInt64,
     requestedBundleIds: [String],
-  ) -> RunningAppsSnapshot {
+  ) async -> RunningAppsSnapshot {
     let requested = Set(requestedBundleIds)
     let running = NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }
+    let processIDs = await applicationProcessIdentifiers(running)
     return RunningAppsSnapshot(
       generation: generation,
       candidates: running.compactMap { app in
         guard
           app.activationPolicy == .regular,
+          let pid = processIDs[app],
           let bundleId = app.bundleIdentifier,
           requested.contains(bundleId)
         else { return nil }
-        return RunningAppSnapshot(pid: app.processIdentifier, bundleId: bundleId)
+        return RunningAppSnapshot(pid: pid, bundleId: bundleId)
       },
-      livePids: Set(running.map(\.processIdentifier)),
+      livePids: Set(processIDs.values),
     )
   }
 }

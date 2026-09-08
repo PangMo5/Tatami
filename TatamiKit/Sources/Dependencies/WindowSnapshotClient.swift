@@ -8,21 +8,6 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 
-/// Live AX read of the frontmost app's focused window. Reducers access it
-/// through `WindowSnapshotClient.focusedWindowKey`, keeping AppKit/AX reads
-/// behind the dependency boundary.
-@MainActor
-private func liveFocusedWindowKey() -> WindowKey? {
-  guard
-    let app = NSWorkspace.shared.frontmostApplication,
-    let bundleId = app.bundleIdentifier
-  else { return nil }
-  return resolveFocusedWindowKey(
-    pid: app.processIdentifier,
-    bundleId: bundleId,
-  )
-}
-
 /// Performs only the synchronous AX messaging portion of focused-window
 /// resolution. The async dependency runs this on a per-process serial worker
 /// so the main event loop and unrelated apps remain available when one app is
@@ -47,6 +32,55 @@ private func resolveFocusedWindowKey(pid: pid_t, bundleId: String) -> WindowKey?
     pid: pid,
     bundleId: bundleId,
   )
+}
+
+/// A preserved app's last AX focus can still point to its document while that
+/// document is behind the active workspace. Require a visible normal-level
+/// focused window and verify its app owns the frontmost normal surface at its
+/// center. Elevated controls and other displays do not count as work focus.
+func isForegroundWorkWindow(_ key: WindowKey, in windows: [WindowServerWindow]) -> Bool {
+  guard
+    let focused = windows.first(where: { $0.id == key.windowID && $0.surface.ownerPID == key.pid }),
+    focused.surface.layer == 0, focused.alpha > 0,
+    focused.surface.frame.width > 1, focused.surface.frame.height > 1
+  else { return false }
+  let center = CGPoint(x: focused.surface.frame.midX, y: focused.surface.frame.midY)
+  return windows.first(where: {
+    $0.surface.layer == 0 && $0.alpha > 0
+      && $0.surface.frame.width > 1 && $0.surface.frame.height > 1
+      && $0.surface.frame.contains(center)
+  })?.surface.ownerPID == key.pid
+}
+
+private func liveFrontmostWorkWindow(_ bundleId: String, expectedPID: pid_t) async -> WindowKey? {
+  guard
+    let app = NSWorkspace.shared.frontmostApplication,
+    app.bundleIdentifier == bundleId,
+    let pid = await applicationProcessIdentifier(app),
+    expectedPID <= 0 || expectedPID == pid,
+    !Task.isCancelled
+  else { return nil }
+  let cancellation = AXReadCancellationFlag()
+  let key: WindowKey? = await withTaskCancellationHandler {
+    await withCheckedContinuation { continuation in
+      windowReadAXQueues.queue(for: pid).async {
+        guard
+          !cancellation.isCancelled,
+          let key = resolveFocusedWindowKey(pid: pid, bundleId: bundleId)
+        else {
+          continuation.resume(returning: nil)
+          return
+        }
+        let windows = readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        continuation.resume(returning: !cancellation.isCancelled && isForegroundWorkWindow(key, in: windows) ? key : nil)
+      }
+    }
+  } onCancel: { cancellation.cancel() }
+  guard
+    !Task.isCancelled, !app.isTerminated,
+    NSWorkspace.shared.frontmostApplication?.isEqual(app) == true
+  else { return nil }
+  return key
 }
 
 // MARK: - FrontmostAppIdentity
@@ -368,35 +402,35 @@ actor WindowDiscoveryCoordinator {
 
 }
 
-@MainActor
 private func makeWindowDiscoveryRequest(
   bundleIds: [String],
-  scanStartEpoch: UInt64,
-  invalidationGenerations: [String: UInt64],
-) -> WindowDiscoveryRequest {
-  let pids = runningPIDsByBundle(bundleIds)
+  cache: WindowKeyCache,
+) async -> WindowDiscoveryRequest {
+  let (scanStartEpoch, invalidationGenerations) = await MainActor.run {
+    (cache.currentInvalidationEpoch, cache.invalidationGenerations(for: bundleIds))
+  }
+  let pids = await runningPIDsByBundle(bundleIds)
   var seen = Set<WindowDiscoveryRequest.Process>()
   return WindowDiscoveryRequest(
     processes: bundleIds.flatMap { bundleId in
       (pids[bundleId] ?? []).map {
         WindowDiscoveryRequest.Process(bundleId: bundleId, pid: $0)
       }
-    }.filter {
-      seen.insert($0).inserted
-    },
+    }.filter { seen.insert($0).inserted },
     scanStartEpoch: scanStartEpoch,
     invalidationGenerations: invalidationGenerations,
   )
 }
 
 private func liveFocusedWindowKeyAsync() async -> WindowKey? {
-  let identity = await MainActor.run {
-    NSWorkspace.shared.frontmostApplication.flatMap { app -> FrontmostAppIdentity? in
-      guard let bundleId = app.bundleIdentifier else { return nil }
-      return FrontmostAppIdentity(pid: app.processIdentifier, bundleId: bundleId)
-    }
-  }
-  guard let identity else { return nil }
+  guard
+    let app = NSWorkspace.shared.frontmostApplication,
+    let bundleId = app.bundleIdentifier,
+    let pid = await applicationProcessIdentifier(app),
+    !Task.isCancelled,
+    NSWorkspace.shared.frontmostApplication?.isEqual(app) == true
+  else { return nil }
+  let identity = FrontmostAppIdentity(pid: pid, bundleId: bundleId)
   return await resolveFocusedWindowKeyAsync(identity)
 }
 
@@ -583,9 +617,9 @@ struct WindowCapabilitySnapshot: Equatable, Sendable {
 // MARK: - WindowSnapshotClient
 
 /// Live window/app state behind a testable dependency boundary. The synchronous
-/// endpoints remain for lightweight tests and cache-only reducer reads; live
-/// AX discovery, focus, frame, and title IPC use the async worker endpoints so
-/// target apps can never block Tatami's main event loop.
+/// lookup overrides remain for lightweight tests; the live implementation
+/// rejects synchronous IPC endpoints. Cache-only reads remain synchronous.
+/// AX and WindowServer requests use the async worker endpoints.
 @DependencyClient
 struct WindowSnapshotClient: Sendable {
   /// All visible, regular, tile-able windows of the given bundle ids
@@ -664,14 +698,21 @@ struct WindowSnapshotClient: Sendable {
   /// group without waiting for a second AX event or a guessed delay.
   var onScreenWindowSurfaces:
     @Sendable () -> [CGWindowID: WindowServerSurface] = { [:] }
+  var onScreenWindowSurfacesAsync:
+    @Sendable () async -> AsyncWindowSnapshot<[CGWindowID: WindowServerSurface]> = { .unavailable }
   /// The frontmost app (bundle id + localized name), if any.
   var frontmostApp: @Sendable () -> FrontmostApp?
+  var frontmostAppAsync: @Sendable () async -> AsyncWindowSnapshot<FrontmostApp?> = { .unavailable }
+  var frontmostWorkWindowAsync:
+    @Sendable (_ bundleId: String, _ pid: pid_t) async -> WindowKey? = { _, _ in nil }
   /// Window numbers of every window currently on screen.
   var onScreenWindowIDs: @Sendable () -> Set<CGWindowID> = { [] }
   /// Which exact cached/discovered identities still exist in WindowServer,
   /// including live hidden windows not yet published as on-screen.
   var existingWindowKeys:
     @Sendable (_ keys: [WindowKey]) -> Set<WindowKey> = { _ in [] }
+  var existingWindowKeysAsync:
+    @Sendable ([WindowKey]) async -> AsyncWindowSnapshot<Set<WindowKey>> = { _ in .unavailable }
   /// Bundle ids of every running app (any activation policy — the
   /// skip-empty cycle counts background-only members too).
   var runningBundleIds: @Sendable () -> Set<String> = { [] }
@@ -685,6 +726,41 @@ struct WindowSnapshotClient: Sendable {
 }
 
 extension WindowSnapshotClient {
+  func onScreenWindowSurfacesOffMain() async -> [CGWindowID: WindowServerSurface] {
+    switch await onScreenWindowSurfacesAsync() {
+    case .value(let surfaces): surfaces
+    case .unavailable: onScreenWindowSurfaces()
+    }
+  }
+
+  func onScreenWindowFramesOffMain() async -> [CGWindowID: CGRect] {
+    switch await onScreenWindowSurfacesAsync() {
+    case .value(let surfaces): surfaces.mapValues(\.frame)
+    case .unavailable: onScreenWindowFrames()
+    }
+  }
+
+  func onScreenWindowIDsOffMain() async -> Set<CGWindowID> {
+    switch await onScreenWindowSurfacesAsync() {
+    case .value(let surfaces): Set(surfaces.keys)
+    case .unavailable: onScreenWindowIDs()
+    }
+  }
+
+  func existingWindowKeysOffMain(_ keys: [WindowKey]) async -> Set<WindowKey> {
+    switch await existingWindowKeysAsync(keys) {
+    case .value(let keys): keys
+    case .unavailable: existingWindowKeys(keys)
+    }
+  }
+
+  func frontmostAppOffMain() async -> FrontmostApp? {
+    switch await frontmostAppAsync() {
+    case .value(let app): app
+    case .unavailable: frontmostApp()
+    }
+  }
+
   func discoverCapabilitiesOffMain(
     _ bundleIds: [String]
   ) async -> WindowCapabilitySnapshot {
@@ -814,32 +890,13 @@ extension WindowSnapshotClient: DependencyKey {
   static let liveValue: WindowSnapshotClient = {
     let cache = MainActor.assumeIsolated { WindowKeyCache() }
     let discoveryCoordinator = WindowDiscoveryCoordinator()
+    let metadataWorker = BlockingWorkQueue(label: "dev.PangMo5.Tatami.window-metadata")
     return WindowSnapshotClient(
-      discoverKeys: { bundleIds, requireResizable in
-        MainActor.assumeIsolated {
-          @Dependency(\.sls) var sls
-          let discovery = discoverWindowCapabilities(
-            forBundleIds: bundleIds,
-            sls: sls,
-          )
-          let snapshot = cache.storeAndResolve(
-            discovery,
-            bundleIds: bundleIds,
-          )
-          return requireResizable ? snapshot.resizableKeys : snapshot.movableKeys
-        }
+      discoverKeys: { _, _ in
+        preconditionFailure("Live window discovery requires discoverKeysOffMain")
       },
       discoverKeysAsync: { bundleIds, requireResizable in
-        let request = await MainActor.run {
-          let scanStartEpoch = cache.currentInvalidationEpoch
-          return makeWindowDiscoveryRequest(
-            bundleIds: bundleIds,
-            scanStartEpoch: scanStartEpoch,
-            invalidationGenerations: cache.invalidationGenerations(
-              for: bundleIds
-            ),
-          )
-        }
+        let request = await makeWindowDiscoveryRequest(bundleIds: bundleIds, cache: cache)
         @Dependency(\.sls) var sls
         let capabilityDiscovery: WindowCapabilityDiscovery
         do {
@@ -867,16 +924,7 @@ extension WindowSnapshotClient: DependencyKey {
         }
       },
       discoverCapabilitiesAsync: { bundleIds in
-        let request = await MainActor.run {
-          let scanStartEpoch = cache.currentInvalidationEpoch
-          return makeWindowDiscoveryRequest(
-            bundleIds: bundleIds,
-            scanStartEpoch: scanStartEpoch,
-            invalidationGenerations: cache.invalidationGenerations(
-              for: bundleIds
-            ),
-          )
-        }
+        let request = await makeWindowDiscoveryRequest(bundleIds: bundleIds, cache: cache)
         @Dependency(\.sls) var sls
         let capabilityDiscovery: WindowCapabilityDiscovery
         do {
@@ -941,16 +989,7 @@ extension WindowSnapshotClient: DependencyKey {
           }
         }
 
-        let request = await MainActor.run {
-          let scanStartEpoch = cache.currentInvalidationEpoch
-          return makeWindowDiscoveryRequest(
-            bundleIds: missing,
-            scanStartEpoch: scanStartEpoch,
-            invalidationGenerations: cache.invalidationGenerations(
-              for: missing
-            ),
-          )
-        }
+        let request = await makeWindowDiscoveryRequest(bundleIds: missing, cache: cache)
         @Dependency(\.sls) var sls
         let capabilityDiscovery: WindowCapabilityDiscovery
         do {
@@ -996,61 +1035,79 @@ extension WindowSnapshotClient: DependencyKey {
         MainActor.assumeIsolated { cache.cachedKey(windowID: windowID) }
       },
       focusedWindowKey: {
-        MainActor.assumeIsolated { liveFocusedWindowKey() }
+        preconditionFailure("Live focused-window reads require focusedWindowKeyOffMain")
       },
       focusedWindowKeyAsync: {
         .value(await liveFocusedWindowKeyAsync())
       },
       focusedWindowKeyForAppAsync: { pid, bundleId in
-        .value(await resolveFocusedWindowKeyAsync(
+        if pid <= 0 {
+          guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleId else {
+            return .value(nil)
+          }
+          return .value(await liveFocusedWindowKeyAsync())
+        }
+        return .value(await resolveFocusedWindowKeyAsync(
           FrontmostAppIdentity(pid: pid, bundleId: bundleId)
         ))
       },
-      windowFrame: { key in
-        MainActor.assumeIsolated { liveWindowFrame(key) }
+      windowFrame: { _ in
+        preconditionFailure("Live window-frame reads require windowFrameOffMain")
       },
       windowFrameAsync: { key in
         .value(await liveWindowFrameAsync(key))
       },
       onScreenWindowFrames: {
-        currentOnScreenWindowFrames()
+        preconditionFailure("Live WindowServer reads require onScreenWindowFramesOffMain")
       },
       onScreenWindowSurfaces: {
-        currentOnScreenWindowSurfaces()
+        preconditionFailure("Live WindowServer reads require onScreenWindowSurfacesOffMain")
+      },
+      onScreenWindowSurfacesAsync: {
+        let windows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        return .value(Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0.surface) }))
       },
       frontmostApp: {
         MainActor.assumeIsolated {
           NSWorkspace.shared.frontmostApplication.flatMap { app in
-            guard let bundleId = app.bundleIdentifier, !bundleId.isEmpty else { return nil }
+            guard
+              let bundleId = app.bundleIdentifier, !bundleId.isEmpty
+            else { return nil }
             return FrontmostApp(
-              pid: app.processIdentifier,
+              pid: cachedApplicationProcessIdentifier(app) ?? 0,
               bundleId: bundleId,
               name: app.localizedName ?? "",
             )
           }
         }
       },
-      onScreenWindowIDs: {
-        let raw = CGWindowListCopyWindowInfo(
-          [.optionOnScreenOnly, .excludeDesktopElements],
-          kCGNullWindowID,
-        ) as? [[String: Any]] ?? []
-        var ids = Set<CGWindowID>()
-        for entry in raw {
-          if let n = entry[kCGWindowNumber as String] as? CGWindowID { ids.insert(n) }
-        }
-        return ids
+      frontmostAppAsync: {
+        guard
+          let app = NSWorkspace.shared.frontmostApplication,
+          let bundleId = app.bundleIdentifier,
+          let pid = await applicationProcessIdentifier(app),
+          !Task.isCancelled,
+          NSWorkspace.shared.frontmostApplication?.isEqual(app) == true
+        else { return .value(nil) }
+        return .value(FrontmostApp(pid: pid, bundleId: bundleId, name: app.localizedName ?? ""))
       },
-      existingWindowKeys: { keys in
-        liveExistingWindowKeys(keys)
+      frontmostWorkWindowAsync: { await liveFrontmostWorkWindow($0, expectedPID: $1) },
+      onScreenWindowIDs: {
+        preconditionFailure("Live WindowServer reads require onScreenWindowIDsOffMain")
+      },
+      existingWindowKeys: { _ in
+        preconditionFailure("Live WindowServer reads require existingWindowKeysOffMain")
+      },
+      existingWindowKeysAsync: { keys in
+        .value(await metadataWorker.run { liveExistingWindowKeys(keys) })
       },
       runningBundleIds: {
         MainActor.assumeIsolated {
           Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
         }
       },
-      windowTitles: { keys in
-        MainActor.assumeIsolated { liveWindowTitles(keys) }
+      windowTitles: { _ in
+        preconditionFailure("Live window-title reads require windowTitlesOffMain")
       },
       windowTitlesAsync: { keys in
         .value(await liveWindowTitlesAsync(keys))
@@ -1077,9 +1134,13 @@ extension WindowSnapshotClient: DependencyKey {
     windowFrameAsync: { _ in .unavailable },
     onScreenWindowFrames: { [:] },
     onScreenWindowSurfaces: { [:] },
+    onScreenWindowSurfacesAsync: { .unavailable },
     frontmostApp: { nil },
+    frontmostAppAsync: { .unavailable },
+    frontmostWorkWindowAsync: { _, _ in nil },
     onScreenWindowIDs: { [] },
     existingWindowKeys: { _ in [] },
+    existingWindowKeysAsync: { _ in .unavailable },
     runningBundleIds: { [] },
     windowTitles: { _ in [:] },
     windowTitlesAsync: { _ in .unavailable },
