@@ -9,6 +9,8 @@ Write repository guidance, documentation, and commit subjects/bodies in English.
 - Keep personal preferences and machine-specific details in private local memory, outside repository-wide instructions.
 - Keep `AGENTS.md` concise, actionable, and durable. Exclude verbose explanations, task histories, and facts likely to become stale; put version-specific findings, measurements, and temporary status in issues or reports.
 
+For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep agent guidance in English; translate only explicitly listed user documentation.
+
 ## Performance and responsiveness
 
 - Reserve the main thread for input, UI state, and AppKit presentation. Run potentially blocking AX/WindowServer IPC, file I/O, parsing, and image processing on appropriate workers.

@@ -1,8 +1,6 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](LOCALIZATION.md) · [한국어](ko/LOCALIZATION.md) · [日本語](ja/LOCALIZATION.md) · [简体中文](zh-Hans/LOCALIZATION.md) · [繁體中文](zh-Hant/LOCALIZATION.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Tatami Localization and UX Writing
+
+English-only guidance for agents and contributors. This is not a localized user guide.
 
 Tatami keeps one product model across languages, but it does not translate
 English word for word. Each locale should make the next action obvious while
