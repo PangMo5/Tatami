@@ -159,9 +159,11 @@ The same terminology and writing rules apply outside the app.
   do not establish that a localized app was exercised.
 - Reject missing translations and changed placeholders at build time. A
   translation must not quietly fall back to English to make a build pass.
-- Preserve historical release notes and license/copyright texts in their
-  original language. Translate navigation and explanatory notices, and link
-  clearly to the authoritative original.
+- Keep the authoritative English release history unchanged while maintaining
+  localized copies. Preserve license/copyright texts verbatim; localize the
+  explanatory overview and link clearly to the original notices.
+- Bundle the existing document sources for every supported app language.
+  Repository language navigation must not appear inside the app.
 
 ## Review checklist
 

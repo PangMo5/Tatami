@@ -8,6 +8,7 @@ on:
       - "Localization/**"
       - "docs/**"
       - "README.md"
+      - "CHANGELOG.md"
       - "NOTICE.md"
       - "THIRD_PARTY_NOTICES.md"
       - "web/**"

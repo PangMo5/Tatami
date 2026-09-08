@@ -55,7 +55,7 @@ struct AboutView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
 
-        ForEach(LegalDocument.allCases) { document in
+        ForEach([AppDocument.license, .projectNotices, .thirdPartyNotices]) { document in
           Button {
             presentedDocument = document
           } label: {
@@ -77,7 +77,7 @@ struct AboutView: View {
       ChangelogView()
     }
     .sheet(item: $presentedDocument) { document in
-      LegalDocumentView(document: document)
+      AppDocumentView(document: document)
     }
   }
 
@@ -107,139 +107,10 @@ struct AboutView: View {
   }()
 
   @State private var showChangelog = false
-  @State private var presentedDocument: LegalDocument?
+  @State private var presentedDocument: AppDocument?
 
   private func creditLink(_ title: String, _ urlString: String) -> some View {
     Link(title, destination: URL(string: urlString)!)
   }
-
-}
-
-// MARK: - LegalDocument
-
-/// A legal document shipped in the app bundle and presented without relying on
-/// Launch Services or an external text editor.
-private enum LegalDocument: String, CaseIterable, Identifiable, Sendable {
-  case license
-  case projectNotices
-  case thirdPartyNotices
-
-  // MARK: Internal
-
-  var id: Self {
-    self
-  }
-
-  var title: LocalizedStringResource {
-    switch self {
-    case .license: "License (AGPL-3.0-only)"
-    case .projectNotices: "Project Notices"
-    case .thirdPartyNotices: "Third-Party Notices"
-    }
-  }
-
-  func loadContents() async throws -> String {
-    let resource = resource
-    return try await AppResourceWorker.shared.run {
-      guard
-        let url = Bundle.main.url(
-          forResource: resource.name,
-          withExtension: resource.extension,
-        )
-      else {
-        throw CocoaError(.fileNoSuchFile)
-      }
-
-      return try String(contentsOf: url, encoding: .utf8)
-    }
-  }
-
-  // MARK: Private
-
-  private var resource: (name: String, extension: String?) {
-    switch self {
-    case .license: ("LICENSE", nil)
-    case .projectNotices: ("NOTICE", "md")
-    case .thirdPartyNotices: ("THIRD_PARTY_NOTICES", "md")
-    }
-  }
-}
-
-// MARK: - LegalDocumentView
-
-private struct LegalDocumentView: View {
-
-  // MARK: Internal
-
-  let document: LegalDocument
-
-  var body: some View {
-    NavigationStack {
-      Group {
-        if let contents {
-          ScrollView {
-            Text(contents)
-              .font(.system(.body, design: .monospaced))
-              .textSelection(.enabled)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding()
-          }
-        } else if let loadErrorMessage {
-          ContentUnavailableView(
-            "Unable to Open Document",
-            systemImage: "doc.badge.exclamationmark",
-            description: Text(loadErrorMessage),
-          )
-        } else {
-          ProgressView("Loading document…")
-        }
-      }
-      .navigationTitle(Text(document.title))
-      .toolbar {
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done") {
-            dismiss()
-          }
-        }
-      }
-    }
-    .frame(minWidth: 680, minHeight: 520)
-    .task(id: document.id) {
-      do {
-        contents = try await document.loadContents()
-      } catch {
-        loadErrorMessage = error.localizedDescription
-      }
-    }
-  }
-
-  // MARK: Private
-
-  @Environment(\.dismiss) private var dismiss
-  @State private var contents: String?
-  @State private var loadErrorMessage: String?
-
-}
-
-// MARK: - AppResourceWorker
-
-/// Blocking bundled resource reads and parsing stay off the cooperative pool.
-actor AppResourceWorker {
-
-  // MARK: Internal
-
-  static let shared = AppResourceWorker()
-
-  nonisolated var unownedExecutor: UnownedSerialExecutor {
-    executor.asUnownedSerialExecutor()
-  }
-
-  func run<Value: Sendable>(_ operation: @Sendable () throws -> Value) rethrows -> Value {
-    try operation()
-  }
-
-  // MARK: Private
-
-  private let executor = DispatchSerialQueue(label: "dev.PangMo5.Tatami.app-resources", qos: .userInitiated)
 
 }
