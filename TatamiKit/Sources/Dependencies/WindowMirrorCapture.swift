@@ -66,6 +66,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   func start(window: SCWindow, maxFPS: Int) async -> Bool {
     guard stream == nil, !isStarting else { return stream != nil }
     isStarting = true
+    startingStopSucceeded = true
     let filter = SCContentFilter(desktopIndependentWindow: window)
     self.filter = filter
     configure(for: filter, maxFPS: maxFPS)
@@ -76,6 +77,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       if startingStream === stream {
         startingStream = nil
       }
+      finishStartWaiters()
     }
     let startedGeneration = generation
     activateFrameSource(ObjectIdentifier(stream))
@@ -86,7 +88,11 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
         retireFrameSource(ObjectIdentifier(stream))
         // A stop won the race while `startCapture` was in flight — the
         // mirror is no longer wanted; don't publish the stream.
-        try? await stream.stopCapture()
+        do { try await stream.stopCapture() }
+        catch {
+          startingStopSucceeded = false
+          logger.error("mirror starting stream stop failed: \(error.localizedDescription, privacy: .public)")
+        }
         finishPendingFirstFrame(for: stream, outcome: .cancelled)
         return false
       }
@@ -115,7 +121,39 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     let activeStream = stream
     stream = nil
     finishPendingFirstFrame(outcome: .cancelled)
-    activeStream?.stopCapture { _ in }
+    guard let activeStream else { return }
+    let previousStop = stopCompletion
+    stopCompletion = Task {
+      if let previousStop { _ = await previousStop.value }
+      do {
+        try await activeStream.stopCapture()
+        return true
+      } catch {
+        logger.error("mirror stop failed: \(error.localizedDescription, privacy: .public)")
+        return false
+      }
+    }
+  }
+
+  /// Wait for the stop requested by suppression, including a start/resume
+  /// that was already in flight. No timer substitutes for stream completion.
+  @MainActor
+  func waitUntilStopped() async -> Bool {
+    let expectedGeneration = generation
+    if isStarting {
+      let id = UUID()
+      await withTaskCancellationHandler {
+        await withCheckedContinuation { continuation in
+          if Task.isCancelled { continuation.resume() }
+          else { startWaiters[id] = continuation }
+        }
+      } onCancel: {
+        Task { @MainActor [weak self] in self?.startWaiters.removeValue(forKey: id)?.resume() }
+      }
+    }
+    guard !Task.isCancelled, generation == expectedGeneration, startingStopSucceeded else { return false }
+    if let stopCompletion, !(await stopCompletion.value) { return false }
+    return !Task.isCancelled && generation == expectedGeneration && stream == nil && !isStarting
   }
 
   /// Restart capture from the stored filter after a `stop()` (the mirror
@@ -147,6 +185,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       return
     }
     isStarting = true
+    startingStopSucceeded = true
     config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, maxFPS)))
     let stream = SCStream(filter: filter, configuration: config, delegate: self)
     startingStream = stream
@@ -155,6 +194,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       if startingStream === stream {
         startingStream = nil
       }
+      finishStartWaiters()
     }
     if let onFirstFrame {
       addFirstFrameCallback(onFirstFrame, for: stream)
@@ -166,7 +206,11 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       try await stream.startCapture()
       guard generation == startedGeneration else {
         retireFrameSource(ObjectIdentifier(stream))
-        try? await stream.stopCapture()
+        do { try await stream.stopCapture() }
+        catch {
+          startingStopSucceeded = false
+          logger.error("mirror starting stream stop failed: \(error.localizedDescription, privacy: .public)")
+        }
         finishPendingFirstFrame(for: stream, outcome: .cancelled)
         return
       }
@@ -238,6 +282,9 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   /// Collapses overlapping `start`/`resume` calls (rapid suppress↔restore)
   /// so two streams are never started for one mirror.
   @MainActor private var isStarting = false
+  @MainActor private var stopCompletion: Task<Bool, Never>?
+  @MainActor private var startingStopSucceeded = true
+  @MainActor private var startWaiters = [UUID: CheckedContinuation<Void, Never>]()
   /// The not-yet-published stream while `startCapture()` is suspended.
   /// A concurrent resume can bind its first-frame waiter to this exact
   /// stream instead of accepting a late sample from an older stream.
@@ -302,6 +349,13 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     for callback in pending.callbacks {
       callback(outcome)
     }
+  }
+
+  @MainActor
+  private func finishStartWaiters() {
+    let waiters = startWaiters.values
+    startWaiters.removeAll()
+    for waiter in waiters { waiter.resume() }
   }
 
   @MainActor
@@ -515,17 +569,13 @@ final class MirrorView: NSView {
 
   // MARK: Internal
 
-  var onHoverChange: ((Bool) -> Void)?
-  var onClick: (() -> Void)?
-  /// Mouse and scroll events land on the mirror panel whenever it sits
-  /// under the cursor (focus-follows-mouse off keeps it there) — without
-  /// forwarding they'd die in the panel: scrolls would never reach the
-  /// floating window, a click would need a second tap after the handover,
-  /// and a drag begun on the mirror would go nowhere. The drag/up events
-  /// of a click stay routed to this panel even after the handover hides
-  /// it (the gesture owner doesn't change mid-gesture), so forwarding the
-  /// whole sequence keeps single-click and click-drag natural.
-  var onForwardEvent: ((NSEvent) -> Void)?
+  /// Scroll remains non-activating; button input is retained by MirrorClickTap
+  /// before AppKit dispatch and replayed through native WindowServer routing.
+  var onScroll: ((NSEvent) -> Void)?
+
+  override var mouseDownCanMoveWindow: Bool {
+    false
+  }
 
   func setStill(_ image: CGImage?) {
     stillLayer.contents = image
@@ -537,67 +587,9 @@ final class MirrorView: NSView {
     videoLayer.frame = bounds
   }
 
-  override func updateTrackingAreas() {
-    super.updateTrackingAreas()
-    if let tracking { removeTrackingArea(tracking) }
-    let area = NSTrackingArea(
-      rect: bounds,
-      options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-      owner: self,
-      userInfo: nil,
-    )
-    addTrackingArea(area)
-    tracking = area
-  }
-
-  override func mouseEntered(with _: NSEvent) {
-    onHoverChange?(true)
-  }
-
-  override func mouseExited(with _: NSEvent) {
-    onHoverChange?(false)
-  }
-
-  override func mouseDown(with event: NSEvent) {
-    onClick?()
-    onForwardEvent?(event)
-  }
-
-  override func mouseDragged(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func mouseUp(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func rightMouseDown(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func rightMouseDragged(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func rightMouseUp(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func otherMouseDown(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func otherMouseDragged(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
-  override func otherMouseUp(with event: NSEvent) {
-    onForwardEvent?(event)
-  }
-
   override func scrollWheel(with event: NSEvent) {
-    guard let onForwardEvent else { return super.scrollWheel(with: event) }
-    onForwardEvent(event)
+    guard let onScroll else { return super.scrollWheel(with: event) }
+    onScroll(event)
   }
 
   // MARK: Private
@@ -606,6 +598,5 @@ final class MirrorView: NSView {
   /// Last-known-frame still, kept *under* the video layer so the mirror is
   /// never transparent while the stream is stopped or restarting.
   private let stillLayer = CALayer()
-  private var tracking: NSTrackingArea?
 
 }

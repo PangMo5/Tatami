@@ -21,8 +21,8 @@ import ScreenCaptureKit
 /// otherwise be covered by a non-floating window:
 ///
 ///   * non-floating app focused → every float needs its mirror (shown,
-///     streaming; hover reveals the real window, while click or FFM transfers
-///     keyboard focus).
+///     streaming; FFM can focus the real window on hover. Otherwise the first
+///     click hands the full gesture to the real window, including that click).
 ///   * floating app focused → its own mirrors hide, and so do sibling
 ///     floats' that sit unoccluded above the tiles — the real windows
 ///     show themselves and stack natively by activation recency. Only a
@@ -35,8 +35,8 @@ import ScreenCaptureKit
 ///     "raise composited" notification, only the CGWindowList z-check;
 ///   * restore *before* focus moves (cursor-exit / pre-focus hook /
 ///     mouse-down tap), never only after didActivate;
-///   * hidden panels still get tracking-area events, so hover/click
-///     callbacks gate on the suppressed state.
+///   * retain the first mouse-down before AppKit dispatch; replay only after
+///     the native window is verified and the mirror has left WindowServer.
 @DependencyClient
 struct FloatingOverlayClient: Sendable {
   /// Replace the set of windows mirrored on top. Pass `[]` to tear every
@@ -62,6 +62,9 @@ extension FloatingOverlayClient: DependencyKey {
     // restored, so the caller can let it commit before activating.
     MirrorWindowRegistry.shared.setWillFocusHandler { pid in
       await controller.handleWillFocus(pid)
+    }
+    MirrorWindowRegistry.shared.setDidFocusHandler { target in
+      await controller.handleDidFocus(target)
     }
     return FloatingOverlayClient(
       setFloating: { windows in controller.setFloating(windows) },

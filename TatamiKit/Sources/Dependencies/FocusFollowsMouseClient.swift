@@ -130,6 +130,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     windowUnderPointer: CGWindowID,
   ) {
     guard config.enabled else { return }
+    guard !MirrorWindowRegistry.shared.isNativeInputActive() else {
+      cancelPendingInput()
+      return
+    }
     if modifiersIndicateDisable(flags) {
       cancelPendingInput()
       return
@@ -226,6 +230,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   }
 
   private func applyHitTest(_ sample: PointerSample, windows: [WindowServerWindow], displays: [CGRect]) {
+    guard !MirrorWindowRegistry.shared.isNativeInputActive() else {
+      cancelPendingInput()
+      return
+    }
     guard ProgrammaticPointerWarpGate.shared.isCurrent(generation: sample.warpGeneration) else { return }
     let location = sample.location
     guard let info = topmostWindow(at: location, windows: windows, displays: displays) else {
@@ -259,6 +267,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     focusTask = Task { @MainActor in
       guard
         !Task.isCancelled,
+        !MirrorWindowRegistry.shared.isNativeInputActive(),
         !overlayAwareness.isBackgroundedProcess(pid),
         ProgrammaticPointerWarpGate.shared.isCurrent(
           generation: sample.warpGeneration

@@ -202,6 +202,9 @@ private func focusWindow(
       + "frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil") "
       + "elapsed=\(focusStarted.duration(to: .now))",
   )
+  if case .completed = result, NSWorkspace.shared.frontmostApplication?.processIdentifier == pid {
+    await MirrorWindowRegistry.shared.notifyDidFocus(pid: pid, windowID: windowID)
+  }
 }
 
 /// Focus policy for a hover target. AX raise is sufficient within one app, but

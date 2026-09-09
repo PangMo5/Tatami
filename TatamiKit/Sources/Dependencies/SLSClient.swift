@@ -72,6 +72,10 @@ struct SLSClient: Sendable {
   /// stub, so unstubbed test calls surface as failures.
   var focusWindow: @Sendable (pid_t, CGWindowID, AXUIElement) -> Void
 
+  /// WindowServer's native hit test at a global Quartz point. Read-only;
+  /// callers run this IPC on a worker rather than inside an event-tap callback.
+  var windowAtPoint: @Sendable (CGPoint) -> CGWindowID? = { _ in nil }
+
   /// Window-server lifecycle/visibility events for watched windows:
   /// terminated (804), visible (815), and invisible (816). The visibility
   /// edges catch hide-on-close apps immediately without treating their live
@@ -94,6 +98,7 @@ extension SLSClient: DependencyKey {
       focusWindow: { pid, wid, ref in
         center.focusWindow(pid: pid, windowID: wid, axRef: ref)
       },
+      windowAtPoint: { center.windowAtPoint($0) },
       windowEvents: { center.windowEvents() },
       watchWindows: { center.watchWindows($0) },
     )
@@ -114,6 +119,16 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "SLS")
 
 // MARK: - Private SkyLight bridge
 
+private typealias SLSFindWindowAndOwnerFn = @convention(c) (
+  Int32,
+  UInt32,
+  Int32,
+  Int32,
+  UnsafeMutablePointer<CGPoint>,
+  UnsafeMutablePointer<CGPoint>,
+  UnsafeMutablePointer<UInt32>,
+  UnsafeMutablePointer<Int32>,
+) -> Int32
 private typealias SLSMainConnectionIDFn = @convention(c) () -> Int32
 private typealias SLSCopySpacesForWindowsFn =
   @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
@@ -186,6 +201,8 @@ private final class SLSCenter: @unchecked Sendable {
       .map { unsafeBitCast($0, to: SLSCopySpacesForWindowsFn.self) }
     symWindowsWithOptions = h.flatMap { dlsym($0, "SLSCopyWindowsWithOptionsAndTags") }
       .map { unsafeBitCast($0, to: SLSCopyWindowsWithOptionsAndTagsFn.self) }
+    symFindWindow = h.flatMap { dlsym($0, "SLSFindWindowAndOwner") }
+      .map { unsafeBitCast($0, to: SLSFindWindowAndOwnerFn.self) }
     symSetFrontProcess = h.flatMap { dlsym($0, "_SLPSSetFrontProcessWithOptions") }
       .map { unsafeBitCast($0, to: _SLPSSetFrontProcessWithOptionsFn.self) }
     symPostEventRecord = h.flatMap { dlsym($0, "SLPSPostEventRecordTo") }
@@ -256,6 +273,16 @@ private final class SLSCenter: @unchecked Sendable {
     let sid = getActive(connectionID)
     guard sid != 0 else { return false }
     return getType(connectionID, sid) == kSLSSpaceTypeFullscreen
+  }
+
+  func windowAtPoint(_ point: CGPoint) -> CGWindowID? {
+    guard connectionID != 0, let findWindow = symFindWindow else { return nil }
+    var screenPoint = point
+    var windowPoint = CGPoint.zero
+    var windowID: UInt32 = 0
+    var owner: Int32 = 0
+    let status = findWindow(connectionID, 0, 1, 0, &screenPoint, &windowPoint, &windowID, &owner)
+    return status == 0 && windowID != 0 ? windowID : nil
   }
 
   /// Focus-with-raise via a synthesized annotated session event.
@@ -340,6 +367,7 @@ private final class SLSCenter: @unchecked Sendable {
   private let handle: UnsafeMutableRawPointer?
   private let symSpacesForWindows: SLSCopySpacesForWindowsFn?
   private let symWindowsWithOptions: SLSCopyWindowsWithOptionsAndTagsFn?
+  private let symFindWindow: SLSFindWindowAndOwnerFn?
   private let symSetFrontProcess: _SLPSSetFrontProcessWithOptionsFn?
   private let symPostEventRecord: SLPSPostEventRecordToFn?
   private let symRegisterNotify: SLSRegisterConnectionNotifyProcFn?
