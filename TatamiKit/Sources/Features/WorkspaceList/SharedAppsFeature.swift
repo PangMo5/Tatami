@@ -14,14 +14,22 @@ import Sharing
 /// TOML file; re-tiling the active workspace is routed in `AppFeature`.
 @Reducer
 public struct SharedAppsFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
+    public init() { }
+
     @Shared(.tatamiConfig) public var config
     public var isAppPickerPresented = false
-    public var availableRunningApps: [MacApp] = []
+    public var availableRunningApps = [MacApp]()
+    public var suppressConfirmation = false
     @Presents public var alert: AlertState<Action.Alert>?
-
-    public init() {}
 
     public var apps: [SharedApp] {
       config.sharedApps
@@ -35,22 +43,24 @@ public struct SharedAppsFeature {
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
+    case layoutApplied
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
+    case confirmationSuppressionChanged(Bool)
     case alert(PresentationAction<Alert>)
 
     public enum Alert: Equatable {
       case confirmAppRemoval(bundleIdentifier: String)
+      case confirmLayoutChange(bundleIdentifier: String, previous: LayoutMode, layout: LayoutMode)
     }
   }
-
-  @Dependency(\.runningApps) var runningApps
-  @Dependency(\.appChooser) var appChooser
-
-  public init() {}
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
+      case .confirmationSuppressionChanged(let suppressed):
+        state.suppressConfirmation = suppressed
+        return .none
+
       case .addAppButtonTapped:
         let alreadyShared = Set(state.apps.map(\.bundleIdentifier))
         state.availableRunningApps = runningApps.current()
@@ -67,9 +77,11 @@ public struct SharedAppsFeature {
         state.isAppPickerPresented = false
         state.availableRunningApps = []
         state.$config.withLock { config in
-          guard !config.sharedApps.contains(where: {
-            $0.bundleIdentifier == app.bundleIdentifier
-          }) else { return }
+          guard
+            !config.sharedApps.contains(where: {
+              $0.bundleIdentifier == app.bundleIdentifier
+            })
+          else { return }
           config.sharedApps.append(SharedApp(app))
         }
         return .none
@@ -105,28 +117,69 @@ public struct SharedAppsFeature {
         }
         return .none
 
-      case .alert:
+      case .layoutChanged(let bundleId, let layout):
+        guard let app = state.apps.first(where: { $0.bundleIdentifier == bundleId }), app.layout != layout else { return .none }
+        state.alert = AlertState {
+          TextState("Change layout for \(app.name)?")
+        } actions: {
+          ButtonState(
+            role: .destructive,
+            action: .confirmLayoutChange(bundleIdentifier: bundleId, previous: app.layout, layout: layout),
+          ) { TextState("Change") }
+          ButtonState(role: .cancel) { TextState("Cancel") }
+        } message: {
+          TextState("Save \(String(localized: layout.displayName)) for this app. Its membership is unchanged.")
+        }
         return .none
 
-      case .layoutChanged(let bundleId, let layout):
+      case .alert(.presented(.confirmLayoutChange(let bundleId, let previous, let layout))):
+        guard state.apps.first(where: { $0.bundleIdentifier == bundleId })?.layout == previous else { return .none }
         state.$config.withLock { config in
-          guard let idx = config.sharedApps.firstIndex(where: {
-            $0.bundleIdentifier == bundleId
-          }) else { return }
+          guard
+            let idx = config.sharedApps.firstIndex(where: {
+              $0.bundleIdentifier == bundleId
+            })
+          else { return }
           config.sharedApps[idx].layout = layout
         }
+        return .send(.layoutApplied)
+
+      case .layoutApplied:
+        return .none
+
+      case .alert:
         return .none
 
       case .autoOpenToggled(let bundleId, let isOn):
         state.$config.withLock { config in
-          guard let idx = config.sharedApps.firstIndex(where: {
-            $0.bundleIdentifier == bundleId
-          }) else { return }
+          guard
+            let idx = config.sharedApps.firstIndex(where: {
+              $0.bundleIdentifier == bundleId
+            })
+          else { return }
           config.sharedApps[idx].autoOpen = isOn
         }
         return .none
       }
     }
     .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        switch action {
+        case .confirmAppRemoval: .removeSharedApp
+        case .confirmLayoutChange(_, _, let layout): .layout(layout, shared: true)
+        }
+      },
+    )
   }
+
+  // MARK: Internal
+
+  @Dependency(\.runningApps) var runningApps
+  @Dependency(\.appChooser) var appChooser
+
 }

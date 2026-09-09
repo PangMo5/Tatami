@@ -37,6 +37,8 @@ struct OverlayAwareAppsFeatureTests {
     await store.send(
       .appRemoveRequested(bundleIdentifier: notion.bundleIdentifier)
     )
+    #expect(store.state.apps == [notion, dia])
+    await store.send(.alert(.presented(.confirmRemoval(notion.bundleIdentifier))))
     #expect(store.state.apps == [dia])
   }
 

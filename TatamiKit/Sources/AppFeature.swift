@@ -364,6 +364,8 @@ public struct AppFeature {
               position: position,
               size: size,
               emitsHookEvent: !report.domain.hasPrefix("Hook"),
+              priority: .warning,
+              warningDomain: report.domain,
             )
           )
         }
@@ -385,6 +387,8 @@ public struct AppFeature {
               position: position,
               size: size,
               emitsHookEvent: !domain.hasPrefix("Hook"),
+              priority: .completion,
+              warningDomain: domain,
             )
           )
         }
@@ -700,7 +704,8 @@ public struct AppFeature {
           display: display.map(HookInvocation.DisplaySnapshot.init),
         ))))
 
-      case .workspaceList(.detail(.layoutChanged)):
+      case .workspaceList(.detail(.layoutApplied)),
+           .workspaceList(.detail(.alert(.presented(.confirmAppRemoval)))):
         // Re-tile now if the edited workspace is the active one, so the window
         // drops out of (or back into) the layout immediately.
         guard
@@ -719,8 +724,8 @@ public struct AppFeature {
         return .merge(effects)
 
       case .workspaceList(.shared(.appPickerAppSelected)),
-           .workspaceList(.shared(.appRemoveRequested)),
-           .workspaceList(.shared(.layoutChanged)):
+           .workspaceList(.shared(.alert(.presented(.confirmAppRemoval)))),
+           .workspaceList(.shared(.layoutApplied)):
         // Shared apps are part of every workspace — re-tile the active one
         // so the change (tiled / float / ignore / removed) lands immediately.
         guard let wsId = state.activation.primaryActiveWorkspaceID else { return .none }

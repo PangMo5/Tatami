@@ -47,6 +47,7 @@ public struct WorkspaceDetailFeature {
     /// layout preview's "Configure in Apps"). The token distinguishes repeat
     /// requests for the same app so the view's scroll refires.
     public var appScrollRequest: ScrollRequest?
+    public var suppressConfirmation = false
     @Presents public var alert: AlertState<Action.Alert>?
 
     public var workspace: Workspace? {
@@ -104,7 +105,8 @@ public struct WorkspaceDetailFeature {
     case appRemoveRequested(bundleIdentifier: String)
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
     case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
-    case nameSubmitted(String)
+    case layoutApplied
+    case nameSubmitted(String, workspaceID: Workspace.ID? = nil)
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
     case assignAppShortcutChanged(HotKey?)
@@ -136,8 +138,10 @@ public struct WorkspaceDetailFeature {
       baseline: AppConfig,
       excludingApps: Set<String>,
       excludingFields: Set<String>,
+      suppressFuture: Bool = false,
     )
     case layout(WorkspaceLayoutFeature.Action)
+    case confirmationSuppressionChanged(Bool)
     case alert(PresentationAction<Alert>)
     case delegate(Delegate)
 
@@ -145,6 +149,7 @@ public struct WorkspaceDetailFeature {
 
     public enum Alert: Equatable {
       case confirmAppRemoval(bundleIdentifier: String)
+      case confirmLayoutChange(bundleIdentifier: String, previous: LayoutMode, layout: LayoutMode)
       case dismissConfigurationChanged
       case dismissCopyFailure
       case dismissShortcutConflicts
@@ -160,6 +165,10 @@ public struct WorkspaceDetailFeature {
     Scope(state: \.layout, action: \.layout) { WorkspaceLayoutFeature() }
     Reduce { state, action in
       switch action {
+      case .confirmationSuppressionChanged(let suppressed):
+        state.suppressConfirmation = suppressed
+        return .none
+
       case .persistenceFinished(let requestID, let target, let result):
         guard state.persistenceRequestID == requestID else { return .none }
         state.persistenceRequestID = nil
@@ -251,9 +260,6 @@ public struct WorkspaceDetailFeature {
         }
         return .none
 
-      case .alert:
-        return .none
-
       case .autoOpenToggled(let bundleId, let isOn):
         let id = state.workspaceId
         state.$config.withLock { config in
@@ -266,6 +272,22 @@ public struct WorkspaceDetailFeature {
         return .none
 
       case .layoutChanged(let bundleId, let layout):
+        guard let app = state.apps.first(where: { $0.bundleIdentifier == bundleId }), app.layout != layout else { return .none }
+        state.alert = AlertState {
+          TextState("Change layout for \(app.name)?")
+        } actions: {
+          ButtonState(
+            role: .destructive,
+            action: .confirmLayoutChange(bundleIdentifier: bundleId, previous: app.layout, layout: layout),
+          ) { TextState("Change") }
+          ButtonState(role: .cancel) { TextState("Cancel") }
+        } message: {
+          TextState("Save \(String(localized: layout.displayName)) for this app. Its membership is unchanged.")
+        }
+        return .none
+
+      case .alert(.presented(.confirmLayoutChange(let bundleId, let previous, let layout))):
+        guard state.apps.first(where: { $0.bundleIdentifier == bundleId })?.layout == previous else { return .none }
         let id = state.workspaceId
         state.$config.withLock { config in
           config.mutateWorkspace(id) { workspace in
@@ -276,12 +298,19 @@ public struct WorkspaceDetailFeature {
         }
         // Re-tile so the window drops out of (or back into) the layout
         // immediately when this workspace is active — handled in AppFeature.
+        return .send(.layoutApplied)
+
+      case .layoutApplied:
         return .none
 
-      case .nameSubmitted(let name):
+      case .alert:
+        return .none
+
+      case .nameSubmitted(let name, let workspaceID):
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .none }
-        let id = state.workspaceId
+        let id = workspaceID ?? state.workspaceId
+        guard state.config.workspace(id: id)?.name != trimmed else { return .none }
         state.$config.withLock { config in
           config.mutateWorkspace(id) { $0.name = trimmed }
         }
@@ -382,6 +411,7 @@ public struct WorkspaceDetailFeature {
         let baseline,
         let excludingApps,
         let excludingFields,
+        let suppressFuture,
       ):
         guard
           state.workspaceId == targetWorkspace,
@@ -403,11 +433,14 @@ public struct WorkspaceDetailFeature {
 
         let requestID = UUID()
         state.persistenceRequestID = requestID
+        var candidate = projection.config
+        if suppressFuture { candidate.settings.confirmations[.copyWorkspace] = false }
+        let committed = candidate
         let config = state.$config
         return .run { [configPersistence] send in
           do {
             let revision = try await configPersistence.captureRevision(baseline)
-            try await configPersistence.commit(config, baseline, revision, projection.config) { true }
+            try await configPersistence.commit(config, baseline, revision, committed) { true }
             await send(.persistenceFinished(requestID, targetWorkspace, .success(())))
           } catch {
             await send(.persistenceFinished(requestID, targetWorkspace, .failure(error)))
@@ -416,6 +449,19 @@ public struct WorkspaceDetailFeature {
       }
     }
     .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        switch action {
+        case .confirmAppRemoval: .removeWorkspaceApp
+        case .confirmLayoutChange(_, _, let layout): .layout(layout, shared: false)
+        default: nil
+        }
+      },
+    )
   }
 
   // MARK: Internal

@@ -132,6 +132,8 @@ undo the first invocation.
 | `workspace borrow next` / `previous` / `recent` | Borrow a relative workspace. |
 | `workspace dismiss-borrow` | Dismiss Borrow on the pointer display. |
 
+Persistent app membership and layout commands open a confirmation HUD by default. The command changes the configuration only after you confirm, then shows its result in the same HUD. Configure each action in Settings → General → Confirmations. "Don't ask again" disables only that action after confirming; cancelling leaves it enabled.
+
 ### Windows and displays
 
 | Command | Behavior |

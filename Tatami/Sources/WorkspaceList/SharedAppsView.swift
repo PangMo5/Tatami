@@ -5,6 +5,8 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
+// MARK: - SharedAppsView
+
 /// Detail pane for the sidebar's "Shared Apps" pseudo-workspace: the apps
 /// listed here are part of every workspace. The per-app Float toggle works
 /// exactly like a workspace's — flipped on it makes the app *shared
@@ -24,7 +26,7 @@ struct SharedAppsView: View {
                 store.send(
                   .layoutChanged(bundleIdentifier: app.bundleIdentifier, layout: value)
                 )
-              }
+              },
             ),
             autoOpenBinding: Binding(
               get: { app.autoOpen },
@@ -32,11 +34,11 @@ struct SharedAppsView: View {
                 store.send(
                   .autoOpenToggled(bundleIdentifier: app.bundleIdentifier, isOn: value)
                 )
-              }
+              },
             ),
             onRemove: {
               store.send(.appRemoveRequested(bundleIdentifier: app.bundleIdentifier))
-            }
+            },
           )
         }
       } header: {
@@ -66,19 +68,28 @@ struct SharedAppsView: View {
     .sheet(
       isPresented: Binding(
         get: { store.isAppPickerPresented },
-        set: { if !$0 { store.send(.appPickerDismissed) } }
+        set: { if !$0 { store.send(.appPickerDismissed) } },
       )
     ) {
       AppPickerSheet(
         apps: store.availableRunningApps,
         onSelect: { app in store.send(.appPickerAppSelected(app)) },
         onChooseFile: { store.send(.chooseAppFileTapped) },
-        onCancel: { store.send(.appPickerDismissed) }
+        onCancel: { store.send(.appPickerDismissed) },
       )
     }
-    .alert($store.scope(state: \.alert, action: \.alert))
+    .persistentChangeAlert(
+      $store.scope(state: \.alert, action: \.alert),
+      suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+      suppress: Binding(
+        get: { store.suppressConfirmation },
+        set: { store.send(.confirmationSuppressionChanged($0)) },
+      ),
+    )
   }
 }
+
+// MARK: - SharedAppRow
 
 private struct SharedAppRow: View {
   let app: SharedApp
@@ -106,7 +117,9 @@ private struct SharedAppRow: View {
       .labelsHidden()
       .pickerStyle(.segmented)
       .fixedSize()
-      .help("Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording.")
+      .help(
+        "Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording."
+      )
       HStack(spacing: 6) {
         Text("Auto-open")
           .font(.caption)
@@ -115,7 +128,9 @@ private struct SharedAppRow: View {
           .labelsHidden()
           .toggleStyle(.switch)
       }
-      .help("Launch this app automatically when a workspace activates, if it has no open window. Also restores it when minimized.")
+      .help(
+        "Launch this app automatically when a workspace activates, if it has no open window. Also restores it when minimized."
+      )
       Button(role: .destructive, action: onRemove) {
         Image(systemName: "minus.circle.fill")
           .foregroundStyle(.red)

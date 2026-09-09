@@ -47,6 +47,39 @@ ctrl + alt + shift + cmd - z
 |`checkInterval`|string|`"daily"`|后台更新检查频率：`hourly`、`daily` 或 `weekly`。|
 |`debugLogging`|bool|`false`|向 `~/.config/tatami/tatami.log` 追加诊断事件，首次启用时清空原内容。|
 
+<a id="settingsconfirmations"></a>
+## `[settings.confirmations]`
+
+可独立设置每项操作的确认，默认全部开启。选择“不再询问”并确认后，只关闭对应操作的确认。取消不会更改偏好。旧的全局确认设置会迁移到这些选项，明确设置的单项值优先。
+
+|键|默认值|操作|
+| --- | --- | --- |
+|`addWorkspaceApp`|`true`|将应用分配到工作区|
+|`moveWorkspaceApp`|`true`|在工作区之间移动应用|
+|`removeWorkspaceApp`|`true`|从工作区移除应用|
+|`floatWorkspaceApp`|`true`|将工作区应用置顶|
+|`tileWorkspaceApp`|`true`|平铺工作区应用|
+|`unmanageWorkspaceApp`|`true`|保持工作区应用原样|
+|`addSharedApp`|`true`|添加共享应用|
+|`removeSharedApp`|`true`|移除共享应用|
+|`floatSharedApp`|`true`|将共享应用置顶|
+|`tileSharedApp`|`true`|平铺共享应用|
+|`unmanageSharedApp`|`true`|保持共享应用原样|
+|`deleteWorkspace`|`true`|删除工作区|
+|`deleteProfile`|`true`|删除配置方案|
+|`deleteWorkspaceChain`|`true`|删除工作区链|
+|`deleteHook`|`true`|删除钩子|
+|`removeOverlayException`|`true`|移除窗口显示例外|
+|`copyWorkspace`|`true`|复制工作区设置|
+|`copyProfile`|`true`|复制配置方案设置|
+|`resetSetup`|`true`|重新开始引导设置|
+|`reloadSetup`|`true`|重新载入引导设置草稿|
+|`applySetup`|`true`|应用引导设置草稿|
+|`applySetupRecommendation`|`true`|应用设置建议|
+|`deleteSetupWorkspace`|`true`|从设置草稿删除工作区|
+|`deleteSetupProfile`|`true`|从设置草稿删除配置方案|
+|`uninstallCLI`|`true`|卸载命令行工具|
+
 <a id="settingsvisibility"></a>
 ## `[settings.visibility]`
 

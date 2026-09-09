@@ -32,6 +32,7 @@ public struct ProfileDetailFeature {
     /// Displays offered in the auto-activation editor: currently connected plus
     /// any referenced by a workspace's `displayHint`. Loaded on appear.
     public var availableDisplays = [DisplayName]()
+    public var suppressConfirmation = false
     @Presents public var alert: AlertState<Action.Alert>?
 
     public var profile: Profile? {
@@ -85,9 +86,11 @@ public struct ProfileDetailFeature {
       baseline: AppConfig,
       excludedApps: [Workspace.ID: Set<String>],
       excludedFields: [Workspace.ID: Set<String>],
+      suppressFuture: Bool = false,
     )
     case binding(BindingAction<State>)
     case delegate(Delegate)
+    case confirmationSuppressionChanged(Bool)
     case alert(PresentationAction<Alert>)
 
     // MARK: Public
@@ -112,6 +115,10 @@ public struct ProfileDetailFeature {
       BindingReducer()
       Reduce { state, action in
         switch action {
+        case .confirmationSuppressionChanged(let suppressed):
+          state.suppressConfirmation = suppressed
+          return .none
+
         case .persistenceFinished(let requestID, let target, let result):
           guard state.persistenceRequestID == requestID else { return .none }
           state.persistenceRequestID = nil
@@ -224,7 +231,7 @@ public struct ProfileDetailFeature {
         case .activateTapped:
           return .send(.delegate(.activateProfile(state.profileId)))
 
-        case .applyProfileSync(let target, let source, let baseline, let excludedApps, let excludedFields):
+        case .applyProfileSync(let target, let source, let baseline, let excludedApps, let excludedFields, let suppressFuture):
           guard
             state.profileId == target,
             let projection = baseline.profileSyncProjection(
@@ -244,11 +251,14 @@ public struct ProfileDetailFeature {
 
           let requestID = UUID()
           state.persistenceRequestID = requestID
+          var candidate = projection.config
+          if suppressFuture { candidate.settings.confirmations[.copyProfile] = false }
+          let committed = candidate
           let config = state.$config
           return .run { [configPersistence] send in
             do {
               let revision = try await configPersistence.captureRevision(baseline)
-              try await configPersistence.commit(config, baseline, revision, projection.config) { true }
+              try await configPersistence.commit(config, baseline, revision, committed) { true }
               await send(.persistenceFinished(requestID, target, .success(())))
             } catch {
               await send(.persistenceFinished(requestID, target, .failure(error)))
@@ -263,6 +273,15 @@ public struct ProfileDetailFeature {
       }
     }
     .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        if case .confirmWorkspaceChainDeletion = action { .deleteWorkspaceChain } else { nil }
+      },
+    )
   }
 
   // MARK: Internal

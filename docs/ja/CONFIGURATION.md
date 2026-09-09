@@ -47,6 +47,39 @@ ctrl + alt + shift + cmd - z
 |`checkInterval`|string|`"daily"`|バックグラウンドの更新確認頻度：`hourly`、`daily`、`weekly`。|
 |`debugLogging`|bool|`false`|診断イベントを `~/.config/tatami/tatami.log` に追記します。初めて有効にすると既存内容を空にします。|
 
+<a id="settingsconfirmations"></a>
+## `[settings.confirmations]`
+
+操作ごとに確認を設定できます。初期状態ではすべてオンです。「次回から確認しない」を選んで確定すると、その操作の確認だけがオフになります。キャンセルでは設定を変更しません。従来の一括設定は各項目に移行し、個別に指定した値を優先します。
+
+|キー|デフォルト|操作|
+| --- | --- | --- |
+|`addWorkspaceApp`|`true`|ワークスペースにアプリを割り当てる|
+|`moveWorkspaceApp`|`true`|ワークスペース間でアプリを移動|
+|`removeWorkspaceApp`|`true`|ワークスペースからアプリを削除|
+|`floatWorkspaceApp`|`true`|ワークスペースのアプリを常に手前に表示|
+|`tileWorkspaceApp`|`true`|ワークスペースのアプリをタイル表示|
+|`unmanageWorkspaceApp`|`true`|ワークスペースのアプリをそのままにする|
+|`addSharedApp`|`true`|共有アプリを追加|
+|`removeSharedApp`|`true`|共有アプリを削除|
+|`floatSharedApp`|`true`|共有アプリを常に手前に表示|
+|`tileSharedApp`|`true`|共有アプリをタイル表示|
+|`unmanageSharedApp`|`true`|共有アプリをそのままにする|
+|`deleteWorkspace`|`true`|ワークスペースを削除|
+|`deleteProfile`|`true`|プロファイルを削除|
+|`deleteWorkspaceChain`|`true`|ワークスペースチェーンを削除|
+|`deleteHook`|`true`|フックを削除|
+|`removeOverlayException`|`true`|ウインドウ表示の例外を削除|
+|`copyWorkspace`|`true`|ワークスペース設定をコピー|
+|`copyProfile`|`true`|プロファイル設定をコピー|
+|`resetSetup`|`true`|セットアップを最初からやり直す|
+|`reloadSetup`|`true`|セットアップの下書きを読み込み直す|
+|`applySetup`|`true`|セットアップの下書きを適用|
+|`applySetupRecommendation`|`true`|セットアップの提案を適用|
+|`deleteSetupWorkspace`|`true`|セットアップの下書きからワークスペースを削除|
+|`deleteSetupProfile`|`true`|セットアップの下書きからプロファイルを削除|
+|`uninstallCLI`|`true`|コマンドラインツールを削除|
+
 <a id="settingsvisibility"></a>
 ## `[settings.visibility]`
 

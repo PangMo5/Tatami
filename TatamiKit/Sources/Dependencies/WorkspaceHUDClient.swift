@@ -62,6 +62,11 @@ struct ActionHUDRequest: Equatable, Sendable {
     size: HUDSize,
     display: DisplayName? = nil,
     emitsHookEvent: Bool = true,
+    priority: ActionHUDPriority = .navigation,
+    contextID: UUID? = nil,
+    contextName: String? = nil,
+    replacingConfirmationID: UUID? = nil,
+    warningDomain: String? = nil,
   ) {
     self.name = name
     self.symbolIconName = symbolIconName
@@ -73,6 +78,11 @@ struct ActionHUDRequest: Equatable, Sendable {
     self.size = size
     self.display = display
     self.emitsHookEvent = emitsHookEvent
+    self.priority = priority
+    self.contextID = contextID
+    self.contextName = contextName
+    self.replacingConfirmationID = replacingConfirmationID
+    self.warningDomain = warningDomain
   }
 
   // MARK: Internal
@@ -87,7 +97,75 @@ struct ActionHUDRequest: Equatable, Sendable {
   let size: HUDSize
   let display: DisplayName?
   let emitsHookEvent: Bool
+  let priority: ActionHUDPriority
+  let contextID: UUID?
+  let contextName: String?
+  let replacingConfirmationID: UUID?
+  let warningDomain: String?
 
+}
+
+// MARK: - ActionHUDPriority
+
+/// Errors and input prompts remain authoritative. A completed mutation is the
+/// headline when navigation metadata belongs to that same workspace.
+enum ActionHUDPriority: Int, Comparable, Hashable, Sendable {
+  case status
+  case navigation
+  case completion
+  case warning
+  case instruction
+
+  static func <(lhs: Self, rhs: Self) -> Bool {
+    lhs.rawValue < rhs.rawValue
+  }
+}
+
+// MARK: - ActionHUDContentPolicy
+
+enum ActionHUDContentPolicy {
+  static func merge(current: ActionHUDRequest, incoming: ActionHUDRequest) -> ActionHUDRequest? {
+    if
+      current.priority == .warning && incoming.priority < .warning,
+      incoming.warningDomain == nil || incoming.warningDomain != current.warningDomain { return nil }
+    if current.priority == .instruction && incoming.priority < .warning {
+      guard incoming.priority == .completion, let id = current.contextID, id == incoming.contextID else { return nil }
+    }
+    guard
+      let contextID = current.contextID, contextID == incoming.contextID,
+      Set([current.priority, incoming.priority]) == Set([.navigation, .completion])
+    else { return incoming }
+    let result = current.priority == .completion ? current : incoming
+    let navigation = current.priority == .navigation ? current : incoming
+    var lines = navigation.subtitle.map { $0.components(separatedBy: "\n") } ?? []
+    if navigation.subtitleSymbolIconName == nil { lines.removeAll { $0 == result.contextName } }
+    if navigation.name != result.contextName { lines.append(navigation.name) }
+    if let subtitle = result.subtitle, !lines.contains(subtitle) { lines.append(subtitle) }
+    var unique = [String]()
+    for line in lines where !line.isEmpty && !unique.contains(line) { unique.append(line) }
+    // Preserve chain identity on the first line so its link glyph stays valid;
+    // secondary facts share the second line instead of replacing the result.
+    let subtitle = unique.isEmpty
+      ? nil
+      : [unique[0], unique.dropFirst().joined(separator: " · ")]
+        .filter { !$0.isEmpty }.joined(separator: "\n")
+    if incoming.priority == .navigation, subtitle == current.subtitle { return nil }
+    return ActionHUDRequest(
+      name: result.name,
+      symbolIconName: result.symbolIconName,
+      subtitle: subtitle,
+      subtitleSymbolIconName: navigation.subtitleSymbolIconName,
+      subtitleExtendsDuration: true,
+      durationMs: max(result.durationMs, navigation.durationMs),
+      position: incoming.position,
+      size: incoming.size,
+      display: incoming.display,
+      emitsHookEvent: incoming.emitsHookEvent,
+      priority: .completion,
+      contextID: contextID,
+      contextName: result.contextName,
+    )
+  }
 }
 
 // MARK: - ActionHUDPresentation
@@ -205,6 +283,13 @@ struct WorkspaceHUDClient: Sendable {
   /// Compact action feedback. `display == nil` targets the cursor's screen;
   /// an explicit display pins cross-monitor feedback to that screen.
   var showAction: @Sendable (_ request: ActionHUDRequest) async -> Void
+  /// A deliberate confirmation, independent of optional action-feedback HUDs.
+  /// Cancellation never saves a suppression preference.
+  var dismissConfirmation: @Sendable (_ id: UUID) async -> Void = { _ in }
+  var confirmAssignment: @Sendable (_ request: AssignmentConfirmationRequest) async -> ActionConfirmationResult = { _ in
+    .cancelled
+  }
+
   /// Native Cmd-Tab-style switcher for Tatami's app/window cycle. App-level
   /// mode highlights by bundle id; window-level mode highlights the exact
   /// `WindowKey`, so multiple windows from one app remain distinguishable.
@@ -241,6 +326,8 @@ extension WorkspaceHUDClient: DependencyKey {
       actionPresentations: { actionBridge.presentations },
       windowSwitcherEvents: { windowSwitcherEvents },
       showAction: actionBridge.show,
+      dismissConfirmation: { await controller.dismissConfirmation($0) },
+      confirmAssignment: { await controller.confirm($0) },
       showWindowSwitcher: { windows, selected, byWindow, indicators, autoDismissAfterMs, display in
         await controller.showWindowSwitcher(
           windows: windows,
@@ -254,7 +341,9 @@ extension WorkspaceHUDClient: DependencyKey {
       dismissWindowSwitcher: { display in
         await controller.dismissWindowSwitcher(display: display)
       },
-      dismiss: { await controller.dismiss() },
+      dismiss: {
+        await controller.dismiss()
+      },
     )
   }()
 
@@ -262,6 +351,8 @@ extension WorkspaceHUDClient: DependencyKey {
     actionPresentations: { .finished },
     windowSwitcherEvents: { .finished },
     showAction: { _ in },
+    dismissConfirmation: { _ in },
+    confirmAssignment: { _ in .cancelled },
     showWindowSwitcher: { _, _, _, _, _, _ in },
     dismissWindowSwitcher: { _ in },
     dismiss: { },
@@ -319,8 +410,9 @@ enum HUDLayout {
     in visibleFrame: CGRect,
     position: HUDPosition,
     size hudSize: HUDSize,
+    panelSize: NSSize? = nil,
   ) -> CGRect {
-    let size = actionPanelSize(for: hudSize)
+    let size = panelSize ?? actionPanelSize(for: hudSize)
     // The panel includes transparent shadow padding, which scales with the
     // HUD. Compensate its origin so the visible capsule remains 34pt from a
     // chosen screen edge at every size.
@@ -436,6 +528,7 @@ private struct ActionHUDContent: Equatable {
   let symbolIconName: String?
   let subtitle: String?
   let subtitleSymbolIconName: String?
+  var confirmation: AssignmentConfirmationRequest?
 }
 
 // MARK: - ActionHUDContentModel
@@ -464,6 +557,31 @@ private final class ActionHUDContentModel {
   // MARK: Internal
 
   private(set) var value: ActionHUDContent
+  var suppressFuture = false
+  var confirmationSize = NSSize(width: 440, height: 300)
+  var canvasSize = NSSize(width: 440, height: 360)
+  var confirm: () -> Void = { }
+  var cancel: () -> Void = { }
+
+  func updateConfirmation(_ request: AssignmentConfirmationRequest, width: CGFloat) {
+    suppressFuture = false
+    let measurement = NSHostingView(rootView: AssignmentConfirmationControls(
+      request: request,
+      suppressFuture: .constant(false),
+      confirm: { },
+      cancel: { },
+    ).frame(width: width))
+    confirmationSize = measurement.fittingSize
+    canvasSize = NSSize(width: max(canvasSize.width, width), height: max(canvasSize.height, confirmationSize.height))
+    value = ActionHUDContent(
+      revision: value.revision &+ 1,
+      name: request.appName,
+      symbolIconName: request.symbol,
+      subtitle: nil,
+      subtitleSymbolIconName: nil,
+      confirmation: request,
+    )
+  }
 
   func update(
     name: String,
@@ -473,7 +591,8 @@ private final class ActionHUDContentModel {
   ) {
     let current = value
     guard
-      current.name != name
+      current.confirmation != nil
+      || current.name != name
       || current.symbolIconName != symbolIconName
       || current.subtitle != subtitle
       || current.subtitleSymbolIconName != subtitleSymbolIconName
@@ -666,7 +785,8 @@ private final class WorkspaceHUDController {
 
   // MARK: Internal
 
-  func showAction(_ request: ActionHUDRequest) -> ActionHUDPresentation? {
+  func showAction(_ incoming: ActionHUDRequest) -> ActionHUDPresentation? {
+    var request = incoming
     debugLog.log(
       "HUDDiag",
       "show title=\(request.name) hint=\(request.subtitle != nil) "
@@ -678,12 +798,28 @@ private final class WorkspaceHUDController {
       let screen = resolveScreen(request.display),
       let screenID = screen.displayID
     else { return nil }
+    if
+      let confirmationID = incoming.replacingConfirmationID,
+      entries[screenID]?.awaitingResultID != confirmationID { return nil }
+    if let current = entries[screenID], current.isPresented {
+      if
+        current.confirmation != nil, incoming.replacingConfirmationID == nil,
+        incoming.priority < .warning { return nil }
+      if
+        current.awaitingResultID != nil, incoming.replacingConfirmationID == nil,
+        incoming.priority < .completion { return nil }
+      if current.actionContent?.value.confirmation == nil, let previous = current.lastRequest {
+        guard let merged = ActionHUDContentPolicy.merge(current: previous, incoming: incoming) else { return nil }
+        request = merged
+      }
+    }
     let entry: Entry
     if
       let current = entries[screenID],
       current.kind == .action(request.position, request.size),
       let currentContent = current.actionContent
     {
+      resolveConfirmation(current, result: .cancelled)
       current.hideTask?.cancel()
       current.hideRevision &+= 1
       current.dismissTask?.cancel()
@@ -725,10 +861,24 @@ private final class WorkspaceHUDController {
       )
       entries[screenID] = entry
     }
-    layoutActionHUD(entry.panel, position: request.position, size: request.size, on: screen)
+    entry.awaitingResultID = nil
+    entry.lastRequest = request
+    layoutActionHUD(
+      entry.panel,
+      position: request.position,
+      size: request.size,
+      on: screen,
+      canvasSize: entry.actionContent?.canvasSize,
+    )
+    entry.panel.title = request.name
+    entry.panel.identifier = NSUserInterfaceItemIdentifier("workspace-action-hud")
     entry.panel.alphaValue = 1
     entry.panel.orderFrontRegardless()
     let wasPresented = entry.isPresented
+    debugLog.log(
+      "HUDDiag",
+      "action panel=\(entry.panel.windowNumber) reusedVisible=\(wasPresented) phase=\(entry.presentation.phase)",
+    )
     if !wasPresented {
       entry.isPresented = true
     }
@@ -767,6 +917,68 @@ private final class WorkspaceHUDController {
       fadeOut(screenID)
     }
     return effectivePresentation
+  }
+
+  func confirm(_ request: AssignmentConfirmationRequest) async -> ActionConfirmationResult {
+    await withTaskCancellationHandler {
+      guard !Task.isCancelled else { return .cancelled }
+      return await withCheckedContinuation { continuation in
+        guard !Task.isCancelled, let screen = resolveScreen(request.display), let screenID = screen.displayID else {
+          continuation.resume(returning: .cancelled)
+          return
+        }
+        // Reuse the same content model and presentation phase as ordinary HUDs.
+        _ = showAction(ActionHUDRequest(
+          name: request.appName,
+          symbolIconName: request.symbol,
+          subtitle: nil,
+          durationMs: 0,
+          position: request.position,
+          size: request.size,
+          display: request.display,
+          priority: .instruction,
+        ))
+        guard let entry = entries[screenID], let content = entry.actionContent else {
+          continuation.resume(returning: .cancelled)
+          return
+        }
+        entry.hideTask?.cancel()
+        entry.hideTask = nil
+        entry.hideRevision &+= 1
+        content.updateConfirmation(request, width: min(440, screen.visibleFrame.width / request.size.actionScale - 76))
+        entry.confirmation = (request, continuation)
+        content.confirm = { [weak self] in self?.finishConfirmation(request.id, confirmed: true) }
+        content.cancel = { [weak self] in self?.finishConfirmation(request.id, confirmed: false) }
+        entry.panel.title = String(localized: request.operation.title)
+        entry.panel.onCancel = content.cancel
+        entry.panel.acceptsConfirmation = true
+        entry.panel.ignoresMouseEvents = false
+        layoutActionHUD(entry.panel, position: request.position, size: request.size, on: screen, canvasSize: content.canvasSize)
+        entry.panel.makeKeyAndOrderFront(nil)
+        guard entry.panel.isKeyWindow else {
+          finishConfirmation(request.id, confirmed: false)
+          return
+        }
+        entry.screenObservation = NotificationCenter.default.addObserver(
+          forName: NSApplication.didChangeScreenParametersNotification,
+          object: nil,
+          queue: .main,
+        ) { [weak self] _ in Task { @MainActor in self?.finishConfirmation(request.id, confirmed: false) } }
+        entry.terminationObservation = NSWorkspace.shared.notificationCenter.addObserver(
+          forName: NSWorkspace.didTerminateApplicationNotification,
+          object: nil,
+          queue: .main,
+        ) { [weak self] notification in
+          guard
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            app.processIdentifier == request.sourcePID
+          else { return }
+          Task { @MainActor in self?.finishConfirmation(request.id, confirmed: false) }
+        }
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in self?.finishConfirmation(request.id, confirmed: false) }
+    }
   }
 
   func showWindowSwitcher(
@@ -924,6 +1136,15 @@ private final class WorkspaceHUDController {
     for screenID in Array(entries.keys) { fadeOut(screenID) }
   }
 
+  func dismissConfirmation(_ id: UUID) {
+    if let (screenID, entry) = entries.first(where: { $0.value.awaitingResultID == id }) {
+      entry.awaitingResultID = nil
+      fadeOut(screenID)
+    } else {
+      finishConfirmation(id, confirmed: false)
+    }
+  }
+
   // MARK: Private
 
   /// One live HUD per screen, keyed by display id — a cross-monitor switch
@@ -935,7 +1156,7 @@ private final class WorkspaceHUDController {
     // MARK: Lifecycle
 
     init(
-      panel: NSPanel,
+      panel: InteractiveHUDPanel,
       kind: Kind,
       presentation: HUDPresentationModel,
       actionContent: ActionHUDContentModel?,
@@ -955,7 +1176,15 @@ private final class WorkspaceHUDController {
       case windowSwitcher
     }
 
-    let panel: NSPanel
+    let panel: InteractiveHUDPanel
+    var awaitingResultID: UUID?
+    var lastRequest: ActionHUDRequest?
+    var confirmation: (
+      request: AssignmentConfirmationRequest,
+      continuation: CheckedContinuation<ActionConfirmationResult, Never>,
+    )?
+    var terminationObservation: NSObjectProtocol?
+    var screenObservation: NSObjectProtocol?
     var hideTask: Task<Void, Never>?
     var hideRevision: UInt = 0
     var presentationTask: Task<Void, Never>?
@@ -981,8 +1210,44 @@ private final class WorkspaceHUDController {
   private let emitWindowSwitcherInteraction: @Sendable (WindowSwitcherInteraction) -> Void
   private let windowSwitcherInputTap: WindowSwitcherInputTap
 
+  private func finishConfirmation(_ id: UUID, confirmed: Bool) {
+    if !confirmed, let (screenID, entry) = entries.first(where: { $0.value.awaitingResultID == id }) {
+      entry.awaitingResultID = nil
+      fadeOut(screenID)
+      return
+    }
+    guard let (screenID, entry) = entries.first(where: { $0.value.confirmation?.request.id == id }) else { return }
+    entry.awaitingResultID = confirmed ? id : nil
+    resolveConfirmation(entry, result: ActionConfirmationResult(
+      confirmed: confirmed,
+      suppressFuture: confirmed && entry.actionContent?.suppressFuture == true,
+    ))
+    if !confirmed { fadeOut(screenID) }
+  }
+
+  private func resolveConfirmation(_ entry: Entry, result: ActionConfirmationResult) {
+    guard let pending = entry.confirmation else { return }
+    entry.confirmation = nil
+    entry.panel.onCancel = nil
+    entry.panel.acceptsConfirmation = false
+    entry.panel.ignoresMouseEvents = true
+    if let observer = entry.screenObservation { NotificationCenter.default.removeObserver(observer) }
+    if let observer = entry.terminationObservation { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
+    entry.screenObservation = nil
+    entry.terminationObservation = nil
+    if entry.panel.isKeyWindow {
+      // Return native keyboard ownership immediately, retaining this hosting
+      // view and its current animation phase for the next content update.
+      entry.panel.orderOut(nil)
+      entry.panel.orderFrontRegardless()
+    }
+    pending.continuation.resume(returning: result)
+  }
+
   private func fadeOut(_ screenID: CGDirectDisplayID) {
     guard let entry = entries[screenID], entry.isPresented else { return }
+    entry.awaitingResultID = nil
+    resolveConfirmation(entry, result: .cancelled)
     entry.hideTask?.cancel()
     entry.hideRevision &+= 1
     entry.hideTask = nil
@@ -1022,6 +1287,7 @@ private final class WorkspaceHUDController {
 
   private func retireEntry(on screenID: CGDirectDisplayID) {
     guard let entry = entries.removeValue(forKey: screenID) else { return }
+    resolveConfirmation(entry, result: .cancelled)
     entry.hideTask?.cancel()
     entry.hideRevision &+= 1
     entry.presentationTask?.cancel()
@@ -1116,8 +1382,8 @@ private final class WorkspaceHUDController {
     return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
   }
 
-  private func makePanel(acceptsMouseEvents: Bool) -> NSPanel {
-    let panel = NSPanel(
+  private func makePanel(acceptsMouseEvents: Bool) -> InteractiveHUDPanel {
+    let panel = InteractiveHUDPanel(
       contentRect: .zero,
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
@@ -1128,7 +1394,8 @@ private final class WorkspaceHUDController {
     panel.level = .screenSaver
     panel.ignoresMouseEvents = !acceptsMouseEvents
     panel.acceptsMouseMovedEvents = acceptsMouseEvents
-    panel.becomesKeyOnlyIfNeeded = true
+    panel.becomesKeyOnlyIfNeeded = false
+    panel.hidesOnDeactivate = false
     panel.hasShadow = false
     panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .stationary]
     return panel
@@ -1143,12 +1410,19 @@ private final class WorkspaceHUDController {
     position: HUDPosition,
     size: HUDSize,
     on screen: NSScreen,
+    canvasSize: NSSize? = nil,
   ) {
+    let canvas = canvasSize ?? NSSize(width: 440, height: 360)
+    let padding = (HUDLayout.actionShadowPadding + HUDLayout.actionMotionPadding) * 2
     panel.setFrame(
       HUDLayout.actionPanelFrame(
         in: screen.visibleFrame,
         position: position,
         size: size,
+        panelSize: NSSize(
+          width: (canvas.width + padding) * size.actionScale,
+          height: (canvas.height + padding) * size.actionScale,
+        ),
       ),
       display: false,
     )
@@ -1466,13 +1740,15 @@ private struct WorkspaceHUDView: View {
   var body: some View {
     let value = content.value
     let transition = presentation.transition
-    let surfaceSize = HUDLayout.actionSurfaceSize(
-      name: value.name,
-      subtitle: value.subtitle,
-      subtitleSymbolIconName: value.subtitleSymbolIconName,
-    )
+    let surfaceSize = value.confirmation != nil
+      ? content.confirmationSize
+      : HUDLayout.actionSurfaceSize(
+        name: value.name,
+        subtitle: value.subtitle,
+        subtitleSymbolIconName: value.subtitleSymbolIconName,
+      )
     ZStack(alignment: .top) {
-      HUDGlassSurface(surface: Capsule()) {
+      HUDGlassSurface(surface: RoundedRectangle(cornerRadius: value.confirmation == nil ? surfaceSize.height / 2 : 22)) {
         Color.clear
           .frame(width: surfaceSize.width, height: surfaceSize.height)
       }
@@ -1483,37 +1759,51 @@ private struct WorkspaceHUDView: View {
       .shadow(color: .black.opacity(0.24), radius: 12, y: 6)
 
       ZStack(alignment: .leading) {
-        HStack(spacing: 11) {
-          ZStack {
-            Circle()
-              .fill(Color.accentColor.opacity(0.16))
-            Circle()
-              .strokeBorder(Color.accentColor.opacity(0.30), lineWidth: 1)
-            Image(systemName: value.symbolIconName ?? "square.stack.3d.up.fill")
-              .font(.system(size: 15, weight: .semibold))
-              .foregroundStyle(.tint)
-              .symbolRenderingMode(.hierarchical)
-          }
-          .frame(width: 32, height: 32)
-
-          VStack(alignment: .leading, spacing: 2) {
-            Text(value.name)
-              .font(.callout.weight(.semibold))
-              .lineLimit(1)
-            if let subtitle = value.subtitle {
-              WorkspaceHUDSubtitleView(
-                subtitle: subtitle,
-                symbolIconName: value.subtitleSymbolIconName,
-              )
+        if let request = value.confirmation {
+          AssignmentConfirmationControls(
+            request: request,
+            suppressFuture: Binding(
+              get: { content.suppressFuture },
+              set: { content.suppressFuture = $0 },
+            ),
+            confirm: content.confirm,
+            cancel: content.cancel,
+          )
+          .id(request.id)
+          .transition(.opacity)
+        } else {
+          HStack(spacing: 11) {
+            ZStack {
+              Circle()
+                .fill(Color.accentColor.opacity(0.16))
+              Circle()
+                .strokeBorder(Color.accentColor.opacity(0.30), lineWidth: 1)
+              Image(systemName: value.symbolIconName ?? "square.stack.3d.up.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.tint)
+                .symbolRenderingMode(.hierarchical)
             }
+            .frame(width: 32, height: 32)
+
+            VStack(alignment: .leading, spacing: 2) {
+              Text(value.name)
+                .font(.callout.weight(.semibold))
+                .lineLimit(1)
+              if let subtitle = value.subtitle {
+                WorkspaceHUDSubtitleView(
+                  subtitle: subtitle,
+                  symbolIconName: value.subtitleSymbolIconName,
+                )
+              }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
           }
-          .frame(maxWidth: .infinity, alignment: .leading)
+          .id(value.revision)
+          .transition(.opacity)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 9)
         }
-        .id(value.revision)
-        .transition(.opacity)
       }
-      .padding(.horizontal, 14)
-      .padding(.vertical, 9)
       .frame(
         width: surfaceSize.width,
         height: surfaceSize.height,
@@ -1525,14 +1815,14 @@ private struct WorkspaceHUDView: View {
       )
     }
     .frame(
-      width: HUDLayout.maximumActionSurfaceSize.width,
-      height: HUDLayout.maximumActionSurfaceSize.height,
+      width: content.canvasSize.width,
+      height: content.canvasSize.height,
       alignment: position.actionContentAlignment,
     )
     .padding(HUDLayout.actionShadowPadding)
     .frame(
-      width: HUDLayout.maximumActionSurfaceSize.width + HUDLayout.actionShadowPadding * 2,
-      height: HUDLayout.maximumActionSurfaceSize.height + HUDLayout.actionShadowPadding * 2,
+      width: content.canvasSize.width + HUDLayout.actionShadowPadding * 2,
+      height: content.canvasSize.height + HUDLayout.actionShadowPadding * 2,
     )
     .modifier(
       ActionHUDPresentationModifier(
@@ -1543,10 +1833,11 @@ private struct WorkspaceHUDView: View {
     .padding(HUDLayout.actionMotionPadding)
     .scaleEffect(size.actionScale)
     .frame(
-      width: HUDLayout.actionPanelSize(for: size).width,
-      height: HUDLayout.actionPanelSize(for: size).height,
+      width: (content.canvasSize.width + (HUDLayout.actionShadowPadding + HUDLayout.actionMotionPadding) * 2) * size.actionScale,
+      height: (content.canvasSize.height + (HUDLayout.actionShadowPadding + HUDLayout.actionMotionPadding) * 2) * size
+        .actionScale,
     )
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .contain)
     .transaction(value: transition) { transaction in
       transaction.addAnimationCompletion(criteria: .removed) {
         Task { @MainActor [weak presentation] in
@@ -1564,7 +1855,7 @@ private struct WorkspaceHUDView: View {
 
 // MARK: - ActionHUDPresentationModifier
 
-private struct ActionHUDPresentationModifier: ViewModifier {
+struct ActionHUDPresentationModifier: ViewModifier {
 
   // MARK: Internal
 
@@ -1723,7 +2014,7 @@ private struct WindowSwitcherPresentationModifier: ViewModifier {
 
 // MARK: - HUDGlassSurface
 
-private struct HUDGlassSurface<Content: View, Surface: InsettableShape>: View {
+struct HUDGlassSurface<Content: View, Surface: InsettableShape>: View {
   let surface: Surface
   @ViewBuilder let content: Content
 
@@ -2091,5 +2382,30 @@ private struct WindowSwitcherIndicatorSymbol: View {
       .font(.system(size: 7.5, weight: .bold))
       .foregroundStyle(color)
       .frame(width: 8, height: 8)
+  }
+}
+
+// MARK: - InteractiveHUDPanel
+
+@MainActor
+private final class InteractiveHUDPanel: NSPanel {
+  var acceptsConfirmation = false
+  var onCancel: (() -> Void)?
+
+  override var canBecomeKey: Bool {
+    acceptsConfirmation
+  }
+
+  override var canBecomeMain: Bool {
+    false
+  }
+
+  override func resignKey() {
+    super.resignKey()
+    onCancel?()
+  }
+
+  override func cancelOperation(_: Any?) {
+    onCancel?()
   }
 }

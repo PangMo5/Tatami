@@ -47,6 +47,39 @@ ctrl + alt + shift + cmd - z
 |`checkInterval`|string|`"daily"`|백그라운드 업데이트 확인 주기: `hourly`, `daily`, `weekly`.|
 |`debugLogging`|bool|`false`|진단 이벤트를 `~/.config/tatami/tatami.log`에 추가해요. 처음 켤 때 기존 내용은 비워요.|
 
+<a id="settingsconfirmations"></a>
+## `[settings.confirmations]`
+
+동작별로 확인 여부를 고를 수 있어요. 기본으로 모두 켜져 있어요. ‘다시 보지 않기’를 선택하고 실행하면 해당 동작의 확인만 꺼져요. 취소하면 설정을 유지해요. 기존 전체 확인 설정은 각 항목으로 이전하며, 직접 지정한 항목이 우선해요.
+
+|키|기본값|동작|
+| --- | --- | --- |
+|`addWorkspaceApp`|`true`|작업 공간에 앱 지정|
+|`moveWorkspaceApp`|`true`|작업 공간 사이에서 앱 이동|
+|`removeWorkspaceApp`|`true`|작업 공간에서 앱 제거|
+|`floatWorkspaceApp`|`true`|작업 공간 앱을 항상 위로 변경|
+|`tileWorkspaceApp`|`true`|작업 공간 앱을 타일링으로 변경|
+|`unmanageWorkspaceApp`|`true`|작업 공간 앱을 그대로 두기로 변경|
+|`addSharedApp`|`true`|공용 앱 추가|
+|`removeSharedApp`|`true`|공용 앱 제거|
+|`floatSharedApp`|`true`|공용 앱을 항상 위로 변경|
+|`tileSharedApp`|`true`|공용 앱을 타일링으로 변경|
+|`unmanageSharedApp`|`true`|공용 앱을 그대로 두기로 변경|
+|`deleteWorkspace`|`true`|작업 공간 삭제|
+|`deleteProfile`|`true`|프로필 삭제|
+|`deleteWorkspaceChain`|`true`|작업 공간 체인 삭제|
+|`deleteHook`|`true`|훅 삭제|
+|`removeOverlayException`|`true`|창 표시 예외 제거|
+|`copyWorkspace`|`true`|작업 공간 설정 복사|
+|`copyProfile`|`true`|프로필 설정 복사|
+|`resetSetup`|`true`|설정 안내 처음부터 다시 시작|
+|`reloadSetup`|`true`|설정 안내 초안 다시 불러오기|
+|`applySetup`|`true`|설정 안내 초안 적용|
+|`applySetupRecommendation`|`true`|설정 추천 적용|
+|`deleteSetupWorkspace`|`true`|설정 초안에서 작업 공간 삭제|
+|`deleteSetupProfile`|`true`|설정 초안에서 프로필 삭제|
+|`uninstallCLI`|`true`|명령줄 도구 제거|
+
 <a id="settingsvisibility"></a>
 ## `[settings.visibility]`
 

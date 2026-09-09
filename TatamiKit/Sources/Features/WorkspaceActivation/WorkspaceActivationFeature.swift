@@ -375,6 +375,20 @@ public struct WorkspaceActivationFeature {
 
     // MARK: Internal
 
+    struct PendingAssignment: Equatable, Sendable {
+      let request: AssignmentConfirmationRequest
+      let bundleID: String
+      let appName: String
+      let edit: MembershipEdit
+      let baseline: AppConfig
+      let primaryWorkspaceID: Workspace.ID?
+      let originProfileID: Profile.ID?
+      let activationGeneration: UInt64
+    }
+
+    var membershipRequestID: UUID?
+    var pendingAssignment: PendingAssignment?
+
     /// Every workspace with windows intentionally visible right now, including
     /// borrowed blocks (which are not values of `activeWorkspacesByDisplay`).
     var visibleWorkspaceIDs: Set<Workspace.ID> {
@@ -1192,7 +1206,12 @@ public struct WorkspaceActivationFeature {
       edit: MembershipEdit,
       pid: pid_t = 0,
       interactionDisplay: DisplayName? = nil,
+      requestID: UUID? = nil,
+      profileID: Profile.ID? = nil,
+      activationGeneration: UInt64? = nil,
     )
+    case assignmentConfirmationResponse(id: UUID, confirmed: Bool, suppressFuture: Bool = false)
+    case membershipResolutionFailed(UUID)
     case togglePaused
     case bspFocus(BSPDirection)
     case bspFocusResolved(windowKey: WindowKey, direction: BSPDirection)
@@ -1417,7 +1436,7 @@ public struct WorkspaceActivationFeature {
     /// Add/remove in Shared Apps (added tiled).
     case toggleShared
     /// Relocate to a single workspace and switch to it.
-    case move(to: Workspace.ID)
+    case move(to: Workspace.ID, direction: Int = 1)
     /// Duplicate-assign to a workspace (keeps other memberships) and
     /// switch to it.
     case assign(to: Workspace.ID)
@@ -2963,6 +2982,7 @@ public struct WorkspaceActivationFeature {
               durationMs: permsHudMs,
               position: hudPosition,
               size: hudSize,
+              priority: .warning,
             )
           )
         }
@@ -3642,7 +3662,7 @@ public struct WorkspaceActivationFeature {
         else { return .none }
         return .concatenate(
           .cancel(id: CancelID.workspaceChainCleanup),
-          .send(.membershipEdit(.move(to: id), interactionDisplay: display)),
+          .send(.membershipEdit(.move(to: id, direction: direction), interactionDisplay: display)),
         )
 
       case .membershipEdit(let edit, let capturedInteractionDisplay):
@@ -3650,17 +3670,25 @@ public struct WorkspaceActivationFeature {
           return .none
         }
         let commandDisplay = capturedInteractionDisplay ?? interactionDisplay(state: state)
+        let requestID = uuid()
+        let profileID = state.config.activeProfile?.id
+        let generation = state.activationGeneration
+        state.membershipRequestID = requestID
         return .concatenate(
           .cancel(id: CancelID.workspaceChainCleanup),
-          resolveFrontmostApp { bundleId, name, pid in
+          resolveFrontmostApp(onFailure: { .membershipResolutionFailed(requestID) }) { bundleId, name, pid in
             .membershipEditResolved(
               bundleId: bundleId,
               name: name,
               edit: edit,
               pid: pid,
               interactionDisplay: commandDisplay,
+              requestID: requestID,
+              profileID: profileID,
+              activationGeneration: generation,
             )
-          },
+          }
+          .cancellable(id: CancelID.membershipResolution, cancelInFlight: true),
         )
 
       case .membershipEditResolved(
@@ -3669,136 +3697,160 @@ public struct WorkspaceActivationFeature {
         let edit,
         let pid,
         let capturedInteractionDisplay,
+        let requestID,
+        let profileID,
+        let generation,
       ):
+        guard requestID == nil || requestID == state.membershipRequestID else { return .none }
+        guard profileID == nil || profileID == state.config.activeProfile?.id else { return rejectMembershipRequest(
+          requestID,
+          state: &state,
+        ) }
+        guard generation == nil || generation == state.activationGeneration else { return rejectMembershipRequest(
+          requestID,
+          state: &state,
+        ) }
         // Tatami must never enter its own membership sets.
-        if MacApp.isTatami(bundleId) { return .none }
-        if pid != 0, overlayAwareness.isBackgroundedProcess(pid) { return .none }
+        if MacApp.isTatami(bundleId) { return rejectMembershipRequest(requestID, state: &state) }
+        if pid != 0, overlayAwareness.isBackgroundedProcess(pid) { return rejectMembershipRequest(requestID, state: &state) }
         debugLog.log("App", "membership \(String(describing: edit)) bundle=\(bundleId)")
-        let displayName = name.isEmpty ? bundleId : name
+        let targetID: Workspace.ID?
+        let operation: AssignmentOperation
+        let moveDirection: Int
         switch edit {
+        case .assign(let id): targetID = id
+          operation = .assign
+          moveDirection = 1
+
+        case .move(let id, let direction): targetID = id
+          operation = .move
+          moveDirection = direction
+
         case .toggleInActiveWorkspace:
-          guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
-          var didAdd = false
-          state.$config.withLock {
-            didAdd = $0.toggleMembership(bundleId: bundleId, name: name, in: workspaceId)
-          }
-          // Re-activate so the hide/show pass + tree rebuild reflect the
-          // new membership. setFocus stays false — the user just used a
-          // hotkey, no need to steal focus from whatever they had.
-          if didAdd {
-            state.tilingTrees[workspaceId] = nil
-          }
-          let workspaceName = state.config.activeProfile?
-            .workspaces[id: workspaceId]?.name ?? ""
-          let hudTitle: LocalizedStringResource = didAdd
-            ? "Added \(displayName) → \(workspaceName)"
-            : "Removed \(displayName) ← \(workspaceName)"
-          let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
-          return .merge(
-            hudEffect(state, \.appMembership, hudTitle, hudIcon),
-            .send(.activate(workspaceId: workspaceId, setFocus: false)),
-          )
+          guard let id = state.primaryActiveWorkspaceID else { return rejectMembershipRequest(requestID, state: &state) }
+          targetID = id
+          moveDirection = 1
+          operation = state.config.workspace(id: id)?.apps.contains { $0.bundleIdentifier == bundleId } == true
+            ? .removeWorkspace
+            : .addWorkspace
 
         case .toggleFloating:
-          guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
-          var nowFloating = false
-          state.$config.withLock {
-            nowFloating = $0.toggleFloating(bundleId: bundleId, name: name, in: workspaceId)
-          }
-          // Rebuild the tree so the window drops out of / back into the layout.
-          state.tilingTrees[workspaceId] = nil
-          let hudTitle: LocalizedStringResource = nowFloating
-            ? "Floating: \(displayName)"
-            : "Tiled: \(displayName)"
-          // Different glyphs for the two states so the HUD reads at a
-          // glance — open frame for floating, filled stack for tiled.
-          let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
-          // Un-floating keeps the workspace assignment — hint at the
-          // membership shortcut for users who meant "take it out entirely".
-          let hudHint: LocalizedStringResource? = nowFloating
-            ? nil
-            : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
-              "Still in this workspace — \(key.symbols) removes it"
-            }
-          return .merge(
-            .send(.activate(workspaceId: workspaceId, setFocus: false)),
-            hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint),
-          )
-
-        case .toggleSharedFloating:
-          var nowFloating = false
-          state.$config.withLock {
-            nowFloating = $0.toggleSharedFloating(bundleId: bundleId, name: name)
-          }
-          let hudTitle: LocalizedStringResource = nowFloating
-            ? "Shared Floating: \(displayName)"
-            : "Shared Tiled: \(displayName)"
-          let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
-          // Un-floating keeps the app shared (tiled everywhere) — hint at
-          // the membership shortcut for users who meant "take it out of Shared".
-          let hudHint: LocalizedStringResource? = nowFloating
-            ? nil
-            : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
-              "Still in Shared Apps — \(key.symbols) removes it"
-            }
-          let hud = hudEffect(state, \.floating, hudTitle, hudIcon, subtitle: hudHint)
-          guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
-          state.tilingTrees[workspaceId] = nil
-          return .merge(
-            .send(.activate(workspaceId: workspaceId, setFocus: false)),
-            hud,
-          )
+          guard let id = state.primaryActiveWorkspaceID else { return rejectMembershipRequest(requestID, state: &state) }
+          targetID = id
+          moveDirection = 1
+          let existing = state.config.workspace(id: id)?.apps.first { $0.bundleIdentifier == bundleId }
+          operation = existing == nil ? .addFloating : existing?.layout == .floating ? .tiled : .floating
 
         case .toggleShared:
-          var didAdd = false
-          state.$config.withLock {
-            didAdd = $0.toggleSharedMembership(bundleId: bundleId, name: name)
-          }
-          let hudTitle: LocalizedStringResource = didAdd
-            ? "Added \(displayName) → Shared Apps"
-            : "Removed \(displayName) ← Shared Apps"
-          let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
-          let hud = hudEffect(state, \.appMembership, hudTitle, hudIcon)
-          guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
-          state.tilingTrees[workspaceId] = nil
-          return .merge(
-            .send(.activate(workspaceId: workspaceId, setFocus: false)),
-            hud,
-          )
+          targetID = nil
+          moveDirection = 1
+          operation = state.config.sharedApps.contains { $0.bundleIdentifier == bundleId } ? .removeShared : .addShared
 
-        case .move(let workspaceId):
-          state.$config.withLock {
-            $0.moveApp(bundleId: bundleId, name: name, to: workspaceId)
-          }
-          state.tilingTrees[workspaceId] = nil
-          return .send(.activate(
-            workspaceId: workspaceId,
-            setFocus: true,
-            interactionDisplay: capturedInteractionDisplay,
-          ))
-
-        case .assign(let workspaceId):
-          state.$config.withLock {
-            $0.assignApp(bundleId: bundleId, name: name, to: workspaceId)
-          }
-          state.tilingTrees[workspaceId] = nil
-          if
-            let owner = state.config.profileId(owning: workspaceId),
-            owner != state.config.activeProfile?.id
-          {
-            return .send(.delegate(.profileSwitchRequested(
-              owner,
-              focus: workspaceId,
-              interactionDisplay: capturedInteractionDisplay,
-            )))
-          }
-          // Switch to the target so the just-assigned app is visible there.
-          return .send(.activate(
-            workspaceId: workspaceId,
-            setFocus: true,
-            interactionDisplay: capturedInteractionDisplay,
-          ))
+        case .toggleSharedFloating:
+          targetID = nil
+          moveDirection = 1
+          let existing = state.config.sharedApps.first { $0.bundleIdentifier == bundleId }
+          operation = existing == nil ? .addSharedFloating : existing?.layout == .floating ? .tiled : .floating
         }
+        let owner = targetID.flatMap { state.config.profileId(owning: $0) }
+        let profile = state.config.profiles.first { $0.id == owner }
+        let workspace = targetID.flatMap { state.config.workspace(id: $0) }
+        guard targetID == nil || workspace != nil else { return rejectMembershipRequest(requestID, state: &state) }
+        guard operation != .move || owner == state.config.activeProfile?.id else { return rejectMembershipRequest(
+          requestID,
+          state: &state,
+        ) }
+        guard state.config.settings.confirmations[operation.confirmationKind(shared: targetID == nil)] else {
+          state.pendingAssignment = nil
+          return .concatenate(
+            .cancel(id: CancelID.assignmentConfirmation),
+            commitMembershipEdit(
+              bundleId: bundleId,
+              name: name,
+              edit: edit,
+              display: capturedInteractionDisplay,
+              state: &state,
+            ),
+          )
+        }
+        guard pid > 0 else { return rejectMembershipRequest(requestID, state: &state) }
+        let request = AssignmentConfirmationRequest(
+          id: requestID ?? uuid(),
+          appName: name.isEmpty ? bundleId : name,
+          workspaceName: workspace?.name ?? String(localized: "Shared Apps"),
+          profileName: profile?.name,
+          sourcePID: pid,
+          operation: operation,
+          moveDirection: moveDirection,
+          position: state.config.settings.hud.position,
+          display: capturedInteractionDisplay,
+          size: state.config.settings.hud.size,
+        )
+        state.pendingAssignment = State.PendingAssignment(
+          request: request,
+          bundleID: bundleId,
+          appName: name,
+          edit: edit,
+          baseline: state.config,
+          primaryWorkspaceID: state.primaryActiveWorkspaceID,
+          originProfileID: state.config.activeProfile?.id,
+          activationGeneration: state.activationGeneration,
+        )
+        var cleanup = [Effect<Action>]()
+        if state.borrowCapture != nil { cleanup.append(endBorrowCapture(state: &state)) }
+        if let cycle = state.windowCycleSession { cleanup.append(finishWindowCycle(cycle, commit: false, state: &state)) }
+        return .concatenate(.merge(cleanup), .run { [workspaceHUD] send in
+          let result = await workspaceHUD.confirmAssignment(request)
+          guard !Task.isCancelled else {
+            await workspaceHUD.dismissConfirmation(request.id)
+            return
+          }
+          await send(.assignmentConfirmationResponse(
+            id: request.id,
+            confirmed: result.confirmed,
+            suppressFuture: result.suppressFuture,
+          ))
+          if Task.isCancelled { await workspaceHUD.dismissConfirmation(request.id) }
+        }.cancellable(id: CancelID.assignmentConfirmation))
+
+      case .membershipResolutionFailed(let id):
+        return rejectMembershipRequest(id, state: &state)
+
+      case .assignmentConfirmationResponse(let id, let confirmed, let suppressFuture):
+        guard let pending = state.pendingAssignment, pending.request.id == id else { return dismissAssignmentResult(id) }
+        state.pendingAssignment = nil
+        guard confirmed else {
+          // Escape can arrive while a replacement command is still resolving
+          // its source. That lookup must not reopen a card after cancellation.
+          state.membershipRequestID = nil
+          return .merge(
+            .cancel(id: CancelID.membershipResolution),
+            .cancel(id: CancelID.assignmentConfirmation),
+          )
+        }
+        guard state.membershipRequestID == nil || state.membershipRequestID == id else { return dismissAssignmentResult(id) }
+        state.membershipRequestID = nil
+        guard
+          pending.originProfileID == state.config.activeProfile?.id,
+          pending.activationGeneration == state.activationGeneration,
+          pending.primaryWorkspaceID == state.primaryActiveWorkspaceID,
+          pending.baseline.hasSamePersistedContent(as: state.config),
+          let frontmost = windowSnapshot.frontmostApp(),
+          frontmost.pid == pending.request.sourcePID,
+          frontmost.bundleId == pending.bundleID,
+          !overlayAwareness.isBackgroundedProcess(frontmost.pid)
+        else { return dismissAssignmentResult(id) }
+        if suppressFuture {
+          state.$config.withLock { $0.settings.confirmations[pending.request.confirmationKind] = false }
+        }
+        return commitMembershipEdit(
+          bundleId: pending.bundleID,
+          name: pending.appName,
+          edit: pending.edit,
+          display: pending.request.display,
+          confirmationID: id,
+          state: &state,
+        )
 
       case .togglePaused:
         let wasPaused = state.isTilingPaused
@@ -4574,6 +4626,8 @@ public struct WorkspaceActivationFeature {
     /// Auto-cancels borrow-mode key capture if the user never finishes the
     /// chord, so the tap can't keep swallowing keystrokes.
     case borrowChordTimeout
+    case membershipResolution
+    case assignmentConfirmation
     /// Releases the `isActivating` gate if an activation never completes
     /// (see `activationTimedOut`); cancelled by `activationCompleted`.
     case activationWatchdog
@@ -4624,6 +4678,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.continuousClock) var clock
   @Dependency(\.modifierKeys) var modifierKeys
   @Dependency(\.borrowChord) var borrowChord
+  @Dependency(\.uuid) var uuid
   @Dependency(\.sls) var sls
 
   /// The named display's work area inset by the outer gap — the rect
@@ -5567,20 +5622,223 @@ public struct WorkspaceActivationFeature {
     return validateForegroundWorkWindow(bundleId: frontmost.bundleId, pid: frontmost.pid, state: &state)
   }
 
+  private func dismissAssignmentResult(_ id: UUID) -> Effect<Action> {
+    .run { [workspaceHUD] _ in await workspaceHUD.dismissConfirmation(id) }
+  }
+
+  private func rejectMembershipRequest(_ id: UUID?, state: inout State) -> Effect<Action> {
+    guard let id, state.membershipRequestID == id else { return .none }
+    state.membershipRequestID = nil
+    state.pendingAssignment = nil
+    return .cancel(id: CancelID.assignmentConfirmation)
+  }
+
+  private func commitMembershipEdit(
+    bundleId: String,
+    name: String,
+    edit: MembershipEdit,
+    display: DisplayName?,
+    confirmationID: UUID? = nil,
+    state: inout State,
+  ) -> Effect<Action> {
+    let displayName = name.isEmpty ? bundleId : name
+    switch edit {
+    case .toggleInActiveWorkspace:
+      guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
+      var didAdd = false
+      state.$config.withLock {
+        didAdd = $0.toggleMembership(bundleId: bundleId, name: name, in: workspaceId)
+      }
+      // Re-activate so the hide/show pass + tree rebuild reflect the
+      // new membership. setFocus stays false — the user just used a
+      // hotkey, no need to steal focus from whatever they had.
+      if didAdd {
+        state.tilingTrees[workspaceId] = nil
+      }
+      let workspaceName = state.config.activeProfile?
+        .workspaces[id: workspaceId]?.name ?? ""
+      let hudTitle: LocalizedStringResource = didAdd
+        ? "Added \(displayName) → \(workspaceName)"
+        : "Removed \(displayName) ← \(workspaceName)"
+      let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
+      return .concatenate(
+        hudEffect(
+          state,
+          \.appMembership,
+          hudTitle,
+          hudIcon,
+          display: display,
+          contextID: state.primaryActiveWorkspaceID,
+          confirmationID: confirmationID,
+        ),
+        .send(.activate(workspaceId: workspaceId, setFocus: false)),
+      )
+
+    case .toggleFloating:
+      guard let workspaceId = state.primaryActiveWorkspaceID else { return .none }
+      var nowFloating = false
+      state.$config.withLock {
+        nowFloating = $0.toggleFloating(bundleId: bundleId, name: name, in: workspaceId)
+      }
+      // Rebuild the tree so the window drops out of / back into the layout.
+      state.tilingTrees[workspaceId] = nil
+      let hudTitle: LocalizedStringResource = nowFloating
+        ? "Floating: \(displayName)"
+        : "Tiled: \(displayName)"
+      // Different glyphs for the two states so the HUD reads at a
+      // glance — open frame for floating, filled stack for tiled.
+      let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
+      // Un-floating keeps the workspace assignment — hint at the
+      // membership shortcut for users who meant "take it out entirely".
+      let hudHint: LocalizedStringResource? = nowFloating
+        ? nil
+        : state.config.settings.shortcuts.toggleFocusedAppInActiveWorkspace.map { key in
+          "Still in this workspace — \(key.symbols) removes it"
+        }
+      return .concatenate(
+        hudEffect(
+          state,
+          \.floating,
+          hudTitle,
+          hudIcon,
+          subtitle: hudHint,
+          display: display,
+          contextID: state.primaryActiveWorkspaceID,
+          confirmationID: confirmationID,
+        ),
+        .send(.activate(workspaceId: workspaceId, setFocus: false)),
+      )
+
+    case .toggleSharedFloating:
+      var nowFloating = false
+      state.$config.withLock {
+        nowFloating = $0.toggleSharedFloating(bundleId: bundleId, name: name)
+      }
+      let hudTitle: LocalizedStringResource = nowFloating
+        ? "Shared Floating: \(displayName)"
+        : "Shared Tiled: \(displayName)"
+      let hudIcon = nowFloating ? "rectangle.dashed" : "square.stack.3d.up.fill"
+      // Un-floating keeps the app shared (tiled everywhere) — hint at
+      // the membership shortcut for users who meant "take it out of Shared".
+      let hudHint: LocalizedStringResource? = nowFloating
+        ? nil
+        : state.config.settings.shortcuts.toggleAppInSharedApps.map { key in
+          "Still in Shared Apps — \(key.symbols) removes it"
+        }
+      let hud = hudEffect(
+        state,
+        \.floating,
+        hudTitle,
+        hudIcon,
+        subtitle: hudHint,
+        display: display,
+        contextID: state.primaryActiveWorkspaceID,
+        confirmationID: confirmationID,
+      )
+      guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
+      state.tilingTrees[workspaceId] = nil
+      return .concatenate(
+        hud,
+        .send(.activate(workspaceId: workspaceId, setFocus: false)),
+      )
+
+    case .toggleShared:
+      var didAdd = false
+      state.$config.withLock {
+        didAdd = $0.toggleSharedMembership(bundleId: bundleId, name: name)
+      }
+      let hudTitle: LocalizedStringResource = didAdd
+        ? "Added \(displayName) → Shared Apps"
+        : "Removed \(displayName) ← Shared Apps"
+      let hudIcon = didAdd ? "plus.circle.fill" : "minus.circle.fill"
+      let hud = hudEffect(
+        state,
+        \.appMembership,
+        hudTitle,
+        hudIcon,
+        display: display,
+        contextID: state.primaryActiveWorkspaceID,
+        confirmationID: confirmationID,
+      )
+      guard let workspaceId = state.primaryActiveWorkspaceID else { return hud }
+      state.tilingTrees[workspaceId] = nil
+      return .concatenate(
+        hud,
+        .send(.activate(workspaceId: workspaceId, setFocus: false)),
+      )
+
+    case .move(let workspaceId, _),
+         .assign(let workspaceId):
+      return commitAssignment(
+        bundleID: bundleId,
+        name: name,
+        workspaceID: workspaceId,
+        display: display,
+        confirmationID: confirmationID,
+        moving: { if case .move = edit { return true }
+          return false
+        }(),
+        state: &state,
+      )
+    }
+  }
+
+  private func commitAssignment(
+    bundleID: String,
+    name: String,
+    workspaceID: Workspace.ID,
+    display: DisplayName?,
+    confirmationID: UUID?,
+    moving: Bool,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard let owner = state.config.profileId(owning: workspaceID) else { return .none }
+    guard !moving || owner == state.config.activeProfile?.id else { return .none }
+    state.$config.withLock {
+      if moving {
+        $0.moveApp(bundleId: bundleID, name: name, to: workspaceID)
+      } else {
+        $0.assignApp(bundleId: bundleID, name: name, to: workspaceID)
+      }
+    }
+    state.tilingTrees[workspaceID] = nil
+    let appName = name.isEmpty ? bundleID : name
+    let workspaceName = state.config.workspace(id: workspaceID)?.name ?? ""
+    let title: LocalizedStringResource = moving
+      ? "Moved \(appName) → \(workspaceName)"
+      : "Added \(appName) → \(workspaceName)"
+    let completion = hudEffect(
+      state,
+      \.appMembership,
+      title,
+      moving ? "checkmark.rectangle.stack" : "checkmark.circle.fill",
+      display: display,
+      contextID: workspaceID,
+      confirmationID: confirmationID,
+    )
+    let activation: Effect<Action> = owner != state.config.activeProfile?.id
+      ? .send(.delegate(.profileSwitchRequested(owner, focus: workspaceID, interactionDisplay: display)))
+      : .send(.activate(workspaceId: workspaceID, setFocus: true, interactionDisplay: display))
+    return .concatenate(completion, activation)
+  }
+
   private func resolveFrontmostApp(
+    onFailure: @escaping @Sendable () -> Action,
     _ continuation: @escaping @Sendable (
       _ bundleId: String,
       _ name: String,
       _ pid: pid_t,
-    ) -> Action
+    ) -> Action,
   ) -> Effect<Action> {
     .run { [snapshot = windowSnapshot, overlayAwareness, debugLog] send in
       let resolved = await snapshot.frontmostAppOffMain()
       guard let resolved else {
         debugLog.log("App", "no frontmost app — membership edit dropped")
+        await send(onFailure())
         return
       }
       guard !overlayAwareness.isBackgroundedProcess(resolved.pid) else {
+        await send(onFailure())
         debugLog.log(
           "OverlayAware",
           "ignore frontmost membership command \(resolved.bundleId) pid=\(resolved.pid)",

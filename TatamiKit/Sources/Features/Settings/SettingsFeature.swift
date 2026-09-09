@@ -21,6 +21,7 @@ public struct SettingsFeature {
   public struct State: Equatable {
     public init() { }
 
+    @Shared(.tatamiConfig) public var config
     public var cli = CLIStatus()
     public var hooks = HookSettingsFeature.State()
     public var overlayAwareApps = OverlayAwareAppsFeature.State()
@@ -28,6 +29,7 @@ public struct SettingsFeature {
     public var hasAXPermission = true
     /// Same flash-avoidance default as `hasAXPermission`.
     public var hasScreenRecordingPermission = true
+    public var suppressConfirmation = false
     @Presents public var alert: AlertState<Action.Alert>?
   }
 
@@ -50,6 +52,7 @@ public struct SettingsFeature {
     case checkForUpdatesTapped
     /// A shortcut recorder started (`true`) / stopped (`false`) capturing.
     case shortcutRecordingChanged(Bool)
+    case confirmationSuppressionChanged(Bool)
     case alert(PresentationAction<Alert>)
 
     // MARK: Public
@@ -69,6 +72,10 @@ public struct SettingsFeature {
       }
       Reduce { state, action in
         switch action {
+        case .confirmationSuppressionChanged(let suppressed):
+          state.suppressConfirmation = suppressed
+          return .none
+
         case .task:
           state.hasAXPermission = accessibility.isTrusted()
           state.hasScreenRecordingPermission = screenRecording.isGranted()
@@ -168,6 +175,15 @@ public struct SettingsFeature {
       }
     }
     .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        switch action { case .confirmUninstall: .uninstallCLI }
+      },
+    )
   }
 
   // MARK: Internal

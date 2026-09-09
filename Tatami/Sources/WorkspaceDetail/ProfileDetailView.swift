@@ -5,17 +5,24 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
+// MARK: - CountMode
+
 private enum CountMode: Hashable { case any, exactly, atLeast, atMost }
+
+// MARK: - DisplayReq
+
 /// Per-monitor requirement in the auto-activation editor.
 private enum DisplayReq: Hashable { case any, required, excluded }
+
+// MARK: - ProfileDetailView
 
 /// Settings for the selected profile — name, switch shortcut, auto-activation
 /// rule, activate + delete. Shown in the detail pane like a workspace's detail.
 struct ProfileDetailView: View {
+
+  // MARK: Internal
+
   @Bindable var store: StoreOf<ProfileDetailFeature>
-  @State private var symbolPickerPresented = false
-  @State private var syncReview: ProfileSyncReview?
-  @State private var workspaceChainEditor: WorkspaceChainEditorPresentation?
 
   var body: some View {
     if let profile = store.profile {
@@ -39,7 +46,7 @@ struct ProfileDetailView: View {
             .sheet(isPresented: $symbolPickerPresented) {
               SymbolPicker(
                 selected: profile.symbolIconName,
-                onSelect: { store.send(.symbolIconChanged($0)) }
+                onSelect: { store.send(.symbolIconChanged($0)) },
               )
             }
           }
@@ -63,7 +70,7 @@ struct ProfileDetailView: View {
             accessibilityLabel: "Switch Shortcut",
             conflict: { store.state.shortcutConflict(for: $0) },
             onRecordingChanged: { store.send(.shortcutRecordingChanged($0)) },
-            onChange: { store.send(.shortcutChanged($0)) }
+            onChange: { store.send(.shortcutChanged($0)) },
           )
         } header: {
           Text("Switch Shortcut")
@@ -88,7 +95,7 @@ struct ProfileDetailView: View {
           } label: {
             Label(
               store.isActive ? "Active" : "Activate",
-              systemImage: store.isActive ? "checkmark.circle.fill" : "play.fill"
+              systemImage: store.isActive ? "checkmark.circle.fill" : "play.fill",
             )
           }
           .disabled(store.isActive)
@@ -114,23 +121,45 @@ struct ProfileDetailView: View {
           message: "Copy each change from “\(review.source.name)” into this profile's matching workspaces (by name). Uncheck anything you'd rather keep.",
           applyTitle: "Copy",
           groups: profileSyncGroups(review),
+          confirmationKind: .copyProfile,
           validateSelection: { excluded in
             profileSyncConflicts(review, excluding: excluded)
           },
-          onApply: { excluded in applyProfileSync(review, excluding: excluded) }
+          onApply: { excluded, suppressed in applyProfileSync(review, excluding: excluded, suppressFuture: suppressed) },
         )
       }
-      .alert($store.scope(state: \.alert, action: \.alert))
+      .persistentChangeAlert(
+        $store.scope(state: \.alert, action: \.alert),
+        suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+        suppress: Binding(
+          get: { store.suppressConfirmation },
+          set: { store.send(.confirmationSuppressionChanged($0)) },
+        ),
+      )
     } else {
       ContentUnavailableView(
         "Profile Unavailable",
         systemImage: "rectangle.stack",
-        description: Text("This profile no longer exists.")
+        description: Text("This profile no longer exists."),
       )
     }
   }
 
-  // MARK: - Sync apps from another profile
+  // MARK: Private
+
+  private struct ProfileSyncReview: Identifiable {
+    let baseline: AppConfig
+    let source: Profile
+    let targetProfileId: Profile.ID
+
+    var id: String {
+      "\(targetProfileId.uuidString):\(source.id.uuidString)"
+    }
+  }
+
+  @State private var symbolPickerPresented = false
+  @State private var syncReview: ProfileSyncReview?
+  @State private var workspaceChainEditor: WorkspaceChainEditorPresentation?
 
   /// Profiles keep independent workspaces, so assignments and settings can
   /// drift. This previews another profile's apps and workspace settings for
@@ -174,10 +203,10 @@ struct ProfileDetailView: View {
         syncReview = ProfileSyncReview(
           baseline: baseline,
           source: snapshot,
-          targetProfileId: store.profileId
+          targetProfileId: store.profileId,
         )
       }
-        .disabled(diverged.isEmpty)
+      .disabled(diverged.isEmpty)
     }
   }
 
@@ -187,7 +216,7 @@ struct ProfileDetailView: View {
   private func profileSyncGroups(_ review: ProfileSyncReview) -> [SyncChangeGroup] {
     guard let target = review.baseline.profiles.first(where: { $0.id == review.targetProfileId })
     else { return [] }
-    var groups: [SyncChangeGroup] = []
+    var groups = [SyncChangeGroup]()
     for ws in target.workspaces {
       guard let match = review.source.workspaces.first(where: { $0.name == ws.name }) else { continue }
       let appChanges = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
@@ -197,8 +226,10 @@ struct ProfileDetailView: View {
       let items = appChanges.map { SyncChangeItem($0, prefix: prefix) }
         + fieldChanges.map { SyncChangeItem($0, prefix: prefix) }
       groups.append(SyncChangeGroup(
-        id: ws.id.uuidString, title: ws.name,
-        symbol: ws.symbolIconName ?? "square.stack.3d.up", items: items
+        id: ws.id.uuidString,
+        title: ws.name,
+        symbol: ws.symbolIconName ?? "square.stack.3d.up",
+        items: items,
       ))
     }
     return groups
@@ -206,7 +237,8 @@ struct ProfileDetailView: View {
 
   private func applyProfileSync(
     _ review: ProfileSyncReview,
-    excluding excluded: Set<String>
+    excluding excluded: Set<String>,
+    suppressFuture: Bool,
   ) {
     let exclusions = profileSyncExclusions(excluded)
     store.send(.applyProfileSync(
@@ -214,7 +246,8 @@ struct ProfileDetailView: View {
       source: review.source.id,
       baseline: review.baseline,
       excludedApps: exclusions.apps,
-      excludedFields: exclusions.fields
+      excludedFields: exclusions.fields,
+      suppressFuture: suppressFuture,
     ))
   }
 
@@ -223,15 +256,17 @@ struct ProfileDetailView: View {
   /// lets a conflict involving two selected workspaces highlight both rows.
   private func profileSyncConflicts(
     _ review: ProfileSyncReview,
-    excluding excluded: Set<String>
+    excluding excluded: Set<String>,
   ) -> [String: [WorkspaceShortcutConflict]] {
     let exclusions = profileSyncExclusions(excluded)
-    guard let projection = review.baseline.profileSyncProjection(
-      into: review.targetProfileId,
-      from: review.source.id,
-      excludedAppsByWorkspace: exclusions.apps,
-      excludedFieldsByWorkspace: exclusions.fields
-    ) else { return [:] }
+    guard
+      let projection = review.baseline.profileSyncProjection(
+        into: review.targetProfileId,
+        from: review.source.id,
+        excludedAppsByWorkspace: exclusions.apps,
+        excludedFieldsByWorkspace: exclusions.fields,
+      )
+    else { return [:] }
     return Dictionary(grouping: projection.conflicts) { conflict in
       let prefix = "\(conflict.selection.workspaceId.uuidString):"
       return SyncChangeItem.fieldId(prefix, conflict.selection.field.rawValue)
@@ -241,8 +276,8 @@ struct ProfileDetailView: View {
   private func profileSyncExclusions(
     _ excluded: Set<String>
   ) -> (apps: [Workspace.ID: Set<String>], fields: [Workspace.ID: Set<String>]) {
-    var excApps: [Workspace.ID: Set<String>] = [:]
-    var excFields: [Workspace.ID: Set<String>] = [:]
+    var excApps = [Workspace.ID: Set<String>]()
+    var excFields = [Workspace.ID: Set<String>]()
     for id in excluded {
       // "<wsUUID>:app:<bundleId>" or "<wsUUID>:field:<fieldId>"
       let parts = id.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
@@ -253,18 +288,6 @@ struct ProfileDetailView: View {
     }
     return (excApps, excFields)
   }
-
-  private struct ProfileSyncReview: Identifiable {
-    let baseline: AppConfig
-    let source: Profile
-    let targetProfileId: Profile.ID
-
-    var id: String {
-      "\(targetProfileId.uuidString):\(source.id.uuidString)"
-    }
-  }
-
-  // MARK: - Auto-activation editor
 
   /// Persist the edited rule. While auto-activation is on, an all-Any rule is a
   /// deliberate catch-all (kept non-nil); the section's toggle owns `nil` (off).
@@ -280,7 +303,7 @@ struct ProfileDetailView: View {
       Toggle("Auto-activate this profile", isOn: Binding(
         get: { enabled },
         // On → keep/seed a rule (empty = catch-all); off → nil (manual only).
-        set: { on in store.send(.autoActivationChanged(on ? cur : nil)) }
+        set: { on in store.send(.autoActivationChanged(on ? cur : nil)) },
       ))
 
       if enabled {
@@ -312,7 +335,7 @@ struct ProfileDetailView: View {
             case .atMost: next.displayCount = .atMost(n)
             }
             emit(next)
-          }
+          },
         )) {
           Text("Any").tag(CountMode.any)
           Text("Exactly").tag(CountMode.exactly)
@@ -334,9 +357,9 @@ struct ProfileDetailView: View {
                 case .atMost: next.displayCount = .atMost(n)
                 }
                 emit(next)
-              }
+              },
             ),
-            in: 1 ... 8
+            in: 1 ... 8,
           )
           .padding(.leading, 12)
         }
@@ -366,7 +389,7 @@ struct ProfileDetailView: View {
                 next.whenConnected = required.isEmpty ? nil : .contains(required)
                 next.whenDisconnected = excluded
                 emit(next)
-              }
+              },
             )) {
               Text("Any").tag(DisplayReq.any)
               Text("Required").tag(DisplayReq.required)
@@ -381,16 +404,18 @@ struct ProfileDetailView: View {
     } header: {
       Text("Auto-Activation")
     } footer: {
-      Text("When on, auto-switch to this profile as the monitors match — all conditions apply together. Per monitor: Required = must be connected, Excluded = must be unplugged.")
-        .font(.caption).foregroundStyle(.secondary)
+      Text(
+        "When on, auto-switch to this profile as the monitors match — all conditions apply together. Per monitor: Required = must be connected, Excluded = must be unplugged."
+      )
+      .font(.caption).foregroundStyle(.secondary)
     }
   }
 
   private func count(_ rule: CountRule) -> Int {
-    switch rule { case .exactly(let n), .atLeast(let n), .atMost(let n): n }
+    switch rule { case .exactly(let n),
+         .atLeast(let n),
+         .atMost(let n): n }
   }
-
-  // MARK: - Overlap diagnostic
 
   /// Inline warning (equal-specificity conflict) + info (intended shadowing)
   /// about how this profile's rule overlaps the others'.
@@ -398,7 +423,9 @@ struct ProfileDetailView: View {
   private func diagnosticRows(_ d: ProfileActivationDiagnostic) -> some View {
     if !d.ambiguousWith.isEmpty {
       Label {
-        Text("Also matches \(quoted(d.ambiguousWith)) at the same priority — profile order decides which one activates. Make one more specific, or reorder them in the sidebar.")
+        Text(
+          "Also matches \(quoted(d.ambiguousWith)) at the same priority — profile order decides which one activates. Make one more specific, or reorder them in the sidebar."
+        )
       } icon: {
         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
       }
@@ -425,4 +452,5 @@ struct ProfileDetailView: View {
   private func quoted(_ names: [String]) -> String {
     names.map { "“\($0)”" }.joined(separator: ", ")
   }
+
 }
