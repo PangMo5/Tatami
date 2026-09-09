@@ -15,6 +15,48 @@ import TOML
 /// while corrupt top-level sections fail the decode so the fileStorage
 /// containment keeps the previous config instead of silently resetting.
 struct ConfigDecodeTests {
+  @Test
+  func `legacy assignment confirmation migrates to the global policy`() throws {
+    let config = try TOMLDecoder().decode(AppConfig.self, from: "[settings.switching]\nconfirmAppAssignment = false")
+    #expect(ConfirmationKind.allCases.allSatisfy { !config.settings.confirmations[$0] })
+    let encoded = try TOMLEncoder().encode(config)
+    let decoded = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    expectNoDifference(decoded.settings.confirmations, config.settings.confirmations)
+    #expect(!String(decoding: encoded, as: UTF8.self).contains("confirmAppAssignment"))
+  }
+
+  @Test(arguments: [false, true])
+  func `explicit global confirmation setting takes precedence over legacy setting`(_ enabled: Bool) throws {
+    let config = try TOMLDecoder().decode(
+      AppConfig.self,
+      from: "[settings.general]\nconfirmDestructiveActions = \(enabled)\n[settings.switching]\nconfirmAppAssignment = \(!enabled)",
+    )
+    #expect(ConfirmationKind.allCases.allSatisfy { config.settings.confirmations[$0] == enabled })
+  }
+
+  @Test
+  func `explicit per action confirmations override legacy defaults`() throws {
+    let config = try TOMLDecoder().decode(
+      AppConfig.self,
+      from: "[settings.general]\nconfirmDestructiveActions = false\n[settings.confirmations]\nmoveWorkspaceApp = true",
+    )
+    #expect(config.settings.confirmations[.moveWorkspaceApp])
+    #expect(ConfirmationKind.allCases.filter { $0 != .moveWorkspaceApp }.allSatisfy { !config.settings.confirmations[$0] })
+    let encoded = try TOMLEncoder().encode(config)
+    #expect(!String(decoding: encoded, as: UTF8.self).contains("confirmDestructiveActions"))
+    let roundTrip = try TOMLDecoder().decode(AppConfig.self, from: encoded)
+    expectNoDifference(roundTrip.settings.confirmations, config.settings.confirmations)
+  }
+
+  @Test(arguments: ConfirmationKind.allCases)
+  func `each confirmation can be disabled independently`(_ kind: ConfirmationKind) throws {
+    var settings = AppSettings.Confirmations()
+    settings[kind] = false
+    let roundTrip = try TOMLDecoder().decode(AppSettings.Confirmations.self, from: TOMLEncoder().encode(settings))
+    #expect(!roundTrip[kind])
+    #expect(ConfirmationKind.allCases.filter { $0 != kind }.allSatisfy { roundTrip[$0] })
+  }
+
   @Test(arguments: ["\"typo\"", "42", "[]"])
   func `invalid auto balance reports the field and uses its default`(_ value: String) throws {
     let reports = LockIsolated<[String]>([])
@@ -85,6 +127,7 @@ struct ConfigDecodeTests {
     #expect(config.settings.switching.recentAcrossDisplays)
     #expect(config.settings.switching.includeSharedAppsInWindowSwitcher)
     #expect(config.settings.switching.toggleBorrowOnRepeat)
+    #expect(ConfirmationKind.allCases.allSatisfy { config.settings.confirmations[$0] })
     #expect(config.settings.hud.windowCycle)
     #expect(config.settings.hud.position == .top)
     #expect(config.settings.hud.size == .standard)

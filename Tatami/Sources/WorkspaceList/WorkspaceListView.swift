@@ -5,6 +5,14 @@ import ComposableArchitecture
 import SwiftUI
 import TatamiKit
 
+// MARK: - WorkspaceEditorFocus
+
+enum WorkspaceEditorFocus: Hashable {
+  case profiles
+  case workspaces
+  case workspaceName(Workspace.ID)
+}
+
 // MARK: - WorkspaceListView
 
 struct WorkspaceListView: View {
@@ -41,7 +49,14 @@ struct WorkspaceListView: View {
         store.send(.duplicationReviewConfirmed(excluding: excluded))
       }
     }
-    .alert($store.scope(state: \.alert, action: \.alert))
+    .persistentChangeAlert(
+      $store.scope(state: \.alert, action: \.alert),
+      suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+      suppress: Binding(
+        get: { store.suppressConfirmation },
+        set: { store.send(.confirmationSuppressionChanged($0)) },
+      ),
+    )
     .task { store.send(.sidebarAppeared) }
     .onChange(of: focusedRenameTarget) { oldTarget, newTarget in
       guard
@@ -55,8 +70,9 @@ struct WorkspaceListView: View {
 
   // MARK: Private
 
-  @State private var dropIndicator: DropIndicator?
+  @FocusState private var editorFocus: WorkspaceEditorFocus?
   @FocusState private var focusedRenameTarget: WorkspaceListFeature.NameTarget?
+  @State private var dropIndicator: DropIndicator?
 
   /// The profile whose contents col 2 lists. Its green dot in col 1 marks the
   /// *active* (running) profile, which need not be the selected one.
@@ -65,7 +81,13 @@ struct WorkspaceListView: View {
   }
 
   private var profilesColumn: some View {
-    List(selection: $store.topSelection.sending(\.topSelected)) {
+    List(selection: Binding(
+      get: { store.topSelection },
+      set: { selection in
+        editorFocus = .profiles
+        store.send(.topSelected(selection))
+      },
+    )) {
       Section("Profiles") {
         // `id: \.sidebarTop` (not Profile's own id): macOS only wires the
         // selection gesture when the ForEach id type matches the List's
@@ -108,6 +130,7 @@ struct WorkspaceListView: View {
       }
     }
     .listStyle(.sidebar)
+    .focused($editorFocus, equals: .profiles)
     .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 260)
     .navigationTitle("Tatami")
   }
@@ -130,7 +153,13 @@ struct WorkspaceListView: View {
   }
 
   private var profileContentList: some View {
-    List(selection: $store.selection.sending(\.sidebarSelected)) {
+    List(selection: Binding(
+      get: { store.selection },
+      set: { selection in
+        editorFocus = .workspaces
+        store.send(.sidebarSelected(selection))
+      },
+    )) {
       // The profile's own settings (name, icon, auto-activation, copy) — the
       // reason a non-active profile can be inspected without switching to it.
       // Wrapped in a ForEach because macOS `List(selection:)` only makes
@@ -181,6 +210,7 @@ struct WorkspaceListView: View {
       }
     }
     .listStyle(.sidebar)
+    .focused($editorFocus, equals: .workspaces)
     .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
     .navigationTitle(store.selectedProfile?.name ?? String(localized: "Workspaces"))
     .toolbar {
@@ -199,7 +229,7 @@ struct WorkspaceListView: View {
   @ViewBuilder
   private var detailColumn: some View {
     if let detailStore = store.scope(state: \.detail, action: \.detail) {
-      WorkspaceDetailView(store: detailStore, activationStore: activationStore)
+      WorkspaceDetailView(store: detailStore, activationStore: activationStore, editorFocus: $editorFocus)
     } else if let sharedStore = store.scope(state: \.shared, action: \.shared) {
       SharedAppsView(store: sharedStore)
     } else if let profileStore = store.scope(state: \.profileDetail, action: \.profileDetail) {
@@ -248,29 +278,19 @@ struct WorkspaceListView: View {
     let hasChain = store.selectedProfile?.validWorkspaceChain(containing: workspace.id) != nil
 
     return HStack(alignment: hasChain ? .top : .center, spacing: 8) {
-      Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
-        .frame(width: 20, height: 20)
-        .foregroundStyle(
-          store.selection == workspace.sidebarItem
-            ? AnyShapeStyle(.primary)
-            : AnyShapeStyle(.tint)
-        )
-        .accessibilityHidden(true)
-
-      VStack(alignment: .leading, spacing: 5) {
-        editableName(workspace.name, target: .workspace(workspace.id))
-
-        if
-          let profile = store.selectedProfile,
-          hasChain
-        {
-          WorkspaceChainPeerIcons(
-            profile: profile,
-            workspaceID: workspace.id,
-          )
+      Label {
+        VStack(alignment: .leading, spacing: 5) {
+          editableName(workspace.name, target: .workspace(workspace.id))
+          if let profile = store.selectedProfile, hasChain {
+            WorkspaceChainPeerIcons(profile: profile, workspaceID: workspace.id)
+          }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } icon: {
+        Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
+          .frame(width: 20, height: 20)
+          .accessibilityHidden(true)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
 
       WorkspaceRuntimeStatusView(
         workspaceID: workspace.id,
@@ -438,6 +458,7 @@ private struct DuplicationReviewSheet: View {
         message: "Choose which workspaces and content to include. The profile switch shortcut and auto-activation are left off; workspace shortcuts can be copied because the new profile is independently scoped.",
         applyTitle: "Duplicate",
         groups: profileGroups(profile),
+        confirmationKind: nil,
         allowsEmptySelection: true,
         validateSelection: { excluded in
           WorkspaceListFeature.duplicationShortcutConflicts(
@@ -445,7 +466,7 @@ private struct DuplicationReviewSheet: View {
             excluding: excluded,
           )
         },
-        onApply: onConfirm,
+        onApply: { excluded, _ in onConfirm(excluded) },
       )
 
     case .workspace(let workspace):
@@ -454,6 +475,7 @@ private struct DuplicationReviewSheet: View {
         message: "Choose the apps, settings, and saved layout to include. Workspace keys and explicit shortcuts are always left blank to avoid conflicts.",
         applyTitle: "Duplicate",
         groups: workspaceGroups(workspace),
+        confirmationKind: nil,
         allowsEmptySelection: true,
         validateSelection: { excluded in
           WorkspaceListFeature.duplicationShortcutConflicts(
@@ -461,7 +483,7 @@ private struct DuplicationReviewSheet: View {
             excluding: excluded,
           )
         },
-        onApply: onConfirm,
+        onApply: { excluded, _ in onConfirm(excluded) },
       )
     }
   }

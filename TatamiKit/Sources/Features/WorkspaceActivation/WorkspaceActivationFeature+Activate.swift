@@ -2479,6 +2479,7 @@ extension WorkspaceActivationFeature {
           position: hudPosition,
           size: hudSize,
           display: targetDisplay,
+          priority: .warning,
         )
       }
     }
@@ -2567,6 +2568,8 @@ extension WorkspaceActivationFeature {
                   position: hudPosition,
                   size: hudSize,
                   display: hudDisplay,
+                  contextID: workspace.id,
+                  contextName: workspace.name,
                 )
               )
             }
@@ -3079,11 +3082,11 @@ extension WorkspaceActivationFeature {
     let name = profile.name
     let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
     let entries = plan.compactMap { assignment in
-      profile.workspaces[id: assignment.workspace].map { (assignment.display, $0.name) }
+      profile.workspaces[id: assignment.workspace].map { (assignment.display, $0.id, $0.name) }
     }
     guard !entries.isEmpty else { return .none }
     return .run { [workspaceHUD] _ in
-      for (display, workspaceName) in entries {
+      for (display, workspaceID, workspaceName) in entries {
         await workspaceHUD.showAction(
           ActionHUDRequest(
             name: name,
@@ -3093,6 +3096,8 @@ extension WorkspaceActivationFeature {
             position: position,
             size: size,
             display: display,
+            contextID: workspaceID,
+            contextName: workspaceName,
           )
         )
       }
@@ -3387,6 +3392,7 @@ extension WorkspaceActivationFeature {
       "Borrowed \(target.name)",
       Self.borrowEdgeIcon(edge),
       display: display,
+      contextID: targetId,
     )
     let render = Effect<Action>.run {
       [
@@ -3658,6 +3664,8 @@ extension WorkspaceActivationFeature {
         position: position,
         size: size,
         display: display,
+        contextID: workspace.id,
+        contextName: workspace.name,
       ))
     }
     hudRequests.append(contentsOf: workspaceChainSourceCompositionHUDRequests(
@@ -3762,6 +3770,8 @@ extension WorkspaceActivationFeature {
           position: position,
           size: size,
           display: capture.display,
+          priority: .instruction,
+          contextID: capture.workspaceId,
         )
       )
     }

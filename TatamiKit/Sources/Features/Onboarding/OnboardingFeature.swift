@@ -240,7 +240,7 @@ public struct OnboardingProgress: Codable, Equatable, Sendable {
     self.baseline = baseline
     self.demoActiveWorkspaceID = demoActiveWorkspaceID
     self.demoBorrowed = demoBorrowed
-    self.demoFullscreenSlot = demoActiveWorkspaceID.flatMap { workspaceID in
+    demoFullscreenSlot = demoActiveWorkspaceID.flatMap { workspaceID in
       demoLayoutTree?.windows.first(where: {
         demoFullscreenZoomed[workspaceID]?.contains($0) == true
       })
@@ -320,6 +320,9 @@ public struct OnboardingFeature {
 
     // MARK: Public
 
+    @Shared(.tatamiConfig) public var config
+    @Presents public var alert: AlertState<Action.Alert>?
+    public var suppressConfirmation = false
     public var activateAfterApplying = true
     public var aiRecommendation: OnboardingRecommendation?
     public var aiRecommendationAvailability = OnboardingRecommendationAvailability.unavailable(
@@ -354,16 +357,6 @@ public struct OnboardingFeature {
     public var displays = [DisplayName]()
     public var draft = AppConfig()
     public var externalAIPromptCopied = false
-
-    public var demoBorrowFullscreenSlots: Set<SlotID> {
-      guard let demoBorrowWorkspaceID else { return [] }
-      return demoFullscreenZoomed[demoBorrowWorkspaceID] ?? []
-    }
-
-    public var demoFullscreenSlots: Set<SlotID> {
-      guard let demoActiveWorkspaceID else { return [] }
-      return demoFullscreenZoomed[demoActiveWorkspaceID] ?? []
-    }
     public var furthestStepIndex = 0
     public var hasAccessibility = true
     public var hasScreenRecording = true
@@ -378,6 +371,16 @@ public struct OnboardingFeature {
     public var roleDescription = ""
     public var runningApps = [MacApp]()
     public var step = OnboardingStep.welcome
+
+    public var demoBorrowFullscreenSlots: Set<SlotID> {
+      guard let demoBorrowWorkspaceID else { return [] }
+      return demoFullscreenZoomed[demoBorrowWorkspaceID] ?? []
+    }
+
+    public var demoFullscreenSlots: Set<SlotID> {
+      guard let demoActiveWorkspaceID else { return [] }
+      return demoFullscreenZoomed[demoActiveWorkspaceID] ?? []
+    }
 
     public var activeProfile: Profile? {
       draft.activeProfile
@@ -576,9 +579,15 @@ public struct OnboardingFeature {
       draft.hotKeyBindings.first { $0.action == action }?.hotKey
     }
 
+    // MARK: Internal
+
+    var confirmationDraft: AppConfig?
+
   }
 
   public enum Action: BindableAction {
+    case alert(PresentationAction<Alert>)
+    case confirmationSuppressionChanged(Bool)
     case accessibilityChanged
     case addProfileButtonTapped
     case addScratchpadButtonTapped
@@ -637,6 +646,26 @@ public struct OnboardingFeature {
 
     // MARK: Public
 
+    public enum Alert: Equatable {
+      case confirmReset
+      case confirmReload
+      case confirmApply
+      case confirmRecommendation
+      case confirmDeleteWorkspace(Workspace.ID)
+      case confirmDeleteProfile(Profile.ID)
+
+      var confirmationKind: ConfirmationKind {
+        switch self {
+        case .confirmReset: .resetSetup
+        case .confirmReload: .reloadSetup
+        case .confirmApply: .applySetup
+        case .confirmRecommendation: .applySetupRecommendation
+        case .confirmDeleteWorkspace: .deleteSetupWorkspace
+        case .confirmDeleteProfile: .deleteSetupProfile
+        }
+      }
+    }
+
     public enum Delegate {
       case applyRequested(baseline: AppConfig, draft: AppConfig, activateFirstWorkspace: Bool)
       case gesturePreviewChanged(enabled: Bool, threshold: Double)
@@ -652,6 +681,15 @@ public struct OnboardingFeature {
     BindingReducer()
     Reduce { state, action in
       switch action {
+      case .confirmationSuppressionChanged(let suppressed):
+        state.suppressConfirmation = suppressed
+        return .none
+
+      case .alert(.dismiss):
+        state.suppressConfirmation = false
+        state.confirmationDraft = nil
+        return .none
+
       case .appStarted(let config, let hasExistingConfig):
         return prepare(
           config: config,
@@ -818,6 +856,15 @@ public struct OnboardingFeature {
         return persistAndRefreshShortcuts(state)
 
       case .deleteWorkspaceButtonTapped(let id):
+        return requestConfirmation(
+          .confirmDeleteWorkspace(id),
+          title: "Delete this workspace?",
+          message: "Delete this workspace and its assignments from the saved Guided Setup draft. Your live configuration is unchanged.",
+          state: &state,
+        )
+
+      case .alert(.presented(.confirmDeleteWorkspace(let id))):
+        guard acceptConfirmation(.deleteSetupWorkspace, state: &state, applying: false) else { return .none }
         guard
           let workspace = state.activeProfile?.workspaces[id: id],
           workspace.kind == .scratchpad || state.normalWorkspaces.count > 1
@@ -947,6 +994,16 @@ public struct OnboardingFeature {
         return .none
 
       case .aiRecommendationApplyButtonTapped:
+        guard state.aiRecommendation != nil else { return .none }
+        return requestConfirmation(
+          .confirmRecommendation,
+          title: "Apply this recommendation?",
+          message: "Replace the workspace map in your saved Guided Setup draft with this recommendation. Your live configuration is unchanged.",
+          state: &state,
+        )
+
+      case .alert(.presented(.confirmRecommendation)):
+        guard acceptConfirmation(.applySetupRecommendation, state: &state, applying: false) else { return .none }
         guard
           let recommendation = state.aiRecommendation,
           let profileID = state.activeProfileID
@@ -1236,6 +1293,15 @@ public struct OnboardingFeature {
         return persist(state)
 
       case .deleteProfileButtonTapped(let id):
+        return requestConfirmation(
+          .confirmDeleteProfile(id),
+          title: "Delete this profile?",
+          message: "Delete this profile and its workspaces from the saved Guided Setup draft. Your live configuration is unchanged.",
+          state: &state,
+        )
+
+      case .alert(.presented(.confirmDeleteProfile(let id))):
+        guard acceptConfirmation(.deleteSetupProfile, state: &state, applying: false) else { return .none }
         guard state.draft.profiles.count > 1 else { return .none }
         state.draft.profiles.removeAll { $0.id == id }
         if state.draft.activeProfileId == id {
@@ -1248,6 +1314,16 @@ public struct OnboardingFeature {
         return persist(state)
 
       case .applyButtonTapped:
+        guard state.canApply, !state.isApplying else { return .none }
+        return requestConfirmation(
+          .confirmApply,
+          title: "Apply this configuration?",
+          message: "Replace the saved configuration with this Guided Setup draft. This can remove existing workspaces, assignments, and settings.",
+          state: &state,
+        )
+
+      case .alert(.presented(.confirmApply)):
+        guard acceptConfirmation(.applySetup, state: &state, applying: true) else { return .none }
         state.isApplying = true
         state.configurationConflict = false
         return .send(.delegate(.applyRequested(
@@ -1263,7 +1339,18 @@ public struct OnboardingFeature {
         return .none
 
       case .reloadConfigurationButtonTapped:
-        guard let latest = state.conflictingConfig else { return .none }
+        guard state.conflictingConfig != nil else { return .none }
+        return requestConfirmation(
+          .confirmReload,
+          title: "Reload configuration?",
+          message: "Discard the current Guided Setup draft and load the latest configuration.",
+          state: &state,
+        )
+
+      case .alert(.presented(.confirmReload)):
+        guard acceptConfirmation(.reloadSetup, state: &state, applying: false) else { return .none }
+        guard var latest = state.conflictingConfig else { return .none }
+        latest.settings.confirmations = state.config.settings.confirmations
         state.baseline = latest
         state.draft = makeDraft(from: latest, apps: state.runningApps, displays: state.displays)
         state.configurationConflict = false
@@ -1285,6 +1372,15 @@ public struct OnboardingFeature {
         )
 
       case .resetButtonTapped:
+        return requestConfirmation(
+          .confirmReset,
+          title: "Start over?",
+          message: "Discard your saved Guided Setup draft and progress. Your live configuration is unchanged.",
+          state: &state,
+        )
+
+      case .alert(.presented(.confirmReset)):
+        guard acceptConfirmation(.resetSetup, state: &state, applying: false) else { return .none }
         state.draft = makeDraft(from: state.baseline, apps: state.runningApps, displays: state.displays)
         state.contextStyle = .focused
         state.prefersScratchpads = true
@@ -1334,6 +1430,7 @@ public struct OnboardingFeature {
         return .none
       }
     }
+    .ifLet(\.$alert, action: \.alert)
   }
 
   // MARK: Internal
@@ -1363,6 +1460,35 @@ public struct OnboardingFeature {
 
   private static let starterKeys = ["1", "2", "3", "4", "5", "6", "7", "8"]
   private static let demoWorkArea = CGRect(x: 0, y: 0, width: 1200, height: 720)
+
+  private func requestConfirmation(
+    _ action: Action.Alert,
+    title: LocalizedStringResource,
+    message: LocalizedStringResource,
+    state: inout State,
+  ) -> Effect<Action> {
+    state.suppressConfirmation = false
+    state.confirmationDraft = state.draft
+    state.alert = AlertState { TextState(title) } actions: {
+      ButtonState(role: .destructive, action: action) { TextState("Continue") }
+      ButtonState(role: .cancel) { TextState("Cancel") }
+    } message: { TextState(message) }
+    return state.config.settings.confirmations[action.confirmationKind] ? .none : .send(.alert(.presented(action)))
+  }
+
+  private func acceptConfirmation(_ kind: ConfirmationKind, state: inout State, applying: Bool) -> Bool {
+    defer { state.confirmationDraft = nil
+      state.suppressConfirmation = false
+    }
+    guard let draft = state.confirmationDraft, draft.hasSamePersistedContent(as: state.draft) else { return false }
+    guard state.suppressConfirmation else { return true }
+    state.draft.settings.confirmations[kind] = false
+    if !applying {
+      state.$config.withLock { $0.settings.confirmations[kind] = false }
+      state.baseline.settings.confirmations[kind] = false
+    }
+    return true
+  }
 
   private func recommendationDisplays() -> [OnboardingRecommendationDisplay] {
     let displays = displayClient.all()
@@ -2155,7 +2281,7 @@ public struct OnboardingFeature {
         }
         state.demoActionResult = String(
           localized:
-            "No window lies \(String(localized: direction.displayName).lowercased()) of the focused tile"
+          "No window lies \(String(localized: direction.displayName).lowercased()) of the focused tile"
         )
         return true
       }
@@ -2229,7 +2355,7 @@ public struct OnboardingFeature {
           ? String(localized: "A single root tile cannot swap or warp")
           : String(
             localized:
-              "No neighbour there · the parent split already points \(String(localized: direction.displayName).lowercased())"
+            "No neighbour there · the parent split already points \(String(localized: direction.displayName).lowercased())"
           )
         return true
       }
@@ -2240,11 +2366,11 @@ public struct OnboardingFeature {
       state.demoActionResult = hadNeighbor
         ? String(
           localized:
-            "Swapped with the \(String(localized: direction.displayName).lowercased()) neighbour"
+          "Swapped with the \(String(localized: direction.displayName).lowercased()) neighbour"
         )
         : String(
           localized:
-            "No neighbour there · warped the parent split \(String(localized: direction.displayName).lowercased())"
+          "No neighbour there · warped the parent split \(String(localized: direction.displayName).lowercased())"
         )
     }
     return true

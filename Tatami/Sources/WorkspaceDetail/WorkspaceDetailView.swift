@@ -26,6 +26,7 @@ struct WorkspaceDetailView: View {
   @Bindable var store: StoreOf<WorkspaceDetailFeature>
 
   let activationStore: StoreOf<WorkspaceActivationFeature>
+  let editorFocus: FocusState<WorkspaceEditorFocus?>.Binding
 
   var body: some View {
     if let workspace = store.workspace {
@@ -70,10 +71,10 @@ struct WorkspaceDetailView: View {
               TextField("", text: $nameDraft)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 360)
-                .focused($nameFieldFocused)
-                .onSubmit { store.send(.nameSubmitted(nameDraft)) }
-                .onChange(of: nameFieldFocused) { _, focused in
-                  if !focused { store.send(.nameSubmitted(nameDraft)) }
+                .focused(editorFocus, equals: .workspaceName(workspace.id))
+                .onSubmit { commitNameDraft() }
+                .onChange(of: editorFocus.wrappedValue) { previous, current in
+                  if previous == .workspaceName(workspace.id), previous != current { commitNameDraft() }
                 }
             }
 
@@ -322,17 +323,32 @@ struct WorkspaceDetailView: View {
             message: "Copy each change from “\(review.workspaceName)” (\(review.profileName)) into this workspace. Uncheck anything you'd rather keep.",
             applyTitle: "Copy",
             groups: importGroups(review),
+            confirmationKind: .copyWorkspace,
             validateSelection: { excluded in
               importConflicts(review, excluding: excluded)
             },
-            onApply: { excluded in applyImport(review, excluding: excluded) },
+            onApply: { excluded, suppressed in applyImport(review, excluding: excluded, suppressFuture: suppressed) },
           )
         }
-        .onChange(of: workspace.id, initial: true) { _, _ in nameDraft = workspace.name }
+        .onChange(of: workspace.id, initial: true) { _, _ in
+          // A reused detail view must not carry its text-field focus or draft
+          // into the newly selected workspace.
+          commitNameDraft()
+          if case .workspaceName(let owner) = editorFocus.wrappedValue, owner != workspace.id {
+            editorFocus.wrappedValue = .workspaces
+          }
+          nameDraftWorkspaceID = workspace.id
+          originalNameDraft = workspace.name
+          nameDraft = workspace.name
+        }
         // A sidebar inline rename keeps the workspace identity. Refresh only
         // this draft instead of rebuilding the whole detail view (which would
         // discard its scroll position, sheets, and transient highlighting).
-        .onChange(of: workspace.name) { _, name in nameDraft = name }
+        .onChange(of: workspace.name) { _, name in
+          guard editorFocus.wrappedValue != .workspaceName(workspace.id), nameDraftWorkspaceID == workspace.id else { return }
+          originalNameDraft = name
+          nameDraft = name
+        }
         // Keyed on the workspace so re-running per selection re-fetches the
         // display list (a plain `.task` only fires on first appearance, which
         // left later workspaces' pickers showing just their own pinned display).
@@ -352,7 +368,14 @@ struct WorkspaceDetailView: View {
         .onReceive(
           NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
         ) { _ in store.send(.refreshDisplays) }
-        .alert($store.scope(state: \.alert, action: \.alert))
+        .persistentChangeAlert(
+          $store.scope(state: \.alert, action: \.alert),
+          suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+          suppress: Binding(
+            get: { store.suppressConfirmation },
+            set: { store.send(.confirmationSuppressionChanged($0)) },
+          ),
+        )
         // A "Configure in Apps" jump: scroll the Apps section to the row and
         // flash it. Keyed on the request token so repeat jumps refire.
         .task(id: store.appScrollRequest?.token) {
@@ -396,7 +419,8 @@ struct WorkspaceDetailView: View {
   @State private var highlightedApp: String?
   /// The workspace picked to copy from — drives the review sheet.
   @State private var importReview: WorkspaceImportReview?
-  @FocusState private var nameFieldFocused: Bool
+  @State private var nameDraftWorkspaceID: Workspace.ID?
+  @State private var originalNameDraft = ""
 
   private let highlightFlash = Duration.seconds(1.6)
 
@@ -524,9 +548,16 @@ struct WorkspaceDetailView: View {
     return groups
   }
 
+  private func commitNameDraft() {
+    guard let id = nameDraftWorkspaceID, nameDraft != originalNameDraft else { return }
+    store.send(.nameSubmitted(nameDraft, workspaceID: id))
+    originalNameDraft = nameDraft
+  }
+
   private func applyImport(
     _ review: WorkspaceImportReview,
     excluding excluded: Set<String>,
+    suppressFuture: Bool,
   ) {
     let exclusions = importExclusions(excluded)
     store.send(.importWorkspace(
@@ -536,6 +567,7 @@ struct WorkspaceDetailView: View {
       baseline: review.baseline,
       excludingApps: exclusions.apps,
       excludingFields: exclusions.fields,
+      suppressFuture: suppressFuture,
     ))
   }
 

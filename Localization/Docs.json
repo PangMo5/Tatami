@@ -1,4 +1,193 @@
 {
+  "75be03c96fc163e7": {
+    "en": "Choose confirmations for each action independently. Every option is enabled by default. Selecting \"Don't ask again\" and confirming disables only that action. Cancelling keeps the preference unchanged. Older global confirmation settings are migrated to these options; explicitly configured options take precedence.",
+    "ko": "동작별로 확인 여부를 고를 수 있어요. 기본으로 모두 켜져 있어요. ‘다시 보지 않기’를 선택하고 실행하면 해당 동작의 확인만 꺼져요. 취소하면 설정을 유지해요. 기존 전체 확인 설정은 각 항목으로 이전하며, 직접 지정한 항목이 우선해요.",
+    "ja": "操作ごとに確認を設定できます。初期状態ではすべてオンです。「次回から確認しない」を選んで確定すると、その操作の確認だけがオフになります。キャンセルでは設定を変更しません。従来の一括設定は各項目に移行し、個別に指定した値を優先します。",
+    "zh-Hans": "可独立设置每项操作的确认，默认全部开启。选择“不再询问”并确认后，只关闭对应操作的确认。取消不会更改偏好。旧的全局确认设置会迁移到这些选项，明确设置的单项值优先。",
+    "zh-Hant": "可分別設定各項操作的確認，預設全部開啟。選取「不再詢問」並確認後，只會關閉對應操作的確認。取消不會變更偏好。舊的全域確認設定會移轉到這些選項，明確設定的單項值優先。"
+  },
+  "95763a39fc468b25": {
+    "en": "Persistent app membership and layout commands open a confirmation HUD by default. The command changes the configuration only after you confirm, then shows its result in the same HUD. Configure each action in Settings → General → Confirmations. \"Don't ask again\" disables only that action after confirming; cancelling leaves it enabled.",
+    "ko": "앱 소속과 배치 방식을 저장하는 명령은 기본으로 확인 화면을 열어요. 확인한 뒤에 설정을 바꾸고 같은 화면에 결과를 보여줘요. 설정 → 일반 → 확인에서 동작별로 고를 수 있어요. ‘다시 보지 않기’는 실행한 동작의 확인만 끄며, 취소하면 유지해요.",
+    "ja": "アプリの所属や表示方法を保存するコマンドは、初期状態で確認HUDを開きます。確定後に設定を変更し、同じHUDで結果を表示します。「設定」→「一般」→「確認」で操作ごとに選べます。「次回から確認しない」は確定した操作だけに適用され、キャンセルでは変わりません。",
+    "zh-Hans": "保存应用归属或布局的命令默认打开确认提示框。确认后才会更改配置，并在同一提示框中显示结果。可在设置 → 通用 → 操作确认中逐项设置。“不再询问”仅在确认后关闭对应操作的确认；取消则保持开启。",
+    "zh-Hant": "儲存 App 歸屬或排列的指令預設會開啟確認提示視窗。確認後才會變更設定，並在同一提示視窗中顯示結果。可在設定 → 一般 → 操作確認中逐項設定。「不再詢問」只會在確認後關閉對應操作的確認；取消則維持開啟。"
+  },
+  "f3411da52933e469": {
+    "en": "Add apps to workspaces",
+    "ko": "작업 공간에 앱 지정",
+    "ja": "ワークスペースにアプリを割り当てる",
+    "zh-Hans": "将应用分配到工作区",
+    "zh-Hant": "將 App 指派到工作空間"
+  },
+  "16a19ff0049bf10b": {
+    "en": "Move apps between workspaces",
+    "ko": "작업 공간 사이에서 앱 이동",
+    "ja": "ワークスペース間でアプリを移動",
+    "zh-Hans": "在工作区之间移动应用",
+    "zh-Hant": "在工作空間之間移動 App"
+  },
+  "0bf472ca875694de": {
+    "en": "Remove apps from workspaces",
+    "ko": "작업 공간에서 앱 제거",
+    "ja": "ワークスペースからアプリを削除",
+    "zh-Hans": "从工作区移除应用",
+    "zh-Hant": "從工作空間移除 App"
+  },
+  "8b04010873bb8fe5": {
+    "en": "Keep workspace apps always on top",
+    "ko": "작업 공간 앱을 항상 위로 변경",
+    "ja": "ワークスペースのアプリを常に手前に表示",
+    "zh-Hans": "将工作区应用置顶",
+    "zh-Hant": "將工作空間 App 置頂"
+  },
+  "494775847fb8b945": {
+    "en": "Tile workspace apps",
+    "ko": "작업 공간 앱을 타일링으로 변경",
+    "ja": "ワークスペースのアプリをタイル表示",
+    "zh-Hans": "平铺工作区应用",
+    "zh-Hant": "並排工作空間 App"
+  },
+  "2289a7ba1649c00c": {
+    "en": "Leave workspace apps as is",
+    "ko": "작업 공간 앱을 그대로 두기로 변경",
+    "ja": "ワークスペースのアプリをそのままにする",
+    "zh-Hans": "保持工作区应用原样",
+    "zh-Hant": "維持工作空間 App 原狀"
+  },
+  "af442a883d108107": {
+    "en": "Add Shared Apps",
+    "ko": "공용 앱 추가",
+    "ja": "共有アプリを追加",
+    "zh-Hans": "添加共享应用",
+    "zh-Hant": "加入共用 App"
+  },
+  "b321d5c15f7a74c0": {
+    "en": "Remove Shared Apps",
+    "ko": "공용 앱 제거",
+    "ja": "共有アプリを削除",
+    "zh-Hans": "移除共享应用",
+    "zh-Hant": "移除共用 App"
+  },
+  "01b93310109fd64e": {
+    "en": "Keep Shared Apps always on top",
+    "ko": "공용 앱을 항상 위로 변경",
+    "ja": "共有アプリを常に手前に表示",
+    "zh-Hans": "将共享应用置顶",
+    "zh-Hant": "將共用 App 置頂"
+  },
+  "159cfaaf0459fee7": {
+    "en": "Tile Shared Apps",
+    "ko": "공용 앱을 타일링으로 변경",
+    "ja": "共有アプリをタイル表示",
+    "zh-Hans": "平铺共享应用",
+    "zh-Hant": "並排共用 App"
+  },
+  "88e0713a2d88578e": {
+    "en": "Leave Shared Apps as is",
+    "ko": "공용 앱을 그대로 두기로 변경",
+    "ja": "共有アプリをそのままにする",
+    "zh-Hans": "保持共享应用原样",
+    "zh-Hant": "維持共用 App 原狀"
+  },
+  "17b136aa786589fe": {
+    "en": "Delete workspaces",
+    "ko": "작업 공간 삭제",
+    "ja": "ワークスペースを削除",
+    "zh-Hans": "删除工作区",
+    "zh-Hant": "刪除工作空間"
+  },
+  "83627b4609d054d5": {
+    "en": "Delete profiles",
+    "ko": "프로필 삭제",
+    "ja": "プロファイルを削除",
+    "zh-Hans": "删除配置方案",
+    "zh-Hant": "刪除設定組合"
+  },
+  "1dea62cd68863c6d": {
+    "en": "Delete workspace chains",
+    "ko": "작업 공간 체인 삭제",
+    "ja": "ワークスペースチェーンを削除",
+    "zh-Hans": "删除工作区链",
+    "zh-Hant": "刪除工作空間鏈"
+  },
+  "074a92c99c80777c": {
+    "en": "Delete hooks",
+    "ko": "훅 삭제",
+    "ja": "フックを削除",
+    "zh-Hans": "删除钩子",
+    "zh-Hant": "刪除鉤子"
+  },
+  "3f0e87d8e23ee0b2": {
+    "en": "Remove overlay exceptions",
+    "ko": "창 표시 예외 제거",
+    "ja": "ウインドウ表示の例外を削除",
+    "zh-Hans": "移除窗口显示例外",
+    "zh-Hant": "移除視窗顯示例外"
+  },
+  "462ed1053a03b426": {
+    "en": "Copy workspace settings",
+    "ko": "작업 공간 설정 복사",
+    "ja": "ワークスペース設定をコピー",
+    "zh-Hans": "复制工作区设置",
+    "zh-Hant": "複製工作空間設定"
+  },
+  "2ae7c14ee3c95c9f": {
+    "en": "Copy profile settings",
+    "ko": "프로필 설정 복사",
+    "ja": "プロファイル設定をコピー",
+    "zh-Hans": "复制配置方案设置",
+    "zh-Hant": "複製設定組合設定"
+  },
+  "8dc0960d00096446": {
+    "en": "Start Guided Setup over",
+    "ko": "설정 안내 처음부터 다시 시작",
+    "ja": "セットアップを最初からやり直す",
+    "zh-Hans": "重新开始引导设置",
+    "zh-Hant": "重新開始引導設定"
+  },
+  "cf4980402bb95f9a": {
+    "en": "Reload the Guided Setup draft",
+    "ko": "설정 안내 초안 다시 불러오기",
+    "ja": "セットアップの下書きを読み込み直す",
+    "zh-Hans": "重新载入引导设置草稿",
+    "zh-Hant": "重新載入引導設定草稿"
+  },
+  "3fdd244128850101": {
+    "en": "Apply the Guided Setup draft",
+    "ko": "설정 안내 초안 적용",
+    "ja": "セットアップの下書きを適用",
+    "zh-Hans": "应用引导设置草稿",
+    "zh-Hant": "套用引導設定草稿"
+  },
+  "bec21f197377e298": {
+    "en": "Apply a setup recommendation",
+    "ko": "설정 추천 적용",
+    "ja": "セットアップの提案を適用",
+    "zh-Hans": "应用设置建议",
+    "zh-Hant": "套用設定建議"
+  },
+  "5a0c0ed8a6494bfc": {
+    "en": "Delete workspaces from the setup draft",
+    "ko": "설정 초안에서 작업 공간 삭제",
+    "ja": "セットアップの下書きからワークスペースを削除",
+    "zh-Hans": "从设置草稿删除工作区",
+    "zh-Hant": "從設定草稿刪除工作空間"
+  },
+  "2a14000130a24bcf": {
+    "en": "Delete profiles from the setup draft",
+    "ko": "설정 초안에서 프로필 삭제",
+    "ja": "セットアップの下書きからプロファイルを削除",
+    "zh-Hans": "从设置草稿删除配置方案",
+    "zh-Hant": "從設定草稿刪除設定組合"
+  },
+  "a9d405f153db7cfa": {
+    "en": "Uninstall the CLI",
+    "ko": "명령줄 도구 제거",
+    "ja": "コマンドラインツールを削除",
+    "zh-Hans": "卸载命令行工具",
+    "zh-Hant": "解除安裝命令列工具"
+  },
   "da4a07219c072685": {
     "en": "[![Latest release]({0})]({1}) [![Download]({2})]({3}) ![macOS 14+]({4}) [![License: AGPL-3.0-only]({5})]({6})",
     "ko": "[![최신 릴리스]({0})]({1}) [![다운로드]({2})]({3}) ![macOS 14 이상]({4}) [![라이선스: AGPL-3.0-only]({5})]({6})",

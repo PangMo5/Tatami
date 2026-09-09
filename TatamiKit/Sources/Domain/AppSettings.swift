@@ -50,6 +50,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   public init(
     general: General = General(),
+    confirmations: Confirmations = Confirmations(),
     visibility: Visibility = Visibility(),
     menuBar: MenuBar = MenuBar(),
     hud: HUD = HUD(),
@@ -61,6 +62,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
     shortcuts: Shortcuts = Shortcuts(),
   ) {
     self.general = general
+    self.confirmations = confirmations
     self.visibility = visibility
     self.menuBar = menuBar
     self.hud = hud
@@ -75,6 +77,17 @@ public struct AppSettings: Hashable, Sendable, Codable {
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     general = c.decode(.general, default: General())
+    confirmations = c.decode(.confirmations, default: Confirmations())
+    let generalKeys = try? c.nestedContainer(keyedBy: ConfirmationKey.self, forKey: .general)
+    let switchingKeys = try? c.nestedContainer(keyedBy: ConfirmationKey.self, forKey: .switching)
+    let legacy = (try? generalKeys?.decode(Bool.self, forKey: .confirmDestructiveActions))
+      ?? (try? switchingKeys?.decode(Bool.self, forKey: .confirmAppAssignment))
+    if let legacy {
+      let explicit = try? c.nestedContainer(keyedBy: ConfirmationKind.self, forKey: .confirmations)
+      for kind in ConfirmationKind.allCases where explicit?.contains(kind) != true {
+        confirmations[kind] = legacy
+      }
+    }
     visibility = c.decode(.visibility, default: Visibility())
     menuBar = c.decode(.menuBar, default: MenuBar())
     hud = c.decode(.hud, default: HUD())
@@ -89,6 +102,7 @@ public struct AppSettings: Hashable, Sendable, Codable {
   // MARK: Public
 
   public var general: General
+  public var confirmations: Confirmations
   public var visibility: Visibility
   public var menuBar: MenuBar
   public var hud: HUD
@@ -101,8 +115,14 @@ public struct AppSettings: Hashable, Sendable, Codable {
 
   // MARK: Private
 
+  private enum ConfirmationKey: String, CodingKey {
+    case confirmAppAssignment
+    case confirmDestructiveActions
+  }
+
   private enum CodingKeys: String, CodingKey {
     case general
+    case confirmations
     case visibility
     case menuBar
     case hud

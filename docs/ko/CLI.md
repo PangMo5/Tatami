@@ -102,6 +102,8 @@ CLI 복제는 선택 창 없이 항목 전체를 복사해요. `workspace duplic
 |`workspace borrow next` / `previous` / `recent`|상대 위치의 작업 공간을 빌려와요.|
 |`workspace dismiss-borrow`|포인터가 있는 화면의 빌려오기를 끝내요.|
 
+앱 소속과 배치 방식을 저장하는 명령은 기본으로 확인 화면을 열어요. 확인한 뒤에 설정을 바꾸고 같은 화면에 결과를 보여줘요. 설정 → 일반 → 확인에서 동작별로 고를 수 있어요. ‘다시 보지 않기’는 실행한 동작의 확인만 끄며, 취소하면 유지해요.
+
 <a id="windows-and-displays"></a>
 ### 창과 화면
 

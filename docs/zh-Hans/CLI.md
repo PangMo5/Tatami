@@ -102,6 +102,8 @@ CLI 复制整个项目，不打开选择面板。`workspace duplicate` 的副本
 |`workspace borrow next` / `previous` / `recent`|借用相对工作区。|
 |`workspace dismiss-borrow`|归还指针所在显示器的借用工作区。|
 
+保存应用归属或布局的命令默认打开确认提示框。确认后才会更改配置，并在同一提示框中显示结果。可在设置 → 通用 → 操作确认中逐项设置。“不再询问”仅在确认后关闭对应操作的确认；取消则保持开启。
+
 <a id="windows-and-displays"></a>
 ### 窗口与显示器
 

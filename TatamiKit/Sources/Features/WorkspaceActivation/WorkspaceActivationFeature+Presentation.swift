@@ -256,11 +256,15 @@ extension WorkspaceActivationFeature {
     _ icon: String?,
     subtitle: LocalizedStringResource? = nil,
     display: DisplayName? = nil,
+    priority: ActionHUDPriority = .completion,
+    contextID: UUID? = nil,
+    confirmationID: UUID? = nil,
   ) -> Effect<Action> {
-    guard state.config.settings.hud.shows(category) else { return .none }
+    guard confirmationID != nil || state.config.settings.hud.shows(category) else { return .none }
     let durationMs = state.config.settings.hud.durationMs
     let position = state.config.settings.hud.position
     let size = state.config.settings.hud.size
+    let contextName = contextID.flatMap { state.config.workspace(id: $0)?.name }
     let title = String(localized: title)
     let subtitle = subtitle.map { String(localized: $0) }
     return .run { [hud = workspaceHUD] _ in
@@ -273,6 +277,10 @@ extension WorkspaceActivationFeature {
           position: position,
           size: size,
           display: display,
+          priority: priority,
+          contextID: contextID,
+          contextName: contextName,
+          replacingConfirmationID: confirmationID,
         )
       )
     }

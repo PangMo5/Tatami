@@ -1165,6 +1165,7 @@ struct OnboardingFeatureTests {
     store.exhaustivity = .off
 
     await store.send(.aiRecommendationApplyButtonTapped)
+    await store.send(.alert(.presented(.confirmRecommendation)))
     await store.finish()
 
     #expect(store.state.activeProfile?.workspaceChains.isEmpty == true)
@@ -1223,6 +1224,7 @@ struct OnboardingFeatureTests {
     #expect(store.state.aiRecommendationChangeCount == 2)
 
     await store.send(.aiRecommendationApplyButtonTapped)
+    await store.send(.alert(.presented(.confirmRecommendation)))
     #expect(store.state.normalWorkspaces.map(\.name) == ["Development"])
     #expect(store.state.scratchpads.map(\.name) == ["Support"])
     let developmentID = store.state.normalWorkspaces[0].id

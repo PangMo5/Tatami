@@ -118,7 +118,23 @@ struct SettingsView: View {
       .formStyle(.grouped)
       .navigationTitle((pane ?? .general).title)
     }
-    .alert($store.scope(state: \.alert, action: \.alert))
+    .persistentChangeAlert(
+      $store.scope(state: \.overlayAwareApps.alert, action: \.overlayAwareApps.alert),
+      suppressible: store.overlayAwareApps.alert?.buttons
+        .contains(where: { $0.role == .destructive }) == true,
+      suppress: Binding(
+        get: { store.overlayAwareApps.suppressConfirmation },
+        set: { store.send(.overlayAwareApps(.confirmationSuppressionChanged($0))) },
+      ),
+    )
+    .persistentChangeAlert(
+      $store.scope(state: \.alert, action: \.alert),
+      suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+      suppress: Binding(
+        get: { store.suppressConfirmation },
+        set: { store.send(.confirmationSuppressionChanged($0)) },
+      ),
+    )
     .sheet(isPresented: $isCLIReferencePresented) {
       CLIReferenceView()
     }

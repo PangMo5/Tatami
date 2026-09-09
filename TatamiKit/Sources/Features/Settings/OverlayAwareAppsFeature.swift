@@ -24,6 +24,8 @@ public struct OverlayAwareAppsFeature {
     @Shared(.tatamiConfig) public var config
     public var isAppPickerPresented = false
     public var availableRunningApps = [MacApp]()
+    @Presents public var alert: AlertState<Action.Alert>?
+    public var suppressConfirmation = false
     public var knownApps = [String: MacApp]()
 
     public var apps: [MacApp] {
@@ -35,6 +37,8 @@ public struct OverlayAwareAppsFeature {
   }
 
   public enum Action {
+    case alert(PresentationAction<Alert>)
+    case confirmationSuppressionChanged(Bool)
     case onAppear
     case installedAppsResolved([MacApp])
     case addAppButtonTapped
@@ -42,11 +46,17 @@ public struct OverlayAwareAppsFeature {
     case appPickerAppSelected(MacApp)
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
+
+    public enum Alert: Equatable { case confirmRemoval(String) }
   }
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
+      case .confirmationSuppressionChanged(let suppressed):
+        state.suppressConfirmation = suppressed
+        return .none
+
       case .onAppear:
         let registeredIds = state.config.settings.visibility.overlayAwareApps
         let registered = Set(registeredIds)
@@ -101,13 +111,37 @@ public struct OverlayAwareAppsFeature {
         }
 
       case .appRemoveRequested(let bundleId):
+        guard state.config.settings.visibility.overlayAwareApps.contains(bundleId) else { return .none }
+        let name = state.knownApps[bundleId]?.name ?? bundleId
+        state.alert = AlertState { TextState("Remove \"\(name)\"?") } actions: {
+          ButtonState(role: .destructive, action: .confirmRemoval(bundleId)) { TextState("Remove") }
+          ButtonState(role: .cancel) { TextState("Cancel") }
+        } message: {
+          TextState("Remove this app's saved overlay exception. Tatami will use its normal window visibility behavior.")
+        }
+        return .none
+
+      case .alert(.presented(.confirmRemoval(let bundleId))):
         state.$config.withLock {
           $0.settings.visibility.removeOverlayAwareApp(bundleId: bundleId)
         }
         state.knownApps[bundleId] = nil
         return .none
+
+      case .alert:
+        return .none
       }
     }
+    .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        switch action { case .confirmRemoval: .removeOverlayException }
+      },
+    )
   }
 
   // MARK: Internal

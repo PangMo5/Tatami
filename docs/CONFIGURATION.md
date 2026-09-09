@@ -60,6 +60,38 @@ Modifiers: `ctrl`, `alt` (option), `shift`, `cmd`. Keys are letters, digits,
 | `checkInterval` | string | `"daily"` | Background update-check frequency: `hourly`, `daily`, or `weekly`. |
 | `debugLogging` | bool | `false` | Append diagnostic events to `~/.config/tatami/tatami.log`. Truncated when first enabled. |
 
+## `[settings.confirmations]`
+
+Choose confirmations for each action independently. Every option is enabled by default. Selecting "Don't ask again" and confirming disables only that action. Cancelling keeps the preference unchanged. Older global confirmation settings are migrated to these options; explicitly configured options take precedence.
+
+| Key | Default | Action |
+| --- | --- | --- |
+| `addWorkspaceApp` | `true` | Add apps to workspaces |
+| `moveWorkspaceApp` | `true` | Move apps between workspaces |
+| `removeWorkspaceApp` | `true` | Remove apps from workspaces |
+| `floatWorkspaceApp` | `true` | Keep workspace apps always on top |
+| `tileWorkspaceApp` | `true` | Tile workspace apps |
+| `unmanageWorkspaceApp` | `true` | Leave workspace apps as is |
+| `addSharedApp` | `true` | Add Shared Apps |
+| `removeSharedApp` | `true` | Remove Shared Apps |
+| `floatSharedApp` | `true` | Keep Shared Apps always on top |
+| `tileSharedApp` | `true` | Tile Shared Apps |
+| `unmanageSharedApp` | `true` | Leave Shared Apps as is |
+| `deleteWorkspace` | `true` | Delete workspaces |
+| `deleteProfile` | `true` | Delete profiles |
+| `deleteWorkspaceChain` | `true` | Delete workspace chains |
+| `deleteHook` | `true` | Delete hooks |
+| `removeOverlayException` | `true` | Remove overlay exceptions |
+| `copyWorkspace` | `true` | Copy workspace settings |
+| `copyProfile` | `true` | Copy profile settings |
+| `resetSetup` | `true` | Start Guided Setup over |
+| `reloadSetup` | `true` | Reload the Guided Setup draft |
+| `applySetup` | `true` | Apply the Guided Setup draft |
+| `applySetupRecommendation` | `true` | Apply a setup recommendation |
+| `deleteSetupWorkspace` | `true` | Delete workspaces from the setup draft |
+| `deleteSetupProfile` | `true` | Delete profiles from the setup draft |
+| `uninstallCLI` | `true` | Uninstall the CLI |
+
 ## `[settings.visibility]`
 
 | Key | Type | Default | Description |

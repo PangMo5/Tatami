@@ -133,6 +133,7 @@ public struct WorkspaceListFeature {
     public var shared: SharedAppsFeature.State?
     /// Profile settings shown in the detail pane (like `detail` for a workspace).
     public var profileDetail: ProfileDetailFeature.State?
+    public var suppressConfirmation = false
     @Presents public var alert: AlertState<Action.Alert>?
 
     /// The profile selected in col 1, or nil when Shared Apps (or nothing) is.
@@ -220,6 +221,7 @@ public struct WorkspaceListFeature {
     case detail(WorkspaceDetailFeature.Action)
     case shared(SharedAppsFeature.Action)
     case profileDetail(ProfileDetailFeature.Action)
+    case confirmationSuppressionChanged(Bool)
     case alert(PresentationAction<Alert>)
     case binding(BindingAction<State>)
     case delegate(Delegate)
@@ -246,6 +248,10 @@ public struct WorkspaceListFeature {
     BindingReducer()
     Reduce { state, action in
       switch action {
+      case .confirmationSuppressionChanged(let suppressed):
+        state.suppressConfirmation = suppressed
+        return .none
+
       case .addWorkspaceButtonTapped:
         state.draftName = ""
         state.isAddSheetPresented = true
@@ -593,6 +599,19 @@ public struct WorkspaceListFeature {
       ProfileDetailFeature()
     }
     .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        switch action {
+        case .confirmDeletion: .deleteWorkspace
+        case .confirmProfileDeletion: .deleteProfile
+        default: nil
+        }
+      },
+    )
   }
 
   /// Validate a duplicate chooser's entire effective selection and map every

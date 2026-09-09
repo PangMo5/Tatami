@@ -40,6 +40,14 @@ struct OnboardingView: View {
       }
     }
     .frame(minWidth: 1_040, minHeight: 720)
+    .persistentChangeAlert(
+      $store.scope(state: \.alert, action: \.alert),
+      suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+      suppress: Binding(
+        get: { store.suppressConfirmation },
+        set: { store.send(.confirmationSuppressionChanged($0)) },
+      ),
+    )
     .task { store.send(.viewAppeared) }
     .onDisappear { store.send(.viewDisappeared) }
     .onChange(of: store.dismissalRequest) { previousRequest, request in

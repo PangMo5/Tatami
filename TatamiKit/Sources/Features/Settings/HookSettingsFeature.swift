@@ -89,11 +89,13 @@ public struct HookSettingsFeature {
     public var rows = [Row]()
     public var mutationInFlight: Mutation?
     @Presents public var editor: HookEditorFeature.State?
+    public var suppressConfirmation = false
     @Presents public var alert: AlertState<Action.Alert>?
   }
 
   public enum Action {
     case addButtonTapped
+    case confirmationSuppressionChanged(Bool)
     case alert(PresentationAction<Alert>)
     case configurationChanged
     case deleteButtonTapped(HookLocator)
@@ -112,6 +114,10 @@ public struct HookSettingsFeature {
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
+      case .confirmationSuppressionChanged(let suppressed):
+        state.suppressConfirmation = suppressed
+        return .none
+
       case .task:
         reconcileRows(state: &state)
         let sharedConfig = state.$config
@@ -291,6 +297,15 @@ public struct HookSettingsFeature {
       HookEditorFeature()
     }
     .ifLet(\.$alert, action: \.alert)
+    .persistentConfirmations(
+      config: \.$config,
+      alert: \.alert,
+      action: \.alert,
+      suppress: \.suppressConfirmation,
+      kind: { action in
+        if case .confirmDelete = action { .deleteHook } else { nil }
+      },
+    )
   }
 
   // MARK: Internal

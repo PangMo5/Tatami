@@ -716,6 +716,7 @@ struct WorkspaceActivationFeatureTests {
     let assignStore = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {
+      $0.uuid = .incrementing
       $0.displays.current = { displayB }
     }
     assignStore.exhaustivity = .off
@@ -778,6 +779,7 @@ struct WorkspaceActivationFeatureTests {
       let store = TestStore(initialState: state) {
         WorkspaceActivationFeature()
       } withDependencies: {
+        $0.uuid = .incrementing
         $0.displays.current = { displayB }
       }
       store.exhaustivity = .off
@@ -909,6 +911,8 @@ struct WorkspaceActivationFeatureTests {
       let store = TestStore(initialState: state) {
         WorkspaceActivationFeature()
       } withDependencies: {
+        $0.uuid = .incrementing
+        $0.workspaceHUD.confirmAssignment = { _ in ActionConfirmationResult(confirmed: true) }
         $0.displays.current = { pointerDisplay.value }
         $0.continuousClock = TestClock()
         $0.windowSnapshot.frontmostApp = {
@@ -942,6 +946,9 @@ struct WorkspaceActivationFeatureTests {
             let edit,
             _,
             let display,
+            _,
+            _,
+            _,
           ) = $0
         else { return false }
         let expected: WorkspaceActivationFeature.MembershipEdit = movesMembership
@@ -2301,6 +2308,7 @@ struct WorkspaceActivationFeatureTests {
     state.$config.withLock {
       $0.profiles = [currentProfile, targetProfile]
       $0.activeProfileId = currentProfile.id
+      $0.settings.confirmations[.addWorkspaceApp] = false
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
@@ -10738,6 +10746,7 @@ struct WorkspaceActivationFeatureTests {
       $0.focusedDisplay = Self.display
       $0.activeWorkspacesByDisplay[Self.display] = ws2.id
     }
+    state.$config.withLock { $0.settings.confirmations[.addWorkspaceApp] = false }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
     } withDependencies: {

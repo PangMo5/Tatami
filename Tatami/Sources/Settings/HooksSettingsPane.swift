@@ -30,7 +30,14 @@ struct HooksSettingsPane: View {
     .sheet(item: $store.scope(state: \.editor, action: \.editor)) { editorStore in
       HookEditorView(store: editorStore)
     }
-    .alert($store.scope(state: \.alert, action: \.alert))
+    .persistentChangeAlert(
+      $store.scope(state: \.alert, action: \.alert),
+      suppressible: store.alert?.buttons.contains(where: { $0.role == .destructive }) == true,
+      suppress: Binding(
+        get: { store.suppressConfirmation },
+        set: { store.send(.confirmationSuppressionChanged($0)) },
+      ),
+    )
   }
 }
 
