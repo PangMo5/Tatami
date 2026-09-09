@@ -492,11 +492,14 @@ struct WorkspaceDetailView: View {
             if !sources.isEmpty {
               Menu(profile.name) {
                 ForEach(sources, id: \.id) { ws in
-                  Button(ws.name) {
+                  let hasChanges = WorkspaceSync.hasChanges(from: ws, to: workspace)
+                  Button {
                     let baseline = store.config
                     guard
                       let profileSnapshot = baseline.profiles.first(where: { $0.id == profile.id }),
-                      let workspaceSnapshot = profileSnapshot.workspaces[id: ws.id]
+                      let workspaceSnapshot = profileSnapshot.workspaces[id: ws.id],
+                      let targetSnapshot = baseline.workspace(id: store.workspaceId),
+                      WorkspaceSync.hasChanges(from: workspaceSnapshot, to: targetSnapshot)
                     else { return }
                     importReview = WorkspaceImportReview(
                       baseline: baseline,
@@ -506,7 +509,14 @@ struct WorkspaceDetailView: View {
                       workspaceId: workspaceSnapshot.id,
                       workspaceName: workspaceSnapshot.name,
                     )
+                  } label: {
+                    if hasChanges {
+                      Text(verbatim: ws.name)
+                    } else {
+                      Text("\(ws.name) · No differences")
+                    }
                   }
+                  .disabled(!hasChanges)
                 }
               }
             }

@@ -315,9 +315,7 @@ extension AppConfig {
     var diverged: [String] = []
     for ws in target.workspaces {
       guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
-      let apps = WorkspaceSync.appChanges(from: match.apps, to: ws.apps)
-      let fields = WorkspaceSync.fieldChanges(from: match, to: ws)
-      if !apps.isEmpty || !fields.isEmpty { diverged.append(ws.name) }
+      if WorkspaceSync.hasChanges(from: match, to: ws) { diverged.append(ws.name) }
     }
     return diverged
   }

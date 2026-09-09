@@ -12,6 +12,32 @@ struct ProfileSyncTests {
     AppAssignment(bundleIdentifier: bundleId, name: bundleId, autoOpen: autoOpen, layout: layout)
   }
 
+  @Test
+  func copyAvailabilityIgnoresIdentityNamesAndAppDisplayMetadata() {
+    var source = Workspace(name: "Source", apps: [app("a"), app("b")])
+    let target = Workspace(name: "Target", apps: [app("b"), app("a")])
+    source.apps[0].name = "Different display name"
+    source.apps[0].iconPath = "/Applications/Example.app"
+    #expect(source.id != target.id)
+    #expect(!WorkspaceSync.hasChanges(from: source, to: target))
+  }
+
+  @Test(arguments: ["add", "remove", "layout", "autoOpen", "display", "key"])
+  func copyAvailabilityIncludesAppAndWorkspaceChanges(_ change: String) {
+    let target = Workspace(name: "Target", apps: [app("a")])
+    var source = Workspace(name: "Source", apps: target.apps)
+    switch change {
+    case "add": source.apps.append(app("b"))
+    case "remove": source.apps = []
+    case "layout": source.apps[0].layout = .floating
+    case "autoOpen": source.apps[0].autoOpen = true
+    case "display": source.displayHint = "External"
+    case "key": source.keyEquivalent = "x"
+    default: break
+    }
+    #expect(WorkspaceSync.hasChanges(from: source, to: target))
+  }
+
   // MARK: - App diff
 
   @Test
