@@ -4787,5 +4787,75 @@
     "ja": "**Appからの切り替えにもポインタが追従:** ポインタ追従を有効にすると、Dock、Spotlight、App切り替えから開いた際、実際に手前へ出たウインドウへ移動します。同じAppのウインドウが複数あっても、フォーカス先が明確になります。",
     "zh-Hans": "**指针跟随应用触发的切换**：启用鼠标跟随焦点后，从 Dock、Spotlight 或应用切换器激活应用，会将指针移到实际被置前的窗口，而不只是工作区。同一工作区中有该应用的多个窗口时，也能明确知道哪个获得了焦点。",
     "zh-Hant": "**游標跟隨 App 觸發的切換**：啟用滑鼠跟隨焦點後，從 Dock、Spotlight 或 App 切換器啟用 App，會將游標移到實際被置前的視窗，而不只是工作空間。同一工作空間中有該 App 的多個視窗時，也能明確知道哪個取得焦點。"
+  },
+  "71a52e59592f0890": {
+    "en": "**Confirm changes before applying them:** Review app membership and layout changes, deletions, configuration overwrites, and Guided Setup replacements before they take effect. Confirmation is enabled independently for each action. \"Don't ask again\" disables only the confirmed action; cancelling keeps its preference unchanged. App membership and layout actions show the result in the same HUD after confirmation.",
+    "ko": "**변경 전에 확인하기:** 앱 소속·배치 변경, 삭제, 설정 덮어쓰기, 가이드 설정 교체를 적용하기 전에 검토할 수 있어요. 확인은 동작별로 독립적으로 켜져 있어요. ‘다시 보지 않기’는 실행을 확정한 동작만 끄고, 취소하면 설정을 유지해요. 앱 소속·배치 변경은 확인 후 같은 HUD에 결과를 보여줘요.",
+    "ja": "**適用前に変更を確認:** アプリの所属・配置変更、削除、設定の上書き、ガイド付き設定の置き換えを実行前に確認できます。確認は操作ごとに独立して有効です。「次回から確認しない」は確定した操作だけに適用され、キャンセルでは設定を維持します。アプリの所属・配置変更では、確定後に同じ HUD で結果を表示します。",
+    "zh-Hans": "**应用更改前先确认：** 在更改应用归属或布局、删除、覆盖配置及替换引导设置前查看内容。确认选项按操作独立启用。“不再询问”只会关闭已确认操作的提示；取消会保留原有偏好。应用归属和布局操作在确认后会在同一个 HUD 中显示结果。",
+    "zh-Hant": "**套用變更前先確認：** 在變更 App 歸屬或佈局、刪除、覆寫設定及取代引導設定前檢視內容。確認選項依操作獨立啟用。「不再詢問」只會關閉已確認操作的提示；取消會保留原有偏好。App 歸屬和佈局操作在確認後會於同一個 HUD 中顯示結果。"
+  },
+  "18ce52d5763f1251": {
+    "en": "**Adjust app behavior in one place:** App rows expose Auto-open and layout mode directly, with removal in the adjacent menu. The same controls work for workspace apps and Shared Apps, and workspace rows remain centered when no chain is shown.",
+    "ko": "**앱 동작을 한곳에서 조정하기:** 앱 행에서 자동 열기와 배치 방식을 바로 조정하고 옆 메뉴에서 제거할 수 있어요. 작업 공간 앱과 공유 앱에서 같은 조작을 사용하며, 체인이 없는 작업 공간 행도 중앙 정렬을 유지해요.",
+    "ja": "**アプリの動作を一か所で調整:** アプリ行から自動起動と配置方法を直接変更でき、隣のメニューから削除できます。ワークスペースのアプリと共有アプリで同じ操作を使えます。チェーンがないワークスペース行も中央揃えを保ちます。",
+    "zh-Hans": "**集中调整应用行为：** 应用行直接提供自动打开和布局模式，旁边的菜单用于移除。工作区应用与共享应用使用相同控件；没有显示链关系时，工作区行仍保持居中。",
+    "zh-Hant": "**集中調整 App 行為：** App 列直接提供自動開啟和佈局模式，旁邊的選單用於移除。工作空間 App 與共享 App 使用相同控制項；未顯示鏈結關係時，工作空間列仍維持置中。"
+  },
+  "a4e45271ff91b08b": {
+    "en": "**Find settings by task:** A category sidebar separates General, Tiling, Workspaces, Workspace Keys, Focus & Mouse, Gestures, Appearance, and Hooks. Confirmation preferences are grouped by the actions they control.",
+    "ko": "**목적별로 설정 찾기:** 사이드바에서 일반, 타일링, 작업 공간, 작업 공간 키, 포커스와 마우스, 제스처, 모양, 훅을 나눠 볼 수 있어요. 확인 설정도 대상 동작별로 묶었어요.",
+    "ja": "**目的別に設定を探す:** カテゴリのサイドバーで、一般、タイル配置、ワークスペース、ワークスペースキー、フォーカスとマウス、ジェスチャー、外観、フックを分けて表示します。確認設定も対象の操作別にまとめました。",
+    "zh-Hans": "**按任务查找设置：** 分类侧栏将通用、平铺、工作区、工作区按键、焦点与鼠标、手势、外观和钩子分开。确认偏好也按其控制的操作分组。",
+    "zh-Hant": "**依任務尋找設定：** 分類側邊欄將一般、平鋪、工作空間、工作空間按鍵、焦點與滑鼠、手勢、外觀和掛鉤分開。確認偏好也依其控制的操作分組。"
+  },
+  "e4c884c68e1b4c0a": {
+    "en": "**Read and watch workflows in five languages:** In-app documentation now renders the selected language with working headings, tables, and links. The website includes an end-to-end workflow and focused demo collections with native playback controls, keyboard navigation, and links to related settings.",
+    "ko": "**5개 언어로 사용법 읽고 보기:** 앱 내 문서는 선택한 언어로 표시되며 제목 이동, 표, 링크가 정상 동작해요. 웹사이트에는 전체 작업 흐름과 기능별 데모 모음을 추가했고, 기본 재생 컨트롤, 키보드 탐색, 관련 설정 링크를 제공해요.",
+    "ja": "**5言語で使い方を読む・見る:** アプリ内ドキュメントを選択した言語で表示し、見出し、表、リンクが正しく動作します。ウェブサイトには一連の作業フローと機能別デモを用意し、標準の再生操作、キーボード操作、関連設定へのリンクを提供します。",
+    "zh-Hans": "**以五种语言阅读和观看工作流程：** 应用内文档以所选语言显示，标题、表格和链接均可正常使用。网站提供完整工作流程及专题演示集，支持原生播放控件、键盘导航和相关设置链接。",
+    "zh-Hant": "**以五種語言閱讀和觀看工作流程：** App 內文件以所選語言顯示，標題、表格和連結均可正常使用。網站提供完整工作流程及主題示範集，支援原生播放控制項、鍵盤導覽和相關設定連結。"
+  },
+  "f420ff2d1e2ac183": {
+    "en": "**Deliver the first click or drag to Always on Top windows:** Always on Top windows retain the initial mouse input through activation and mirror handover. Background scrolling reaches the real window without requiring keyboard focus, and hovering respects Focus Follows Mouse.",
+    "ko": "**항상 위 창에 첫 클릭·드래그 전달하기:** 창 활성화와 미러 전환 중에도 첫 마우스 입력을 유지해요. 키보드 포커스를 옮기지 않고 뒤쪽 창을 스크롤할 수 있으며, 마우스를 올렸을 때의 동작은 FFM 설정을 따라요.",
+    "ja": "**最前面表示のウインドウに最初のクリック・ドラッグを届ける:** アクティブ化とミラーの引き継ぎ中も最初のマウス入力を保持します。キーボードフォーカスを移さずに背後の実ウインドウをスクロールでき、ホバーは Focus Follows Mouse の設定に従います。",
+    "zh-Hans": "**将首次点击或拖动传递给始终置顶窗口：** 在激活和镜像交接期间保留初始鼠标输入。后台滚动无需取得键盘焦点即可到达真实窗口，悬停行为遵循焦点跟随鼠标设置。",
+    "zh-Hant": "**將首次點按或拖移傳遞給保持最上層視窗：** 在啟用和鏡像交接期間保留初始滑鼠輸入。背景捲動不必取得鍵盤焦點即可到達實際視窗，游標停留行為遵循焦點跟隨滑鼠設定。"
+  },
+  "3357aaba8b7664cc": {
+    "en": "**Preserve layouts when windows are temporarily unavailable:** A failed or incomplete layout read no longer replaces saved positions with an empty layout. Workspace restoration keeps valid layout information until the required windows can be resolved.",
+    "ko": "**창을 잠시 찾을 수 없어도 배치 보존하기:** 배치 읽기가 실패하거나 불완전하다고 해서 저장된 위치를 빈 배치로 덮어쓰지 않아요. 작업 공간 복원은 필요한 창을 확인할 수 있을 때까지 유효한 배치 정보를 유지해요.",
+    "ja": "**ウインドウが一時的に利用できなくても配置を保持:** 配置の読み込みに失敗したり不完全だったりしても、保存済み位置を空の配置で置き換えません。ワークスペースの復元は、必要なウインドウを解決できるまで有効な配置情報を保持します。",
+    "zh-Hans": "**窗口暂时不可用时保留布局：** 布局读取失败或不完整时，不再用空布局替换保存的位置。工作区恢复会保留有效布局信息，直到能够找到所需窗口。",
+    "zh-Hant": "**視窗暫時無法使用時保留佈局：** 佈局讀取失敗或不完整時，不再用空佈局取代已儲存的位置。工作空間復原會保留有效佈局資訊，直到能夠找到所需視窗。"
+  },
+  "a61f32f2754c72ad": {
+    "en": "**Skip workspace copies with no changes:** Matching copy sources show \"No differences\" and cannot be selected. The source and destination are checked again before opening a review, so a stale menu cannot present an empty copy sheet.",
+    "ko": "**변경 없는 작업 공간 복사 건너뛰기:** 설정이 같은 복사 원본은 ‘차이 없음’으로 표시되며 선택할 수 없어요. 검토 화면을 열기 직전에 원본과 대상을 다시 확인하므로, 오래 열린 메뉴가 빈 복사 화면을 띄우지 않아요.",
+    "ja": "**変更のないワークスペースのコピーを省く:** 一致するコピー元は「違いはありません」と表示され、選択できません。レビューを開く直前にコピー元とコピー先を再確認するため、古いメニューから空のコピーシートを開くことはありません。",
+    "zh-Hans": "**跳过没有更改的工作区复制：** 设置匹配的来源会显示“无差异”且无法选择。打开预览前会再次检查来源和目标，避免过期菜单打开空的复制表单。",
+    "zh-Hant": "**略過沒有變更的工作空間複製：** 設定相符的來源會顯示「沒有差異」且無法選取。開啟預覽前會再次檢查來源和目標，避免過期選單開啟空的複製表單。"
+  },
+  "7b677f15b7527a25": {
+    "en": "**Review confirmation preferences for automation:** Existing configurations load with all new per-action confirmations enabled. Persistent app membership and layout commands also use these confirmations through the CLI. For unattended scripts, configure the relevant options in Settings → General → Confirm Before Changes or {0}. Back up {1} before downgrading: older versions do not preserve the new confirmation options when saving.",
+    "ko": "**자동화의 확인 설정 점검하기:** 기존 구성은 새 동작별 확인이 모두 켜진 상태로 불러와요. 앱 소속·배치를 저장하는 CLI 명령에도 이 확인을 적용해요. 무인 스크립트에서는 설정 → 일반 → 변경 전 확인 또는 {0}에서 관련 옵션을 지정하세요. 다운그레이드 전에 {1}을 백업하세요. 이전 버전은 저장할 때 새 확인 옵션을 보존하지 않아요.",
+    "ja": "**自動化の確認設定を見直す:** 既存の設定は新しい操作別の確認がすべて有効な状態で読み込まれます。アプリの所属・配置を保存する CLI コマンドもこの確認を使います。無人実行のスクリプトでは「設定」→「一般」→「変更前の確認」または {0} で関連項目を設定してください。ダウングレード前に {1} をバックアップしてください。旧バージョンは保存時に新しい確認項目を保持しません。",
+    "zh-Hans": "**检查自动化的确认偏好：** 现有配置载入时，所有新的操作级确认均默认启用。持久更改应用归属和布局的 CLI 命令也会使用这些确认。无人值守脚本应在设置 → 通用 → 更改前确认或 {0} 中明确配置相关选项。降级前请备份 {1}：旧版本保存时不会保留新的确认选项。",
+    "zh-Hant": "**檢查自動化的確認偏好：** 現有設定載入時，所有新的個別操作確認均預設啟用。持續變更 App 歸屬和佈局的 CLI 指令也會使用這些確認。無人操作的腳本應在設定 → 一般 → 變更前確認或 {0} 中明確設定相關選項。降級前請備份 {1}：舊版本儲存時不會保留新的確認選項。"
+  },
+  "6a0564b5e326eabc": {
+    "en": "**Keep workspace switching and input responsive:** Configuration and layout writes are serialized off input-sensitive paths, redundant pointer updates are coalesced, and stale work is discarded when a window or focus target changes.",
+    "ko": "**작업 공간 전환과 입력 반응성 높이기:** 설정·배치 저장을 입력 처리에 민감한 경로 밖에서 순서대로 실행하고, 중복 포인터 업데이트를 합쳐요. 창이나 포커스 대상이 바뀌면 이전 작업의 결과를 버려요.",
+    "ja": "**ワークスペース切り替えと入力の応答性を改善:** 設定と配置の書き込みを入力に影響する経路の外で直列化し、重複するポインタ更新をまとめます。ウインドウやフォーカス対象が変わった場合は古い処理結果を破棄します。",
+    "zh-Hans": "**保持工作区切换与输入的响应速度：** 配置和布局写入在输入敏感路径之外顺序执行，冗余指针更新会合并，窗口或焦点目标改变后会丢弃过期任务。",
+    "zh-Hant": "**保持工作空間切換與輸入的反應速度：** 設定和佈局寫入在輸入敏感路徑之外依序執行，重複游標更新會合併，視窗或焦點目標改變後會捨棄過期作業。"
+  },
+  "69199dfd2dc6498e": {
+    "en": "More responsive workspace switching and window interaction, with confirmations for changes that affect your saved setup.",
+    "ko": "작업 공간 전환과 창 조작의 반응성을 높이고, 저장된 설정에 영향을 주는 변경은 적용 전에 확인할 수 있어요.",
+    "ja": "ワークスペース切り替えとウインドウ操作の応答性を改善し、保存済みの設定に影響する変更を実行前に確認できるようにしました。",
+    "zh-Hans": "提升工作区切换与窗口操作的响应速度，并在影响已保存设置的更改生效前进行确认。",
+    "zh-Hant": "提升工作空間切換與視窗操作的反應速度，並在影響已儲存設定的變更生效前進行確認。"
   }
 }
