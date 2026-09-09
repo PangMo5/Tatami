@@ -245,7 +245,9 @@ struct WorkspaceListView: View {
   }
 
   private func row(for workspace: Workspace) -> some View {
-    HStack(alignment: .top, spacing: 8) {
+    let hasChain = store.selectedProfile?.validWorkspaceChain(containing: workspace.id) != nil
+
+    return HStack(alignment: hasChain ? .top : .center, spacing: 8) {
       Image(systemName: workspace.symbolIconName ?? "square.stack.3d.up")
         .frame(width: 20, height: 20)
         .foregroundStyle(
@@ -260,7 +262,7 @@ struct WorkspaceListView: View {
 
         if
           let profile = store.selectedProfile,
-          profile.validWorkspaceChain(containing: workspace.id) != nil
+          hasChain
         {
           WorkspaceChainPeerIcons(
             profile: profile,
@@ -274,7 +276,7 @@ struct WorkspaceListView: View {
         workspaceID: workspace.id,
         activationStore: activationStore,
       )
-      .padding(.top, 2)
+      .padding(.top, hasChain ? 2 : 0)
     }
     .tag(workspace.sidebarItem as WorkspaceListFeature.SidebarItem?)
     .contextMenu {
