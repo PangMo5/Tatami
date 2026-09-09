@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import CustomDump
 import Dependencies
 import Foundation
 import Testing
@@ -14,6 +15,41 @@ import TOML
 /// while corrupt top-level sections fail the decode so the fileStorage
 /// containment keeps the previous config instead of silently resetting.
 struct ConfigDecodeTests {
+  @Test(arguments: ["\"typo\"", "42", "[]"])
+  func `invalid auto balance reports the field and uses its default`(_ value: String) throws {
+    let reports = LockIsolated<[String]>([])
+    let config = try withDependencies {
+      $0.errorReporter.report = { domain, message, _ in
+        reports.withValue { $0.append("\(domain): \(message)") }
+      }
+    } operation: {
+      try TOMLDecoder().decode(AppConfig.self, from: "[settings.layout]\nautoBalance = \(value)")
+    }
+    expectNoDifference(config.settings.layout.autoBalance, .none)
+    #expect(reports.value.count == 1)
+    #expect(reports.value.first?.contains("settings.layout.autoBalance") == true)
+  }
+
+  @Test(arguments: ["true", "false", "\"both\"", "\"none\"", "\"horizontal\"", "\"vertical\"", ""])
+  func `legacy and current auto balance settings decode without warnings`(_ value: String) throws {
+    let reports = LockIsolated<[String]>([])
+    let config = try withDependencies {
+      $0.errorReporter.report = { domain, _, _ in reports.withValue { $0.append(domain) } }
+    } operation: {
+      try TOMLDecoder().decode(AppConfig.self, from: "[settings.layout]\n" + (value.isEmpty ? "" : "autoBalance = \(value)"))
+    }
+    let expected: AutoBalanceMode =
+      switch value {
+      case "true",
+           "\"both\"": .both
+      case "\"horizontal\"": .horizontal
+      case "\"vertical\"": .vertical
+      default: .none
+      }
+    expectNoDifference(config.settings.layout.autoBalance, expected)
+    #expect(reports.value.isEmpty)
+  }
+
   @Test
   func `typoed settings field reports and uses default`() throws {
     let toml = """

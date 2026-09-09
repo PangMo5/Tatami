@@ -19919,31 +19919,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "layouts.json을 읽지 못해 저장한 배치를 초기화했어요"
+            "value": "저장한 배치를 읽지 못했어요. 파일을 확인할 때까지 배치 변경 사항을 저장하지 않아요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "layouts.jsonを読み込めなかったため、保存済みレイアウトをリセットしました"
+            "value": "保存済みレイアウトを読み込めません。ファイルを確認できるまで、レイアウトの変更は保存されません。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "无法读取 layouts.json，已重置保存的布局"
+            "value": "无法读取已保存的布局。确认文件可读取前，不会保存布局更改。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "無法讀取 layouts.json，已重設儲存的版面"
+            "value": "無法讀取已儲存的版面。確認檔案可讀取前，不會儲存版面變更。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tatami couldn’t read layouts.json, so saved layouts were reset."
+            "value": "Tatami couldn’t read your saved layouts. Layout changes won’t be saved until the file can be read."
           }
         }
       }

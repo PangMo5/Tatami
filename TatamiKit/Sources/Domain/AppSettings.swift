@@ -582,13 +582,11 @@ extension AppSettings {
       gapOuter = c.decode(.gapOuter, default: 8)
       // Bool autoBalance values from older configs decode as `.both`
       // (the Bool-true meaning) or `.none` (Bool-false). Hand-edited
-      // configs with the new enum string take priority.
-      if let mode = try? c.decode(AutoBalanceMode.self, forKey: .autoBalance) {
-        autoBalance = mode
-      } else if let flag = try? c.decode(Bool.self, forKey: .autoBalance) {
+      // configs use the enum decoder, which reports malformed present values.
+      if let flag = try? c.decode(Bool.self, forKey: .autoBalance) {
         autoBalance = flag ? .both : .none
       } else {
-        autoBalance = .none
+        autoBalance = c.decode(.autoBalance, default: AutoBalanceMode.none)
       }
       splitType = c.decode(.splitType, default: .auto)
       windowPlacement = c.decode(.windowPlacement, default: .second)

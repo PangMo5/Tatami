@@ -32,6 +32,51 @@ enum MirrorInputEventOrigin {
   private static let mask: Int64 = -0x100000000
 }
 
+// MARK: - MirrorInputAcknowledgments
+
+/// Only the exact packet posted downstream can complete a relay. Original HID
+/// timestamps survive replay; balancing releases and earlier packets cannot
+/// acknowledge input still being prepared or a later packet in the same window.
+struct MirrorInputAcknowledgments {
+
+  // MARK: Internal
+
+  var hasPending: Bool {
+    pending != nil
+  }
+
+  mutating func posted(_ event: CGEvent) {
+    pending = Identity(event)
+  }
+
+  mutating func accept(_ event: CGEvent) -> Bool {
+    guard MirrorInputEventOrigin.isReplay(event), pending == Identity(event) else { return false }
+    pending = nil
+    return true
+  }
+
+  mutating func reset() {
+    pending = nil
+  }
+
+  // MARK: Private
+
+  private struct Identity: Equatable {
+    init(_ event: CGEvent) {
+      timestamp = event.timestamp
+      type = event.type
+      origin = event.getIntegerValueField(.eventSourceUserData)
+    }
+
+    let timestamp: CGEventTimestamp
+    let type: CGEventType
+    let origin: Int64
+  }
+
+  private var pending: Identity?
+
+}
+
 // MARK: - MirrorInputBuffer
 
 /// FIFO input retained while a mirror gives its native window the gesture.
@@ -148,20 +193,32 @@ final class MirrorClickTap: @unchecked Sendable {
     finishNativeInput: @escaping @Sendable (UUID) -> Void,
     onFailure: @escaping @Sendable (String) -> Void,
     onOutsideClick: @escaping @Sendable () -> Void,
+    makeEventSource: @escaping @Sendable () -> CGEventSource? = { CGEventSource(stateID: .combinedSessionState) },
   ) {
     self.hitTestWindow = hitTestWindow
     self.prepareNativeWindow = prepareNativeWindow
     self.finishNativeInput = finishNativeInput
     self.onFailure = onFailure
     self.onOutsideClick = onOutsideClick
+    self.makeEventSource = makeEventSource
   }
 
   // MARK: Internal
 
-  func setEnabled(_ enabled: Bool) {
+  /// Mirror presentation awaits readiness, so installation failure cannot leave
+  /// a visible proxy without the input route its button gestures require.
+  func enable() async -> Bool {
+    await withCheckedContinuation { continuation in
+      EventTapThread.shared.perform { [self] in
+        if eventTap == nil { install() }
+        continuation.resume(returning: eventTap != nil && acknowledgmentTap != nil)
+      }
+    }
+  }
+
+  func disable() {
     EventTapThread.shared.perform { [self] in
-      if enabled, eventTap == nil { install() }
-      else if !enabled, eventTap != nil { teardown() }
+      if eventTap != nil { teardown() }
     }
   }
 
@@ -181,10 +238,9 @@ final class MirrorClickTap: @unchecked Sendable {
   /// Acknowledge at the downstream session stage. The HID capture tap must
   /// not consume its own replay or treat its earlier echo as downstream delivery.
   fileprivate func acknowledge(_ event: CGEvent) {
-    guard MirrorInputEventOrigin.isReplay(event), inFlight != nil else { return }
+    guard inFlight != nil, acknowledgments.accept(event) else { return }
     deadlineGeneration &+= 1
     inFlight = nil
-    inFlightWasPosted = false
     input.delivered(event)
     if event.type == .leftMouseDown, let windowID = MirrorInputEventOrigin.windowID(event) {
       // Publish native ownership before WindowServer/AppKit can emit AX move
@@ -254,7 +310,7 @@ final class MirrorClickTap: @unchecked Sendable {
         "native input relay number=\(inFlight.getIntegerValueField(.mouseEventNumber)) sourceState=\(inFlight.getIntegerValueField(.eventSourceStateID)) sourcePID=\(inFlight.getIntegerValueField(.eventSourceUnixProcessID))",
       )
     }
-    inFlightWasPosted = true
+    acknowledgments.posted(replay)
     replay.tapPostEvent(proxy)
   }
 
@@ -270,6 +326,7 @@ final class MirrorClickTap: @unchecked Sendable {
   private let finishNativeInput: @Sendable (UUID) -> Void
   private let onFailure: @Sendable (String) -> Void
   private let onOutsideClick: @Sendable () -> Void
+  private let makeEventSource: @Sendable () -> CGEventSource?
   private var transportSource: CGEventSource?
   private var eventTap: CFMachPort?
   private var acknowledgmentTap: CFMachPort?
@@ -277,7 +334,7 @@ final class MirrorClickTap: @unchecked Sendable {
   private var acknowledgmentSource: CFRunLoopSource?
   private var input = MirrorInputBuffer()
   private var inFlight: CGEvent?
-  private var inFlightWasPosted = false
+  private var acknowledgments = MirrorInputAcknowledgments()
   private var pendingWakeTag: Int64?
   private var wakeSequence: UInt32 = 0
   private var preparationTask: Task<Void, Never>?
@@ -292,7 +349,7 @@ final class MirrorClickTap: @unchecked Sendable {
   }
 
   private func install() {
-    guard let source = CGEventSource(stateID: .combinedSessionState) else {
+    guard let source = makeEventSource() else {
       onFailure("Could not create the native window input source.")
       return
     }
@@ -515,7 +572,7 @@ final class MirrorClickTap: @unchecked Sendable {
     pendingWakeTag = nil
     var buttonsToRelease = input.pressedButtons
     var keysToRelease = input.pressedKeys
-    if inFlightWasPosted, let inFlight {
+    if acknowledgments.hasPending, let inFlight {
       if Self.isMouseDown(inFlight.type) {
         buttonsToRelease.insert(inFlight.getIntegerValueField(.mouseEventButtonNumber))
       } else if inFlight.type == .keyDown {
@@ -523,7 +580,7 @@ final class MirrorClickTap: @unchecked Sendable {
       }
     }
     inFlight = nil
-    inFlightWasPosted = false
+    acknowledgments.reset()
     // Balance any native downs already delivered before a teardown. Buffered
     // clicks that never reached the source are discarded, never sent elsewhere.
     for number in buttonsToRelease {

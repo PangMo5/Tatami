@@ -802,6 +802,7 @@ final class FloatingOverlayController {
         await addMirrors(for: toAdd)
         guard addGeneration == generation else { return }
         addTask = nil
+        disableInputIfIdle()
       }
     }
     requestGeometryReconcile()
@@ -811,7 +812,6 @@ final class FloatingOverlayController {
     if !panels.isEmpty {
       ensureActivationObserver()
       ensureCursorMonitor()
-      clickTap?.setEnabled(true)
     }
   }
 
@@ -1066,6 +1066,18 @@ final class FloatingOverlayController {
         panel.orderOut(nil)
         continue
       }
+      guard !Task.isCancelled, desired.contains(key) else {
+        capture.stop()
+        panel.orderOut(nil)
+        continue
+      }
+      // The proxy has no separate mouse-button route. Establish both native
+      // event taps before publishing it to geometry and presentation workers.
+      guard await clickTap?.enable() == true else {
+        capture.stop()
+        panel.orderOut(nil)
+        return
+      }
       // Commit the panel only after capture startup succeeds and this request
       // is still current. Publishing it before the await let a replacement
       // set observe a half-created panel, cancel its owner, and then skip
@@ -1073,6 +1085,7 @@ final class FloatingOverlayController {
       guard !Task.isCancelled, desired.contains(key), panels[key] == nil else {
         capture.stop()
         panel.orderOut(nil)
+        disableInputIfIdle()
         if Task.isCancelled { return }
         continue
       }
@@ -1089,7 +1102,6 @@ final class FloatingOverlayController {
     guard !Task.isCancelled else { return }
     ensureActivationObserver()
     ensureCursorMonitor()
-    clickTap?.setEnabled(!panels.isEmpty)
     requestGeometryReconcile()
   }
 
@@ -1182,9 +1194,17 @@ final class FloatingOverlayController {
     if let pid = focusedFloatPid, !panels.keys.contains(where: { $0.pid == pid }) {
       focusedFloatPid = nil
     }
-    if panels.isEmpty { clickTap?.setEnabled(false) }
+    disableInputIfIdle()
     if panels.isEmpty { removeActivationObserver() }
     if reconcileAX { requestGeometryReconcile() }
+  }
+
+  private func disableInputIfIdle() {
+    // A pending add may already have received readiness from EventTapThread
+    // but not resumed on MainActor yet. Removing the last old panel must not
+    // tear down the taps before that add publishes its replacement.
+    guard panels.isEmpty, addTask == nil else { return }
+    clickTap?.disable()
   }
 
   private func ensureActivationObserver() {
