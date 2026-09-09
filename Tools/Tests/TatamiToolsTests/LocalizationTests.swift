@@ -76,3 +76,20 @@ func `equivalent JSON preserves accepted scene bytes`() throws {
   #expect(try JSON.parse(value.rendered()) == value)
   #expect(throws: (any Error).self) { try JSON.parse("{invalid}") }
 }
+
+@Test
+func `regex operations preserve scalar matches within grapheme clusters`() {
+  #expect(matches("(e)(x)?", "e\u{301}") == [["e", "e", ""]])
+  #expect(replacing("e", in: "e\u{301}!") { _ in "a" } == "a\u{301}!")
+  #expect(matches("(🧑)", "🧑🏽") == [["🧑", "🧑"]])
+  #expect(replacing("(?=\u{301})", in: "e\u{301}") { _ in "-" } == "e-\u{301}")
+}
+
+@Test
+func `warning headings preserve existing variation-selector anchors`() {
+  let builder = DocumentBuilder(workspace: Workspace(root: fm.temporaryDirectory))
+  #expect(builder.headings("### ⚠️ Breaking Changes\n### ⚠️ Breaking Changes\n") == [
+    "\u{FE0F}-breaking-changes",
+    "\u{FE0F}-breaking-changes-1",
+  ])
+}
