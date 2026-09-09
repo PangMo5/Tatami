@@ -369,22 +369,8 @@ func markdownUnits(_ source: String, _ catalog: TextCatalog, _ context: String) 
       if fullMatch(#"[| :\-]+"#, line) { result.append(line) }
       else {
         let separated = replacing(#"\|(?=(?:[^`]*`[^`]*`)*[^`]*$)"#, in: line) { _ in "\u{0}" }.components(separatedBy: "\u{0}")
-        let cells = try separated.enumerated().map { position, raw in
+        let cells = try separated.map { raw in
           let text = trim(raw)
-          if context == "DemoLab/README.md" {
-            if position == 1, ["Design", "Write", "Review", "Chat", "Build", "Focus"].contains(text) { return text }
-            if
-              position == 2, text.components(separatedBy: "+").allSatisfy({ [
-                "Canvas",
-                "Docs",
-                "Editor",
-                "Review",
-                "Chat",
-                "Terminal",
-                "Notes",
-                "Monitor",
-              ].contains(trim($0)) }) { return text }
-          }
           return try text.isEmpty ? "" : inlineUnit(text, catalog, context + " / table")
         }
         result.append(cells.joined(separator: "|"))

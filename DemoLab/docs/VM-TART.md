@@ -1,7 +1,3 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](VM-TART.md) · [한국어](ko/VM-TART.md) · [日本語](ja/VM-TART.md) · [简体中文](zh-Hans/VM-TART.md) · [繁體中文](zh-Hant/VM-TART.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Recording in a Tart VM
 
 The dedicated `tatami-demo` guest isolates personal windows, preferences and
@@ -71,6 +67,26 @@ Only passed takes matching the current scene bytes can enter the exporter.
 Avoid heavy host encoding or compilation while recording. The VM and host
 share CPU resources, and dropped frames are measured per display. Encode after
 the capture finishes.
+
+## Rendering health and VM ownership
+
+Select the recording VM by its exact configured name. Other projects can use Tart at the same time. Inspect the VM inventory and confirm which task owns the target before stopping or restarting it; never select the first running VM or terminate all Tart processes. Preserve the target VM's shares, display settings, and in-flight capture files.
+
+Before a batch, exercise both a scrolling Guided Setup preview and a confirmation HUD entering, changing content, and disappearing. Inspect the transitions frame by frame in a short recording, not only settled screenshots. Repeat this check after a graphics error or a change to the VM session. An idle-screen recorder warm-up does not cover these paths.
+
+If a preview, material, or HUD becomes black or magenta, reject the take and preserve the original movie, scene, timestamps, and VM logs. Compare the camera original with the export, and obtain separate PNG screenshots inside the guest. When possible, reproduce the same scene with a previously known app build. These comparisons distinguish export defects from failures already present in the VM's graphics or capture path.
+
+Check the guest's WindowServer and application logs for GPU hangs or aborted Metal command buffers. Finish or abort the recording cleanly before restarting only the owned VM. Then repeat the same scrolling and HUD transitions before starting another batch. Restart recovery is evidence about the VM session, not proof that a particular app change or concurrent VM caused the failure.
+
+Do not hide corruption by cropping frames, disabling product effects, or repeatedly recording until a sampled still happens to look correct. A restart or a windowed launch is not an acceptance check by itself. Decoder success, OCR success, low frame loss, and passing state assertions can all coexist with visibly corrupt content. Reject even brief black remnants during appearance, scrolling, resizing, and dismissal.
+
+Use the owned VM's name explicitly when collecting graphics diagnostics:
+
+```sh
+tart list
+tart exec tatami-demo /usr/bin/log show --last 15m --style compact \
+  --predicate '(process == "WindowServer" OR process == "Tatami") AND (eventMessage CONTAINS[c] "GPU" OR eventMessage CONTAINS[c] "Metal")'
+```
 
 ## Shared-filesystem correctness
 

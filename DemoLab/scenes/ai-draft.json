@@ -10,8 +10,7 @@
       "kind": "clearOverlay"
     },
     {
-      "kind": "activateApp",
-      "app": "Tatami"
+      "kind": "prepareSettings"
     },
     {
       "kind": "click",
@@ -87,6 +86,25 @@
       "kind": "click",
       "app": "Tatami",
       "identifier": "description:Apply Plan to Draft"
+    },
+    {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "sheet:button:Continue",
+      "enabled": true
+    },
+    {
+      "kind": "caption",
+      "text": "Confirm before replacing the current draft."
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "sheet:button:Continue"
     },
     {
       "kind": "hover",

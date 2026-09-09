@@ -1,7 +1,3 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](SCENES.md) · [한국어](ko/SCENES.md) · [日本語](ja/SCENES.md) · [简体中文](zh-Hans/SCENES.md) · [繁體中文](zh-Hant/SCENES.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Scenes and acceptance
 
 A scene requires `name`, `title`, and `steps`. Optional fields are `summary`,
@@ -33,7 +29,8 @@ a reason to correct preparation, not to trim away the unexpected window later.
 
 | Kind | Fields | Effect |
 | --- | --- | --- |
-| `click` | `app`, `identifier` | Resolve a native AX control; move the pointer and click. |
+| `click` | `app`, `identifier`, `activate?` | Resolve a native AX control; move the pointer and click. Set `activate: false` for nonactivating confirmation HUDs and first-click demonstrations. |
+| `expectEnabled` | `app`, `identifier`, `enabled` | Wait for a native control and verify its enabled state. Prefix a selector with `sheet:` to address a modal sheet rather than a same-named background control. |
 | `typeText` | `app`, `text`, `ms?` | Type one character at a time into the expected focused app. |
 | `hover` | `app`, `identifier` | Reveal a native control in its scroll viewport and move the pointer to it. |
 | `scroll` | `app`, `identifier`, `pixels` | Move to a native control and scroll. |
@@ -71,7 +68,8 @@ not. The chat is a local fixture and has no network transport.
 | --- | --- | --- |
 | `expectPlacement` | `app`, `target`, `value` | Require every source window to be left, right, above or below the target windows. |
 | `expectProfileCount` | `count` | Verify the profile count through the real CLI. |
-| `expectAssignment` | `app`, `workspace`, `profile` | Verify that a copied app belongs to the target workspace. |
+| `expectAssignment` | `app`, `workspace`, `profile`, `present?`, `layout?`, `autoOpen?` | Verify live CLI assignment state, including absence and selected properties. |
+| `configureAssignment` | `app`, `workspace`, `profile`, `autoOpen` | Prepare one existing assignment in the isolated lab config during setup. Requires an exact, unique match. |
 | `expectValue` | `app`, `identifier`, `value` | Read the actual native input value back. |
 | `expectStory` | `field`, `value` | Verify saved headline, approval, comment, last task/message, checks or completed tasks. |
 | `expectFront` | `app` | Verify the actual focused app through Accessibility. |

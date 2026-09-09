@@ -1,148 +1,195 @@
 {
-  "name": "floating",
-  "title": "把便笺放在工作区上方",
-  "summary": "在置顶和参与平铺之间切换便笺，并使用其实际控件。",
-  "requires": {
-    "displays": 1
+  "name" : "floating",
+  "requires" : {
+    "displays" : 1
   },
-  "setup": [
+  "setup" : [
     {
-      "kind": "clearOverlay"
+      "kind" : "clearOverlay"
     },
     {
-      "kind": "pointer",
-      "display": 0,
-      "x": 0.5,
-      "y": 0.5
+      "display" : 0,
+      "kind" : "pointer",
+      "x" : 0.5,
+      "y" : 0.5
     },
     {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
     },
     {
-      "kind": "waitWindows",
-      "apps": [
+      "apps" : [
         "Editor",
         "Docs"
-      ]
+      ],
+      "kind" : "waitWindows"
     },
     {
-      "kind": "activateWorkspace",
-      "workspace": "Focus",
-      "profile": "Laptop"
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Focus"
     },
     {
-      "kind": "waitWindows",
-      "apps": [
+      "apps" : [
         "Canvas",
         "Notes"
-      ]
+      ],
+      "kind" : "waitWindows"
     },
     {
-      "kind": "activateApp",
-      "app": "Canvas"
+      "app" : "Canvas",
+      "kind" : "activateApp"
     },
     {
-      "kind": "cli",
-      "args": [
+      "args" : [
         "layout",
         "balance"
-      ]
+      ],
+      "kind" : "cli"
     },
     {
-      "kind": "beat",
-      "ms": 1800
+      "kind" : "beat",
+      "ms" : 1800
     }
   ],
-  "steps": [
+  "steps" : [
     {
-      "kind": "chapter",
-      "text": "置顶"
+      "kind" : "chapter",
+      "text" : "置顶"
     },
     {
-      "kind": "caption",
-      "text": "设为始终置顶的窗口会保持在工作区上方。"
+      "kind" : "caption",
+      "text" : "设为始终置顶的窗口会保持在工作区上方。"
     },
     {
-      "kind": "click",
-      "app": "Notes",
-      "identifier": "notes.newTask"
+      "activate" : false,
+      "app" : "Notes",
+      "identifier" : "notes.newTask",
+      "kind" : "click"
     },
     {
-      "kind": "typeText",
-      "app": "Notes",
-      "text": "检查较小尺寸下的预览。",
-      "ms": 65
+      "app" : "Notes",
+      "kind" : "typeText",
+      "ms" : 65,
+      "text" : "检查较小尺寸下的预览。"
     },
     {
-      "kind": "key",
-      "chord": "return"
+      "chord" : "return",
+      "kind" : "key"
     },
     {
-      "kind": "expectStory",
-      "field": "lastTask",
-      "value": "检查较小尺寸下的预览。"
+      "field" : "lastTask",
+      "kind" : "expectStory",
+      "value" : "检查较小尺寸下的预览。"
     },
     {
-      "kind": "saveWindow",
-      "app": "Notes"
+      "app" : "Notes",
+      "kind" : "saveWindow"
     },
     {
-      "kind": "beat",
-      "ms": 1200
+      "kind" : "beat",
+      "ms" : 1200
     },
     {
-      "kind": "caption",
-      "text": "切换为平铺，让窗口参与自动布局。"
+      "kind" : "caption",
+      "text" : "切换为平铺，让窗口参与自动布局。"
     },
     {
-      "kind": "activateApp",
-      "app": "Notes"
+      "app" : "Notes",
+      "kind" : "activateApp"
     },
     {
-      "kind": "key",
-      "chord": "alt + cmd - return"
+      "chord" : "alt + cmd - return",
+      "kind" : "key"
     },
     {
-      "kind": "beat",
-      "ms": 1600
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "confirm-assignment",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "caption",
-      "text": "需要时，可以再次切换为始终置顶。"
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "key",
-      "chord": "alt + cmd - return"
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "confirm-assignment",
+      "kind" : "click"
     },
     {
-      "kind": "beat",
-      "ms": 400
+      "app" : "Notes",
+      "kind" : "expectAssignment",
+      "layout" : "tiled",
+      "profile" : "Laptop",
+      "workspace" : "Focus"
     },
     {
-      "kind": "restoreWindow",
-      "app": "Notes"
+      "kind" : "beat",
+      "ms" : 1600
     },
     {
-      "kind": "assertWindow",
-      "app": "Notes"
+      "kind" : "caption",
+      "text" : "需要时，可以再次切换为始终置顶。"
     },
     {
-      "kind": "beat",
-      "ms": 1100
+      "chord" : "alt + cmd - return",
+      "kind" : "key"
     },
     {
-      "kind": "activateApp",
-      "app": "Canvas"
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "confirm-assignment",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "beat",
-      "ms": 1100
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "assertWindow",
-      "app": "Notes"
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "confirm-assignment",
+      "kind" : "click"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "expectAssignment",
+      "layout" : "floating",
+      "profile" : "Laptop",
+      "workspace" : "Focus"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 400
+    },
+    {
+      "app" : "Notes",
+      "kind" : "restoreWindow"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "assertWindow"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1100
+    },
+    {
+      "app" : "Canvas",
+      "kind" : "activateApp"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1100
+    },
+    {
+      "app" : "Notes",
+      "kind" : "assertWindow"
     }
-  ]
+  ],
+  "summary" : "在置顶和参与平铺之间切换便笺，并使用其实际控件。",
+  "title" : "把便笺放在工作区上方"
 }

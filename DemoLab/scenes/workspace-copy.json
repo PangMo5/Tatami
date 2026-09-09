@@ -10,6 +10,20 @@
       "kind": "clearOverlay"
     },
     {
+      "kind": "configureAssignment",
+      "app": "Canvas",
+      "workspace": "Design",
+      "profile": "Desk",
+      "autoOpen": false
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Canvas",
+      "workspace": "Design",
+      "profile": "Desk",
+      "autoOpen": false
+    },
+    {
       "kind": "prepareSettings"
     },
     {
@@ -69,6 +83,32 @@
       "identifier": "button:Copy"
     },
     {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "sheet:button:Apply",
+      "enabled": true
+    },
+    {
+      "kind": "caption",
+      "text": "Confirm before overwriting existing workspace settings."
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "sheet:button:Apply"
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Canvas",
+      "workspace": "Design",
+      "profile": "Desk",
+      "autoOpen": true
+    },
+    {
       "kind": "expectAssignment",
       "app": "Docs",
       "workspace": "Design",
@@ -86,6 +126,34 @@
     {
       "kind": "beat",
       "ms": 2400
+    },
+    {
+      "kind": "caption",
+      "text": "Matching workspaces show No differences and cannot be selected."
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "title:Copy from another workspace…"
+    },
+    {
+      "kind": "hover",
+      "app": "Tatami",
+      "identifier": "title:Laptop"
+    },
+    {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "title:Design · No differences",
+      "enabled": false
+    },
+    {
+      "kind": "beat",
+      "ms": 2200
+    },
+    {
+      "kind": "key",
+      "chord": "esc"
     }
   ]
 }

@@ -1,783 +1,783 @@
 {
-  "schemaVersion": 1,
-  "locale": "zh-Hant",
-  "assets": [
+  "assets" : [
     {
-      "scene": "tour",
-      "title": "為整個工作流程騰出空間。",
-      "description": "設計、撰寫、審閱、借用、自動化，再配合更大的桌面。",
-      "section": "demo",
-      "maxSeconds": 150,
-      "maxMB": 30,
-      "relatedSettings": [
+      "bytes" : 3798473,
+      "capturedSceneSHA256" : "d59a64d2124b47abb15bccb351f2f68b537ccd75c15cf44d677df0fcbbf9ff00",
+      "description" : "設計、撰寫、審閱、借用、自動化，再配合更大的桌面。",
+      "durationSeconds" : 78.5,
+      "locale" : "zh-Hant",
+      "maxMB" : 30,
+      "maxSeconds" : 150,
+      "poster" : "tour.jpg",
+      "relatedSettings" : [
         {
-          "key": "profiles.workspaces",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces"
         },
         {
-          "key": "settings.layout",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 78.5,
-      "bytes": 3798473,
-      "sha256": "2735f2f70a1742c1594089026a6a559a967b33a937567ebdeab7640c164a6532",
-      "sourceSHA256": "c38561e677926f9750bd4c1d72e69b10eae333a0f7e3318e47848ef6ae9ebc44",
-      "sceneSHA256": "b9f5b6a5f145d6011bdb033064bccb826f49dc83069e457b1355ffa3a43d03d5",
-      "capturedSceneSHA256": "d59a64d2124b47abb15bccb351f2f68b537ccd75c15cf44d677df0fcbbf9ff00",
-      "tatamiVersion": "1.13.0",
-      "video": "tour.mp4",
-      "poster": "tour.jpg"
+      "scene" : "tour",
+      "sceneSHA256" : "b9f5b6a5f145d6011bdb033064bccb826f49dc83069e457b1355ffa3a43d03d5",
+      "section" : "demo",
+      "sha256" : "2735f2f70a1742c1594089026a6a559a967b33a937567ebdeab7640c164a6532",
+      "sourceSHA256" : "c38561e677926f9750bd4c1d72e69b10eae333a0f7e3318e47848ef6ae9ebc44",
+      "tatamiVersion" : "1.13.0",
+      "title" : "為整個工作流程騰出空間。",
+      "video" : "tour.mp4"
     },
     {
-      "scene": "workspaces",
-      "title": "在工作之間切換",
-      "description": "用快速鍵切換工作空間及其中的 App。",
-      "section": "workspaces",
-      "maxSeconds": 32,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 1189660,
+      "capturedSceneSHA256" : "2c7ba8c4e88326ca275882af802aee961ba527fe23b76fa8d16b05566c09ad7b",
+      "description" : "用快速鍵切換工作空間及其中的 App。",
+      "durationSeconds" : 16.4,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 32,
+      "poster" : "workspaces.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts.keyEquivalentModifiers",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.keyEquivalentModifiers"
         },
         {
-          "key": "settings.switching.recentAcrossDisplays",
-          "anchor": "settingsswitching"
+          "anchor" : "settingsswitching",
+          "key" : "settings.switching.recentAcrossDisplays"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 16.4,
-      "bytes": 1189660,
-      "sha256": "328f4de7fa9a04d178be4f04bd94152ce96e61327b34f3b3aeeac09630e6309f",
-      "sourceSHA256": "6eae71cbe993c0af86ada524979e6557e7487f731df4481d25e1beaab60a97df",
-      "sceneSHA256": "4d588d0169df7d7d4d2cd0aa9ea6cf9e9061387863c8981d86efac2b361d8479",
-      "capturedSceneSHA256": "2c7ba8c4e88326ca275882af802aee961ba527fe23b76fa8d16b05566c09ad7b",
-      "tatamiVersion": "1.13.0",
-      "video": "workspaces.mp4",
-      "poster": "workspaces.jpg"
+      "scene" : "workspaces",
+      "sceneSHA256" : "4d588d0169df7d7d4d2cd0aa9ea6cf9e9061387863c8981d86efac2b361d8479",
+      "section" : "workspaces",
+      "sha256" : "328f4de7fa9a04d178be4f04bd94152ce96e61327b34f3b3aeeac09630e6309f",
+      "sourceSHA256" : "6eae71cbe993c0af86ada524979e6557e7487f731df4481d25e1beaab60a97df",
+      "tatamiVersion" : "1.13.0",
+      "title" : "在工作之間切換",
+      "video" : "workspaces.mp4"
     },
     {
-      "scene": "autoopen",
-      "title": "一次開啟所需工具",
-      "description": "啟用工作空間時，自動開啟指派給它的 App。",
-      "section": "workspaces",
-      "maxSeconds": 25,
-      "maxMB": 16,
-      "posterCaptionIndex": 1,
-      "relatedSettings": [
+      "bytes" : 1430469,
+      "capturedSceneSHA256" : "e7c03f851f0c0462a2cb888e462741c218a8d161c1237d161fa478f72ec47b69",
+      "description" : "啟用工作空間時，自動開啟指派給它的 App。",
+      "durationSeconds" : 14.6,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 25,
+      "poster" : "autoopen.jpg",
+      "posterCaptionIndex" : 1,
+      "relatedSettings" : [
         {
-          "key": "profiles.workspaces.apps.autoOpen",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.apps.autoOpen"
         },
         {
-          "key": "profiles.workspaces.keyEquivalent",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.keyEquivalent"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 14.6,
-      "bytes": 1430469,
-      "sha256": "05f65ae36e700a6d15c7eca98f252739e8b94fe8504ae209f9ac2e1003ec5961",
-      "sourceSHA256": "9eb4ac10a25fcc16a1cf737825bf6ff018a2fcd467141117483160957006eb7d",
-      "sceneSHA256": "a048f396f1f91b57b5976cef73acd58e4639d09b95736d69b16d284daeb88d51",
-      "capturedSceneSHA256": "e7c03f851f0c0462a2cb888e462741c218a8d161c1237d161fa478f72ec47b69",
-      "tatamiVersion": "1.13.0",
-      "video": "autoopen.mp4",
-      "poster": "autoopen.jpg"
+      "scene" : "autoopen",
+      "sceneSHA256" : "a048f396f1f91b57b5976cef73acd58e4639d09b95736d69b16d284daeb88d51",
+      "section" : "workspaces",
+      "sha256" : "05f65ae36e700a6d15c7eca98f252739e8b94fe8504ae209f9ac2e1003ec5961",
+      "sourceSHA256" : "9eb4ac10a25fcc16a1cf737825bf6ff018a2fcd467141117483160957006eb7d",
+      "tatamiVersion" : "1.13.0",
+      "title" : "一次開啟所需工具",
+      "video" : "autoopen.mp4"
     },
     {
-      "scene": "membership",
-      "title": "隨工作移動 App",
-      "description": "用快速鍵將目前的 App 移至另一個工作空間。",
-      "section": "workspaces",
-      "maxSeconds": 28,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 833181,
+      "capturedSceneSHA256" : "32d2b921976ae146718a1ca7214075b6b8d43fa8a87b3d3b114c2ee5384f3e57",
+      "description" : "用快速鍵將目前的 App 移至另一個工作空間。",
+      "durationSeconds" : 16.87,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 28,
+      "poster" : "membership.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts.assignModifiers",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.assignModifiers"
         },
         {
-          "key": "settings.shortcuts.moveToNextWorkspace",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.moveToNextWorkspace"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 14.87,
-      "bytes": 1044006,
-      "sha256": "70f6488c32cb448a93bd008ab1adeaa423fd48fea37bebaebc98db2731278c0b",
-      "sourceSHA256": "f425e917f8ba7711921f0a09b97c91c2a648a25d38d4654568dfd144d4e69847",
-      "sceneSHA256": "b8df6635a11c2d0ced7f151eb64f3acd5fc5bcf53b3a227608d2377c1060455c",
-      "capturedSceneSHA256": "88e9ede68c62b4eb9d9aae281dcf76ced0fcd137d07f5a86312ad12ef50ef882",
-      "tatamiVersion": "1.13.0",
-      "video": "membership.mp4",
-      "poster": "membership.jpg"
+      "scene" : "membership",
+      "sceneSHA256" : "32d2b921976ae146718a1ca7214075b6b8d43fa8a87b3d3b114c2ee5384f3e57",
+      "section" : "workspaces",
+      "sha256" : "3843cc94399f94822633851496df4e22844a6039ca87f309d370f918fd3b8b37",
+      "sourceSHA256" : "f25ed2dda4a5713b623270f671d52e0c0bf7fc805952cf037ba5d434bb546c27",
+      "tatamiVersion" : "1.14.0",
+      "title" : "隨工作移動 App",
+      "video" : "membership.mp4"
     },
     {
-      "scene": "profiles",
-      "title": "切換整套設定",
-      "description": "切換設定組合會更換整套工作空間設定。",
-      "section": "profiles",
-      "maxSeconds": 22,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 493991,
+      "capturedSceneSHA256" : "561fea9f656ee094df30d2b548d5a6471f6d1be482af9658f0da2c3be7288b4f",
+      "description" : "切換設定組合會更換整套工作空間設定。",
+      "durationSeconds" : 7.93,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 22,
+      "poster" : "profiles.jpg",
+      "relatedSettings" : [
         {
-          "key": "profiles.shortcut",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.shortcut"
         },
         {
-          "key": "profiles.workspaces",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 7.93,
-      "bytes": 493991,
-      "sha256": "5c834d5a1c86c8f85f1c668a6a7dc8d982def08004b80f335dafd2c2eca004f3",
-      "sourceSHA256": "c5acba94c8c53b0028342963af9ac1592d4c989ea03ec5fb20377b486c0788d7",
-      "sceneSHA256": "547d48bc1b0ab335f374f2dac71a198db81757e7a5ff8a615de92f651185e8dc",
-      "capturedSceneSHA256": "561fea9f656ee094df30d2b548d5a6471f6d1be482af9658f0da2c3be7288b4f",
-      "tatamiVersion": "1.13.0",
-      "video": "profiles.mp4",
-      "poster": "profiles.jpg"
+      "scene" : "profiles",
+      "sceneSHA256" : "547d48bc1b0ab335f374f2dac71a198db81757e7a5ff8a615de92f651185e8dc",
+      "section" : "profiles",
+      "sha256" : "5c834d5a1c86c8f85f1c668a6a7dc8d982def08004b80f335dafd2c2eca004f3",
+      "sourceSHA256" : "c5acba94c8c53b0028342963af9ac1592d4c989ea03ec5fb20377b486c0788d7",
+      "tatamiVersion" : "1.13.0",
+      "title" : "切換整套設定",
+      "video" : "profiles.mp4"
     },
     {
-      "scene": "profile-copy",
-      "title": "重複使用現有設定",
-      "description": "在設定視窗中複製設定組合，並檢查要包含的工作空間。",
-      "section": "profiles",
-      "maxSeconds": 35,
-      "maxMB": 16,
-      "seedOptions": [
+      "bytes" : 459659,
+      "capturedSceneSHA256" : "475e31bc15d3bf62dfe8908ba9d2bc819af1fc1d4cf9240fd8be72b903f8092e",
+      "description" : "在設定視窗中複製設定組合，並檢查要包含的工作空間。",
+      "durationSeconds" : 11.9,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 35,
+      "poster" : "profile-copy.jpg",
+      "relatedSettings" : [
+        {
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles"
+        }
+      ],
+      "scene" : "profile-copy",
+      "sceneSHA256" : "475e31bc15d3bf62dfe8908ba9d2bc819af1fc1d4cf9240fd8be72b903f8092e",
+      "section" : "profiles",
+      "seedOptions" : [
         "--keep-window"
       ],
-      "relatedSettings": [
-        {
-          "key": "profiles",
-          "anchor": "profiles-and-workspaces"
-        }
-      ],
-      "locale": "zh-Hant",
-      "durationSeconds": 11.9,
-      "bytes": 459659,
-      "sha256": "7e5ebdf80b2b088007cecf2388d2c9989d6089217c339999b4adc72e1a6455da",
-      "sourceSHA256": "54f74e384eeead95dc37cde1f6c1ce29bdfd432cfc757b3de8d313607f73672b",
-      "sceneSHA256": "475e31bc15d3bf62dfe8908ba9d2bc819af1fc1d4cf9240fd8be72b903f8092e",
-      "capturedSceneSHA256": "475e31bc15d3bf62dfe8908ba9d2bc819af1fc1d4cf9240fd8be72b903f8092e",
-      "tatamiVersion": "1.13.0",
-      "video": "profile-copy.mp4",
-      "poster": "profile-copy.jpg"
+      "sha256" : "7e5ebdf80b2b088007cecf2388d2c9989d6089217c339999b4adc72e1a6455da",
+      "sourceSHA256" : "54f74e384eeead95dc37cde1f6c1ce29bdfd432cfc757b3de8d313607f73672b",
+      "tatamiVersion" : "1.13.0",
+      "title" : "重複使用現有設定",
+      "video" : "profile-copy.mp4"
     },
     {
-      "scene": "workspace-copy",
-      "title": "在工作空間之間複製設定",
-      "description": "檢查另一個工作空間的 App 與設定，再套用選取的變更。",
-      "section": "profiles",
-      "maxSeconds": 40,
-      "maxMB": 16,
-      "seedOptions": [
+      "bytes" : 1126302,
+      "capturedSceneSHA256" : "78304de3a015e706db83068b3e110864b548cd2f319aad11f1e376c7a77cb6de",
+      "description" : "檢查另一個工作空間的 App 與設定，再套用選取的變更。",
+      "durationSeconds" : 32.97,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 40,
+      "poster" : "workspace-copy.jpg",
+      "relatedSettings" : [
+        {
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.apps"
+        },
+        {
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces"
+        }
+      ],
+      "scene" : "workspace-copy",
+      "sceneSHA256" : "78304de3a015e706db83068b3e110864b548cd2f319aad11f1e376c7a77cb6de",
+      "section" : "profiles",
+      "seedOptions" : [
         "--keep-window"
       ],
-      "relatedSettings": [
-        {
-          "key": "profiles.workspaces.apps",
-          "anchor": "profiles-and-workspaces"
-        },
-        {
-          "key": "profiles.workspaces",
-          "anchor": "profiles-and-workspaces"
-        }
-      ],
-      "locale": "zh-Hant",
-      "durationSeconds": 19.47,
-      "bytes": 885187,
-      "sha256": "1977036d816038066b0fdb96e616cdec4bf305c240b4e8fc5b36c119d49b5d98",
-      "sourceSHA256": "dac5fc611c5e7e4e822b48348303d6da2de92321eec15b3298aac0be7b5620e5",
-      "sceneSHA256": "fd79b8cb1c0e65a754ede4517952ee33e15896bcb23f95938c03a3ec566abd7a",
-      "capturedSceneSHA256": "fd79b8cb1c0e65a754ede4517952ee33e15896bcb23f95938c03a3ec566abd7a",
-      "tatamiVersion": "1.13.0",
-      "video": "workspace-copy.mp4",
-      "poster": "workspace-copy.jpg"
+      "sha256" : "36294a37e62fd22d76f91c8567d393378e26fd1d615b7e09c6f690a5240aab15",
+      "sourceSHA256" : "7b72752d1d1ba9dc4d0320d6e790fd5dbf3a0fb4c5ffbb5b4f7a2d572e5effff",
+      "tatamiVersion" : "1.14.0",
+      "title" : "在工作空間之間複製設定",
+      "video" : "workspace-copy.mp4"
     },
     {
-      "scene": "tiling",
-      "title": "讓新視窗找到位置",
-      "description": "新視窗會分割目前選取視窗的區域，自動排列。",
-      "section": "tiling",
-      "maxSeconds": 20,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 582863,
+      "capturedSceneSHA256" : "f73555188d2cc203a38515a644a042c6606a6a90729597985f68e3227a2bcb9e",
+      "description" : "新視窗會分割目前選取視窗的區域，自動排列。",
+      "durationSeconds" : 13.83,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 20,
+      "poster" : "tiling.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.layout.splitType",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout.splitType"
         },
         {
-          "key": "settings.layout.windowPlacement",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout.windowPlacement"
         },
         {
-          "key": "settings.layout.autoBalance",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout.autoBalance"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 13.83,
-      "bytes": 582863,
-      "sha256": "ac8a5805a465ddd40974ff5d80a8392b3c0e5da6b0514e751068f0ef1afdad69",
-      "sourceSHA256": "168280810c95e80d528d617bbfbbdc46742a721032eff096bf93fc7df37f397c",
-      "sceneSHA256": "a1f9e47d538d422854b269787a9ce3d85541376b7671f023e7bbcb04f7722e19",
-      "capturedSceneSHA256": "f73555188d2cc203a38515a644a042c6606a6a90729597985f68e3227a2bcb9e",
-      "tatamiVersion": "1.13.0",
-      "video": "tiling.mp4",
-      "poster": "tiling.jpg"
+      "scene" : "tiling",
+      "sceneSHA256" : "a1f9e47d538d422854b269787a9ce3d85541376b7671f023e7bbcb04f7722e19",
+      "section" : "tiling",
+      "sha256" : "ac8a5805a465ddd40974ff5d80a8392b3c0e5da6b0514e751068f0ef1afdad69",
+      "sourceSHA256" : "168280810c95e80d528d617bbfbbdc46742a721032eff096bf93fc7df37f397c",
+      "tatamiVersion" : "1.13.0",
+      "title" : "讓新視窗找到位置",
+      "video" : "tiling.mp4"
     },
     {
-      "scene": "layouts",
-      "title": "用鍵盤調整排列",
-      "description": "交換視窗、變更分割方向、調整大小，再平均調整整個排列。",
-      "section": "tiling",
-      "maxSeconds": 27,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 782798,
+      "capturedSceneSHA256" : "9045772189e9ed23ede9c8482df6812db558a0ceb8c63317369818210fc5a6c6",
+      "description" : "交換視窗、變更分割方向、調整大小，再平均調整整個排列。",
+      "durationSeconds" : 13.67,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 27,
+      "poster" : "layouts.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts.resizeGrow",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.resizeGrow"
         },
         {
-          "key": "settings.shortcuts.balance",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.balance"
         },
         {
-          "key": "settings.layout.autoBalance",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout.autoBalance"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 13.67,
-      "bytes": 782798,
-      "sha256": "786835f783f9abc6b9144e69690e0a8bc817e2a133c86cd7dd3c361efb655ebc",
-      "sourceSHA256": "6d7c6d69b7a0a7c31d5587ad318caa556a8103bbb5a99068250291f423961884",
-      "sceneSHA256": "9045772189e9ed23ede9c8482df6812db558a0ceb8c63317369818210fc5a6c6",
-      "capturedSceneSHA256": "9045772189e9ed23ede9c8482df6812db558a0ceb8c63317369818210fc5a6c6",
-      "tatamiVersion": "1.13.0",
-      "video": "layouts.mp4",
-      "poster": "layouts.jpg"
+      "scene" : "layouts",
+      "sceneSHA256" : "9045772189e9ed23ede9c8482df6812db558a0ceb8c63317369818210fc5a6c6",
+      "section" : "tiling",
+      "sha256" : "786835f783f9abc6b9144e69690e0a8bc817e2a133c86cd7dd3c361efb655ebc",
+      "sourceSHA256" : "6d7c6d69b7a0a7c31d5587ad318caa556a8103bbb5a99068250291f423961884",
+      "tatamiVersion" : "1.13.0",
+      "title" : "用鍵盤調整排列",
+      "video" : "layouts.mp4"
     },
     {
-      "scene": "drag",
-      "title": "用滑鼠排列",
-      "description": "拖移視窗、調整邊緣，再還原儲存的排列。",
-      "section": "tiling",
-      "maxSeconds": 32,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 1503692,
+      "capturedSceneSHA256" : "63f29332858091226bc982a28bf8c85571fdd2273c3b1d90ca90de77339072ee",
+      "description" : "拖移視窗、調整邊緣，再還原儲存的排列。",
+      "durationSeconds" : 16.63,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 32,
+      "poster" : "drag.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.layout",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout"
         },
         {
-          "key": "settings.gestures",
-          "anchor": "settingsgestures"
+          "anchor" : "settingsgestures",
+          "key" : "settings.gestures"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 16.63,
-      "bytes": 1503692,
-      "sha256": "bd447462385e5ceafa0745fdd94d132603af174dbdba64e9076b5875e586b9b9",
-      "sourceSHA256": "663096adb5fbc6c3c0e06b3f9bd78cd9f1ae0cc0d088bc861816475d855a40a6",
-      "sceneSHA256": "682d5bc9aadfb20990e6ca0db5ae1b95b09f157e0d23baae28d7d6274d774d40",
-      "capturedSceneSHA256": "63f29332858091226bc982a28bf8c85571fdd2273c3b1d90ca90de77339072ee",
-      "tatamiVersion": "1.13.0",
-      "video": "drag.mp4",
-      "poster": "drag.jpg"
+      "scene" : "drag",
+      "sceneSHA256" : "682d5bc9aadfb20990e6ca0db5ae1b95b09f157e0d23baae28d7d6274d774d40",
+      "section" : "tiling",
+      "sha256" : "bd447462385e5ceafa0745fdd94d132603af174dbdba64e9076b5875e586b9b9",
+      "sourceSHA256" : "663096adb5fbc6c3c0e06b3f9bd78cd9f1ae0cc0d088bc861816475d855a40a6",
+      "tatamiVersion" : "1.13.0",
+      "title" : "用滑鼠排列",
+      "video" : "drag.mp4"
     },
     {
-      "scene": "fullscreen",
-      "title": "放大工作空間，集中注意力",
-      "description": "將一個視窗放大到工作空間大小，再完整還原原來的排列。",
-      "section": "tiling",
-      "maxSeconds": 30,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 451408,
+      "capturedSceneSHA256" : "714d8f5a05c517c08f6c68cd53a51cf38eed80c7c2ea96a3587388b550ef98a4",
+      "description" : "將一個視窗放大到工作空間大小，再完整還原原來的排列。",
+      "durationSeconds" : 7.23,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 30,
+      "poster" : "fullscreen.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts.toggleFullscreen",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.toggleFullscreen"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 7.23,
-      "bytes": 451408,
-      "sha256": "05c89607f1a34f4195da067919fb5b0a449b8027d2a6e977b6c698125904a928",
-      "sourceSHA256": "cf7107d543d68ff85cadc97c55977bf39cd5af457ed38c3edc9554589860d332",
-      "sceneSHA256": "b806e60cb34c0b2e0cf34f99238c95c26119adda610811cbc3c3e9fb2992c92f",
-      "capturedSceneSHA256": "714d8f5a05c517c08f6c68cd53a51cf38eed80c7c2ea96a3587388b550ef98a4",
-      "tatamiVersion": "1.13.0",
-      "video": "fullscreen.mp4",
-      "poster": "fullscreen.jpg"
+      "scene" : "fullscreen",
+      "sceneSHA256" : "b806e60cb34c0b2e0cf34f99238c95c26119adda610811cbc3c3e9fb2992c92f",
+      "section" : "tiling",
+      "sha256" : "05c89607f1a34f4195da067919fb5b0a449b8027d2a6e977b6c698125904a928",
+      "sourceSHA256" : "cf7107d543d68ff85cadc97c55977bf39cd5af457ed38c3edc9554589860d332",
+      "tatamiVersion" : "1.13.0",
+      "title" : "放大工作空間，集中注意力",
+      "video" : "fullscreen.mp4"
     },
     {
-      "scene": "focus",
-      "title": "讓焦點跟隨你的意圖",
-      "description": "用快速鍵選擇相鄰視窗並移動滑鼠游標，也可以將游標移入視窗來選取它。",
-      "section": "tiling",
-      "maxSeconds": 38,
-      "maxMB": 16,
-      "seedOptions": [
+      "bytes" : 664542,
+      "capturedSceneSHA256" : "73654be6c9b4251979c53e158cbd624a0a7da4d44f63cc51d8114178effbdd65",
+      "description" : "用快速鍵選擇相鄰視窗並移動滑鼠游標，也可以將游標移入視窗來選取它。",
+      "durationSeconds" : 20.23,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 38,
+      "poster" : "focus.jpg",
+      "relatedSettings" : [
+        {
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.focusLeft"
+        },
+        {
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.focusRight"
+        },
+        {
+          "anchor" : "settingsfocus",
+          "key" : "settings.focus.mouseFollowsFocus"
+        },
+        {
+          "anchor" : "settingsfocus",
+          "key" : "settings.focus.focusFollowsMouse"
+        }
+      ],
+      "scene" : "focus",
+      "sceneSHA256" : "e486778a124dff26d7ffd9d4641c20d3372481fa341ca6bfdc14267d0e52d3f5",
+      "section" : "tiling",
+      "seedOptions" : [
         "--focus-follows-mouse"
       ],
-      "relatedSettings": [
-        {
-          "key": "settings.shortcuts.focusLeft",
-          "anchor": "settingsshortcuts"
-        },
-        {
-          "key": "settings.shortcuts.focusRight",
-          "anchor": "settingsshortcuts"
-        },
-        {
-          "key": "settings.focus.mouseFollowsFocus",
-          "anchor": "settingsfocus"
-        },
-        {
-          "key": "settings.focus.focusFollowsMouse",
-          "anchor": "settingsfocus"
-        }
-      ],
-      "locale": "zh-Hant",
-      "durationSeconds": 20.23,
-      "bytes": 664542,
-      "sha256": "62609e6303ae7c4db07f4110c2182a99c108f4965dc3f1ce4a983add820339af",
-      "sourceSHA256": "e5b551d4a65efd735ee247d2cb2544579a1b7ad2083b4bac0039dc546910025c",
-      "sceneSHA256": "e486778a124dff26d7ffd9d4641c20d3372481fa341ca6bfdc14267d0e52d3f5",
-      "capturedSceneSHA256": "73654be6c9b4251979c53e158cbd624a0a7da4d44f63cc51d8114178effbdd65",
-      "tatamiVersion": "1.13.0",
-      "video": "focus.mp4",
-      "poster": "focus.jpg"
+      "sha256" : "62609e6303ae7c4db07f4110c2182a99c108f4965dc3f1ce4a983add820339af",
+      "sourceSHA256" : "e5b551d4a65efd735ee247d2cb2544579a1b7ad2083b4bac0039dc546910025c",
+      "tatamiVersion" : "1.13.0",
+      "title" : "讓焦點跟隨你的意圖",
+      "video" : "focus.mp4"
     },
     {
-      "scene": "switching",
-      "title": "選擇需要的視窗",
-      "description": "按住切換快速鍵查看目前視窗，輕按即可快速返回。",
-      "section": "tiling",
-      "maxSeconds": 20,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 461817,
+      "capturedSceneSHA256" : "aee6f9dee29fc30ec68719eab69a832b31b6e86c1aa17021bc18f26db0d9935b",
+      "description" : "按住切換快速鍵查看目前視窗，輕按即可快速返回。",
+      "durationSeconds" : 9.73,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 20,
+      "poster" : "switching.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts.cycleNextWindow",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.cycleNextWindow"
         },
         {
-          "key": "settings.switching.cycleSameAppWindows",
-          "anchor": "settingsswitching"
+          "anchor" : "settingsswitching",
+          "key" : "settings.switching.cycleSameAppWindows"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 9.73,
-      "bytes": 461817,
-      "sha256": "0c33aedde7c85687e0c092195a8fdfa0ff6878b356d6caf58059e5c0604f45bf",
-      "sourceSHA256": "2048941a85c6240d6bf29454a230e0bbe60db2a4279ce6bd5c0e74828fd98b0d",
-      "sceneSHA256": "1221748b9981704ce86cc48e200f97c407eefdf62aa9c7cfc8f0e912ae5a493a",
-      "capturedSceneSHA256": "aee6f9dee29fc30ec68719eab69a832b31b6e86c1aa17021bc18f26db0d9935b",
-      "tatamiVersion": "1.13.0",
-      "video": "switching.mp4",
-      "poster": "switching.jpg"
+      "scene" : "switching",
+      "sceneSHA256" : "1221748b9981704ce86cc48e200f97c407eefdf62aa9c7cfc8f0e912ae5a493a",
+      "section" : "tiling",
+      "sha256" : "0c33aedde7c85687e0c092195a8fdfa0ff6878b356d6caf58059e5c0604f45bf",
+      "sourceSHA256" : "2048941a85c6240d6bf29454a230e0bbe60db2a4279ce6bd5c0e74828fd98b0d",
+      "tatamiVersion" : "1.13.0",
+      "title" : "選擇需要的視窗",
+      "video" : "switching.mp4"
     },
     {
-      "scene": "borrow",
-      "title": "把對話放到旁邊",
-      "description": "不必離開目前工作，就能借用另一個工作空間。",
-      "section": "borrow",
-      "maxSeconds": 24,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 677071,
+      "capturedSceneSHA256" : "2603d17c5853e03efb37d33d3435ee19f13aba5ee95ea8792aadf27231adf7dc",
+      "description" : "不必離開目前工作，就能借用另一個工作空間。",
+      "durationSeconds" : 10.87,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 24,
+      "poster" : "borrow.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts.borrowModifiers",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.borrowModifiers"
         },
         {
-          "key": "settings.switching.borrowDefaultEdge",
-          "anchor": "settingsswitching"
+          "anchor" : "settingsswitching",
+          "key" : "settings.switching.borrowDefaultEdge"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 10.87,
-      "bytes": 677071,
-      "sha256": "ee37fb3bb67f8da581a3eb5281dea7d5f0fce45d14daba46acf10f3ef1bcea5c",
-      "sourceSHA256": "fbf12f0518173cacb131fea25403382b5ad2144ab0adb1d59cdd7a344de0e7d0",
-      "sceneSHA256": "4cc1032bf6affe164bdae883a4cf76190dba041a5686ec52b2d94ff6dff87b33",
-      "capturedSceneSHA256": "2603d17c5853e03efb37d33d3435ee19f13aba5ee95ea8792aadf27231adf7dc",
-      "tatamiVersion": "1.13.0",
-      "video": "borrow.mp4",
-      "poster": "borrow.jpg"
+      "scene" : "borrow",
+      "sceneSHA256" : "4cc1032bf6affe164bdae883a4cf76190dba041a5686ec52b2d94ff6dff87b33",
+      "section" : "borrow",
+      "sha256" : "ee37fb3bb67f8da581a3eb5281dea7d5f0fce45d14daba46acf10f3ef1bcea5c",
+      "sourceSHA256" : "fbf12f0518173cacb131fea25403382b5ad2144ab0adb1d59cdd7a344de0e7d0",
+      "tatamiVersion" : "1.13.0",
+      "title" : "把對話放到旁邊",
+      "video" : "borrow.mp4"
     },
     {
-      "scene": "scratchpad",
-      "title": "隨時叫出的暫存區",
-      "description": "再次借用時，App 中的內容仍然保留。",
-      "section": "borrow",
-      "maxSeconds": 25,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 834259,
+      "capturedSceneSHA256" : "f1b646ad9bd6af2c41872506de1d8735a7e615105b9f85e856f71d198a0e36cc",
+      "description" : "再次借用時，App 中的內容仍然保留。",
+      "durationSeconds" : 13.27,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 25,
+      "poster" : "scratchpad.jpg",
+      "relatedSettings" : [
         {
-          "key": "profiles.workspaces.kind",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.kind"
         },
         {
-          "key": "profiles.workspaces.borrowEdge",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.borrowEdge"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 13.27,
-      "bytes": 834259,
-      "sha256": "4b36c9a1aeedad73876d4db7310ec44b62736a3fdb1027ebf8a86db929c2cc10",
-      "sourceSHA256": "55d789d488d947d69fa2cb4109407573c0be6a2de77c506d6b765ebe0de8cb69",
-      "sceneSHA256": "c2e0c37191f715fa0ca801ed52d23230141bd9d95e09aaed9b82eeaf05ca7160",
-      "capturedSceneSHA256": "f1b646ad9bd6af2c41872506de1d8735a7e615105b9f85e856f71d198a0e36cc",
-      "tatamiVersion": "1.13.0",
-      "video": "scratchpad.mp4",
-      "poster": "scratchpad.jpg"
+      "scene" : "scratchpad",
+      "sceneSHA256" : "c2e0c37191f715fa0ca801ed52d23230141bd9d95e09aaed9b82eeaf05ca7160",
+      "section" : "borrow",
+      "sha256" : "4b36c9a1aeedad73876d4db7310ec44b62736a3fdb1027ebf8a86db929c2cc10",
+      "sourceSHA256" : "55d789d488d947d69fa2cb4109407573c0be6a2de77c506d6b765ebe0de8cb69",
+      "tatamiVersion" : "1.13.0",
+      "title" : "隨時叫出的暫存區",
+      "video" : "scratchpad.mp4"
     },
     {
-      "scene": "borrow-placement",
-      "title": "選擇位置與工作情境",
-      "description": "把工作空間借到左側或下方，跨過邊界移動焦點，再完整切換過去。",
-      "section": "borrow",
-      "maxSeconds": 30,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 1309892,
+      "capturedSceneSHA256" : "cb66bf33344b0c92dce7b8102b5aa9c117b9885b5324919ad5e89e1d3fced8dc",
+      "description" : "把工作空間借到左側或下方，跨過邊界移動焦點，再完整切換過去。",
+      "durationSeconds" : 16.87,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 30,
+      "poster" : "borrow-placement.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.switching.borrowDefaultEdge",
-          "anchor": "settingsswitching"
+          "anchor" : "settingsswitching",
+          "key" : "settings.switching.borrowDefaultEdge"
         },
         {
-          "key": "settings.switching.borrowFraction",
-          "anchor": "settingsswitching"
+          "anchor" : "settingsswitching",
+          "key" : "settings.switching.borrowFraction"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 16.87,
-      "bytes": 1309892,
-      "sha256": "3f5172815fc62b50a68a8d23f4a98bd8eb9a6a13d522fb88d54aca07b70397d0",
-      "sourceSHA256": "e68244e60f53e36766aa0d80b7c6fc1b70a356d8b9ab754a5f97cf4f9d065a92",
-      "sceneSHA256": "15dec2b8c3308d9160ac9978a62be326cd312bc988cfb4bb2163900e22290676",
-      "capturedSceneSHA256": "cb66bf33344b0c92dce7b8102b5aa9c117b9885b5324919ad5e89e1d3fced8dc",
-      "tatamiVersion": "1.13.0",
-      "video": "borrow-placement.mp4",
-      "poster": "borrow-placement.jpg"
+      "scene" : "borrow-placement",
+      "sceneSHA256" : "15dec2b8c3308d9160ac9978a62be326cd312bc988cfb4bb2163900e22290676",
+      "section" : "borrow",
+      "sha256" : "3f5172815fc62b50a68a8d23f4a98bd8eb9a6a13d522fb88d54aca07b70397d0",
+      "sourceSHA256" : "e68244e60f53e36766aa0d80b7c6fc1b70a356d8b9ab754a5f97cf4f9d065a92",
+      "tatamiVersion" : "1.13.0",
+      "title" : "選擇位置與工作情境",
+      "video" : "borrow-placement.mp4"
     },
     {
-      "scene": "floating",
-      "title": "把便箋放在工作空間上方",
-      "description": "在置頂和參與並排之間切換便箋，並使用其實際控制項。",
-      "section": "floating",
-      "maxSeconds": 28,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 973410,
+      "capturedSceneSHA256" : "aab9fdf0d5e2911a3d920e3b0f6531796aeaaf45eff250940465de5c19df9acd",
+      "description" : "在置頂和參與並排之間切換便箋，並使用其實際控制項。",
+      "durationSeconds" : 26.57,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 32,
+      "poster" : "floating.jpg",
+      "relatedSettings" : [
         {
-          "key": "profiles.workspaces.apps.layout",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.apps.layout"
         },
         {
-          "key": "settings.shortcuts.toggleFloating",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.toggleFloating"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 22.13,
-      "bytes": 788681,
-      "sha256": "f74c26ca7505ce2f9e718e19ca757b8d75b2cd4010b6c7ac7b13f23d2463cbd3",
-      "sourceSHA256": "d071e6da5c6aaec905a56d8a0cd6103a7df0efcee4abd5ace30c5b03d55d8b20",
-      "sceneSHA256": "b71d0060bf8f7a3e0925651e6c342219a494e6f97e255c67a210481080abe1d7",
-      "capturedSceneSHA256": "7309eb04b91dcd0970b612a480529ffb0874a058006840aa291f0af3e56fb9f4",
-      "tatamiVersion": "1.13.0",
-      "video": "floating.mp4",
-      "poster": "floating.jpg"
+      "scene" : "floating",
+      "sceneSHA256" : "aab9fdf0d5e2911a3d920e3b0f6531796aeaaf45eff250940465de5c19df9acd",
+      "section" : "floating",
+      "sha256" : "689f4034a8d26ed72a6802a686bdf99ab0c2d11df62896b212388fdfb23f145f",
+      "sourceSHA256" : "43b65aec23fd4f8440b0d8e95fd88840212ed4afa59e2d40274941e00ed1233f",
+      "tatamiVersion" : "1.14.0",
+      "title" : "把便箋放在工作空間上方",
+      "video" : "floating.mp4"
     },
     {
-      "scene": "shared",
-      "title": "跨工作使用同一個狀態視窗",
-      "description": "將共用 App 設為保持最上層，在每個工作空間都能看到它。",
-      "section": "floating",
-      "maxSeconds": 28,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 741019,
+      "capturedSceneSHA256" : "79fbdaef48d4bebc7745c6d4921539a83e53f294bbe20c7257e7dee41c7f5046",
+      "description" : "將共用 App 設為保持最上層，在每個工作空間都能看到它。",
+      "durationSeconds" : 13.47,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 28,
+      "poster" : "shared.jpg",
+      "relatedSettings" : [
         {
-          "key": "sharedApps.layout",
-          "anchor": "sharedapps"
+          "anchor" : "sharedapps",
+          "key" : "sharedApps.layout"
         },
         {
-          "key": "settings.shortcuts.toggleSharedFloating",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts.toggleSharedFloating"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 13.47,
-      "bytes": 741019,
-      "sha256": "3718818bdadc9ef07835532526b0fcc910960e8234516663a76960259b0b80cd",
-      "sourceSHA256": "f4eb2985a18ce7c26607f3dd4eefc1aca2d177c597eba735b77196a19a8a1584",
-      "sceneSHA256": "4419ce0cbf246741fe07facffd98705051b100cb7d81382f7a8f4c29c8404b14",
-      "capturedSceneSHA256": "79fbdaef48d4bebc7745c6d4921539a83e53f294bbe20c7257e7dee41c7f5046",
-      "tatamiVersion": "1.13.0",
-      "video": "shared.mp4",
-      "poster": "shared.jpg"
+      "scene" : "shared",
+      "sceneSHA256" : "4419ce0cbf246741fe07facffd98705051b100cb7d81382f7a8f4c29c8404b14",
+      "section" : "floating",
+      "sha256" : "3718818bdadc9ef07835532526b0fcc910960e8234516663a76960259b0b80cd",
+      "sourceSHA256" : "f4eb2985a18ce7c26607f3dd4eefc1aca2d177c597eba735b77196a19a8a1584",
+      "tatamiVersion" : "1.13.0",
+      "title" : "跨工作使用同一個狀態視窗",
+      "video" : "shared.mp4"
     },
     {
-      "scene": "unmanaged",
-      "title": "讓視窗留在原處",
-      "description": "讓共用 App 維持一般堆疊順序，跨工作保留視窗的位置和大小。",
-      "section": "floating",
-      "maxSeconds": 27,
-      "maxMB": 16,
-      "seedOptions": [
+      "bytes" : 814904,
+      "capturedSceneSHA256" : "708392118912f98b623f86c53d329edc8f419c1a8fc4f49d90a8c9f8ff0f529f",
+      "description" : "讓共用 App 維持一般堆疊順序，跨工作保留視窗的位置和大小。",
+      "durationSeconds" : 17.87,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 27,
+      "poster" : "unmanaged.jpg",
+      "relatedSettings" : [
+        {
+          "anchor" : "sharedapps",
+          "key" : "sharedApps.layout"
+        }
+      ],
+      "scene" : "unmanaged",
+      "sceneSHA256" : "b741cc423ee7dab6ec2f100afb714e9802cfd31cc0f349f63009464290ecf59d",
+      "section" : "floating",
+      "seedOptions" : [
         "--pulse",
         "unmanaged"
       ],
-      "relatedSettings": [
-        {
-          "key": "sharedApps.layout",
-          "anchor": "sharedapps"
-        }
-      ],
-      "locale": "zh-Hant",
-      "durationSeconds": 17.87,
-      "bytes": 814904,
-      "sha256": "ece7e8531c9e32d67cdd154090fc67a1b881906bdb161eedae50a75c03a41448",
-      "sourceSHA256": "a1e62304537f235b04ba2b7ee46508522f59c5de95314cb797ca3fdd6f0e3c73",
-      "sceneSHA256": "b741cc423ee7dab6ec2f100afb714e9802cfd31cc0f349f63009464290ecf59d",
-      "capturedSceneSHA256": "708392118912f98b623f86c53d329edc8f419c1a8fc4f49d90a8c9f8ff0f529f",
-      "tatamiVersion": "1.13.0",
-      "video": "unmanaged.mp4",
-      "poster": "unmanaged.jpg"
+      "sha256" : "ece7e8531c9e32d67cdd154090fc67a1b881906bdb161eedae50a75c03a41448",
+      "sourceSHA256" : "a1e62304537f235b04ba2b7ee46508522f59c5de95314cb797ca3fdd6f0e3c73",
+      "tatamiVersion" : "1.13.0",
+      "title" : "讓視窗留在原處",
+      "video" : "unmanaged.mp4"
     },
     {
-      "scene": "cli",
-      "title": "用 CLI 準備專注環境",
-      "description": "查看實際工作空間清單，再執行包含啟用、平均排列與借用操作的指令稿。",
-      "section": "automation",
-      "maxSeconds": 34,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 712925,
+      "capturedSceneSHA256" : "3b1e7ac6b14775cfe9327515cf422bd2e24fedeab2ffaa6b74d5e38ea01641b5",
+      "description" : "查看實際工作空間清單，再執行包含啟用、平均排列與借用操作的指令稿。",
+      "durationSeconds" : 13.8,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 34,
+      "poster" : "cli.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts"
         },
         {
-          "key": "profiles.workspaces",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 13.8,
-      "bytes": 712925,
-      "sha256": "bc63c0273eca3eaa512cab9fbac1697972f106312b82c5eecca9d28a51ecdf42",
-      "sourceSHA256": "dad0b4359034c5f95f429ba4efc90876932dcbe7bafac32efd937b6fe7eb145c",
-      "sceneSHA256": "92ff275a544195ca7d8437a0ee56e9eb6e0e671f78768f24d277fb9cc76d91e8",
-      "capturedSceneSHA256": "3b1e7ac6b14775cfe9327515cf422bd2e24fedeab2ffaa6b74d5e38ea01641b5",
-      "tatamiVersion": "1.13.0",
-      "video": "cli.mp4",
-      "poster": "cli.jpg"
+      "scene" : "cli",
+      "sceneSHA256" : "92ff275a544195ca7d8437a0ee56e9eb6e0e671f78768f24d277fb9cc76d91e8",
+      "section" : "automation",
+      "sha256" : "bc63c0273eca3eaa512cab9fbac1697972f106312b82c5eecca9d28a51ecdf42",
+      "sourceSHA256" : "dad0b4359034c5f95f429ba4efc90876932dcbe7bafac32efd937b6fe7eb145c",
+      "tatamiVersion" : "1.13.0",
+      "title" : "用 CLI 準備專注環境",
+      "video" : "cli.mp4"
     },
     {
-      "scene": "hooks",
-      "title": "把工作空間變化連接到其他工具",
-      "description": "工作空間變更時，透過掛鉤通知外部工具。",
-      "section": "automation",
-      "maxSeconds": 30,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 1276453,
+      "capturedSceneSHA256" : "69948c3135c09bd42b43d64e65202821d9288599f7effd97d5af7bf31bc1f564",
+      "description" : "工作空間變更時，透過掛鉤通知外部工具。",
+      "durationSeconds" : 17.83,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 30,
+      "poster" : "hooks.jpg",
+      "relatedSettings" : [
         {
-          "key": "hooks",
-          "anchor": "hooks"
+          "anchor" : "hooks",
+          "key" : "hooks"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 17.83,
-      "bytes": 1276453,
-      "sha256": "11de6a78e40c0675d55696c3f427f35e5c5d3f0158bdb42ed03c7c5c02b7ff8a",
-      "sourceSHA256": "7e17760999baf47cad58315b670d0ffd6a468dc47260a0352036e62aeb39477d",
-      "sceneSHA256": "ba25a6aad7fa183416e027bc8d3cc164c73b0bccba748cfd8a3934217d36fa2d",
-      "capturedSceneSHA256": "69948c3135c09bd42b43d64e65202821d9288599f7effd97d5af7bf31bc1f564",
-      "tatamiVersion": "1.13.0",
-      "video": "hooks.mp4",
-      "poster": "hooks.jpg"
+      "scene" : "hooks",
+      "sceneSHA256" : "ba25a6aad7fa183416e027bc8d3cc164c73b0bccba748cfd8a3934217d36fa2d",
+      "section" : "automation",
+      "sha256" : "11de6a78e40c0675d55696c3f427f35e5c5d3f0158bdb42ed03c7c5c02b7ff8a",
+      "sourceSHA256" : "7e17760999baf47cad58315b670d0ffd6a468dc47260a0352036e62aeb39477d",
+      "tatamiVersion" : "1.13.0",
+      "title" : "把工作空間變化連接到其他工具",
+      "video" : "hooks.mp4"
     },
     {
-      "scene": "configuration",
-      "title": "編輯 TOML，立即查看變化",
-      "description": "Tatami 執行時，編輯 TOML 即可調整視窗間距。",
-      "section": "automation",
-      "maxSeconds": 33,
-      "maxMB": 16,
-      "relatedSettings": [
+      "bytes" : 883484,
+      "capturedSceneSHA256" : "2edeb7a02ebc4cfc99144d98b17b9ec1fbf14fd0ee101cdc959c727c59f53759",
+      "description" : "Tatami 執行時，編輯 TOML 即可調整視窗間距。",
+      "durationSeconds" : 19.1,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 33,
+      "poster" : "configuration.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.layout.gapInner",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout.gapInner"
         },
         {
-          "key": "settings.layout.gapOuter",
-          "anchor": "settingslayout"
+          "anchor" : "settingslayout",
+          "key" : "settings.layout.gapOuter"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 19.1,
-      "bytes": 883484,
-      "sha256": "865a01206d3559faa9ab1b63fda966b640ae26a341f1e6c1fb6714e732881ff5",
-      "sourceSHA256": "b4424ec6a55ba3fb9cf087a89a5036a0ace98af81c18d8ec51674f52e7820754",
-      "sceneSHA256": "bd1da5bb4eaf16bd4ea0318af79e58ea11d5777ee8d3e2898086cfcdbc274a84",
-      "capturedSceneSHA256": "2edeb7a02ebc4cfc99144d98b17b9ec1fbf14fd0ee101cdc959c727c59f53759",
-      "tatamiVersion": "1.13.0",
-      "video": "configuration.mp4",
-      "poster": "configuration.jpg"
+      "scene" : "configuration",
+      "sceneSHA256" : "bd1da5bb4eaf16bd4ea0318af79e58ea11d5777ee8d3e2898086cfcdbc274a84",
+      "section" : "automation",
+      "sha256" : "865a01206d3559faa9ab1b63fda966b640ae26a341f1e6c1fb6714e732881ff5",
+      "sourceSHA256" : "b4424ec6a55ba3fb9cf087a89a5036a0ace98af81c18d8ec51674f52e7820754",
+      "tatamiVersion" : "1.13.0",
+      "title" : "編輯 TOML，立即查看變化",
+      "video" : "configuration.mp4"
     },
     {
-      "scene": "desk",
-      "title": "兩部顯示器，一套工作流程",
-      "description": "把設計和參考資料放在不同顯示器上，用一個快速鍵切換工作空間鏈。",
-      "section": "profiles",
-      "maxSeconds": 34,
-      "maxMB": 16,
-      "presentation": "dual",
-      "relatedSettings": [
+      "bytes" : 515637,
+      "capturedSceneSHA256" : "d3d6bc54eb1de91628eb6bfc3853b0aa0d3e6c4689e35ec6f4bb919663631b6c",
+      "description" : "把設計和參考資料放在不同顯示器上，用一個快速鍵切換工作空間鏈。",
+      "durationSeconds" : 14.97,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 34,
+      "poster" : "desk.jpg",
+      "presentation" : "dual",
+      "relatedSettings" : [
         {
-          "key": "profiles.workspaceChains",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaceChains"
         },
         {
-          "key": "profiles.workspaces.displayHint",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.displayHint"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 14.97,
-      "bytes": 515637,
-      "sha256": "d3ec3d23f91155d097ddadbea77f523f7f01497ed4d388ba8cdabbabfa5aec73",
-      "sourceSHA256": "78e5ae81c47a102cf638f57259f5ba85146243a122fd6877bd37bcccd3882cb6",
-      "sceneSHA256": "b2debfd6bbb0350ddd343d9286b653d90b8d5693c7e2a81a8321c2f538397596",
-      "capturedSceneSHA256": "d3d6bc54eb1de91628eb6bfc3853b0aa0d3e6c4689e35ec6f4bb919663631b6c",
-      "tatamiVersion": "1.13.0",
-      "video": "desk.mp4",
-      "poster": "desk.jpg"
+      "scene" : "desk",
+      "sceneSHA256" : "b2debfd6bbb0350ddd343d9286b653d90b8d5693c7e2a81a8321c2f538397596",
+      "section" : "profiles",
+      "sha256" : "d3ec3d23f91155d097ddadbea77f523f7f01497ed4d388ba8cdabbabfa5aec73",
+      "sourceSHA256" : "78e5ae81c47a102cf638f57259f5ba85146243a122fd6877bd37bcccd3882cb6",
+      "tatamiVersion" : "1.13.0",
+      "title" : "兩部顯示器，一套工作流程",
+      "video" : "desk.mp4"
     },
     {
-      "scene": "hotplug",
-      "title": "設定跟隨顯示器變化",
-      "description": "連接第二部顯示器，啟用 Desk 設定組合；中斷連接後還原 Laptop 排列。",
-      "section": "profiles",
-      "maxSeconds": 36,
-      "maxMB": 16,
-      "presentation": "dynamic-dual",
-      "relatedSettings": [
+      "bytes" : 340714,
+      "capturedSceneSHA256" : "bb3af7a96ae2250e0edbd670466cf76a01d2abd25bb96a7f8df0e082fcbe777c",
+      "description" : "連接第二部顯示器，啟用 Desk 設定組合；中斷連接後還原 Laptop 排列。",
+      "durationSeconds" : 7.9,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 36,
+      "poster" : "hotplug.jpg",
+      "presentation" : "dynamic-dual",
+      "relatedSettings" : [
         {
-          "key": "profiles.autoActivation.displayCount",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.autoActivation.displayCount"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 7.9,
-      "bytes": 340714,
-      "sha256": "a439fc97ef516b074b716be86f4df156b7e640347f4902afa3e62968bd13ab17",
-      "sourceSHA256": "f2b39c88a3b7622e77ac19b3c8fc884a2b87ac738a00fce659775c3d0f5363d9",
-      "sceneSHA256": "bb3af7a96ae2250e0edbd670466cf76a01d2abd25bb96a7f8df0e082fcbe777c",
-      "capturedSceneSHA256": "bb3af7a96ae2250e0edbd670466cf76a01d2abd25bb96a7f8df0e082fcbe777c",
-      "tatamiVersion": "1.13.0",
-      "video": "hotplug.mp4",
-      "poster": "hotplug.jpg"
+      "scene" : "hotplug",
+      "sceneSHA256" : "bb3af7a96ae2250e0edbd670466cf76a01d2abd25bb96a7f8df0e082fcbe777c",
+      "section" : "profiles",
+      "sha256" : "a439fc97ef516b074b716be86f4df156b7e640347f4902afa3e62968bd13ab17",
+      "sourceSHA256" : "f2b39c88a3b7622e77ac19b3c8fc884a2b87ac738a00fce659775c3d0f5363d9",
+      "tatamiVersion" : "1.13.0",
+      "title" : "設定跟隨顯示器變化",
+      "video" : "hotplug.mp4"
     },
     {
-      "scene": "layout-editor",
-      "title": "直覺規劃排列",
-      "description": "啟用工作空間之前，先編輯儲存的視窗排列。",
-      "section": "tiling",
-      "maxSeconds": 35,
-      "maxMB": 16,
-      "seedOptions": [
+      "bytes" : 758435,
+      "capturedSceneSHA256" : "1da406b32bea35ac044e73b3a0c8b60233b39177f692f2c1bf2cebfce2b48022",
+      "description" : "啟用工作空間之前，先編輯儲存的視窗排列。",
+      "durationSeconds" : 15.7,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 35,
+      "poster" : "layout-editor.jpg",
+      "relatedSettings" : [
+        {
+          "anchor" : "settingslayout",
+          "key" : "settings.layout"
+        },
+        {
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.apps.layout"
+        }
+      ],
+      "scene" : "layout-editor",
+      "sceneSHA256" : "1da406b32bea35ac044e73b3a0c8b60233b39177f692f2c1bf2cebfce2b48022",
+      "section" : "tiling",
+      "seedOptions" : [
         "--keep-window"
       ],
-      "relatedSettings": [
-        {
-          "key": "settings.layout",
-          "anchor": "settingslayout"
-        },
-        {
-          "key": "profiles.workspaces.apps.layout",
-          "anchor": "profiles-and-workspaces"
-        }
-      ],
-      "locale": "zh-Hant",
-      "durationSeconds": 15.7,
-      "bytes": 758435,
-      "sha256": "14967f8b94d3fdb0431211cc64dc3d3a62fd1ce5ddac2bcb933de5c6d51e634a",
-      "sourceSHA256": "d723266a17f30ea58910b80a1539dd98537e2bfa5461adf4d374c7b95c139901",
-      "sceneSHA256": "1da406b32bea35ac044e73b3a0c8b60233b39177f692f2c1bf2cebfce2b48022",
-      "capturedSceneSHA256": "1da406b32bea35ac044e73b3a0c8b60233b39177f692f2c1bf2cebfce2b48022",
-      "tatamiVersion": "1.13.0",
-      "video": "layout-editor.mp4",
-      "poster": "layout-editor.jpg"
+      "sha256" : "14967f8b94d3fdb0431211cc64dc3d3a62fd1ce5ddac2bcb933de5c6d51e634a",
+      "sourceSHA256" : "d723266a17f30ea58910b80a1539dd98537e2bfa5461adf4d374c7b95c139901",
+      "tatamiVersion" : "1.13.0",
+      "title" : "直覺規劃排列",
+      "video" : "layout-editor.mp4"
     },
     {
-      "scene": "guided-setup",
-      "title": "邊用邊學",
-      "description": "不移動實際桌面，預覽手勢操作並練習快速鍵。本片不展示實體觸控式軌跡板輸入。",
-      "section": "guided-setup",
-      "maxSeconds": 45,
-      "maxMB": 16,
-      "seedOptions": [
-        "--keep-window"
-      ],
-      "relatedSettings": [
+      "bytes" : 844946,
+      "capturedSceneSHA256" : "a1dc94dadce819277eabbde6e368ea73023ed97c0986012555ec9cf14ff63401",
+      "description" : "不移動實際桌面，預覽手勢操作並練習快速鍵。本片不展示實體觸控式軌跡板輸入。",
+      "durationSeconds" : 29.7,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 45,
+      "poster" : "guided-setup.jpg",
+      "relatedSettings" : [
         {
-          "key": "settings.shortcuts",
-          "anchor": "settingsshortcuts"
+          "anchor" : "settingsshortcuts",
+          "key" : "settings.shortcuts"
         },
         {
-          "key": "settings.gestures",
-          "anchor": "settingsgestures"
+          "anchor" : "settingsgestures",
+          "key" : "settings.gestures"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 29.7,
-      "bytes": 844946,
-      "sha256": "253d13012ee1c7d098433ddde406faf71460878b50e35a600453432d00a5916a",
-      "sourceSHA256": "791ddce34b5f340579a9a2e5d3c9eaacfe42a952a4adbd9c1bda7bb2acabd05c",
-      "sceneSHA256": "416b82f291409717013047b58bf39e5d34119b7e2228b3c0b05297563aca6ba9",
-      "capturedSceneSHA256": "a1dc94dadce819277eabbde6e368ea73023ed97c0986012555ec9cf14ff63401",
-      "tatamiVersion": "1.13.0",
-      "video": "guided-setup.mp4",
-      "poster": "guided-setup.jpg"
+      "scene" : "guided-setup",
+      "sceneSHA256" : "416b82f291409717013047b58bf39e5d34119b7e2228b3c0b05297563aca6ba9",
+      "section" : "guided-setup",
+      "seedOptions" : [
+        "--keep-window"
+      ],
+      "sha256" : "253d13012ee1c7d098433ddde406faf71460878b50e35a600453432d00a5916a",
+      "sourceSHA256" : "791ddce34b5f340579a9a2e5d3c9eaacfe42a952a4adbd9c1bda7bb2acabd05c",
+      "tatamiVersion" : "1.13.0",
+      "title" : "邊用邊學",
+      "video" : "guided-setup.mp4"
     },
     {
-      "scene": "ai-draft",
-      "title": "檢查建議的設定",
-      "description": "驗證範例 AI 建議並套用到草稿。本次錄製未呼叫外部 AI 服務。",
-      "section": "guided-setup",
-      "maxSeconds": 32,
-      "maxMB": 16,
-      "seedOptions": [
-        "--keep-window"
-      ],
-      "relatedSettings": [
+      "bytes" : 698465,
+      "capturedSceneSHA256" : "50293be72eada125386941ab918fd5868b081fcf8ac58f498c4f52190f24788a",
+      "description" : "驗證範例 AI 建議並套用到草稿。本次錄製未呼叫外部 AI 服務。",
+      "durationSeconds" : 16.47,
+      "locale" : "zh-Hant",
+      "maxMB" : 16,
+      "maxSeconds" : 32,
+      "poster" : "ai-draft.jpg",
+      "relatedSettings" : [
         {
-          "key": "profiles.workspaces.apps",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces.apps"
         },
         {
-          "key": "profiles.workspaces",
-          "anchor": "profiles-and-workspaces"
+          "anchor" : "profiles-and-workspaces",
+          "key" : "profiles.workspaces"
         }
       ],
-      "locale": "zh-Hant",
-      "durationSeconds": 13.1,
-      "bytes": 505607,
-      "sha256": "2d6770536d1c625a0888883ae91058253f4061db122a739582f8d18fe915ea68",
-      "sourceSHA256": "6e082fe802dd75608be451bbed17b082b2d410e8ecb87402f5f43c4af534fb09",
-      "sceneSHA256": "0c751ace0c99fa1abdb169977a6a647f2eff9103cbb515bdfd5798b009e19555",
-      "capturedSceneSHA256": "0f557f10379f2f081709db4c7062352c9602d3610905e8ae022ec1710690b066",
-      "tatamiVersion": "1.13.0",
-      "video": "ai-draft.mp4",
-      "poster": "ai-draft.jpg"
+      "scene" : "ai-draft",
+      "sceneSHA256" : "50293be72eada125386941ab918fd5868b081fcf8ac58f498c4f52190f24788a",
+      "section" : "guided-setup",
+      "seedOptions" : [
+        "--keep-window"
+      ],
+      "sha256" : "bfd63f6c93e382962bffbe81ee268ecf8478bf360a354c5b673751d6f2a367ae",
+      "sourceSHA256" : "7164cf2d4771fefe1d99af9e72246285a3431b5ea2fdb0afd871e042b66e3959",
+      "tatamiVersion" : "1.14.0",
+      "title" : "檢查建議的設定",
+      "video" : "ai-draft.mp4"
     }
-  ]
+  ],
+  "locale" : "zh-Hant",
+  "schemaVersion" : 1
 }

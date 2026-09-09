@@ -1,91 +1,159 @@
 {
-  "name": "workspace-copy",
-  "title": "在工作区之间复制设置",
-  "summary": "检查另一个工作区的应用和设置，然后应用所选更改。",
-  "requires": {
-    "displays": 1
+  "name" : "workspace-copy",
+  "requires" : {
+    "displays" : 1
   },
-  "setup": [
+  "setup" : [
     {
-      "kind": "clearOverlay"
+      "kind" : "clearOverlay"
     },
     {
-      "kind": "prepareSettings"
+      "app" : "Canvas",
+      "autoOpen" : false,
+      "kind" : "configureAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "text:Desk"
+      "app" : "Canvas",
+      "autoOpen" : false,
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "text:Design"
+      "kind" : "prepareSettings"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Desk",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Design",
+      "kind" : "click"
     }
   ],
-  "steps": [
+  "steps" : [
     {
-      "kind": "chapter",
-      "text": "复制工作区设置"
+      "kind" : "chapter",
+      "text" : "复制工作区设置"
     },
     {
-      "kind": "caption",
-      "text": "选择要从中复制设置的工作区。"
+      "kind" : "caption",
+      "text" : "选择要从中复制设置的工作区。"
     },
     {
-      "kind": "beat",
-      "ms": 1400
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "title:从其他工作区复制…"
+      "app" : "Tatami",
+      "identifier" : "title:从其他工作区复制…",
+      "kind" : "click"
     },
     {
-      "kind": "hover",
-      "app": "Tatami",
-      "identifier": "title:Laptop"
+      "app" : "Tatami",
+      "identifier" : "title:Laptop",
+      "kind" : "hover"
     },
     {
-      "kind": "beat",
-      "ms": 900
+      "kind" : "beat",
+      "ms" : 900
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "title:Design"
+      "app" : "Tatami",
+      "identifier" : "title:Design",
+      "kind" : "click"
     },
     {
-      "kind": "caption",
-      "text": "复制到当前工作区前，先检查更改内容。"
+      "kind" : "caption",
+      "text" : "复制到当前工作区前，先检查更改内容。"
     },
     {
-      "kind": "beat",
-      "ms": 2300
+      "kind" : "beat",
+      "ms" : 2300
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "button:复制"
+      "app" : "Tatami",
+      "identifier" : "button:复制",
+      "kind" : "click"
     },
     {
-      "kind": "expectAssignment",
-      "app": "Docs",
-      "workspace": "Design",
-      "profile": "Desk"
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "sheet:button:应用",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "caption",
-      "text": "所选应用和设置已复制到当前工作区。"
+      "kind" : "caption",
+      "text" : "覆盖现有工作区设置前先确认。"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "heading:布局"
+      "kind" : "beat",
+      "ms" : 1800
     },
     {
-      "kind": "beat",
-      "ms": 2400
+      "app" : "Tatami",
+      "identifier" : "sheet:button:应用",
+      "kind" : "click"
+    },
+    {
+      "app" : "Canvas",
+      "autoOpen" : true,
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "kind" : "caption",
+      "text" : "所选应用和设置已复制到当前工作区。"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "heading:布局",
+      "kind" : "click"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2400
+    },
+    {
+      "kind" : "caption",
+      "text" : "设置相同的工作区显示“无差异”，无法选择。"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "title:从其他工作区复制…",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "title:Laptop",
+      "kind" : "hover"
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : false,
+      "identifier" : "title:Design · 无差异",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2200
+    },
+    {
+      "chord" : "esc",
+      "kind" : "key"
     }
-  ]
+  ],
+  "summary" : "检查另一个工作区的应用和设置，然后应用所选更改。",
+  "title" : "在工作区之间复制设置"
 }

@@ -1,7 +1,3 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](COVERAGE.md) · [한국어](ko/COVERAGE.md) · [日本語](ja/COVERAGE.md) · [简体中文](zh-Hans/COVERAGE.md) · [繁體中文](zh-Hant/COVERAGE.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Demo coverage and verification
 
 The publication inventory contains 27 scenarios: a complete workflow and 26
@@ -78,3 +74,15 @@ The old claim that a macOS VM could never have a second display was incorrect.
 The working guest-side API is documented in
 [DeskPad's CoreGraphics interface](https://github.com/Stengo/DeskPad/blob/main/DeskPad/CGVirtualDisplayPrivate.h).
 See [MULTI-DISPLAY.md](MULTI-DISPLAY.md) for the actual setup and reproduction.
+
+The membership film cancels one move, verifies the original assignment, then confirms a move and verifies removal from the original workspace. Always on Top receives the first click without preactivation and confirms both layout changes. Workspace copying confirms an overwrite and shows the disabled matching source. The AI example explicitly confirms draft replacement while checking that the desktop layout remains unchanged.
+
+The offline OCR audit accepts `--cpu-only` to select supported CPU compute devices explicitly when hardware acceleration fails. Recognition accuracy, sampling, and pass criteria stay the same; the report records the selected compute mode.
+
+## Graphics corruption reproduction
+
+A September 2026 recording investigation reproduced scrolling-preview corruption with both Tatami 1.13.0 and the 1.14.0 candidate in the same running VM. Separate guest PNG screenshots also contained magenta regions, so final MP4 encoding was not the origin. Guest WindowServer and Tatami logs reported GPU hangs, aborted Metal command buffers, and display-space flushing for GPU recovery.
+
+After restarting only the Tatami VM, the same preview and HUD checks passed in both windowed and headless modes. This does not establish that headless mode, concurrent VMs, or a specific app revision caused the graphics failure. Another project's VM remained running throughout. The older delivered 1.13.0 videos being clean did not prove that the same build would remain clean in a later unhealthy VM session.
+
+The earlier refreshed demo batch passed structural, decoder, and OCR checks but was subsequently rejected by visual review. Treat those automated checks as separate evidence, not a final visual pass. Keep the affected recordings for diagnosis and require renewed visual acceptance before treating replacements as publication-ready. See the VM recording guide for the recovery and review procedure.

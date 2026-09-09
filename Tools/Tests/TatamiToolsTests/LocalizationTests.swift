@@ -30,7 +30,7 @@ func `emphasis moves with the sentence`() throws {
 }
 
 @Test
-func `translation scope excludes agent guidance and local reports`() throws {
+func `translation scope excludes agent guidance, internal Demo Lab docs, and local reports`() throws {
   let root = fm.temporaryDirectory.at(UUID().uuidString)
   try root.at("docs").makeDirectory()
   defer { try? fm.removeItem(at: root) }
@@ -39,6 +39,7 @@ func `translation scope excludes agent guidance and local reports`() throws {
   }
   let builder = DocumentBuilder(workspace: Workspace(root: root))
   #expect(builder.documents.contains("docs/CLI.md"))
+  #expect(!builder.documents.contains { $0.hasPrefix("DemoLab/") })
   #expect(!builder.documents
     .contains { $0.contains("LOCALIZATION") || $0.contains("CONCURRENCY") || $0.contains("AUDIT") || $0.contains("AGENT") })
 }

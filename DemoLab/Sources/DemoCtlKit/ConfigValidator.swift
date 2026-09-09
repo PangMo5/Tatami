@@ -188,6 +188,7 @@ public enum ConfigValidator {
       "general": TableSchema(keys: [
         "launchAtLogin", "checkForUpdatesAutomatically", "checkInterval", "debugLogging",
       ]),
+      "confirmations": TableSchema(keys: ["addWorkspaceApp", "moveWorkspaceApp", "removeWorkspaceApp", "floatWorkspaceApp", "tileWorkspaceApp", "unmanageWorkspaceApp", "addSharedApp", "removeSharedApp", "floatSharedApp", "tileSharedApp", "unmanageSharedApp", "deleteWorkspace", "deleteProfile", "deleteWorkspaceChain", "deleteHook", "removeOverlayException", "copyWorkspace", "copyProfile", "resetSetup", "reloadSetup", "applySetup", "applySetupRecommendation", "deleteSetupWorkspace", "deleteSetupProfile", "uninstallCLI"]),
       "visibility": TableSchema(keys: ["overlayAwareApps"]),
       "menuBar": TableSchema(keys: [
         "showWorkspaceIcon", "showWorkspaceName", "showProfileIcon", "showProfileName",

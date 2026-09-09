@@ -1,7 +1,3 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](README.md) · [한국어](docs/ko/README.md) · [日本語](docs/ja/README.md) · [简体中文](docs/zh-Hans/README.md) · [繁體中文](docs/zh-Hant/README.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Tatami Demo Lab
 
 Record the real Tatami, export a consistent set of marketing videos, and place

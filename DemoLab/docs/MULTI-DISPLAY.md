@@ -1,7 +1,3 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](MULTI-DISPLAY.md) · [한국어](ko/MULTI-DISPLAY.md) · [日本語](ja/MULTI-DISPLAY.md) · [简体中文](zh-Hans/MULTI-DISPLAY.md) · [繁體中文](zh-Hant/MULTI-DISPLAY.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Multiple displays inside the recording VM
 
 The macOS 26.6.2 Tart guest can create an additional **guest-side CoreGraphics

@@ -73,6 +73,60 @@
       "chord": "ctrl + alt + shift - ]"
     },
     {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "cancel-assignment",
+      "enabled": true
+    },
+    {
+      "kind": "caption",
+      "text": "Cancel keeps the app in its original workspace."
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "cancel-assignment",
+      "activate": false
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Docs",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "activateApp",
+      "app": "Docs"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - ]"
+    },
+    {
+      "kind": "caption",
+      "text": "Review the destination, then confirm the move."
+    },
+    {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "confirm-assignment",
+      "enabled": true
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "confirm-assignment",
+      "activate": false
+    },
+    {
       "kind": "waitWorkspace",
       "workspace": "Review"
     },
@@ -110,46 +164,21 @@
       "ms": 1600
     },
     {
-      "kind": "caption",
-      "text": "Use the same shortcut to move the app back."
+      "kind": "expectAssignment",
+      "app": "Docs",
+      "workspace": "Write",
+      "profile": "Laptop",
+      "present": false
     },
     {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - 2"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Review"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Review",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Docs"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - ["
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Write"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
+      "kind": "expectAssignment",
+      "app": "Docs",
+      "workspace": "Review",
+      "profile": "Laptop"
     },
     {
       "kind": "beat",
-      "ms": 1600
+      "ms": 1200
     }
   ],
   "openingApps": [

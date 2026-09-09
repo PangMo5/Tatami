@@ -56,12 +56,12 @@ struct SceneLocalizer {
       if let value = english[text]?[locale].string, !value.isEmpty { return value }
       for (source, values) in english.sorted(by: { $0.key < $1.key }) {
         let normalized = replacing(#"%\d+\$lld"#, in: source) { _ in "%lld" }
-        if !normalized.contains("%lld") { continue }
-        let pattern = NSRegularExpression.escapedPattern(for: normalized).replacingOccurrences(of: "%lld", with: #"(\d+)"#)
+        if !normalized.contains("%lld") && !normalized.contains("%@") { continue }
+        let pattern = NSRegularExpression.escapedPattern(for: normalized).replacingOccurrences(of: "%lld", with: #"(\d+)"#).replacingOccurrences(of: "%@", with: #"(.+?)"#)
         guard let match = matches("^(?:" + pattern + ")$", text).first, !values[locale].str.isEmpty else { continue }
         let arguments = Array(match.dropFirst())
         var index = 0
-        return try replacing(#"%(?:(\d+)\$)?lld"#, in: values[locale].str) { match in
+        return try replacing(#"%(?:(\d+)\$)?(?:lld|@)"#, in: values[locale].str) { match in
           let position = match[1].isEmpty ? index : Int(match[1])! - 1
           index += 1
           try require(arguments.indices.contains(position), "Native translation argument out of range")
@@ -89,10 +89,11 @@ struct SceneLocalizer {
               kind == "typeText",
               step["app"].str != "Terminal" { step["text"] = .string(try translated(step["text"].str, locale)) }
             if step["app"].str == "Tatami", !step["identifier"].isNull {
-              let components = step["identifier"].str.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+              let scope = step["identifier"].str.hasPrefix("sheet:") ? "sheet:" : ""
+              let components = String(step["identifier"].str.dropFirst(scope.count)).split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
                 .map(String.init)
               if components.count == 2, ["text", "description", "title", "help", "button", "heading"].contains(components[0]) {
-                step["identifier"] = .string(try components[0] + ":" + native(components[1], locale))
+                step["identifier"] = .string(try scope + components[0] + ":" + native(components[1], locale))
                 if kind == "expectValue" { step["value"] = .string(try native(step["value"].str, locale)) }
               }
             } else if kind == "expectValue", !app[step["value"].str].isNull || !film[step["value"].str].isNull {
