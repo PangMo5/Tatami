@@ -124,8 +124,8 @@ private struct WhatsNewView: View {
               .font(.title.weight(.semibold))
             Text(
               """
-              Tatami 1.13 links workspaces across displays, keeps floating controls visible, and makes action \
-              feedback more flexible.
+              Tatami 1.14 makes workspace switching and window interaction more responsive, with confirmations that keep \
+              you in control of persistent changes.
               """
             )
             .font(.subheadline)
@@ -138,28 +138,27 @@ private struct WhatsNewView: View {
               .font(.headline)
 
             item(
-              icon: "link",
-              title: "Workspace Chains",
+              icon: "bolt.fill",
+              title: "More Responsive Workspaces",
               detail: """
-                Keep the workspace you choose active while Tatami restores available chain members across connected \
-                displays in priority order.
+                Less waiting when you switch workspaces or focus a window, with smoother input while Tatami saves \
+                configuration and restores layouts.
                 """,
             )
             item(
-              icon: "pip",
-              title: "Apps With Floating Controls",
+              icon: "checkmark.shield",
+              title: "Confirm Before Changes",
               detail: """
-                Keep an app unhidden only while it owns an on-screen floating control outside the normal window layer. \
-                Its ordinary windows stay out of Tatami focus, cycling, layout, and membership actions until you \
-                activate that workspace again. They may remain visible in Mission Control.
+                Review app moves, layout changes, deletions, and overwrites before they take effect. Keep confirmation \
+                on or off for each action.
                 """,
             )
             item(
-              icon: "bell.badge",
-              title: "Customize and share action feedback",
+              icon: "cursorarrow.click",
+              title: "More Reliable Always on Top",
               detail: """
-                Choose one of nine HUD positions and three sizes. Each affected display gets its own feedback, and HUD \
-                hooks can mirror the same localized payload to tools such as SketchyBar.
+                Your first click or drag reaches the real window. Scroll background content without taking keyboard \
+                focus, and keep hovering consistent with Focus Follows Mouse.
                 """,
             )
           }

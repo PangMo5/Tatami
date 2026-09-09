@@ -10,6 +10,27 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.14.0 (2026-09-09)
+
+More responsive workspace switching and window interaction, with confirmations for changes that affect your saved setup.
+
+### New
+- **Confirm changes before applying them:** Review app membership and layout changes, deletions, configuration overwrites, and Guided Setup replacements before they take effect. Confirmation is enabled independently for each action. "Don't ask again" disables only the confirmed action; cancelling keeps its preference unchanged. App membership and layout actions show the result in the same HUD after confirmation.
+
+### Improvements
+- **Keep workspace switching and input responsive:** Configuration and layout writes are serialized off input-sensitive paths, redundant pointer updates are coalesced, and stale work is discarded when a window or focus target changes.
+- **Adjust app behavior in one place:** App rows expose Auto-open and layout mode directly, with removal in the adjacent menu. The same controls work for workspace apps and Shared Apps, and workspace rows remain centered when no chain is shown.
+- **Find settings by task:** A category sidebar separates General, Tiling, Workspaces, Workspace Keys, Focus & Mouse, Gestures, Appearance, and Hooks. Confirmation preferences are grouped by the actions they control.
+- **Read and watch workflows in five languages:** In-app documentation now renders the selected language with working headings, tables, and links. The website includes an end-to-end workflow and focused demo collections with native playback controls, keyboard navigation, and links to related settings.
+
+### Fixes
+- **Deliver the first click or drag to Always on Top windows:** Always on Top windows retain the initial mouse input through activation and mirror handover. Background scrolling reaches the real window without requiring keyboard focus, and hovering respects Focus Follows Mouse.
+- **Preserve layouts when windows are temporarily unavailable:** A failed or incomplete layout read no longer replaces saved positions with an empty layout. Workspace restoration keeps valid layout information until the required windows can be resolved.
+- **Skip workspace copies with no changes:** Matching copy sources show "No differences" and cannot be selected. The source and destination are checked again before opening a review, so a stale menu cannot present an empty copy sheet.
+
+### Compatibility
+- **Review confirmation preferences for automation:** Existing configurations load with all new per-action confirmations enabled. Persistent app membership and layout commands also use these confirmations through the CLI. For unattended scripts, configure the relevant options in Settings → General → Confirm Before Changes or `[settings.confirmations]`. Back up `config.toml` before downgrading: older versions do not preserve the new confirmation options when saving.
+
 ## 1.13.0 (2026-09-03)
 
 ### New

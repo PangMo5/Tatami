@@ -40860,142 +40860,6 @@
         }
       }
     },
-    "Tatami 1.13 links workspaces across displays, keeps floating controls visible, and makes action feedback more flexible.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami 1.13에서는 여러 디스플레이의 작업 공간을 함께 전환하고, 플로팅 컨트롤을 계속 표시하며, 화면 알림을 더 유연하게 활용할 수 있어요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami 1.13 では、複数ディスプレイのワークスペースを連動して切り替え、フローティングコントロールを表示したままにし、操作フィードバックをより柔軟に活用できます。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami 1.13 可联动切换多个显示器上的工作区，让浮动控件保持可见，并以更灵活的方式使用操作反馈。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami 1.13 可連動切換多部顯示器上的工作空間，讓浮動控制項保持可見，並以更靈活的方式使用操作回饋。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tatami 1.13 links workspaces across displays, keeps floating controls visible, and makes action feedback more flexible."
-          }
-        }
-      }
-    },
-    "Keep the workspace you choose active while Tatami restores available chain members across connected displays in priority order.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택한 작업 공간은 그대로 활성화하고, 사용 가능한 체인 구성원은 연결된 디스플레이에 우선순위대로 복원해요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選んだワークスペースをアクティブに保ちながら、利用可能なチェーンのメンバーを接続中のディスプレイへ優先順に復元します。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保持所选工作区处于活动状态，同时按优先顺序将可用的链成员恢复到已连接的显示器。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讓所選工作空間保持啟用，同時依優先順序將可用的鏈成員還原到已連接的顯示器。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keep the workspace you choose active while Tatami restores available chain members across connected displays in priority order."
-          }
-        }
-      }
-    },
-    "Customize and share action feedback": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "화면 알림을 꾸미고 공유해요"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "操作フィードバックをカスタマイズして共有"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自定义并共享操作反馈"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自訂並分享操作回饋"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Customize and share action feedback"
-          }
-        }
-      }
-    },
-    "Choose one of nine HUD positions and three sizes. Each affected display gets its own feedback, and HUD hooks can mirror the same localized payload to tools such as SketchyBar.": {
-      "localizations": {
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "화면 알림 위치 9곳과 크기 3단계 중에서 선택하세요. 영향을 받은 각 디스플레이에 맞는 알림이 표시되고, `hud` 훅으로 동일한 현지화 정보를 SketchyBar 같은 도구에 전달할 수 있어요."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "HUD の9つの表示位置と3つのサイズから選べます。影響を受けた各ディスプレイに対応するフィードバックが表示され、HUD フックで同じローカライズ済み情報を SketchyBar などのツールに渡せます。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可从 9 个 HUD 位置和 3 种尺寸中选择。每个受影响的显示器都会显示对应反馈，HUD 钩子还能将相同的本地化信息传递给 SketchyBar 等工具。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可從 9 個 HUD 位置和 3 種尺寸中選擇。每部受影響的顯示器都會顯示對應回饋，HUD Hook 也能將相同的本地化資訊傳遞給 SketchyBar 等工具。"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose one of nine HUD positions and three sizes. Each affected display gets its own feedback, and HUD hooks can mirror the same localized payload to tools such as SketchyBar."
-          }
-        }
-      }
-    },
     "Loading document…": {
       "localizations": {
         "ko": {
@@ -42287,6 +42151,210 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unable to Open Document"
+          }
+        }
+      }
+    },
+    "Review app moves, layout changes, deletions, and overwrites before they take effect. Keep confirmation on or off for each action.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review app moves, layout changes, deletions, and overwrites before they take effect. Keep confirmation on or off for each action."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "앱 이동, 배치 변경, 삭제, 덮어쓰기를 적용하기 전에 확인해요. 동작마다 확인을 켜거나 끌 수 있어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アプリの移動、配置変更、削除、上書きを実行前に確認できます。確認のオン・オフは操作ごとに選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在应用移动、布局更改、删除和覆盖生效前进行检查。可按操作开启或关闭确认。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 App 移動、佈局變更、刪除和覆寫生效前進行檢查。可依操作開啟或關閉確認。"
+          }
+        }
+      }
+    },
+    "More Reliable Always on Top": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More Reliable Always on Top"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "더 안정적인 항상 위 창"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "より確実な最前面表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更可靠的始终置顶"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更可靠的保持最上層"
+          }
+        }
+      }
+    },
+    "Your first click or drag reaches the real window. Scroll background content without taking keyboard focus, and keep hovering consistent with Focus Follows Mouse.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your first click or drag reaches the real window. Scroll background content without taking keyboard focus, and keep hovering consistent with Focus Follows Mouse."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "첫 클릭이나 드래그가 실제 창에 전달돼요. 키보드 포커스를 옮기지 않고 뒤쪽 내용을 스크롤하며, 마우스를 올렸을 때의 동작은 FFM 설정을 따라요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最初のクリックやドラッグが実ウインドウに届きます。キーボードフォーカスを移さず背景をスクロールでき、ホバーは Focus Follows Mouse の設定に従います。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首次点击或拖动会到达真实窗口。无需取得键盘焦点即可滚动后台内容，悬停行为遵循焦点跟随鼠标设置。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "首次點按或拖移會到達實際視窗。不必取得鍵盤焦點即可捲動背景內容，游標停留行為遵循焦點跟隨滑鼠設定。"
+          }
+        }
+      }
+    },
+    "Tatami 1.14 makes workspace switching and window interaction more responsive, with confirmations that keep you in control of persistent changes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.14 makes workspace switching and window interaction more responsive, with confirmations that keep you in control of persistent changes."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.14는 작업 공간 전환과 창 조작의 반응성을 높이고, 저장되는 변경을 직접 확인할 수 있도록 했어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.14 ではワークスペースの切り替えやウインドウ操作の応答性を改善し、保存される変更を自分で確認できるようにしました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.14 提升工作区切换与窗口操作的响应速度，并让你确认会影响已保存设置的更改。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.14 提升工作空間切換與視窗操作的反應速度，並讓你確認會影響已儲存設定的變更。"
+          }
+        }
+      }
+    },
+    "More Responsive Workspaces": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More Responsive Workspaces"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "더 빠르게 반응하는 작업 공간"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "応答性が向上したワークスペース"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "响应更快的工作区"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "反應更快的工作空間"
+          }
+        }
+      }
+    },
+    "Less waiting when you switch workspaces or focus a window, with smoother input while Tatami saves configuration and restores layouts.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Less waiting when you switch workspaces or focus a window, with smoother input while Tatami saves configuration and restores layouts."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 공간을 전환하거나 창에 포커스를 옮길 때 기다림을 줄였어요. 설정을 저장하고 배치를 복원하는 동안에도 입력이 더 매끄럽게 이어져요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークスペースの切り替えやウインドウへのフォーカス時の待ち時間を減らしました。設定の保存や配置の復元中も、より滑らかに入力できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "减少切换工作区或聚焦窗口时的等待，在保存配置和恢复布局期间也能更顺畅地输入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "減少切換工作空間或聚焦視窗時的等待，在儲存設定和復原佈局期間也能更順暢地輸入。"
           }
         }
       }

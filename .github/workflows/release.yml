@@ -61,7 +61,11 @@ jobs:
           security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
             -T /usr/bin/codesign -T /usr/bin/productsign
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          EXISTING_KEYCHAINS=()
+          while IFS= read -r existing_keychain; do
+            EXISTING_KEYCHAINS+=("$existing_keychain")
+          done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//')
+          security list-keychains -d user -s "$KEYCHAIN" "${EXISTING_KEYCHAINS[@]}"
 
       - name: Generate Xcode project
         env:
