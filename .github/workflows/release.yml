@@ -127,6 +127,14 @@ jobs:
             "$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg" \
             "$RUNNER_TEMP/Tatami.app"
 
+      - name: Sign disk image
+        run: |
+          set -euo pipefail
+          DMG="$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg"
+          codesign --sign "Developer ID Application" --timestamp \
+            --identifier "dev.PangMo5.Tatami.dmg" "$DMG"
+          codesign --verify --strict --verbose=2 "$DMG"
+
       - name: Notarize + staple
         env:
           AC_API_KEY_ID: ${{ secrets.AC_API_KEY_ID }}
@@ -153,6 +161,8 @@ jobs:
             exit 1
           fi
           xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG"
 
       - name: Sign for Sparkle + build appcast
         env:
