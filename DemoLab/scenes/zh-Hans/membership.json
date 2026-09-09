@@ -1,159 +1,188 @@
 {
-  "name": "membership",
-  "title": "随任务移动应用",
-  "summary": "用快捷键把当前应用移到另一个工作区。",
-  "requires": {
-    "displays": 1
-  },
-  "setup": [
-    {
-      "kind": "clearOverlay"
-    },
-    {
-      "kind": "pointer",
-      "display": 0,
-      "x": 0.5,
-      "y": 0.5
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Editor"
-    },
-    {
-      "kind": "cli",
-      "args": [
-        "layout",
-        "balance"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1800
-    }
-  ],
-  "steps": [
-    {
-      "kind": "chapter",
-      "text": "应用分配"
-    },
-    {
-      "kind": "caption",
-      "text": "用快捷键把当前应用移到另一个工作区。"
-    },
-    {
-      "kind": "activateApp",
-      "app": "Docs"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - ]"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Review"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Review",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1400
-    },
-    {
-      "kind": "caption",
-      "text": "移动后，该应用不再属于原来的工作区。"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - 1"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Write"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1600
-    },
-    {
-      "kind": "caption",
-      "text": "用同样的快捷键操作将应用移回去。"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - 2"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Review"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Review",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Docs"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - ["
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Write"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1600
-    }
-  ],
-  "openingApps": [
+  "name" : "membership",
+  "openingApps" : [
     "Editor",
     "Docs"
-  ]
+  ],
+  "requires" : {
+    "displays" : 1
+  },
+  "setup" : [
+    {
+      "kind" : "clearOverlay"
+    },
+    {
+      "display" : 0,
+      "kind" : "pointer",
+      "x" : 0.5,
+      "y" : 0.5
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "app" : "Editor",
+      "kind" : "activateApp"
+    },
+    {
+      "args" : [
+        "layout",
+        "balance"
+      ],
+      "kind" : "cli"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    }
+  ],
+  "steps" : [
+    {
+      "kind" : "chapter",
+      "text" : "应用分配"
+    },
+    {
+      "kind" : "caption",
+      "text" : "用快捷键把当前应用移到另一个工作区。"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "activateApp"
+    },
+    {
+      "chord" : "ctrl + alt + shift - ]",
+      "kind" : "key"
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "cancel-assignment",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "caption",
+      "text" : "取消后，应用仍留在原工作区。"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1400
+    },
+    {
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "cancel-assignment",
+      "kind" : "click"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "activateApp"
+    },
+    {
+      "chord" : "ctrl + alt + shift - ]",
+      "kind" : "key"
+    },
+    {
+      "kind" : "caption",
+      "text" : "检查目标工作区，然后确认移动。"
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "confirm-assignment",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1400
+    },
+    {
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "confirm-assignment",
+      "kind" : "click"
+    },
+    {
+      "kind" : "waitWorkspace",
+      "workspace" : "Review"
+    },
+    {
+      "apps" : [
+        "Review",
+        "Docs"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1400
+    },
+    {
+      "kind" : "caption",
+      "text" : "移动后，该应用不再属于原来的工作区。"
+    },
+    {
+      "chord" : "ctrl + alt + shift - 1",
+      "kind" : "key"
+    },
+    {
+      "kind" : "waitWorkspace",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1600
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "present" : false,
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Laptop",
+      "workspace" : "Review"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1200
+    }
+  ],
+  "summary" : "用快捷键把当前应用移到另一个工作区。",
+  "title" : "随任务移动应用"
 }

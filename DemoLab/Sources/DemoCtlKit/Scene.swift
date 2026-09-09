@@ -59,11 +59,13 @@ public enum SceneStep: Sendable {
   case virtualDisplay(connected:Bool)
   case expectCommand(command:String,code:Int)
   case expectHook(field:String,value:String)
-  case click(app: String, identifier: String)
+  case click(app: String, identifier: String, activate: Bool)
+  case expectEnabled(app: String, identifier: String, enabled: Bool)
+  case configureAssignment(app: String, workspace: String, profile: String, autoOpen: Bool)
   case rightClick(app: String, identifier: String)
   case expectPlacement(app: String, target: String, edge: String)
   case expectProfileCount(Int)
-  case expectAssignment(app: String, workspace: String, profile: String)
+  case expectAssignment(app: String, workspace: String, profile: String, present: Bool, layout: String?, autoOpen: Bool?)
   case typeText(app: String, text: String, intervalMilliseconds: Int)
   case expectStory(field: String, value: String)
   case expectValue(app: String, identifier: String, value: String)
@@ -103,7 +105,7 @@ public enum SceneStep: Sendable {
     case .rightClick(let app, let id): "context menu \(app) / \(id)"
     case .expectPlacement(let app, let target, let edge): "verify \(app) is \(edge) of \(target)"
     case .expectProfileCount(let count): "verify \(count) profiles"
-    case .expectAssignment(let app, let workspace, let profile): "verify \(app) belongs to \(profile)/\(workspace)"
+    case .expectAssignment(let app, let workspace, let profile, let present, _, _): "verify \(app) is \(present ? "assigned to" : "absent from") \(profile)/\(workspace)"
     case .clipboard: "prepare example clipboard content"
     case .closeSettings: "close Tatami window"
     case .prepareSettings: "size and position the native Tatami window"
@@ -125,7 +127,9 @@ public enum SceneStep: Sendable {
     case .waitWindows: "waitWindows"
     case .saveLayout: "saveLayout"
     case .assertLayout: "assertLayout"
-    case .click(let app, let id): "click \(app) / \(id)"
+    case .expectEnabled(let app, let id, let enabled): "verify control \(app) / \(id) enabled = \(enabled)"
+    case .configureAssignment(let app, let workspace, let profile, let autoOpen): "prepare \(profile)/\(workspace)/\(app) autoOpen = \(autoOpen)"
+    case .click(let app, let id, _): "click \(app) / \(id)"
     case .typeText(let app, let text, _): "type in \(app): \(text)"
     case .expectStory(let field, let value): "verify \(field) = \(value)"
     case .expectValue(let app, let id, _): "verify native input \(app) / \(id)"
@@ -168,7 +172,12 @@ extension SceneStep: Decodable {
     case "rightClick": self = .rightClick(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier))
     case "expectPlacement": self = .expectPlacement(app: try container.decode(String.self, forKey: .app), target: try container.decode(String.self, forKey: .target), edge: try container.decode(String.self, forKey: .value))
     case "expectProfileCount": self = .expectProfileCount(try container.decode(Int.self, forKey: .count))
-    case "expectAssignment": self = .expectAssignment(app: try container.decode(String.self, forKey: .app), workspace: try container.decode(String.self, forKey: .workspace), profile: try container.decode(String.self, forKey: .profile))
+    case "expectAssignment":
+      self = .expectAssignment(app: try container.decode(String.self, forKey: .app), workspace: try container.decode(String.self, forKey: .workspace), profile: try container.decode(String.self, forKey: .profile), present: try container.decodeIfPresent(Bool.self, forKey: .present) ?? true, layout: try container.decodeIfPresent(String.self, forKey: .layout), autoOpen: try container.decodeIfPresent(Bool.self, forKey: .autoOpen))
+    case "configureAssignment":
+      self = .configureAssignment(app: try container.decode(String.self, forKey: .app), workspace: try container.decode(String.self, forKey: .workspace), profile: try container.decode(String.self, forKey: .profile), autoOpen: try container.decode(Bool.self, forKey: .autoOpen))
+    case "expectEnabled":
+      self = .expectEnabled(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier), enabled: try container.decode(Bool.self, forKey: .enabled))
     case "waitWindows":
       self = .waitWindows(apps: try container.decode([String].self, forKey: .apps),
         timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 12000)
@@ -195,7 +204,7 @@ extension SceneStep: Decodable {
     case "expectCommand": self = .expectCommand(command:try container.decode(String.self,forKey:.text),code:try container.decodeIfPresent(Int.self,forKey:.code) ?? 0)
     case "expectHook": self = .expectHook(field:try container.decode(String.self,forKey:.field),value:try container.decode(String.self,forKey:.value))
     case "click":
-      self = .click(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier))
+      self = .click(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier), activate: try container.decodeIfPresent(Bool.self, forKey: .activate) ?? true)
     case "typeText":
       self = .typeText(app: try container.decode(String.self, forKey: .app), text: try container.decode(String.self, forKey: .text), intervalMilliseconds: try container.decodeIfPresent(Int.self, forKey: .ms) ?? 55)
     case "expectStory":
@@ -320,7 +329,7 @@ extension SceneStep: Decodable {
 
   private enum CodingKeys: String, CodingKey {
     case kind, text, ms, note, apps, windows, display, x, y, app, state, count
-    case identifier, field, value, pixels, target, connected, code
+    case identifier, field, value, pixels, target, connected, code, activate, present, layout, autoOpen, enabled
     case workspace, profile, args, expect, chord, repeats, holdMs
     case modifiers, keys, gapMs, releaseAfterMs, timeoutMs, expectApps, settleMs
   }

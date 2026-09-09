@@ -1,159 +1,188 @@
 {
-  "name": "membership",
-  "title": "작업에 맞춰 앱 옮기기",
-  "summary": "단축키로 현재 앱을 다른 작업 공간에 옮겨요.",
-  "requires": {
-    "displays": 1
-  },
-  "setup": [
-    {
-      "kind": "clearOverlay"
-    },
-    {
-      "kind": "pointer",
-      "display": 0,
-      "x": 0.5,
-      "y": 0.5
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Editor"
-    },
-    {
-      "kind": "cli",
-      "args": [
-        "layout",
-        "balance"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1800
-    }
-  ],
-  "steps": [
-    {
-      "kind": "chapter",
-      "text": "앱 배정"
-    },
-    {
-      "kind": "caption",
-      "text": "단축키로 현재 앱을 다른 작업 공간에 옮겨요."
-    },
-    {
-      "kind": "activateApp",
-      "app": "Docs"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - ]"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Review"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Review",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1400
-    },
-    {
-      "kind": "caption",
-      "text": "옮긴 앱은 원래 작업 공간에서 빠져요."
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - 1"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Write"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1600
-    },
-    {
-      "kind": "caption",
-      "text": "같은 방식의 단축키로 앱을 다시 옮길 수 있어요."
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - 2"
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Review"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Review",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Docs"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + shift - ["
-    },
-    {
-      "kind": "waitWorkspace",
-      "workspace": "Write"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1600
-    }
-  ],
-  "openingApps": [
+  "name" : "membership",
+  "openingApps" : [
     "Editor",
     "Docs"
-  ]
+  ],
+  "requires" : {
+    "displays" : 1
+  },
+  "setup" : [
+    {
+      "kind" : "clearOverlay"
+    },
+    {
+      "display" : 0,
+      "kind" : "pointer",
+      "x" : 0.5,
+      "y" : 0.5
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "app" : "Editor",
+      "kind" : "activateApp"
+    },
+    {
+      "args" : [
+        "layout",
+        "balance"
+      ],
+      "kind" : "cli"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    }
+  ],
+  "steps" : [
+    {
+      "kind" : "chapter",
+      "text" : "앱 배정"
+    },
+    {
+      "kind" : "caption",
+      "text" : "단축키로 현재 앱을 다른 작업 공간에 옮겨요."
+    },
+    {
+      "app" : "Docs",
+      "kind" : "activateApp"
+    },
+    {
+      "chord" : "ctrl + alt + shift - ]",
+      "kind" : "key"
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "cancel-assignment",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "caption",
+      "text" : "취소하면 앱은 원래 워크스페이스에 남습니다."
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1400
+    },
+    {
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "cancel-assignment",
+      "kind" : "click"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "activateApp"
+    },
+    {
+      "chord" : "ctrl + alt + shift - ]",
+      "kind" : "key"
+    },
+    {
+      "kind" : "caption",
+      "text" : "대상을 검토한 뒤 이동을 확인하세요."
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "confirm-assignment",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1400
+    },
+    {
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "confirm-assignment",
+      "kind" : "click"
+    },
+    {
+      "kind" : "waitWorkspace",
+      "workspace" : "Review"
+    },
+    {
+      "apps" : [
+        "Review",
+        "Docs"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1400
+    },
+    {
+      "kind" : "caption",
+      "text" : "옮긴 앱은 원래 작업 공간에서 빠져요."
+    },
+    {
+      "chord" : "ctrl + alt + shift - 1",
+      "kind" : "key"
+    },
+    {
+      "kind" : "waitWorkspace",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor"
+      ],
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1600
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "present" : false,
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Laptop",
+      "workspace" : "Review"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1200
+    }
+  ],
+  "summary" : "단축키로 현재 앱을 다른 작업 공간에 옮겨요.",
+  "title" : "작업에 맞춰 앱 옮기기"
 }

@@ -1,91 +1,159 @@
 {
-  "name": "workspace-copy",
-  "title": "ワークスペース間で設定をコピー",
-  "summary": "別のワークスペースのアプリと設定を確認し、選んだ変更を適用します。",
-  "requires": {
-    "displays": 1
+  "name" : "workspace-copy",
+  "requires" : {
+    "displays" : 1
   },
-  "setup": [
+  "setup" : [
     {
-      "kind": "clearOverlay"
+      "kind" : "clearOverlay"
     },
     {
-      "kind": "prepareSettings"
+      "app" : "Canvas",
+      "autoOpen" : false,
+      "kind" : "configureAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "text:Desk"
+      "app" : "Canvas",
+      "autoOpen" : false,
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "text:Design"
+      "kind" : "prepareSettings"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Desk",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Design",
+      "kind" : "click"
     }
   ],
-  "steps": [
+  "steps" : [
     {
-      "kind": "chapter",
-      "text": "ワークスペース設定のコピー"
+      "kind" : "chapter",
+      "text" : "ワークスペース設定のコピー"
     },
     {
-      "kind": "caption",
-      "text": "設定のコピー元にするワークスペースを選びます。"
+      "kind" : "caption",
+      "text" : "設定のコピー元にするワークスペースを選びます。"
     },
     {
-      "kind": "beat",
-      "ms": 1400
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "title:別のワークスペースからコピー…"
+      "app" : "Tatami",
+      "identifier" : "title:別のワークスペースからコピー…",
+      "kind" : "click"
     },
     {
-      "kind": "hover",
-      "app": "Tatami",
-      "identifier": "title:Laptop"
+      "app" : "Tatami",
+      "identifier" : "title:Laptop",
+      "kind" : "hover"
     },
     {
-      "kind": "beat",
-      "ms": 900
+      "kind" : "beat",
+      "ms" : 900
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "title:Design"
+      "app" : "Tatami",
+      "identifier" : "title:Design",
+      "kind" : "click"
     },
     {
-      "kind": "caption",
-      "text": "今のワークスペースへコピーする変更を、適用前に確認できます。"
+      "kind" : "caption",
+      "text" : "今のワークスペースへコピーする変更を、適用前に確認できます。"
     },
     {
-      "kind": "beat",
-      "ms": 2300
+      "kind" : "beat",
+      "ms" : 2300
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "button:コピー"
+      "app" : "Tatami",
+      "identifier" : "button:コピー",
+      "kind" : "click"
     },
     {
-      "kind": "expectAssignment",
-      "app": "Docs",
-      "workspace": "Design",
-      "profile": "Desk"
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "sheet:button:適用",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "caption",
-      "text": "選んだアプリと設定が、今のワークスペースにコピーされました。"
+      "kind" : "caption",
+      "text" : "既存のワークスペース設定を上書きする前に確認します。"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "heading:レイアウト"
+      "kind" : "beat",
+      "ms" : 1800
     },
     {
-      "kind": "beat",
-      "ms": 2400
+      "app" : "Tatami",
+      "identifier" : "sheet:button:適用",
+      "kind" : "click"
+    },
+    {
+      "app" : "Canvas",
+      "autoOpen" : true,
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "kind" : "caption",
+      "text" : "選んだアプリと設定が、今のワークスペースにコピーされました。"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "heading:レイアウト",
+      "kind" : "click"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2400
+    },
+    {
+      "kind" : "caption",
+      "text" : "設定が同じワークスペースは「違いはありません」と表示され、選択できません。"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "title:別のワークスペースからコピー…",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "title:Laptop",
+      "kind" : "hover"
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : false,
+      "identifier" : "title:Design · 違いはありません",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2200
+    },
+    {
+      "chord" : "esc",
+      "kind" : "key"
     }
-  ]
+  ],
+  "summary" : "別のワークスペースのアプリと設定を確認し、選んだ変更を適用します。",
+  "title" : "ワークスペース間で設定をコピー"
 }

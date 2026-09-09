@@ -21,6 +21,18 @@ public enum NativeInteractionDriver {
     let target = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
     try reveal(target)
     let point = try center(of: target)
+    // Enter the open submenu horizontally before moving down its rows.
+    // A diagonal path through a sibling parent item can close this submenu.
+    if attribute(target, kAXRoleAttribute) as? String == kAXMenuItemRole,
+       let rawParent = attribute(target, kAXParentAttribute),
+       CFGetTypeID(rawParent) == AXUIElementGetTypeID(),
+       let cursor = CGEvent(source: nil)?.location {
+      let menu = unsafeDowncast(rawParent, to: AXUIElement.self)
+      let frame = try bounds(of: menu)
+      if !frame.contains(cursor) {
+        try move(to: CGPoint(x: point.x, y: min(max(cursor.y, frame.minY + 5), frame.maxY - 5)))
+      }
+    }
     try clickPoint(point)
   }
 
@@ -93,7 +105,9 @@ public enum NativeInteractionDriver {
     guard let app=NSRunningApplication.runningApplications(withBundleIdentifier:bundleIdentifier).first else {throw InteractionError("app is not running")}
     let root=AXUIElementCreateApplication(app.processIdentifier)
     guard let windows=attribute(root,kAXWindowsAttribute) as? [AXUIElement],
-          let window=windows.first(where: { search($0, identifier: "demolab.window.content", depth: 0) != nil })
+          // Hidden or occluded SwiftUI content may have no AX descendants. The
+          // fixture assigns identity to NSWindow itself at creation time.
+          let window=windows.first(where: { (attribute($0, kAXIdentifierAttribute) as? String)?.hasPrefix(bundleIdentifier + ".window.") == true })
     else {throw InteractionError("app has no identified demo window") }
     return try bounds(of:window)
   }
@@ -156,6 +170,14 @@ public enum NativeInteractionDriver {
     }
   }
 
+  public static func isEnabled(bundleIdentifier: String, identifier: String) throws -> Bool {
+    let target = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
+    guard let enabled = attribute(target, kAXEnabledAttribute) as? Bool else {
+      throw InteractionError("native control enabled state is unavailable: \(identifier)")
+    }
+    return enabled
+  }
+
   public static func value(bundleIdentifier: String, identifier: String) throws -> String {
     let target = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
     guard let value = attribute(target, kAXValueAttribute) as? String else {
@@ -214,6 +236,15 @@ public enum NativeInteractionDriver {
   }
   private static func search(_ element: AXUIElement, identifier: String, depth: Int) -> AXUIElement? {
     guard depth < 30 else { return nil }
+    if identifier.hasPrefix("sheet:") {
+      if attribute(element, kAXRoleAttribute) as? String == kAXSheetRole {
+        return search(element, identifier: String(identifier.dropFirst(6)), depth: depth + 1)
+      }
+      for child in attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+        if let found = search(child, identifier: identifier, depth: depth + 1) { return found }
+      }
+      return nil
+    }
     let selectors=["title:":kAXTitleAttribute,"help:":kAXHelpAttribute,"text:":kAXValueAttribute,"description:":kAXDescriptionAttribute]
     let roleSelectors = ["button:": kAXButtonRole, "heading:": "AXHeading"]
     if let selector = roleSelectors.first(where: { identifier.hasPrefix($0.key) }) {

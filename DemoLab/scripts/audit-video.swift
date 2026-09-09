@@ -23,6 +23,8 @@ func similarity(_ expected: String, _ observed: String) -> Double {
 }
 
 var arguments = Array(CommandLine.arguments.dropFirst())
+let cpuOnly = arguments.contains("--cpu-only")
+arguments.removeAll { $0 == "--cpu-only" }
 let openingOnly = arguments.contains("--opening-only")
 arguments.removeAll { $0 == "--opening-only" }
 let languages = ["en":"en-US", "ko":"ko-KR", "ja":"ja-JP", "zh-Hans":"zh-Hans", "zh-Hant":"zh-Hant"]
@@ -31,7 +33,7 @@ if let index = arguments.firstIndex(of: "--locale") {
   guard arguments.indices.contains(index + 1), languages[arguments[index + 1]] != nil else { fatalError("unsupported OCR locale") }
   locale = arguments[index + 1]; arguments.removeSubrange(index...index + 1)
 }
-guard !arguments.isEmpty else { fatalError("usage: audit-video --locale <locale> <movie.mp4> ...") }
+guard !arguments.isEmpty else { fatalError("usage: audit-video [--cpu-only] --locale <locale> <movie.mp4> ...") }
 let files = arguments
 Task {
   do {
@@ -56,6 +58,18 @@ Task {
         let at = CMTimeGetSeconds(actual)
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
+        if cpuOnly {
+          if #available(macOS 14.0, *) {
+            for (stage, devices) in try request.supportedComputeStageDevices {
+              guard let cpu = devices.first(where: { if case .cpu = $0 { true } else { false } }) else {
+                throw NSError(domain: "DemoLab.OCR", code: 1, userInfo: [NSLocalizedDescriptionKey: "CPU execution is unavailable for OCR stage \(stage)"])
+              }
+              request.setComputeDevice(cpu, for: stage)
+            }
+          } else {
+            throw NSError(domain: "DemoLab.OCR", code: 2, userInfo: [NSLocalizedDescriptionKey: "Explicit OCR compute selection requires macOS 14 or later"])
+          }
+        }
         request.recognitionLanguages = locale == "en" ? ["en-US"] : [languages[locale]!, "en-US"]
         try VNImageRequestHandler(cgImage: image).perform([request])
         let observations = request.results ?? []
@@ -87,7 +101,7 @@ Task {
       if !openingOnly && checks.isEmpty { failed = true }
       report.append(["movie": path, "sampleIntervalSeconds": 1, "samples": samples, "captionChecks": checks])
     }
-    let result: [String: Any] = ["locale": locale, "status": failed ? "failed" : "passed",
+    let result: [String: Any] = ["locale": locale, "status": failed ? "failed" : "passed", "computeDevice": cpuOnly ? "cpu" : "automatic",
       "scope": "OCR every second plus caption midpoints; checks permission phrases and readable overlaid narration; does not replace playback review", "movies": report]
     FileHandle.standardOutput.write(try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys]))
     exit(failed ? 1 : 0)

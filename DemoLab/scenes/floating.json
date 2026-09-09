@@ -67,7 +67,8 @@
     {
       "kind": "click",
       "app": "Notes",
-      "identifier": "notes.newTask"
+      "identifier": "notes.newTask",
+      "activate": false
     },
     {
       "kind": "typeText",
@@ -105,6 +106,29 @@
       "chord": "alt + cmd - return"
     },
     {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "confirm-assignment",
+      "enabled": true
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "confirm-assignment",
+      "activate": false
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Notes",
+      "workspace": "Focus",
+      "profile": "Laptop",
+      "layout": "tiled"
+    },
+    {
       "kind": "beat",
       "ms": 1600
     },
@@ -115,6 +139,29 @@
     {
       "kind": "key",
       "chord": "alt + cmd - return"
+    },
+    {
+      "kind": "expectEnabled",
+      "app": "Tatami",
+      "identifier": "confirm-assignment",
+      "enabled": true
+    },
+    {
+      "kind": "beat",
+      "ms": 1400
+    },
+    {
+      "kind": "click",
+      "app": "Tatami",
+      "identifier": "confirm-assignment",
+      "activate": false
+    },
+    {
+      "kind": "expectAssignment",
+      "app": "Notes",
+      "workspace": "Focus",
+      "profile": "Laptop",
+      "layout": "floating"
     },
     {
       "kind": "beat",

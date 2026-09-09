@@ -2,6 +2,38 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import Foundation
 public enum LiveConfigEditor {
+  /// Prepare one existing assignment off camera without changing other scenes' seed.
+  public static func updateAssignment(file: URL, bundleIdentifier: String, workspace: String, profile: String, autoOpen: Bool) throws {
+    var lines = try String(contentsOf: file, encoding: .utf8).components(separatedBy: "\n")
+    var currentProfile: String?, currentWorkspace: String?
+    var matches = [Range<Int>]()
+    var index = 0
+    while index < lines.count {
+      let header = lines[index].trimmingCharacters(in: .whitespaces)
+      guard header.hasPrefix("[") else { index += 1; continue }
+      let start = index + 1
+      index = start
+      while index < lines.count && !lines[index].trimmingCharacters(in: .whitespaces).hasPrefix("[") { index += 1 }
+      let body = try TomlLite.parse(lines[start..<index].joined(separator: "\n"))
+      switch header {
+      case "[[profiles]]": currentProfile = body["name"]?.stringValue; currentWorkspace = nil
+      case "[[profiles.workspaces]]": currentWorkspace = body["name"]?.stringValue
+      case "[[profiles.workspaces.apps]]":
+        if currentProfile == profile && currentWorkspace == workspace && body["bundleIdentifier"]?.stringValue == bundleIdentifier {
+          matches.append(start..<index)
+        }
+      default: break
+      }
+    }
+    guard matches.count == 1, let range = matches.first else { throw DemoCtlError.usage("expected one assignment to prepare") }
+    let body = lines[range].filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("autoOpen =") }
+    lines.replaceSubrange(range, with: body + ["autoOpen = \(autoOpen)"])
+    let text = lines.joined(separator: "\n")
+    let problems = ConfigValidator.problems(in: text)
+    guard problems.isEmpty else { throw DemoCtlError.usage(problems.joined(separator: "; ")) }
+    try Data(text.utf8).write(to: file, options: .atomic)
+  }
+
   public static func update(file:URL,key:String,value:String) throws {
     let sections=["borrowDefaultEdge":"switching","borrowFraction":"switching","mouseFollowsFocus":"focus","focusFollowsMouse":"focus","gapInner":"layout","gapOuter":"layout"]
     guard let section=sections[key] else {throw DemoCtlError.usage("unsupported live setting: \(key)")}

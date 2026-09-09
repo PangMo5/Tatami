@@ -1295,6 +1295,41 @@
       "ja": "ショートカットで隣のウインドウを選び、ポインタも移動します。マウスを重ねて選ぶ方法も紹介します。",
       "zh-Hans": "用快捷键选择相邻窗口并移动鼠标指针，也可以将指针移入窗口来选中它。",
       "zh-Hant": "用快速鍵選擇相鄰視窗並移動滑鼠游標，也可以將游標移入視窗來選取它。"
+    },
+    "Cancel keeps the app in its original workspace.": {
+      "en": "Cancel keeps the app in its original workspace.",
+      "ko": "취소하면 앱은 원래 워크스페이스에 남습니다.",
+      "ja": "キャンセルすると、アプリは元のワークスペースに残ります。",
+      "zh-Hans": "取消后，应用仍留在原工作区。",
+      "zh-Hant": "取消後，App 仍留在原工作區。"
+    },
+    "Review the destination, then confirm the move.": {
+      "en": "Review the destination, then confirm the move.",
+      "ko": "대상을 검토한 뒤 이동을 확인하세요.",
+      "ja": "移動先を確認してから、移動を確定します。",
+      "zh-Hans": "检查目标工作区，然后确认移动。",
+      "zh-Hant": "檢查目標工作區，然後確認移動。"
+    },
+    "Confirm before replacing the current draft.": {
+      "en": "Confirm before replacing the current draft.",
+      "ko": "현재 초안을 교체하기 전에 확인합니다.",
+      "ja": "現在の下書きを置き換える前に確認します。",
+      "zh-Hans": "替换当前草稿前先确认。",
+      "zh-Hant": "取代目前的草稿前先確認。"
+    },
+    "Confirm before overwriting existing workspace settings.": {
+      "en": "Confirm before overwriting existing workspace settings.",
+      "ko": "기존 워크스페이스 설정을 덮어쓰기 전에 확인합니다.",
+      "ja": "既存のワークスペース設定を上書きする前に確認します。",
+      "zh-Hans": "覆盖现有工作区设置前先确认。",
+      "zh-Hant": "覆寫現有工作區設定前先確認。"
+    },
+    "Matching workspaces show No differences and cannot be selected.": {
+      "en": "Matching workspaces show No differences and cannot be selected.",
+      "ko": "설정이 같으면 ‘차이 없음’으로 표시되며 선택할 수 없습니다.",
+      "ja": "設定が同じワークスペースは「違いはありません」と表示され、選択できません。",
+      "zh-Hans": "设置相同的工作区显示“无差异”，无法选择。",
+      "zh-Hant": "設定相同的工作區顯示「沒有差異」，無法選取。"
     }
   }
 }

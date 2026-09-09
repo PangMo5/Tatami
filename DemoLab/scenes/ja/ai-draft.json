@@ -1,109 +1,127 @@
 {
-  "name": "ai-draft",
-  "title": "提案された構成を確認する",
-  "summary": "AI 提案の例を検証し、下書きに反映します。この録画では外部の AI サービスを呼び出していません。",
-  "requires": {
-    "displays": 1
+  "name" : "ai-draft",
+  "requires" : {
+    "displays" : 1
   },
-  "setup": [
+  "setup" : [
     {
-      "kind": "clearOverlay"
+      "kind" : "clearOverlay"
     },
     {
-      "kind": "activateApp",
-      "app": "Tatami"
+      "kind" : "prepareSettings"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "gearshape"
+      "app" : "Tatami",
+      "identifier" : "gearshape",
+      "kind" : "click"
     },
     {
-      "kind": "beat",
-      "ms": 600
+      "kind" : "beat",
+      "ms" : 600
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "description:ガイド設定を開始…"
+      "app" : "Tatami",
+      "identifier" : "description:ガイド設定を開始…",
+      "kind" : "click"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "description:続ける"
+      "app" : "Tatami",
+      "identifier" : "description:続ける",
+      "kind" : "click"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "description:続ける"
+      "app" : "Tatami",
+      "identifier" : "description:続ける",
+      "kind" : "click"
     },
     {
-      "kind": "clipboard",
-      "text": "{\n  \"workspaces\": [\n    {\n      \"name\": \"Design review\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Canvas\",\n        \"dev.PangMo5.DemoLab.Docs\"\n      ]\n    },\n    {\n      \"name\": \"Writing\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Editor\"\n      ]\n    },\n    {\n      \"name\": \"Conversation\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Chat\"\n      ]\n    },\n    {\n      \"name\": \"Quick notes\",\n      \"kind\": \"scratchpad\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Notes\"\n      ]\n    }\n  ]\n}\n"
+      "kind" : "clipboard",
+      "text" : "{\n  \"workspaces\": [\n    {\n      \"name\": \"Design review\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Canvas\",\n        \"dev.PangMo5.DemoLab.Docs\"\n      ]\n    },\n    {\n      \"name\": \"Writing\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Editor\"\n      ]\n    },\n    {\n      \"name\": \"Conversation\",\n      \"kind\": \"workspace\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Chat\"\n      ]\n    },\n    {\n      \"name\": \"Quick notes\",\n      \"kind\": \"scratchpad\",\n      \"bundleIdentifiers\": [\n        \"dev.PangMo5.DemoLab.Notes\"\n      ]\n    }\n  ]\n}\n"
     }
   ],
-  "steps": [
+  "steps" : [
     {
-      "kind": "chapter",
-      "text": "AI による構成 / 提案例"
+      "kind" : "chapter",
+      "text" : "AI による構成 / 提案例"
     },
     {
-      "kind": "caption",
-      "text": "AI が提案した構成を、適用する前に確認できます。"
+      "kind" : "caption",
+      "text" : "AI が提案した構成を、適用する前に確認できます。"
     },
     {
-      "kind": "saveLayout",
-      "text": "desktop"
+      "kind" : "saveLayout",
+      "text" : "desktop"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "description:3. 結果を貼り付け"
+      "app" : "Tatami",
+      "identifier" : "description:3. 結果を貼り付け",
+      "kind" : "click"
     },
     {
-      "kind": "expectValue",
-      "app": "Tatami",
-      "identifier": "text:Design review",
-      "value": "Design review"
+      "app" : "Tatami",
+      "identifier" : "text:Design review",
+      "kind" : "expectValue",
+      "value" : "Design review"
     },
     {
-      "kind": "beat",
-      "ms": 1300
+      "kind" : "beat",
+      "ms" : 1300
     },
     {
-      "kind": "caption",
-      "text": "提案された各ワークスペースに、どのアプリが割り当てられたか確認します。"
+      "kind" : "caption",
+      "text" : "提案された各ワークスペースに、どのアプリが割り当てられたか確認します。"
     },
     {
-      "kind": "hover",
-      "app": "Tatami",
-      "identifier": "description:プランを下書きに反映"
+      "app" : "Tatami",
+      "identifier" : "description:プランを下書きに反映",
+      "kind" : "hover"
     },
     {
-      "kind": "beat",
-      "ms": 2000
+      "kind" : "beat",
+      "ms" : 2000
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "description:プランを下書きに反映"
+      "app" : "Tatami",
+      "identifier" : "description:プランを下書きに反映",
+      "kind" : "click"
     },
     {
-      "kind": "hover",
-      "app": "Tatami",
-      "identifier": "text:Design review"
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "sheet:button:続ける",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "assertLayout",
-      "text": "desktop"
+      "kind" : "caption",
+      "text" : "現在の下書きを置き換える前に確認します。"
     },
     {
-      "kind": "caption",
-      "text": "変わるのは下書きだけ。実際のデスクトップはそのままです。"
+      "kind" : "beat",
+      "ms" : 1800
     },
     {
-      "kind": "beat",
-      "ms": 2300
+      "app" : "Tatami",
+      "identifier" : "sheet:button:続ける",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Design review",
+      "kind" : "hover"
+    },
+    {
+      "kind" : "assertLayout",
+      "text" : "desktop"
+    },
+    {
+      "kind" : "caption",
+      "text" : "変わるのは下書きだけ。実際のデスクトップはそのままです。"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2300
     }
-  ]
+  ],
+  "summary" : "AI 提案の例を検証し、下書きに反映します。この録画では外部の AI サービスを呼び出していません。",
+  "title" : "提案された構成を確認する"
 }

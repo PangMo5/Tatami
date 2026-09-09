@@ -142,9 +142,13 @@ over a technical transliteration such as `플로팅`.
 
 The same terminology and writing rules apply outside the app.
 
-- Keep English documentation as the source, with localized README and guide
-  files generated from `Localization/Docs.json`. Preserve commands, code
-  samples, identifiers, link destinations and explicit heading anchors.
+- Keep English user-facing documentation as the source, with localized README
+  and guide files generated from `Localization/Docs.json`. Preserve commands,
+  code samples, identifiers, link destinations and explicit heading anchors.
+- Keep internal Demo Lab documentation (`DemoLab/README.md` and `DemoLab/docs/`)
+  in English only. Exclude it from document translation and language navigation.
+  This does not change localization of fixture UI, film captions, or review
+  gallery controls.
 - `Localization/Web.json` contains complete website text units. Each locale
   has its own URL and document language, including navigation, accessible
   labels, loading/error states, documentation and demo gallery controls.

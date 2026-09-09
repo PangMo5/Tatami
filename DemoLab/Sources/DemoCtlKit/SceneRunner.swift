@@ -275,12 +275,21 @@ public final class SceneRunner {
     case .expectProfileCount(let count):
       guard try Shell.wait(timeout: .seconds(4), until: { try client.profiles().count == count })
       else { throw DemoCtlError.usage("unexpected profile count") }
-    case .expectAssignment(let app, let workspace, let profile):
+    case .configureAssignment(let app, let workspace, let profile, let autoOpen):
+      try LiveConfigEditor.updateAssignment(file: paths.configFile, bundleIdentifier: bundle(app), workspace: workspace, profile: profile, autoOpen: autoOpen)
+    case .expectEnabled(let app, let identifier, let enabled):
+      let actual = try NativeInteractionDriver.isEnabled(bundleIdentifier: bundle(app), identifier: identifier)
+      guard actual == enabled else { throw DemoCtlError.usage("unexpected enabled state for \(identifier): \(actual)") }
+    case .expectAssignment(let app, let workspace, let profile, let present, let layout, let autoOpen):
       let identifier = try bundle(app)
       guard try Shell.wait(timeout: .seconds(5), until: {
-        let rows = try client.json(["workspace", "apps", workspace, "--profile", profile]) as? [[String: Any]]
-        return rows?.contains { $0["bundleIdentifier"] as? String == identifier } == true
-      }) else { throw DemoCtlError.usage("copied app is missing from the target workspace") }
+        guard let rows = try client.json(["workspace", "apps", workspace, "--profile", profile]) as? [[String: Any]] else { return false }
+        let row = rows.first { $0["bundleIdentifier"] as? String == identifier }
+        if !present { return row == nil }
+        guard let row else { return false }
+        return (layout == nil || row["layout"] as? String == layout)
+          && (autoOpen == nil || row["autoOpen"] as? Bool == autoOpen)
+      }) else { throw DemoCtlError.usage("assignment mismatch for \(profile)/\(workspace)/\(app)") }
     case .expectPlacement(let app, let target, let edge):
       let sourceBundle = try bundle(app), targetBundle = try bundle(target)
       guard ["left", "right", "above", "below"].contains(edge) else { throw DemoCtlError.usage("unknown placement edge") }
@@ -339,13 +348,13 @@ public final class SceneRunner {
         guard let data=try? Data(contentsOf:file),let hook=try? JSONDecoder().decode(HookActivity.self,from:data) else {return false}
         switch field {case "workspace":return hook.workspace==value;case "profile":return hook.profile==value;case "title":return hook.title.contains(value);default:return hook.event==value}
       }) else {throw DemoCtlError.usage("hook did not report \(field) = \(value)")}
-    case .click(let name, let identifier):
+    case .click(let name, let identifier, let activateBeforeClick):
       // Reactivating an app while its popup menu is open can dismiss the menu
       // before the intended item receives the click.
       let menuItem = name == "Tatami"
         ? try NativeInteractionDriver.isMenuItem(bundleIdentifier: bundle(name), identifier: identifier)
         : false
-      if !menuItem { try activate(app: name) }
+      if activateBeforeClick && !menuItem { try activate(app: name) }
       try NativeInteractionDriver.click(bundleIdentifier: bundle(name), identifier: identifier)
     case .typeText(let name, let text, let interval):
       let identifier = try bundle(name)

@@ -1,91 +1,159 @@
 {
-  "name": "workspace-copy",
-  "title": "在工作空間之間複製設定",
-  "summary": "檢查另一個工作空間的 App 與設定，再套用選取的變更。",
-  "requires": {
-    "displays": 1
+  "name" : "workspace-copy",
+  "requires" : {
+    "displays" : 1
   },
-  "setup": [
+  "setup" : [
     {
-      "kind": "clearOverlay"
+      "kind" : "clearOverlay"
     },
     {
-      "kind": "prepareSettings"
+      "app" : "Canvas",
+      "autoOpen" : false,
+      "kind" : "configureAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "text:Desk"
+      "app" : "Canvas",
+      "autoOpen" : false,
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "text:Design"
+      "kind" : "prepareSettings"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Desk",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "text:Design",
+      "kind" : "click"
     }
   ],
-  "steps": [
+  "steps" : [
     {
-      "kind": "chapter",
-      "text": "複製工作空間設定"
+      "kind" : "chapter",
+      "text" : "複製工作空間設定"
     },
     {
-      "kind": "caption",
-      "text": "選擇要從中複製設定的工作空間。"
+      "kind" : "caption",
+      "text" : "選擇要從中複製設定的工作空間。"
     },
     {
-      "kind": "beat",
-      "ms": 1400
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "title:從其他工作空間複製…"
+      "app" : "Tatami",
+      "identifier" : "title:從其他工作空間複製…",
+      "kind" : "click"
     },
     {
-      "kind": "hover",
-      "app": "Tatami",
-      "identifier": "title:Laptop"
+      "app" : "Tatami",
+      "identifier" : "title:Laptop",
+      "kind" : "hover"
     },
     {
-      "kind": "beat",
-      "ms": 900
+      "kind" : "beat",
+      "ms" : 900
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "title:Design"
+      "app" : "Tatami",
+      "identifier" : "title:Design",
+      "kind" : "click"
     },
     {
-      "kind": "caption",
-      "text": "複製至目前工作空間前，先檢查變更內容。"
+      "kind" : "caption",
+      "text" : "複製至目前工作空間前，先檢查變更內容。"
     },
     {
-      "kind": "beat",
-      "ms": 2300
+      "kind" : "beat",
+      "ms" : 2300
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "button:複製"
+      "app" : "Tatami",
+      "identifier" : "button:複製",
+      "kind" : "click"
     },
     {
-      "kind": "expectAssignment",
-      "app": "Docs",
-      "workspace": "Design",
-      "profile": "Desk"
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "sheet:button:套用",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "caption",
-      "text": "選取的 App 與設定已複製至目前的工作空間。"
+      "kind" : "caption",
+      "text" : "覆寫現有工作區設定前先確認。"
     },
     {
-      "kind": "click",
-      "app": "Tatami",
-      "identifier": "heading:佈局"
+      "kind" : "beat",
+      "ms" : 1800
     },
     {
-      "kind": "beat",
-      "ms": 2400
+      "app" : "Tatami",
+      "identifier" : "sheet:button:套用",
+      "kind" : "click"
+    },
+    {
+      "app" : "Canvas",
+      "autoOpen" : true,
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "expectAssignment",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "kind" : "caption",
+      "text" : "選取的 App 與設定已複製至目前的工作空間。"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "heading:佈局",
+      "kind" : "click"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2400
+    },
+    {
+      "kind" : "caption",
+      "text" : "設定相同的工作區顯示「沒有差異」，無法選取。"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "title:從其他工作空間複製…",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "title:Laptop",
+      "kind" : "hover"
+    },
+    {
+      "app" : "Tatami",
+      "enabled" : false,
+      "identifier" : "title:Design · 沒有差異",
+      "kind" : "expectEnabled"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2200
+    },
+    {
+      "chord" : "esc",
+      "kind" : "key"
     }
-  ]
+  ],
+  "summary" : "檢查另一個工作空間的 App 與設定，再套用選取的變更。",
+  "title" : "在工作空間之間複製設定"
 }

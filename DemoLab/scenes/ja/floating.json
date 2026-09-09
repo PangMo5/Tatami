@@ -1,148 +1,195 @@
 {
-  "name": "floating",
-  "title": "ワークスペースの手前にメモを置く",
-  "summary": "メモを常に手前に置いたりタイル表示に戻したりしながら、実際のボタンや入力欄を使います。",
-  "requires": {
-    "displays": 1
+  "name" : "floating",
+  "requires" : {
+    "displays" : 1
   },
-  "setup": [
+  "setup" : [
     {
-      "kind": "clearOverlay"
+      "kind" : "clearOverlay"
     },
     {
-      "kind": "pointer",
-      "display": 0,
-      "x": 0.5,
-      "y": 0.5
+      "display" : 0,
+      "kind" : "pointer",
+      "x" : 0.5,
+      "y" : 0.5
     },
     {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
     },
     {
-      "kind": "waitWindows",
-      "apps": [
+      "apps" : [
         "Editor",
         "Docs"
-      ]
+      ],
+      "kind" : "waitWindows"
     },
     {
-      "kind": "activateWorkspace",
-      "workspace": "Focus",
-      "profile": "Laptop"
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Focus"
     },
     {
-      "kind": "waitWindows",
-      "apps": [
+      "apps" : [
         "Canvas",
         "Notes"
-      ]
+      ],
+      "kind" : "waitWindows"
     },
     {
-      "kind": "activateApp",
-      "app": "Canvas"
+      "app" : "Canvas",
+      "kind" : "activateApp"
     },
     {
-      "kind": "cli",
-      "args": [
+      "args" : [
         "layout",
         "balance"
-      ]
+      ],
+      "kind" : "cli"
     },
     {
-      "kind": "beat",
-      "ms": 1800
+      "kind" : "beat",
+      "ms" : 1800
     }
   ],
-  "steps": [
+  "steps" : [
     {
-      "kind": "chapter",
-      "text": "常に手前"
+      "kind" : "chapter",
+      "text" : "常に手前"
     },
     {
-      "kind": "caption",
-      "text": "最前面表示にしたウインドウは、ワークスペースの手前に表示されます。"
+      "kind" : "caption",
+      "text" : "最前面表示にしたウインドウは、ワークスペースの手前に表示されます。"
     },
     {
-      "kind": "click",
-      "app": "Notes",
-      "identifier": "notes.newTask"
+      "activate" : false,
+      "app" : "Notes",
+      "identifier" : "notes.newTask",
+      "kind" : "click"
     },
     {
-      "kind": "typeText",
-      "app": "Notes",
-      "text": "小さいサイズでもプレビューを確認します。",
-      "ms": 65
+      "app" : "Notes",
+      "kind" : "typeText",
+      "ms" : 65,
+      "text" : "小さいサイズでもプレビューを確認します。"
     },
     {
-      "kind": "key",
-      "chord": "return"
+      "chord" : "return",
+      "kind" : "key"
     },
     {
-      "kind": "expectStory",
-      "field": "lastTask",
-      "value": "小さいサイズでもプレビューを確認します。"
+      "field" : "lastTask",
+      "kind" : "expectStory",
+      "value" : "小さいサイズでもプレビューを確認します。"
     },
     {
-      "kind": "saveWindow",
-      "app": "Notes"
+      "app" : "Notes",
+      "kind" : "saveWindow"
     },
     {
-      "kind": "beat",
-      "ms": 1200
+      "kind" : "beat",
+      "ms" : 1200
     },
     {
-      "kind": "caption",
-      "text": "タイル表示に切り替えると、ほかのウインドウと並んで配置されます。"
+      "kind" : "caption",
+      "text" : "タイル表示に切り替えると、ほかのウインドウと並んで配置されます。"
     },
     {
-      "kind": "activateApp",
-      "app": "Notes"
+      "app" : "Notes",
+      "kind" : "activateApp"
     },
     {
-      "kind": "key",
-      "chord": "alt + cmd - return"
+      "chord" : "alt + cmd - return",
+      "kind" : "key"
     },
     {
-      "kind": "beat",
-      "ms": 1600
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "confirm-assignment",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "caption",
-      "text": "必要なときに、再び最前面表示へ戻せます。"
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "key",
-      "chord": "alt + cmd - return"
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "confirm-assignment",
+      "kind" : "click"
     },
     {
-      "kind": "beat",
-      "ms": 400
+      "app" : "Notes",
+      "kind" : "expectAssignment",
+      "layout" : "tiled",
+      "profile" : "Laptop",
+      "workspace" : "Focus"
     },
     {
-      "kind": "restoreWindow",
-      "app": "Notes"
+      "kind" : "beat",
+      "ms" : 1600
     },
     {
-      "kind": "assertWindow",
-      "app": "Notes"
+      "kind" : "caption",
+      "text" : "必要なときに、再び最前面表示へ戻せます。"
     },
     {
-      "kind": "beat",
-      "ms": 1100
+      "chord" : "alt + cmd - return",
+      "kind" : "key"
     },
     {
-      "kind": "activateApp",
-      "app": "Canvas"
+      "app" : "Tatami",
+      "enabled" : true,
+      "identifier" : "confirm-assignment",
+      "kind" : "expectEnabled"
     },
     {
-      "kind": "beat",
-      "ms": 1100
+      "kind" : "beat",
+      "ms" : 1400
     },
     {
-      "kind": "assertWindow",
-      "app": "Notes"
+      "activate" : false,
+      "app" : "Tatami",
+      "identifier" : "confirm-assignment",
+      "kind" : "click"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "expectAssignment",
+      "layout" : "floating",
+      "profile" : "Laptop",
+      "workspace" : "Focus"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 400
+    },
+    {
+      "app" : "Notes",
+      "kind" : "restoreWindow"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "assertWindow"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1100
+    },
+    {
+      "app" : "Canvas",
+      "kind" : "activateApp"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1100
+    },
+    {
+      "app" : "Notes",
+      "kind" : "assertWindow"
     }
-  ]
+  ],
+  "summary" : "メモを常に手前に置いたりタイル表示に戻したりしながら、実際のボタンや入力欄を使います。",
+  "title" : "ワークスペースの手前にメモを置く"
 }

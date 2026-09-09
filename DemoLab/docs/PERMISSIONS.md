@@ -1,7 +1,3 @@
-<!-- LANGUAGE-LINKS:START -->
-[English](PERMISSIONS.md) · [한국어](ko/PERMISSIONS.md) · [日本語](ja/PERMISSIONS.md) · [简体中文](zh-Hans/PERMISSIONS.md) · [繁體中文](zh-Hant/PERMISSIONS.md)
-<!-- LANGUAGE-LINKS:END -->
-
 # Capture permissions
 
 Check permissions through the actual launch path used for the take. A recorder

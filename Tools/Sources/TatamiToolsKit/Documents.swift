@@ -16,12 +16,6 @@ struct DocumentBuilder {
     "docs/CLI.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",
-    "DemoLab/README.md",
-    "DemoLab/docs/COVERAGE.md",
-    "DemoLab/docs/MULTI-DISPLAY.md",
-    "DemoLab/docs/PERMISSIONS.md",
-    "DemoLab/docs/SCENES.md",
-    "DemoLab/docs/VM-TART.md",
     "NOTICE.md",
     "THIRD_PARTY_NOTICES.md",
   ]
@@ -30,7 +24,6 @@ struct DocumentBuilder {
     let file = workspace.root.at(source)
     if locale == "en" { return file }
     if !source.contains("/") { return workspace.root.at("docs").at(locale).at(file.lastPathComponent) }
-    if source == "DemoLab/README.md" { return workspace.lab.at("docs").at(locale).at(file.lastPathComponent) }
     return file.deletingLastPathComponent().at(locale).at(file.lastPathComponent)
   }
 

@@ -430,3 +430,31 @@ struct TomlLiteTests {
   }
 
 }
+
+@Suite("Scoped demo assignment preparation")
+struct AssignmentPreparationTests {
+  @Test("changes only the exact profile/workspace/app and rejects missing targets")
+  func scopesAssignment() throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let file = directory.appendingPathComponent("config.toml")
+    let original = try renderedConfig()
+    try original.write(to: file, atomically: true, encoding: .utf8)
+    try LiveConfigEditor.updateAssignment(file: file, bundleIdentifier: "dev.PangMo5.DemoLab.Canvas", workspace: "Design", profile: "Desk", autoOpen: false)
+    let changed = try String(contentsOf: file, encoding: .utf8)
+    let profiles = try TomlLite.parse(changed)["profiles"]!.tableArray!
+    for profile in profiles {
+      for workspace in profile["workspaces"]!.tableArray! {
+        for app in workspace["apps"]?.tableArray ?? [] where app["bundleIdentifier"]?.stringValue == "dev.PangMo5.DemoLab.Canvas" {
+          let target = profile["name"]?.stringValue == "Desk" && workspace["name"]?.stringValue == "Design"
+          #expect(app["autoOpen"]?.boolValue == !target)
+        }
+      }
+    }
+    #expect(throws: (any Error).self) {
+      try LiveConfigEditor.updateAssignment(file: file, bundleIdentifier: "missing", workspace: "Design", profile: "Desk", autoOpen: true)
+    }
+    #expect(try String(contentsOf: file, encoding: .utf8) == changed)
+  }
+}

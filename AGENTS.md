@@ -22,3 +22,8 @@ For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep 
 - Measure the reported interaction sequence. Separate input handling, external work, and final presentation; passing tests or CLI completion times do not establish perceived responsiveness.
 - Prefer fixing ownership, state, redundant work, or execution boundaries over delays, debouncing, or throttling that worsen responsiveness. Coalesce redundant work without postponing immediate input feedback whenever possible.
 - Use timing controls only when the interaction or external system requires them, with evidence for the chosen behavior and latency cost. Do not use arbitrary delays, retries, or silent fallbacks to hide a broken contract or bottleneck.
+
+## Demo recording
+
+- Follow [the VM recording guide](DemoLab/docs/VM-TART.md) for VM ownership and rendering checks. Passing action assertions, decoding, OCR, and frame-drop checks does not establish visual correctness.
+- Target Tart VMs by exact name. Other projects may have active VMs; never stop all Tart processes or select the first running VM. Confirm ownership before restarting a guest.

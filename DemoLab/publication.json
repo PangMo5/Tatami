@@ -317,7 +317,7 @@
       "title": "Keep a note above this workspace",
       "description": "Switch a note between Always on Top and tiled placement, and interact with its real controls.",
       "section": "floating",
-      "maxSeconds": 28,
+      "maxSeconds": 32,
       "maxMB": 16,
       "relatedSettings": [
         {
