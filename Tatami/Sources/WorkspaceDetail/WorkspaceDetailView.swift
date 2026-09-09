@@ -122,8 +122,10 @@ struct WorkspaceDetailView: View {
 
           Section {
             ForEach(store.apps) { assignment in
-              AppRow(
-                assignment: assignment,
+              AppAssignmentRow(
+                name: assignment.name,
+                bundleIdentifier: assignment.bundleIdentifier,
+                iconPath: assignment.iconPath,
                 autoOpenBinding: Binding(
                   get: { assignment.autoOpen },
                   set: { value in
@@ -141,6 +143,7 @@ struct WorkspaceDetailView: View {
                   },
                 ),
                 showLayoutOptions: workspace.kind != .scratchpad,
+                autoOpenHelp: "Launch this app automatically when the workspace activates, if it isn't already running.",
                 onRemove: {
                   store.send(.appRemoveRequested(bundleIdentifier: assignment.bundleIdentifier))
                 },
@@ -738,60 +741,6 @@ private struct DisplayPickerSection: View {
     )
   }
 
-}
-
-// MARK: - AppRow
-
-private struct AppRow: View {
-  let assignment: AppAssignment
-  let autoOpenBinding: Binding<Bool>
-  let layoutBinding: Binding<LayoutMode>
-  /// Layout + auto-open are meaningless for a borrow-only scratchpad (only
-  /// tiled apps take part when borrowed, and it never activates), so hide them.
-  var showLayoutOptions = true
-  let onRemove: () -> Void
-
-  var body: some View {
-    HStack {
-      AppIcon(bundleIdentifier: assignment.bundleIdentifier, iconPath: assignment.iconPath)
-        .frame(width: 22, height: 22)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(assignment.name)
-          .font(.body)
-        Text(assignment.bundleIdentifier)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-      Spacer()
-      if showLayoutOptions {
-        Picker("Layout", selection: layoutBinding) {
-          Text("Tiled").tag(LayoutMode.tiled)
-          Text("Float").tag(LayoutMode.floating)
-          Text("Ignore").tag(LayoutMode.unmanaged)
-        }
-        .labelsHidden()
-        .pickerStyle(.segmented)
-        .fixedSize()
-        .help(
-          "Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording."
-        )
-        HStack(spacing: 6) {
-          Text("Auto-open")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Toggle("Auto-open", isOn: autoOpenBinding)
-            .labelsHidden()
-            .toggleStyle(.switch)
-        }
-        .help("Launch this app automatically when the workspace activates, if it isn't already running.")
-      }
-      Button(role: .destructive, action: onRemove) {
-        Image(systemName: "minus.circle.fill")
-          .foregroundStyle(.red)
-      }
-      .buttonStyle(.borderless)
-    }
-  }
 }
 
 // MARK: - AppIcon

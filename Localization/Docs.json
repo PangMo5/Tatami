@@ -6,12 +6,12 @@
     "zh-Hans": "可独立设置每项操作的确认，默认全部开启。选择“不再询问”并确认后，只关闭对应操作的确认。取消不会更改偏好。旧的全局确认设置会迁移到这些选项，明确设置的单项值优先。",
     "zh-Hant": "可分別設定各項操作的確認，預設全部開啟。選取「不再詢問」並確認後，只會關閉對應操作的確認。取消不會變更偏好。舊的全域確認設定會移轉到這些選項，明確設定的單項值優先。"
   },
-  "95763a39fc468b25": {
-    "en": "Persistent app membership and layout commands open a confirmation HUD by default. The command changes the configuration only after you confirm, then shows its result in the same HUD. Configure each action in Settings → General → Confirmations. \"Don't ask again\" disables only that action after confirming; cancelling leaves it enabled.",
-    "ko": "앱 소속과 배치 방식을 저장하는 명령은 기본으로 확인 화면을 열어요. 확인한 뒤에 설정을 바꾸고 같은 화면에 결과를 보여줘요. 설정 → 일반 → 확인에서 동작별로 고를 수 있어요. ‘다시 보지 않기’는 실행한 동작의 확인만 끄며, 취소하면 유지해요.",
-    "ja": "アプリの所属や表示方法を保存するコマンドは、初期状態で確認HUDを開きます。確定後に設定を変更し、同じHUDで結果を表示します。「設定」→「一般」→「確認」で操作ごとに選べます。「次回から確認しない」は確定した操作だけに適用され、キャンセルでは変わりません。",
-    "zh-Hans": "保存应用归属或布局的命令默认打开确认提示框。确认后才会更改配置，并在同一提示框中显示结果。可在设置 → 通用 → 操作确认中逐项设置。“不再询问”仅在确认后关闭对应操作的确认；取消则保持开启。",
-    "zh-Hant": "儲存 App 歸屬或排列的指令預設會開啟確認提示視窗。確認後才會變更設定，並在同一提示視窗中顯示結果。可在設定 → 一般 → 操作確認中逐項設定。「不再詢問」只會在確認後關閉對應操作的確認；取消則維持開啟。"
+  "402ab39b1c7baf60": {
+    "en": "Persistent app membership and layout commands open a confirmation HUD by default. The command changes the configuration only after you confirm, then shows its result in the same HUD. Configure each action in Settings → General → Confirm Before Changes. \"Don't ask again\" disables only that action after confirming; cancelling leaves it enabled.",
+    "ko": "앱 소속과 배치 방식을 저장하는 명령은 기본으로 확인 화면을 열어요. 확인한 뒤에 설정을 바꾸고 같은 화면에 결과를 보여줘요. 설정 → 일반 → 변경 전 확인에서 동작별로 고를 수 있어요. ‘다시 보지 않기’는 실행한 동작의 확인만 끄며, 취소하면 유지해요.",
+    "ja": "アプリの所属や表示方法を保存するコマンドは、初期状態で確認HUDを開きます。確定後に設定を変更し、同じHUDで結果を表示します。「設定」→「一般」→「変更前の確認」で操作ごとに選べます。「次回から確認しない」は確定した操作だけに適用され、キャンセルでは変わりません。",
+    "zh-Hans": "保存应用归属或布局的命令默认打开确认提示框。确认后才会更改配置，并在同一提示框中显示结果。可在设置 → 通用 → 更改前确认中逐项设置。“不再询问”仅在确认后关闭对应操作的确认；取消则保持开启。",
+    "zh-Hant": "儲存 App 歸屬或排列的指令預設會開啟確認提示視窗。確認後才會變更設定，並在同一提示視窗中顯示結果。可在設定 → 一般 → 變更前確認中逐項設定。「不再詢問」只會在確認後關閉對應操作的確認；取消則維持開啟。"
   },
   "f3411da52933e469": {
     "en": "Add apps to workspaces",

@@ -18,16 +18,10 @@ struct SharedAppsView: View {
     Form {
       Section {
         ForEach(store.apps) { app in
-          SharedAppRow(
-            app: app,
-            layoutBinding: Binding(
-              get: { app.layout },
-              set: { value in
-                store.send(
-                  .layoutChanged(bundleIdentifier: app.bundleIdentifier, layout: value)
-                )
-              },
-            ),
+          AppAssignmentRow(
+            name: app.name,
+            bundleIdentifier: app.bundleIdentifier,
+            iconPath: app.iconPath,
             autoOpenBinding: Binding(
               get: { app.autoOpen },
               set: { value in
@@ -36,6 +30,15 @@ struct SharedAppsView: View {
                 )
               },
             ),
+            layoutBinding: Binding(
+              get: { app.layout },
+              set: { value in
+                store.send(
+                  .layoutChanged(bundleIdentifier: app.bundleIdentifier, layout: value)
+                )
+              },
+            ),
+            autoOpenHelp: "Launch this app automatically when a workspace activates, if it has no open window. Also restores it when minimized.",
             onRemove: {
               store.send(.appRemoveRequested(bundleIdentifier: app.bundleIdentifier))
             },
@@ -86,56 +89,5 @@ struct SharedAppsView: View {
         set: { store.send(.confirmationSuppressionChanged($0)) },
       ),
     )
-  }
-}
-
-// MARK: - SharedAppRow
-
-private struct SharedAppRow: View {
-  let app: SharedApp
-  let layoutBinding: Binding<LayoutMode>
-  let autoOpenBinding: Binding<Bool>
-  let onRemove: () -> Void
-
-  var body: some View {
-    HStack {
-      AppIcon(bundleIdentifier: app.bundleIdentifier, iconPath: app.iconPath)
-        .frame(width: 22, height: 22)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(app.name)
-          .font(.body)
-        Text(app.bundleIdentifier)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-      Spacer()
-      Picker("Layout", selection: layoutBinding) {
-        Text("Tiled").tag(LayoutMode.tiled)
-        Text("Float").tag(LayoutMode.floating)
-        Text("Ignore").tag(LayoutMode.unmanaged)
-      }
-      .labelsHidden()
-      .pickerStyle(.segmented)
-      .fixedSize()
-      .help(
-        "Tiled: laid out in the BSP tree. Float: mirrored above the tiles. Ignore: left where it is — still a member (focus, FFM, cycling), no Screen Recording."
-      )
-      HStack(spacing: 6) {
-        Text("Auto-open")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Toggle("Auto-open", isOn: autoOpenBinding)
-          .labelsHidden()
-          .toggleStyle(.switch)
-      }
-      .help(
-        "Launch this app automatically when a workspace activates, if it has no open window. Also restores it when minimized."
-      )
-      Button(role: .destructive, action: onRemove) {
-        Image(systemName: "minus.circle.fill")
-          .foregroundStyle(.red)
-      }
-      .buttonStyle(.borderless)
-    }
   }
 }
