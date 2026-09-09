@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import ApplicationServices
 import CoreGraphics
 import Testing
 @testable import TatamiKit
@@ -59,6 +60,58 @@ struct FloatingMirrorVisibilityTests {
     panel.alpha = 1
     panel.surface.frame.origin.x += 20
     #expect(!areFloatingMirrorsPresented(frames, ownerPID: 9, windows: [panel]))
+  }
+
+  @Test
+  func `native titlebar surfaces do not keep their parent captured`() {
+    var titlebar = window(11, pid: 1)
+    titlebar.surface.frame = CGRect(x: 10, y: 10, width: 66, height: 20)
+    #expect(isFloatingMirrorSourceExposed(
+      key,
+      frame: frame,
+      ignoringPIDs: [],
+      windows: [titlebar, window(10, pid: 1)],
+      sourceWindowIDs: [10],
+    ))
+  }
+
+  @Test
+  func `another real window of the same app still blocks handover`() {
+    #expect(!isFloatingMirrorSourceExposed(
+      key,
+      frame: frame,
+      ignoringPIDs: [],
+      windows: [window(11, pid: 1), window(10, pid: 1)],
+      sourceWindowIDs: [10, 11],
+    ))
+  }
+
+  @Test
+  func `demoted mirror proxies do not count as native occluders`() {
+    #expect(isFloatingMirrorSourceExposed(
+      key,
+      frame: frame,
+      ignoringPIDs: [],
+      windows: [window(90, pid: 9), window(10, pid: 1)],
+      sourceWindowIDs: [10],
+      mirrorWindowIDs: [90],
+    ))
+    #expect(!isFloatingMirrorSourceExposed(
+      key,
+      frame: frame,
+      ignoringPIDs: [],
+      windows: [window(91, pid: 9), window(10, pid: 1)],
+      sourceWindowIDs: [10],
+      mirrorWindowIDs: [90],
+    ))
+  }
+
+  @Test
+  func `capture controls and native dialogs do not occlude their parent interaction`() {
+    #expect(!isFloatingMirrorOccludingSubrole(kAXDialogSubrole))
+    #expect(isFloatingMirrorOccludingSubrole(kAXStandardWindowSubrole))
+    #expect(isFloatingMirrorOccludingSubrole(nil))
+    #expect(isFloatingMirrorOccludingSubrole("UnknownWindow"))
   }
 
   // MARK: Private

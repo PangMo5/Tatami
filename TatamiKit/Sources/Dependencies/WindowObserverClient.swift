@@ -668,7 +668,10 @@ private final class WindowObserverCenter: @unchecked Sendable {
           let rawWindowID = cgEvent?.getIntegerValueField(
             .mouseEventWindowUnderMousePointer
           )
-          let windowID = rawWindowID.flatMap {
+          // A replay intentionally clears WindowServer destination fields.
+          // Its immutable source annotation owns the gesture; guessing from
+          // the mouse-up location can select an unrelated tile behind it.
+          let windowID = cgEvent.flatMap(MirrorInputEventOrigin.windowID) ?? rawWindowID.flatMap {
             $0 > 0 ? CGWindowID(truncatingIfNeeded: $0) : nil
           }
           let location = cgEvent?.location
