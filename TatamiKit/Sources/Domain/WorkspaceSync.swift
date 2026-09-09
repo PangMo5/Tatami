@@ -182,6 +182,13 @@ public enum WorkspaceSync {
     }
   }
 
+  /// Whether the copy review has at least one selectable change. Identity,
+  /// workspace names, and app display metadata are not copied by this flow.
+  public static func hasChanges(from source: Workspace, to target: Workspace) -> Bool {
+    !appChanges(from: source.apps, to: target.apps).isEmpty
+      || !fieldChanges(from: source, to: target).isEmpty
+  }
+
   /// App changes that would transform `target`'s apps toward `source`'s. Adds
   /// and modifies follow the source's order (stable); removes trail. `modify`
   /// fires only on a `layout` / `autoOpen` difference (name / iconPath ignored).
