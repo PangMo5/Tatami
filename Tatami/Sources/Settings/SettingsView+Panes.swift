@@ -133,29 +133,10 @@ extension SettingsView {
       .buttonStyle(.link)
     }
 
-    Section("Confirmations") {
-      Text("Choose which actions ask first. Don't ask again turns off only that action.")
-        .font(.callout)
-        .foregroundStyle(.secondary)
-      ForEach(ConfirmationKind.Group.allCases) { group in
-        DisclosureGroup {
-          ForEach(group.actions) { kind in
-            Toggle(isOn: Binding(
-              get: { config.settings.confirmations[kind] },
-              set: { enabled in $config.withLock { $0.settings.confirmations[kind] = enabled } },
-            )) { Text(kind.title) }
-          }
-        } label: {
-          HStack {
-            Text(group.title)
-            Spacer()
-            Text("Enabled: \(group.actions.count(where: { config.settings.confirmations[$0] })) / \(group.actions.count)")
-              .foregroundStyle(.secondary)
-              .font(.caption)
-          }
-        }
-      }
-    }
+    ConfirmationSettingsSection(settings: Binding(
+      get: { config.settings.confirmations },
+      set: { value in $config.withLock { $0.settings.confirmations = value } },
+    ))
 
     Section("Debug") {
       Toggle(isOn: setting(\.general.debugLogging)) {
