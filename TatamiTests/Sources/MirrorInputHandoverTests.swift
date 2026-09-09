@@ -2,12 +2,75 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import CoreGraphics
+import Dependencies
 import Testing
 @testable import TatamiKit
 
 struct MirrorInputHandoverTests {
 
   // MARK: Internal
+
+  @Test
+  func `failed native input installation never reports readiness for a mirror`() async {
+    let failures = LockIsolated<[String]>([])
+    let tap = MirrorClickTap(
+      hitTestWindow: { _ in nil },
+      prepareNativeWindow: { _, _ in false },
+      finishNativeInput: { _ in },
+      onFailure: { reason in failures.withValue { $0.append(reason) } },
+      onOutsideClick: { },
+      makeEventSource: { nil },
+    )
+    let ready = await tap.enable()
+    #expect(!ready)
+    #expect(failures.value.count == 1)
+  }
+
+  @Test
+  func `old acknowledgments cannot complete a new packet after cancellation`() throws {
+    var acknowledgments = MirrorInputAcknowledgments()
+    let first = try mouse(.leftMouseDown, x: 120, y: 60)
+    first.timestamp = 100
+    let oldReplay = try #require(nativeMirrorReplayEvent(first, tag: MirrorInputEventOrigin.tag(windowID: 833)))
+    acknowledgments.posted(oldReplay)
+    acknowledgments.reset()
+    // A new click can be waiting for hit testing before anything is posted.
+    let accepted1 = acknowledgments.accept(oldReplay)
+    #expect(!accepted1)
+    let second = try mouse(.leftMouseDown, x: 120, y: 60)
+    second.timestamp = 200
+    let currentReplay = try #require(nativeMirrorReplayEvent(second, tag: MirrorInputEventOrigin.tag(windowID: 833)))
+    acknowledgments.posted(currentReplay)
+    let accepted2 = acknowledgments.accept(oldReplay)
+    #expect(!accepted2)
+    #expect(acknowledgments.hasPending)
+    let accepted3 = acknowledgments.accept(currentReplay)
+    #expect(accepted3)
+    #expect(!acknowledgments.hasPending)
+    let accepted4 = acknowledgments.accept(currentReplay)
+    #expect(!accepted4)
+  }
+
+  @Test
+  func `balancing releases and another window cannot acknowledge the current down`() throws {
+    var acknowledgments = MirrorInputAcknowledgments()
+    let down = try mouse(.leftMouseDown, x: 120, y: 60)
+    down.timestamp = 100
+    let replay = try #require(nativeMirrorReplayEvent(down, tag: MirrorInputEventOrigin.tag(windowID: 833)))
+    acknowledgments.posted(replay)
+    let release = try mouse(.leftMouseUp, x: 120, y: 60)
+    release.timestamp = down.timestamp
+    let balancingUp = try #require(nativeMirrorReplayEvent(release, tag: MirrorInputEventOrigin.tag(windowID: 833)))
+    let accepted5 = acknowledgments.accept(balancingUp)
+    #expect(!accepted5)
+    let otherWindow = try #require(nativeMirrorReplayEvent(down, tag: MirrorInputEventOrigin.tag(windowID: 834)))
+    let accepted6 = acknowledgments.accept(otherWindow)
+    #expect(!accepted6)
+    let accepted7 = acknowledgments.accept(down)
+    #expect(!accepted7)
+    let accepted8 = acknowledgments.accept(replay)
+    #expect(accepted8)
+  }
 
   @Test
   func `a complete click arriving before activation retains both edges`() throws {

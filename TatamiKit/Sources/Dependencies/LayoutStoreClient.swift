@@ -211,7 +211,13 @@ extension DependencyValues {
 /// is the only writer/reader, so concurrent activations can't race on
 /// the file. The whole map is small (one snapshot per workspace) so a
 /// full rewrite per save is fine.
-private actor LayoutStore {
+actor LayoutStore {
+
+  // MARK: Lifecycle
+
+  init(fileURL: URL = ConfigLocation.directory.appendingPathComponent("layouts.json", isDirectory: false)) {
+    self.fileURL = fileURL
+  }
 
   // MARK: Internal
 
@@ -220,7 +226,7 @@ private actor LayoutStore {
   }
 
   func save(workspaceId: UUID, snapshot: LayoutSnapshot) {
-    var map = loadedMap()
+    guard var map = loadedMap() else { return }
     guard map[workspaceId.uuidString] != snapshot else { return }
     map[workspaceId.uuidString] = snapshot
     guard writeMap(map) else { return }
@@ -228,7 +234,7 @@ private actor LayoutStore {
   }
 
   func load(workspaceId: UUID) -> LayoutSnapshot? {
-    loadedMap()[workspaceId.uuidString]
+    loadedMap()?[workspaceId.uuidString]
   }
 
   func clear(workspaceId: UUID) {
@@ -236,7 +242,7 @@ private actor LayoutStore {
   }
 
   func removeLayouts(_ workspaceIDs: [UUID]) -> Bool {
-    var map = loadedMap()
+    guard var map = loadedMap() else { return false }
     var changed = false
     for id in workspaceIDs {
       changed = map.removeValue(forKey: id.uuidString) != nil || changed
@@ -248,7 +254,7 @@ private actor LayoutStore {
   }
 
   func copyLayouts(_ mapping: [UUID: UUID]) -> Bool {
-    let current = loadedMap()
+    guard let current = loadedMap() else { return false }
     var updated = current
     for (source, destination) in mapping {
       if let snapshot = current[source.uuidString] {
@@ -265,25 +271,32 @@ private actor LayoutStore {
 
   private let executor = DispatchSerialQueue(label: "dev.PangMo5.Tatami.LayoutStore", qos: .utility)
 
-  private let fileURL = ConfigLocation.directory
-    .appendingPathComponent("layouts.json", isDirectory: false)
+  private let fileURL: URL
   /// In-memory source of truth, read from disk once; saves write through.
   /// Re-reading + re-decoding the whole file before every save was pure
   /// disk churn (one full decode per committed resize/drag/BSP operation).
   private var cachedMap: [String: LayoutSnapshot]?
 
-  private func loadedMap() -> [String: LayoutSnapshot] {
+  private func loadedMap() -> [String: LayoutSnapshot]? {
     if let cachedMap { return cachedMap }
-    let loaded = readMap()
+    guard let loaded = readMap() else { return nil }
     cachedMap = loaded
     return loaded
   }
 
-  private func readMap() -> [String: LayoutSnapshot] {
-    // A missing file is the normal first-run state; a file that exists but
-    // doesn't decode at all means stored layouts are being dropped — surface it.
-    guard let data = try? Data(contentsOf: fileURL) else { return [:] }
+  private func readMap() -> [String: LayoutSnapshot]? {
     @Dependency(\.errorReporter) var reporter
+    let data: Data
+    do {
+      data = try Data(contentsOf: fileURL)
+    } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+      // Only a missing file establishes an empty first-run snapshot.
+      reporter.resolve("Layouts")
+      return [:]
+    } catch {
+      reportReadFailure(error)
+      return nil
+    }
     do {
       // Decode per entry (v2 or migrated-v1) so one unreadable workspace is
       // skipped rather than resetting every workspace's layout.
@@ -303,19 +316,24 @@ private actor LayoutStore {
       }
       return decoded.map
     } catch {
-      reporter.report(
-        "Layouts",
-        String(localized: "layouts.json could not be read — saved layouts reset"),
-        ErrorReportClient.describe(error),
-      )
-      return [:]
+      reportReadFailure(error)
+      return nil
     }
+  }
+
+  private func reportReadFailure(_ error: any Error) {
+    @Dependency(\.errorReporter) var reporter
+    reporter.report(
+      "Layouts",
+      String(localized: "layouts.json could not be read — saved layouts reset"),
+      ErrorReportClient.describe(error),
+    )
   }
 
   private func writeMap(_ map: [String: LayoutSnapshot]) -> Bool {
     @Dependency(\.errorReporter) var reporter
     do {
-      try ConfigLocation.ensureDirectoryExists()
+      try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
       let data = try YYJSONEncoder().encode(map)
       try data.write(to: fileURL, options: .atomic)
       reporter.resolve("Layouts")
