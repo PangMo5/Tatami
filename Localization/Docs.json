@@ -1,4 +1,18 @@
 {
+  "d08480de0ce2a617": {
+    "en": "Keyboard window switching remembers recent focus separately for each workspace while Tatami is running. Tap and release the next-window shortcut to return to the last-used app or window. Hold its modifier to browse the list; its order stays fixed until you release or cancel. Switching workspaces or rearranging tiles preserves that workspace's history. Window-switching gestures keep their directional layout order.",
+    "ko": "키보드 창 전환은 Tatami가 실행 중인 동안 작업 공간마다 최근 포커스 순서를 따로 기억해요. 다음 창 단축키를 짧게 눌렀다 놓으면 마지막으로 사용한 앱이나 창으로 돌아가요. 보조 키를 누른 채 목록을 고를 수 있고, 키를 놓거나 취소할 때까지 목록 순서는 바뀌지 않아요. 다른 작업 공간으로 이동하거나 창 배치를 바꿔도 각 공간의 기록은 유지돼요. 창 전환 제스처는 배치 순서대로 이동해요.",
+    "ja": "キーボードでのウインドウ切り替えは、Tatami の実行中、ワークスペースごとに最近フォーカスした順序を記憶します。「次のウインドウ」のショートカットを押してすぐ離すと、直前に使ったアプリやウインドウに戻ります。修飾キーを押したまま一覧を選べます。キーを離すかキャンセルするまで一覧の順序は変わりません。ワークスペースの切り替えやタイルの並べ替えでも履歴は維持されます。ウインドウ切り替えのジェスチャは配置順に移動します。",
+    "zh-Hans": "Tatami 运行期间，键盘窗口切换会为每个工作区分别记住最近的焦点顺序。短按并松开“下一个窗口”快捷键，即可返回上次使用的应用或窗口。按住修饰键可浏览列表，列表顺序保持不变，直到松开或取消。切换工作区或重新排列窗口不会清除该工作区的记录。窗口切换手势仍按布局顺序移动。",
+    "zh-Hant": "Tatami 執行期間，鍵盤視窗切換會為每個工作空間分別記住最近的焦點順序。短按並放開「下一個視窗」快速鍵，即可回到上次使用的 App 或視窗。按住修飾鍵可瀏覽清單，清單順序會維持不變，直到放開或取消。切換工作空間或重新排列視窗不會清除該空間的紀錄。視窗切換手勢仍依排列順序移動。"
+  },
+  "7d1b20ca5ef5ec14": {
+    "en": "*Tatami* (畳) are traditional Japanese floor mats, fitted together to cover a room. Tatami brings that idea to your Mac, fitting windows together into a workspace.",
+    "ko": "*다다미*(畳)는 일본 전통 방의 바닥에 맞춰 까는 매트예요. 다다미를 맞춰 방을 채우듯, Tatami는 창을 배치해 Mac의 작업 공간을 정리해요.",
+    "ja": "Tatami の名前は、和室の床に敷き詰める「畳」に由来します。畳を組み合わせて部屋を整えるように、Mac のウインドウを並べてワークスペースを整えます。",
+    "zh-Hans": "*Tatami*（畳）是日本传统房间里拼铺的榻榻米。就像榻榻米铺满房间，Tatami 将 Mac 上的窗口拼排成工作区。",
+    "zh-Hant": "*Tatami*（畳）是日本傳統房間裡拼鋪的榻榻米。如同榻榻米鋪滿房間，Tatami 將 Mac 上的視窗排列成工作空間。"
+  },
   "75be03c96fc163e7": {
     "en": "Choose confirmations for each action independently. Every option is enabled by default. Selecting \"Don't ask again\" and confirming disables only that action. Cancelling keeps the preference unchanged. Older global confirmation settings are migrated to these options; explicitly configured options take precedence.",
     "ko": "동작별로 확인 여부를 고를 수 있어요. 기본으로 모두 켜져 있어요. ‘다시 보지 않기’를 선택하고 실행하면 해당 동작의 확인만 꺼져요. 취소하면 설정을 유지해요. 기존 전체 확인 설정은 각 항목으로 이전하며, 직접 지정한 항목이 우선해요.",

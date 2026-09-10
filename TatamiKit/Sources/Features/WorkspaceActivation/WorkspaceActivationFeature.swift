@@ -296,6 +296,11 @@ public struct WorkspaceActivationFeature {
     /// the focused window closes — fall back through the list to the next
     /// most-recent window that's still on screen.
     public var mruWindows = [Workspace.ID: [WindowKey]]()
+    /// Keyboard switcher recency for each workspace, including Floating,
+    /// Leave As Is, and Shared Apps. Unlike the tree-only restoration MRU,
+    /// this history covers every eligible switcher window and survives layout
+    /// reordering and workspace switches during the current app session.
+    public var windowSwitcherMRU = [Workspace.ID: [WindowKey]]()
     /// Last exact focus reported by the merged app/AX event stream. App
     /// activation and AX observers can report the same focus several times,
     /// sometimes after the cursor has already moved away. Only a transition
@@ -834,6 +839,10 @@ public struct WorkspaceActivationFeature {
       _ keys: Set<WindowKey>,
       workspaceId: Workspace.ID,
     ) {
+      let contexts = [workspaceId, composition(on: displayShowing(workspaceId))?.host].compactMap { $0 }
+      for context in Set(contexts) {
+        windowSwitcherMRU[context]?.removeAll(where: keys.contains)
+      }
       guard !keys.isEmpty, var mru = mruWindows[workspaceId] else { return }
       mru.removeAll(where: keys.contains)
       mruWindows[workspaceId] = mru.isEmpty ? nil : mru
@@ -845,6 +854,11 @@ public struct WorkspaceActivationFeature {
       _ replacements: [WindowKey: WindowKey],
       workspaceId: Workspace.ID,
     ) {
+      for context in Array(windowSwitcherMRU.keys) {
+        var seen = Set<WindowKey>()
+        windowSwitcherMRU[context] = windowSwitcherMRU[context]?.map { replacements[$0] ?? $0 }
+          .filter { seen.insert($0).inserted }
+      }
       guard !replacements.isEmpty, var mru = mruWindows[workspaceId] else { return }
       mru = mru.map { replacements[$0] ?? $0 }
       var seen = Set<WindowKey>()
@@ -855,6 +869,9 @@ public struct WorkspaceActivationFeature {
     /// A terminated process invalidates every one of its window ids, including
     /// floating/unmanaged entries that never appeared in a BSP tree.
     mutating func removeBundleFromWindowMRU(_ bundleId: String) {
+      for context in Array(windowSwitcherMRU.keys) {
+        windowSwitcherMRU[context]?.removeAll { $0.bundleId == bundleId }
+      }
       for workspaceId in Array(mruWindows.keys) {
         guard var mru = mruWindows[workspaceId] else { continue }
         mru.removeAll { $0.bundleId == bundleId }
@@ -863,6 +880,9 @@ public struct WorkspaceActivationFeature {
     }
 
     mutating func removeProcessFromWindowMRU(_ pid: pid_t) {
+      for context in Array(windowSwitcherMRU.keys) {
+        windowSwitcherMRU[context]?.removeAll { $0.pid == pid }
+      }
       for workspaceId in Array(mruWindows.keys) {
         guard var mru = mruWindows[workspaceId] else { continue }
         mru.removeAll { $0.pid == pid }
@@ -915,6 +935,18 @@ public struct WorkspaceActivationFeature {
         presentationConvergenceWindows
       )
       return monitored
+    }
+
+    /// Borrow's host keeps the combined visible order, while the borrowed
+    /// workspace also remembers its own order for when it is activated alone.
+    mutating func recordWindowSwitcherFocus(_ key: WindowKey, workspaceId: Workspace.ID) {
+      let contexts = [workspaceId, composition(on: displayShowing(workspaceId))?.host].compactMap { $0 }
+      for context in Set(contexts) {
+        var recent = windowSwitcherMRU[context] ?? []
+        recent.removeAll { $0 == key }
+        recent.insert(key, at: 0)
+        windowSwitcherMRU[context] = recent
+      }
     }
 
     /// Record exact focus in the owning workspace. Events permit registered
@@ -971,6 +1003,14 @@ public struct WorkspaceActivationFeature {
       if inTree { insertionPoint[workspaceId] = key }
 
       let workspaceApps = config.activeProfile?.workspaces[id: workspaceId]?.apps ?? []
+      if
+        updateFocusedDisplay,
+        inTree
+        || workspaceApps.contains(where: { $0.bundleIdentifier == key.bundleId })
+        || config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId })
+      {
+        recordWindowSwitcherFocus(key, workspaceId: workspaceId)
+      }
       guard
         inTree
         || (!requireVisibleTreeMembership
@@ -3923,6 +3963,7 @@ public struct WorkspaceActivationFeature {
               direction: direction,
               holdModifiers: current.holdModifiers,
               focusedWindow: current.focusedWindow,
+              sessionOrder: current.windows,
               interactionDisplay: current.display,
               onScreenFrames: current.onScreenFrames,
               state: state,
@@ -3980,6 +4021,15 @@ public struct WorkspaceActivationFeature {
           )
         else { return .none }
         state.windowCycleSession = cycle
+        // The resolved anchor is actual focus, even if its AX notification is
+        // still queued. Remember it before committing a quick tap so the next
+        // invocation can return to it without waiting for observer delivery.
+        if let key, cycle.windows.contains(where: { cycle.byWindow ? $0 == key : $0.bundleId == key.bundleId }) {
+          state.recordWindowSwitcherFocus(
+            key,
+            workspaceId: state.workspaceOwning(key) ?? cycle.workspaceId,
+          )
+        }
 
         var effects: [Effect<Action>] = [
           .run { [clock, modifierKeys, holdModifiers] send in
@@ -4027,6 +4077,7 @@ public struct WorkspaceActivationFeature {
             direction: direction,
             holdModifiers: current.holdModifiers,
             focusedWindow: current.focusedWindow,
+            sessionOrder: current.windows,
             interactionDisplay: current.display,
             onScreenFrames: current.onScreenFrames,
             state: state,
@@ -5130,14 +5181,15 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  /// Resolve one logical step without moving focus. Both immediate gesture
-  /// cycling and held-modifier keyboard sessions share this ordering/MRU path,
-  /// so their app-level and window-level behavior cannot drift.
+  /// Resolve one logical step without moving focus. Immediate directional
+  /// gestures keep layout order; keyboard sessions use workspace recency and
+  /// freeze that order until the modifier is released.
   private func windowCycle(
     from key: WindowKey?,
     direction: CycleDirection,
     holdModifiers: HotKeyModifiers,
     focusedWindow: WindowKey? = nil,
+    sessionOrder: [WindowKey]? = nil,
     interactionDisplay: DisplayName? = nil,
     onScreenFrames: [CGWindowID: CGRect]? = nil,
     state: State,
@@ -5195,8 +5247,8 @@ public struct WorkspaceActivationFeature {
     else { return nil }
 
     // Borrow is one visible task surface, so cycling spans every tiled tree in
-    // that display's composition. Keep the host first for deterministic HUD
-    // order; the current key still determines the next/previous wrap point.
+    // that display's composition. Layout order seeds windows with no focus
+    // history; keyboard sessions put recently focused candidates ahead of them.
     let display = interactionDisplay ?? keyDisplay ?? state.displayShowing(workspaceId)
     let composition = state.composition(on: display)
     let workspaceIds = composition.map {
@@ -5281,6 +5333,18 @@ public struct WorkspaceActivationFeature {
     }
     guard !allWindows.isEmpty else { return nil }
 
+    if !holdModifiers.isEmpty {
+      let live = Set(allWindows)
+      let context = composition?.host ?? workspaceId
+      let recent = (state.windowSwitcherMRU[context] ?? [])
+        + workspaceIds.filter { $0 != context }.flatMap { state.windowSwitcherMRU[$0] ?? [] }
+      let candidates = sessionOrder
+        ?? ((key.map { [$0] } ?? []) + recent + allWindows)
+      var seen = Set<WindowKey>()
+      allWindows = candidates.filter { live.contains($0) && seen.insert($0).inserted }
+      guard !allWindows.isEmpty else { return nil }
+    }
+
     let byWindow = state.config.settings.switching.cycleSameAppWindows
     var ordered = allWindows
     if !byWindow {
@@ -5308,7 +5372,7 @@ public struct WorkspaceActivationFeature {
 
     // App-level cycle lands on that app's most-recently-focused window rather
     // than whichever representative happened to appear first in the tree.
-    if !byWindow {
+    if !byWindow, holdModifiers.isEmpty {
       let targetOwner = state.workspaceOwning(target) ?? workspaceId
       let mru = state.mruWindows[targetOwner] ?? []
       let live = Set(allWindows)

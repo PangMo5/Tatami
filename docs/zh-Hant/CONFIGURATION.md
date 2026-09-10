@@ -169,6 +169,8 @@ overlayAwareApps = ["notion.id"]
 |`borrowDefaultEdge`|string?|_（未設定）_|預設借用停靠位置：`top`、`bottom`、`left`、`right`。未設定時等待 h/j/k/l 或方向鍵；工作空間的 `borrowEdge` 會覆寫此值。|
 |`borrowFraction`|double|`0.4`|借用區域沿分割軸佔螢幕的比例（0.1…0.9），工作空間的 `borrowFraction` 會覆寫此值。|
 
+Tatami 執行期間，鍵盤視窗切換會為每個工作空間分別記住最近的焦點順序。短按並放開「下一個視窗」快速鍵，即可回到上次使用的 App 或視窗。按住修飾鍵可瀏覽清單，清單順序會維持不變，直到放開或取消。切換工作空間或重新排列視窗不會清除該空間的紀錄。視窗切換手勢仍依排列順序移動。
+
 <a id="settingsgestures"></a>
 ## `[settings.gestures]`
 
