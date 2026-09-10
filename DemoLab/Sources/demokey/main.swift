@@ -163,7 +163,7 @@ enum DemoKey {
     hold
       Holds modifiers down as real key presses, taps each key in --keys, waits, then
       releases. This is what Tatami's held-modifier switcher needs: it polls the HID
-      flags state, which flags on a key event alone never reach.
+      flags state and needs matching modifier-down/up events to commit on release.
       --keys LIST         comma-separated chords, e.g. "tab,tab" (required)
       --gap-ms N          wait between taps (default 90)
       --release-after-ms  wait before releasing the modifiers (default 180)

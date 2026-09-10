@@ -17,6 +17,144 @@ struct WorkspaceActivationFeatureTests {
 
   // MARK: Internal
 
+  @Test(arguments: [false, true])
+  func `keyboard switcher quick taps return to the last focused window`(byWindow: Bool) async {
+    let a = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 20, bundleId: "app.b")
+    let c = WindowKey(pid: 3, windowID: 30, bundleId: "app.c")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.switching.cycleSameAppWindows = byWindow
+        $0.settings.focus.mouseFollowsFocus = false
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(a),
+        right: .branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(b), right: .leaf(c))),
+      ))
+    }
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.modifierKeys.current = { .option }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0.append(key) } }
+    }
+    store.exhaustivity = .off
+
+    for key in [b, c, a] {
+      await store.send(.windowChanged(.windowFocused(bundleId: key.bundleId, key: key)))
+    }
+    expectNoDifference(store.state.windowSwitcherMRU[workspace.id], [a, c, b])
+
+    // Later taps intentionally precede AX focus notifications. The next
+    // resolved anchor must be enough to remember the window we just left.
+    for (anchor, target) in [(a, c), (c, a), (a, c)] {
+      await store.send(.cycleWindowShortcutResolved(windowKey: anchor, direction: .next, holdModifiers: .option))
+      expectNoDifference(store.state.windowCycleSession?.selected, target)
+      await store.send(.windowCycleModifierReleased)
+      await store.finish()
+    }
+    expectNoDifference(focused.value, [c, a, c])
+  }
+
+  @Test
+  func `held keyboard switcher freezes order while focus history changes`() async {
+    let a = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 20, bundleId: "app.b")
+    let c = WindowKey(pid: 3, windowID: 30, bundleId: "app.c")
+    let workspace = Workspace(name: "Work")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = false }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(a),
+        right: .branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(b), right: .leaf(c))),
+      ))
+      $0.windowSwitcherMRU[workspace.id] = [a, c, b]
+    }
+    let focused = LockIsolated<[WindowKey]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.modifierKeys.current = { .option }
+      $0.focusManager.focusWindow = { key in focused.withValue { $0.append(key) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.cycleWindowShortcutResolved(windowKey: a, direction: .next, holdModifiers: .option))
+    expectNoDifference(store.state.windowCycleSession?.windows, [a, c, b])
+    await store.send(.windowChanged(.windowFocused(bundleId: b.bundleId, key: b)))
+    expectNoDifference(store.state.windowSwitcherMRU[workspace.id], [b, a, c])
+    await store.send(.cycleWindowShortcut(.next, holdModifiers: .option))
+    expectNoDifference(store.state.windowCycleSession?.selected, b)
+    expectNoDifference(store.state.windowCycleSession?.windows, [a, c, b])
+    await store.send(.windowCycleHUDInteraction(.move(.previous)))
+    expectNoDifference(store.state.windowCycleSession?.selected, c)
+    await store.send(.windowCycleHUDInteraction(.cancel))
+    await store.finish()
+    expectNoDifference(focused.value, [])
+    expectNoDifference(store.state.windowSwitcherMRU[workspace.id], [b, a, c])
+  }
+
+  @Test
+  func `keyboard switcher remembers each workspace across switching and layout changes`() async {
+    let a = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 20, bundleId: "app.b")
+    let shared = WindowKey(pid: 3, windowID: 30, bundleId: "app.shared")
+    let first = Workspace(name: "First")
+    let second = Workspace(name: "Second")
+    var state = Self.makeState(workspaces: [first, second]) {
+      $0.$config.withLock {
+        $0.settings.focus.mouseFollowsFocus = false
+        $0.sharedApps = [SharedApp(bundleIdentifier: shared.bundleId, name: "Shared")]
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = first.id
+      $0.tilingTrees[first.id] = .branch(BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(a),
+        right: .branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(b), right: .leaf(shared))),
+      ))
+      $0.tilingTrees[second.id] = .branch(BSPBranch(
+        split: .horizontal,
+        ratio: 0.5,
+        left: .leaf(b),
+        right: .leaf(shared),
+      ))
+    }
+    for key in [b, shared, a] { state.recordFocusedWindow(key) }
+    state.activeWorkspacesByDisplay[Self.display] = second.id
+    for key in [shared, b] { state.recordFocusedWindow(key) }
+    expectNoDifference(state.windowSwitcherMRU[first.id], [a, shared, b])
+    expectNoDifference(state.windowSwitcherMRU[second.id], [b, shared])
+    state.activeWorkspacesByDisplay[Self.display] = first.id
+    let reordered = BSPNode<WindowKey>.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.5,
+      left: .leaf(shared),
+      right: .branch(BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(b), right: .leaf(a))),
+    ))
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.modifierKeys.current = { .option }
+    }
+    store.exhaustivity = .off
+    await store.send(.tilingTreeUpdated(workspaceId: first.id, tree: reordered))
+    await store.send(.cycleWindowShortcutResolved(windowKey: a, direction: .next, holdModifiers: .option))
+    expectNoDifference(store.state.windowCycleSession?.windows, [a, shared, b])
+    expectNoDifference(store.state.windowCycleSession?.selected, shared)
+    expectNoDifference(store.state.windowSwitcherMRU[second.id], [b, shared])
+    await store.send(.windowCycleHUDInteraction(.cancel))
+    await store.finish()
+  }
+
   @Test
   func `window cycle leaves shared app when AX reorders its focused window`() async {
     let tiled = WindowKey(pid: 1, windowID: 10, bundleId: "app.document")
@@ -58,6 +196,120 @@ struct WorkspaceActivationFeatureTests {
     }
 
     #expect(focused.value == [first, second, tiled])
+  }
+
+  @Test(arguments: [false, true])
+  func `keyboard switcher represents each app with its latest exact window`(byWindow: Bool) async {
+    let a1 = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")
+    let a2 = WindowKey(pid: 1, windowID: 11, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 20, bundleId: "app.b")
+    let workspace = Workspace(name: "Work")
+    var state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.switching.cycleSameAppWindows = byWindow
+        $0.settings.focus.mouseFollowsFocus = false
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(a1),
+        right: .branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(a2), right: .leaf(b))),
+      ))
+    }
+    for key in [a1, a2, b] { state.recordFocusedWindow(key) }
+    let focused = LockIsolated<WindowKey?>(nil)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.modifierKeys.current = { .option }
+      $0.focusManager.focusWindow = { focused.setValue($0) }
+    }
+    store.exhaustivity = .off
+    await store.send(.cycleWindowShortcutResolved(windowKey: b, direction: .next, holdModifiers: .option))
+    expectNoDifference(store.state.windowCycleSession?.windows, byWindow ? [b, a2, a1] : [b, a2])
+    expectNoDifference(store.state.windowCycleSession?.selected, a2)
+    await store.send(.windowCycleModifierReleased)
+    await store.finish()
+    expectNoDifference(focused.value, a2)
+  }
+
+  @Test
+  func `keyboard switcher retains non tiled recency and filters other displays`() async {
+    let tiled = WindowKey(pid: 1, windowID: 10, bundleId: "app.tiled")
+    let floating = WindowKey(pid: 2, windowID: 20, bundleId: "app.shared")
+    let otherDisplay = WindowKey(pid: 2, windowID: 21, bundleId: "app.shared")
+    let unmanaged = WindowKey(pid: 3, windowID: 30, bundleId: "app.unmanaged")
+    let workspace = Workspace(name: "Work", apps: [
+      AppAssignment(bundleIdentifier: unmanaged.bundleId, name: "Unmanaged", layout: .unmanaged)
+    ])
+    var state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.sharedApps = [SharedApp(bundleIdentifier: floating.bundleId, name: "Shared", layout: .floating)]
+        $0.settings.switching.cycleSameAppWindows = true
+        $0.settings.focus.mouseFollowsFocus = false
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(tiled)
+    }
+    for key in [unmanaged, floating, tiled] { state.recordFocusedWindow(key) }
+    expectNoDifference(state.windowSwitcherMRU[workspace.id], [tiled, floating, unmanaged])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.modifierKeys.current = { .option }
+      $0.windowSnapshot.cachedKeys = { bundles, _ in
+        [otherDisplay, unmanaged, floating].filter { bundles.contains($0.bundleId) }
+      }
+    }
+    store.exhaustivity = .off
+    await store.send(.cycleWindowShortcutResolved(
+      windowKey: tiled,
+      direction: .next,
+      holdModifiers: .option,
+      interactionDisplay: Self.display,
+      onScreenFrames: [
+        floating.windowID: CGRect(x: 100, y: 100, width: 300, height: 300),
+        unmanaged.windowID: CGRect(x: 400, y: 100, width: 300, height: 300),
+        otherDisplay.windowID: CGRect(x: 10000, y: 100, width: 300, height: 300),
+      ],
+    ))
+    expectNoDifference(store.state.windowCycleSession?.windows, [tiled, floating, unmanaged])
+    await store.send(.windowCycleHUDInteraction(.cancel))
+    await store.finish()
+  }
+
+  @Test
+  func `keyboard switcher interleaves Borrow focus without replacing the borrowed workspace history`() async {
+    let a = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 20, bundleId: "app.b")
+    let c = WindowKey(pid: 3, windowID: 30, bundleId: "app.c")
+    let host = Workspace(name: "Host")
+    let borrowed = Workspace(name: "Borrowed")
+    var state = Self.makeState(workspaces: [host, borrowed]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = false }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .branch(BSPBranch(split: .vertical, ratio: 0.5, left: .leaf(a), right: .leaf(b)))
+      $0.tilingTrees[borrowed.id] = .leaf(c)
+      $0.compositionsByDisplay[Self.display] = Composition(
+        host: host.id,
+        borrowed: [BorrowedSlot(workspace: borrowed.id, edge: .right, fraction: 0.35)],
+      )
+    }
+    for key in [b, c, a] { state.recordFocusedWindow(key) }
+    expectNoDifference(state.windowSwitcherMRU[host.id], [a, c, b])
+    expectNoDifference(state.windowSwitcherMRU[borrowed.id], [c])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.modifierKeys.current = { .option }
+    }
+    store.exhaustivity = .off
+    await store.send(.cycleWindowShortcutResolved(windowKey: a, direction: .next, holdModifiers: .option))
+    expectNoDifference(store.state.windowCycleSession?.windows, [a, c, b])
+    expectNoDifference(store.state.windowCycleSession?.selected, c)
+    await store.send(.windowCycleHUDInteraction(.cancel))
+    await store.finish()
   }
 
   @Test(arguments: [false, true])
@@ -6414,6 +6666,7 @@ struct WorkspaceActivationFeatureTests {
     ) {
       $0.insertionPoint[notionWorkspace.id] = pulse
       $0.mruWindows[notionWorkspace.id] = [pulse, notion]
+      $0.windowSwitcherMRU[notionWorkspace.id] = [pulse]
       $0.lastObservedFocusedWindow = pulse
     }
   }
@@ -6456,6 +6709,7 @@ struct WorkspaceActivationFeatureTests {
       $0.focusedDisplay = displayB
       $0.insertionPoint[targetWorkspace.id] = pulse
       $0.mruWindows[targetWorkspace.id] = [pulse]
+      $0.windowSwitcherMRU[targetWorkspace.id] = [pulse]
       $0.lastObservedFocusedWindow = pulse
     }
   }
@@ -6514,6 +6768,7 @@ struct WorkspaceActivationFeatureTests {
         )
       )
       $0.mruWindows[ws.id] = [closed, survivor]
+      $0.windowSwitcherMRU[ws.id] = [closed, survivor]
     }
     let store = TestStore(initialState: state) {
       WorkspaceActivationFeature()
@@ -6523,6 +6778,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.tilingTreeUpdated(workspaceId: ws.id, tree: .leaf(survivor)))
 
     #expect(store.state.mruWindows[ws.id] == [survivor])
+    expectNoDifference(store.state.windowSwitcherMRU[ws.id], [survivor])
   }
 
   @Test
@@ -6532,6 +6788,7 @@ struct WorkspaceActivationFeatureTests {
     let ws = Workspace(name: "one")
     let state = Self.makeState(workspaces: [ws]) {
       $0.mruWindows[ws.id] = [floating, survivor]
+      $0.windowSwitcherMRU[ws.id] = [floating, survivor]
     }
     let invalidatedBundles = LockIsolated<[String]>([])
     let store = TestStore(initialState: state) {
@@ -6547,6 +6804,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.appTerminated(bundleId: floating.bundleId))
 
     #expect(store.state.mruWindows[ws.id] == [survivor])
+    expectNoDifference(store.state.windowSwitcherMRU[ws.id], [survivor])
     #expect(invalidatedBundles.value == [floating.bundleId])
     await store.skipReceivedActions()
   }
@@ -7334,6 +7592,7 @@ struct WorkspaceActivationFeatureTests {
       $0.tilingTrees[workspace.id] = oldTree
       $0.insertionPoint[workspace.id] = retired
       $0.mruWindows[workspace.id] = [retired, survivor]
+      $0.windowSwitcherMRU[workspace.id] = [retired, survivor]
     }
     let applications = LockIsolated<[FrameApplication]>([])
     let saved = LockIsolated<[LayoutSnapshot]>([])
@@ -7363,6 +7622,7 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.tilingTrees[workspace.id] == expectedTree)
     #expect(store.state.insertionPoint[workspace.id] == replacement)
     #expect(store.state.mruWindows[workspace.id] == [replacement, survivor])
+    expectNoDifference(store.state.windowSwitcherMRU[workspace.id], [replacement, survivor])
     #expect(applications.value.count == 1)
     let application = try #require(applications.value.last)
     let survivorFrame = try #require(application.windowFrames[survivor])

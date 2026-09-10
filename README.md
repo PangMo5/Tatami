@@ -11,6 +11,9 @@
 
 A macOS workspace manager with BSP window tiling.
 
+*Tatami* (畳) are traditional Japanese floor mats, fitted together to cover a room.
+Tatami brings that idea to your Mac, fitting windows together into a workspace.
+
 Tatami groups your apps into virtual workspaces you switch between with a
 keystroke or a configurable trackpad gesture, and tiles their windows
 automatically with a binary space partitioning (BSP) engine. No SIP changes and no shell

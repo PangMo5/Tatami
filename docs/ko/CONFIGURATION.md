@@ -169,6 +169,8 @@ overlayAwareApps = ["notion.id"]
 |`borrowDefaultEdge`|string?|_(설정 안 함)_|기본 빌려오기 위치예요. `top`, `bottom`, `left`, `right`을 사용할 수 있어요. 설정하지 않으면 키 조합 뒤에 h/j/k/l 또는 화살표를 기다려요. 작업 공간의 `borrowEdge`가 이 값보다 우선해요.|
 |`borrowFraction`|double|`0.4`|분할 방향에서 빌려온 영역이 차지하는 비율(0.1~0.9)이에요. 작업 공간의 `borrowFraction`가 우선해요.|
 
+키보드 창 전환은 Tatami가 실행 중인 동안 작업 공간마다 최근 포커스 순서를 따로 기억해요. 다음 창 단축키를 짧게 눌렀다 놓으면 마지막으로 사용한 앱이나 창으로 돌아가요. 보조 키를 누른 채 목록을 고를 수 있고, 키를 놓거나 취소할 때까지 목록 순서는 바뀌지 않아요. 다른 작업 공간으로 이동하거나 창 배치를 바꿔도 각 공간의 기록은 유지돼요. 창 전환 제스처는 배치 순서대로 이동해요.
+
 <a id="settingsgestures"></a>
 ## `[settings.gestures]`
 

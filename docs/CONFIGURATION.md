@@ -185,6 +185,13 @@ layout without writing the temporary wake-up state back to disk.
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
 
+Keyboard window switching remembers recent focus separately for each workspace
+while Tatami is running. Tap and release the next-window shortcut to return to
+the last-used app or window. Hold its modifier to browse the list; its order
+stays fixed until you release or cancel. Switching workspaces or rearranging
+tiles preserves that workspace's history. Window-switching gestures keep their
+directional layout order.
+
 ## `[settings.gestures]`
 
 | Key | Type | Default | Description |

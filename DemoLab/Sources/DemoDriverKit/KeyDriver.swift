@@ -118,30 +118,34 @@ public enum KeyDriver {
   /// than a demo that stops with an error.
   public static var isTrusted: Bool { AXIsProcessTrusted() }
 
-  /// Taps one chord: key down with the modifier flags set, hold, key up with
-  /// the same flags. Carbon hotkeys (`RegisterEventHotKey`, which is what
-  /// Magnet uses) match on the flags carried by the key event itself.
+  /// Taps one complete chord, including real modifier-down/up events. Flags
+  /// on Tab alone can trigger Carbon while leaving the session modifier state
+  /// set, so a native-style switcher never sees the release that commits it.
   public static func press(_ chord: Chord, holdMilliseconds: Int = 24) throws {
     let source = try eventSource()
-    // Ledger first, post second: an interrupt landing between the two must err
-    // towards a stray key-up, never towards a key left down.
-    HeldKeys.add(code: chord.keyCode, flag: [])
+    let held = modifierKeys.filter { chord.flags.contains($0.flag) }
     do {
+      for entry in held {
+        // Ledger first: interruption must never leave a posted key held down.
+        HeldKeys.add(code: entry.code, flag: entry.flag)
+        try post(keyCode: entry.code, keyDown: true, flags: HeldKeys.flags, source: source)
+      }
+      if !held.isEmpty { sleep(milliseconds: modifierSettleMilliseconds) }
+      HeldKeys.add(code: chord.keyCode, flag: [])
       try post(keyCode: chord.keyCode, keyDown: true, flags: chord.flags, source: source)
       sleep(milliseconds: holdMilliseconds)
-      try post(keyCode: chord.keyCode, keyDown: false, flags: chord.flags, source: source)
     } catch {
       releaseHeldKeys(using: source)
       throw error
     }
-    HeldKeys.drop(code: chord.keyCode)
+    releaseHeldKeys(using: source)
   }
 
   /// Holds `modifiers` down, taps each key in turn, waits, then releases.
   ///
   /// The modifiers are pressed as real key events, not merely set as flags on
   /// the key taps: Tatami's held-modifier app/window switcher polls
-  /// `CGEventSource.flagsState`, which flags on a key event alone never reach.
+  /// `CGEventSource.flagsState` and needs the complete modifier lifetime.
   /// The modifiers are always released — when a tap fails partway, and when the
   /// operator interrupts the take mid-hold (see `installReleaseGuard`).
   public static func hold(

@@ -9,6 +9,8 @@
 
 支援 BSP 視窗並排的 macOS 工作空間管理工具。
 
+*Tatami*（畳）是日本傳統房間裡拼鋪的榻榻米。如同榻榻米鋪滿房間，Tatami 將 Mac 上的視窗排列成工作空間。
+
 Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式軌跡板手勢切換，並用二元空間分割（BSP）引擎自動並排視窗。不必修改 SIP，也不必撰寫 shell 指令稿。
 
 <a id="see-tatami-in-action"></a>
