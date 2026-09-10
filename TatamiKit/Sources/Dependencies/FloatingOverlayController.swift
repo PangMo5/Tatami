@@ -757,6 +757,11 @@ final class FloatingOverlayController {
       finishNativeInput: { [weak self] id in
         Task { @MainActor [weak self] in await self?.finishNativeInput(id: id) }
       },
+      onAccessRevoked: { [weak self] in
+        // A mirror cannot retain presentation after its input route disappears.
+        // This also cancels capture discovery and pending native preparations.
+        Task { @MainActor [weak self] in self?.setFloating([]) }
+      },
       onFailure: { [weak self] reason in
         Task { @MainActor [weak self] in self?.reportNativeInputFailure(reason) }
       },

@@ -27,7 +27,8 @@ struct TatamiApp: App {
       AppRootView(store: appStore)
         .regularWhileOpen(id: "main", coordinator: windowActivation)
     }
-    .windowResizability(.contentSize)
+    .defaultSize(width: 1040, height: 720)
+    .windowResizability(.contentMinSize)
     .commands {
       // Standard ⌘, opens the main Tatami window (the Workspaces / Settings /
       // About tab view).

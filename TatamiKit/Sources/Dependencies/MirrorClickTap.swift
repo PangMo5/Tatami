@@ -191,16 +191,20 @@ final class MirrorClickTap: @unchecked Sendable {
     hitTestWindow: @escaping @Sendable (CGPoint) -> CGWindowID?,
     prepareNativeWindow: @escaping @Sendable (UUID, MirrorWindowRegistry.Target) async -> Bool,
     finishNativeInput: @escaping @Sendable (UUID) -> Void,
+    onAccessRevoked: @escaping @Sendable () -> Void,
     onFailure: @escaping @Sendable (String) -> Void,
     onOutsideClick: @escaping @Sendable () -> Void,
     makeEventSource: @escaping @Sendable () -> CGEventSource? = { CGEventSource(stateID: .combinedSessionState) },
+    access: EventTapAccess = .shared,
   ) {
     self.hitTestWindow = hitTestWindow
     self.prepareNativeWindow = prepareNativeWindow
     self.finishNativeInput = finishNativeInput
+    self.onAccessRevoked = onAccessRevoked
     self.onFailure = onFailure
     self.onOutsideClick = onOutsideClick
     self.makeEventSource = makeEventSource
+    self.access = access
   }
 
   // MARK: Internal
@@ -211,7 +215,7 @@ final class MirrorClickTap: @unchecked Sendable {
     await withCheckedContinuation { continuation in
       EventTapThread.shared.perform { [self] in
         if eventTap == nil { install() }
-        continuation.resume(returning: eventTap != nil && acknowledgmentTap != nil)
+        continuation.resume(returning: access.permitsInput() && eventTap != nil && acknowledgmentTap != nil)
       }
     }
   }
@@ -228,9 +232,15 @@ final class MirrorClickTap: @unchecked Sendable {
     event.getIntegerValueField(.eventSourceUserData) & -0x100000000 == wakePrefix
   }
 
+  fileprivate func permitsInput() -> Bool {
+    access.permitsInput()
+  }
+
   fileprivate func reEnable(acknowledgment: Bool = false) {
+    guard access.permitsInput() else { return }
     if let tap = acknowledgment ? acknowledgmentTap : eventTap {
       cancelInput(reason: "The system interrupted native window input delivery.")
+      guard access.permitsInput() else { return }
       CGEvent.tapEnable(tap: tap, enable: true)
     }
   }
@@ -324,9 +334,12 @@ final class MirrorClickTap: @unchecked Sendable {
   private let hitTestQueue = DispatchQueue(label: "dev.PangMo5.Tatami.mirror-input-hit-test", qos: .userInteractive)
   private let prepareNativeWindow: @Sendable (UUID, MirrorWindowRegistry.Target) async -> Bool
   private let finishNativeInput: @Sendable (UUID) -> Void
+  private let onAccessRevoked: @Sendable () -> Void
   private let onFailure: @Sendable (String) -> Void
   private let onOutsideClick: @Sendable () -> Void
   private let makeEventSource: @Sendable () -> CGEventSource?
+  private let access: EventTapAccess
+  private var accessRegistration: UUID?
   private var transportSource: CGEventSource?
   private var eventTap: CFMachPort?
   private var acknowledgmentTap: CFMachPort?
@@ -349,6 +362,10 @@ final class MirrorClickTap: @unchecked Sendable {
   }
 
   private func install() {
+    guard access.permitsInput() else {
+      onFailure("Accessibility access is unavailable. Relaunch Tatami after granting access.")
+      return
+    }
     guard let source = makeEventSource() else {
       onFailure("Could not create the native window input source.")
       return
@@ -395,17 +412,37 @@ final class MirrorClickTap: @unchecked Sendable {
         eventsOfInterest: mask,
         callback: mirrorInputAcknowledgmentCallback,
         userInfo: Unmanaged.passUnretained(self).toOpaque(),
-      ), let captureSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0),
-      let acknowledgmentSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, acknowledgmentTap, 0)
+      )
     else {
       CFMachPortInvalidate(tap)
       onFailure("Could not observe native window input delivery.")
+      return
+    }
+    guard
+      let captureSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0),
+      let acknowledgmentSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, acknowledgmentTap, 0)
+    else {
+      CFMachPortInvalidate(tap)
+      CFMachPortInvalidate(acknowledgmentTap)
+      onFailure("Could not create the native window input run loop sources.")
       return
     }
     eventTap = tap
     self.acknowledgmentTap = acknowledgmentTap
     runLoopSource = captureSource
     self.acknowledgmentSource = acknowledgmentSource
+    accessRegistration = access.register { [weak self] in
+      EventTapThread.shared.perform { [weak self] in
+        guard let self else { return }
+        teardown()
+        onAccessRevoked()
+        onFailure("Accessibility access was lost. Relaunch Tatami after granting access.")
+      }
+    }
+    guard accessRegistration != nil else {
+      teardown()
+      return
+    }
     EventTapThread.shared.addSource(captureSource)
     EventTapThread.shared.addSource(acknowledgmentSource)
     CGEvent.tapEnable(tap: acknowledgmentTap, enable: true)
@@ -414,6 +451,8 @@ final class MirrorClickTap: @unchecked Sendable {
   }
 
   private func teardown() {
+    access.unregister(accessRegistration)
+    accessRegistration = nil
     cancelInput(reason: nil)
     let taps = [eventTap, acknowledgmentTap].compactMap { $0 }
     let sources = [runLoopSource, acknowledgmentSource].compactMap { $0 }
@@ -443,7 +482,7 @@ final class MirrorClickTap: @unchecked Sendable {
     hitTestQueue.async { [weak self] in
       let windowID = hitTestWindow(point)
       EventTapThread.shared.perform { [weak self] in
-        guard let self, preparingID == id else { return }
+        guard let self, access.permitsInput(), preparingID == id else { return }
         preparingID = nil
         guard let windowID else {
           cancelInput(reason: "Could not identify the window receiving this click.")
@@ -483,7 +522,7 @@ final class MirrorClickTap: @unchecked Sendable {
     preparationTask = Task { [weak self] in
       let ready = await prepareNativeWindow(id, target)
       EventTapThread.shared.perform { [weak self] in
-        guard let self, preparingID == id else { return }
+        guard let self, access.permitsInput(), preparingID == id else { return }
         preparingID = nil
         preparationTask = nil
         guard ready else {
@@ -498,6 +537,7 @@ final class MirrorClickTap: @unchecked Sendable {
   }
 
   private func pump() {
+    guard access.permitsInput() else { return }
     guard preparingID == nil, inFlight == nil else { return }
     if let event = input.popFirst() {
       inFlight = event
@@ -530,6 +570,7 @@ final class MirrorClickTap: @unchecked Sendable {
   /// retained outside its callback; the wake packet is swallowed before it can
   /// move the pointer or reach an application.
   private func postInFlight() {
+    guard access.permitsInput() else { return }
     guard
       let inFlight, let transportSource,
       let wake = CGEvent(
@@ -581,6 +622,12 @@ final class MirrorClickTap: @unchecked Sendable {
     }
     inFlight = nil
     acknowledgments.reset()
+    // Revocation removes our ability to post balancing packets too. Discard
+    // retained ownership and let subsequent physical releases pass natively.
+    if !access.permitsInput() {
+      buttonsToRelease.removeAll()
+      keysToRelease.removeAll()
+    }
     // Balance any native downs already delivered before a teardown. Buffered
     // clicks that never reached the source are discarded, never sent elsewhere.
     for number in buttonsToRelease {
@@ -626,6 +673,10 @@ private func mirrorClickTapCallback(
 ) -> Unmanaged<CGEvent>? {
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let tap = Unmanaged<MirrorClickTap>.fromOpaque(refcon).takeUnretainedValue()
+  guard tap.permitsInput() else {
+    // A relay wake posted just before revocation is ours, not physical input.
+    return MirrorClickTap.isWake(event) ? nil : Unmanaged.passUnretained(event)
+  }
   switch type {
   case .tapDisabledByTimeout,
        .tapDisabledByUserInput:
@@ -651,6 +702,7 @@ private func mirrorInputAcknowledgmentCallback(
 ) -> Unmanaged<CGEvent>? {
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let tap = Unmanaged<MirrorClickTap>.fromOpaque(refcon).takeUnretainedValue()
+  guard tap.permitsInput() else { return Unmanaged.passUnretained(event) }
   switch type {
   case .tapDisabledByTimeout,
        .tapDisabledByUserInput:
