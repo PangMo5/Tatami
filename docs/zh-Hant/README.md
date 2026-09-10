@@ -31,6 +31,25 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 
 </details>
 
+<a id="why-tatami"></a>
+## 為什麼選擇 Tatami？
+
+一項工作用到多個 App 時，尋找和重新排列視窗也會花費時間。Tatami 將 App 和配置一起保留在工作空間中，讓你回來就能繼續工作。
+
+- 為寫作、開發或審閱分別建立工作空間。開啟新視窗時，BSP 並排會自動為它安排位置。回到工作空間，就能用原來的 App 和配置繼續工作。
+- 執行專案建置等大量使用 CPU 的工作時，工作空間切換和視窗焦點切換依然回應迅速。
+- 將參考資料或對話所在的工作空間借到目前工作旁邊，或將需要持續查看的視窗置頂。借用期間的配置變更會在歸還後保留。將 App 設為共用 App 後，切換工作空間時也能讓該視窗維持置頂。
+- 在原生設定介面中設定工作空間和快速鍵。也能透過配合顯示器的設定組合、TOML、CLI 和掛鉤進一步調整。它們都是控制同一組工作空間的不同方式。
+
+<a id="why-i-built-tatami"></a>
+## 我為什麼開發 Tatami
+
+開發 Tatami 之前，我在 yabai、AeroSpace 和 FlashSpace + Rectangle 之間反覆嘗試，尋找適合自己的工作環境。我很喜歡 yabai 的速度和功能，但我想用的部分功能需要關閉部分 SIP 保護。當時 AeroSpace 的工作空間行為不太適合我經常使用 Mission Control 的習慣。我喜歡 FlashSpace 隱藏 App 的方式，也喜歡先把 App 指派好，再使用虛擬工作空間的方式。視窗排列則由 Rectangle 來補足。
+
+我曾[為 FlashSpace 貢獻功能](https://github.com/wojciech-kulik/FlashSpace/pulls?q=is%3Apr+author%3APangMo5)，也[提議](https://github.com/wojciech-kulik/FlashSpace/discussions/9)將視窗配置與工作空間結合。維護者選擇專注於工作空間管理，把並排交給其他工具。我尊重這個方向，但仍想探索如何在一個 App 中讓工作空間與視窗管理互相配合。
+
+我希望繼續在日常工作中使用 Mission Control，同時更靈活地管理工作空間和視窗。除了豐富的功能，我也重視操作時快速回應、流暢舒適的體驗。Tatami 因此誕生，讓 App、配置、顯示器與自動化互相配合，提供原生設定介面，也不必更改 SIP。
+
 <a id="features"></a>
 ## 主要功能
 

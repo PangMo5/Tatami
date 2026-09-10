@@ -333,3 +333,11 @@ footer p { line-height: 1.5; }
 }
 
 @media (max-width: 600px) { .md h1 { font-size: 32px; line-height: 1.2; } }
+
+/* Why Tatami */
+#why-tatami .sub { max-width: 800px; margin-inline: auto; }
+@media (min-width: 761px) { #why-tatami .features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.origin-note { max-width: 740px; margin: 48px auto 0; padding-top: 32px; border-top: 1px solid var(--hairline); text-align: left; }
+.origin-note h3 { font-size: 22px; font-weight: 600; }
+.origin-note p { margin-top: 12px; font-size: 18px; line-height: 1.6; color: var(--text-secondary); }
+.origin-note a { text-decoration: underline; text-underline-offset: 0.15em; }

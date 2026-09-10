@@ -1,4 +1,32 @@
 {
+  "3163637eca66aabb": {
+    "en": "Why Tatami?",
+    "ko": "왜 Tatami인가요?",
+    "ja": "Tatami を選ぶ理由",
+    "zh-Hans": "为什么选择 Tatami？",
+    "zh-Hant": "為什麼選擇 Tatami？"
+  },
+  "35172d01d2428226": {
+    "en": "When a task spans several apps, finding and arranging its windows becomes work of its own. Tatami keeps those apps and their layout together in a workspace you can return to.",
+    "ko": "여러 앱으로 작업하다 보면 필요한 창을 찾고 다시 배치하는 데도 시간이 들어요. Tatami는 앱과 배치를 작업 공간에 함께 담아, 다시 돌아왔을 때 바로 이어서 작업할 수 있게 해요.",
+    "ja": "複数のアプリを使う作業では、必要なウインドウを探して並べ直す手間がかかります。Tatami はアプリと配置をワークスペースにまとめ、戻ったときに作業を続けられるようにします。",
+    "zh-Hans": "一项工作用到多个应用时，寻找和重新排列窗口也会占用时间。Tatami 将应用和布局一起保存在工作区中，方便你回来继续工作。",
+    "zh-Hant": "一項工作用到多個 App 時，尋找和重新排列視窗也會花費時間。Tatami 將 App 和配置一起保留在工作空間中，讓你回來就能繼續工作。"
+  },
+  "dbb704c36a11576f": {
+    "en": "Configure workspaces and shortcuts in native settings. Go further with display-aware profiles, TOML, the CLI, and hooks. Each gives you another way to control the same workspaces.",
+    "ko": "앱의 설정 화면에서 작업 공간과 단축키를 구성하세요. 디스플레이에 맞춘 프로필, TOML, 명령줄 도구, 훅으로 더 세밀하게 다룰 수도 있어요. 모두 같은 작업 공간을 제어하는 방법이에요.",
+    "ja": "macOS ネイティブの設定画面で、ワークスペースとショートカットを設定できます。ディスプレイに応じたプロファイル、TOML、CLI、フックを使えば、同じワークスペースをさらに細かく制御できます。",
+    "zh-Hans": "在原生设置界面中配置工作区和快捷键。还可以通过适应显示器的配置方案、TOML、CLI 和钩子进一步调整。它们都是控制同一组工作区的不同方式。",
+    "zh-Hant": "在原生設定介面中設定工作空間和快速鍵。也能透過配合顯示器的設定組合、TOML、CLI 和掛鉤進一步調整。它們都是控制同一組工作空間的不同方式。"
+  },
+  "b0e384f35f3da315": {
+    "en": "Why I built Tatami",
+    "ko": "Tatami를 만든 이유",
+    "ja": "Tatami を作った理由",
+    "zh-Hans": "我为什么开发 Tatami",
+    "zh-Hant": "我為什麼開發 Tatami"
+  },
   "d08480de0ce2a617": {
     "en": "Keyboard window switching remembers recent focus separately for each workspace while Tatami is running. Tap and release the next-window shortcut to return to the last-used app or window. Hold its modifier to browse the list; its order stays fixed until you release or cancel. Switching workspaces or rearranging tiles preserves that workspace's history. Window-switching gestures keep their directional layout order.",
     "ko": "키보드 창 전환은 Tatami가 실행 중인 동안 작업 공간마다 최근 포커스 순서를 따로 기억해요. 다음 창 단축키를 짧게 눌렀다 놓으면 마지막으로 사용한 앱이나 창으로 돌아가요. 보조 키를 누른 채 목록을 고를 수 있고, 키를 놓거나 취소할 때까지 목록 순서는 바뀌지 않아요. 다른 작업 공간으로 이동하거나 창 배치를 바꿔도 각 공간의 기록은 유지돼요. 창 전환 제스처는 배치 순서대로 이동해요.",
@@ -4871,5 +4899,47 @@
     "ja": "ワークスペース切り替えとウインドウ操作の応答性を改善し、保存済みの設定に影響する変更を実行前に確認できるようにしました。",
     "zh-Hans": "提升工作区切换与窗口操作的响应速度，并在影响已保存设置的更改生效前进行确认。",
     "zh-Hant": "提升工作空間切換與視窗操作的反應速度，並在影響已儲存設定的變更生效前進行確認。"
+  },
+  "4f2fececb2d0860d": {
+    "en": "I [contributed to FlashSpace]({0}) and [proposed]({1}) connecting window layouts to its workspaces. The maintainer chose to keep workspace management focused and leave tiling to other tools. I respected that direction, but kept wanting to explore how workspaces and window management could work together in one app.",
+    "ko": "[FlashSpace에 기여하면서]({0}) 작업 공간과 창 배치를 연결하는 아이디어도 [제안했어요]({1}). 메인테이너는 작업 공간 관리에 집중하고 타일링은 다른 도구에 맡기는 방향을 선택했어요. 그 방향을 존중하면서도, 작업 공간과 창 관리를 하나의 앱에서 함께 다루는 방법을 계속 탐구하고 싶었어요.",
+    "ja": "[FlashSpace に貢献する中で]({0})、ウインドウの配置とワークスペースを結び付ける[提案]({1})もしました。メンテナーはワークスペース管理に集中し、タイル表示はほかのツールに任せる方針を選びました。その方針を尊重しつつ、ワークスペースとウインドウ管理を一つのアプリで連携させる方法を探りたいと思い続けていました。",
+    "zh-Hans": "我曾[为 FlashSpace 贡献功能]({0})，也[提议]({1})将窗口布局与工作区结合。维护者选择专注于工作区管理，把平铺交给其他工具。我尊重这个方向，但仍想探索如何在一个应用中让工作区和窗口管理相互配合。",
+    "zh-Hant": "我曾[為 FlashSpace 貢獻功能]({0})，也[提議]({1})將視窗配置與工作空間結合。維護者選擇專注於工作空間管理，把並排交給其他工具。我尊重這個方向，但仍想探索如何在一個 App 中讓工作空間與視窗管理互相配合。"
+  },
+  "f1fa6f56d4c8c1d5": {
+    "en": "Before building Tatami, I went back and forth between yabai, AeroSpace, and FlashSpace + Rectangle, looking for a setup that suited me. I loved yabai's speed and capabilities, but some features I wanted involved partially disabling SIP. AeroSpace's workspace behavior at the time did not fit how heavily I used Mission Control. I liked how FlashSpace combined app hiding with virtual workspaces whose apps were assigned in advance. I used Rectangle for window arrangement.",
+    "ko": "Tatami를 만들기 전에는 yabai, AeroSpace, FlashSpace + Rectangle 조합을 오가며 제게 맞는 작업 환경을 찾았어요. yabai의 속도와 기능이 마음에 들었지만, 원하는 기능 중 일부는 SIP를 부분적으로 꺼야 했어요. 당시 AeroSpace의 작업 공간 동작은 Mission Control을 자주 쓰는 제 방식과 맞지 않았어요. FlashSpace에서는 앱을 숨기는 방식과, 앱을 미리 등록해 둔 가상 작업 공간을 활용하는 방식이 마음에 들었어요. 창 배치는 Rectangle로 보완하며 사용했어요.",
+    "ja": "Tatami を作る前は、yabai、AeroSpace、FlashSpace + Rectangle を行き来しながら、自分に合う作業環境を探していました。yabai の速さと機能は気に入っていましたが、使いたい機能の一部には SIP の部分的な無効化が必要でした。当時の AeroSpace のワークスペースの動作は、Mission Control をよく使う私の作業には合いませんでした。FlashSpace では、アプリを隠す方式と、あらかじめアプリを登録した仮想ワークスペースを使う方法が気に入りました。ウインドウの配置には Rectangle を組み合わせていました。",
+    "zh-Hans": "开发 Tatami 之前，我在 yabai、AeroSpace 和 FlashSpace + Rectangle 之间反复尝试，寻找适合自己的工作环境。我很喜欢 yabai 的速度和功能，但我想用的部分功能需要关闭部分 SIP 保护。当时 AeroSpace 的工作区行为不太适合我频繁使用 Mission Control 的习惯。我喜欢 FlashSpace 隐藏应用的方式，也喜欢先把应用分配好，再使用虚拟工作区的方式。窗口排列则由 Rectangle 来补充。",
+    "zh-Hant": "開發 Tatami 之前，我在 yabai、AeroSpace 和 FlashSpace + Rectangle 之間反覆嘗試，尋找適合自己的工作環境。我很喜歡 yabai 的速度和功能，但我想用的部分功能需要關閉部分 SIP 保護。當時 AeroSpace 的工作空間行為不太適合我經常使用 Mission Control 的習慣。我喜歡 FlashSpace 隱藏 App 的方式，也喜歡先把 App 指派好，再使用虛擬工作空間的方式。視窗排列則由 Rectangle 來補足。"
+  },
+  "c2567d2e7908705d": {
+    "en": "I wanted powerful workspace and window controls that felt fast and responsive, while keeping Mission Control in my daily workflow. Tatami grew from that wish: apps, layouts, displays, and automation that work together, with native settings and no SIP changes.",
+    "ko": "Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다루고 싶었어요. 기능뿐 아니라, 조작할 때 빠르고 쾌적하게 반응하는 경험도 중요했어요. 그래서 앱, 배치, 디스플레이, 자동화가 함께 동작하는 Tatami를 만들었어요. macOS에 익숙한 설정 화면에서 구성할 수 있고, SIP를 변경할 필요도 없어요.",
+    "ja": "Mission Control を日々使いながら、ワークスペースやウインドウをもっと自在に扱いたいと思っていました。機能だけでなく、操作にすばやく応え、快適に使えることも大切でした。そこから生まれたのが Tatami です。アプリ、配置、ディスプレイ、自動化を連携させ、macOS ネイティブの設定画面から使えます。SIP の変更も必要ありません。",
+    "zh-Hans": "我希望继续在日常工作中使用 Mission Control，同时更灵活地管理工作区和窗口。除了丰富的功能，我也重视操作时快速响应、流畅舒适的体验。Tatami 由此诞生，让应用、布局、显示器和自动化相互配合，提供原生设置界面，也无需更改 SIP。",
+    "zh-Hant": "我希望繼續在日常工作中使用 Mission Control，同時更靈活地管理工作空間和視窗。除了豐富的功能，我也重視操作時快速回應、流暢舒適的體驗。Tatami 因此誕生，讓 App、配置、顯示器與自動化互相配合，提供原生設定介面，也不必更改 SIP。"
+  },
+  "c0c13920fe73a703": {
+    "en": "Workspace switching and window focus stay responsive during project builds and other CPU-heavy work.",
+    "ko": "프로젝트 빌드처럼 CPU를 많이 쓰는 작업 중에도 작업 공간 전환과 창 포커스가 빠르게 반응해요.",
+    "ja": "プロジェクトのビルドなど CPU に負荷がかかる作業中も、ワークスペースの切り替えやウインドウのフォーカスがすばやく応答します。",
+    "zh-Hans": "运行项目构建等 CPU 密集型任务时，工作区切换和窗口焦点切换依然响应迅速。",
+    "zh-Hant": "執行專案建置等大量使用 CPU 的工作時，工作空間切換和視窗焦點切換依然回應迅速。"
+  },
+  "82b631ae3fe6df04": {
+    "en": "Borrow a reference or conversation workspace beside the current task, or keep a window visible with Always on Top. Borrowed layout changes stay with the workspace when you return it. Shared Apps can keep an always-on-top window with you across workspaces.",
+    "ko": "참고 자료나 대화가 있는 작업 공간을 옆으로 빌려오거나, 계속 확인할 창을 항상 위에 두세요. 빌려온 공간의 배치를 바꾸면 돌려보내도 변경 내용이 남아요. 공용 앱으로 등록하면 작업 공간을 옮겨도 그 창을 항상 위에 둘 수 있어요.",
+    "ja": "資料や会話のワークスペースを隣に借りたり、確認し続けたいウインドウを「常に手前」に置いたりできます。借りた配置を変えても、戻した後に変更が残ります。共有アプリに登録すれば、ワークスペースを切り替えてもそのウインドウを常に手前に表示できます。",
+    "zh-Hans": "将参考资料或聊天所在的工作区借到当前任务旁边，或将需要持续查看的窗口置顶。借用期间的布局更改会在归还后保留。将应用设为共享应用后，切换工作区时也能让该窗口保持置顶。",
+    "zh-Hant": "將參考資料或對話所在的工作空間借到目前工作旁邊，或將需要持續查看的視窗置頂。借用期間的配置變更會在歸還後保留。將 App 設為共用 App 後，切換工作空間時也能讓該視窗維持置頂。"
+  },
+  "7e839c0e3de80373": {
+    "en": "Give writing, coding, or reviewing its own workspace. Automatic BSP tiling makes room as windows open. Return to the apps and layout you left, ready to pick up the task.",
+    "ko": "글쓰기, 개발, 검토처럼 작업마다 공간을 만들어 보세요. BSP 타일링이 새 창을 열 때마다 자리를 잡아주고, 작업 공간에 돌아오면 사용하던 앱과 배치로 바로 이어서 작업할 수 있어요.",
+    "ja": "執筆、開発、レビューなど、作業ごとにワークスペースを作れます。BSP タイル表示が新しいウインドウの場所を自動で整えます。戻ったときは、使っていたアプリと配置で作業を再開できます。",
+    "zh-Hans": "为写作、编程或审阅分别建立工作区。打开新窗口时，BSP 平铺会自动为它安排位置。回到工作区，就能用原来的应用和布局继续工作。",
+    "zh-Hant": "為寫作、開發或審閱分別建立工作空間。開啟新視窗時，BSP 並排會自動為它安排位置。回到工作空間，就能用原來的 App 和配置繼續工作。"
   }
 }
