@@ -74,6 +74,8 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
   @Dependency(\.debugLog) private var debugLog
 
   private var tap: CFMachPort?
+  private var accessRegistration: UUID?
+  private var installationGeneration: UInt64 = 0
   private var runLoopSource: CFRunLoopSource?
   private var threshold = 0.3
 
@@ -92,9 +94,18 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
   }
 
   @MainActor
-  func start(threshold: Double) {
+  func start(threshold: Double) async {
+    installationGeneration &+= 1
+    let generation = installationGeneration
     self.threshold = threshold
     guard tap == nil else { return }
+    // A stop or newer configuration can arrive during the initial TCC query.
+    // It must invalidate this request before a tap can be installed.
+    guard
+      await EventTapAccess.shared.prepare(),
+      installationGeneration == generation,
+      !Task.isCancelled
+    else { return }
 
     let context = Unmanaged.passUnretained(self).toOpaque()
     // ACTIVE tap (`.defaultTap`), deliberately not `.listenOnly`: TCC
@@ -132,6 +143,13 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
     let source = CFMachPortCreateRunLoopSource(nil, created, 0)
     CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
     runLoopSource = source
+    accessRegistration = EventTapAccess.shared.register { [weak self] in
+      Task { @MainActor [weak self] in self?.stop() }
+    }
+    guard accessRegistration != nil else {
+      stop()
+      return
+    }
     CGEvent.tapEnable(tap: created, enable: true)
     debugLog.log(
       "Gesture",
@@ -141,6 +159,9 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
 
   @MainActor
   func stop() {
+    installationGeneration &+= 1
+    EventTapAccess.shared.unregister(accessRegistration)
+    accessRegistration = nil
     guard let tap else { return }
     CGEvent.tapEnable(tap: tap, enable: false)
     // Remove the source explicitly (matches BorrowChordTap/MirrorClickTap);
@@ -167,6 +188,7 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
   /// macOS 26. The other CGEvent taps (BorrowChordClient/MirrorClickTap) also
   /// handle events straight in the callout with no actor hop.
   fileprivate func consume(type: CGEventType, event: CGEvent) {
+    guard EventTapAccess.shared.permitsInput() else { return }
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
       debugLog.log("Gesture", "tap disabled by system (\(type.rawValue)) — re-enabling")
       if let tap { CGEvent.tapEnable(tap: tap, enable: true) }

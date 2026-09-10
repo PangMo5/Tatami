@@ -51,12 +51,13 @@ extension DependencyValues {
 }
 
 /// Owns the keyDown `CGEventTap`. Mirrors `MirrorClickTap`: same shared
-/// `EventTapThread`, same re-enable dance, install/teardown routed through the
+/// `EventTapThread`, same permission lifetime, install/teardown routed through the
 /// tap thread.
 final class BorrowChordTap: @unchecked Sendable {
   @Dependency(\.debugLog) private var debugLog
 
   private var eventTap: CFMachPort?
+  private var accessRegistration: UUID?
   private var runLoopSource: CFRunLoopSource?
   private let emit: @Sendable (BorrowChordKey) -> Void
 
@@ -76,6 +77,10 @@ final class BorrowChordTap: @unchecked Sendable {
 
   /// Runs on the event-tap thread.
   private func install() {
+    guard EventTapAccess.shared.permitsInput() else {
+      emit(.cancel)
+      return
+    }
     let mask =
       (1 << CGEventType.keyDown.rawValue) |
       (1 << CGEventType.tapDisabledByTimeout.rawValue) |
@@ -96,6 +101,7 @@ final class BorrowChordTap: @unchecked Sendable {
       return
     }
     guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+      CFMachPortInvalidate(tap)
       logger.error("borrow chord tap: failed to create run loop source")
       return
     }
@@ -103,11 +109,27 @@ final class BorrowChordTap: @unchecked Sendable {
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
+    accessRegistration = EventTapAccess.shared.register { [weak self] in
+      EventTapThread.shared.perform { [weak self] in
+        self?.teardown()
+        self?.emit(.cancel)
+      }
+    }
+    guard accessRegistration != nil else {
+      teardown()
+      emit(.cancel)
+      return
+    }
     debugLog.log("BorrowChord", "direction tap armed")
   }
 
   private func teardown() {
-    if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
+    EventTapAccess.shared.unregister(accessRegistration)
+    accessRegistration = nil
+    if let tap = eventTap {
+      CGEvent.tapEnable(tap: tap, enable: false)
+      CFMachPortInvalidate(tap)
+    }
     if let source = runLoopSource { EventTapThread.shared.removeSource(source) }
     eventTap = nil
     runLoopSource = nil
@@ -115,6 +137,7 @@ final class BorrowChordTap: @unchecked Sendable {
   }
 
   fileprivate func reEnable() {
+    guard EventTapAccess.shared.permitsInput() else { return }
     if let tap = eventTap {
       debugLog.log("BorrowChord", "tap disabled by system — re-enabling")
       CGEvent.tapEnable(tap: tap, enable: true)
@@ -151,6 +174,7 @@ private func borrowChordTapCallback(
   event: CGEvent,
   refcon: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
+  guard EventTapAccess.shared.permitsInput() else { return Unmanaged.passUnretained(event) }
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let tap = Unmanaged<BorrowChordTap>.fromOpaque(refcon).takeUnretainedValue()
   switch type {

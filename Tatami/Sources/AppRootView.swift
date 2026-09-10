@@ -28,6 +28,7 @@ struct AppRootView: View {
         .padding()
       }
     }
+    .frame(minWidth: 800, minHeight: 600)
     .task { store.send(.task) }
     .onChange(of: store.onboarding.presentationRequest) { _, request in
       if request > 0 {

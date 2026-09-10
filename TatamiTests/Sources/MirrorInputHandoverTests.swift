@@ -11,15 +11,39 @@ struct MirrorInputHandoverTests {
   // MARK: Internal
 
   @Test
+  func `untrusted mirror installation never creates an input source`() async {
+    let sourceRequests = LockIsolated(0)
+    let failures = LockIsolated<[String]>([])
+    let tap = MirrorClickTap(
+      hitTestWindow: { _ in nil },
+      prepareNativeWindow: { _, _ in false },
+      finishNativeInput: { _ in },
+      onAccessRevoked: {},
+      onFailure: { reason in failures.withValue { $0.append(reason) } },
+      onOutsideClick: {},
+      makeEventSource: {
+        sourceRequests.withValue { $0 += 1 }
+        return nil
+      },
+      access: EventTapAccess(isTrusted: { false }),
+    )
+    #expect(await !tap.enable())
+    #expect(sourceRequests.value == 0)
+    #expect(failures.value.count == 1)
+  }
+
+  @Test
   func `failed native input installation never reports readiness for a mirror`() async {
     let failures = LockIsolated<[String]>([])
     let tap = MirrorClickTap(
       hitTestWindow: { _ in nil },
       prepareNativeWindow: { _, _ in false },
       finishNativeInput: { _ in },
+      onAccessRevoked: { },
       onFailure: { reason in failures.withValue { $0.append(reason) } },
       onOutsideClick: { },
       makeEventSource: { nil },
+      access: EventTapAccess(isTrusted: { true }),
     )
     let ready = await tap.enable()
     #expect(!ready)

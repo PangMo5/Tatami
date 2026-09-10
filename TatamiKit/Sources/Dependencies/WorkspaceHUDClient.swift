@@ -1513,6 +1513,7 @@ private final class WindowSwitcherInputTap: @unchecked Sendable {
   // MARK: Fileprivate
 
   fileprivate func reEnable() {
+    guard EventTapAccess.shared.permitsInput() else { return }
     if let eventTap {
       CGEvent.tapEnable(tap: eventTap, enable: true)
     }
@@ -1542,12 +1543,17 @@ private final class WindowSwitcherInputTap: @unchecked Sendable {
   // MARK: Private
 
   private var eventTap: CFMachPort?
+  private var accessRegistration: UUID?
   private var runLoopSource: CFRunLoopSource?
   private let debugLog: DebugLogClient
   private let emit: @Sendable (WindowSwitcherInteraction) -> Void
 
   /// Runs on the event-tap thread.
   private func install() {
+    guard EventTapAccess.shared.permitsInput() else {
+      emit(.cancel)
+      return
+    }
     let mask =
       (1 << CGEventType.keyDown.rawValue)
         | (1 << CGEventType.tapDisabledByTimeout.rawValue)
@@ -1567,6 +1573,7 @@ private final class WindowSwitcherInputTap: @unchecked Sendable {
       return
     }
     guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+      CFMachPortInvalidate(tap)
       debugLog.log("HUDDiag", "window switcher input source create FAILED")
       return
     }
@@ -1574,11 +1581,27 @@ private final class WindowSwitcherInputTap: @unchecked Sendable {
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
+    accessRegistration = EventTapAccess.shared.register { [weak self] in
+      EventTapThread.shared.perform { [weak self] in
+        self?.teardown()
+        self?.emit(.cancel)
+      }
+    }
+    guard accessRegistration != nil else {
+      teardown()
+      emit(.cancel)
+      return
+    }
     debugLog.log("HUDDiag", "window switcher input armed")
   }
 
   private func teardown() {
-    if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: false) }
+    EventTapAccess.shared.unregister(accessRegistration)
+    accessRegistration = nil
+    if let eventTap {
+      CGEvent.tapEnable(tap: eventTap, enable: false)
+      CFMachPortInvalidate(eventTap)
+    }
     if let runLoopSource { EventTapThread.shared.removeSource(runLoopSource) }
     eventTap = nil
     runLoopSource = nil
@@ -1593,6 +1616,7 @@ private func windowSwitcherInputTapCallback(
   event: CGEvent,
   refcon: UnsafeMutableRawPointer?,
 ) -> Unmanaged<CGEvent>? {
+  guard EventTapAccess.shared.permitsInput() else { return Unmanaged.passUnretained(event) }
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let tap = Unmanaged<WindowSwitcherInputTap>.fromOpaque(refcon).takeUnretainedValue()
   switch type {

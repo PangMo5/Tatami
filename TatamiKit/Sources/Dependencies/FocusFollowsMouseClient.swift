@@ -113,6 +113,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// by sending a `tapDisabledByTimeout` event and turning the tap off.
   /// Flip it back on so focus-follows-mouse keeps working.
   fileprivate func reEnableTap() {
+    guard EventTapAccess.shared.permitsInput() else { return }
     if let tap = eventTap {
       debugLog.log("FocusDiag", "ffm tap disabled by system — re-enabling")
       CGEvent.tapEnable(tap: tap, enable: true)
@@ -178,7 +179,10 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       let windows = readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
       let displays = Self.currentDisplayBounds()
       EventTapThread.shared.perform { [self] in
-        guard let latest = pointerInputs.takeLatest(), config.enabled else { return }
+        guard
+          EventTapAccess.shared.permitsInput(),
+          let latest = pointerInputs.takeLatest(), config.enabled
+        else { return }
         applyHitTest(latest, windows: windows, displays: displays)
       }
     }
@@ -198,6 +202,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   private let hitTestQueue = DispatchQueue(label: "dev.PangMo5.Tatami.ffm-hit-test", qos: .userInteractive)
   private var pointerInputs = LatestFocusInputBuffer<PointerSample>()
   private var eventTap: CFMachPort?
+  private var accessRegistration: UUID?
   private var runLoopSource: CFRunLoopSource?
   /// The in-flight focus hop. A newer fire cancels it so only the latest
   /// cursor target is applied — touched only on the event-tap thread, like
@@ -295,6 +300,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   }
 
   private func install() {
+    guard EventTapAccess.shared.permitsInput() else { return }
     // Listen for mouseMoved + the two tap-disabled signals so we can
     // re-enable if the system hangs the tap.
     let mask =
@@ -324,6 +330,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       return
     }
     guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+      CFMachPortInvalidate(tap)
       logger.error("focus-follows-mouse: failed to create run loop source")
       debugLog.log("FocusDiag", "ffm tap: run loop source FAILED")
       return
@@ -332,11 +339,23 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     CGEvent.tapEnable(tap: tap, enable: true)
     eventTap = tap
     runLoopSource = source
+    accessRegistration = EventTapAccess.shared.register { [weak self] in
+      EventTapThread.shared.perform { [weak self] in self?.teardown() }
+    }
+    guard accessRegistration != nil else {
+      teardown()
+      return
+    }
     debugLog.log("FocusDiag", "ffm tap installed")
   }
 
   private func teardown() {
-    if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: false) }
+    EventTapAccess.shared.unregister(accessRegistration)
+    accessRegistration = nil
+    if let tap = eventTap {
+      CGEvent.tapEnable(tap: tap, enable: false)
+      CFMachPortInvalidate(tap)
+    }
     if let src = runLoopSource {
       EventTapThread.shared.removeSource(src)
     }
@@ -458,6 +477,7 @@ private func focusFollowsMouseCallback(
   event: CGEvent,
   refcon: UnsafeMutableRawPointer?,
 ) -> Unmanaged<CGEvent>? {
+  guard EventTapAccess.shared.permitsInput() else { return Unmanaged.passUnretained(event) }
   guard let refcon else { return Unmanaged.passUnretained(event) }
   let controller = Unmanaged<LiveFocusFollowsMouseController>
     .fromOpaque(refcon).takeUnretainedValue()
