@@ -43,6 +43,36 @@ Captured on an earlier version. Some labels have changed since these screenshots
 
 </details>
 
+## Why Tatami?
+
+When a task spans several apps, finding and arranging its windows becomes work of its
+own. Tatami keeps those apps and their layout together in a workspace you can return to.
+
+- Give writing, coding, or reviewing its own workspace. Automatic BSP tiling makes room as windows open. Return to the apps and layout you left, ready to pick up the task.
+- Workspace switching and window focus stay responsive during project builds and other CPU-heavy work.
+- Borrow a reference or conversation workspace beside the current task, or keep a window visible with Always on Top. Borrowed layout changes stay with the workspace when you return it. Shared Apps can keep an always-on-top window with you across workspaces.
+- Configure workspaces and shortcuts in native settings. Go further with display-aware profiles, TOML, the CLI, and hooks. Each gives you another way to control the same workspaces.
+
+## Why I built Tatami
+
+Before building Tatami, I went back and forth between yabai, AeroSpace, and FlashSpace +
+Rectangle, looking for a setup that suited me. I loved yabai's speed and capabilities,
+but some features I wanted involved partially disabling SIP. AeroSpace's workspace
+behavior at the time did not fit how heavily I used Mission Control. I liked how
+FlashSpace combined app hiding with virtual workspaces whose apps were assigned in
+advance. I used Rectangle for window arrangement.
+
+I [contributed to
+FlashSpace](https://github.com/wojciech-kulik/FlashSpace/pulls?q=is%3Apr+author%3APangMo5)
+and [proposed](https://github.com/wojciech-kulik/FlashSpace/discussions/9) connecting
+window layouts to its workspaces. The maintainer chose to keep workspace management
+focused and leave tiling to other tools. I respected that direction, but kept wanting to
+explore how workspaces and window management could work together in one app.
+
+I wanted powerful workspace and window controls that felt fast and responsive, while
+keeping Mission Control in my daily workflow. Tatami grew from that wish: apps, layouts,
+displays, and automation that work together, with native settings and no SIP changes.
+
 ## Features
 
 ### Workspaces

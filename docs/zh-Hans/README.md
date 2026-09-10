@@ -31,6 +31,25 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 
 </details>
 
+<a id="why-tatami"></a>
+## 为什么选择 Tatami？
+
+一项工作用到多个应用时，寻找和重新排列窗口也会占用时间。Tatami 将应用和布局一起保存在工作区中，方便你回来继续工作。
+
+- 为写作、编程或审阅分别建立工作区。打开新窗口时，BSP 平铺会自动为它安排位置。回到工作区，就能用原来的应用和布局继续工作。
+- 运行项目构建等 CPU 密集型任务时，工作区切换和窗口焦点切换依然响应迅速。
+- 将参考资料或聊天所在的工作区借到当前任务旁边，或将需要持续查看的窗口置顶。借用期间的布局更改会在归还后保留。将应用设为共享应用后，切换工作区时也能让该窗口保持置顶。
+- 在原生设置界面中配置工作区和快捷键。还可以通过适应显示器的配置方案、TOML、CLI 和钩子进一步调整。它们都是控制同一组工作区的不同方式。
+
+<a id="why-i-built-tatami"></a>
+## 我为什么开发 Tatami
+
+开发 Tatami 之前，我在 yabai、AeroSpace 和 FlashSpace + Rectangle 之间反复尝试，寻找适合自己的工作环境。我很喜欢 yabai 的速度和功能，但我想用的部分功能需要关闭部分 SIP 保护。当时 AeroSpace 的工作区行为不太适合我频繁使用 Mission Control 的习惯。我喜欢 FlashSpace 隐藏应用的方式，也喜欢先把应用分配好，再使用虚拟工作区的方式。窗口排列则由 Rectangle 来补充。
+
+我曾[为 FlashSpace 贡献功能](https://github.com/wojciech-kulik/FlashSpace/pulls?q=is%3Apr+author%3APangMo5)，也[提议](https://github.com/wojciech-kulik/FlashSpace/discussions/9)将窗口布局与工作区结合。维护者选择专注于工作区管理，把平铺交给其他工具。我尊重这个方向，但仍想探索如何在一个应用中让工作区和窗口管理相互配合。
+
+我希望继续在日常工作中使用 Mission Control，同时更灵活地管理工作区和窗口。除了丰富的功能，我也重视操作时快速响应、流畅舒适的体验。Tatami 由此诞生，让应用、布局、显示器和自动化相互配合，提供原生设置界面，也无需更改 SIP。
+
 <a id="features"></a>
 ## 主要功能
 
