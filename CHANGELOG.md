@@ -10,6 +10,17 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.14.1 (2026-09-11)
+
+More reliable layout restoration, window switching, and permission handling.
+
+### Fixes
+- **Restore layouts when windows reopen:** Keep split directions, proportions, and fullscreen zoom when apps restart or macOS reopens their windows. Windows that arrive one at a time no longer overwrite the layout saved for the remaining windows.
+- **Protect layouts during display changes:** Retain the last known workspace layout while no displays are reported, and discard superseded display updates. Recovery keeps saved split proportions when window identities change.
+- **Return to recently used windows:** Keyboard window switching preserves recent focus separately for each workspace, including after switching workspaces or rearranging tiles. The list stays in a stable order while you hold the shortcut modifier.
+- **Respond to revoked permissions:** Releasing Accessibility access stops input capture and clears active interactions. Revoking Screen Recording access stops window capture, and settings reflect permission changes without reopening the settings window.
+- **Verify the installation disk image:** Release builds now sign the DMG itself and validate its notarization ticket and Gatekeeper assessment before publication.
+
 ## 1.14.0 (2026-09-09)
 
 More responsive workspace switching and window interaction, with confirmations for changes that affect your saved setup.
