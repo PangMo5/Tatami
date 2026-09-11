@@ -1,4 +1,46 @@
 {
+  "b8694611078e93aa": {
+    "en": "More reliable layout restoration, window switching, and permission handling.",
+    "ko": "레이아웃 복원, 창 전환, 권한 변경 처리를 더 안정적으로 다듬었어요.",
+    "ja": "レイアウトの復元、ウインドウ切り替え、権限変更への対応を改善しました。",
+    "zh-Hans": "改进布局恢复、窗口切换和权限变更处理。",
+    "zh-Hant": "改善配置還原、視窗切換與權限變更處理。"
+  },
+  "078a6a877f2b157b": {
+    "en": "**Restore layouts when windows reopen:** Keep split directions, proportions, and fullscreen zoom when apps restart or macOS reopens their windows. Windows that arrive one at a time no longer overwrite the layout saved for the remaining windows.",
+    "ko": "**창을 다시 열어도 배치를 유지해요:** 앱을 다시 실행하거나 macOS가 창을 복원할 때 분할 방향과 비율, 전체화면 확대 상태를 유지해요. 창이 하나씩 열려도 아직 열리지 않은 창의 저장된 배치를 덮어쓰지 않아요.",
+    "ja": "**ウインドウを開き直しても配置を維持:** アプリの再起動や macOS によるウインドウの復元時に、分割方向、比率、全画面拡大の状態を維持します。ウインドウが順番に開く場合も、まだ開いていないウインドウの保存済みレイアウトを上書きしません。",
+    "zh-Hans": "**重新打开窗口时恢复布局：** 应用重启或 macOS 恢复窗口时，保留分割方向、比例和全屏放大状态。窗口逐个打开时，不再覆盖尚未打开窗口的已保存布局。",
+    "zh-Hant": "**重新開啟視窗時還原配置：** App 重新啟動或 macOS 還原視窗時，保留分割方向、比例與全螢幕放大狀態。視窗逐一開啟時，不再覆寫尚未開啟視窗的已儲存配置。"
+  },
+  "2cd3afcb28229e09": {
+    "en": "**Protect layouts during display changes:** Retain the last known workspace layout while no displays are reported, and discard superseded display updates. Recovery keeps saved split proportions when window identities change.",
+    "ko": "**디스플레이가 바뀌어도 배치를 보호해요:** 디스플레이가 일시적으로 감지되지 않으면 마지막 작업 공간 배치를 유지하고, 더 이상 유효하지 않은 디스플레이 변경은 적용하지 않아요. 창 식별자가 바뀌어도 저장된 분할 비율로 복원해요.",
+    "ja": "**ディスプレイ変更中も配置を保護:** ディスプレイが一時的に検出されない間は、直前のワークスペースの配置を維持し、古くなったディスプレイ更新を適用しません。ウインドウの識別子が変わっても、保存済みの分割比率で復元します。",
+    "zh-Hans": "**显示器变化时保护布局：** 暂时未检测到显示器时，保留最近的工作区布局，并忽略已被后续变化取代的显示器更新。窗口标识变化后，仍按已保存的分割比例恢复。",
+    "zh-Hant": "**顯示器變動時保護配置：** 暫時未偵測到顯示器時，保留最近的工作空間配置，並忽略已被後續變動取代的顯示器更新。視窗識別碼變更後，仍依已儲存的分割比例還原。"
+  },
+  "437d467c14b56fca": {
+    "en": "**Return to recently used windows:** Keyboard window switching preserves recent focus separately for each workspace, including after switching workspaces or rearranging tiles. The list stays in a stable order while you hold the shortcut modifier.",
+    "ko": "**최근 사용한 창으로 돌아가요:** 키보드 창 전환은 작업 공간을 옮기거나 창을 재배치한 뒤에도 각 공간의 최근 사용 순서를 유지해요. 단축키의 보조 키를 누르고 있는 동안 목록 순서는 바뀌지 않아요.",
+    "ja": "**最近使ったウインドウに戻る:** ワークスペースを切り替えたりタイルを並べ替えたりしても、キーボードでのウインドウ切り替えは各ワークスペースの最近の使用順を維持します。修飾キーを押している間、一覧の順序は変わりません。",
+    "zh-Hans": "**返回最近使用的窗口：** 键盘窗口切换会分别保留每个工作区的最近使用顺序，切换工作区或重新排列窗口后也不丢失。按住快捷键的修饰键时，列表顺序保持不变。",
+    "zh-Hant": "**回到最近使用的視窗：** 鍵盤視窗切換會分別保留每個工作空間的最近使用順序，切換工作空間或重新排列視窗後也不會遺失。按住快速鍵的修飾鍵時，清單順序保持不變。"
+  },
+  "57f9c2af599b1d63": {
+    "en": "**Respond to revoked permissions:** Releasing Accessibility access stops input capture and clears active interactions. Revoking Screen Recording access stops window capture, and settings reflect permission changes without reopening the settings window.",
+    "ko": "**권한을 끄면 관련 동작도 멈춰요:** 손쉬운 사용 권한을 해제하면 입력 가로채기를 중단하고 진행 중인 조작을 정리해요. 화면 기록 권한을 해제하면 창 캡처를 중단하며, 설정 창을 다시 열지 않아도 권한 변경을 표시해요.",
+    "ja": "**権限の取り消しに対応:** アクセシビリティ権限を取り消すと入力の取得を停止し、進行中の操作を解除します。画面収録権限を取り消すとウインドウのキャプチャを停止します。設定画面を開き直さなくても権限の変更が表示されます。",
+    "zh-Hans": "**及时响应权限撤销：** 撤销辅助功能权限后，停止输入捕获并清理进行中的操作。撤销屏幕录制权限后，停止窗口捕获。无需重新打开设置窗口即可看到权限变化。",
+    "zh-Hant": "**即時回應權限撤銷：** 撤銷輔助使用權限後，停止輸入擷取並清除進行中的操作。撤銷螢幕錄製權限後，停止視窗擷取。無須重新開啟設定視窗即可看到權限變更。"
+  },
+  "794640fbac74dfcb": {
+    "en": "**Verify the installation disk image:** Release builds now sign the DMG itself and validate its notarization ticket and Gatekeeper assessment before publication.",
+    "ko": "**설치 디스크 이미지 검증을 강화했어요:** 배포 과정에서 DMG 자체에도 서명하고, 공개 전에 공증 티켓과 Gatekeeper 검사를 확인해요.",
+    "ja": "**インストール用ディスクイメージを検証:** リリース時に DMG 自体にも署名し、公開前に公証チケットと Gatekeeper の検証結果を確認します。",
+    "zh-Hans": "**加强安装磁盘映像验证：** 发布构建现在也会为 DMG 本身签名，并在发布前验证公证票据和 Gatekeeper 检查结果。",
+    "zh-Hant": "**加強安裝磁碟映像驗證：** 發行建置現在也會為 DMG 本身簽署，並在發布前驗證公證票證與 Gatekeeper 檢查結果。"
+  },
   "3163637eca66aabb": {
     "en": "Why Tatami?",
     "ko": "왜 Tatami인가요?",
