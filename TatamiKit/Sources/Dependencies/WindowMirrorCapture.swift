@@ -64,6 +64,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
   /// Begin capturing `window`. No-op if already streaming or starting.
   @MainActor
   func start(window: SCWindow, maxFPS: Int) async -> Bool {
+    guard !ScreenRecordingAccess.shared.isClosed else { return false }
     guard stream == nil, !isStarting else { return stream != nil }
     isStarting = true
     startingStopSucceeded = true
@@ -101,6 +102,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     } catch {
       retireFrameSource(ObjectIdentifier(stream))
       logger.error("mirror start failed: \(error.localizedDescription, privacy: .public)")
+      if generation == startedGeneration { ScreenRecordingAccess.shared.captureFailed(error) }
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
       return false
@@ -165,6 +167,10 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     maxFPS: Int,
     onFirstFrame: (@MainActor (FirstFrameOutcome) -> Void)? = nil,
   ) async {
+    guard !ScreenRecordingAccess.shared.isClosed else {
+      onFirstFrame?(.failed)
+      return
+    }
     if isStarting {
       // A start/resume is already in flight; its frames will arrive.
       if let onFirstFrame, let startingStream {
@@ -218,6 +224,7 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     } catch {
       retireFrameSource(ObjectIdentifier(stream))
       logger.error("mirror resume failed: \(error.localizedDescription, privacy: .public)")
+      if generation == startedGeneration { ScreenRecordingAccess.shared.captureFailed(error) }
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
     }
@@ -485,6 +492,7 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
   ) {
     guard
       type == .screen, sampleBuffer.isValid,
+      !ScreenRecordingAccess.shared.isClosed,
       frameGate.accepts(ObjectIdentifier(stream))
     else { return }
     // Apple explicitly supports background enqueuing through this renderer.
@@ -518,6 +526,7 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
           ObjectIdentifier($0) == stoppedStreamID ? $0 : nil
         }
         guard active != nil || starting != nil else { return }
+        ScreenRecordingAccess.shared.captureFailed(error)
         // Invalidate an in-flight start before invoking failure callbacks:
         // a retry may begin reentrantly from a callback, and the failed
         // attempt must not publish itself if its await later returns.

@@ -769,11 +769,33 @@ final class FloatingOverlayController {
         Task { @MainActor [weak self] in await self?.handleOutsideClick() }
       },
     )
+    permissionObservers.tokens = [NotificationCenter.default.addObserver(
+      forName: ScreenRecordingAccess.didCloseNotification,
+      object: nil,
+      queue: nil,
+    ) { [weak self] _ in
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        let hadMirrors = !desired.isEmpty
+        setFloating([])
+        if hadMirrors {
+          @Dependency(\.errorReporter) var reporter
+          reporter.report(
+            "Floating",
+            String(localized: "Always-on-top mirrors are unavailable — check Screen Recording"),
+            "Screen Recording access was lost. Relaunch Tatami after granting access.",
+          )
+        }
+      }
+    }]
   }
 
   // MARK: Internal
 
   func setFloating(_ windows: Set<WindowKey>) {
+    // Reducer updates can arrive after revocation cleanup. Keep the closed
+    // session empty instead of repeatedly starting and stopping capture streams.
+    let windows = EventTapAccess.shared.isClosed || ScreenRecordingAccess.shared.isClosed ? [] : windows
     let changed = desired != windows
     if !changed {
       if
@@ -804,10 +826,12 @@ final class FloatingOverlayController {
       let generation = addGeneration
       addTask = Task { @MainActor [weak self] in
         guard let self else { return }
+        // A cancelled generation may have acquired input before discovery.
+        // Keep it only when current panels or a newer add still own it.
+        defer { disableInputIfIdle() }
         await addMirrors(for: toAdd)
         guard addGeneration == generation else { return }
         addTask = nil
-        disableInputIfIdle()
       }
     }
     requestGeometryReconcile()
@@ -1006,6 +1030,7 @@ final class FloatingOverlayController {
   /// and the didActivate notification arrives after the z-order already
   /// changed (the intermittent "floating dips behind, then pops back up").
   private var clickTap: MirrorClickTap?
+  private let permissionObservers = PermissionObserverTokens(local: .default)
   private let debugLog: DebugLogClient
 
   /// Floating pids by focus recency, most recent first. Mirrors stack in
@@ -1024,13 +1049,17 @@ final class FloatingOverlayController {
   }
 
   private func addMirrors(for keys: Set<WindowKey>) async {
+    guard await ScreenRecordingAccess.shared.prepare(), !Task.isCancelled else { return }
+    // Acquire the input lifetime before starting capture. Revocation now owns
+    // cancellation even while ScreenCaptureKit discovery/startup is suspended.
+    guard await clickTap?.enable() == true, !Task.isCancelled else { return }
     let content: SCShareableContent
     @Dependency(\.errorReporter) var reporter
     do {
       content = try await SCShareableContent.current
-      reporter.resolve("Floating")
     } catch {
       guard !Task.isCancelled else { return }
+      ScreenRecordingAccess.shared.captureFailed(error)
       logger.error(
         "SCShareableContent failed (screen-recording permission?): \(error.localizedDescription, privacy: .public)"
       )
@@ -1041,7 +1070,8 @@ final class FloatingOverlayController {
       )
       return
     }
-    guard !Task.isCancelled else { return }
+    guard !Task.isCancelled, !ScreenRecordingAccess.shared.isClosed else { return }
+    reporter.resolve("Floating")
     var byID = [CGWindowID: SCWindow]()
     for window in content.windows { byID[window.windowID] = window }
 
@@ -1576,6 +1606,7 @@ final class FloatingOverlayController {
   /// key is (re-)suppressed.
   private func showPanel(_ key: WindowKey) {
     guard
+      !ScreenRecordingAccess.shared.isClosed,
       nativeInputLeases[key] == nil,
       !suppressed.contains(key),
       !geometryUnavailable.contains(key),
@@ -1967,6 +1998,7 @@ final class FloatingOverlayController {
     captureResumeTokens[key] = token
     let framesPerSecond = maxFPS
     Task { @MainActor [weak self, capture] in
+      guard await ScreenRecordingAccess.shared.prepare(), !Task.isCancelled else { return }
       guard
         let self,
         captures[key] === capture,
@@ -2060,6 +2092,7 @@ final class FloatingOverlayController {
 
   private func scheduleCaptureRecovery(for key: WindowKey) {
     guard
+      !ScreenRecordingAccess.shared.isClosed,
       panels[key] != nil,
       captureUnavailable.contains(key),
       !suppressed.contains(key),

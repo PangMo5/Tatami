@@ -44,6 +44,7 @@ public struct SettingsFeature {
     case uninstallCLITapped
     /// A trust-DB change (or app re-activation) — re-read permission status.
     case accessibilityChanged
+    case screenRecordingChanged
     case grantAccessibilityTapped
     case openAccessibilitySettingsTapped
     case grantScreenRecordingTapped
@@ -88,6 +89,11 @@ public struct SettingsFeature {
               // the Screen Recording pane of System Settings).
               for await _ in accessibility.changes() {
                 await send(.accessibilityChanged)
+              }
+            },
+            .run { [screenRecording] send in
+              for await _ in screenRecording.changes() {
+                await send(.screenRecordingChanged)
               }
             },
           )
@@ -136,6 +142,10 @@ public struct SettingsFeature {
 
         case .accessibilityChanged:
           state.hasAXPermission = accessibility.isTrusted()
+          state.hasScreenRecordingPermission = screenRecording.isGranted()
+          return .none
+
+        case .screenRecordingChanged:
           state.hasScreenRecordingPermission = screenRecording.isGranted()
           return .none
 
