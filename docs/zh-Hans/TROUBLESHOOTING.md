@@ -40,3 +40,8 @@ overlayAwareApps = [
 ```
 
 若仍然消失，在**设置 → 通用**启用调试日志，复现一次工作区切换，检查 `~/.config/tatami/tatami.log` 的 `OverlayAware evaluate ... preserve=` 条目。`preserve=false` 表示当前控件不符合上述条件。
+
+<a id="fullscreen-zoom-changes-after-connecting-a-display"></a>
+## 连接显示器后全屏状态发生变化
+
+请检查当前启用的配置方案和工作区。连接的显示器发生变化时，显示器规则可能会自动切换配置方案。即使另一个配置方案包含相同应用，每个工作区的布局和全屏状态仍分别保存。请在使用的各配置方案中设置布局，或调整显示器规则以避免意外切换。

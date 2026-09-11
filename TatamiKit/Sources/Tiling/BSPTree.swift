@@ -239,7 +239,15 @@ extension BSPNode where WindowID == WindowKey {
     template: BSPNode<SlotID>,
     keys: [WindowKey],
   ) -> BSPNode<WindowKey>? {
-    let keyForSlot = slotToKey(keys)
+    hydrate(template: template, keyForSlot: slotToKey(keys))
+  }
+
+  /// Hydrate with retained slot bindings so surviving windows do not change
+  /// occurrence when another window closes during restoration.
+  public static func hydrate(
+    template: BSPNode<SlotID>,
+    keyForSlot: [SlotID: WindowKey],
+  ) -> BSPNode<WindowKey>? {
     func build(_ node: BSPNode<SlotID>) -> BSPNode<WindowKey>? {
       switch node {
       case .leaf(let slotLeaf):
@@ -669,8 +677,9 @@ extension BSPNode {
   /// Grow or shrink the focused tile at its parent split, following the
   /// layout's orientation rather than assuming a left/right arrangement.
   public func resizing(window: WindowID, delta: CGFloat) -> BSPNode {
-    guard let path = pathTo(window: window), !path.isEmpty,
-          case .branch(let parent) = subtree(at: Array(path.dropLast()))
+    guard
+      let path = pathTo(window: window), !path.isEmpty,
+      case .branch(let parent) = subtree(at: Array(path.dropLast()))
     else { return self }
     return resizing(window: window, axis: parent.split, delta: delta)
   }

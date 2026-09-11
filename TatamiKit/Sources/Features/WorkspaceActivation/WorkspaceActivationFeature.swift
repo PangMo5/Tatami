@@ -147,6 +147,7 @@ public struct WorkspaceActivationFeature {
       case screenLock
       case sessionInactive
       case systemSleep
+      case displaysUnavailable
     }
 
     @Shared(.tatamiConfig) public var config
@@ -323,9 +324,12 @@ public struct WorkspaceActivationFeature {
     /// startup discovery. The first later sync that sees the matching live
     /// occurrences promotes them into `fullscreenZoomed`.
     public var unresolvedFullscreenZoomSlots = [Workspace.ID: Set<SlotID>]()
-    /// Keep the saved shape while auto-opened windows are still arriving.
+    /// Keep the saved shape while windows are absent or still arriving.
     /// A partial discovery must not replace a complete persisted layout.
     public var pendingLayoutRestorations = [Workspace.ID: LayoutSnapshot]()
+    /// Live bindings retained across partial restoration; a surviving second
+    /// window must not become occurrence zero when the first disappears.
+    public var layoutRestorationBindings = [Workspace.ID: [SlotID: WindowKey]]()
 
     /// Active composition per display — a host workspace plus borrowed
     /// blocks. Absent → that display shows its host alone (default behavior).
@@ -1300,7 +1304,11 @@ public struct WorkspaceActivationFeature {
     /// GUI layout-preview edit for the *active* workspace: apply a structural
     /// op to its live tree, re-tile on screen, and persist per memory setting.
     case layoutEdited(workspaceId: Workspace.ID, op: LayoutEditOp)
-    case persistedLayoutRestorationUpdated(workspaceId: Workspace.ID, snapshot: LayoutSnapshot?)
+    case persistedLayoutRestorationUpdated(
+      workspaceId: Workspace.ID,
+      snapshot: LayoutSnapshot?,
+      bindings: [SlotID: WindowKey] = [:],
+    )
     /// A GUI edit changed an *inactive* workspace's saved layout — drop its
     /// resident in-memory tree/zoom so the next activation rebuilds from the
     /// edited snapshot rather than the stale session state.
@@ -1537,6 +1545,15 @@ public struct WorkspaceActivationFeature {
         .cancellable(id: CancelID.windowEvents, cancelInFlight: true)
 
       case .displaysReconfigured(let names):
+        // A headless transition can precede willSleep. Preserve the last
+        // desktop before any topology reconciliation can erase its ownership.
+        if names.isEmpty {
+          state.pendingDisplayTopologyReconcile = true
+          return beginLayoutSuspension(.displaysUnavailable, state: &state)
+        }
+        if state.layoutSuspensionReasons.contains(.displaysUnavailable) {
+          return endLayoutSuspension(.displaysUnavailable, state: &state)
+        }
         // Behind the lock/sleep shield the window server reports whatever it
         // likes: displays drop out and come back on their own, often more than
         // once, and AX answers empty. Reconciling there tears down the
@@ -4284,6 +4301,8 @@ public struct WorkspaceActivationFeature {
         let newTree = tree.applying(op)
         guard newTree != tree else { return .none }
         state.pendingLayoutRestorations[workspaceId] = nil
+        state.layoutRestorationBindings[workspaceId] = nil
+        state.unresolvedFullscreenZoomSlots[workspaceId] = nil
         state.tilingTrees[workspaceId] = newTree
         let zoomed = state.fullscreenZoomed[workspaceId] ?? []
         return .merge(
@@ -4310,11 +4329,13 @@ public struct WorkspaceActivationFeature {
         state.fullscreenZoomed[workspaceId] = nil
         state.unresolvedFullscreenZoomSlots[workspaceId] = nil
         state.pendingLayoutRestorations[workspaceId] = nil
+        state.layoutRestorationBindings[workspaceId] = nil
         state.insertionPoint[workspaceId] = nil
         return .none
 
-      case .persistedLayoutRestorationUpdated(let workspaceId, let snapshot):
+      case .persistedLayoutRestorationUpdated(let workspaceId, let snapshot, let bindings):
         state.pendingLayoutRestorations[workspaceId] = snapshot
+        state.layoutRestorationBindings[workspaceId] = snapshot == nil ? nil : bindings
         return .none
 
       case .persistedFullscreenZoomRestored(
@@ -5942,6 +5963,8 @@ public struct WorkspaceActivationFeature {
 
     // An explicit edit owns the current layout, including during startup.
     state.pendingLayoutRestorations[workspaceId] = nil
+    state.layoutRestorationBindings[workspaceId] = nil
+    state.unresolvedFullscreenZoomSlots[workspaceId] = nil
 
     let settings = state.config.settings
     // The block's geometry: a composition sub-rect when composed, else the

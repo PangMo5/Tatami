@@ -116,12 +116,14 @@ extension DisplayClient: DependencyKey {
           let configuration = currentScreenConfiguration()
           // Drop only truly identical pokes. Same displays with different
           // geometry are meaningful and must reach the reducer for a reflow.
+          observer.pending?.cancel()
+          observer.pending = nil
           guard configuration != observer.last else { return }
           // Genuine change: trailing-debounce so a reconnect's burst of distinct
           // intermediate configs collapses to the final settled one before we
           // forward it (only ~1 reducer pass per real reconfigure).
-          observer.pending?.cancel()
           let work = DispatchWorkItem {
+            let configuration = currentScreenConfiguration()
             guard configuration != observer.last else { return }
             observer.last = configuration
             continuation.yield(configuration.map(\.name))

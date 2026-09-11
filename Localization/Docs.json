@@ -1693,13 +1693,6 @@
     "zh-Hans": "新分割中放置新窗口的一侧：{0}（上、左）或 {1}（下、右）。",
     "zh-Hant": "新分割中放置新視窗的一側：{0}（上、左）或 {1}（下、右）。"
   },
-  "175957a0258662a6": {
-    "en": "Workspaces always remember their layout. Split axes and ratios are persisted to disk and restored on the next launch. System sleep preserves the live tree; if macOS recreates a window surface on wake, Tatami reconnects it to the saved layout without writing the temporary wake-up state back to disk.",
-    "ko": "작업 공간은 항상 배치를 기억해요. 분할 방향과 비율을 디스크에 저장하고 재실행하면 복원해요. 잠자기 중에는 현재 트리를 유지해요. 깨어날 때 macOS가 창을 다시 만들면 저장한 배치에 연결하되 임시 상태를 디스크에 덮어쓰지 않아요.",
-    "ja": "ワークスペースは常に配置を覚えます。分割方向と比率を保存して再起動時に復元し、スリープ中はツリーを保ちます。復帰時に macOS が画面を作り直しても、保存済み配置へ再接続し、一時状態を上書きしません。",
-    "zh-Hans": "工作区始终记住布局。分割轴和比例保存到磁盘，重启时恢复；睡眠保留活动树。唤醒时若 macOS 重建窗口表面，Tatami 将其重新连接到保存的布局，不把临时唤醒状态写回磁盘。",
-    "zh-Hant": "工作空間始終記住排列。分割軸與比例儲存到磁碟，重新啟動時還原；睡眠保留作用中樹。喚醒時若 macOS 重建視窗表面，Tatami 將其重新連接到儲存的排列，不把暫時喚醒狀態寫回磁碟。"
-  },
   "ed3fe2e278b34b23": {
     "en": "Move the cursor to the window Tatami focuses. Directional focus, app/window switching, workspace changes, close refocus, Swap, toggling a split's orientation, and fullscreen zoom in either direction carry it to the new position. Always on Top and Leave As Is targets use their live window frame. When the switch came from activating an app outside Tatami, such as from the Dock or Spotlight, the cursor goes to the window the system actually raised rather than the workspace's most recently used one. The pointer is left alone whenever the pointer itself caused the change: clicking a window, releasing a drag, a drag that swaps or splits, and a drag that snaps back. Grow/shrink and Balance stay out too, so holding a key down does not re-center on every repeat.",
     "ko": "Tatami가 포커스한 창으로 커서를 옮겨요. 방향 포커스, 앱·창 전환, 작업 공간 변경, 창 닫기 뒤 포커스, 교체, 분할 방향 변경, 확대·복귀에서 새 위치로 따라가요. 항상 위·그대로 두기 창은 실제 창 영역을 사용해요. Dock이나 Spotlight에서 앱을 켰다면 최근 창이 아니라 시스템이 실제로 올린 창을 따라가요. 클릭이나 드래그 놓기, 드래그 교체·삽입·원위치 복귀처럼 포인터가 시작한 변경에서는 포인터를 그대로 둬요. 늘리기·줄이기·균등 배치에서도 움직이지 않아 키를 누르고 있을 때마다 중앙으로 돌아가지 않아요.",
@@ -4941,5 +4934,61 @@
     "ja": "執筆、開発、レビューなど、作業ごとにワークスペースを作れます。BSP タイル表示が新しいウインドウの場所を自動で整えます。戻ったときは、使っていたアプリと配置で作業を再開できます。",
     "zh-Hans": "为写作、编程或审阅分别建立工作区。打开新窗口时，BSP 平铺会自动为它安排位置。回到工作区，就能用原来的应用和布局继续工作。",
     "zh-Hant": "為寫作、開發或審閱分別建立工作空間。開啟新視窗時，BSP 並排會自動為它安排位置。回到工作空間，就能用原來的 App 和配置繼續工作。"
+  },
+  "0ba8c07a09d42333": {
+    "en": "Window and layout restoration",
+    "ko": "창과 레이아웃 복원",
+    "ja": "ウインドウとレイアウトの復元",
+    "zh-Hans": "窗口与布局恢复",
+    "zh-Hant": "視窗與配置回復"
+  },
+  "89ad33fcf59277d4": {
+    "en": "Tatami remembers split directions, proportions, and fullscreen zoom separately for each workspace. When windows close or arrive one at a time, the remaining windows fill the available space while Tatami keeps the missing layout slots. Reopened windows can return to those slots. An explicit layout change, such as resizing, rearranging, or toggling fullscreen zoom, replaces that saved layout with the current windows.",
+    "ko": "Tatami는 작업 공간마다 분할 방향, 비율, 전체 화면 상태를 기억해요. 창이 닫히거나 하나씩 열리는 동안에는 현재 창으로 화면을 채우고, 아직 없는 창의 자리를 보관해요. 다시 열린 창은 보관된 자리로 돌아갈 수 있어요. 크기 조절, 재배치, 전체 화면 전환처럼 직접 레이아웃을 바꾸면 현재 창을 기준으로 새로 기억해요.",
+    "ja": "Tatami はワークスペースごとに分割方向、比率、全画面表示の状態を記憶します。ウインドウが閉じられたり、順番に開いたりするときは、現在のウインドウで画面を使いながら、まだないウインドウの位置を保持します。再び開いたウインドウはその位置に戻れます。サイズ変更、配置変更、全画面表示の切り替えなどを行うと、現在のウインドウをもとに配置を記憶し直します。",
+    "zh-Hans": "Tatami 分别记住每个工作区的分割方向、比例和全屏状态。窗口关闭或陆续打开时，现有窗口会填满可用空间，同时保留缺失窗口的位置。重新打开的窗口可以回到这些位置。手动调整大小、重新排列或切换全屏等布局操作，会按当前窗口重新保存布局。",
+    "zh-Hant": "Tatami 會分別記住每個工作空間的分割方向、比例和全螢幕狀態。視窗關閉或陸續開啟時，現有視窗會填滿可用空間，同時保留缺少視窗的位置。重新開啟的視窗可以回到這些位置。手動調整大小、重新排列或切換全螢幕等配置操作，會依目前的視窗重新儲存配置。"
+  },
+  "fa5068084c0ec65f": {
+    "en": "macOS and each app decide which windows reopen. Tatami applies the remembered layout to windows they provide; it does not reopen documents itself. These macOS settings control different situations:",
+    "ko": "어떤 창을 다시 열지는 macOS와 각 앱이 결정해요. Tatami는 열린 창에 기억한 레이아웃을 적용하며, 문서를 직접 다시 열지는 않아요. 다음 macOS 설정은 각각 다른 상황에 적용돼요.",
+    "ja": "どのウインドウを開き直すかは、macOS と各アプリが決めます。Tatami は開いたウインドウに記憶した配置を適用し、書類そのものは開き直しません。次の macOS 設定は、それぞれ異なる場面で使われます。",
+    "zh-Hans": "由 macOS 和各应用决定重新打开哪些窗口。Tatami 将记住的布局应用到这些窗口，不会自行重新打开文稿。以下 macOS 设置分别控制不同情况：",
+    "zh-Hant": "由 macOS 和各個 App 決定重新開啟哪些視窗。Tatami 會將記住的配置套用至這些視窗，不會自行重新開啟文件。以下 macOS 設定分別控制不同情況："
+  },
+  "40bbf5c85ad5717e": {
+    "en": "**Close windows when quitting an application**, in **System Settings → Desktop & Dock**: turn this off to let supporting apps reopen their windows when you launch them again. When it is on, an app can open a fresh window instead.",
+    "ko": "**시스템 설정 → 데스크탑 및 Dock**의 **응용 프로그램을 종료하면 윈도우 닫기**: 끄면 이 기능을 지원하는 앱이 다음 실행 때 창을 다시 열 수 있어요. 켜면 앱이 새 창을 열 수 있어요.",
+    "ja": "**システム設定 → デスクトップと Dock**の**アプリケーションを終了するときにウインドウを閉じる**：オフにすると、対応するアプリは次の起動時にウインドウを開き直せます。オンの場合は、新しいウインドウが開くことがあります。",
+    "zh-Hans": "**系统设置 → 桌面与程序坞**中的**退出应用程序时关闭窗口**：关闭此选项后，支持此功能的应用可以在下次启动时重新打开窗口。开启时，应用可能改为打开新窗口。",
+    "zh-Hant": "**系統設定 → 桌面與 Dock**中的**結束應用程式時關閉視窗**：關閉此選項後，支援此功能的 App 可以在下次啟動時重新開啟視窗。開啟時，App 可能改為開啟新視窗。"
+  },
+  "96130b6df329dae0": {
+    "en": "**Reopen windows when logging back in**, in the logout, restart, or shutdown dialog: select this to ask macOS to reopen apps and windows at the next login. Enable Tatami’s **Launch at Login**, or open Tatami after logging in, to apply its layouts.",
+    "ko": "로그아웃·재시동·시스템 종료 대화상자의 **다시 로그인하면 윈도우 다시 열기**: 선택하면 macOS가 다음 로그인 때 앱과 창을 다시 열어요. Tatami의 **로그인 시 실행**을 켜거나 로그인 후 Tatami를 열면 저장한 레이아웃을 적용할 수 있어요.",
+    "ja": "ログアウト、再起動、システム終了のダイアログにある**再ログイン時にウインドウを再度開く**：選択すると、次のログイン時に macOS がアプリとウインドウを開き直します。Tatami の**ログイン時に起動**を有効にするか、ログイン後に Tatami を開くと、配置を適用できます。",
+    "zh-Hans": "注销、重新启动或关机对话框中的**再次登录时重新打开窗口**：选中后，macOS 会在下次登录时重新打开应用和窗口。启用 Tatami 的**登录时启动**，或在登录后打开 Tatami，即可应用其布局。",
+    "zh-Hant": "登出、重新啟動或關機對話框中的**再次登入時重新打開視窗**：勾選後，macOS 會在下次登入時重新開啟 App 和視窗。啟用 Tatami 的**登入時啟動**，或在登入後開啟 Tatami，即可套用配置。"
+  },
+  "f0c7808f93512a84": {
+    "en": "Tatami matches layout slots by app and window order, not by document name. If an app changes the order in which it recreates windows, a different document can occupy a saved slot. A fresh window can also reuse an old slot. A workspace’s **Auto Open** setting launches its apps separately from macOS document restoration.",
+    "ko": "Tatami는 문서 이름 대신 앱과 창 순서로 자리를 연결해요. 앱이 창을 다시 만드는 순서를 바꾸면 다른 문서가 같은 자리에 놓일 수 있어요. 새 창도 이전 자리를 사용할 수 있어요. 작업 공간의 **자동 열기**는 macOS의 문서 복원과 별개로 앱을 실행하는 설정이에요.",
+    "ja": "Tatami は書類名ではなく、アプリとウインドウの順序で配置を対応付けます。アプリがウインドウを作り直す順序を変えると、別の書類が保存された位置に入ることがあります。新しいウインドウも以前の位置を使えます。ワークスペースの**自動で開く**は、macOS の書類復元とは別にアプリを起動する設定です。",
+    "zh-Hans": "Tatami 按应用和窗口顺序匹配布局位置，而不是按文稿名称。如果应用改变重新创建窗口的顺序，其他文稿可能占据原来保存的位置。新窗口也可以使用旧位置。工作区的**自动打开**设置用于启动应用，与 macOS 的文稿恢复相互独立。",
+    "zh-Hant": "Tatami 依 App 和視窗順序比對配置位置，而非文件名稱。如果 App 改變重新建立視窗的順序，其他文件可能佔用原先儲存的位置。新視窗也可以使用舊位置。工作空間的**自動開啟**設定用於啟動 App，與 macOS 的文件回復各自獨立。"
+  },
+  "41f312c812673929": {
+    "en": "Fullscreen zoom changes after connecting a display",
+    "ko": "디스플레이 연결 후 전체 화면 상태가 달라져요",
+    "ja": "ディスプレイの接続後に全画面表示が変わる",
+    "zh-Hans": "连接显示器后全屏状态发生变化",
+    "zh-Hant": "連接顯示器後全螢幕狀態改變"
+  },
+  "b1249606cefe557f": {
+    "en": "Check which profile and workspace are active. Display rules can automatically switch profiles when the connected monitors change. Each workspace has its own saved layout and fullscreen zoom, even when another profile contains the same apps. Configure the layout in each profile you use, or adjust the profile’s display rule if the switch was unintended.",
+    "ko": "현재 프로필과 작업 공간을 확인해 보세요. 연결된 모니터가 바뀌면 디스플레이 규칙에 따라 프로필이 자동으로 전환될 수 있어요. 다른 프로필에 같은 앱이 있어도 레이아웃과 전체 화면 상태는 작업 공간마다 따로 기억해요. 사용하는 각 프로필에서 배치를 설정하거나, 원치 않는 전환이라면 프로필의 디스플레이 규칙을 조정하세요.",
+    "ja": "現在のプロファイルとワークスペースを確認してください。接続中のモニターが変わると、ディスプレイルールによってプロファイルが自動で切り替わることがあります。別のプロファイルに同じアプリがあっても、配置と全画面表示の状態はワークスペースごとに記憶されます。使う各プロファイルで配置を設定するか、意図しない切り替えならプロファイルのディスプレイルールを調整してください。",
+    "zh-Hans": "请检查当前启用的配置方案和工作区。连接的显示器发生变化时，显示器规则可能会自动切换配置方案。即使另一个配置方案包含相同应用，每个工作区的布局和全屏状态仍分别保存。请在使用的各配置方案中设置布局，或调整显示器规则以避免意外切换。",
+    "zh-Hant": "請檢查目前使用的設定組合和工作空間。連接的顯示器改變時，顯示器規則可能會自動切換設定組合。即使另一個設定組合包含相同 App，每個工作空間的配置和全螢幕狀態仍會分別儲存。請在使用的各設定組合中設定配置，或調整顯示器規則以避免意外切換。"
   }
 }

@@ -113,6 +113,8 @@ extension WorkspaceActivationFeature {
 
     guard newTree != tree else { return .none }
     state.pendingLayoutRestorations[workspaceId] = nil
+    state.layoutRestorationBindings[workspaceId] = nil
+    state.unresolvedFullscreenZoomSlots[workspaceId] = nil
     state.tilingTrees[workspaceId] = newTree
 
     return .merge(
@@ -214,6 +216,8 @@ extension WorkspaceActivationFeature {
     state.tilingTrees[workspaceId] = newTree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     state.pendingLayoutRestorations[workspaceId] = nil
+    state.layoutRestorationBindings[workspaceId] = nil
+    state.unresolvedFullscreenZoomSlots[workspaceId] = nil
 
     return .merge(
       flushPointerDrivenLayout(workspaceId: workspaceId, state: &state),
