@@ -291,18 +291,13 @@ extension WorkspaceActivationFeature {
 
   // MARK: Internal
 
-  /// Map persisted fullscreen-zoom slots back onto live windows via the same
-  /// windowID-rank assignment `hydrate` uses (`slotToKey` over `keys`), so a
-  /// specific same-app window resolves to the exact slot it was zoomed in — not
-  /// just "some window of that app". Slots whose window isn't in the laid-out
-  /// tree are dropped, so the layout degrades gracefully when an app has fewer
-  /// windows than at save time.
+  /// Resolve zoom through the same retained bindings as the live tree.
+  /// The caller retains unresolved slots until their windows arrive.
   static func resolveFullscreenZoom(
     slots: [SlotID],
-    keys: [WindowKey],
+    keyForSlot: [SlotID: WindowKey],
     among windows: [WindowKey],
   ) -> Set<WindowKey> {
-    let keyForSlot = slotToKey(keys)
     let present = Set(windows)
     return Set(slots.compactMap { keyForSlot[$0] }.filter { present.contains($0) })
   }
@@ -2354,7 +2349,15 @@ extension WorkspaceActivationFeature {
     ))
     let sessionTree = state.tilingTrees[workspace.id]
     let pendingRestoration = state.pendingLayoutRestorations[workspace.id]
-    let autoOpeningBundleIDs = Set(workspace.apps.filter { $0.autoOpen && $0.layout == .tiled }.map(\.bundleIdentifier))
+    let restorationBindings = state.layoutRestorationBindings[workspace.id]
+      ?? sessionTree.map { slotToKey($0.windows) } ?? [:]
+    let residentSnapshot = sessionTree.map {
+      LayoutSnapshot(
+        liveTree: $0,
+        fullscreenZoomed: state.fullscreenZoomed[workspace.id] ?? [],
+        unresolvedSlots: state.unresolvedFullscreenZoomSlots[workspace.id] ?? [],
+      )
+    }
     let sharedTiledBundleIds = Set(
       state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
     )
@@ -2613,8 +2616,10 @@ extension WorkspaceActivationFeature {
               let persistedSnapshot: LayoutSnapshot? =
                 if let pendingRestoration {
                   pendingRestoration
+                } else if let residentSnapshot {
+                  residentSnapshot
                 } else {
-                  sessionTree == nil ? await store.load(workspaceId) : nil
+                  await store.load(workspaceId)
                 }
               guard !Task.isCancelled else { return }
               // Cache-first discovery: a warm `WindowKeyCache` entry costs zero
@@ -2652,12 +2657,13 @@ extension WorkspaceActivationFeature {
                 )
               }
               mark("discover")
-              let (tree, frames, restoredZoom, unresolvedZoomSlots) = await MainActor.run {
+              let (tree, frames, restoredZoom, unresolvedZoomSlots, bindings) = await MainActor.run {
                 () -> (
                   BSPNode<WindowKey>?,
                   [WindowKey: CGRect],
                   Set<WindowKey>,
-                  Set<SlotID>
+                  Set<SlotID>,
+                  [SlotID: WindowKey]
                 ) in
                 let workArea = displays.workArea(targetDisplay).insetBy(
                   dx: CGFloat(settings.layout.gapOuter),
@@ -2665,8 +2671,13 @@ extension WorkspaceActivationFeature {
                 )
                 var base = sessionTree
                 var persistedZoomSlots = [SlotID]()
+                let bindings = persistedSnapshot?.restorationBindings(
+                  keys: keys,
+                  retaining: restorationBindings,
+                ) ?? [:]
+                let liveBindings = bindings.filter { Set(keys).contains($0.value) }
                 if let snapshot = persistedSnapshot {
-                  base = BSPNode.hydrate(template: snapshot.tree, keys: keys)
+                  base = BSPNode.hydrate(template: snapshot.tree, keyForSlot: liveBindings)
                   persistedZoomSlots = snapshot.fullscreenZoomedSlots
                 }
                 let restoredLayout = base != nil
@@ -2695,13 +2706,14 @@ extension WorkspaceActivationFeature {
                     )
                   }
                 let resolvedZoom: Set<WindowKey> = {
-                  if !zoomed.isEmpty { return zoomed }
-                  guard let tree else { return [] }
-                  return Self.resolveFullscreenZoom(
-                    slots: persistedZoomSlots,
-                    keys: keys,
-                    among: tree.windows,
-                  )
+                  if persistedSnapshot != nil {
+                    return Self.resolveFullscreenZoom(
+                      slots: persistedZoomSlots,
+                      keyForSlot: liveBindings,
+                      among: tree?.windows ?? [],
+                    )
+                  }
+                  return zoomed.intersection(keys)
                 }()
                 let frames = Self.computeFrames(
                   tree: tree,
@@ -2709,28 +2721,28 @@ extension WorkspaceActivationFeature {
                   targetDisplay: targetDisplay,
                   fullscreenZoomed: resolvedZoom,
                 )
-                let assignments = slotAssignment(keys)
-                let resolvedSlots = Set(resolvedZoom.compactMap { assignments[$0] })
+                let resolvedSlots = Set(liveBindings.keys)
                 let unresolvedZoomSlots =
                   Set(persistedZoomSlots).subtracting(resolvedSlots)
-                return (tree, frames, resolvedZoom, unresolvedZoomSlots)
+                return (tree, frames, resolvedZoom, unresolvedZoomSlots, bindings)
               }
               mark("layout")
               // Cancellation can arrive while the main actor computes a large tree.
               // Do not publish or persist a superseded workspace's layout snapshot.
               guard !Task.isCancelled else { return }
               await send(.tilingTreeUpdated(workspaceId: workspaceId, tree: tree))
-              // Wait for the first window of apps this activation opens, not
-              // for every old occurrence (an app may reopen fewer windows).
-              let missingLayoutApps = Set(persistedSnapshot?.tree.windows.map(\.bundleId) ?? [])
-                .intersection(autoOpeningBundleIDs)
-                .subtracting(keys.map(\.bundleId))
-              let stillRestoring = missingLayoutApps.isEmpty ? nil : persistedSnapshot
+              // macOS and the app decide how many windows reopen and when.
+              // Keep every missing occurrence until it arrives or a user edits
+              // the layout; the first window is not restoration completion.
+              let liveSlots = Set(bindings.filter { Set(keys).contains($0.value) }.keys)
+              let missingSlots = Set(persistedSnapshot?.tree.windows ?? []).subtracting(liveSlots)
+              let stillRestoring = missingSlots.isEmpty ? nil : persistedSnapshot
               await send(.persistedLayoutRestorationUpdated(
                 workspaceId: workspaceId,
                 snapshot: stillRestoring,
+                bindings: bindings,
               ))
-              if persistedSnapshot != nil, zoomed.isEmpty {
+              if persistedSnapshot != nil {
                 await send(.persistedFullscreenZoomRestored(
                   workspaceId: workspaceId,
                   keys: restoredZoom,

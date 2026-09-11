@@ -153,10 +153,29 @@ actions show feedback.
 | `splitType` | string | `"auto"` | Default split axis when a new window splits a tile: `auto` (aspect-based), `horizontal`, `vertical`. |
 | `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
 
-Workspaces always remember their layout. Split axes and ratios are persisted
-to disk and restored on the next launch. System sleep preserves the live tree;
-if macOS recreates a window surface on wake, Tatami reconnects it to the saved
-layout without writing the temporary wake-up state back to disk.
+### Window and layout restoration
+
+Tatami remembers split directions, proportions, and fullscreen zoom separately for each
+workspace. When windows close or arrive one at a time, the remaining windows fill the
+available space while Tatami keeps the missing layout slots. Reopened windows can return
+to those slots. An explicit layout change, such as resizing, rearranging, or toggling
+fullscreen zoom, replaces that saved layout with the current windows.
+
+macOS and each app decide which windows reopen. Tatami applies the remembered layout to
+windows they provide; it does not reopen documents itself. These macOS settings control
+different situations:
+
+- **Close windows when quitting an application**, in **System Settings → Desktop &
+  Dock**: turn this off to let supporting apps reopen their windows when you launch them
+  again. When it is on, an app can open a fresh window instead.
+- **Reopen windows when logging back in**, in the logout, restart, or shutdown dialog:
+  select this to ask macOS to reopen apps and windows at the next login. Enable Tatami’s
+  **Launch at Login**, or open Tatami after logging in, to apply its layouts.
+
+Tatami matches layout slots by app and window order, not by document name. If an app
+changes the order in which it recreates windows, a different document can occupy a saved
+slot. A fresh window can also reuse an old slot. A workspace’s **Auto Open** setting
+launches its apps separately from macOS document restoration.
 
 ## `[settings.focus]`
 

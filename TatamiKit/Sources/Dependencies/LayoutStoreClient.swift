@@ -44,6 +44,20 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
     self.fullscreenZoomedSlots = fullscreenZoomedSlots
   }
 
+  init(
+    liveTree: BSPNode<WindowKey>,
+    fullscreenZoomed: Set<WindowKey>,
+    unresolvedSlots: Set<SlotID> = [],
+  ) {
+    let slots = slotAssignment(liveTree.windows)
+    self.init(
+      tree: liveTree.mapWindows { slots[$0]! },
+      fullscreenZoomedSlots: Set(fullscreenZoomed.compactMap { slots[$0] })
+        .union(unresolvedSlots)
+        .sorted { ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence) },
+    )
+  }
+
   // MARK: Public
 
   public static let currentVersion = 2
@@ -82,6 +96,30 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
       return SlotID(bundleId: bundleId, occurrence: occurrence)
     }
     return LayoutSnapshot(tree: slotTree, fullscreenZoomedSlots: zoomSlots)
+  }
+
+  /// Exact surviving identities retain their slots. Assign each new window to
+  /// at most one vacant occurrence of the same app, in deterministic ID order.
+  /// Retired bindings remain available so a temporarily hidden window can
+  /// reclaim its original slot on a later discovery.
+  func restorationBindings(
+    keys: [WindowKey],
+    retaining previous: [SlotID: WindowKey],
+  ) -> [SlotID: WindowKey] {
+    let live = Set(keys)
+    var bindings = previous
+    let assigned = Set(previous.values.filter { live.contains($0) })
+    var available = keys.filter { !assigned.contains($0) }
+      .sorted { ($0.windowID, $0.pid) < ($1.windowID, $1.pid) }
+    for slot in tree.windows.sorted(by: {
+      ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence)
+    }) {
+      if let key = bindings[slot], live.contains(key) { continue }
+      guard let index = available.firstIndex(where: { $0.bundleId == slot.bundleId }) else { continue }
+      let key = available.remove(at: index)
+      bindings[slot] = key
+    }
+    return bindings
   }
 
 }

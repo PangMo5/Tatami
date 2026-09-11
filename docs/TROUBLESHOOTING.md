@@ -59,3 +59,11 @@ If the control still disappears, enable **Settings → General → Debug Logging
 reproduce one workspace switch, and inspect `~/.config/tatami/tatami.log` for
 an `OverlayAware evaluate ... preserve=` entry. A `preserve=false` result means
 the current control did not satisfy the conditions above.
+
+## Fullscreen zoom changes after connecting a display
+
+Check which profile and workspace are active. Display rules can automatically switch
+profiles when the connected monitors change. Each workspace has its own saved layout and
+fullscreen zoom, even when another profile contains the same apps. Configure the layout
+in each profile you use, or adjust the profile’s display rule if the switch was
+unintended.

@@ -181,6 +181,23 @@ extension WorkspaceActivationFeature {
     return tree
   }
 
+  /// Keep the desired layout independently of live membership. This never
+  /// opens windows; slots apply only when the app or macOS supplies them.
+  /// Explicit layout commands end restoration.
+  func rememberLayoutForRestoration(
+    workspaceId: Workspace.ID,
+    tree: BSPNode<WindowKey>,
+    state: inout State,
+  ) {
+    guard state.pendingLayoutRestorations[workspaceId] == nil else { return }
+    state.pendingLayoutRestorations[workspaceId] = LayoutSnapshot(
+      liveTree: tree,
+      fullscreenZoomed: state.fullscreenZoomed[workspaceId] ?? [],
+      unresolvedSlots: state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+    )
+    state.layoutRestorationBindings[workspaceId] = slotToKey(tree.windows)
+  }
+
   /// Enter the reducer-owned single-flight/dirty reconciliation path.
   /// No timer or cooperative scheduling guess is involved.
   func requestWindowSync(_ bundleId: String) -> Effect<Action> {
@@ -479,13 +496,12 @@ extension WorkspaceActivationFeature {
       windowSnapshot.invalidateWindowIDs(invalidatedWindowIDs)
       var pruned: BSPNode<WindowKey>? = tree
       for key in gone { pruned = pruned?.removing(key) }
-      state.pendingLayoutRestorations[workspaceId] = nil
+      rememberLayoutForRestoration(workspaceId: workspaceId, tree: tree, state: &state)
       let balanced = axis == .none ? pruned : pruned?.balanced(axis: axis)
       state.tilingTrees[workspaceId] = balanced
       let newWindows = Set(balanced?.windows ?? [])
       state.removeFromWindowMRU(Set(gone), workspaceId: workspaceId)
       state.removeFromPresentationMonitoring(Set(gone))
-      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
       prunedAny = true
       if let display = state.displayShowing(workspaceId) {
         layoutRootsByDisplay[display] = state.activeWorkspacesByDisplay[display] ?? workspaceId
@@ -533,15 +549,11 @@ extension WorkspaceActivationFeature {
         )
       }
 
-      effects.append(
-        persist(
-          balanced,
-          fullscreenZoomed: zoomed,
-          unresolvedFullscreenZoomSlots:
-          state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
-          for: workspace,
-        )
-      )
+      if let snapshot = state.pendingLayoutRestorations[workspaceId] {
+        effects.append(.run { [store = layoutStore] _ in
+          await store.save(workspaceId, snapshot)
+        })
+      }
       postLayoutFocusEffects.append(postLayoutFocusEffect)
       // Pruning only runs when windows actually left the screen.
       effects.append(handleEmptied(workspaceId: workspaceId, state: state))
@@ -654,11 +666,8 @@ extension WorkspaceActivationFeature {
     return .concatenate(topologyReplay, .send(.activeSpaceChanged))
   }
 
-  /// Complete one bundle from the wake reconciliation batch. If every
-  /// pre-suspend WindowKey disappeared, WindowServer recycled the whole
-  /// workspace and there is no live identity left from which to preserve the
-  /// prior tree. Reset only that genuinely lost layout using the same
-  /// Auto-balance contract as the explicit Balance command.
+  /// Finish recovery without treating recycled process/window IDs as a
+  /// request to balance. Activation and sync restore their logical slots.
   func completeSystemLayoutRecovery(
     bundleId: String,
     state: inout State,
@@ -670,53 +679,24 @@ extension WorkspaceActivationFeature {
     let suspendedLayouts = state.suspendedLayoutWindows
     state.isRecoveringSystemLayout = false
     state.suspendedLayoutWindows = [:]
-
-    let settings = state.config.settings
     var effects = [Effect<Action>]()
-    for (workspaceId, suspendedWindows) in suspendedLayouts {
+    for workspaceId in suspendedLayouts.keys {
       guard
         state.visibleWorkspaceIDs.contains(workspaceId),
-        let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
-        let current = state.tilingTrees[workspaceId],
-        !current.windows.isEmpty
+        let workspace = state.config.activeProfile?.workspaces[id: workspaceId]
       else { continue }
-
-      let lostEveryIdentity = Set(current.windows).isDisjoint(with: suspendedWindows)
-      let recovered: BSPNode<WindowKey>
-      if lostEveryIdentity {
-        state.pendingLayoutRestorations[workspaceId] = nil
-        let (_, workArea) = tilingContext(for: workspaceId, state: state)
-        recovered = current.balancedForCommand(
-          autoBalance: settings.layout.autoBalance,
-          in: workArea,
-          gap: CGFloat(settings.layout.gapInner),
-          splitAxis: settings.layout.splitType.bspSplitAxis(),
-        )
-        state.tilingTrees[workspaceId] = recovered
-        state.insertionPoint[workspaceId] = recovered.windows.first
-        debugLog.log(
-          "Suspend",
-          "reset lost layout ws=\(workspace.name) mode=\(settings.layout.autoBalance.rawValue)",
-        )
+      if let snapshot = state.pendingLayoutRestorations[workspaceId] {
+        effects.append(.run { [store = layoutStore] _ in
+          await store.save(workspaceId, snapshot)
+        })
       } else {
-        recovered = current
+        effects.append(persist(
+          state.tilingTrees[workspaceId],
+          fullscreenZoomed: state.fullscreenZoomed[workspaceId] ?? [],
+          unresolvedFullscreenZoomSlots: state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+          for: workspace,
+        ))
       }
-      let zoomed = state.fullscreenZoomed[workspaceId] ?? []
-      let save = persist(
-        recovered,
-        fullscreenZoomed: zoomed,
-        unresolvedFullscreenZoomSlots:
-        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
-        for: workspace,
-      )
-      effects.append(
-        lostEveryIdentity
-          ? .merge(
-            flushLayout(workspaceId: workspaceId, state: &state),
-            save,
-          )
-          : save
-      )
     }
     return .merge(effects)
   }
@@ -1030,29 +1010,60 @@ extension WorkspaceActivationFeature {
       }
     }
 
-    // Restore late-arriving slots into the saved shape. A closed window is
-    // new user intent and ends the startup restore.
+    if let zoom = state.fullscreenZoomed[workspaceId] {
+      state.fullscreenZoomed[workspaceId] = Set(zoom.map { replacements[$0] ?? $0 })
+    }
+    if let bindings = state.layoutRestorationBindings[workspaceId] {
+      state.layoutRestorationBindings[workspaceId] = bindings.mapValues { replacements[$0] ?? $0 }
+    }
+    let hadPendingRestoration = state.pendingLayoutRestorations[workspaceId] != nil
+
+    // Membership is availability, not a request to forget the saved layout.
+    // App shutdown delivers one destroy per window; capture before the first
+    // removal and retain the template through staggered recreation.
     let currentKeys = tree?.windows ?? []
+    let membershipChanged = Set(replacementBaseline?.windows ?? []) != Set(currentKeys)
     let removedDuringSync = Set(replacementBaseline?.windows ?? [])
       .subtracting(currentKeys)
-    if !removedDuringSync.isEmpty {
-      state.pendingLayoutRestorations[workspaceId] = nil
-    } else if
-      let restoration = state.pendingLayoutRestorations[workspaceId],
-      let restored = BSPNode.hydrate(template: restoration.tree, keys: currentKeys)
-    {
-      tree = Self.mergeTree(
-        existing: restored,
-        target: currentKeys,
-        focused: { focused },
-        insertionPoint: insertionPointKey,
-        workArea: workArea,
-        settings: settings,
+    if !removedDuringSync.isEmpty, let replacementBaseline {
+      rememberLayoutForRestoration(
+        workspaceId: workspaceId,
+        tree: replacementBaseline,
+        state: &state,
       )
-      let expectedApps = Set(workspace.apps.filter { $0.autoOpen && $0.layout == .tiled }.map(\.bundleIdentifier))
-        .intersection(restoration.tree.windows.map(\.bundleId))
-      if expectedApps.isSubset(of: Set(currentKeys.map(\.bundleId))) {
+    }
+    if let restoration = state.pendingLayoutRestorations[workspaceId] {
+      let bindings = restoration.restorationBindings(
+        keys: currentKeys,
+        retaining: state.layoutRestorationBindings[workspaceId] ?? [:],
+      )
+      let liveBindings = bindings.filter { Set(currentKeys).contains($0.value) }
+      // Rehydrate only for changed membership. A no-op discovery must retain
+      // the current ratios, including Auto-balance applied to a partial tree.
+      if membershipChanged {
+        let restored = BSPNode.hydrate(template: restoration.tree, keyForSlot: liveBindings)
+        tree = Self.mergeTree(
+          existing: restored,
+          target: currentKeys,
+          focused: { focused },
+          insertionPoint: insertionPointKey,
+          workArea: workArea,
+          settings: settings,
+        )
+      }
+      let zoomSlots = Set(restoration.fullscreenZoomedSlots)
+      let zoomKeys = Self.resolveFullscreenZoom(
+        slots: restoration.fullscreenZoomedSlots,
+        keyForSlot: liveBindings,
+        among: tree?.windows ?? [],
+      )
+      state.fullscreenZoomed[workspaceId] = zoomKeys.isEmpty ? nil : zoomKeys
+      let unresolved = zoomSlots.subtracting(liveBindings.keys)
+      state.unresolvedFullscreenZoomSlots[workspaceId] = unresolved.isEmpty ? nil : unresolved
+      state.layoutRestorationBindings[workspaceId] = bindings
+      if Set(restoration.tree.windows).isSubset(of: Set(liveBindings.keys)) {
         state.pendingLayoutRestorations[workspaceId] = nil
+        state.layoutRestorationBindings[workspaceId] = nil
       }
     }
 
@@ -1060,8 +1071,6 @@ extension WorkspaceActivationFeature {
     // must preserve user-resized ratios, and a WindowServer identity swap is
     // still the same logical slot. Compare against the replacement-normalized
     // baseline so neither reconciliation path silently re-equalizes the tree.
-    let membershipChanged = Set(replacementBaseline?.windows ?? [])
-      != Set(tree?.windows ?? [])
     let axis = settings.layout.autoBalance
     let balanced = axis == .none || !membershipChanged
       ? tree
@@ -1106,32 +1115,8 @@ extension WorkspaceActivationFeature {
       )
     }
 
-    // A native-tab switch (Ghostty, Terminal) retires the active tab's
-    // CGWindowID and surfaces a new one for the same app — so a fullscreen-zoom
-    // recorded on the retired id would fall back to a half tile. Migrate the
-    // zoom to the replacement (same app, newly in the tree).
-    //
-    // Only *migrate* — never drop a zoom key just because its window isn't in
-    // the tree this pass. A window transiently absent (monitor unplug/replug
-    // churn empties the tree, then the window returns with the same id) would
-    // otherwise lose its zoom permanently. A key whose window is genuinely gone
-    // is harmless: `computeFrames` ignores a zoom key not in the tree, so the
-    // workspace un-zooms correctly on close and the stale key just lingers.
-    if var zoom = state.fullscreenZoomed[workspaceId], !zoom.isEmpty {
-      var changed = false
-      for stale in zoom where balanced?.pathTo(window: stale) == nil {
-        guard
-          let replacement = replacements[stale]
-          ?? addedKeys.first(where: { $0.bundleId == stale.bundleId })
-        else { continue }
-        zoom.remove(stale)
-        zoom.insert(replacement)
-        changed = true
-      }
-      if changed { state.fullscreenZoomed[workspaceId] = zoom.isEmpty ? nil : zoom }
-    }
-
     if
+      state.pendingLayoutRestorations[workspaceId] == nil,
       let balanced,
       var unresolved = state.unresolvedFullscreenZoomSlots[workspaceId],
       !unresolved.isEmpty
@@ -1297,15 +1282,21 @@ extension WorkspaceActivationFeature {
           postLayoutFocusEffect,
         )
       }
-    let persistence = state.isRecoveringSystemLayout || state.pendingLayoutRestorations[workspaceId] != nil
-      ? Effect<Action>.none
-      : persist(
-        final,
-        fullscreenZoomed: zoomed,
-        unresolvedFullscreenZoomSlots:
-        state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
-        for: workspace,
-      )
+    let persistence: Effect<Action> =
+      if state.isRecoveringSystemLayout {
+        .none
+      } else if let snapshot = state.pendingLayoutRestorations[workspaceId] {
+        hadPendingRestoration
+          ? .none
+          : .run { [store = layoutStore] _ in await store.save(workspaceId, snapshot) }
+      } else {
+        persist(
+          final,
+          fullscreenZoomed: zoomed,
+          unresolvedFullscreenZoomSlots: state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
+          for: workspace,
+        )
+      }
     return .merge(
       layoutThenFocus,
       observeEffect,

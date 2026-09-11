@@ -40,3 +40,8 @@ overlayAwareApps = [
 ```
 
 계속 사라진다면 **설정 → 일반**에서 디버그 로그를 켜고 작업 공간을 한 번 전환해보세요. `~/.config/tatami/tatami.log`의 `OverlayAware evaluate ... preserve=` 항목을 확인하세요. `preserve=false`는 컨트롤이 위 조건을 충족하지 못했다는 뜻이에요.
+
+<a id="fullscreen-zoom-changes-after-connecting-a-display"></a>
+## 디스플레이 연결 후 전체 화면 상태가 달라져요
+
+현재 프로필과 작업 공간을 확인해 보세요. 연결된 모니터가 바뀌면 디스플레이 규칙에 따라 프로필이 자동으로 전환될 수 있어요. 다른 프로필에 같은 앱이 있어도 레이아웃과 전체 화면 상태는 작업 공간마다 따로 기억해요. 사용하는 각 프로필에서 배치를 설정하거나, 원치 않는 전환이라면 프로필의 디스플레이 규칙을 조정하세요.

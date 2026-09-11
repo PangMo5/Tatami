@@ -17,6 +17,249 @@ struct WorkspaceActivationFeatureTests {
 
   // MARK: Internal
 
+  @Test
+  func `a pending absent window does not undo auto balance on a no op sync`() async {
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")
+    let missing = WindowKey(pid: 3, windowID: 303, bundleId: "app.missing")
+    let workspace = Workspace(name: "Work", apps: [first, second, missing].map {
+      AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId)
+    })
+    let original = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(first),
+      right: .branch(BSPBranch(split: .vertical, ratio: 0.2, left: .leaf(second), right: .leaf(missing))),
+    ))
+    let balanced = original.removing(missing)?.balanced(axis: .both)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.focusedDisplay = Self.display
+      $0.tilingTrees[workspace.id] = balanced
+      $0.pendingLayoutRestorations[workspace.id] = LayoutSnapshot(liveTree: original, fullscreenZoomed: [])
+      $0.layoutRestorationBindings[workspace.id] = slotToKey(original.windows)
+      $0.$config.withLock { $0.settings.layout.autoBalance = .both }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
+    store.exhaustivity = .off
+    await store.send(.syncAppWindowsResolved(
+      bundleId: first.bundleId,
+      resizableKeys: [first],
+      onScreenFrames: [first.windowID: .zero, second.windowID: .zero],
+    ))
+    await store.finish()
+    #expect(store.state.tilingTrees[workspace.id] == balanced)
+    #expect(store.state.pendingLayoutRestorations[workspace.id] != nil)
+  }
+
+  @Test(arguments: [false, true])
+  func `a surviving window keeps its slot through another windows removal and return`(prune: Bool) async {
+    let first = WindowKey(pid: 41, windowID: 101, bundleId: "app.editor")
+    let survivor = WindowKey(pid: 41, windowID: 102, bundleId: first.bundleId)
+    let replacement = WindowKey(pid: 41, windowID: 201, bundleId: first.bundleId)
+    let workspace = Workspace(name: "Editor", apps: [
+      AppAssignment(bundleIdentifier: first.bundleId, name: "Editor")
+    ])
+    let original = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(first),
+      right: .leaf(survivor),
+    ))
+    let saved = LayoutSnapshot(liveTree: original, fullscreenZoomed: [first])
+    let writes = LockIsolated<[LayoutSnapshot]>([])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.focusedDisplay = Self.display
+      $0.tilingTrees[workspace.id] = original
+      $0.fullscreenZoomed[workspace.id] = [first]
+      $0.$config.withLock { $0.settings.layout.autoBalance = .none }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.onScreenWindowIDs = { [survivor.windowID] }
+      $0.layoutStore.save = { _, snapshot in writes.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+    if prune {
+      await store.send(.windowServerWindowEvent(.terminated(first.windowID)))
+    } else {
+      await store.send(.syncAppWindowsResolved(
+        bundleId: first.bundleId,
+        resizableKeys: [survivor],
+        onScreenFrames: [survivor.windowID: .zero],
+      ))
+    }
+    await store.finish()
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == saved)
+    #expect(writes.value.last == saved)
+    #expect(store.state.fullscreenZoomed[workspace.id]?.contains(survivor) != true)
+
+    await store.send(.syncAppWindowsResolved(
+      bundleId: first.bundleId,
+      resizableKeys: [survivor, replacement],
+      onScreenFrames: [survivor.windowID: .zero, replacement.windowID: .zero],
+    ))
+    await store.finish()
+    #expect(store.state.tilingTrees[workspace.id] == original.mapWindows { $0 == first ? replacement : $0 })
+    #expect(store.state.fullscreenZoomed[workspace.id] == [replacement])
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == nil)
+    #expect(store.state.layoutRestorationBindings[workspace.id] == nil)
+  }
+
+  @Test(arguments: [false, true])
+  func `activation preserves resident layout and zoom when window identities change`(newProcess: Bool) async {
+    let old = [
+      WindowKey(pid: 41, windowID: 101, bundleId: "app.editor"),
+      WindowKey(pid: 41, windowID: 102, bundleId: "app.editor"),
+    ]
+    let live = [
+      WindowKey(pid: newProcess ? 42 : 41, windowID: 201, bundleId: "app.editor"),
+      WindowKey(pid: newProcess ? 42 : 41, windowID: 202, bundleId: "app.editor"),
+    ]
+    let workspace = Workspace(name: "Editor", apps: [
+      AppAssignment(bundleIdentifier: "app.editor", name: "Editor")
+    ])
+    let resident = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(old[1]),
+      right: .leaf(old[0]),
+    ))
+    let expected = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(live[1]),
+      right: .leaf(live[0]),
+    ))
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.tilingTrees[workspace.id] = resident
+      $0.fullscreenZoomed[workspace.id] = Set(old)
+      $0.$config.withLock { $0.settings.layout.autoBalance = .none }
+    }
+    let writes = LockIsolated<[LayoutSnapshot]>([])
+    let applications = LockIsolated<[FrameApplication]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowSnapshot.cachedKeys = { _, _ in live }
+      $0.windowTiler.apply = { request in applications.withValue { $0.append(request) } }
+      $0.layoutStore.save = { _, snapshot in writes.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activate(workspaceId: workspace.id, setFocus: false))
+    await store.receive { if case .activationCompleted = $0 { return true }
+      return false
+    }
+    await store.finish()
+
+    #expect(store.state.tilingTrees[workspace.id] == expected)
+    #expect(store.state.fullscreenZoomed[workspace.id] == Set(live))
+    #expect(writes.value.last?.fullscreenZoomedSlots.count == 2)
+    #expect(applications.value.last?.windowFrames[live[0]] == applications.value.last?.windowFrames[live[1]])
+  }
+
+  @Test(arguments: [false, true])
+  func `saved layout survives staggered windows from one app`(autoOpen: Bool) async throws {
+    let first = WindowKey(pid: 42, windowID: 101, bundleId: "app.editor")
+    let late = WindowKey(pid: 42, windowID: 202, bundleId: "app.editor")
+    let workspace = Workspace(name: "Editor", apps: [
+      AppAssignment(bundleIdentifier: first.bundleId, name: "Editor", autoOpen: autoOpen)
+    ])
+    let expected = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(late),
+      right: .leaf(first),
+    ))
+    let slots = slotAssignment(expected.windows)
+    let saved = LayoutSnapshot(
+      tree: expected.mapWindows { slots[$0]! },
+      fullscreenZoomedSlots: [try #require(slots[late])],
+    )
+    let writes = LockIsolated<[LayoutSnapshot]>([])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.$config.withLock { $0.settings.layout.autoBalance = .none }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowSnapshot.cachedKeys = { _, _ in [first] }
+      $0.layoutStore.load = { _ in saved }
+      $0.layoutStore.save = { _, snapshot in writes.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: workspace.id, setFocus: false))
+    await store.receive { if case .activationCompleted = $0 { return true }
+      return false
+    }
+    await store.finish()
+
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == saved)
+    #expect(writes.value.isEmpty)
+    await store.send(.syncAppWindowsResolved(
+      bundleId: first.bundleId,
+      resizableKeys: [first, late],
+      onScreenFrames: [first.windowID: .zero, late.windowID: .zero],
+    ))
+    await store.finish()
+    #expect(store.state.tilingTrees[workspace.id] == expected)
+    #expect(store.state.fullscreenZoomed[workspace.id] == [late])
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == nil)
+    #expect(writes.value.last == saved)
+  }
+
+  @Test(arguments: [false, true])
+  func `an empty display list before sleep preserves the last desktop`(displayReturnsFirst: Bool) async {
+    let window = WindowKey(pid: 42, windowID: 101, bundleId: "app.editor")
+    let workspace = Workspace(name: "Editor", apps: [
+      AppAssignment(bundleIdentifier: window.bundleId, name: "Editor")
+    ])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.connectedDisplays = [Self.display]
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(window)
+      $0.fullscreenZoomed[workspace.id] = [window]
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.sls.isActiveSpaceFullscreen = { false }
+      $0.windowSnapshot.cachedKeys = { _, _ in [window] }
+      $0.windowSnapshot.onScreenWindowIDs = { [window.windowID] }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.displaysReconfigured([]))
+    await store.send(.systemWillSuspend)
+    await store.finish()
+
+    #expect(store.state.activeWorkspacesByDisplay[Self.display] == workspace.id)
+    #expect(store.state.connectedDisplays == [Self.display])
+    #expect(store.state.suspendedLayoutWindows[workspace.id] == [window])
+    #expect(store.state.fullscreenZoomed[workspace.id] == [window])
+
+    if displayReturnsFirst {
+      await store.send(.displaysReconfigured([Self.display]))
+      #expect(store.state.isLayoutSuspended)
+      await store.send(.systemDidWake)
+    } else {
+      await store.send(.systemDidWake)
+      #expect(store.state.isLayoutSuspended)
+      await store.send(.displaysReconfigured([Self.display]))
+    }
+    await store.finish()
+    #expect(!store.state.isLayoutSuspended)
+    #expect(!store.state.pendingDisplayTopologyReconcile)
+    #expect(store.state.activeWorkspacesByDisplay[Self.display] == workspace.id)
+    #expect(store.state.tilingTrees[workspace.id]?.windows == [window])
+    #expect(store.state.fullscreenZoomed[workspace.id] == [window])
+  }
+
   @Test(arguments: [false, true])
   func `keyboard switcher quick taps return to the last focused window`(byWindow: Bool) async {
     let a = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")
@@ -7837,7 +8080,7 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test(arguments: AutoBalanceMode.allCases)
-  func `resume resets a fully recycled layout using auto balance`(
+  func `resume preserves the reconciled shape after every identity changes`(
     mode: AutoBalanceMode
   ) async {
     let old = [
@@ -7874,12 +8117,7 @@ struct WorkspaceActivationFeatureTests {
       )
     )
     let workArea = CGRect(x: 0, y: 0, width: 1_000, height: 800)
-    let expected = current.balancedForCommand(
-      autoBalance: mode,
-      in: workArea,
-      gap: 0,
-      splitAxis: nil,
-    )
+    let expected = current
     let state = Self.makeState(workspaces: [workspace]) {
       $0.$config.withLock {
         $0.settings.layout.autoBalance = mode
@@ -7915,7 +8153,7 @@ struct WorkspaceActivationFeatureTests {
     #expect(!store.state.isRecoveringSystemLayout)
     #expect(store.state.suspendedLayoutWindows.isEmpty)
     #expect(store.state.pendingSystemLayoutBundleIds.isEmpty)
-    #expect(applications.value.last?.windowFrames.keys.count == windows.count)
+    #expect(applications.value.isEmpty)
     let slots = slotAssignment(expected.windows)
     #expect(saved.value.last?.tree == expected.mapWindows { slots[$0]! })
   }
