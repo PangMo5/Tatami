@@ -7,13 +7,14 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 
+// MARK: - ScreenRecordingClient
+
 /// Screen Recording (TCC) permission: status, prompting, and the System
 /// Settings deep link. Tatami needs it only for floating windows — their
 /// always-on-top mirrors are ScreenCaptureKit captures.
 ///
-/// Like Accessibility, a *new* grant doesn't reach the running process:
-/// `SCStream` keeps failing until relaunch (revokes apply live). The
-/// Settings UI pairs the grant button with the existing relaunch row.
+/// Preflight reads and ScreenCaptureKit permission failures share one session
+/// state. A known denial stays closed until relaunch after granting access.
 @DependencyClient
 struct ScreenRecordingClient: Sendable {
   /// Current grant state (non-prompting).
@@ -23,26 +24,60 @@ struct ScreenRecordingClient: Sendable {
   var requestAccess: @Sendable () async -> Void
   /// Open System Settings → Privacy & Security → Screen Recording.
   var openSettings: @Sendable () async -> Void
+  /// Initial state, capture permission denial, or app reactivation.
+  var changes: @Sendable () -> AsyncStream<Void> = { .finished }
 }
 
-extension ScreenRecordingClient: DependencyKey {
-  static let liveValue = ScreenRecordingClient(
-    isGranted: { CGPreflightScreenCaptureAccess() },
-    requestAccess: {
-      await MainActor.run { _ = CGRequestScreenCaptureAccess() }
-    },
-    openSettings: {
-      await MainActor.run {
-        guard let url = URL(
-          string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
-        ) else { return }
-        NSWorkspace.shared.open(url)
-      }
-    }
-  )
+// MARK: DependencyKey
 
-  static let testValue = ScreenRecordingClient()
+extension ScreenRecordingClient: DependencyKey {
+  static let liveValue = live(access: .shared, notificationCenter: .default)
+
+  static let testValue = ScreenRecordingClient(
+    isGranted: { false },
+    requestAccess: { },
+    openSettings: { },
+    changes: { .finished },
+  )
   static let previewValue = testValue
+
+  static func live(access: ScreenRecordingAccess, notificationCenter: NotificationCenter) -> Self {
+    ScreenRecordingClient(
+      isGranted: { access.isGranted() },
+      requestAccess: {
+        await MainActor.run { _ = CGRequestScreenCaptureAccess() }
+      },
+      openSettings: {
+        await MainActor.run {
+          guard
+            let url = URL(
+              string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+            )
+          else { return }
+          NSWorkspace.shared.open(url)
+        }
+      },
+      changes: {
+        AsyncStream { continuation in
+          let observers = PermissionObserverTokens(local: notificationCenter)
+          observers.tokens = [
+            observers.local.addObserver(
+              forName: ScreenRecordingAccess.didCloseNotification,
+              object: nil,
+              queue: nil,
+            ) { _ in continuation.yield() },
+            observers.local.addObserver(
+              forName: NSApplication.didBecomeActiveNotification,
+              object: nil,
+              queue: nil,
+            ) { _ in continuation.yield() },
+          ]
+          continuation.onTermination = { _ in observers.removeAll() }
+          continuation.yield()
+        }
+      },
+    )
+  }
 }
 
 extension DependencyValues {

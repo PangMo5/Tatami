@@ -589,6 +589,7 @@ public struct OnboardingFeature {
     case alert(PresentationAction<Alert>)
     case confirmationSuppressionChanged(Bool)
     case accessibilityChanged
+    case screenRecordingChanged
     case addProfileButtonTapped
     case addScratchpadButtonTapped
     case addWorkspaceButtonTapped
@@ -775,6 +776,12 @@ public struct OnboardingFeature {
             }
           }
           .cancellable(id: CancelID.permissionChanges, cancelInFlight: true),
+          .run { [screenRecording] send in
+            for await _ in screenRecording.changes() {
+              await send(.screenRecordingChanged)
+            }
+          }
+          .cancellable(id: CancelID.screenRecordingChanges, cancelInFlight: true),
         )
 
       case .viewDisappeared:
@@ -782,6 +789,7 @@ public struct OnboardingFeature {
         return .merge(
           persist(state),
           .cancel(id: CancelID.permissionChanges),
+          .cancel(id: CancelID.screenRecordingChanges),
           .send(.delegate(.gesturePreviewEnded)),
           .send(.delegate(.shortcutPreviewEnded)),
           .send(.delegate(.borrowChordPreviewChanged(false))),
@@ -789,6 +797,10 @@ public struct OnboardingFeature {
 
       case .accessibilityChanged:
         state.hasAccessibility = accessibility.isTrusted()
+        state.hasScreenRecording = screenRecording.isGranted()
+        return persist(state)
+
+      case .screenRecordingChanged:
         state.hasScreenRecording = screenRecording.isGranted()
         return persist(state)
 
@@ -1450,6 +1462,7 @@ public struct OnboardingFeature {
   private enum CancelID {
     case aiRecommendation
     case permissionChanges
+    case screenRecordingChanges
     case saveProgress
   }
 
