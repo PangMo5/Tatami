@@ -62,6 +62,16 @@ func `generated documents match reviewed files`() throws {
   for (file, text) in try builder.outputs() { #expect(try file.text() == text, "\(file.path)") }
 }
 
+@Test(arguments: ["https://tatami.pangmo5.dev/", "https://pangmo5.dev/Tatami/"])
+func `localized website links use the subdomain and preserve queries and fragments`(base: String) throws {
+  let builder = DocumentBuilder(workspace: Workspace(root: fm.temporaryDirectory))
+  let source = "[Guide](\(base)configuration.html?mode=full#shortcuts)"
+  let result = try builder.rewriteLinks(source, "README.md", "ko")
+  #expect(result.contains("https://tatami.pangmo5.dev/ko/configuration.html?mode=full#shortcuts"))
+  let unrelated = "[Other](https://pangmo5.dev/Amado/)"
+  #expect(try builder.rewriteLinks(unrelated, "README.md", "ko").contains(unrelated))
+}
+
 @Test
 func `equivalent JSON preserves accepted scene bytes`() throws {
   let source = "{\n  \"z\": 1,\n  \"a\": [\n    \"한국어\",\n    1.0,\n    true\n  ]\n}\n"

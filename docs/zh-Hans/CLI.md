@@ -145,7 +145,7 @@ CLI 和手势窗口循环立即执行。按住修饰键的切换会话仅用于�
 
 编辑器分别保存可执行文件和各参数，直接对应 `command[0]` 与其余 argv。Tatami 不拼接 shell 命令，不按空格拆分、不解释引号或展开变量。需要 shell 语法时，明确选择 `/bin/zsh`，分别传入 `-lc` 和脚本。fish 使用 `which fish` 返回的路径，再分别传入 `-c` 和命令文本。例如 `command ls` 绕过用户定义的 `ls` 函数。钩子事件通过标准输入发送，读取 stdin 的命令会收到该 JSON。
 
-完整事件、标准输入、环境、工作目录和超时约定见[配置参考](https://pangmo5.dev/Tatami/zh-Hans/configuration.html#hooks)。
+完整事件、标准输入、环境、工作目录和超时约定见[配置参考](https://tatami.pangmo5.dev/zh-Hans/configuration.html#hooks)。
 
 <a id="json-output-and-exit-status"></a>
 ## JSON 输出与退出状态

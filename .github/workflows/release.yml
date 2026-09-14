@@ -2,7 +2,7 @@ name: Release
 
 # Push a tag like `v0.1.0` to cut a release: builds, signs, notarizes,
 # packages a DMG, signs it for Sparkle, regenerates appcast.xml, publishes a
-# GitHub Release, updates the Homebrew cask, and deploys the appcast to Pages.
+# GitHub Release, updates the Homebrew cask, and deploys the website to Workers Static Assets.
 on:
   push:
     tags:
@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -229,8 +227,8 @@ jobs:
           # appcast.xml rides along as a release asset: it's the canonical
           # Sparkle feed for this version, and the site deploy re-publishes it
           # from here. The independent site workflow skips release-preparation
-          # commits until this asset exists, avoiding same-SHA Pages deduplication
-          # against a site artifact that still contains the previous feed.
+          # commits until this asset exists, so an unpublished version cannot
+          # replace the site while it still contains the previous feed.
           APPCAST="$RUNNER_TEMP/release/appcast.xml"
           # Idempotent: if a re-run (recovering from a later-step failure) finds
           # the release already published, update it instead of erroring.
@@ -272,7 +270,7 @@ jobs:
           git commit -am "tatami ${VERSION}"
           git push
 
-      - name: Assemble GitHub Pages site (landing page + appcast)
+      - name: Assemble static site (landing page + appcast)
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -282,16 +280,35 @@ jobs:
           # Sparkle feed.
           cp "$RUNNER_TEMP/release/appcast.xml" "$RUNNER_TEMP/site/appcast.xml"
 
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: ${{ runner.temp }}/site
+      - name: Add static asset headers
+        run: cp web/_headers "$RUNNER_TEMP/site/_headers"
 
-  deploy-pages:
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: ${{ runner.temp }}/site
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy-site:
     needs: release
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-site
+      cancel-in-progress: false
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: cloudflare
+      url: https://tatami.pangmo5.dev
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
+      - name: Deploy static assets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.131.2"
+          command: deploy

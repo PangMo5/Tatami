@@ -16,9 +16,9 @@ Tatami는 앱을 가상 작업 공간에 모으고, 단축키나 설정한 트�
 <a id="see-tatami-in-action"></a>
 ## Tatami 사용 모습
 
-[![모든 작업에 알맞은 자리를 만들어요.](../../web/media/ko/tour.jpg)](https://pangmo5.dev/Tatami/ko/#demo)
+[![모든 작업에 알맞은 자리를 만들어요.](../../web/media/ko/tour.jpg)](https://tatami.pangmo5.dev/ko/#demo)
 
-**[전체 작업 흐름 보기](https://pangmo5.dev/Tatami/ko/#demo)**. 디자인, 글쓰기, 검토, 다음 할 일 빌려오기, 집중 환경 자동화, 두 번째 화면 연결까지 이어져요. 실제 Tatami로 창을 관리하며 앱과 내용은 데모용이에요. 표시한 단축키는 이 데모에서 설정한 키예요.
+**[전체 작업 흐름 보기](https://tatami.pangmo5.dev/ko/#demo)**. 디자인, 글쓰기, 검토, 다음 할 일 빌려오기, 집중 환경 자동화, 두 번째 화면 연결까지 이어져요. 실제 Tatami로 창을 관리하며 앱과 내용은 데모용이에요. 표시한 단축키는 이 데모에서 설정한 키예요.
 
 <details>
 <summary>설정과 시작 안내 스크린샷</summary>
@@ -56,7 +56,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="workspaces"></a>
 ### 작업 공간
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-workspaces" title="영상 보기"><img align="right" src="../../web/media/ko/workspaces.jpg" alt="작업 사이를 오가기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-workspaces" title="영상 보기"><img align="right" src="../../web/media/ko/workspaces.jpg" alt="작업 사이를 오가기" width="160"></a>
 
 - **가상 작업 공간:** 작업 공간마다 필요한 앱을 배정해서 모아요.
 - **편한 방식으로 전환:** 단축키, 트랙패드 제스처, 최근 작업 공간 이동을 사용할 수 있어요.
@@ -74,7 +74,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="window-tiling-bsp"></a>
 ### 창 타일링(BSP)
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-tiling" title="영상 보기"><img align="right" src="../../web/media/ko/tiling.jpg" alt="새 창이 제자리를 찾도록 하기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-tiling" title="영상 보기"><img align="right" src="../../web/media/ko/tiling.jpg" alt="새 창이 제자리를 찾도록 하기" width="160"></a>
 
 - **자동 BSP 배치:** 새 창을 현재 삽입 지점이나 포커스된 타일 옆에 배치해요. 둘 다 없으면 트리에서 가장 얕은 타일을 사용해요.
 - **키보드 조작:** 권장 단축키에서는 `ctrl + alt`과 `h`, `j`, `k`, `l`로 포커스를 옮기고, 화살표 키로 창 위치를 바꾸며, `=` 또는 `-`으로 포커스된 타일을 키우거나 줄여요.
@@ -90,7 +90,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="profiles"></a>
 ### 프로필
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-profiles" title="영상 보기"><img align="right" src="../../web/media/ko/profiles.jpg" alt="전체 구성 전환하기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-profiles" title="영상 보기"><img align="right" src="../../web/media/ko/profiles.jpg" alt="전체 구성 전환하기" width="160"></a>
 
 - **독립 프로필:** 작업 공간을 묶어 전체 구성을 한 번에 바꿔요. 프로필마다 작업 공간·앱 배정·단축키를 따로 저장해요.
 - **빠른 프로필 전환:** 단축키나 메뉴 막대에서 전환해요. 모든 화면을 새 구성으로 정리하고 재실행 후에도 알맞은 프로필로 돌아와요.
@@ -103,7 +103,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="borrow-compose-two-workspaces"></a>
 ### 빌려오기: 두 작업 공간 함께 쓰기
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-borrow" title="영상 보기"><img align="right" src="../../web/media/ko/borrow.jpg" alt="대화를 옆으로 가져오기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-borrow" title="영상 보기"><img align="right" src="../../web/media/ko/borrow.jpg" alt="대화를 옆으로 가져오기" width="160"></a>
 
 - **나란히 사용:** 다른 작업 공간을 화면 가장자리로 빌려와요. 두 영역은 따로 타일링되며 창은 경계를 넘지 않아요.
 - **실제 작업 그대로:** 빌려온 영역은 실제 작업 공간이에요. 편집한 내용은 원래 공간에도 남아요.
@@ -117,7 +117,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="always-on-top"></a>
 ### 항상 위
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-shared" title="영상 보기"><img align="right" src="../../web/media/ko/shared.jpg" alt="여러 작업에서 같은 상태 창 보기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-shared" title="영상 보기"><img align="right" src="../../web/media/ko/shared.jpg" alt="여러 작업에서 같은 상태 창 보기" width="160"></a>
 
 - **작업 공간별 또는 공용:** 한 공간에서만 앱을 항상 위에 두거나 공용 앱으로 추가해 어디서나 볼 수 있어요.
 - **SIP 변경 불필요:** ScreenCaptureKit 미러를 항상 위에 두고, 조작할 때 실제 창으로 연결해요.
@@ -129,7 +129,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="focus--cursor"></a>
 ### 포커스와 커서
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-focus" title="영상 보기"><img align="right" src="../../web/media/ko/focus.jpg" alt="내 의도에 따라 포커스 이동하기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-focus" title="영상 보기"><img align="right" src="../../web/media/ko/focus.jpg" alt="내 의도에 따라 포커스 이동하기" width="160"></a>
 
 - **두 가지 포커스 방식:** 마우스 따라가기는 포인터 아래 창에 키보드 포커스를 줘요. 포커스 따라가기는 Tatami가 창을 바꿀 때 포인터를 옮겨요. 항상 위·공용 항상 위·그대로 두기 창에서도 동작해요.
 - **닫은 뒤 포커스:** 남은 창 중 가장 최근에 쓰던 창으로 돌아가요.
@@ -140,7 +140,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="interface--config"></a>
 ### 화면과 설정
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-cli" title="영상 보기"><img align="right" src="../../web/media/ko/cli.jpg" alt="CLI로 집중할 환경 준비하기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-cli" title="영상 보기"><img align="right" src="../../web/media/ko/cli.jpg" alt="CLI로 집중할 환경 준비하기" width="160"></a>
 
 - **다섯 언어:** macOS 앱 언어 설정에 따라 영어·한국어·일본어·중국어 간체·대만 번체로 쓸 수 있어요.
 - **메뉴 막대 설정:** 활성 작업 공간의 아이콘·이름과 필요한 경우 프로필의 아이콘·이름을 표시해요.
@@ -158,7 +158,7 @@ Mission Control을 계속 쓰면서 작업 공간과 창을 더 자유롭게 다
 <a id="guided-setup"></a>
 ### 시작 안내
 
-<a href="https://pangmo5.dev/Tatami/ko/#demo-guided-setup" title="영상 보기"><img align="right" src="../../web/media/ko/guided-setup.jpg" alt="직접 사용하며 익히기" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ko/#demo-guided-setup" title="영상 보기"><img align="right" src="../../web/media/ko/guided-setup.jpg" alt="직접 사용하며 익히기" width="160"></a>
 
 - **직접 배우기:** 처음 실행하면 안전한 가상 화면에서 작업 공간, 전환·제스처, BSP 타일링, 빌려오기·임시 공간, 항상 위·그대로 두기, 포커스·포인터 따라가기, 앱·창 전환을 차례로 익혀요.
 - **이 Mac에서 시작:** 실행 중인 앱 정보와 연결된 화면을 바탕으로 초안을 만들어요. 일반적인 분류보다 반복하는 작업에 맞춰 구성하고 화면 내용은 수집하지 않아요.
@@ -225,7 +225,7 @@ tatami layout balance
 
 CLI는 프로필·작업 공간 관리, 훅 조회, 안정된 JSON 출력과 제스처로 실행할 수 있는 포커스·배치·앱·타일링·전환·빌려오기 명령을 분야별로 제공해요. Tatami가 실행 중이어야 해요.
 
-[전체 CLI 안내](CLI.md)를 읽거나 [pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/ko/cli.html)에서 웹으로 확인할 수 있어요.
+[전체 CLI 안내](CLI.md)를 읽거나 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/ko/cli.html)에서 웹으로 확인할 수 있어요.
 
 <a id="tech-stack"></a>
 ## 기술 구성

@@ -145,7 +145,7 @@ CLI 與手勢視窗循環立即執行。按住輔助鍵的切換工作階段僅�
 
 編輯器分別儲存執行檔和各參數，直接對應 `command[0]` 與其餘 argv。Tatami 不串接 shell 指令，不依空白拆分、不解讀引號或展開變數。需要 shell 語法時，明確選擇 `/bin/zsh`，分別傳入 `-lc` 與指令稿。fish 使用 `which fish` 回傳的路徑，再分別傳入 `-c` 和指令文字。例如 `command ls` 略過使用者定義的 `ls` 函式。Hook 事件透過標準輸入傳送，讀取 stdin 的指令會收到該 JSON。
 
-完整事件、標準輸入、環境、工作目錄與逾時約定見[設定參考](https://pangmo5.dev/Tatami/zh-Hant/configuration.html#hooks)。
+完整事件、標準輸入、環境、工作目錄與逾時約定見[設定參考](https://tatami.pangmo5.dev/zh-Hant/configuration.html#hooks)。
 
 <a id="json-output-and-exit-status"></a>
 ## JSON 輸出與結束狀態

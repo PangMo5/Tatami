@@ -83,9 +83,12 @@ struct DocumentBuilder {
     let known = Set(documents)
     func url(_ value: String) -> String {
       guard var parts = URLComponents(string: value) else { return value }
-      if parts.host == "pangmo5.dev" && (parts.path == "/Tatami" || parts.path.hasPrefix("/Tatami/")) {
-        let tail = String(parts.path.dropFirst("/Tatami".count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        parts.path = "/Tatami/" + locale + "/" + tail
+      let legacySite = parts.host == "pangmo5.dev" && (parts.path == "/Tatami" || parts.path.hasPrefix("/Tatami/"))
+      if parts.host == "tatami.pangmo5.dev" || legacySite {
+        let path = legacySite ? String(parts.path.dropFirst("/Tatami".count)) : parts.path
+        let tail = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        parts.host = "tatami.pangmo5.dev"
+        parts.path = "/" + locale + "/" + tail
         return parts.string ?? value
       }
       if parts.scheme != nil || parts.host != nil || parts.path.isEmpty { return value }

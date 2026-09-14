@@ -191,7 +191,7 @@ input, so a command that consumes standard input receives that JSON event.
 
 The full event, standard-input, environment, working-directory, and timeout
 contracts are documented in the
-[configuration reference](https://pangmo5.dev/Tatami/configuration.html#hooks).
+[configuration reference](https://tatami.pangmo5.dev/configuration.html#hooks).
 
 ## JSON output and exit status
 

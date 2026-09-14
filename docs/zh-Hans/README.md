@@ -16,9 +16,9 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="see-tatami-in-action"></a>
 ## 看看 Tatami 的实际操作
 
-[![为整个工作流程腾出空间。](../../web/media/zh-Hans/tour.jpg)](https://pangmo5.dev/Tatami/zh-Hans/#demo)
+[![为整个工作流程腾出空间。](../../web/media/zh-Hans/tour.jpg)](https://tatami.pangmo5.dev/zh-Hans/#demo)
 
-**[观看完整工作流程](https://pangmo5.dev/Tatami/zh-Hans/#demo)**：设计、写作、评审、借用待办事项、自动准备专注环境，再连接第二个显示器。窗口由实际的 Tatami 管理，应用和内容为演示素材。快捷键采用本次演示的配置。
+**[观看完整工作流程](https://tatami.pangmo5.dev/zh-Hans/#demo)**：设计、写作、评审、借用待办事项、自动准备专注环境，再连接第二个显示器。窗口由实际的 Tatami 管理，应用和内容为演示素材。快捷键采用本次演示的配置。
 
 <details>
 <summary>设置与设置向导截图</summary>
@@ -56,7 +56,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="workspaces"></a>
 ### 工作区
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-workspaces" title="观看视频"><img align="right" src="../../web/media/zh-Hans/workspaces.jpg" alt="在任务之间切换" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-workspaces" title="观看视频"><img align="right" src="../../web/media/zh-Hans/workspaces.jpg" alt="在任务之间切换" width="160"></a>
 
 - **虚拟工作区：** 按工作区分配和组织应用。
 - **灵活切换：** 使用快捷键、触控板手势或最近工作区操作。
@@ -74,7 +74,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="window-tiling-bsp"></a>
 ### 窗口平铺（BSP）
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-tiling" title="观看视频"><img align="right" src="../../web/media/zh-Hans/tiling.jpg" alt="让新窗口找到位置" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-tiling" title="观看视频"><img align="right" src="../../web/media/zh-Hans/tiling.jpg" alt="让新窗口找到位置" width="160"></a>
 
 - **自动 BSP 布局：** 将新窗口放在当前插入目标或焦点窗口所在区域的旁边。两者都不可用时，使用树中层级最浅的区域。
 - **键盘操作：** 使用推荐快捷键时，按住 `ctrl + alt`，配合 `h`、`j`、`k` 或 `l` 移动焦点，配合方向键交换窗口，配合 `=` 或 `-` 放大或缩小焦点窗口所在的区域。
@@ -90,7 +90,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="profiles"></a>
 ### 配置方案
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-profiles" title="观看视频"><img align="right" src="../../web/media/zh-Hans/profiles.jpg" alt="切换整套配置" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-profiles" title="观看视频"><img align="right" src="../../web/media/zh-Hans/profiles.jpg" alt="切换整套配置" width="160"></a>
 
 - **独立配置方案：** 分组管理工作区，一次切换整套环境。每个方案分别保存工作区、应用分配和快捷键。
 - **快速切换方案：** 通过快捷键或菜单栏切换，所有显示器重新平铺，重启后返回合适的配置方案。
@@ -103,7 +103,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="borrow-compose-two-workspaces"></a>
 ### 借用：组合两个工作区
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-borrow" title="观看视频"><img align="right" src="../../web/media/zh-Hans/borrow.jpg" alt="把对话放到旁边" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-borrow" title="观看视频"><img align="right" src="../../web/media/zh-Hans/borrow.jpg" alt="把对话放到旁边" width="160"></a>
 
 - **并排组合：** 把另一个工作区借到屏幕任一边缘，两个区域独立平铺，窗口不会越界。
 - **实时双向：** 借来的区域就是实际工作区，编辑会保留下来。
@@ -117,7 +117,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="always-on-top"></a>
 ### 置顶
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-shared" title="观看视频"><img align="right" src="../../web/media/zh-Hans/shared.jpg" alt="跨任务使用同一个状态窗口" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-shared" title="观看视频"><img align="right" src="../../web/media/zh-Hans/shared.jpg" alt="跨任务使用同一个状态窗口" width="160"></a>
 
 - **单独或共享：** 在一个工作区置顶应用，或加入共享应用后在所有工作区置顶。
 - **无需修改 SIP：** 使用置顶的 ScreenCaptureKit 镜像，交互时切换到实际窗口。
@@ -129,7 +129,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="focus--cursor"></a>
 ### 焦点与指针
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-focus" title="观看视频"><img align="right" src="../../web/media/zh-Hans/focus.jpg" alt="让焦点跟随你的意图" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-focus" title="观看视频"><img align="right" src="../../web/media/zh-Hans/focus.jpg" alt="让焦点跟随你的意图" width="160"></a>
 
 - **两种明确的焦点模式：** 焦点跟随鼠标让指针下方的窗口获得键盘焦点；鼠标跟随焦点在 Tatami 切换窗口后移动指针，包含置顶、共享置顶和保持原样窗口。
 - **关闭后恢复焦点：** 返回剩余窗口中最近使用的窗口。
@@ -140,7 +140,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="interface--config"></a>
 ### 界面与配置
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-cli" title="观看视频"><img align="right" src="../../web/media/zh-Hans/cli.jpg" alt="用 CLI 准备专注环境" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-cli" title="观看视频"><img align="right" src="../../web/media/zh-Hans/cli.jpg" alt="用 CLI 准备专注环境" width="160"></a>
 
 - **五种界面语言：** 跟随 macOS 应用语言设置，支持英语、韩语、日语、简体中文和繁体中文（台湾）。
 - **自定义菜单栏：** 显示当前工作区的图标或名称，并可显示活动配置方案的图标或名称。
@@ -158,7 +158,7 @@ Tatami 把应用组织到虚拟工作区，通过快捷键或自定义触控板�
 <a id="guided-setup"></a>
 ### 设置向导
 
-<a href="https://pangmo5.dev/Tatami/zh-Hans/#demo-guided-setup" title="观看视频"><img align="right" src="../../web/media/zh-Hans/guided-setup.jpg" alt="边用边学" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hans/#demo-guided-setup" title="观看视频"><img align="right" src="../../web/media/zh-Hans/guided-setup.jpg" alt="边用边学" width="160"></a>
 
 - **边用边学：** 首次启动时，在安全的虚拟桌面依次学习工作区、切换与手势、BSP 平铺、借用与暂存区、置顶与保持原样、MFF/FFM 和应用窗口切换。
 - **基于这台 Mac：** 使用运行中应用的信息和已连接显示器的几何数据，按重复进行的任务组织应用，而非套用通用分类。不捕获屏幕内容。
@@ -225,7 +225,7 @@ tatami layout balance
 
 CLI 按领域提供配置方案与工作区管理、钩子查询、稳定 JSON 输出，以及与手势相同的焦点、布局、应用、平铺、循环切换和借用操作。Tatami 必须正在运行。
 
-阅读[完整 CLI 参考](CLI.md)，或在 [pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/zh-Hans/cli.html) 查看网页版本。
+阅读[完整 CLI 参考](CLI.md)，或在 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/zh-Hans/cli.html) 查看网页版本。
 
 <a id="tech-stack"></a>
 ## 技术栈

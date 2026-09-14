@@ -16,9 +16,9 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="see-tatami-in-action"></a>
 ## 看看 Tatami 的實際操作
 
-[![為整個工作流程騰出空間。](../../web/media/zh-Hant/tour.jpg)](https://pangmo5.dev/Tatami/zh-Hant/#demo)
+[![為整個工作流程騰出空間。](../../web/media/zh-Hant/tour.jpg)](https://tatami.pangmo5.dev/zh-Hant/#demo)
 
-**[觀看完整工作流程](https://pangmo5.dev/Tatami/zh-Hant/#demo)**：設計、撰寫、審閱、借用待辦事項、自動準備專注環境，再連接第二部顯示器。視窗由實際的 Tatami 管理，App 和內容為示範素材。快速鍵採用本次示範的設定。
+**[觀看完整工作流程](https://tatami.pangmo5.dev/zh-Hant/#demo)**：設計、撰寫、審閱、借用待辦事項、自動準備專注環境，再連接第二部顯示器。視窗由實際的 Tatami 管理，App 和內容為示範素材。快速鍵採用本次示範的設定。
 
 <details>
 <summary>設定與設定導覽截圖</summary>
@@ -56,7 +56,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="workspaces"></a>
 ### 工作空間
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-workspaces" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/workspaces.jpg" alt="在工作之間切換" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-workspaces" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/workspaces.jpg" alt="在工作之間切換" width="160"></a>
 
 - **虛擬工作空間：** 依工作空間指派和整理 App。
 - **彈性切換：** 使用快速鍵、觸控式軌跡板手勢或最近工作空間操作。
@@ -74,7 +74,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="window-tiling-bsp"></a>
 ### 視窗並排（BSP）
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-tiling" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/tiling.jpg" alt="讓新視窗找到位置" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-tiling" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/tiling.jpg" alt="讓新視窗找到位置" width="160"></a>
 
 - **自動 BSP 配置：** 將新視窗放在目前插入目標或取得焦點的區塊旁。兩者都不可用時，使用樹狀結構中最淺層的區塊。
 - **鍵盤操作：** 使用建議快速鍵時，按住 `ctrl + alt`，搭配 `h`、`j`、`k` 或 `l` 移動焦點，搭配方向鍵交換視窗，搭配 `=` 或 `-` 放大或縮小取得焦點的區塊。
@@ -90,7 +90,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="profiles"></a>
 ### 設定組合
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-profiles" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/profiles.jpg" alt="切換整套設定" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-profiles" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/profiles.jpg" alt="切換整套設定" width="160"></a>
 
 - **獨立設定組合：** 分組管理工作空間，一次切換整套環境。每個組合分別儲存工作空間、App 指派與快速鍵。
 - **快速切換組合：** 透過快速鍵或選單列切換，所有顯示器重新並排，重新啟動後返回合適的設定組合。
@@ -103,7 +103,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="borrow-compose-two-workspaces"></a>
 ### 借用：組合兩個工作空間
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-borrow" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/borrow.jpg" alt="把對話放到旁邊" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-borrow" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/borrow.jpg" alt="把對話放到旁邊" width="160"></a>
 
 - **並排組合：** 把另一個工作空間借到螢幕任一邊緣，兩個區域獨立並排，視窗不會越界。
 - **即時雙向：** 借來的區域就是實際工作空間，編輯會保留下來。
@@ -117,7 +117,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="always-on-top"></a>
 ### 置頂
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-shared" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/shared.jpg" alt="跨工作使用同一個狀態視窗" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-shared" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/shared.jpg" alt="跨工作使用同一個狀態視窗" width="160"></a>
 
 - **個別或共用：** 在一個工作空間置頂 App，或加入共用 App 後在所有工作空間置頂。
 - **不必修改 SIP：** 使用置頂的 ScreenCaptureKit 鏡像，互動時切換到實際視窗。
@@ -129,7 +129,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="focus--cursor"></a>
 ### 焦點與游標
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-focus" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/focus.jpg" alt="讓焦點跟隨你的意圖" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-focus" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/focus.jpg" alt="讓焦點跟隨你的意圖" width="160"></a>
 
 - **兩種明確的焦點模式：** 焦點跟隨游標讓游標下方的視窗取得鍵盤焦點；游標跟隨焦點在 Tatami 切換視窗後移動游標，包含置頂、共用置頂與維持原狀視窗。
 - **關閉後還原焦點：** 返回剩餘視窗中最近使用的視窗。
@@ -140,7 +140,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="interface--config"></a>
 ### 介面與設定
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-cli" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/cli.jpg" alt="用 CLI 準備專注環境" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-cli" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/cli.jpg" alt="用 CLI 準備專注環境" width="160"></a>
 
 - **五種介面語言：** 跟隨 macOS App 語言設定，支援英文、韓文、日文、簡體中文與繁體中文（台灣）。
 - **自訂選單列：** 顯示目前工作空間的圖像或名稱，並可顯示作用中設定組合的圖像或名稱。
@@ -158,7 +158,7 @@ Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式�
 <a id="guided-setup"></a>
 ### 設定導覽
 
-<a href="https://pangmo5.dev/Tatami/zh-Hant/#demo-guided-setup" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/guided-setup.jpg" alt="邊用邊學" width="160"></a>
+<a href="https://tatami.pangmo5.dev/zh-Hant/#demo-guided-setup" title="觀看影片"><img align="right" src="../../web/media/zh-Hant/guided-setup.jpg" alt="邊用邊學" width="160"></a>
 
 - **邊用邊學：** 首次啟動時，在安全的虛擬桌面依序學習工作空間、切換與手勢、BSP 並排、借用與暫存區、置頂與維持原狀、MFF/FFM 和 App 視窗切換。
 - **基於這部 Mac：** 使用執行中 App 的資訊與已連接顯示器的幾何資料，依重複進行的工作組織 App，而非套用一般分類。不擷取螢幕內容。
@@ -225,7 +225,7 @@ tatami layout balance
 
 CLI 依領域提供設定組合與工作空間管理、掛鉤查詢、穩定 JSON 輸出，以及與手勢相同的焦點、排列、App、並排、循環切換與借用操作。Tatami 必須正在執行。
 
-閱讀[完整 CLI 參考](CLI.md)，或在 [pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/zh-Hant/cli.html) 查看網頁版本。
+閱讀[完整 CLI 參考](CLI.md)，或在 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/zh-Hant/cli.html) 查看網頁版本。
 
 <a id="tech-stack"></a>
 ## 技術架構

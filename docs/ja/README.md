@@ -16,9 +16,9 @@ Tatami はアプリを仮想ワークスペースにまとめ、キーや設定�
 <a id="see-tatami-in-action"></a>
 ## Tatami の使い方を見る
 
-[![仕事の流れに、必要な場所を。](../../web/media/ja/tour.jpg)](https://pangmo5.dev/Tatami/ja/#demo)
+[![仕事の流れに、必要な場所を。](../../web/media/ja/tour.jpg)](https://tatami.pangmo5.dev/ja/#demo)
 
-**[一連の作業を見る](https://pangmo5.dev/Tatami/ja/#demo)**。デザイン、執筆、レビュー、次の作業を借りる操作、集中環境の自動化、2 台目の画面への対応まで紹介します。実際の Tatami を使い、アプリと内容はデモ用です。表示するキーはこのデモの設定です。
+**[一連の作業を見る](https://tatami.pangmo5.dev/ja/#demo)**。デザイン、執筆、レビュー、次の作業を借りる操作、集中環境の自動化、2 台目の画面への対応まで紹介します。実際の Tatami を使い、アプリと内容はデモ用です。表示するキーはこのデモの設定です。
 
 <details>
 <summary>設定とガイドのスクリーンショット</summary>
@@ -56,7 +56,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="workspaces"></a>
 ### ワークスペース
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-workspaces" title="動画を見る"><img align="right" src="../../web/media/ja/workspaces.jpg" alt="作業を切り替える" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-workspaces" title="動画を見る"><img align="right" src="../../web/media/ja/workspaces.jpg" alt="作業を切り替える" width="160"></a>
 
 - **仮想ワークスペース：** 作業ごとに必要なアプリを割り当ててまとめます。
 - **使いやすく切り替え：** ショートカット、トラックパッドのジェスチャ、直前のワークスペースへの移動を使えます。
@@ -74,7 +74,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="window-tiling-bsp"></a>
 ### ウインドウのタイル表示（BSP）
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-tiling" title="動画を見る"><img align="right" src="../../web/media/ja/tiling.jpg" alt="新しいウインドウが自然に収まる" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-tiling" title="動画を見る"><img align="right" src="../../web/media/ja/tiling.jpg" alt="新しいウインドウが自然に収まる" width="160"></a>
 
 - **自動 BSP 配置：** 新しいウインドウは、現在の挿入先またはフォーカス中のタイルの隣に配置します。どちらもなければ、ツリーで最も浅いタイルを使います。
 - **キーボード操作：** 推奨設定では、`ctrl + alt` と `h`、`j`、`k`、`l` でフォーカスを移動し、矢印キーでウインドウを入れ替え、`=` または `-` でフォーカス中のタイルを拡大・縮小します。
@@ -90,7 +90,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="profiles"></a>
 ### プロファイル
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-profiles" title="動画を見る"><img align="right" src="../../web/media/ja/profiles.jpg" alt="作業環境ごと切り替える" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-profiles" title="動画を見る"><img align="right" src="../../web/media/ja/profiles.jpg" alt="作業環境ごと切り替える" width="160"></a>
 
 - **独立したプロファイル：** 作業をまとめ、構成全体を切り替えます。作業、アプリの割り当て、ショートカットを個別に持ちます。
 - **すばやい切り替え：** キーやメニューバーで切り替えます。全画面を新しい構成に整え、再起動後も適切なプロファイルに戻ります。
@@ -103,7 +103,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="borrow-compose-two-workspaces"></a>
 ### 借りる：二つの作業を組み合わせる
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-borrow" title="動画を見る"><img align="right" src="../../web/media/ja/borrow.jpg" alt="会話を横に呼び出す" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-borrow" title="動画を見る"><img align="right" src="../../web/media/ja/borrow.jpg" alt="会話を横に呼び出す" width="160"></a>
 
 - **並べて使う：** 別の作業を画面の端に借りて、両方を独立して配置します。ウインドウは境界を越えません。
 - **実際の作業をそのまま：** 借りた領域は実際の作業なので、編集内容も元の場所に残ります。
@@ -117,7 +117,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="always-on-top"></a>
 ### 常に手前
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-shared" title="動画を見る"><img align="right" src="../../web/media/ja/shared.jpg" alt="作業が変わっても同じ状態ウインドウを使う" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-shared" title="動画を見る"><img align="right" src="../../web/media/ja/shared.jpg" alt="作業が変わっても同じ状態ウインドウを使う" width="160"></a>
 
 - **作業別・共有：** 一つの作業だけで手前に置くか、共有アプリにしてどこでも表示できます。
 - **SIP 変更不要：** ScreenCaptureKit のミラーを手前に表示し、操作時に実際のウインドウへ渡します。
@@ -129,7 +129,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="focus--cursor"></a>
 ### フォーカスとカーソル
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-focus" title="動画を見る"><img align="right" src="../../web/media/ja/focus.jpg" alt="意図に合わせてフォーカスを移す" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-focus" title="動画を見る"><img align="right" src="../../web/media/ja/focus.jpg" alt="意図に合わせてフォーカスを移す" width="160"></a>
 
 - **二つの方式：** FFM はポインタの下にキーボードフォーカスを移し、MFF は Tatami が選んだウインドウへポインタを移します。手前・共有の手前・そのままのウインドウにも対応します。
 - **閉じた後のフォーカス：** 残った中で最近使ったウインドウへ戻ります。
@@ -140,7 +140,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="interface--config"></a>
 ### 画面と設定
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-cli" title="動画を見る"><img align="right" src="../../web/media/ja/cli.jpg" alt="CLI で集中できる環境を用意する" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-cli" title="動画を見る"><img align="right" src="../../web/media/ja/cli.jpg" alt="CLI で集中できる環境を用意する" width="160"></a>
 
 - **5 言語：** macOS のアプリ言語に合わせ、英語・韓国語・日本語・簡体字・繁体字（台湾）で使えます。
 - **メニューバーの設定：** 現在の作業のアイコン・名前と、必要に応じてプロファイルの情報を表示できます。
@@ -158,7 +158,7 @@ Mission Control を日々使いながら、ワークスペースやウインド�
 <a id="guided-setup"></a>
 ### 使いながら設定
 
-<a href="https://pangmo5.dev/Tatami/ja/#demo-guided-setup" title="動画を見る"><img align="right" src="../../web/media/ja/guided-setup.jpg" alt="使いながら覚える" width="160"></a>
+<a href="https://tatami.pangmo5.dev/ja/#demo-guided-setup" title="動画を見る"><img align="right" src="../../web/media/ja/guided-setup.jpg" alt="使いながら覚える" width="160"></a>
 
 - **使いながら学ぶ：** 初回起動時に安全な仮想画面で、作業、切り替え・ジェスチャ、BSP、借りる・一時スペース、手前・そのまま、MFF・FFM、アプリ・ウインドウ切り替えを順に学べます。
 - **この Mac から開始：** 実行中アプリの情報と接続画面から下書きを作ります。一般的な分類ではなく繰り返す作業に合わせ、画面の内容は取得しません。
@@ -225,7 +225,7 @@ tatami layout balance
 
 CLI はプロファイル・作業の管理、フックの確認、安定した JSON 出力に加え、ジェスチャと同じフォーカス、配置、アプリ、タイル表示、切り替え、借りる操作を分類して提供します。Tatami の起動が必要です。
 
-[CLI の完全なガイド](CLI.md)、または [pangmo5.dev/Tatami](https://pangmo5.dev/Tatami/ja/cli.html) の Web 版を参照してください。
+[CLI の完全なガイド](CLI.md)、または [tatami.pangmo5.dev](https://tatami.pangmo5.dev/ja/cli.html) の Web 版を参照してください。
 
 <a id="tech-stack"></a>
 ## 技術構成

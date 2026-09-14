@@ -148,10 +148,14 @@ struct SiteBuilder {
           }
           if node.tag == "head" {
             for code in locales {
-              let url = "https://pangmo5.dev/Tatami/" + (code == "en" ? "" : code + "/") + (page == "index.html" ? "" : page)
+              let url = "https://tatami.pangmo5.dev/" + (code == "en" ? "" : code + "/") + (page == "index.html"
+                ? ""
+                : String(page.dropLast(".html".count)))
               node.children.append(.node(HTMLNode("link", [("rel", "alternate"), ("hreflang", code), ("href", url)])))
             }
-            let url = "https://pangmo5.dev/Tatami/" + (locale == "en" ? "" : locale + "/") + (page == "index.html" ? "" : page)
+            let url = "https://tatami.pangmo5.dev/" + (locale == "en" ? "" : locale + "/") + (page == "index.html"
+              ? ""
+              : String(page.dropLast(".html".count)))
             node.children.append(.node(HTMLNode("link", [("rel", "canonical"), ("href", url)])))
           }
         }
