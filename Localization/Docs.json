@@ -853,12 +853,12 @@
     "zh-Hans": "CLI 按领域提供配置方案与工作区管理、钩子查询、稳定 JSON 输出，以及与手势相同的焦点、布局、应用、平铺、循环切换和借用操作。Tatami 必须正在运行。",
     "zh-Hant": "CLI 依領域提供設定組合與工作空間管理、掛鉤查詢、穩定 JSON 輸出，以及與手勢相同的焦點、排列、App、並排、循環切換與借用操作。Tatami 必須正在執行。"
   },
-  "3fbde6eef15b8327": {
-    "en": "Read the [full CLI reference]({0}), or view its live web rendering on [pangmo5.dev/Tatami]({1}).",
-    "ko": "[전체 CLI 안내]({0})를 읽거나 [pangmo5.dev/Tatami]({1})에서 웹으로 확인할 수 있어요.",
-    "ja": "[CLI の完全なガイド]({0})、または [pangmo5.dev/Tatami]({1}) の Web 版を参照してください。",
-    "zh-Hans": "阅读[完整 CLI 参考]({0})，或在 [pangmo5.dev/Tatami]({1}) 查看网页版本。",
-    "zh-Hant": "閱讀[完整 CLI 參考]({0})，或在 [pangmo5.dev/Tatami]({1}) 查看網頁版本。"
+  "bf9eaa6679f63fab": {
+    "en": "Read the [full CLI reference]({0}), or view its live web rendering on [tatami.pangmo5.dev]({1}).",
+    "ko": "[전체 CLI 안내]({0})를 읽거나 [tatami.pangmo5.dev]({1})에서 웹으로 확인할 수 있어요.",
+    "ja": "[CLI の完全なガイド]({0})、または [tatami.pangmo5.dev]({1}) の Web 版を参照してください。",
+    "zh-Hans": "阅读[完整 CLI 参考]({0})，或在 [tatami.pangmo5.dev]({1}) 查看网页版本。",
+    "zh-Hant": "閱讀[完整 CLI 參考]({0})，或在 [tatami.pangmo5.dev]({1}) 查看網頁版本。"
   },
   "279174dbea275266": {
     "en": "Tech stack",

@@ -145,7 +145,7 @@ CLI とジェスチャの切り替えは即時に行います。修飾キーを�
 
 実行ファイルと各引数は別フィールドで、先頭は `command[0]`、残りは argv になります。シェル結合、空白分割、引用符解釈、変数展開は行いません。必要なら `/bin/zsh` を選び、`-lc` とスクリプトを別引数にします。fish は `which fish` のパスに `-c` と本文を渡します。`command ls` はユーザーの `ls` 関数を避けます。標準入力を読むコマンドにはフックの JSON イベントが届きます。
 
-イベント、標準入力、環境、作業フォルダ、時間制限の詳しい規則は[設定ガイド](https://pangmo5.dev/Tatami/ja/configuration.html#hooks)にあります。
+イベント、標準入力、環境、作業フォルダ、時間制限の詳しい規則は[設定ガイド](https://tatami.pangmo5.dev/ja/configuration.html#hooks)にあります。
 
 <a id="json-output-and-exit-status"></a>
 ## JSON 出力と終了状態

@@ -145,7 +145,7 @@ CLI와 제스처의 창 전환은 즉시 실행돼요. 보조키를 길게 눌�
 
 설정 편집기는 실행 파일과 각 인자를 별도 입력칸에 보관해요. 첫 값은 `command[0]`, 나머지는 argv가 돼요. 셸 명령으로 합치거나 공백·따옴표·변수를 해석하지 않아요. 셸 문법이 필요하면 `/bin/zsh` 실행 파일에 `-lc`와 스크립트를 따로 넘기세요. fish는 `which fish`이 알려준 경로에 `-c`와 명령을 별도 인자로 추가해요. 예를 들어 `command ls`는 사용자 정의 `ls` 함수를 건너뛰어요. 표준 입력으로 훅의 JSON 이벤트를 전달하므로 stdin을 읽는 명령은 그 이벤트를 받아요.
 
-이벤트, 표준 입력, 환경 변수, 작업 폴더, 제한 시간의 전체 규칙은 [설정 안내](https://pangmo5.dev/Tatami/ko/configuration.html#hooks)에서 확인해요.
+이벤트, 표준 입력, 환경 변수, 작업 폴더, 제한 시간의 전체 규칙은 [설정 안내](https://tatami.pangmo5.dev/ko/configuration.html#hooks)에서 확인해요.
 
 <a id="json-output-and-exit-status"></a>
 ## JSON 출력과 종료 상태

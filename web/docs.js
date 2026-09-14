@@ -24,8 +24,10 @@
       if (!href || href.startsWith('#')) continue;
       if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
         const published = new URL(href);
-        if (published.origin === 'https://pangmo5.dev' && published.pathname.startsWith('/Tatami/')) {
-          const target = new URL(published.pathname.slice('/Tatami/'.length), siteRoot);
+        const legacySite = published.origin === 'https://pangmo5.dev' && published.pathname.startsWith('/Tatami/');
+        if (published.origin === 'https://tatami.pangmo5.dev' || legacySite) {
+          const path = legacySite ? published.pathname.slice('/Tatami/'.length) : published.pathname.slice(1);
+          const target = new URL(path, siteRoot);
           target.hash = published.hash; target.search = published.search; link.href = target.href;
         }
         continue;
