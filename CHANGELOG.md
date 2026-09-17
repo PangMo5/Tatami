@@ -10,6 +10,14 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.14.2 (2026-09-17)
+
+More reliable window focus and Guided Setup.
+
+### Fixes
+- **Keep recent window focus after using menus:** Returning to a workspace restores the window you last selected, even after using an app's menus and switching between its windows.
+- **Finish Guided Setup reliably:** Restore and apply saved setup drafts correctly after a relaunch. Applying a setup now closes the guide after confirmation and clears the completed draft.
+
 ## 1.14.1 (2026-09-11)
 
 More reliable layout restoration, window switching, and permission handling.
