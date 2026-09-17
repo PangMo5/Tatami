@@ -49,9 +49,25 @@ struct OnboardingView: View {
       ),
     )
     .task { store.send(.viewAppeared) }
-    .onDisappear { store.send(.viewDisappeared) }
+    .onDisappear {
+      dismissalIsPending = false
+      store.send(.viewDisappeared)
+    }
     .onChange(of: store.dismissalRequest) { previousRequest, request in
-      if request > previousRequest { dismissWindow() }
+      guard request > previousRequest else { return }
+      // The alert sends its action before AppKit detaches the sheet. A window
+      // cannot close in that interval; wait for the owning window's sheet end.
+      dismissalIsPending = true
+      let window = NSApp.windows.first { $0.identifier?.rawValue == "onboarding" }
+      if window?.attachedSheet == nil { dismissOnboardingWindow() }
+    }
+    .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification)) { notification in
+      guard
+        dismissalIsPending,
+        let window = notification.object as? NSWindow,
+        window.identifier?.rawValue == "onboarding"
+      else { return }
+      dismissOnboardingWindow()
     }
   }
 
@@ -62,6 +78,12 @@ struct OnboardingView: View {
   }
 
   @Environment(\.dismissWindow) private var dismissWindow
+  @State private var dismissalIsPending = false
+
+  private func dismissOnboardingWindow() {
+    dismissalIsPending = false
+    dismissWindow(id: "onboarding")
+  }
 
 }
 

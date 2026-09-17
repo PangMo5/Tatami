@@ -208,6 +208,9 @@ struct OnboardingFeatureTests {
       $0.onboardingProgress.complete = {
         completions.withValue { $0 += 1 }
       }
+      $0.onboardingProgress.save = { _ in
+        Issue.record("Closing an applied guide must not recreate its saved draft")
+      }
     }
 
     await store.send(.configurationApplied) {
@@ -219,6 +222,31 @@ struct OnboardingFeatureTests {
     await store.finish()
 
     #expect(completions.value == 1)
+
+    store.exhaustivity = .off
+    await store.send(.viewDisappeared)
+    await store.finish()
+  }
+
+  @Test
+  func `closing an unfinished guide preserves its draft`() async {
+    let saved = LockIsolated<OnboardingProgress?>(nil)
+    var state = OnboardingFeature.State()
+    state.isPresented = true
+    state.draft.settings.focus.focusFollowsMouse = true
+    let draft = state.draft
+    let store = TestStore(initialState: state) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { progress in saved.setValue(progress) }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.viewDisappeared)
+    await store.finish()
+
+    #expect(!store.state.isPresented)
+    #expect(saved.value?.draft.restored == draft)
   }
 
   @Test
@@ -1377,6 +1405,100 @@ struct OnboardingFeatureTests {
     #expect(!recommendation.assignments.contains(where: {
       $0.bundleIdentifier == notes.bundleIdentifier
     }))
+  }
+
+  @Test
+  func `apply accepts a restored session profile without discarding the draft`() async {
+    let profile = Profile(name: "Default")
+    let baseline = AppConfig(profiles: [profile])
+    var latest = baseline
+    latest.activeProfileId = profile.id
+    var draft = latest
+    draft.profiles[0].workspaces.append(Workspace(name: "Build"))
+    draft.settings.focus.focusFollowsMouse = true
+    let completions = LockIsolated(0)
+
+    var initialState = AppFeature.State()
+    initialState.$config.withLock { $0 = latest }
+    initialState.onboarding.baseline = baseline
+    initialState.onboarding.draft = draft
+    initialState.onboarding.isPresented = true
+    initialState.onboarding.activateAfterApplying = false
+    let store = TestStore(initialState: initialState) {
+      AppFeature()
+    } withDependencies: {
+      $0.onboardingProgress.complete = { completions.withValue { $0 += 1 } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.onboarding(.applyButtonTapped))
+    #expect(store.state.onboarding.alert != nil)
+    await store.send(.onboarding(.alert(.presented(.confirmApply))))
+    await store.receive(\.onboarding.configurationApplied)
+    await store.finish()
+
+    #expect(store.state.config == draft)
+    #expect(!store.state.onboarding.configurationConflict)
+    #expect(!store.state.onboarding.isApplying)
+    #expect(!store.state.onboarding.isPresented)
+    #expect(store.state.onboarding.dismissalRequest == 1)
+    #expect(completions.value == 1)
+  }
+
+  @Test(arguments: [false, true])
+  func `resume compares saved settings independently of the session profile`(settingsChanged: Bool) async {
+    let profile = Profile(name: "Default", workspaces: [Workspace(name: "Build")])
+    let baseline = AppConfig(profiles: [profile])
+    var latest = baseline
+    latest.activeProfileId = profile.id
+    if settingsChanged { latest.settings.layout.gapInner += 1 }
+    var draft = baseline
+    draft.profiles[0].name = "My setup"
+    draft.settings.focus.focusFollowsMouse = true
+    let progress = OnboardingProgress(
+      baseline: OnboardingConfigSnapshot(baseline),
+      demoActiveWorkspaceID: profile.workspaces.first?.id,
+      demoBorrowed: false,
+      demoFullscreenZoomed: [:],
+      demoLayoutMode: .tiled,
+      demoLayoutTree: nil,
+      draft: OnboardingConfigSnapshot(draft),
+      furthestStepIndex: 8,
+      contextStyle: .focused,
+      practices: [],
+      prefersScratchpads: true,
+      recurringWork: "",
+      roleDescription: "",
+      step: .finish,
+    )
+    let store = TestStore(initialState: OnboardingFeature.State()) {
+      OnboardingFeature()
+    } withDependencies: {
+      $0.onboardingProgress.save = { _ in }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.preparationResponse(OnboardingPreparation(
+      apps: [],
+      config: latest,
+      displays: [],
+      hasAccessibility: true,
+      hasScreenRecording: true,
+      mode: .review,
+      progress: progress,
+      requestsPresentation: true,
+    )))
+    await store.finish()
+
+    if settingsChanged {
+      #expect(store.state.baseline == latest)
+      #expect(store.state.draft.profiles[0].name == "Default")
+      #expect(store.state.step == .welcome)
+    } else {
+      #expect(store.state.baseline == baseline)
+      #expect(store.state.draft == draft)
+      #expect(store.state.step == .finish)
+    }
   }
 
   @Test
