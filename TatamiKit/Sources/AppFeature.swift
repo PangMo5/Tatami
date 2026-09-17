@@ -487,7 +487,9 @@ public struct AppFeature {
         )
 
       case .onboarding(.delegate(.applyRequested(let baseline, let draft, let activate))):
-        guard state.config == baseline else {
+        // Startup restores the active profile after the onboarding baseline
+        // is captured. Session-only changes must not invalidate that draft.
+        guard state.config.hasSamePersistedContent(as: baseline) else {
           return .send(.onboarding(.configurationConflictDetected(state.config)))
         }
         state.$config.withLock { $0 = draft }

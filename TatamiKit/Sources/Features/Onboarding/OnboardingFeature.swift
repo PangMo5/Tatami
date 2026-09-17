@@ -704,7 +704,7 @@ public struct OnboardingFeature {
 
       case .preparationResponse(let preparation):
         let matchingProgress = preparation.progress.flatMap {
-          $0.baseline.restored == preparation.config ? $0 : nil
+          $0.baseline.restored.hasSamePersistedContent(as: preparation.config) ? $0 : nil
         }
         state.baseline = matchingProgress?.baseline.restored ?? preparation.config
         state.draft = matchingProgress?.draft.restored
@@ -785,9 +785,12 @@ public struct OnboardingFeature {
         )
 
       case .viewDisappeared:
+        // Successful Apply already completed and cleared the saved draft.
+        // Only a user closing an unfinished guide should save progress here.
+        let saveProgress = state.isPresented ? persist(state) : .none
         state.isPresented = false
         return .merge(
-          persist(state),
+          saveProgress,
           .cancel(id: CancelID.permissionChanges),
           .cancel(id: CancelID.screenRecordingChanges),
           .send(.delegate(.gesturePreviewEnded)),
