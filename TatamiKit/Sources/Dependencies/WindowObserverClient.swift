@@ -952,10 +952,6 @@ private final class ObservedApp: @unchecked Sendable {
 
   // MARK: Fileprivate
 
-  /// While a menu is open AX briefly hops focus to the menu element
-  /// and back, which would otherwise trigger reconciles. Toggled by
-  /// `kAXMenuOpened/Closed` to gate focus events.
-  fileprivate var isMenuOpen = false
   /// Number of AX windows subscribed on the last `refreshWindowSubscriptions`
   /// run. Surfaced through the debug log so we can tell whether an app's
   /// `kAXWindowsAttribute` actually returned the windows we expected.
@@ -993,8 +989,6 @@ private final class ObservedApp: @unchecked Sendable {
       (kAXMainWindowChangedNotification as CFString, "kAXMainWindowChanged"),
       (kAXWindowMiniaturizedNotification as CFString, "kAXWindowMiniaturized"),
       (kAXWindowDeminiaturizedNotification as CFString, "kAXWindowDeminiaturized"),
-      (kAXMenuOpenedNotification as CFString, "kAXMenuOpened"),
-      (kAXMenuClosedNotification as CFString, "kAXMenuClosed"),
       (kAXTitleChangedNotification as CFString, "kAXTitleChanged"),
     ]
     var allOK = true
@@ -1266,9 +1260,20 @@ private func axObserverCallback(
     // (some apps' windows are AX-hidden until reconciled with
     // CGWindowList) so the reducer can still trigger a per-app
     // reconcile — the front-switch reconcile pattern.
-    // Skip while a menu is open: AX briefly bounces focus to the
-    // menu element and back, which would just churn the BSP.
-    if app.isMenuOpen { break }
+    // Filter the notification's element, not an app-wide menu-open latch.
+    // Menu lifecycle notifications are not guaranteed to arrive in pairs;
+    // a missing close must never suppress later Cmd+` window focus changes.
+    // Menus can resolve to their owning window's ID, so check the AX role
+    // before bridging the element to a WindowKey. Keep unresolved elements
+    // eligible for the existing nil-key reconciliation path.
+    var rawRole: CFTypeRef?
+    AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &rawRole)
+    if
+      let role = rawRole as? String,
+      [kAXMenuRole, kAXMenuBarRole, kAXMenuItemRole, kAXMenuBarItemRole].contains(role)
+    {
+      break
+    }
     let key = WindowKey(axWindow: element, pid: app.pid, bundleId: app.bundleId)
     debugLog.log(
       "AX",
@@ -1288,12 +1293,6 @@ private func axObserverCallback(
       "miniaturizeChange pid=\(app.pid) bundle=\(app.bundleId) name=\(name)",
     )
     app.eventSink.yield(.windowCreated(bundleId: app.bundleId, pid: app.pid))
-
-  case AXNotificationName.menuOpened:
-    app.isMenuOpen = true
-
-  case AXNotificationName.menuClosed:
-    app.isMenuOpen = false
 
   case AXNotificationName.titleChanged:
     // Cosmetic for tiling; forwarded so the layout preview can refresh
@@ -1377,8 +1376,6 @@ private enum AXNotificationName {
   static let mainWindowChanged = kAXMainWindowChangedNotification as String
   static let windowMiniaturized = kAXWindowMiniaturizedNotification as String
   static let windowDeminiaturized = kAXWindowDeminiaturizedNotification as String
-  static let menuOpened = kAXMenuOpenedNotification as String
-  static let menuClosed = kAXMenuClosedNotification as String
   static let titleChanged = kAXTitleChangedNotification as String
 }
 
