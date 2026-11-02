@@ -5,11 +5,15 @@ import AppKit
 import Dependencies
 import DependenciesMacros
 
+// MARK: - ClipboardClient
+
 @DependencyClient
 struct ClipboardClient: Sendable {
   var readString: @Sendable () -> String?
   var writeString: @Sendable (_ value: String) -> Bool = { _ in false }
 }
+
+// MARK: DependencyKey
 
 extension ClipboardClient: DependencyKey {
   static let liveValue = ClipboardClient(

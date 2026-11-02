@@ -823,8 +823,12 @@ extension TatamiCLI {
 
 private func optionValues(profile: String? = nil, name: String? = nil) -> [String: String] {
   var options = [String: String]()
-  if let profile { options[CLIMessage.Option.profile.rawValue] = profile }
-  if let name { options[CLIMessage.Option.name.rawValue] = name }
+  if let profile {
+    options[CLIMessage.Option.profile.rawValue] = profile
+  }
+  if let name {
+    options[CLIMessage.Option.name.rawValue] = name
+  }
   return options
 }
 
@@ -835,7 +839,9 @@ private func dispatchDomainCommand(
   output: OutputOptions,
 ) throws {
   var arguments = [command.rawValue]
-  if let target { arguments.append(target) }
+  if let target {
+    arguments.append(target)
+  }
   try dispatch(CLIMessage.Request(
     command: .dispatchDomainCommand,
     arguments: arguments,

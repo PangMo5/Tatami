@@ -3,9 +3,21 @@
 
 import Foundation
 
+// MARK: - AppChange
+
 /// One app-assignment change between two workspaces' app lists — the unit the
 /// sync preview shows and lets the user include / exclude.
 public struct AppChange: Equatable, Identifiable, Sendable {
+
+  // MARK: Lifecycle
+
+  public init(kind: Kind, bundleId: String) {
+    self.kind = kind
+    self.bundleId = bundleId
+  }
+
+  // MARK: Public
+
   public enum Kind: Equatable, Sendable {
     /// In the source, absent from the target — will be added.
     case add(AppAssignment)
@@ -18,19 +30,22 @@ public struct AppChange: Equatable, Identifiable, Sendable {
   public var kind: Kind
   /// The app's bundle id — unique within a workspace, so it keys the change.
   public var bundleId: String
-  public var id: String { bundleId }
 
-  public init(kind: Kind, bundleId: String) {
-    self.kind = kind
-    self.bundleId = bundleId
+  public var id: String {
+    bundleId
   }
 
   public var appName: String {
     switch kind {
-    case .add(let a), .remove(let a), .modify(_, let a): a.name
+    case .add(let a),
+         .remove(let a),
+         .modify(_, let a): a.name
     }
   }
+
 }
+
+// MARK: - WorkspaceFieldChange
 
 /// A change to one of a workspace's non-app fields — includes the display pin
 /// (`displayHint`); the sync preview shows it like any other change and the
@@ -46,6 +61,8 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
   case activateShortcut(before: HotKey?, after: HotKey?)
   case assignAppShortcut(before: HotKey?, after: HotKey?)
   case borrowShortcut(before: HotKey?, after: HotKey?)
+
+  // MARK: Public
 
   public var id: String {
     switch self {
@@ -77,8 +94,13 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     }
   }
 
-  public var beforeText: String { Self.text(before: true, self) }
-  public var afterText: String { Self.text(before: false, self) }
+  public var beforeText: String {
+    Self.text(before: true, self)
+  }
+
+  public var afterText: String {
+    Self.text(before: false, self)
+  }
 
   /// The hotkey-producing workspace field this change controls, if any.
   /// Keeping this semantic identity beside the diff prevents Copy/Duplicate
@@ -89,29 +111,49 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     case .activateShortcut: .activateShortcut
     case .assignAppShortcut: .assignAppShortcut
     case .borrowShortcut: .borrowShortcut
-    case .icon, .kind, .appToFocus, .displayHint, .borrowEdge, .borrowFraction:
+    case .icon,
+         .kind,
+         .appToFocus,
+         .displayHint,
+         .borrowEdge,
+         .borrowFraction:
       nil
     }
   }
 
+  // MARK: Private
+
   private static func text(before: Bool, _ change: WorkspaceFieldChange) -> String {
-    func pick<T>(_ b: T, _ a: T) -> T { before ? b : a }
+    func pick<T>(_ b: T, _ a: T) -> T {
+      before ? b : a
+    }
     switch change {
-    case let .icon(b, a): return pick(b, a) ?? String(localized: "Default")
-    case let .keyEquivalent(b, a): return pick(b, a).map { "“\($0)”" } ?? String(localized: "None")
-    case let .kind(b, a): return String(localized: pick(b, a).displayName)
-    case let .appToFocus(b, a): return pick(b, a) ?? String(localized: "Most recent")
-    case let .displayHint(b, a): return pick(b, a)?.name ?? String(localized: "Dynamic")
-    case let .borrowEdge(b, a):
+    case .icon(let b, let a): return pick(b, a) ?? String(localized: "Default")
+
+    case .keyEquivalent(let b, let a): return pick(b, a).map { "“\($0)”" } ?? String(localized: "None")
+
+    case .kind(let b, let a): return String(localized: pick(b, a).displayName)
+
+    case .appToFocus(let b, let a): return pick(b, a) ?? String(localized: "Most recent")
+
+    case .displayHint(let b, let a): return pick(b, a)?.name ?? String(localized: "Dynamic")
+
+    case .borrowEdge(let b, let a):
       return pick(b, a).map { String(localized: $0.displayName) } ?? String(localized: "Global")
-    case let .borrowFraction(b, a):
+
+    case .borrowFraction(let b, let a):
       guard let v = pick(b, a) else { return String(localized: "Global") }
       return "\(Int((v * 100).rounded()))%"
-    case let .activateShortcut(b, a), let .assignAppShortcut(b, a), let .borrowShortcut(b, a):
+
+    case .activateShortcut(let b, let a),
+         .assignAppShortcut(let b, let a),
+         .borrowShortcut(let b, let a):
       return pick(b, a)?.symbols ?? String(localized: "None")
     }
   }
 }
+
+// MARK: - WorkspaceShortcutField
 
 /// A workspace field that can change one or more registered hotkeys.
 public enum WorkspaceShortcutField: String, Hashable, Sendable {
@@ -121,47 +163,55 @@ public enum WorkspaceShortcutField: String, Hashable, Sendable {
   case borrowShortcut
 }
 
+// MARK: - WorkspaceShortcutSelection
+
 /// One selected Copy/Duplicate field in the destination configuration.
 /// `workspaceId` always identifies the destination workspace, even when the
 /// chooser row is namespaced by a source workspace id.
 public struct WorkspaceShortcutSelection: Hashable, Sendable {
-  public var field: WorkspaceShortcutField
-  public var workspaceId: Workspace.ID
-
   public init(workspaceId: Workspace.ID, field: WorkspaceShortcutField) {
     self.workspaceId = workspaceId
     self.field = field
   }
+
+  public var field: WorkspaceShortcutField
+  public var workspaceId: Workspace.ID
 }
+
+// MARK: - WorkspaceShortcutConflict
 
 /// A concrete collision caused by a selected Copy/Duplicate field after all
 /// selected changes have been projected together.
 public struct WorkspaceShortcutConflict: Hashable, Sendable {
-  public var hotKey: HotKey
-  public var owner: String
-  public var selection: WorkspaceShortcutSelection
-
   public init(
     selection: WorkspaceShortcutSelection,
     hotKey: HotKey,
-    owner: String
+    owner: String,
   ) {
     self.selection = selection
     self.hotKey = hotKey
     self.owner = owner
   }
+
+  public var hotKey: HotKey
+  public var owner: String
+  public var selection: WorkspaceShortcutSelection
 }
+
+// MARK: - WorkspaceSyncProjection
 
 /// The all-or-nothing result of projecting a reviewed Copy operation.
 public struct WorkspaceSyncProjection: Equatable, Sendable {
-  public var conflicts: [WorkspaceShortcutConflict]
-  public var config: AppConfig
-
   public init(config: AppConfig, conflicts: [WorkspaceShortcutConflict]) {
     self.config = config
     self.conflicts = conflicts
   }
+
+  public var conflicts: [WorkspaceShortcutConflict]
+  public var config: AppConfig
 }
+
+// MARK: - WorkspaceSync
 
 /// Pure diff + apply for copying one workspace's apps / settings onto another.
 /// The direction is always "make the target look like the source" — changes
@@ -174,7 +224,7 @@ public enum WorkspaceSync {
   public static func effectiveSelection(
     selected: Set<String>,
     validIDs: Set<String>,
-    parentByItemID: [String: String]
+    parentByItemID: [String: String],
   ) -> Set<String> {
     selected.intersection(validIDs).filter { id in
       guard let parentID = parentByItemID[id] else { return true }
@@ -195,7 +245,7 @@ public enum WorkspaceSync {
   public static func appChanges(from source: [AppAssignment], to target: [AppAssignment]) -> [AppChange] {
     let targetById = Dictionary(target.map { ($0.bundleIdentifier, $0) }, uniquingKeysWith: { a, _ in a })
     let sourceIds = Set(source.map(\.bundleIdentifier))
-    var changes: [AppChange] = []
+    var changes = [AppChange]()
     for s in source {
       if let t = targetById[s.bundleIdentifier] {
         if t.layout != s.layout || t.autoOpen != s.autoOpen {
@@ -213,17 +263,25 @@ public enum WorkspaceSync {
 
   /// Apply the app changes whose bundle id isn't in `excluded` onto `target`.
   public static func apply(
-    _ changes: [AppChange], to target: [AppAssignment], excluding excluded: Set<String>
+    _ changes: [AppChange],
+    to target: [AppAssignment],
+    excluding excluded: Set<String>,
   ) -> [AppAssignment] {
     var result = target
     for change in changes where !excluded.contains(change.bundleId) {
       switch change.kind {
       case .add(let app):
-        if !result.contains(where: { $0.bundleIdentifier == app.bundleIdentifier }) { result.append(app) }
+        if !result.contains(where: { $0.bundleIdentifier == app.bundleIdentifier }) {
+          result.append(app)
+        }
+
       case .remove(let app):
         result.removeAll { $0.bundleIdentifier == app.bundleIdentifier }
+
       case .modify(_, let after):
-        if let i = result.firstIndex(where: { $0.bundleIdentifier == after.bundleIdentifier }) { result[i] = after }
+        if let i = result.firstIndex(where: { $0.bundleIdentifier == after.bundleIdentifier }) {
+          result[i] = after
+        }
       }
     }
     return result
@@ -232,7 +290,7 @@ public enum WorkspaceSync {
   /// Field changes that would transform `target` toward `source`, including the
   /// display pin (the caller / user decides whether to apply it).
   public static func fieldChanges(from source: Workspace, to target: Workspace) -> [WorkspaceFieldChange] {
-    var out: [WorkspaceFieldChange] = []
+    var out = [WorkspaceFieldChange]()
     if target.symbolIconName != source.symbolIconName {
       out.append(.icon(before: target.symbolIconName, after: source.symbolIconName))
     }
@@ -268,7 +326,9 @@ public enum WorkspaceSync {
 
   /// Apply the field changes whose id isn't in `excluded` onto `workspace`.
   public static func apply(
-    _ changes: [WorkspaceFieldChange], to workspace: inout Workspace, excluding excluded: Set<String>
+    _ changes: [WorkspaceFieldChange],
+    to workspace: inout Workspace,
+    excluding excluded: Set<String>,
   ) {
     for change in changes where !excluded.contains(change.id) {
       switch change {

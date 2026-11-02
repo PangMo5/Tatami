@@ -119,7 +119,10 @@ extension SyncChangeItem {
       symbolTint: .secondary,
       appBundleId: app.bundleIdentifier,
       appIconPath: app.iconPath,
-      requiresConfirmation: { if case .add = change.kind { return false }
+      requiresConfirmation: {
+        if case .add = change.kind {
+          return false
+        }
         return true
       }(),
     )
@@ -140,7 +143,11 @@ extension SyncChangeItem {
     case .kind: symbol = "rectangle.3.group"
 
     case .appToFocus(_, let after):
-      if let after { appBundleId = after } else { symbol = "cursorarrow.rays" }
+      if let after {
+        appBundleId = after
+      } else {
+        symbol = "cursorarrow.rays"
+      }
 
     case .displayHint: symbol = "display"
 
@@ -389,7 +396,7 @@ private struct SyncChangeRow: View {
       .formatted()
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private var leading: some View {
     if let bundleId = item.appBundleId {
       AppIcon(bundleIdentifier: bundleId, iconPath: item.appIconPath)

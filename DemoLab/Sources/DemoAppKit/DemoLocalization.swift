@@ -1,11 +1,18 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
+
 import Foundation
 
+// MARK: - DemoLocale
+
 public enum DemoLocale: String, CaseIterable, Sendable, Codable {
-  case en, ko, ja
+  case en
+  case ko
+  case ja
   case simplifiedChinese = "zh-Hans"
   case traditionalChinese = "zh-Hant"
+
+  // MARK: Public
 
   public static var selected: Self {
     if let value = ProcessInfo.processInfo.environment["DEMOLAB_LOCALE"] {
@@ -28,6 +35,8 @@ public enum DemoLocale: String, CaseIterable, Sendable, Codable {
     }
   }
 }
+
+// MARK: - DemoTheme
 
 public enum DemoTheme {
   public static func name(_ value: String) -> LocalizedStringResource {

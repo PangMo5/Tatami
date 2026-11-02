@@ -56,8 +56,11 @@ final class AsyncConfigStore: @unchecked Sendable {
             TatamiConfigTransactionCoordinator.shared.preservingSessionProfile(in: $0)
           }
           for continuation in continuations {
-            if let published { continuation.resume(returning: published) }
-            else { continuation.resumeReturningInitialValue() }
+            if let published {
+              continuation.resume(returning: published)
+            } else {
+              continuation.resumeReturningInitialValue()
+            }
           }
         }
       } catch {
@@ -184,10 +187,10 @@ final class AsyncConfigStore: @unchecked Sendable {
   private var revision: Data?
   private var persistedValue: AppConfig?
   private var hasLoaded = false
-  private var pendingWriteError: (any Error)?
+  private var pendingWriteError: any Error?
   private var subscribers = [UUID: SharedSubscriber<AppConfig>]()
-  private var fileSource: (any DispatchSourceFileSystemObject)?
-  private var directorySource: (any DispatchSourceFileSystemObject)?
+  private var fileSource: any DispatchSourceFileSystemObject?
+  private var directorySource: any DispatchSourceFileSystemObject?
 
   private func enqueue(_ operation: @escaping @Sendable () -> Void) {
     withEscapedDependencies { dependencies in

@@ -190,8 +190,12 @@ public struct HooksFeature {
 
   private func logOutput(id: String, stdout: String, stderr: String) {
     guard debugLog.isEnabled() else { return }
-    if !stdout.isEmpty { debugLog.log("Hook", "\(id) stdout: \(stdout)") }
-    if !stderr.isEmpty { debugLog.log("Hook", "\(id) stderr: \(stderr)") }
+    if !stdout.isEmpty {
+      debugLog.log("Hook", "\(id) stdout: \(stdout)")
+    }
+    if !stderr.isEmpty {
+      debugLog.log("Hook", "\(id) stderr: \(stderr)")
+    }
   }
 
   private func logFailure(id: String, message: String, stdout: String, stderr: String) {

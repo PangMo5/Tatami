@@ -16,7 +16,9 @@ struct FilmPresentation {
     func color(_ key: String) throws -> String {
       guard let value = tokens[key] else { throw ToolError("Missing CSS color: \(key)") }
       var raw = trim(value).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-      if raw.count == 3 { raw = raw.map { "\($0)\($0)" }.joined() }
+      if raw.count == 3 {
+        raw = raw.map { "\($0)\($0)" }.joined()
+      }
       try require(fullMatch("[0-9a-fA-F]{6}", raw), "\(key) is not a hex color")
       return raw.uppercased()
     }
@@ -52,10 +54,14 @@ struct FilmPresentation {
   static func requireFont(_ locale: String, texts: [String], resolved: String? = nil) async throws {
     guard let expected = fonts[locale] else { throw ToolError("Unsupported caption locale: \(locale)") }
     let fontOutput: String =
-      if let resolved { resolved } else { try await runProcess(
-        ["fc-match", "-f", "%{family}\n%{charset}\n", expected],
-        capture: true,
-      ) }
+      if let resolved {
+        resolved
+      } else {
+        try await runProcess(
+          ["fc-match", "-f", "%{family}\n%{charset}\n", expected],
+          capture: true,
+        )
+      }
     let result = lines(fontOutput)
     func normalize(_ value: String) -> String {
       value.lowercased().filter { !$0.isWhitespace }
@@ -67,7 +73,8 @@ struct FilmPresentation {
     let ranges = try result[1].split(whereSeparator: \.isWhitespace).map { entry -> ClosedRange<UInt32> in
       let bounds = entry.split(separator: "-")
       guard
-        let low = UInt32(bounds[0], radix: 16), let high = UInt32(bounds.last!, radix: 16),
+        let low = UInt32(bounds[0], radix: 16),
+        let high = UInt32(bounds.last!, radix: 16),
         low <= high
       else { throw ToolError("Invalid font character range: \(entry)") }
       return low...high
@@ -89,7 +96,9 @@ struct FilmPresentation {
       if line.hasPrefix("Style: ") {
         var fields = String(line.dropFirst(7)).components(separatedBy: ",")
         try require(fields.count >= 23, "Incomplete ASS style")
-        if fields[0] != "Keys" { fields[1] = font }
+        if fields[0] != "Keys" {
+          fields[1] = font
+        }
         if ["Caption", "Chapter", "Keys"].contains(fields[0]) {
           let color = colors[fields[0] == "Caption" ? "text" : "accent"]!
           fields[3] = "&H00" + Self.bgr(color)
@@ -113,9 +122,11 @@ struct FilmPresentation {
       if
         line
           .contains(",Caption,,")
-      { line = replacing(#"\\1c&H[0-9A-Fa-f]+&"#, in: line) { _ in
-        #"\1c&H"# + Self.bgr(colors["secondary"]!) + "&"
-      } }
+      {
+        line = replacing(#"\\1c&H[0-9A-Fa-f]+&"#, in: line) { _ in
+          #"\1c&H"# + Self.bgr(colors["secondary"]!) + "&"
+        }
+      }
       output.append(line)
     }
     return output.joined(separator: "\n") + "\n"

@@ -56,15 +56,18 @@ public enum AppDocument: String, CaseIterable, Identifiable, Sendable {
       return URL(string: "tatami-document://\(rawValue)#\(fragment)")!
     }
     let base: URL =
-      if language == "en" || self == .license { sourceURL }
-      else { Self.repositoryURL.appendingPathComponent("docs/\(language)/" + (sourcePath as NSString).lastPathComponent) }
+      if language == "en" || self == .license {
+        sourceURL
+      } else {
+        Self.repositoryURL.appendingPathComponent("docs/\(language)/" + (sourcePath as NSString).lastPathComponent)
+      }
     let absolute = URL(string: url.relativeString, relativeTo: base)!.absoluteURL
     guard absolute.host == "github.com" else { return absolute }
     let prefix = "/pangmo5/Tatami/blob/main/"
     guard absolute.path.hasPrefix(prefix) else { return absolute }
     var path = String(absolute.path.dropFirst(prefix.count))
     for locale in ["ko", "ja", "zh-Hans", "zh-Hant"] {
-      path = path.replacingOccurrences(of: "docs/\(locale)/", with: "docs/")
+      path = path.replacing("docs/\(locale)/", with: "docs/")
     }
     if path == "docs/NOTICE.md" || path == "docs/THIRD_PARTY_NOTICES.md" || path == "docs/CHANGELOG.md" {
       path = String(path.dropFirst(5))
@@ -124,7 +127,9 @@ struct ParsedAppDocument: Sendable {
     let cleaned = Self.clean(markdown)
     var value = try AttributedString(markdown: cleaned.text, options: .init(interpretedSyntax: .full))
     for run in value.runs {
-      if let link = run.link { value[run.range].link = document.resolveLink(link, language: language) }
+      if let link = run.link {
+        value[run.range].link = document.resolveLink(link, language: language)
+      }
       if run.inlinePresentationIntent?.contains(.code) == true {
         value[run.range].font = .system(.body, design: .monospaced)
       }
@@ -136,15 +141,31 @@ struct ParsedAppDocument: Sendable {
       guard let intent, let leaf = intent.components.first else { continue }
       let text = AttributedString(value[range])
       if
-        let table = intent.components.first(where: { if case .table = $0.kind { true } else { false } }),
+        let table = intent.components.first(where: {
+          if case .table = $0.kind {
+            true
+          } else {
+            false
+          }
+        }),
         let row = intent.components
-          .first(where: { if case .tableHeaderRow = $0.kind { true } else if case .tableRow = $0.kind { true } else { false } })
+          .first(where: {
+            if case .tableHeaderRow = $0.kind {
+              true
+            } else if case .tableRow = $0.kind {
+              true
+            } else {
+              false
+            }
+          })
       {
-        if blocks.last?.id != table.identity { blocks.append(DocumentBlock(
-          id: table.identity,
-          kind: .table,
-          text: AttributedString(),
-        )) }
+        if blocks.last?.id != table.identity {
+          blocks.append(DocumentBlock(
+            id: table.identity,
+            kind: .table,
+            text: AttributedString(),
+          ))
+        }
         let blockIndex = blocks.count - 1
         if blocks[blockIndex].rows.last?.id != row.identity {
           blocks[blockIndex].rows.append(.init(id: row.identity, isHeader: row.kind == .tableHeaderRow, cells: []))
@@ -157,7 +178,9 @@ struct ParsedAppDocument: Sendable {
       switch leaf.kind {
       case .header(let level):
         block.kind = .heading(level)
-        if cleaned.anchors.indices.contains(headingIndex) { anchors[cleaned.anchors[headingIndex]] = leaf.identity }
+        if cleaned.anchors.indices.contains(headingIndex) {
+          anchors[cleaned.anchors[headingIndex]] = leaf.identity
+        }
         headingIndex += 1
 
       case .codeBlock: block.kind = .code
@@ -168,11 +191,23 @@ struct ParsedAppDocument: Sendable {
       }
       let components = intent.components
       if
-        let item = components.firstIndex(where: { if case .listItem = $0.kind { true } else { false } }),
+        let item = components.firstIndex(where: {
+          if case .listItem = $0.kind {
+            true
+          } else {
+            false
+          }
+        }),
         case .listItem(let ordinal) = components[item].kind
       {
         block.marker = components.dropFirst(item + 1).first?.kind == .orderedList ? "\(ordinal)." : "•"
-        block.indentation = max(0, components.count(where: { if case .listItem = $0.kind { true } else { false } }) - 1)
+        block.indentation = max(0, components.count(where: {
+          if case .listItem = $0.kind {
+            true
+          } else {
+            false
+          }
+        }) - 1)
       }
       block.isQuote = components.contains { $0.kind == .blockQuote }
       blocks.append(block)
@@ -205,7 +240,9 @@ struct ParsedAppDocument: Sendable {
       let trimmed = line.trimmingCharacters(in: .whitespaces)
       if let current = fence {
         output.append(line)
-        if trimmed.prefix(while: { $0 == current.0 }).count >= current.1 { fence = nil }
+        if trimmed.prefix(while: { $0 == current.0 }).count >= current.1 {
+          fence = nil
+        }
         continue
       }
       if let first = trimmed.first, first == "`" || first == "~", trimmed.prefix(while: { $0 == first }).count >= 3 {
@@ -213,16 +250,24 @@ struct ParsedAppDocument: Sendable {
         output.append(line)
         continue
       }
-      if trimmed.contains("<!-- LANGUAGE-LINKS:START -->") { navigation = true
+      if trimmed.contains("<!-- LANGUAGE-LINKS:START -->") {
+        navigation = true
         continue
       }
-      if navigation { if trimmed.contains("<!-- LANGUAGE-LINKS:END -->") { navigation = false }
+      if navigation {
+        if trimmed.contains("<!-- LANGUAGE-LINKS:END -->") {
+          navigation = false
+        }
         continue
       }
-      if comment { if trimmed.contains("-->") { comment = false }
+      if comment {
+        if trimmed.contains("-->") {
+          comment = false
+        }
         continue
       }
-      if trimmed.hasPrefix("<!--") { comment = !trimmed.contains("-->")
+      if trimmed.hasPrefix("<!--") {
+        comment = !trimmed.contains("-->")
         continue
       }
       let utf16 = trimmed as NSString
@@ -235,8 +280,8 @@ struct ParsedAppDocument: Sendable {
         let title = String(trimmed.dropFirst(level + 1))
         let plain = (try? AttributedString(markdown: title)).map { String($0.characters) } ?? title
         let slug = plain.lowercased().replacingOccurrences(of: #"[^\w\s-]"#, with: "", options: .regularExpression)
-          .replacingOccurrences(
-            of: " ",
+          .replacing(
+            " ",
             with: "-",
           )
         let occurrence = used[slug, default: 0]
@@ -271,7 +316,9 @@ actor AppDocumentLoader {
 
   func load(_ document: AppDocument, language: String, bundle: Bundle = .main) throws -> ParsedAppDocument {
     let key = bundle.bundleURL.path + ":" + document.rawValue + ":" + language
-    if let cached = cache[key] { return cached }
+    if let cached = cache[key] {
+      return cached
+    }
     guard let resources = bundle.resourceURL else { throw CocoaError(.fileNoSuchFile) }
     let result: ParsedAppDocument
     if document == .license {

@@ -473,7 +473,9 @@ public struct HookEditorFeature {
       } else {
         nil
       }
-    if state.draft.event == .workspaceActivated, workspace == nil { return nil }
+    if state.draft.event == .workspaceActivated, workspace == nil {
+      return nil
+    }
     let hud: HookInvocation.HUDSnapshot? =
       if state.draft.event == .hud {
         .init(

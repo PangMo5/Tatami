@@ -14,7 +14,7 @@ public struct SeedOptions: Sendable, Equatable {
     borrowEdge: String = "right",
     focusFollowsMouse: Bool = false,
     mouseFollowsFocus: Bool = true,
-    debugLogging: Bool = false
+    debugLogging: Bool = false,
   ) {
     self.pulseLayout = pulseLayout
     self.borrowEdge = borrowEdge
@@ -86,7 +86,7 @@ public struct ConfigRenderer: Sendable {
 
     var rendered = template
     for (placeholder, value) in substitutions {
-      rendered = rendered.replacingOccurrences(of: placeholder, with: value)
+      rendered = rendered.replacing(placeholder, with: value)
     }
 
     // A leftover placeholder would reach Tatami as a plain string and be

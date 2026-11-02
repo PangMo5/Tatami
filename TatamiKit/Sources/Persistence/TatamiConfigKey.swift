@@ -22,15 +22,20 @@ public struct TatamiConfigKey: SharedKey {
     context: LoadContext<AppConfig>,
     continuation: LoadContinuation<AppConfig>,
   ) {
-    if let store { store.load(continuation) }
-    else { base.load(context: context, continuation: continuation) }
+    if let store {
+      store.load(continuation)
+    } else {
+      base.load(context: context, continuation: continuation)
+    }
   }
 
   public func subscribe(
     context: LoadContext<AppConfig>,
     subscriber: SharedSubscriber<AppConfig>,
   ) -> SharedSubscription {
-    if let store { return store.subscribe(subscriber) }
+    if let store {
+      return store.subscribe(subscriber)
+    }
     return base.subscribe(
       context: context,
       subscriber: SharedSubscriber(

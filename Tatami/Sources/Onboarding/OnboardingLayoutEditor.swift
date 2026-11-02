@@ -286,7 +286,9 @@ struct OnboardingLayoutEditor: View {
     for slot: SlotID,
     in stack: [SlotID],
   ) -> Double {
-    if selectedSlot == slot { return 3 }
+    if selectedSlot == slot {
+      return 3
+    }
     guard let index = stack.firstIndex(of: slot), !stack.isEmpty else { return 1 }
     return 1 + Double(index) / Double(stack.count)
   }
@@ -346,7 +348,9 @@ struct OnboardingLayoutEditor: View {
         width: width,
         height: height,
       )
-      if frame.contains(location) { return primarySlot }
+      if frame.contains(location) {
+        return primarySlot
+      }
     }
     if
       specialMode == .unmanaged,
@@ -399,7 +403,9 @@ struct OnboardingLayoutEditor: View {
     DragGesture(minimumDistance: 6, coordinateSpace: .named(coordinateSpace))
       .onChanged { value in
         guard allowsEditing, allowsDragging else { return }
-        if tileDrag == nil { NSCursor.closedHand.set() }
+        if tileDrag == nil {
+          NSCursor.closedHand.set()
+        }
         tileDrag = (region.path, value.location)
       }
       .onEnded { value in

@@ -15,9 +15,29 @@ public indirect enum TomlValue: Equatable, Sendable {
 
   // MARK: Public
 
-  public var stringValue: String? { if case .string(let value) = self { value } else { nil } }
-  public var boolValue: Bool? { if case .bool(let value) = self { value } else { nil } }
-  public var intValue: Int? { if case .integer(let value) = self { value } else { nil } }
+  public var stringValue: String? {
+    if case .string(let value) = self {
+      value
+    } else {
+      nil
+    }
+  }
+
+  public var boolValue: Bool? {
+    if case .bool(let value) = self {
+      value
+    } else {
+      nil
+    }
+  }
+
+  public var intValue: Int? {
+    if case .integer(let value) = self {
+      value
+    } else {
+      nil
+    }
+  }
 
   public var doubleValue: Double? {
     switch self {
@@ -27,8 +47,21 @@ public indirect enum TomlValue: Equatable, Sendable {
     }
   }
 
-  public var arrayValue: [TomlValue]? { if case .array(let value) = self { value } else { nil } }
-  public var tableValue: [String: TomlValue]? { if case .table(let value) = self { value } else { nil } }
+  public var arrayValue: [TomlValue]? {
+    if case .array(let value) = self {
+      value
+    } else {
+      nil
+    }
+  }
+
+  public var tableValue: [String: TomlValue]? {
+    if case .table(let value) = self {
+      value
+    } else {
+      nil
+    }
+  }
 
   public var stringArray: [String]? {
     guard let array = arrayValue else { return nil }
@@ -42,8 +75,9 @@ public indirect enum TomlValue: Equatable, Sendable {
     return tables.count == array.count ? tables : nil
   }
 
-  public subscript(key: String) -> TomlValue? { tableValue?[key] }
-
+  public subscript(key: String) -> TomlValue? {
+    tableValue?[key]
+  }
 }
 
 // MARK: - TomlLiteError
@@ -62,7 +96,9 @@ public struct TomlLiteError: Error, CustomStringConvertible {
   public let line: Int
   public let message: String
 
-  public var description: String { "line \(line): \(message)" }
+  public var description: String {
+    "line \(line): \(message)"
+  }
 
 }
 
@@ -93,7 +129,9 @@ public enum TomlLite {
       let number = index + 1
       var line = strippingComment(lines[index]).trimmingCharacters(in: .whitespaces)
       index += 1
-      if line.isEmpty { continue }
+      if line.isEmpty {
+        continue
+      }
 
       if line.hasPrefix("[[") {
         guard line.hasSuffix("]]") else { throw TomlLiteError(line: number, message: "unterminated [[") }
@@ -122,7 +160,9 @@ public enum TomlLite {
           index += 1
           raw += " " + line
         }
-        if unbalanced(raw) { throw TomlLiteError(line: number, message: "unterminated array") }
+        if unbalanced(raw) {
+          throw TomlLiteError(line: number, message: "unterminated array")
+        }
       }
 
       guard !key.isEmpty else { throw TomlLiteError(line: number, message: "empty key") }
@@ -156,7 +196,9 @@ public enum TomlLite {
       for part in path.dropLast() { node = node.descend(part) }
       let fresh = Node()
       node.childArrays[last, default: []].append(fresh)
-      if !node.order.contains(last) { node.order.append(last) }
+      if !node.order.contains(last) {
+        node.order.append(last)
+      }
       return fresh
     }
 
@@ -175,8 +217,12 @@ public enum TomlLite {
     /// array of tables — that is the TOML rule that makes
     /// `[[profiles.workspaces]]` attach to the profile declared above it.
     private func descend(_ part: String) -> Node {
-      if let existing = childArrays[part]?.last { return existing }
-      if let existing = children[part] { return existing }
+      if let existing = childArrays[part]?.last {
+        return existing
+      }
+      if let existing = children[part] {
+        return existing
+      }
       let fresh = Node()
       children[part] = fresh
       order.append(part)
@@ -190,7 +236,10 @@ public enum TomlLite {
     var inLiteral = false
     var escaped = false
     for (offset, character) in line.enumerated() {
-      if escaped { escaped = false; continue }
+      if escaped {
+        escaped = false
+        continue
+      }
       switch character {
       case "\\" where inBasic: escaped = true
       case "\"" where !inLiteral: inBasic.toggle()
@@ -209,7 +258,10 @@ public enum TomlLite {
     var inLiteral = false
     var escaped = false
     for character in text {
-      if escaped { escaped = false; continue }
+      if escaped {
+        escaped = false
+        continue
+      }
       switch character {
       case "\\" where inBasic: escaped = true
       case "\"" where !inLiteral: inBasic.toggle()
@@ -246,7 +298,9 @@ public enum TomlLite {
     var result = ""
     var iterator = text.makeIterator()
     while let character = iterator.next() {
-      guard character == "\\" else { result.append(character); continue }
+      guard character == "\\" else { result.append(character)
+        continue
+      }
       switch iterator.next() {
       case "n": result.append("\n")
       case "t": result.append("\t")
@@ -262,11 +316,19 @@ public enum TomlLite {
 
   private static func value(_ raw: String, line: Int) throws -> TomlValue {
     let text = raw.trimmingCharacters(in: .whitespaces)
-    if text.isEmpty { throw TomlLiteError(line: line, message: "missing value") }
+    if text.isEmpty {
+      throw TomlLiteError(line: line, message: "missing value")
+    }
 
-    if text.hasPrefix("\"") || text.hasPrefix("'") { return .string(unquote(text)) }
-    if text == "true" { return .bool(true) }
-    if text == "false" { return .bool(false) }
+    if text.hasPrefix("\"") || text.hasPrefix("'") {
+      return .string(unquote(text))
+    }
+    if text == "true" {
+      return .bool(true)
+    }
+    if text == "false" {
+      return .bool(false)
+    }
 
     if text.hasPrefix("[") {
       guard text.hasSuffix("]") else { throw TomlLiteError(line: line, message: "unterminated array") }
@@ -288,14 +350,18 @@ public enum TomlLite {
       return .table(table)
     }
 
-    let normalized = text.replacingOccurrences(of: "_", with: "")
-    if let integer = Int(normalized) { return .integer(integer) }
-    if let double = Double(normalized) { return .double(double) }
+    let normalized = text.replacing("_", with: "")
+    if let integer = Int(normalized) {
+      return .integer(integer)
+    }
+    if let double = Double(normalized) {
+      return .double(double)
+    }
 
     throw TomlLiteError(line: line, message: "unsupported value: \(text)")
   }
 
-  private static func splitTopLevel(_ text: String, line: Int) throws -> [String] {
+  private static func splitTopLevel(_ text: String, line _: Int) throws -> [String] {
     var parts = [String]()
     var current = ""
     var depth = 0
@@ -304,24 +370,37 @@ public enum TomlLite {
     var escaped = false
 
     for character in text {
-      if escaped { current.append(character); escaped = false; continue }
+      if escaped {
+        current.append(character)
+        escaped = false
+        continue
+      }
       switch character {
-      case "\\" where inBasic: current.append(character); escaped = true
-      case "\"" where !inLiteral: inBasic.toggle(); current.append(character)
-      case "'" where !inBasic: inLiteral.toggle(); current.append(character)
+      case "\\" where inBasic: current.append(character)
+        escaped = true
+
+      case "\"" where !inLiteral: inBasic.toggle()
+        current.append(character)
+
+      case "'" where !inBasic: inLiteral.toggle()
+        current.append(character)
+
       // Each pattern needs its own `where`: in Swift a where clause binds to the
       // preceding pattern only, so `case "[", "{" where …` would leave "[" unguarded.
-      case "[" where !inBasic && !inLiteral, "{" where !inBasic && !inLiteral:
+      case "[" where !inBasic && !inLiteral,
+           "{" where !inBasic && !inLiteral:
         depth += 1
         current.append(character)
 
-      case "]" where !inBasic && !inLiteral, "}" where !inBasic && !inLiteral:
+      case "]" where !inBasic && !inLiteral,
+           "}" where !inBasic && !inLiteral:
         depth -= 1
         current.append(character)
 
       case "," where depth == 0 && !inBasic && !inLiteral:
         parts.append(current)
         current = ""
+
       default: current.append(character)
       }
     }

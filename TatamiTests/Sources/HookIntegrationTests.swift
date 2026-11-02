@@ -413,7 +413,7 @@ struct HookIntegrationTests {
     await store.send(.startupProfileRestored)
     await store.finish()
 
-    #expect(invocations.value.filter { $0.event == .tatamiLaunched }.isEmpty)
+    #expect(!invocations.value.contains(where: { $0.event == .tatamiLaunched }))
   }
 
   @Test

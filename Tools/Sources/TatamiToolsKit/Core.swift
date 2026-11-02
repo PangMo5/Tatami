@@ -25,7 +25,9 @@ struct ToolError: Error, CustomStringConvertible {
 }
 
 func require(_ condition: @autoclosure () throws -> Bool, _ message: String) throws {
-  if try !condition() { throw ToolError(message) }
+  if try !condition() {
+    throw ToolError(message)
+  }
 }
 
 let locales = ["en", "ko", "ja", "zh-Hans", "zh-Hant"]
@@ -76,7 +78,9 @@ func copy(_ source: URL, _ target: URL) throws {
     "Copy source and destination are the same: \(source.path)",
   )
   try target.deletingLastPathComponent().makeDirectory()
-  if target.exists { try fm.removeItem(at: target) }
+  if target.exists {
+    try fm.removeItem(at: target)
+  }
   try fm.copyItem(at: source, to: target)
 }
 
@@ -136,7 +140,9 @@ func fullMatch(_ pattern: String, _ text: String) -> Bool {
 
 func lines(_ text: String) -> [String] {
   var result = text.components(separatedBy: .newlines)
-  if result.last == "" { result.removeLast() }
+  if result.last == "" {
+    result.removeLast()
+  }
   return result
 }
 
@@ -213,12 +219,16 @@ struct Workspace: Sendable {
     var path = URL(fileURLWithPath: explicit ?? ProcessInfo.processInfo.environment["TATAMI_ROOT"] ?? fm.currentDirectoryPath)
       .standardizedFileURL
     while true {
-      if path.at("DemoLab/publication.json").exists { return Workspace(root: path) }
+      if path.at("DemoLab/publication.json").exists {
+        return Workspace(root: path)
+      }
       if path.at("publication.json").exists, path.at("Sources/DemoAppKit").exists {
         return Workspace(root: path.deletingLastPathComponent(), labOverride: path)
       }
       let parent = path.deletingLastPathComponent()
-      if parent == path { throw ToolError("Run inside the Tatami checkout, or pass --root PATH") }
+      if parent == path {
+        throw ToolError("Run inside the Tatami checkout, or pass --root PATH")
+      }
       path = parent
     }
   }

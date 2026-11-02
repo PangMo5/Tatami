@@ -13,8 +13,6 @@ import Foundation
 /// there is no remote command for jumping a view to a staged content state.
 public enum DemoControl {
 
-  // MARK: Public
-
   /// Directory holding one socket per running demo app.
   ///
   /// `DEMOLAB_CONTROL_DIR` overrides it so a lab run can keep its sockets with
@@ -84,7 +82,9 @@ public final class DemoControlServer: @unchecked Sendable {
     let fd = listener
     listener = -1
     lock.unlock()
-    if fd >= 0 { close(fd) }
+    if fd >= 0 {
+      close(fd)
+    }
     try? FileManager.default.removeItem(at: DemoControl.socket(for: bundleIdentifier))
   }
 
@@ -93,6 +93,23 @@ public final class DemoControlServer: @unchecked Sendable {
   private let handler: @MainActor (DemoControlRequest) -> String
   private let lock = NSLock()
   private var listener: Int32 = -1
+
+  private static func readLine(from fd: Int32) -> String? {
+    var buffer = [UInt8]()
+    var byte: UInt8 = 0
+    while buffer.count < 4096 {
+      let read = recv(fd, &byte, 1, 0)
+      if read <= 0 {
+        break
+      }
+      if byte == UInt8(ascii: "\n") {
+        break
+      }
+      buffer.append(byte)
+    }
+    guard !buffer.isEmpty else { return nil }
+    return String(decoding: buffer, as: UTF8.self)
+  }
 
   private func bind() throws {
     try DemoControl.ensureDirectory()
@@ -142,7 +159,9 @@ public final class DemoControlServer: @unchecked Sendable {
 
       let client = Darwin.accept(fd, nil, nil)
       guard client >= 0 else {
-        if errno == EINTR { continue }
+        if errno == EINTR {
+          continue
+        }
         return
       }
       defer { close(client) }
@@ -154,19 +173,6 @@ public final class DemoControlServer: @unchecked Sendable {
       let reply = DispatchQueue.main.sync { MainActor.assumeIsolated { handler(request) } }
       _ = (reply + "\n").withCString { Darwin.send(client, $0, strlen($0), 0) }
     }
-  }
-
-  private static func readLine(from fd: Int32) -> String? {
-    var buffer = [UInt8]()
-    var byte: UInt8 = 0
-    while buffer.count < 4096 {
-      let read = recv(fd, &byte, 1, 0)
-      if read <= 0 { break }
-      if byte == UInt8(ascii: "\n") { break }
-      buffer.append(byte)
-    }
-    guard !buffer.isEmpty else { return nil }
-    return String(decoding: buffer, as: UTF8.self)
   }
 
 }
@@ -190,7 +196,9 @@ public struct DemoControlRequest: Sendable {
   /// Everything after the verb, unsplit, so a caption can contain spaces.
   public let argument: String
 
-  public var integerArgument: Int? { Int(argument.trimmingCharacters(in: .whitespaces)) }
+  public var integerArgument: Int? {
+    Int(argument.trimmingCharacters(in: .whitespaces))
+  }
 
 }
 
@@ -218,8 +226,6 @@ public enum DemoControlError: Error, CustomStringConvertible {
 
 /// The sending half, used by `democtl`.
 public enum DemoControlClient {
-
-  // MARK: Public
 
   public static func isListening(bundleIdentifier: String) -> Bool {
     (try? send("ping", to: bundleIdentifier)) != nil

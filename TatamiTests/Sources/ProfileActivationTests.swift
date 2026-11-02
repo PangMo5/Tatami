@@ -7,12 +7,11 @@ import Testing
 
 @Suite("Profile auto-activation")
 struct ProfileActivationTests {
-  let builtin = DisplayName(uuid: "U1", name: "Built-in")
-  let ext = DisplayName(uuid: "U2", name: "IP1640")
-  let proj = DisplayName(uuid: "U3", name: "Projector")
+
+  // MARK: Internal
 
   @Test
-  func containsRequiresListedButToleratesExtras() {
+  func `contains requires listed but tolerates extras`() {
     let rule = ProfileActivation(whenConnected: .contains([ext]))
     #expect(rule.matches(connected: [builtin, ext]))
     #expect(rule.matches(connected: [ext]))
@@ -20,7 +19,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func exactlyRequiresTheExactSet() {
+  func `exactly requires the exact set`() {
     let rule = ProfileActivation(whenConnected: .exactly([builtin, ext]))
     #expect(rule.matches(connected: [builtin, ext]))
     #expect(!rule.matches(connected: [builtin, ext, proj]))
@@ -28,14 +27,14 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func whenDisconnectedRejectsPresence() {
+  func `when disconnected rejects presence`() {
     let rule = ProfileActivation(whenConnected: .contains([ext]), whenDisconnected: [proj])
     #expect(rule.matches(connected: [ext]))
     #expect(!rule.matches(connected: [ext, proj]))
   }
 
   @Test
-  func displayCountConstraints() {
+  func `display count constraints`() {
     #expect(ProfileActivation(displayCount: .exactly(1)).matches(connected: [builtin]))
     #expect(!ProfileActivation(displayCount: .exactly(1)).matches(connected: [builtin, ext]))
     #expect(ProfileActivation(displayCount: .atLeast(2)).matches(connected: [builtin, ext]))
@@ -44,7 +43,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func emptyRuleIsACatchAllThatAlwaysMatches() {
+  func `empty rule is A catch all that always matches`() {
     // A non-nil rule with no conditions = auto-activation on, un-narrowed.
     #expect(ProfileActivation().matches(connected: [builtin, ext]))
     #expect(ProfileActivation().matches(connected: []))
@@ -52,7 +51,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func resolverPrefersMostSpecific() {
+  func `resolver prefers most specific`() {
     let loose = Profile(name: "Docked-ish", autoActivation: .init(whenConnected: .contains([ext])))
     let exact = Profile(name: "Docked", autoActivation: .init(whenConnected: .exactly([builtin, ext])))
     let config = AppConfig(profiles: [loose, exact])
@@ -63,7 +62,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func resolverTieBreaksToFirstAndReturnsNilWhenNoneMatch() {
+  func `resolver tie breaks to first and returns nil when none match`() {
     let first = Profile(name: "A", autoActivation: .init(displayCount: .atLeast(2)))
     let second = Profile(name: "B", autoActivation: .init(displayCount: .atLeast(2)))
     let manual = Profile(name: "Manual")
@@ -73,7 +72,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func startupResolverKeepsTheLastManualProfile() {
+  func `startup resolver keeps the last manual profile`() {
     let laptop = Profile(name: "Laptop", autoActivation: .init(displayCount: .exactly(1)))
     let manual = Profile(name: "Interview")
     let config = AppConfig(profiles: [laptop, manual])
@@ -87,7 +86,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func startupResolverFallsBackWhenTheLastProfilesConditionNoLongerMatches() {
+  func `startup resolver falls back when the last profiles condition no longer matches`() {
     let laptop = Profile(name: "Laptop", autoActivation: .init(displayCount: .exactly(1)))
     let dual = Profile(name: "Dual", autoActivation: .init(displayCount: .exactly(2)))
     let config = AppConfig(profiles: [laptop, dual])
@@ -101,21 +100,19 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func codableRoundTrips() throws {
+  func `codable round trips`() throws {
     let rule = ProfileActivation(
       whenConnected: .contains([ext]),
       whenDisconnected: [proj],
-      displayCount: .atLeast(2)
+      displayCount: .atLeast(2),
     )
     let data = try JSONEncoder().encode(rule)
     let decoded = try JSONDecoder().decode(ProfileActivation.self, from: data)
     #expect(decoded == rule)
   }
 
-  // MARK: - Overlap
-
   @Test
-  func containsRulesOverlapViaSuperset() {
+  func `contains rules overlap via superset`() {
     let a = ProfileActivation(whenConnected: .contains([ext]))
     let b = ProfileActivation(whenConnected: .contains([proj]))
     // A set containing both ext and proj satisfies both.
@@ -123,35 +120,35 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func exactlyDisjointSetsDoNotOverlap() {
+  func `exactly disjoint sets do not overlap`() {
     let a = ProfileActivation(whenConnected: .exactly([builtin]))
     let b = ProfileActivation(whenConnected: .exactly([ext]))
     #expect(!a.overlaps(with: b))
   }
 
   @Test
-  func exactlyOverlapsAContainedSubsetRule() {
+  func `exactly overlaps A contained subset rule`() {
     let a = ProfileActivation(whenConnected: .exactly([builtin, ext]))
     let b = ProfileActivation(whenConnected: .contains([ext]))
     #expect(a.overlaps(with: b)) // C = {builtin, ext}
   }
 
   @Test
-  func countOnlyRulesOverlapAtASharedSize() {
+  func `count only rules overlap at A shared size`() {
     let a = ProfileActivation(displayCount: .atLeast(2))
     let b = ProfileActivation(displayCount: .atLeast(3))
     #expect(a.overlaps(with: b)) // |C| >= 3 satisfies both
   }
 
   @Test
-  func exactCountVsHigherAtLeastDoNotOverlap() {
+  func `exact count vs higher at least do not overlap`() {
     let a = ProfileActivation(displayCount: .exactly(1))
     let b = ProfileActivation(displayCount: .atLeast(2))
     #expect(!a.overlaps(with: b))
   }
 
   @Test
-  func catchAllOverlapsAnySatisfiableRule() {
+  func `catch all overlaps any satisfiable rule`() {
     let catchAll = ProfileActivation()
     let real = ProfileActivation(whenConnected: .contains([ext]))
     #expect(catchAll.overlaps(with: real))
@@ -159,16 +156,14 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func disconnectedOnlyRulesOverlapOnBareLaptop() {
+  func `disconnected only rules overlap on bare laptop`() {
     let a = ProfileActivation(whenDisconnected: [ext])
     let b = ProfileActivation(whenDisconnected: [proj])
     #expect(a.overlaps(with: b)) // C = {} satisfies both
   }
 
-  // MARK: - Diagnostic
-
   @Test
-  func diagnosticFlagsEqualSpecificityAsConflict() {
+  func `diagnostic flags equal specificity as conflict`() {
     let p1 = Profile(name: "Dual A", autoActivation: .init(displayCount: .atLeast(2)))
     let p2 = Profile(name: "Dual B", autoActivation: .init(displayCount: .atLeast(3)))
     let config = AppConfig(profiles: [p1, p2])
@@ -178,7 +173,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func diagnosticReportsShadowingBothWays() {
+  func `diagnostic reports shadowing both ways`() {
     // "exactly [builtin, ext]" is more specific than "contains [ext]"; they
     // overlap on {builtin, ext}.
     let specific = Profile(name: "Specific", autoActivation: .init(whenConnected: .exactly([builtin, ext])))
@@ -192,7 +187,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func diagnosticEmptyWhenRulesCannotBothMatch() {
+  func `diagnostic empty when rules cannot both match`() {
     let laptop = Profile(name: "Laptop", autoActivation: .init(displayCount: .exactly(1)))
     let docked = Profile(name: "Docked", autoActivation: .init(displayCount: .atLeast(2)))
     let config = AppConfig(profiles: [laptop, docked])
@@ -201,7 +196,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func manualProfilesHaveNoDiagnostic() {
+  func `manual profiles have no diagnostic`() {
     let manual = Profile(name: "Manual")
     let auto = Profile(name: "Auto", autoActivation: .init(displayCount: .atLeast(2)))
     let config = AppConfig(profiles: [manual, auto])
@@ -211,7 +206,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func twoCatchAllProfilesConflict() {
+  func `two catch all profiles conflict`() {
     // Both enabled with no conditions ("any") → both always match → order
     // alone decides. This is the any/any case that must be flagged.
     let p1 = Profile(name: "Any A", autoActivation: .init())
@@ -222,7 +217,7 @@ struct ProfileActivationTests {
   }
 
   @Test
-  func catchAllIsShadowedByASpecificRule() {
+  func `catch all is shadowed by A specific rule`() {
     let fallback = Profile(name: "Fallback", autoActivation: .init())
     let docked = Profile(name: "Docked", autoActivation: .init(displayCount: .atLeast(2)))
     let config = AppConfig(profiles: [fallback, docked])
@@ -231,4 +226,11 @@ struct ProfileActivationTests {
     #expect(dFallback.shadowedBy == ["Docked"]) // more specific wins where both match
     #expect(config.autoActivationDiagnostic(for: docked.id).shadows == ["Fallback"])
   }
+
+  // MARK: Private
+
+  private let builtin = DisplayName(uuid: "U1", name: "Built-in")
+  private let ext = DisplayName(uuid: "U2", name: "IP1640")
+  private let proj = DisplayName(uuid: "U3", name: "Projector")
+
 }

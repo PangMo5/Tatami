@@ -25,9 +25,9 @@ public struct DemoWindow<Toolbar: View, Content: View, Status: View>: View {
   // MARK: Lifecycle
 
   public init(
-    @ViewBuilder toolbar: () -> Toolbar,
-    @ViewBuilder content: () -> Content,
-    @ViewBuilder status: () -> Status
+    @ContentBuilder toolbar: () -> Toolbar,
+    @ContentBuilder content: () -> Content,
+    @ContentBuilder status: () -> Status,
   ) {
     self.toolbar = toolbar()
     self.content = content()
@@ -74,8 +74,8 @@ public struct DemoWindow<Toolbar: View, Content: View, Status: View>: View {
 
 extension DemoWindow where Status == EmptyView {
   public init(
-    @ViewBuilder toolbar: () -> Toolbar,
-    @ViewBuilder content: () -> Content
+    @ContentBuilder toolbar: () -> Toolbar,
+    @ContentBuilder content: () -> Content,
   ) {
     self.init(toolbar: toolbar, content: content, status: { EmptyView() })
   }

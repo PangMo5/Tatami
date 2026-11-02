@@ -188,7 +188,9 @@ final class OverlayAwarenessState: @unchecked Sendable {
         }
         var result = [OverlayAwareProcess: Set<CGWindowID>]()
         for await (process, ids) in group {
-          if let ids { result[process] = ids }
+          if let ids {
+            result[process] = ids
+          }
         }
         return result
       }
@@ -225,7 +227,9 @@ final class OverlayAwarenessState: @unchecked Sendable {
           return state.lastOverlayEvidence[process] == true
         }
         guard !cancellation.isCancelled else { return [] }
-        if keepsVisible { preserved.insert(process) }
+        if keepsVisible {
+          preserved.insert(process)
+        }
 
         if authoritative == nil {
           debugLog.log(

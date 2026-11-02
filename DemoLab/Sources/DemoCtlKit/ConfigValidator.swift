@@ -23,7 +23,9 @@ public struct ConfigReport: Sendable {
   /// Things that are legal but probably not what the author meant.
   public let warnings: [String]
 
-  public var isClean: Bool { problems.isEmpty }
+  public var isClean: Bool {
+    problems.isEmpty
+  }
 
 }
 
@@ -38,7 +40,7 @@ private struct TableSchema {
   init(
     keys: Set<String> = [],
     tables: [String: TableSchema] = [:],
-    tableArrays: [String: TableSchema] = [:]
+    tableArrays: [String: TableSchema] = [:],
   ) {
     self.keys = keys
     self.tables = tables
@@ -73,27 +75,40 @@ public enum ConfigValidator {
 
   // MARK: Public
 
-  public static let workspaceKinds: Set<String> = ["normal", "scratchpad"]
-  public static let layoutModes: Set<String> = ["tiled", "floating", "unmanaged"]
-  public static let borrowEdges: Set<String> = ["top", "bottom", "left", "right"]
-  public static let autoBalanceModes: Set<String> = ["none", "horizontal", "vertical", "both"]
-  public static let splitTypes: Set<String> = ["auto", "horizontal", "vertical"]
-  public static let windowPlacements: Set<String> = ["first", "second"]
-  public static let hudPositions: Set<String> = [
-    "topLeading", "top", "topTrailing", "leading", "center", "trailing",
-    "bottomLeading", "bottom", "bottomTrailing",
+  public static let workspaceKinds: Set = ["normal", "scratchpad"]
+  public static let layoutModes: Set = ["tiled", "floating", "unmanaged"]
+  public static let borrowEdges: Set = ["top", "bottom", "left", "right"]
+  public static let autoBalanceModes: Set = ["none", "horizontal", "vertical", "both"]
+  public static let splitTypes: Set = ["auto", "horizontal", "vertical"]
+  public static let windowPlacements: Set = ["first", "second"]
+  public static let hudPositions: Set = [
+    "topLeading",
+    "top",
+    "topTrailing",
+    "leading",
+    "center",
+    "trailing",
+    "bottomLeading",
+    "bottom",
+    "bottomTrailing",
   ]
-  public static let hudSizes: Set<String> = ["small", "default", "large"]
-  public static let markerCorners: Set<String> = [
-    "topLeading", "topTrailing", "bottomLeading", "bottomTrailing",
+  public static let hudSizes: Set = ["small", "default", "large"]
+  public static let markerCorners: Set = [
+    "topLeading",
+    "topTrailing",
+    "bottomLeading",
+    "bottomTrailing",
   ]
-  public static let checkIntervals: Set<String> = ["hourly", "daily", "weekly"]
+  public static let checkIntervals: Set = ["hourly", "daily", "weekly"]
   /// Only `none` is lowercase. `None` fails and falls back with a banner.
-  public static let ffmDisableHotkeys: Set<String> = ["none", "Alt", "Cmd", "Ctrl", "Shift"]
-  public static let hookEvents: Set<String> = [
-    "tatamiLaunched", "profileChanged", "workspaceActivated", "hud",
+  public static let ffmDisableHotkeys: Set = ["none", "Alt", "Cmd", "Ctrl", "Shift"]
+  public static let hookEvents: Set = [
+    "tatamiLaunched",
+    "profileChanged",
+    "workspaceActivated",
+    "hud",
   ]
-  public static let modifierTokens: Set<String> = ["ctrl", "alt", "shift", "cmd"]
+  public static let modifierTokens: Set = ["ctrl", "alt", "shift", "cmd"]
 
   /// Exactly the key names Tatami's shortcut parser accepts. Anything else
   /// leaves the action unbound (with a Problem banner, which nobody is watching
@@ -106,8 +121,22 @@ public enum ConfigValidator {
     for digit in 0...9 { names.insert(String(digit)) }
     names.formUnion(["`", "-", "=", "[", "]", "\\", ";", "'", ",", ".", "/"])
     names.formUnion([
-      "return", "enter", "tab", "space", "delete", "escape", "help", "home", "end",
-      "pageup", "pagedown", "forwarddelete", "left", "right", "up", "down",
+      "return",
+      "enter",
+      "tab",
+      "space",
+      "delete",
+      "escape",
+      "help",
+      "home",
+      "end",
+      "pageup",
+      "pagedown",
+      "forwarddelete",
+      "left",
+      "right",
+      "up",
+      "down",
     ])
     for index in 1...13 { names.insert("f\(index)") }
     names.formUnion(["esc", "backspace", "del", "spacebar", "pgup", "pgdn"])
@@ -145,7 +174,7 @@ public enum ConfigValidator {
       globalBorrowEdge: globalBorrowEdge,
       sharedBundleIdentifiers: sharedBundleIdentifiers,
       problems: &problems,
-      warnings: &warnings
+      warnings: &warnings,
     )
 
     return ConfigReport(problems: problems, warnings: warnings)
@@ -157,21 +186,46 @@ public enum ConfigValidator {
 
   /// Every coding key of `AppSettings.Shortcuts`, including the six explicit
   /// assign/borrow overrides the template does not use.
-  private static let shortcutKeys: Set<String> = [
-    "focusLeft", "focusRight", "focusUp", "focusDown",
-    "switchToNextWorkspace", "switchToPreviousWorkspace", "switchToRecentWorkspace",
-    "moveToNextWorkspace", "moveToPreviousWorkspace",
-    "focusNextDisplay", "focusPreviousDisplay",
-    "cycleNextWindow", "cyclePreviousWindow",
-    "resizeGrow", "resizeShrink",
-    "swapLeft", "swapRight", "swapUp", "swapDown",
-    "toggleOrientation", "toggleFullscreen", "balance",
-    "toggleFloating", "toggleSharedFloating", "toggleSpaceActivated",
-    "toggleFocusedAppInActiveWorkspace", "toggleAppInSharedApps",
-    "keyEquivalentModifiers", "assignModifiers", "borrowModifiers",
-    "recentWorkspaceKey", "nextWorkspaceKey", "previousWorkspaceKey",
-    "assignRecentWorkspace", "assignNextWorkspace", "assignPreviousWorkspace",
-    "borrowRecentWorkspace", "borrowNextWorkspace", "borrowPreviousWorkspace",
+  private static let shortcutKeys: Set = [
+    "focusLeft",
+    "focusRight",
+    "focusUp",
+    "focusDown",
+    "switchToNextWorkspace",
+    "switchToPreviousWorkspace",
+    "switchToRecentWorkspace",
+    "moveToNextWorkspace",
+    "moveToPreviousWorkspace",
+    "focusNextDisplay",
+    "focusPreviousDisplay",
+    "cycleNextWindow",
+    "cyclePreviousWindow",
+    "resizeGrow",
+    "resizeShrink",
+    "swapLeft",
+    "swapRight",
+    "swapUp",
+    "swapDown",
+    "toggleOrientation",
+    "toggleFullscreen",
+    "balance",
+    "toggleFloating",
+    "toggleSharedFloating",
+    "toggleSpaceActivated",
+    "toggleFocusedAppInActiveWorkspace",
+    "toggleAppInSharedApps",
+    "keyEquivalentModifiers",
+    "assignModifiers",
+    "borrowModifiers",
+    "recentWorkspaceKey",
+    "nextWorkspaceKey",
+    "previousWorkspaceKey",
+    "assignRecentWorkspace",
+    "assignNextWorkspace",
+    "assignPreviousWorkspace",
+    "borrowRecentWorkspace",
+    "borrowNextWorkspace",
+    "borrowPreviousWorkspace",
     "dismissBorrow",
   ]
 
@@ -186,37 +240,103 @@ public enum ConfigValidator {
   private static let settingsSchema = TableSchema(
     tables: [
       "general": TableSchema(keys: [
-        "launchAtLogin", "checkForUpdatesAutomatically", "checkInterval", "debugLogging",
+        "launchAtLogin",
+        "checkForUpdatesAutomatically",
+        "checkInterval",
+        "debugLogging",
       ]),
-      "confirmations": TableSchema(keys: ["addWorkspaceApp", "moveWorkspaceApp", "removeWorkspaceApp", "floatWorkspaceApp", "tileWorkspaceApp", "unmanageWorkspaceApp", "addSharedApp", "removeSharedApp", "floatSharedApp", "tileSharedApp", "unmanageSharedApp", "deleteWorkspace", "deleteProfile", "deleteWorkspaceChain", "deleteHook", "removeOverlayException", "copyWorkspace", "copyProfile", "resetSetup", "reloadSetup", "applySetup", "applySetupRecommendation", "deleteSetupWorkspace", "deleteSetupProfile", "uninstallCLI"]),
+      "confirmations": TableSchema(keys: [
+        "addWorkspaceApp",
+        "moveWorkspaceApp",
+        "removeWorkspaceApp",
+        "floatWorkspaceApp",
+        "tileWorkspaceApp",
+        "unmanageWorkspaceApp",
+        "addSharedApp",
+        "removeSharedApp",
+        "floatSharedApp",
+        "tileSharedApp",
+        "unmanageSharedApp",
+        "deleteWorkspace",
+        "deleteProfile",
+        "deleteWorkspaceChain",
+        "deleteHook",
+        "removeOverlayException",
+        "copyWorkspace",
+        "copyProfile",
+        "resetSetup",
+        "reloadSetup",
+        "applySetup",
+        "applySetupRecommendation",
+        "deleteSetupWorkspace",
+        "deleteSetupProfile",
+        "uninstallCLI",
+      ]),
       "visibility": TableSchema(keys: ["overlayAwareApps"]),
       "menuBar": TableSchema(keys: [
-        "showWorkspaceIcon", "showWorkspaceName", "showProfileIcon", "showProfileName",
+        "showWorkspaceIcon",
+        "showWorkspaceName",
+        "showProfileIcon",
+        "showProfileName",
       ]),
       "hud": TableSchema(keys: [
-        "enabled", "workspaceSwitch", "windowCycle", "profileSwitch", "floating", "appMembership",
-        "tilingPaused", "fullscreen", "layout", "borrow", "position", "size", "durationMs",
+        "enabled",
+        "workspaceSwitch",
+        "windowCycle",
+        "profileSwitch",
+        "floating",
+        "appMembership",
+        "tilingPaused",
+        "fullscreen",
+        "layout",
+        "borrow",
+        "position",
+        "size",
+        "durationMs",
       ]),
       "marker": TableSchema(keys: [
-        "floatingEnabled", "floatingColorHex", "fullscreenEnabled", "fullscreenColorHex",
-        "borrowEnabled", "borrowColorHex", "size", "corner", "hideOnHover",
+        "floatingEnabled",
+        "floatingColorHex",
+        "fullscreenEnabled",
+        "fullscreenColorHex",
+        "borrowEnabled",
+        "borrowColorHex",
+        "size",
+        "corner",
+        "hideOnHover",
       ]),
       "layout": TableSchema(keys: [
-        "gapInner", "gapOuter", "autoBalance", "splitType", "windowPlacement",
+        "gapInner",
+        "gapOuter",
+        "autoBalance",
+        "splitType",
+        "windowPlacement",
       ]),
       "focus": TableSchema(keys: [
-        "mouseFollowsFocus", "mouseHidesOnFocus", "focusFollowsMouse",
-        "focusFollowsMouseDisableHotkey", "focusFollowsMouseIgnoreFullscreen", "refocusOnClose",
+        "mouseFollowsFocus",
+        "mouseHidesOnFocus",
+        "focusFollowsMouse",
+        "focusFollowsMouseDisableHotkey",
+        "focusFollowsMouseIgnoreFullscreen",
+        "refocusOnClose",
       ]),
       "switching": TableSchema(keys: [
-        "loop", "skipEmpty", "followAppFocus", "cycleAcrossDisplays", "recentAcrossDisplays",
-        "switchToRecentWhenEmpty", "cycleSameAppWindows", "includeSharedAppsInWindowSwitcher",
-        "toggleBorrowOnRepeat", "borrowDefaultEdge", "borrowFraction",
+        "loop",
+        "skipEmpty",
+        "followAppFocus",
+        "cycleAcrossDisplays",
+        "recentAcrossDisplays",
+        "switchToRecentWhenEmpty",
+        "cycleSameAppWindows",
+        "includeSharedAppsInWindowSwitcher",
+        "toggleBorrowOnRepeat",
+        "borrowDefaultEdge",
+        "borrowFraction",
       ]),
       "gestures": TableSchema(
         // `fingerCount` and `sensitivity` are decode-only survivors of older builds.
         keys: ["enabled", "threshold", "fingerCount", "sensitivity"],
-        tables: ["threeFinger": gestureBindingsSchema, "fourFinger": gestureBindingsSchema]
+        tables: ["threeFinger": gestureBindingsSchema, "fourFinger": gestureBindingsSchema],
       ),
       "shortcuts": TableSchema(keys: shortcutKeys),
     ]
@@ -224,23 +344,36 @@ public enum ConfigValidator {
 
   private static let workspaceSchema = TableSchema(
     keys: [
-      "id", "name", "displayHint", "activateShortcut", "assignAppShortcut", "symbolIconName",
-      "appToFocusBundleId", "kind", "keyEquivalent", "borrowShortcut", "borrowEdge", "borrowFraction",
+      "id",
+      "name",
+      "displayHint",
+      "activateShortcut",
+      "assignAppShortcut",
+      "symbolIconName",
+      "appToFocusBundleId",
+      "kind",
+      "keyEquivalent",
+      "borrowShortcut",
+      "borrowEdge",
+      "borrowFraction",
     ],
-    tableArrays: ["apps": appSchema]
+    tableArrays: ["apps": appSchema],
   )
 
   private static let profileSchema = TableSchema(
     keys: ["id", "name", "symbolIconName", "shortcut"],
     tables: [
       "autoActivation": TableSchema(keys: [
-        "whenConnectedMatch", "whenConnected", "whenDisconnected", "displayCount",
-      ]),
+        "whenConnectedMatch",
+        "whenConnected",
+        "whenDisconnected",
+        "displayCount",
+      ])
     ],
     tableArrays: [
       "workspaces": workspaceSchema,
       "workspaceChains": TableSchema(keys: ["id", "name", "workspaceIds", "dynamicWorkspaceIds"]),
-    ]
+    ],
   )
 
   /// Exactly the keys Tatami's decoders read, table by table.
@@ -259,11 +392,17 @@ public enum ConfigValidator {
       "profiles": profileSchema,
       "sharedApps": appSchema,
       "hooks": TableSchema(keys: [
-        "id", "event", "enabled", "command", "timeoutMs", "workingDirectory", "environment",
+        "id",
+        "event",
+        "enabled",
+        "command",
+        "timeoutMs",
+        "workingDirectory",
+        "environment",
       ]),
       // Pre-1.4 shape, decoded once and migrated into `sharedApps`.
       "floatingApps": TableSchema(keys: ["bundleIdentifier", "name", "iconPath"]),
-    ]
+    ],
   )
 
   /// Reports a key name Tatami's decoders do not contain.
@@ -276,7 +415,7 @@ public enum ConfigValidator {
     _ table: [String: TomlValue],
     against schema: TableSchema,
     path: String,
-    into problems: inout [String]
+    into problems: inout [String],
   ) {
     for key in table.keys.sorted() {
       let keyPath = path.isEmpty ? key : "\(path).\(key)"
@@ -314,7 +453,7 @@ public enum ConfigValidator {
     _ value: TomlValue?,
     _ allowed: Set<String>,
     _ path: String,
-    into problems: inout [String]
+    into problems: inout [String],
   ) {
     guard let value else { return }
     guard let raw = value.stringValue else {
@@ -336,7 +475,7 @@ public enum ConfigValidator {
     _ row: [String: TomlValue],
     _ path: String,
     requirePresence: Bool = true,
-    into problems: inout [String]
+    into problems: inout [String],
   ) {
     guard let value = row["autoOpen"] else {
       if requirePresence {
@@ -356,7 +495,7 @@ public enum ConfigValidator {
   private static func checkSettings(
     _ settings: TomlValue?,
     problems: inout [String],
-    warnings: inout [String]
+    warnings: inout [String],
   ) {
     guard let settings else {
       warnings.append("no [settings] table; every setting falls back to its default")
@@ -388,7 +527,7 @@ public enum ConfigValidator {
       settings["focus"]?["focusFollowsMouseDisableHotkey"],
       ffmDisableHotkeys,
       "settings.focus.focusFollowsMouseDisableHotkey",
-      into: &problems
+      into: &problems,
     )
 
     checkEnum(settings["marker"]?["corner"], markerCorners, "settings.marker.corner", into: &problems)
@@ -494,8 +633,14 @@ public enum ConfigValidator {
     }
 
     let aliases: [String: String] = [
-      "command": "cmd", "opt": "alt", "option": "alt", "control": "ctrl",
-      "⌘": "cmd", "⇧": "shift", "⌥": "alt", "⌃": "ctrl",
+      "command": "cmd",
+      "opt": "alt",
+      "option": "alt",
+      "control": "ctrl",
+      "⌘": "cmd",
+      "⇧": "shift",
+      "⌥": "alt",
+      "⌃": "ctrl",
     ]
     let unknownModifiers = modifiers
       .map { aliases[$0] ?? $0 }
@@ -519,7 +664,7 @@ public enum ConfigValidator {
   private static func checkSharedApps(
     _ shared: TomlValue?,
     problems: inout [String],
-    warnings: inout [String]
+    warnings: inout [String],
   ) {
     guard let rows = shared?.tableArray else { return }
     for (index, row) in rows.enumerated() {
@@ -528,7 +673,9 @@ public enum ConfigValidator {
         problems.append("\(label) has no bundleIdentifier")
         continue
       }
-      if row["name"]?.stringValue == nil { problems.append("\(label) has no name") }
+      if row["name"]?.stringValue == nil {
+        problems.append("\(label) has no name")
+      }
       checkAutoOpen(row, label, into: &problems)
       checkEnum(row["layout"], layoutModes, "\(label).layout", into: &problems)
       if !knownBundleIdentifiers.contains(bundleIdentifier) {
@@ -546,15 +693,21 @@ public enum ConfigValidator {
         problems.append("\(label) has no id")
         continue
       }
-      if !seen.insert(identifier).inserted { problems.append("\(label) reuses hook id \(identifier)") }
-      if identifier.count > 64 { problems.append("\(label) id is longer than 64 characters") }
+      if !seen.insert(identifier).inserted {
+        problems.append("\(label) reuses hook id \(identifier)")
+      }
+      if identifier.count > 64 {
+        problems.append("\(label) id is longer than 64 characters")
+      }
       let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._-"))
       if identifier.unicodeScalars.contains(where: { !allowed.contains($0) }) {
         problems.append("\(label) id may only use ASCII letters, digits, '.', '_' and '-'")
       }
       checkEnum(row["event"], hookEvents, "\(label).event", into: &problems)
-      guard let command = row["command"]?.stringArray, let executable = command.first,
-            !executable.isEmpty
+      guard
+        let command = row["command"]?.stringArray,
+        let executable = command.first,
+        !executable.isEmpty
       else {
         problems.append("\(label).command must be a non-empty array of strings")
         continue
@@ -573,7 +726,7 @@ public enum ConfigValidator {
     globalBorrowEdge: String?,
     sharedBundleIdentifiers: Set<String>,
     problems: inout [String],
-    warnings: inout [String]
+    warnings: inout [String],
   ) {
     guard let rows = profiles?.tableArray, !rows.isEmpty else {
       problems.append("[[profiles]] is missing or empty")
@@ -591,8 +744,12 @@ public enum ConfigValidator {
         problems.append("\(label) has a missing or malformed id (a bad id rejects the whole file)")
         continue
       }
-      if !profileIDs.insert(identifier).inserted { problems.append("\(label) reuses profile id \(identifier)") }
-      if profile["name"]?.stringValue == nil { problems.append("profiles[\(index)] has no name") }
+      if !profileIDs.insert(identifier).inserted {
+        problems.append("\(label) reuses profile id \(identifier)")
+      }
+      if profile["name"]?.stringValue == nil {
+        problems.append("profiles[\(index)] has no name")
+      }
 
       if let shortcut = profile["shortcut"]?.stringValue, let issue = shortcutProblem(shortcut) {
         // A profile shortcut is decoded with a hard `try`: a bad one rejects
@@ -625,11 +782,15 @@ public enum ConfigValidator {
         if !allWorkspaceIDs.insert(workspaceID).inserted {
           problems.append("\(workspaceLabel) reuses a workspace id from another profile; ids must be globally unique")
         }
-        if workspace["name"]?.stringValue == nil { problems.append("\(workspaceLabel) has no name") }
+        if workspace["name"]?.stringValue == nil {
+          problems.append("\(workspaceLabel) has no name")
+        }
 
         checkEnum(workspace["kind"], workspaceKinds, "\(workspaceLabel).kind", into: &problems)
         let kind = workspace["kind"]?.stringValue ?? "normal"
-        if kind == "scratchpad" { scratchpadIDs.insert(workspaceID) }
+        if kind == "scratchpad" {
+          scratchpadIDs.insert(workspaceID)
+        }
 
         if let edge = workspace["borrowEdge"] {
           checkEnum(edge, borrowEdges, "\(workspaceLabel).borrowEdge", into: &problems)
@@ -678,11 +839,15 @@ public enum ConfigValidator {
             continue
           }
           bundleIdentifiers.insert(bundleIdentifier)
-          if app["name"]?.stringValue == nil { problems.append("\(appLabel) has no name") }
+          if app["name"]?.stringValue == nil {
+            problems.append("\(appLabel) has no name")
+          }
           // A borrow forces autoOpen on a scratchpad's apps, so only the type
           // matters there.
           checkAutoOpen(app, appLabel, requirePresence: kind != "scratchpad", into: &problems)
-          if app["autoOpen"]?.boolValue == true { opensAnApp = true }
+          if app["autoOpen"]?.boolValue == true {
+            opensAnApp = true
+          }
           checkEnum(app["layout"], layoutModes, "\(appLabel).layout", into: &problems)
           if !knownBundleIdentifiers.contains(bundleIdentifier) {
             warnings.append("\(appLabel) references \(bundleIdentifier), which is not a Demo Lab app")
@@ -726,7 +891,7 @@ public enum ConfigValidator {
         label: label,
         workspaceIDs: workspaceIDsInProfile,
         scratchpadIDs: scratchpadIDs,
-        problems: &problems
+        problems: &problems,
       )
     }
   }
@@ -735,7 +900,7 @@ public enum ConfigValidator {
     _ activation: TomlValue?,
     label: String,
     problems: inout [String],
-    warnings: inout [String]
+    warnings: inout [String],
   ) {
     guard let activation, let table = activation.tableValue else { return }
 
@@ -769,7 +934,7 @@ public enum ConfigValidator {
     label: String,
     workspaceIDs: Set<String>,
     scratchpadIDs: Set<String>,
-    problems: inout [String]
+    problems: inout [String],
   ) {
     guard let rows = chains?.tableArray else { return }
     var chainIDs = Set<String>()
@@ -783,7 +948,9 @@ public enum ConfigValidator {
         problems.append("\(chainLabel) has a missing or malformed id")
         continue
       }
-      if !chainIDs.insert(identifier).inserted { problems.append("\(chainLabel) reuses a chain id") }
+      if !chainIDs.insert(identifier).inserted {
+        problems.append("\(chainLabel) reuses a chain id")
+      }
 
       guard let members = chain["workspaceIds"]?.stringArray else {
         problems.append("\(chainLabel).workspaceIds must be an array of workspace ids")
@@ -791,8 +958,12 @@ public enum ConfigValidator {
       }
       // Any of these makes Tatami skip the entire chain at run time — silently,
       // as far as a script can tell.
-      if members.count < 2 { problems.append("\(chainLabel) needs at least two members") }
-      if Set(members).count != members.count { problems.append("\(chainLabel) lists a workspace twice") }
+      if members.count < 2 {
+        problems.append("\(chainLabel) needs at least two members")
+      }
+      if Set(members).count != members.count {
+        problems.append("\(chainLabel) lists a workspace twice")
+      }
 
       for member in members {
         if !workspaceIDs.contains(member) {
@@ -807,7 +978,9 @@ public enum ConfigValidator {
       }
 
       if let dynamic = chain["dynamicWorkspaceIds"]?.stringArray {
-        if Set(dynamic).count != dynamic.count { problems.append("\(chainLabel).dynamicWorkspaceIds has duplicates") }
+        if Set(dynamic).count != dynamic.count {
+          problems.append("\(chainLabel).dynamicWorkspaceIds has duplicates")
+        }
         for entry in dynamic where !members.contains(entry) {
           problems.append("\(chainLabel).dynamicWorkspaceIds contains \(entry), which is not one of its members")
         }

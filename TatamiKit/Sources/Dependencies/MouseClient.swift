@@ -7,6 +7,8 @@ import Dependencies
 import DependenciesMacros
 import Foundation
 
+// MARK: - MouseClient
+
 /// Cursor side-effects. Wraps `CGWarpMouseCursorPosition` and the
 /// hide/show cursor pair so reducers stay testable.
 @DependencyClient
@@ -23,6 +25,8 @@ struct MouseClient: Sendable {
   /// frames use). Call on the main actor.
   var axLocation: @Sendable () -> CGPoint = { .zero }
 }
+
+// MARK: DependencyKey
 
 extension MouseClient: DependencyKey {
   static let liveValue: MouseClient = MainActor.assumeIsolated {
@@ -43,14 +47,14 @@ extension MouseClient: DependencyKey {
           let primaryHeight = DisplayResolver.primaryScreen()?.frame.height ?? cocoa.y
           return CGPoint(x: cocoa.x, y: primaryHeight - cocoa.y)
         }
-      }
+      },
     )
   }
 
   static let testValue = MouseClient(
     warp: { _ in },
-    hideUntilMouseMoves: {},
-    axLocation: { .zero }
+    hideUntilMouseMoves: { },
+    axLocation: { .zero },
   )
 
   static let previewValue = testValue
@@ -63,14 +67,16 @@ extension DependencyValues {
   }
 }
 
+// MARK: - CursorHidingController
+
 /// Hides the cursor on demand; the first global mouse-moved event
 /// brings it back. The controller is owned by the `MouseClient` live
 /// instance — there's no `.shared` singleton. Reference-counts hides
 /// so back-to-back activations don't double-hide.
 @MainActor
 private final class CursorHidingController {
-  private var monitor: Any?
-  private var isHidden = false
+
+  // MARK: Internal
 
   func hideUntilMouseMoves() {
     if !isHidden {
@@ -93,5 +99,10 @@ private final class CursorHidingController {
       monitor = nil
     }
   }
+
+  // MARK: Private
+
+  private var monitor: Any?
+  private var isHidden = false
 
 }

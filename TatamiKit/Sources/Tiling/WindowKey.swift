@@ -256,7 +256,9 @@ public func focusAppFront(pid: pid_t) async {
   let request = focusAXLatestRequest.begin()
   guard
     await MirrorWindowRegistry.shared.notifyWillFocus(pid: pid) != nil,
-    !Task.isCancelled, focusAXLatestRequest.isCurrent(request), isEligible()
+    !Task.isCancelled,
+    focusAXLatestRequest.isCurrent(request),
+    isEligible()
   else { return }
   @Dependency(\.sls) var sls
   let result = await focusAppFrontOffMain(
@@ -639,7 +641,9 @@ private func focusResolvedWindowAX(
   guard !isCancelled() else { return .cancelled }
   // Never de-minimize a window the user minimized: raising a minimized
   // window restores it. Auto-open is the only intended restore path.
-  if checkMinimized, axWindowIsMinimized(window) { return .completed }
+  if checkMinimized, axWindowIsMinimized(window) {
+    return .completed
+  }
   // Pointer-origin bookkeeping must happen only after this request reaches
   // the serial AX lane and survives cancellation. Recording in the caller
   // leaves a phantom origin when a newer mouse move cancels queued work.
@@ -689,7 +693,8 @@ func axWindowIsMinimized(_ window: AXUIElement) -> Bool {
       window,
       kAXMinimizedAttribute as CFString,
       &raw,
-    ) == .success, let value = raw as? Bool
+    ) == .success,
+    let value = raw as? Bool
   else { return false }
   return value
 }

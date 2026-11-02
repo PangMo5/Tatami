@@ -8,7 +8,7 @@ A guest-side virtual display provides a second real screen; see
 
 ## Prepare the guest
 
-The host needs Apple silicon, Swift 6.2+ and Tart with `exec` support. The guest
+The host needs Apple silicon, Xcode 27.2 with Swift 6.4 and Tart with `exec` support. The guest
 needs the Tart agent, Command Line Tools and a copy of Tatami. Run host commands
 from the repository root; guest commands use `~/DemoLab`.
 

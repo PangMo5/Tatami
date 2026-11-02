@@ -11,6 +11,12 @@ Write repository guidance, documentation, and commit subjects/bodies in English.
 
 For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep agent guidance in English; translate only explicitly listed user documentation.
 
+## Version control and development environment
+
+- Use Jujutsu (`jj`) for local history, changes, and bookmarks. Keep the colocated Git repository for GitHub interoperability; use `jj git fetch` and `jj git push` for remote operations.
+- Run development commands through `mise exec --` (or an activated mise shell). `.mise.toml` pins Tuist and SwiftFormat, and selects the Xcode version in `.xcode-version` without changing the system-wide selection.
+- Keep `.swiftformat` aligned with Airbnb's Swift style configuration, preserving the repository's license header and Swift language mode. Run `make format` and `make lint` before submitting Swift changes.
+
 ## Performance and responsiveness
 
 - Reserve the main thread for input, UI state, and AppKit presentation. Run potentially blocking AX/WindowServer IPC, file I/O, parsing, and image processing on appropriate workers.

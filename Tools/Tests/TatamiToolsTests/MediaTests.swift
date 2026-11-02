@@ -103,7 +103,7 @@ func `revised subtitles keep actual keycasts`() throws {
 
 @Test
 func `subtitle styles remain inside the desktop`() throws {
-  let styles = ["Caption", "Chapter", "Keys"].map { name in
+  let styles = ["Caption", "Chapter", "Keys"].lazy.map { name in
     "Style: " + [
       name,
       "Helvetica Neue",

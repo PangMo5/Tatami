@@ -32,11 +32,13 @@ struct DependencyNotices {
       }.sorted()
       try require(!notices.isEmpty, "No license or notice files in \(identity) at \(revision)")
       var source = pin["location"].str
-      if source.hasSuffix(".git") { source.removeLast(4) }
+      if source.hasSuffix(".git") {
+        source.removeLast(4)
+      }
       output += "## \(identity) \(pin["state"]["version"].string ?? revision)\n\nSource: \(source)\n\nRevision: `\(revision)`\n\n"
       for path in notices {
         let contents = try await runProcess(["git", "-C", checkout.path, "show", "\(revision):\(path)"], capture: true)
-        let fence = String(repeating: "~", count: max(4, matches("~+", contents).map { $0[0].count + 1 }.max() ?? 4))
+        let fence = String(repeating: "~", count: max(4, matches("~+", contents).lazy.map { $0[0].count + 1 }.max() ?? 4))
         output += "### `\(path)`\n\n\(fence)text\n\(contents)\(contents.hasSuffix("\n") ? "" : "\n")\(fence)\n\n"
       }
     }
@@ -46,8 +48,11 @@ struct DependencyNotices {
   func build(check: Bool) async throws {
     let text = try await rendered()
     let file = workspace.tools.at("THIRD_PARTY_NOTICES.md")
-    if check { try require(try file.text() == text, "Development tool notices have drifted from Package.resolved") }
-    else { try file.write(text) }
+    if check {
+      try require(try file.text() == text, "Development tool notices have drifted from Package.resolved")
+    } else {
+      try file.write(text)
+    }
     print("\(check ? "Verified" : "Generated") development tool dependency notices")
   }
 }

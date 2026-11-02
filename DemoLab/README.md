@@ -48,7 +48,7 @@ GUEST_DIR=DemoLab/recordings/publish "$TOOL" vm-fetch-recordings DemoLab/recordi
 "$TOOL" install-assets ~/Downloads/TatamiDemoLab-review
 ```
 
-Host requirements: Swift 6.2+, `tart`, `mpv` with libass/libx264, `ffmpeg` and
+Host requirements: Xcode 27.2 with Swift 6.4, `tart`, `mpv` with libass/libx264, `ffmpeg` and
 `ffprobe`. Run host commands from the repository root. The guest needs Xcode
 Command Line Tools. Source sync carries the compiled automation executable, so
 the guest does not download packages. The recorder remains an independent

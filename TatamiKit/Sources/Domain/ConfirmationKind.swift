@@ -43,6 +43,8 @@ public enum ConfirmationKind: String, CaseIterable, CodingKey, Identifiable, Sen
     case setup
     case commandLine
 
+    // MARK: Public
+
     public var id: String {
       rawValue
     }
@@ -167,7 +169,11 @@ extension AppSettings {
     public subscript(_ kind: ConfirmationKind) -> Bool {
       get { !disabled.contains(kind) }
       set {
-        if newValue { disabled.remove(kind) } else { disabled.insert(kind) }
+        if newValue {
+          disabled.remove(kind)
+        } else {
+          disabled.insert(kind)
+        }
       }
     }
 

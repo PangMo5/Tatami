@@ -114,7 +114,9 @@ public struct LayoutSnapshot: Codable, Hashable, Sendable {
     for slot in tree.windows.sorted(by: {
       ($0.bundleId, $0.occurrence) < ($1.bundleId, $1.occurrence)
     }) {
-      if let key = bindings[slot], live.contains(key) { continue }
+      if let key = bindings[slot], live.contains(key) {
+        continue
+      }
       guard let index = available.firstIndex(where: { $0.bundleId == slot.bundleId }) else { continue }
       let key = available.remove(at: index)
       bindings[slot] = key
@@ -316,7 +318,9 @@ actor LayoutStore {
   private var cachedMap: [String: LayoutSnapshot]?
 
   private func loadedMap() -> [String: LayoutSnapshot]? {
-    if let cachedMap { return cachedMap }
+    if let cachedMap {
+      return cachedMap
+    }
     guard let loaded = readMap() else { return nil }
     cachedMap = loaded
     return loaded

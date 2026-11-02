@@ -47,8 +47,6 @@ public final class SceneTimeline {
     case keys
   }
 
-  // MARK: - Entry
-
   /// One stretch of narration: what was on that track, and between which times.
   public struct Entry: Sendable {
 
@@ -70,7 +68,9 @@ public final class SceneTimeline {
 
     /// A clear. It carries no words, so it becomes a gap in the subtitles rather
     /// than a line, but it still records the moment the words left the screen.
-    public var isClear: Bool { text.isEmpty }
+    public var isClear: Bool {
+      text.isEmpty
+    }
 
   }
 
@@ -94,7 +94,7 @@ public final class SceneTimeline {
         track: record.track,
         text: record.text,
         start: Self.rounded(record.start),
-        end: Self.rounded(max(close, record.start))
+        end: Self.rounded(max(close, record.start)),
       )
     }
   }
@@ -117,7 +117,9 @@ public final class SceneTimeline {
     // The overlay holds whatever it was last told, so re-sending the same words
     // changes nothing on screen. Splitting them into two entries would put a
     // one-frame flicker into a burned copy that the live take never had.
-    if let index = openIndex(of: track), records[index].text == text { return }
+    if let index = openIndex(of: track), records[index].text == text {
+      return
+    }
     closeOpen(track, at: seconds)
     records.append(Record(track: track, text: text, start: seconds, end: nil))
   }
@@ -132,8 +134,6 @@ public final class SceneTimeline {
 
   // MARK: Private
 
-  // MARK: - Record
-
   /// The mutable form. `end` is nil while that stretch of narration is still on
   /// screen, which is what lets a later event close it.
   private struct Record {
@@ -147,15 +147,15 @@ public final class SceneTimeline {
   private var records = [Record]()
   private var endOfTake: Double?
 
+  private var elapsed: Double {
+    Shell.seconds(ContinuousClock.now - t0)
+  }
+
   /// Centiseconds, because that is all an ASS timestamp can express. Rounding
   /// here rather than in the writer keeps the JSON sidecar and the ASS sidecar
   /// describing the same instants rather than two roundings of them.
   private static func rounded(_ seconds: Double) -> Double {
     (max(0, seconds) * 100).rounded() / 100
-  }
-
-  private var elapsed: Double {
-    Shell.seconds(ContinuousClock.now - t0)
   }
 
   private func openIndex(of track: Track) -> Int? {
@@ -182,8 +182,6 @@ public final class SceneTimeline {
 public enum SceneSubtitles {
 
   // MARK: Public
-
-  // MARK: - Resolution
 
   /// The pixel size of the movie the subtitles belong to.
   public struct Resolution: Sendable, Equatable {
@@ -219,7 +217,7 @@ public enum SceneSubtitles {
   public static func ass(
     _ timeline: SceneTimeline,
     resolution: Resolution,
-    drawnLive: Set<SceneTimeline.Track> = []
+    drawnLive: Set<SceneTimeline.Track> = [],
   ) -> String {
     let omitted = SceneTimeline.Track.allCases
       .filter { drawnLive.contains($0) }
@@ -296,19 +294,19 @@ public enum SceneSubtitles {
   /// `{}` draws nothing and breaks the sequence.
   public static func escaped(_ text: String) -> String {
     // Braces first, so the empty block inserted below is not escaped in turn.
-    var out = text.replacingOccurrences(of: "{", with: "\\{")
-    out = out.replacingOccurrences(of: "}", with: "\\}")
+    var out = text.replacing("{", with: "\\{")
+    out = out.replacing("}", with: "\\}")
     out = out.replacingOccurrences(
       of: "\\\\([nNh])",
       with: "\\\\{}$1",
-      options: .regularExpression
+      options: .regularExpression,
     )
     // A hard line break inside an event is `\N`, and this runs last so the
     // break it produces is not itself neutralised. A real newline would end the
     // Dialogue row and truncate the caption to its first line.
-    out = out.replacingOccurrences(of: "\r\n", with: "\\N")
-    out = out.replacingOccurrences(of: "\n", with: "\\N")
-    out = out.replacingOccurrences(of: "\r", with: "\\N")
+    out = out.replacing("\r\n", with: "\\N")
+    out = out.replacing("\n", with: "\\N")
+    out = out.replacing("\r", with: "\\N")
     return out
   }
 
@@ -320,34 +318,68 @@ public enum SceneSubtitles {
       total / 360_000,
       (total / 6_000) % 60,
       (total / 100) % 60,
-      total % 100
+      total % 100,
     )
   }
 
   // MARK: Private
 
-  private static let styleFormat = "Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
-  private static let eventFormat = "Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
-  private static let referenceHeight = 1200.0
-
   private struct Style {
     let row: String
   }
 
+  private static let styleFormat = "Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
+  private static let eventFormat = "Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+  private static let referenceHeight = 1200.0
+
   /// Narration, chapters and actual keys are drawn inside the desktop image.
   /// A translucent backing keeps them readable over both light and dark apps.
   private static func styles(for resolution: Resolution) -> [Style] {
-    func style(_ name: String, size: Double, color: String, bold: Int, alignment: Int,
-               left: Double, right: Double, vertical: Double) -> Style {
-      Style(row: "Style: \(name),Helvetica Neue,\(scaled(size, resolution)),\(color),\(color),&H40141414,&H40141414,\(bold),0,0,0,100,100,0,0,3,10,0,\(alignment),\(scaled(left, resolution)),\(scaled(right, resolution)),\(scaled(vertical, resolution)),1")
+    func style(
+      _ name: String,
+      size: Double,
+      color: String,
+      bold: Int,
+      alignment: Int,
+      left: Double,
+      right: Double,
+      vertical: Double,
+    ) -> Style {
+      Style(
+        row: "Style: \(name),Helvetica Neue,\(scaled(size, resolution)),\(color),\(color),&H40141414,&H40141414,\(bold),0,0,0,100,100,0,0,3,10,0,\(alignment),\(scaled(left, resolution)),\(scaled(right, resolution)),\(scaled(vertical, resolution)),1"
+      )
     }
     return [
-      style("Caption", size: 42, color: FilmTheme.text, bold: -1, alignment: 2,
-            left: 110, right: 110, vertical: 96),
-      style("Chapter", size: 26, color: FilmTheme.accent, bold: -1, alignment: 7,
-            left: 32, right: 700, vertical: 54),
-      style("Keys", size: 38, color: FilmTheme.accent, bold: 0, alignment: 9,
-            left: 1300, right: 32, vertical: 54),
+      style(
+        "Caption",
+        size: 42,
+        color: FilmTheme.text,
+        bold: -1,
+        alignment: 2,
+        left: 110,
+        right: 110,
+        vertical: 96,
+      ),
+      style(
+        "Chapter",
+        size: 26,
+        color: FilmTheme.accent,
+        bold: -1,
+        alignment: 7,
+        left: 32,
+        right: 700,
+        vertical: 54,
+      ),
+      style(
+        "Keys",
+        size: 38,
+        color: FilmTheme.accent,
+        bold: 0,
+        alignment: 9,
+        left: 1300,
+        right: 32,
+        vertical: 54,
+      ),
     ]
   }
 
@@ -367,7 +399,7 @@ public enum SceneSubtitles {
 
   private static func dialogue(
     _ entry: SceneTimeline.Entry,
-    resolution: Resolution
+    resolution: Resolution,
   ) -> String? {
     guard !entry.isClear else { return nil }
     // A centisecond is the finest gap an ASS timestamp can express, so a line
@@ -381,9 +413,11 @@ public enum SceneSubtitles {
     case .chapter:
       style = "Chapter"
       text = escaped(entry.text)
+
     case .caption:
       style = "Caption"
       text = captionText(entry.text, resolution: resolution)
+
     case .keys:
       style = "Keys"
       // The caps, not the config spelling. A scene records the chord exactly as
@@ -431,13 +465,13 @@ public enum SceneSidecars {
     _ timeline: SceneTimeline,
     besides movie: URL,
     resolution: SceneSubtitles.Resolution,
-    drawnLive: Set<SceneTimeline.Track> = []
+    drawnLive: Set<SceneTimeline.Track> = [],
   ) throws -> [URL] {
     let subtitles = LabPaths.subtitleFile(for: movie)
     let json = LabPaths.timelineFile(for: movie)
     try FileManager.default.createDirectory(
       at: movie.deletingLastPathComponent(),
-      withIntermediateDirectories: true
+      withIntermediateDirectories: true,
     )
     let ass = SceneSubtitles.ass(timeline, resolution: resolution, drawnLive: drawnLive)
     try Data(ass.utf8).write(to: subtitles, options: .atomic)

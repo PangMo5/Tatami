@@ -214,7 +214,9 @@ final class MirrorClickTap: @unchecked Sendable {
   func enable() async -> Bool {
     await withCheckedContinuation { continuation in
       EventTapThread.shared.perform { [self] in
-        if eventTap == nil { install() }
+        if eventTap == nil {
+          install()
+        }
         continuation.resume(returning: access.permitsInput() && eventTap != nil && acknowledgmentTap != nil)
       }
     }
@@ -222,7 +224,9 @@ final class MirrorClickTap: @unchecked Sendable {
 
   func disable() {
     EventTapThread.shared.perform { [self] in
-      if eventTap != nil { teardown() }
+      if eventTap != nil {
+        teardown()
+      }
     }
   }
 
@@ -276,10 +280,14 @@ final class MirrorClickTap: @unchecked Sendable {
   /// The HID filter holds originals before native titlebar/resize handling.
   /// Replayed packets pass here and are acknowledged by the session observer.
   fileprivate func handle(_ event: CGEvent) -> Bool {
-    if MirrorInputEventOrigin.isReplay(event) { return true }
+    if MirrorInputEventOrigin.isReplay(event) {
+      return true
+    }
 
     if inFlight != nil || preparingID != nil || !input.isEmpty {
-      if !input.append(event) { cancelInput(reason: "Native window input exceeded its pending event capacity.") }
+      if !input.append(event) {
+        cancelInput(reason: "Native window input exceeded its pending event capacity.")
+      }
       return false
     }
     if !input.pressedButtons.isEmpty {
@@ -302,7 +310,9 @@ final class MirrorClickTap: @unchecked Sendable {
     }
     if Self.isMouseDown(event.type) {
       let frames = MirrorWindowRegistry.shared.suppressedWindowFrames()
-      if !frames.isEmpty, !frames.contains(where: { $0.contains(event.location) }) { onOutsideClick() }
+      if !frames.isEmpty, !frames.contains(where: { $0.contains(event.location) }) {
+        onOutsideClick()
+      }
     }
     return true
   }
@@ -511,7 +521,9 @@ final class MirrorClickTap: @unchecked Sendable {
   }
 
   private func prepare(_ target: MirrorWindowRegistry.Target) {
-    if let lease { finishNativeInput(lease.id) }
+    if let lease {
+      finishNativeInput(lease.id)
+    }
     let id = UUID()
     lease = (id, target)
     preparingID = id
@@ -544,7 +556,8 @@ final class MirrorClickTap: @unchecked Sendable {
       // Resolve every new queued click before entering WindowServer. Holding
       // it at the downstream acknowledgment tap would be too late for chrome.
       if
-        Self.isMouseDown(event.type), input.pressedButtons.isEmpty,
+        Self.isMouseDown(event.type),
+        input.pressedButtons.isEmpty,
         MirrorWindowRegistry.shared.mayContainMirror(at: event.location)
       {
         resolveClickTarget()
@@ -572,7 +585,8 @@ final class MirrorClickTap: @unchecked Sendable {
   private func postInFlight() {
     guard access.permitsInput() else { return }
     guard
-      let inFlight, let transportSource,
+      let inFlight,
+      let transportSource,
       let wake = CGEvent(
         mouseEventSource: transportSource,
         mouseType: .mouseMoved,
@@ -642,7 +656,9 @@ final class MirrorClickTap: @unchecked Sendable {
           mouseButton: button,
         )
       {
-        if let eventNumber = input.buttonEventNumbers[number] { up.setIntegerValueField(.mouseEventNumber, value: eventNumber) }
+        if let eventNumber = input.buttonEventNumbers[number] {
+          up.setIntegerValueField(.mouseEventNumber, value: eventNumber)
+        }
         up.setIntegerValueField(.eventSourceUserData, value: MirrorInputEventOrigin.tag(windowID: lease?.target.windowID))
         up.post(tap: .cghidEventTap)
       }
@@ -654,7 +670,9 @@ final class MirrorClickTap: @unchecked Sendable {
       }
     }
     input.reset()
-    if let lease { finishNativeInput(lease.id) }
+    if let lease {
+      finishNativeInput(lease.id)
+    }
     lease = nil
     MirrorWindowRegistry.shared.setNativeInputActive(false)
     if hadInput, let reason {

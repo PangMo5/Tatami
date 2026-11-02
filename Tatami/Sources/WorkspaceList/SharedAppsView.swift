@@ -71,7 +71,11 @@ struct SharedAppsView: View {
     .sheet(
       isPresented: Binding(
         get: { store.isAppPickerPresented },
-        set: { if !$0 { store.send(.appPickerDismissed) } },
+        set: {
+          if !$0 {
+            store.send(.appPickerDismissed)
+          }
+        },
       )
     ) {
       AppPickerSheet(

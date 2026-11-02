@@ -180,7 +180,9 @@ extension Profile {
     )
     for chain in workspaceChains where duplicateChainIDs.contains(chain.id) {
       let issue = WorkspaceChainValidationIssue.duplicateChainID(chainId: chain.id)
-      if !issues.contains(issue) { issues.append(issue) }
+      if !issues.contains(issue) {
+        issues.append(issue)
+      }
     }
 
     var chainIDsByWorkspace = [Workspace.ID: [WorkspaceChain.ID]]()

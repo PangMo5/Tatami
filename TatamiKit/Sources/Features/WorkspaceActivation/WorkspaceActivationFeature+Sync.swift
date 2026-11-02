@@ -126,7 +126,9 @@ extension WorkspaceActivationFeature {
           break
         }
       }
-      if tree != nil { tree = current }
+      if tree != nil {
+        tree = current
+      }
     }
 
     // `tree.windows` is a full recursive tree walk that allocates a fresh
@@ -518,7 +520,8 @@ extension WorkspaceActivationFeature {
       var postLayoutFocusEffect = Effect<Action>.none
       var willRefocus = false
       if
-        settings.focus.refocusOnClose, !newWindows.isEmpty,
+        settings.focus.refocusOnClose,
+        !newWindows.isEmpty,
         focused == nil || !newWindows.contains(focused!)
       {
         // A background monitor losing a window must never steal keyboard focus.
@@ -993,7 +996,9 @@ extension WorkspaceActivationFeature {
           state.insertionPoint[workspaceId] = key
           continue
         }
-        if current.windows.contains(key) { continue }
+        if current.windows.contains(key) {
+          continue
+        }
         let present = Set(current.windows)
         let resolved = [anchor, focused]
           .compactMap { $0 }
@@ -1241,7 +1246,9 @@ extension WorkspaceActivationFeature {
     // tile expands over where the cursor sat, so "cursor already inside" is not
     // a reason to skip. Ordinary click-focus doesn't reach here (no tree edit).
     if
-      !willRefocus, let focused, newWindows.contains(focused),
+      !willRefocus,
+      let focused,
+      newWindows.contains(focused),
       newWindows.subtracting(oldWindows).contains(focused) || !removed.isEmpty
     {
       postLayoutFocusEffect = settleFocusAfterLayout(

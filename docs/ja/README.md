@@ -190,11 +190,12 @@ brew install --cask pangmo5/tap/tatami
 <a id="build-from-source"></a>
 ### ソースからビルド
 
-Xcode 26 以降と Swift 6.2 以降のツールチェーンを使ってください。アプリは macOS 14 以降で動作します。実行環境とビルドツールの要件は別です。
+Xcode 27.2 に付属する Swift 6.4 ツールチェーンを使ってください。アプリは macOS 14 以降で動作します。実行環境とビルドツールの要件は別です。
 
 ```sh
-brew install tuist                     # or: mise install
-tuist install && tuist generate --no-open
+mise install
+mise exec -- tuist install
+mise exec -- tuist generate --no-open
 open Tatami.xcworkspace
 ```
 

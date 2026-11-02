@@ -171,7 +171,7 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
       )
       let data = try encodeTatamiConfig(updated)
       var coordinationError: NSError?
-      var operationError: (any Error)?
+      var operationError: any Error?
       NSFileCoordinator().coordinate(
         writingItemAt: url,
         options: .forReplacing,
@@ -191,10 +191,16 @@ final class TatamiConfigTransactionCoordinator: @unchecked Sendable {
           operationError = error
         }
       }
-      if let operationError { throw operationError }
-      if let coordinationError { throw coordinationError }
+      if let operationError {
+        throw operationError
+      }
+      if let coordinationError {
+        throw coordinationError
+      }
       lock.withLock {
-        if suppressDidSet { suppressedDidSet = updated }
+        if suppressDidSet {
+          suppressedDidSet = updated
+        }
         sessionProfileID = updated.activeProfileId
         recentSelfWrite = (updated, Date.now.addingTimeInterval(2))
       }
@@ -316,7 +322,9 @@ private func compareAndSwapConfigFile(
   if expectedRevision == nil {
     let result = renameConfigFile(temporaryURL, url, flags: UInt32(RENAME_EXCL))
     guard result == 0 else {
-      if errno == EEXIST { throw ConfigPersistenceError.changedOnDisk }
+      if errno == EEXIST {
+        throw ConfigPersistenceError.changedOnDisk
+      }
       throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
     guard publish() else {
@@ -349,7 +357,9 @@ private func compareAndSwapConfigFile(
 
   let swapResult = renameConfigFile(temporaryURL, url, flags: UInt32(RENAME_SWAP))
   guard swapResult == 0 else {
-    if errno == ENOENT { throw ConfigPersistenceError.changedOnDisk }
+    if errno == ENOENT {
+      throw ConfigPersistenceError.changedOnDisk
+    }
     throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
   }
   afterInitialExchange()

@@ -3,6 +3,8 @@
 
 import Foundation
 
+// MARK: - LayoutMode
+
 /// How a workspace lays out an assigned (or shared) app's windows.
 ///
 /// `tiled` and `floating` are the original two modes; `unmanaged` is the
@@ -31,30 +33,23 @@ public enum LayoutMode: String, Hashable, Sendable, Codable, CaseIterable {
   }
 }
 
+// MARK: - AppAssignment
+
 /// Inline membership entry: a workspace's reference to a specific app.
 ///
 /// `AppAssignment` is identified by its bundle identifier within a
 /// workspace; the same app may legitimately appear in multiple workspaces
 /// with different per-workspace metadata (e.g. autoOpen).
 public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
-  public var bundleIdentifier: String
-  public var name: String
-  public var iconPath: String?
-  /// Launch the app automatically when its workspace activates.
-  public var autoOpen: Bool
-  /// How this workspace lays out the app's windows. `.unmanaged` keeps it
-  /// a member (auto-open, show/hide, focus, FFM, cycling) but leaves its
-  /// windows alone — no tile, no mirror.
-  public var layout: LayoutMode
 
-  public var id: String { bundleIdentifier }
+  // MARK: Lifecycle
 
   public init(
     bundleIdentifier: String,
     name: String,
     iconPath: String? = nil,
     autoOpen: Bool = false,
-    layout: LayoutMode = .tiled
+    layout: LayoutMode = .tiled,
   ) {
     self.bundleIdentifier = bundleIdentifier
     self.name = name
@@ -69,19 +64,35 @@ public struct AppAssignment: Identifiable, Hashable, Sendable, Codable {
       name: app.name,
       iconPath: app.iconPath,
       autoOpen: autoOpen,
-      layout: layout
+      layout: layout,
     )
+  }
+
+  // MARK: Public
+
+  public var bundleIdentifier: String
+  public var name: String
+  public var iconPath: String?
+  /// Launch the app automatically when its workspace activates.
+  public var autoOpen: Bool
+  /// How this workspace lays out the app's windows. `.unmanaged` keeps it
+  /// a member (auto-open, show/hide, focus, FFM, cycling) but leaves its
+  /// windows alone — no tile, no mirror.
+  public var layout: LayoutMode
+
+  public var id: String {
+    bundleIdentifier
   }
 
   public var app: MacApp {
     MacApp(bundleIdentifier: bundleIdentifier, name: name, iconPath: iconPath)
   }
+
 }
 
 extension AppAssignment {
-  private enum CodingKeys: String, CodingKey {
-    case bundleIdentifier, name, iconPath, autoOpen, layout, floating
-  }
+
+  // MARK: Lifecycle
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -98,6 +109,8 @@ extension AppAssignment {
     }
   }
 
+  // MARK: Public
+
   public func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(bundleIdentifier, forKey: .bundleIdentifier)
@@ -106,4 +119,16 @@ extension AppAssignment {
     try c.encode(autoOpen, forKey: .autoOpen)
     try c.encode(layout, forKey: .layout)
   }
+
+  // MARK: Private
+
+  private enum CodingKeys: String, CodingKey {
+    case bundleIdentifier
+    case name
+    case iconPath
+    case autoOpen
+    case layout
+    case floating
+  }
+
 }

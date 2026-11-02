@@ -37,7 +37,7 @@ public enum DemoCtlError: Error, CustomStringConvertible {
     case .tatamiNotFound(let searched):
       """
       Tatami.app not found. Looked in:
-      \(searched.map { "  - \($0)" }.joined(separator: "\n"))
+      \(searched.lazy.map { "  - \($0)" }.joined(separator: "\n"))
       Pass --tatami-app <path> or set DEMOLAB_TATAMI_APP.
       """
 
@@ -62,7 +62,7 @@ public enum DemoCtlError: Error, CustomStringConvertible {
     case .configInvalid(let problems):
       """
       the rendered config would be rejected or silently misread by Tatami:
-      \(problems.map { "  - \($0)" }.joined(separator: "\n"))
+      \(problems.lazy.map { "  - \($0)" }.joined(separator: "\n"))
       """
 
     case .bundlesMissing(let names):
@@ -96,7 +96,7 @@ public enum DemoCtlError: Error, CustomStringConvertible {
     case .recordingFailed(let problems):
       """
       the take did not produce a usable recording:
-      \(problems.map { "  - \($0)" }.joined(separator: "\n"))
+      \(problems.lazy.map { "  - \($0)" }.joined(separator: "\n"))
       """
 
     case .defaultsSnapshotUnstamped(let backup, let stamp):

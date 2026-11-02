@@ -4,6 +4,8 @@
 import CoreGraphics
 import Foundation
 
+// MARK: - LayoutEditOp
+
 /// A single layout edit expressed against a BSP tree's *structure* — every
 /// case is a `[BSPSide]` path or a whole-tree transform, never a window id.
 /// That keeps it payload-agnostic: the same op applies to a live
@@ -50,15 +52,18 @@ extension BSPNode {
     case .swap(let a, let b):
       return swappingLeaves(a, b)
     case .relocate(let source, let target, let zone):
-      guard case .leaf(let s) = subtree(at: source), let sourceId = s.topWindow,
-            case .leaf(let t) = subtree(at: target), let targetId = t.topWindow
+      guard
+        case .leaf(let s) = subtree(at: source),
+        let sourceId = s.topWindow,
+        case .leaf(let t) = subtree(at: target),
+        let targetId = t.topWindow
       else { return self }
       switch zone {
-      case .swap:   return swappingLeaves(source, target)
-      case .top:    return warpingInto(source: sourceId, target: targetId, axis: .horizontal, child: .first)
+      case .swap: return swappingLeaves(source, target)
+      case .top: return warpingInto(source: sourceId, target: targetId, axis: .horizontal, child: .first)
       case .bottom: return warpingInto(source: sourceId, target: targetId, axis: .horizontal, child: .second)
-      case .left:   return warpingInto(source: sourceId, target: targetId, axis: .vertical, child: .first)
-      case .right:  return warpingInto(source: sourceId, target: targetId, axis: .vertical, child: .second)
+      case .left: return warpingInto(source: sourceId, target: targetId, axis: .vertical, child: .first)
+      case .right: return warpingInto(source: sourceId, target: targetId, axis: .vertical, child: .second)
       }
     }
   }
@@ -84,9 +89,10 @@ extension BSPNode {
   /// both (it refers to a position, not a window). No-op unless both paths hit
   /// leaves. Mirrors the cross-leaf branch of `swapping(_:_:)`.
   public func swappingLeaves(_ a: [Side], _ b: [Side]) -> BSPNode {
-    guard a != b,
-          case .leaf(let leafA) = subtree(at: a),
-          case .leaf(let leafB) = subtree(at: b)
+    guard
+      a != b,
+      case .leaf(let leafA) = subtree(at: a),
+      case .leaf(let leafB) = subtree(at: b)
     else { return self }
     var newA = leafA
     newA.windowList = leafB.windowList
@@ -110,7 +116,7 @@ extension BSPNode {
     source: WindowID,
     target: WindowID,
     axis: SplitAxis,
-    child: Child
+    child: Child,
   ) -> BSPNode {
     guard let targetPath = pathTo(window: target) else { return self }
     let seeded = replacing(path: targetPath) { node in
@@ -135,12 +141,12 @@ extension BSPNode {
   /// duplicated id inside one stacked leaf is paired by occurrence order).
   public func tokenized() -> (BSPNode<Int>, [Int: WindowID]) {
     var counter = 0
-    var back: [Int: WindowID] = [:]
+    var back = [Int: WindowID]()
     func build(_ node: BSPNode<WindowID>) -> BSPNode<Int> {
       switch node {
       case .leaf(let leaf):
-        var listTokens: [Int] = []
-        var pools: [WindowID: [Int]] = [:]
+        var listTokens = [Int]()
+        var pools = [WindowID: [Int]]()
         for id in leaf.windowList {
           let token = counter
           counter += 1
@@ -148,7 +154,7 @@ extension BSPNode {
           listTokens.append(token)
           pools[id, default: []].append(token)
         }
-        var orderTokens: [Int] = []
+        var orderTokens = [Int]()
         for id in leaf.windowOrder {
           guard var queue = pools[id], let token = queue.first else { continue }
           queue.removeFirst()
@@ -164,15 +170,16 @@ extension BSPNode {
           insertDirection: leaf.insertDirection,
           preferredChild: leaf.preferredChild,
           preferredSplit: leaf.preferredSplit,
-          parentZoom: leaf.parentZoom
+          parentZoom: leaf.parentZoom,
         ))
+
       case .branch(let b):
         return .branch(BSPBranch<Int>(
           split: b.split,
           ratio: b.ratio,
           preferredChild: b.preferredChild,
           left: build(b.left),
-          right: build(b.right)
+          right: build(b.right),
         ))
       }
     }
@@ -201,7 +208,7 @@ extension BSPNode {
   }
 
   public func leafRegions(in rect: CGRect, gap: CGFloat) -> [LeafRegion] {
-    var out: [LeafRegion] = []
+    var out = [LeafRegion]()
     func walk(_ node: BSPNode, _ r: CGRect, _ path: [Side]) {
       switch node {
       case .leaf(let leaf):
@@ -217,7 +224,7 @@ extension BSPNode {
   }
 
   public func branchRegions(in rect: CGRect, gap: CGFloat) -> [BranchRegion] {
-    var out: [BranchRegion] = []
+    var out = [BranchRegion]()
     func walk(_ node: BSPNode, _ r: CGRect, _ path: [Side]) {
       guard case .branch(let b) = node else { return }
       out.append(BranchRegion(path: path, rect: r, axis: b.split, ratio: b.ratio))
@@ -240,7 +247,7 @@ extension BSPNode where WindowID == SlotID {
   /// that lists the same app twice yields two distinct slots). The view and the
   /// reducer both call this so their tree structure (and edit-op paths) line up.
   public static func synthesizedTemplate(tiledBundleIds: [String]) -> BSPNode<SlotID>? {
-    var counts: [String: Int] = [:]
+    var counts = [String: Int]()
     let slots = tiledBundleIds.map { bundleId -> SlotID in
       let occurrence = counts[bundleId, default: 0]
       counts[bundleId] = occurrence + 1
@@ -274,7 +281,7 @@ public func previewLayoutTemplate(
   snapshot: BSPNode<SlotID>?,
   workspace: Workspace,
   sharedApps: [SharedApp],
-  presentBundleIds: Set<String>
+  presentBundleIds: Set<String>,
 ) -> BSPNode<SlotID>? {
   let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
   var tree = snapshot ?? BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: tiled)
@@ -309,19 +316,23 @@ extension DropZone {
     guard rect.contains(point) else { return nil }
     let wp = CGPoint(x: point.x - rect.origin.x, y: point.y - rect.origin.y)
     let centerRect = CGRect(
-      x: 0.25 * rect.width, y: 0.25 * rect.height,
-      width: 0.5 * rect.width, height: 0.5 * rect.height
+      x: 0.25 * rect.width,
+      y: 0.25 * rect.height,
+      width: 0.5 * rect.width,
+      height: 0.5 * rect.height,
     )
-    if centerRect.contains(wp) { return .swap }
+    if centerRect.contains(wp) {
+      return .swap
+    }
     // Signed cross products against the rect's two diagonals classify the
     // four triangles.
     let onAboveDownDiag = wp.x * rect.height - wp.y * rect.width < 0
     let onAboveUpDiag = wp.x * (-rect.height) - (wp.y - rect.height) * rect.width < 0
     switch (onAboveDownDiag, onAboveUpDiag) {
     case (false, false): return .top
-    case (false, true):  return .right
-    case (true, true):   return .bottom
-    case (true, false):  return .left
+    case (false, true): return .right
+    case (true, true): return .bottom
+    case (true, false): return .left
     }
   }
 }

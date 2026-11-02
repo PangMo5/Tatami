@@ -29,11 +29,11 @@ enum IconError: Error, CustomStringConvertible {
 
   var description: String {
     switch self {
-    case let .missingSymbol(app, symbol):
+    case .missingSymbol(let app, let symbol):
       "\(app): SF Symbol '\(symbol)' is unavailable on this macOS version"
-    case let .renderFailed(app, detail):
+    case .renderFailed(let app, let detail):
       "\(app): \(detail)"
-    case let .writeFailed(path, detail):
+    case .writeFailed(let path, let detail):
       "cannot write \(path): \(detail)"
     }
   }
@@ -79,7 +79,7 @@ func makeCanvas(pixels: Int) -> NSBitmapImageRep? {
     isPlanar: false,
     colorSpaceName: .deviceRGB,
     bytesPerRow: 0,
-    bitsPerPixel: 0
+    bitsPerPixel: 0,
   ) else { return nil }
   rep.size = NSSize(width: pixels, height: pixels)
   return rep
@@ -123,7 +123,7 @@ func symbolLayer(spec: DemoAppSpec, pixels: Int) throws -> NSImage {
     x: (side - drawn.width) / 2,
     y: (side - drawn.height) / 2,
     width: drawn.width,
-    height: drawn.height
+    height: drawn.height,
   )
   let rendered = draw(into: layer) {
     sized.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
@@ -152,7 +152,7 @@ func renderPNG(spec: DemoAppSpec, pixels: Int) throws -> Data {
     srgbRed: CGFloat(spec.accent.red),
     green: CGFloat(spec.accent.green),
     blue: CGFloat(spec.accent.blue),
-    alpha: 1
+    alpha: 1,
   )
   let rendered = draw(into: canvas) {
     accent.setFill()
@@ -163,7 +163,7 @@ func renderPNG(spec: DemoAppSpec, pixels: Int) throws -> Data {
       in: NSRect(x: 0, y: 0, width: side, height: side),
       from: .zero,
       operation: .sourceOver,
-      fraction: 1
+      fraction: 1,
     )
   }
   guard rendered else {
@@ -211,14 +211,14 @@ func writeIconset(spec: DemoAppSpec, to url: URL) throws {
 // MARK: - Command line
 
 let usage = """
-usage: demoicon --app <Name> --out <dir.iconset>
-       demoicon --all --out <dir>
+  usage: demoicon --app <Name> --out <dir.iconset>
+         demoicon --all --out <dir>
 
-Renders the SF Symbol from DemoCatalog onto the app's accent color at every
-size an .icns needs. --all writes one <Name>.iconset per catalog app.
+  Renders the SF Symbol from DemoCatalog onto the app's accent color at every
+  size an .icns needs. --all writes one <Name>.iconset per catalog app.
 
-exit codes: 0 ok, 2 usage, 4 render failure
-"""
+  exit codes: 0 ok, 2 usage, 4 render failure
+  """
 
 func fail(_ message: String, code: Int32) -> Never {
   FileHandle.standardError.write(Data("demoicon: \(message)\n".utf8))
@@ -236,27 +236,37 @@ var arguments = Array(CommandLine.arguments.dropFirst())
 while let argument = arguments.first {
   arguments.removeFirst()
   switch argument {
-  case "--help", "-h":
+  case "--help",
+       "-h":
     print(usage)
     exit(0)
+
   case "--all":
     renderAll = true
+
   case "--app":
     guard let value = arguments.first else { fail("--app needs a value\n\n\(usage)", code: 2) }
     arguments.removeFirst()
     requestedApp = value
+
   case "--out":
     guard let value = arguments.first else { fail("--out needs a value\n\n\(usage)", code: 2) }
     arguments.removeFirst()
     outPath = value
+
   default:
     fail("unknown argument '\(argument)'\n\n\(usage)", code: 2)
   }
 }
 
 guard let outPath else { fail("--out is required\n\n\(usage)", code: 2) }
-if renderAll, requestedApp != nil { fail("--all and --app are mutually exclusive\n\n\(usage)", code: 2) }
-if !renderAll, requestedApp == nil { fail("one of --all or --app is required\n\n\(usage)", code: 2) }
+if renderAll, requestedApp != nil {
+  fail("--all and --app are mutually exclusive\n\n\(usage)", code: 2)
+}
+
+if !renderAll, requestedApp == nil {
+  fail("one of --all or --app is required\n\n\(usage)", code: 2)
+}
 
 let outURL = URL(fileURLWithPath: outPath).standardizedFileURL
 

@@ -4,6 +4,8 @@
 import CoreGraphics
 import Foundation
 
+// MARK: - ResolvedLayout
+
 /// The layout to preview for one workspace: the *live* window tree when the
 /// workspace is active, or a bundle-id *template* (persisted snapshot, else
 /// synthesized from the tiled apps) otherwise. Fullscreen-zoomed windows are
@@ -21,6 +23,24 @@ public enum ResolvedLayout: Equatable {
   /// is zoomed is exact — matching `LayoutSnapshot.fullscreenZoomedSlots`.
   case template(BSPNode<SlotID>, zoomedSlots: [SlotID])
 
+  // MARK: Public
+
+  public var isLive: Bool {
+    if case .live = self {
+      true
+    } else {
+      false
+    }
+  }
+
+  public var hasFullscreen: Bool {
+    switch self {
+    case .live(let t, let z): return z.contains { t.pathTo(window: $0) != nil }
+    case .template(let t, let z): let w = Set(t.windows)
+      return z.contains { w.contains($0) }
+    }
+  }
+
   public static func resolve(
     workspace: Workspace,
     sharedApps: [SharedApp],
@@ -29,7 +49,7 @@ public enum ResolvedLayout: Equatable {
     liveTree: BSPNode<WindowKey>?,
     liveZoomed: Set<WindowKey>,
     snapshot: LayoutSnapshot?,
-    autoBalance: AutoBalanceMode
+    autoBalance: AutoBalanceMode,
   ) -> ResolvedLayout? {
     // Only the *currently active* workspace has an authoritative live tree.
     // A workspace that was active earlier keeps a stale tree in `tilingTrees`,
@@ -42,23 +62,15 @@ public enum ResolvedLayout: Equatable {
       snapshot: snapshot?.tree,
       workspace: workspace,
       sharedApps: sharedApps,
-      presentBundleIds: presentBundleIds
-    ), !template.windows.isEmpty
-    else { return nil }
+      presentBundleIds: presentBundleIds,
+    ), !template.windows.isEmpty else { return nil }
     // Activation applies auto-balance to the tree it builds (and to a restored
     // snapshot) — mirror it so the inactive preview matches. Balancing only
     // re-weights ratios, so edit-op paths are unaffected.
-    if autoBalance != .none { template = template.balanced(axis: autoBalance) }
-    return .template(template, zoomedSlots: snapshot?.fullscreenZoomedSlots ?? [])
-  }
-
-  public var isLive: Bool { if case .live = self { return true } else { return false } }
-
-  public var hasFullscreen: Bool {
-    switch self {
-    case .live(let t, let z): return z.contains { t.pathTo(window: $0) != nil }
-    case .template(let t, let z): let w = Set(t.windows); return z.contains { w.contains($0) }
+    if autoBalance != .none {
+      template = template.balanced(axis: autoBalance)
     }
+    return .template(template, zoomedSlots: snapshot?.fullscreenZoomedSlots ?? [])
   }
 
   /// Tiles + dividers for the *non-zoomed* windows, laid out in `rect` after
@@ -68,27 +80,38 @@ public enum ResolvedLayout: Equatable {
   public func renderRegions(
     in rect: CGRect,
     hidden: Set<String>,
-    pendingRatio: (path: [BSPSide], ratio: CGFloat)? = nil
+    pendingRatio: (path: [BSPSide], ratio: CGFloat)? = nil,
   ) -> (tiles: [RenderLeaf], dividers: [RenderDivider]) {
     switch self {
     case .live(let tree, let zoomed):
       guard let base = Self.trim(tree, removing: zoomed) else { return ([], []) }
       let trimmed = pendingRatio.map { base.applying(.setRatio(path: $0.path, ratio: $0.ratio)) } ?? base
       let tiles = trimmed.leafRegions(in: rect, gap: 0).map { r in
-        RenderLeaf(path: r.path, rect: r.rect, bundleIds: r.leaf.windowList.map(\.bundleId),
-                   liveKey: r.leaf.windowList.first, slot: nil)
+        RenderLeaf(
+          path: r.path,
+          rect: r.rect,
+          bundleIds: r.leaf.windowList.map(\.bundleId),
+          liveKey: r.leaf.windowList.first,
+          slot: nil,
+        )
       }
       let dividers = trimmed.branchRegions(in: rect, gap: 0).map {
         RenderDivider(path: $0.path, rect: $0.rect, axis: $0.axis, ratio: $0.ratio)
       }
       return (tiles, dividers)
+
     case .template(let tree, let zoomedSlots):
       guard let base = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden)
       else { return ([], []) }
       let trimmed = pendingRatio.map { base.applying(.setRatio(path: $0.path, ratio: $0.ratio)) } ?? base
       let tiles = trimmed.leafRegions(in: rect, gap: 0).map { r in
-        RenderLeaf(path: r.path, rect: r.rect, bundleIds: r.leaf.windowList.map(\.bundleId),
-                   liveKey: nil, slot: r.leaf.windowList.first)
+        RenderLeaf(
+          path: r.path,
+          rect: r.rect,
+          bundleIds: r.leaf.windowList.map(\.bundleId),
+          liveKey: nil,
+          slot: r.leaf.windowList.first,
+        )
       }
       let dividers = trimmed.branchRegions(in: rect, gap: 0).map {
         RenderDivider(path: $0.path, rect: $0.rect, axis: $0.axis, ratio: $0.ratio)
@@ -104,6 +127,7 @@ public enum ResolvedLayout: Equatable {
         .filter { tree.pathTo(window: $0) != nil }
         .sorted { $0.windowID < $1.windowID }
         .map { (bundleId: $0.bundleId, liveKey: $0, slot: nil) }
+
     case .template(let tree, let zoomedSlots):
       let present = Set(tree.windows)
       return zoomedSlots
@@ -113,22 +137,23 @@ public enum ResolvedLayout: Equatable {
     }
   }
 
-  // MARK: Trimmed → full-tree path mapping
-
   public func fullLeafPath(trimmedLeafPath: [BSPSide], hidden: Set<String>) -> [BSPSide]? {
     switch self {
     case .live(let tree, let zoomed):
-      guard let trimmed = Self.trim(tree, removing: zoomed),
-            case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
-            let rep = leaf.windowList.first
+      guard
+        let trimmed = Self.trim(tree, removing: zoomed),
+        case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
+        let rep = leaf.windowList.first
       else { return nil }
       return tree.pathTo(window: rep)
+
     case .template(let tree, let zoomedSlots):
       // `SlotID` is unique per leaf, so a direct `pathTo` disambiguates same-app
       // leaves — no tokenization needed.
-      guard let trimmed = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden),
-            case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
-            let slot = leaf.windowList.first
+      guard
+        let trimmed = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden),
+        case .leaf(let leaf) = trimmed.subtree(at: trimmedLeafPath),
+        let slot = leaf.windowList.first
       else { return nil }
       return tree.pathTo(window: slot)
     }
@@ -137,21 +162,30 @@ public enum ResolvedLayout: Equatable {
   public func fullBranchPath(trimmedBranchPath: [BSPSide], hidden: Set<String>) -> [BSPSide]? {
     switch self {
     case .live(let tree, let zoomed):
-      guard let trimmed = Self.trim(tree, removing: zoomed),
-            case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
-            let l = b.left.windows.first, let r = b.right.windows.first,
-            let lp = tree.pathTo(window: l), let rp = tree.pathTo(window: r)
+      guard
+        let trimmed = Self.trim(tree, removing: zoomed),
+        case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
+        let l = b.left.windows.first,
+        let r = b.right.windows.first,
+        let lp = tree.pathTo(window: l),
+        let rp = tree.pathTo(window: r)
       else { return nil }
       return Self.commonPrefix(lp, rp)
+
     case .template(let tree, let zoomedSlots):
-      guard let trimmed = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden),
-            case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
-            let l = b.left.windows.first, let r = b.right.windows.first,
-            let lp = tree.pathTo(window: l), let rp = tree.pathTo(window: r)
+      guard
+        let trimmed = Self.trimTemplate(tree, zoomedSlots: zoomedSlots, hidden: hidden),
+        case .branch(let b) = trimmed.subtree(at: trimmedBranchPath),
+        let l = b.left.windows.first,
+        let r = b.right.windows.first,
+        let lp = tree.pathTo(window: l),
+        let rp = tree.pathTo(window: r)
       else { return nil }
       return Self.commonPrefix(lp, rp)
     }
   }
+
+  // MARK: Private
 
   private static func trim(_ tree: BSPNode<WindowKey>, removing zoomed: Set<WindowKey>) -> BSPNode<WindowKey>? {
     var trimmed: BSPNode<WindowKey>? = tree
@@ -167,7 +201,7 @@ public enum ResolvedLayout: Equatable {
   private static func trimTemplate(
     _ tree: BSPNode<SlotID>,
     zoomedSlots: [SlotID],
-    hidden: Set<String>
+    hidden: Set<String>,
   ) -> BSPNode<SlotID>? {
     var remove = Set(zoomedSlots)
     for slot in tree.windows where hidden.contains(slot.bundleId) { remove.insert(slot) }
@@ -178,13 +212,19 @@ public enum ResolvedLayout: Equatable {
   }
 
   private static func commonPrefix(_ a: [BSPSide], _ b: [BSPSide]) -> [BSPSide] {
-    var result: [BSPSide] = []
+    var result = [BSPSide]()
     for (x, y) in zip(a, b) {
-      if x == y { result.append(x) } else { break }
+      if x == y {
+        result.append(x)
+      } else {
+        break
+      }
     }
     return result
   }
 }
+
+// MARK: - RenderLeaf
 
 /// One preview tile (a BSP leaf), positioned in canvas coordinates.
 public struct RenderLeaf: Identifiable {
@@ -195,10 +235,21 @@ public struct RenderLeaf: Identifiable {
   /// The template slot of the leaf's first window (nil when live). Lets the view
   /// target a specific same-app window (occurrence) for inactive fullscreen.
   public var slot: SlotID?
-  public var id: [BSPSide] { path }
-  public var representative: String? { bundleIds.first }
-  public var stackCount: Int { bundleIds.count }
+
+  public var id: [BSPSide] {
+    path
+  }
+
+  public var representative: String? {
+    bundleIds.first
+  }
+
+  public var stackCount: Int {
+    bundleIds.count
+  }
 }
+
+// MARK: - RenderDivider
 
 /// One split divider (a BSP branch), positioned in canvas coordinates.
 public struct RenderDivider: Identifiable {
@@ -206,5 +257,8 @@ public struct RenderDivider: Identifiable {
   public var rect: CGRect
   public var axis: BSPSplitAxis
   public var ratio: CGFloat
-  public var id: [BSPSide] { path }
+
+  public var id: [BSPSide] {
+    path
+  }
 }

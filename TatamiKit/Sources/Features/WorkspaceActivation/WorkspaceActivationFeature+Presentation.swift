@@ -124,11 +124,15 @@ extension WorkspaceActivationFeature {
         // so warping to the center would yank it off. A keyboard switch leaves
         // the cursor elsewhere, so it still follows. (axLocation shares the BSP
         // frame's coordinate space.)
-        if skipIfCursorInside, r.contains(mouse.axLocation()) { return nil }
+        if skipIfCursorInside, r.contains(mouse.axLocation()) {
+          return nil
+        }
         return CGPoint(x: r.midX, y: r.midY)
       }
       guard !Task.isCancelled else { return }
-      if let center { mouse.warp(center) }
+      if let center {
+        mouse.warp(center)
+      }
       if clearsPendingCenter {
         await send(.cursorWarpFinished(workspaceId: workspaceId, target: key))
       }
@@ -179,11 +183,15 @@ extension WorkspaceActivationFeature {
         )
       )
     }
-    if shouldWarp { state.pendingCenterWarps[workspaceId] = key }
+    if shouldWarp {
+      state.pendingCenterWarps[workspaceId] = key
+    }
 
     return .run {
       [focus = focusManager, snapshot = windowSnapshot, mouse, debugLog] send in
-      if shouldFocus { await focus.focusWindow(key) }
+      if shouldFocus {
+        await focus.focusWindow(key)
+      }
       guard !Task.isCancelled else { return }
 
       if shouldWarp {

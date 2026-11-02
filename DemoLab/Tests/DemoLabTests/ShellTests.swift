@@ -20,8 +20,8 @@ struct ShellTests {
   ///
   /// Writing to the log is the observable proof that the streams were replaced
   /// rather than inherited.
-  @Test("launchDetached sends output to its log instead of inheriting stdout")
-  func detachedOutputGoesToTheLog() throws {
+  @Test
+  func `launchDetached sends output to its log instead of inheriting stdout`() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("demolab-shell-\(ProcessInfo.processInfo.processIdentifier)")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -30,7 +30,7 @@ struct ShellTests {
     let process = try Shell.launchDetached(
       URL(fileURLWithPath: "/bin/sh"),
       ["-c", "echo out; echo err 1>&2"],
-      log: log
+      log: log,
     )
     process.waitUntilExit()
 
@@ -41,8 +41,8 @@ struct ShellTests {
   }
 
   /// A detached process must not hold a terminal it may not have.
-  @Test("launchDetached gives the child no stdin")
-  func detachedStdinIsClosed() throws {
+  @Test
+  func `launchDetached gives the child no stdin`() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent("demolab-shell-stdin-\(ProcessInfo.processInfo.processIdentifier)")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -53,20 +53,20 @@ struct ShellTests {
     let process = try Shell.launchDetached(
       URL(fileURLWithPath: "/bin/sh"),
       ["-c", "cat; echo drained"],
-      log: log
+      log: log,
     )
     let finished = Shell.wait(timeout: .seconds(5)) { !process.isRunning }
     #expect(finished, "a detached child was left waiting on stdin")
     #expect(((try? String(contentsOf: log, encoding: .utf8)) ?? "").contains("drained"))
   }
 
-  @Test("run drains both pipes, so a chatty child cannot deadlock it")
-  func runDrainsBothPipes() throws {
+  @Test
+  func `run drains both pipes, so a chatty child cannot deadlock it`() throws {
     // More than a pipe buffer on each stream at once. Draining one fully before
     // touching the other would wedge on whichever filled first.
     let result = try Shell.run(
       URL(fileURLWithPath: "/bin/sh"),
-      ["-c", "yes out | head -c 200000; yes err | head -c 200000 1>&2"]
+      ["-c", "yes out | head -c 200000; yes err | head -c 200000 1>&2"],
     )
     #expect(result.succeeded)
     #expect(result.standardOutput.count >= 200_000)

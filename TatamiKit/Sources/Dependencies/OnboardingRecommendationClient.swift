@@ -282,7 +282,7 @@ private func externalRecommendationPrompt(
 }
 
 private func recommendationAppList(_ apps: [MacApp]) -> String {
-  apps.map { app in
+  apps.lazy.map { app in
     var fields = [app.bundleIdentifier, app.name]
     if let category = applicationCategory(for: app) {
       fields.append("system category: \(category)")
@@ -299,7 +299,7 @@ private func applicationCategory(for app: MacApp) -> String? {
     let rawCategory = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String,
     !rawCategory.isEmpty
   else { return nil }
-  return rawCategory.replacingOccurrences(of: "public.app-category.", with: "")
+  return rawCategory.replacing("public.app-category.", with: "")
 }
 
 private func displayEnvironmentDescription(
@@ -309,7 +309,7 @@ private func displayEnvironmentDescription(
     return "Display geometry unavailable. Avoid making assumptions about simultaneous window space."
   }
   let countDescription = displays.count == 1 ? "1 display" : "\(displays.count) displays"
-  let details = displays.map { display in
+  let details = displays.lazy.map { display in
     let role = display.isPrimary ? "primary" : "secondary"
     let size =
       if let width = display.usableWidth, let height = display.usableHeight {

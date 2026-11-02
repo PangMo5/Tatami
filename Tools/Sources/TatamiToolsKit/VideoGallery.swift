@@ -21,7 +21,9 @@ struct VideoGallery {
 
   func settingsLinks(_ asset: JSON) -> String {
     let settings = asset["relatedSettings"].array
-    if settings.isEmpty { return "" }
+    if settings.isEmpty {
+      return ""
+    }
     let label = htmlEscape(interface[asset["locale"].string ?? "en"]["relatedSettings"].str)
     let links = settings
       .map { "<a href=\"./configuration.html#\(htmlEscape($0["anchor"].str))\"><code>\(htmlEscape($0["key"].str))</code></a>" }
@@ -35,8 +37,8 @@ struct VideoGallery {
     let ui = interface[locale]
     let title = ui["sections"][section].str
     try require(!title.isEmpty, "Missing video section label: \(locale)/\(section)")
-    let collectionLabel = htmlEscape(ui["collection"].str.replacingOccurrences(of: "{name}", with: title))
-    let chooseLabel = htmlEscape(ui["choose"].str.replacingOccurrences(of: "{name}", with: title))
+    let collectionLabel = htmlEscape(ui["collection"].str.replacing("{name}", with: title))
+    let chooseLabel = htmlEscape(ui["choose"].str.replacing("{name}", with: title))
     var slides = [String]()
     var tabs = [String]()
     for (index, asset) in assets.enumerated() {
@@ -53,7 +55,7 @@ struct VideoGallery {
         <article class="demo-slide" id="demo-\(name)" aria-labelledby="tab-\(name)">
                   <video class="demo-video" controls muted playsinline preload="none" poster="\(poster)" aria-label="\(title)" style="aspect-ratio: \(aspect)">
                     <source src="\(video)" type="video/mp4" />
-                    <a href="\(video)">\(htmlEscape(ui["watch"].str.replacingOccurrences(of: "{title}", with: asset["title"].str)))</a>
+                    <a href="\(video)">\(htmlEscape(ui["watch"].str.replacing("{title}", with: asset["title"].str)))</a>
                   </video>
                   <p class="demo-description">\(description)</p>
                   \(settingsLinks(asset))
@@ -107,7 +109,9 @@ struct VideoGallery {
     for page in ["configuration.html", "cli.html", "releases.html"] {
       let document = try translateHTML(workspace.root.at("web/" + page).text(), TextCatalog(values: values, locale: locale), page)
       try document.walk { node in
-        if node.tag == "html" { node["lang"] = locale }
+        if node.tag == "html" {
+          node["lang"] = locale
+        }
         if node.tag == "a", let href = node["href"] {
           node["href"] = DocumentBuilder(workspace: workspace).localizedNoticeLink(href, locale: locale)
         }
@@ -128,8 +132,11 @@ func orderedGroups(_ assets: [JSON], by field: String) -> [(String, [JSON])] {
   var groups = [(String, [JSON])]()
   for asset in assets {
     let key = asset[field].str
-    if let index = groups.firstIndex(where: { $0.0 == key }) { groups[index].1.append(asset) }
-    else { groups.append((key, [asset])) }
+    if let index = groups.firstIndex(where: { $0.0 == key }) {
+      groups[index].1.append(asset)
+    } else {
+      groups.append((key, [asset]))
+    }
   }
   return groups
 }

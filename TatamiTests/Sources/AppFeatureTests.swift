@@ -577,7 +577,9 @@ struct WorkspaceListFeatureTests {
           count += 1
           return count
         }
-        if call == 1 { try? await Task.sleep(for: .milliseconds(50)) }
+        if call == 1 {
+          try? await Task.sleep(for: .milliseconds(50))
+        }
         return true
       }
     }

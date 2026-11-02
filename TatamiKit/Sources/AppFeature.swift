@@ -513,14 +513,18 @@ public struct AppFeature {
       case .onboarding(.delegate(.gesturePreviewChanged(let enabled, let threshold))):
         return .run { [gestures] _ in
           await gestures.stop()
-          if enabled { await gestures.start(threshold) }
+          if enabled {
+            await gestures.start(threshold)
+          }
         }
 
       case .onboarding(.delegate(.gesturePreviewEnded)):
         let settings = state.config.settings.gestures
         return .run { [gestures] _ in
           await gestures.stop()
-          if settings.enabled { await gestures.start(settings.threshold) }
+          if settings.enabled {
+            await gestures.start(settings.threshold)
+          }
         }
 
       case .onboarding(.delegate(.borrowChordPreviewChanged(let armed))):

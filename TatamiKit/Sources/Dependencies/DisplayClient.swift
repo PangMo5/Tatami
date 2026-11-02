@@ -37,7 +37,7 @@ struct DisplayClient: Sendable {
 /// `@Sendable` termination handler. Only touched on the notification queue
 /// (main), so `last` needs no extra synchronization.
 private final class ScreenObserver: @unchecked Sendable {
-  var token: (any NSObjectProtocol)?
+  var token: any NSObjectProtocol?
   /// The last complete display geometry forwarded. Comparing names alone
   /// discarded resolution, arrangement, menu-bar, and Dock changes even though
   /// every one of those changes the AX work area that layouts target.
@@ -49,7 +49,9 @@ private final class ScreenObserver: @unchecked Sendable {
 
   func remove() {
     pending?.cancel()
-    if let token { NotificationCenter.default.removeObserver(token) }
+    if let token {
+      NotificationCenter.default.removeObserver(token)
+    }
   }
 }
 

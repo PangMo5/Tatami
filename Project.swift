@@ -4,7 +4,7 @@
 import ProjectDescription
 
 let bundleIdPrefix = "dev.PangMo5"
-let deploymentTarget: DeploymentTargets = .macOS("14.0")
+let deploymentTarget = DeploymentTargets.macOS("14.0")
 
 // Injected at `tuist generate` time. Set these locally in `.mise.local.toml`
 // (TUIST_DEVELOPMENT_TEAM, …); in CI they come from repository secrets.
@@ -18,7 +18,9 @@ let buildNumber = Environment.buildNumber.getString(default: "1")
 
 let baseSettings: SettingsDictionary = [
   "DEVELOPMENT_TEAM": SettingValue(stringLiteral: developmentTeam),
+  // Swift 6 language mode; .xcode-version selects the compiler and latest SDK.
   "SWIFT_VERSION": "6.0",
+  "SDKROOT": "macosx",
   "SWIFT_STRICT_CONCURRENCY": "complete",
   "SWIFT_EMIT_LOC_STRINGS": "YES",
   "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
@@ -39,7 +41,7 @@ let project = Project(
   options: .options(
     automaticSchemesOptions: .enabled(),
     defaultKnownRegions: ["en", "ko", "ja", "zh-Hans", "zh-Hant"],
-    developmentRegion: "en"
+    developmentRegion: "en",
   ),
   settings: .settings(base: baseSettings),
   targets: [
@@ -87,16 +89,16 @@ let project = Project(
         // copying preserves its signature; the app's final code-sign seals it.
         .post(
           script: """
-          set -euo pipefail
-          SRC="${BUILT_PRODUCTS_DIR}/tatami"
-          DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
-          mkdir -p "${DEST}"
-          cp -f "${SRC}" "${DEST}/tatami"
-          """,
+            set -euo pipefail
+            SRC="${BUILT_PRODUCTS_DIR}/tatami"
+            DEST="${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}"
+            mkdir -p "${DEST}"
+            cp -f "${SRC}" "${DEST}/tatami"
+            """,
           name: "Embed Tatami CLI",
           inputPaths: ["$(BUILT_PRODUCTS_DIR)/tatami"],
-          outputPaths: ["$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tatami"]
-        ),
+          outputPaths: ["$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/tatami"],
+        )
       ],
       dependencies: [
         .target(name: "TatamiKit"),
@@ -139,8 +141,8 @@ let project = Project(
             "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon-Debug",
           ]),
           .release(name: "Release"),
-        ]
-      )
+        ],
+      ),
     ),
     .target(
       name: "TatamiKit",
@@ -160,7 +162,7 @@ let project = Project(
         .external(name: "YYJSON"),
         .external(name: "OrderedCollections"),
         .external(name: "DequeModule"),
-      ]
+      ],
     ),
     .target(
       name: "TatamiCLIProtocol",
@@ -169,7 +171,7 @@ let project = Project(
       bundleId: "\(bundleIdPrefix).Tatami.CLIProtocol",
       deploymentTargets: deploymentTarget,
       sources: ["TatamiCLIProtocol/Sources/**"],
-      dependencies: []
+      dependencies: [],
     ),
     .target(
       name: "TatamiCLI",
@@ -192,7 +194,7 @@ let project = Project(
         "CREATE_INFOPLIST_SECTION_IN_BINARY": "YES",
         "MARKETING_VERSION": SettingValue(stringLiteral: appVersion),
         "CURRENT_PROJECT_VERSION": SettingValue(stringLiteral: buildNumber),
-      ])
+      ]),
     ),
     .target(
       name: "TatamiTests",
@@ -205,7 +207,7 @@ let project = Project(
         .target(name: "TatamiKit"),
         .target(name: "TatamiCLIProtocol"),
         .external(name: "ComposableArchitecture"),
-      ]
+      ],
     ),
-  ]
+  ],
 )

@@ -56,20 +56,36 @@ public enum KeyChordFormatter {
   private static let order = ["ctrl", "alt", "shift", "cmd"]
 
   private static let modifierSymbols: [String: String] = [
-    "ctrl": "⌃", "alt": "⌥", "shift": "⇧", "cmd": "⌘",
+    "ctrl": "⌃",
+    "alt": "⌥",
+    "shift": "⇧",
+    "cmd": "⌘",
   ]
 
   private static let keySymbols: [String: String] = [
-    "return": "↩", "enter": "↩", "tab": "⇥", "space": "space", "delete": "⌫",
-    "forwarddelete": "⌦", "escape": "⎋", "esc": "⎋",
-    "left": "←", "right": "→", "up": "↑", "down": "↓",
-    "pageup": "⇞", "pagedown": "⇟", "home": "↖", "end": "↘",
+    "return": "↩",
+    "enter": "↩",
+    "tab": "⇥",
+    "space": "space",
+    "delete": "⌫",
+    "forwarddelete": "⌦",
+    "escape": "⎋",
+    "esc": "⎋",
+    "left": "←",
+    "right": "→",
+    "up": "↑",
+    "down": "↓",
+    "pageup": "⇞",
+    "pagedown": "⇟",
+    "home": "↖",
+    "end": "↘",
   ]
 
   private static func canonical(_ token: String) -> String {
     switch token {
     case "control": "ctrl"
-    case "opt", "option": "alt"
+    case "opt",
+         "option": "alt"
     case "command": "cmd"
     case "⌃": "ctrl"
     case "⌥": "alt"

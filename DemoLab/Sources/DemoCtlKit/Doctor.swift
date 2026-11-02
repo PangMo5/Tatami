@@ -24,6 +24,20 @@ public struct DisplayInfo: Sendable {
 
   // MARK: Public
 
+  public let index: Int
+  public let displayID: CGDirectDisplayID
+  public let name: String
+  public let uuid: String?
+  public let frame: CGRect
+  public let scale: CGFloat
+
+  /// The exact string a `displayHint` needs. Tatami stores a display as
+  /// `"<uuid>::<name>"`, splitting on the first `::`.
+  public var displayHint: String {
+    guard let uuid else { return name }
+    return "\(uuid)::\(name)"
+  }
+
   /// Sorted by `(frame.minX, frame.minY)` — the same order Tatami uses for
   /// `display focus next`, so an index here means the same display there.
   public static func all() -> [DisplayInfo] {
@@ -43,23 +57,9 @@ public struct DisplayInfo: Sendable {
           name: screen.localizedName,
           uuid: uuidString(for: displayID),
           frame: screen.frame,
-          scale: screen.backingScaleFactor
+          scale: screen.backingScaleFactor,
         )
       }
-  }
-
-  public let index: Int
-  public let displayID: CGDirectDisplayID
-  public let name: String
-  public let uuid: String?
-  public let frame: CGRect
-  public let scale: CGFloat
-
-  /// The exact string a `displayHint` needs. Tatami stores a display as
-  /// `"<uuid>::<name>"`, splitting on the first `::`.
-  public var displayHint: String {
-    guard let uuid else { return name }
-    return "\(uuid)::\(name)"
   }
 
   // MARK: Private
@@ -75,9 +75,9 @@ public struct DisplayInfo: Sendable {
 // MARK: - CheckStatus
 
 public enum CheckStatus: String, Sendable {
-  case ok = "ok"
-  case warn = "warn"
-  case fail = "fail"
+  case ok
+  case warn
+  case fail
 
   // MARK: Public
 
@@ -142,7 +142,7 @@ public struct Doctor {
       checks.append(Check(
         .ok,
         "Tatami",
-        "\(install.bundle.path) (\(install.bundleIdentifier), \(install.version ?? "unknown version"))"
+        "\(install.bundle.path) (\(install.bundleIdentifier), \(install.version ?? "unknown version"))",
       ))
       checks.append(
         FileManager.default.isExecutableFile(atPath: install.cli.path)
@@ -214,28 +214,32 @@ public struct Doctor {
         "overlay control",
         "running but silent on \(OverlayController.socketPath). It binds that socket only when it is "
           + "launched with \(LabControl.variable) set to \(paths.controlDirectory.path); "
-          + "`democtl reset && democtl seed` relaunches it correctly."
+          + "`democtl reset && democtl seed` relaunches it correctly.",
       ))
     }
     return checks
   }
 
   private func hookCheck() -> Check {
-    FileManager.default.isExecutableFile(atPath: paths.hookExecutable.path)
-      ? Check(.ok, "hook executable", paths.hookExecutable.path)
-      : Check(.fail, "hook executable", "not executable: \(paths.hookExecutable.path) (run tatami-tools bundle-apps)")
+    if FileManager.default.isExecutableFile(atPath: paths.hookExecutable.path) {
+      Check(.ok, "hook executable", paths.hookExecutable.path)
+    } else {
+      Check(.fail, "hook executable", "not executable: \(paths.hookExecutable.path) (run tatami-tools bundle-apps)")
+    }
   }
 
   private func accessibilityCheck() -> Check {
     // The lab only needs its own trust for scenes that type shortcuts. Tatami
     // needs its own, separately, for every window operation.
-    AXIsProcessTrusted()
-      ? Check(.ok, "Accessibility (this process)", "trusted — scenes may type shortcuts")
-      : Check(
+    if AXIsProcessTrusted() {
+      Check(.ok, "Accessibility (this process)", "trusted — scenes may type shortcuts")
+    } else {
+      Check(
         .warn,
         "Accessibility (this process)",
-        "not trusted; CLI-driven scenes still work, `key`/`hold` steps will refuse to run"
+        "not trusted; CLI-driven scenes still work, `key`/`hold` steps will refuse to run",
       )
+    }
   }
 
   private func screenRecordingChecks() -> [Check] {
@@ -260,7 +264,7 @@ public struct Doctor {
             "DemoRecorder screen access",
             "denied when run directly. That is expected before the one-time grant, and can also "
               + "mean the parent process owns TCC responsibility. `democtl record start` launches it "
-              + "through LaunchServices, which is the path that can be granted."
+              + "through LaunchServices, which is the path that can be granted.",
           )
       )
     }
@@ -293,7 +297,7 @@ public struct Doctor {
         .fail,
         "lab socket",
         "\(paths.socketPath.path) is not answering, but a Tatami is running. It was probably started "
-          + "without the lab's isolation flags; run `democtl reset && democtl seed`."
+          + "without the lab's isolation flags; run `democtl reset && democtl seed`.",
       ))
     }
     return checks
@@ -326,7 +330,7 @@ public struct Doctor {
           // Tatami drops a screen whose localizedName is empty, and an empty
           // display set makes it skip the entire startup restore.
           ? "reports an EMPTY name; Tatami will ignore this screen entirely"
-          : "\(display.displayHint) \(Int(display.frame.width))x\(Int(display.frame.height)) @\(display.scale)x"
+          : "\(display.displayHint) \(Int(display.frame.width))x\(Int(display.frame.height)) @\(display.scale)x",
       )
     }
     if displays.count == 1 {
@@ -334,7 +338,7 @@ public struct Doctor {
         .warn,
         "multi-display scenes",
         "one display connected: cross-display scenes need a secondary screen. "
-          + "The lab can add a guest-side CoreGraphics screen with `democtl display connect`."
+          + "The lab can add a guest-side CoreGraphics screen with `democtl display connect`.",
       ))
     }
     return checks

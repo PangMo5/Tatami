@@ -5,6 +5,8 @@ import Dependencies
 import Foundation
 import Magnet
 
+// MARK: - HotKey
+
 /// A persisted keyboard shortcut.
 ///
 /// Serialized as a human-readable skhd-style string (e.g. `"ctrl + alt
@@ -12,22 +14,22 @@ import Magnet
 /// accepts the legacy `{ carbonKeyCode, carbonModifiers }` table form,
 /// so older configs migrate automatically on the next save.
 public struct HotKey: Hashable, Sendable {
-  public var carbonKeyCode: Int
-  public var carbonModifiers: Int
-
   public init(carbonKeyCode: Int, carbonModifiers: Int) {
     self.carbonKeyCode = carbonKeyCode
     self.carbonModifiers = carbonModifiers
   }
+
+  public var carbonKeyCode: Int
+  public var carbonModifiers: Int
 }
+
+// MARK: - HotKeyModifiers
 
 /// The modifier portion of a registered global shortcut, expressed in the
 /// same Carbon bit domain as `HotKey.carbonModifiers`. Keeping this semantic
 /// type out of the reducer prevents raw integer masks from leaking into the
 /// window-switching session state.
 public struct HotKeyModifiers: OptionSet, Hashable, Sendable {
-  public let rawValue: Int
-
   public init(rawValue: Int) {
     self.rawValue = rawValue
   }
@@ -36,15 +38,22 @@ public struct HotKeyModifiers: OptionSet, Hashable, Sendable {
   public static let shift = Self(rawValue: HotKey.shift)
   public static let option = Self(rawValue: HotKey.option)
   public static let control = Self(rawValue: HotKey.control)
+
+  public let rawValue: Int
 }
 
 extension HotKey {
+
+  // MARK: Lifecycle
+
   public init(_ keyCombo: KeyCombo) {
     self.init(
       carbonKeyCode: keyCombo.QWERTYKeyCode,
-      carbonModifiers: keyCombo.modifiers
+      carbonModifiers: keyCombo.modifiers,
     )
   }
+
+  // MARK: Public
 
   /// A Magnet `KeyCombo` for registering the global hotkey. Nil when the
   /// stored codes don't form a valid combo (Magnet validates the pair).
@@ -61,57 +70,14 @@ extension HotKey {
     let withoutShift = modifiers.subtracting(.shift)
     return withoutShift.isEmpty ? modifiers : withoutShift
   }
+
 }
 
 // MARK: - skhd-style string
 
 extension HotKey {
-  // Carbon modifier bit masks.
-  static let cmd = 256
-  static let shift = 512
-  static let option = 2048
-  static let control = 4096
 
-  /// Carbon modifier mask from skhd-style tokens (`"ctrl"`, `"alt"`,
-  /// `"shift"`, `"cmd"` and their aliases) — for settings that store a
-  /// modifier combo without a key, like the workspace key-equivalent modifier.
-  public static func carbonModifiers(from tokens: [String]) -> Int {
-    var mods = 0
-    for token in tokens {
-      switch token.lowercased().trimmingCharacters(in: .whitespaces) {
-      case "cmd", "command", "⌘": mods |= cmd
-      case "shift", "⇧": mods |= shift
-      case "alt", "opt", "option", "⌥": mods |= option
-      case "ctrl", "control", "⌃": mods |= control
-      default: break
-      }
-    }
-    return mods
-  }
-
-  /// macOS glyphs (`⌃⌥⇧⌘`, in canonical order) for skhd modifier tokens —
-  /// for showing the effective key-equivalent combo in settings.
-  public static func modifierSymbols(from tokens: [String]) -> String {
-    let mods = carbonModifiers(from: tokens)
-    var out = ""
-    if mods & control != 0 { out += "⌃" }
-    if mods & option != 0 { out += "⌥" }
-    if mods & shift != 0 { out += "⇧" }
-    if mods & cmd != 0 { out += "⌘" }
-    return out
-  }
-
-  /// skhd-style description: `"<mods joined by ' + '> - <key>"`.
-  public var displayString: String {
-    var mods: [String] = []
-    if carbonModifiers & Self.control != 0 { mods.append("ctrl") }
-    if carbonModifiers & Self.option != 0 { mods.append("alt") }
-    if carbonModifiers & Self.shift != 0 { mods.append("shift") }
-    if carbonModifiers & Self.cmd != 0 { mods.append("cmd") }
-    let key = Self.keyCodeToName[carbonKeyCode]
-      ?? "0x" + String(carbonKeyCode, radix: 16)
-    return mods.isEmpty ? key : mods.joined(separator: " + ") + " - " + key
-  }
+  // MARK: Lifecycle
 
   /// Parse a skhd-style string. Accepts `"ctrl + alt - h"` and the
   /// looser `"ctrl+alt+h"`. Returns nil on an unknown key/modifier.
@@ -128,9 +94,11 @@ extension HotKey {
       // string after the trailing dash and leave keyPart empty.
       modPart = String(s[..<range.lowerBound])
       keyPart = String(s[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-    } else if let range = s.range(of: "-", options: .backwards),
-              s.distance(from: s.startIndex, to: range.lowerBound) > 0,
-              range.upperBound != s.endIndex {
+    } else if
+      let range = s.range(of: "-", options: .backwards),
+      s.distance(from: s.startIndex, to: range.lowerBound) > 0,
+      range.upperBound != s.endIndex
+    {
       // Looser unpadded form like `"cmd-h"` — but only when something
       // follows the dash (otherwise the dash IS the key) and isn't at
       // the very start (a leading dash would also be the key).
@@ -151,11 +119,20 @@ extension HotKey {
     if let modPart {
       for token in modPart.split(whereSeparator: { $0 == "+" || $0 == "-" }) {
         switch token.trimmingCharacters(in: .whitespaces) {
-        case "cmd", "command", "⌘": mods |= Self.cmd
-        case "shift", "⇧": mods |= Self.shift
-        case "alt", "opt", "option", "⌥": mods |= Self.option
-        case "ctrl", "control", "⌃": mods |= Self.control
-        case "", "fn": break
+        case "cmd",
+             "command",
+             "⌘": mods |= Self.cmd
+        case "shift",
+             "⇧": mods |= Self.shift
+        case "alt",
+             "opt",
+             "option",
+             "⌥": mods |= Self.option
+        case "ctrl",
+             "control",
+             "⌃": mods |= Self.control
+        case "",
+             "fn": break
         default: return nil
         }
       }
@@ -165,26 +142,116 @@ extension HotKey {
     else { return nil }
     self.init(carbonKeyCode: code, carbonModifiers: mods)
   }
+
+  // MARK: Public
+
+  /// skhd-style description: `"<mods joined by ' + '> - <key>"`.
+  public var displayString: String {
+    var mods = [String]()
+    if carbonModifiers & Self.control != 0 {
+      mods.append("ctrl")
+    }
+    if carbonModifiers & Self.option != 0 {
+      mods.append("alt")
+    }
+    if carbonModifiers & Self.shift != 0 {
+      mods.append("shift")
+    }
+    if carbonModifiers & Self.cmd != 0 {
+      mods.append("cmd")
+    }
+    let key = Self.keyCodeToName[carbonKeyCode]
+      ?? "0x" + String(carbonKeyCode, radix: 16)
+    return mods.isEmpty ? key : mods.joined(separator: " + ") + " - " + key
+  }
+
+  /// Carbon modifier mask from skhd-style tokens (`"ctrl"`, `"alt"`,
+  /// `"shift"`, `"cmd"` and their aliases) — for settings that store a
+  /// modifier combo without a key, like the workspace key-equivalent modifier.
+  public static func carbonModifiers(from tokens: [String]) -> Int {
+    var mods = 0
+    for token in tokens {
+      switch token.lowercased().trimmingCharacters(in: .whitespaces) {
+      case "cmd",
+           "command",
+           "⌘": mods |= cmd
+      case "shift",
+           "⇧": mods |= shift
+      case "alt",
+           "opt",
+           "option",
+           "⌥": mods |= option
+      case "ctrl",
+           "control",
+           "⌃": mods |= control
+      default: break
+      }
+    }
+    return mods
+  }
+
+  /// macOS glyphs (`⌃⌥⇧⌘`, in canonical order) for skhd modifier tokens —
+  /// for showing the effective key-equivalent combo in settings.
+  public static func modifierSymbols(from tokens: [String]) -> String {
+    let mods = carbonModifiers(from: tokens)
+    var out = ""
+    if mods & control != 0 {
+      out += "⌃"
+    }
+    if mods & option != 0 {
+      out += "⌥"
+    }
+    if mods & shift != 0 {
+      out += "⇧"
+    }
+    if mods & cmd != 0 {
+      out += "⌘"
+    }
+    return out
+  }
+
+  // MARK: Internal
+
+  // Carbon modifier bit masks.
+  static let cmd = 256
+  static let shift = 512
+  static let option = 2048
+  static let control = 4096
+
 }
 
 // MARK: - Symbol display
 
 extension HotKey {
+
+  // MARK: Public
+
   /// macOS-style glyphs built from the stable English/QWERTY key (e.g.
   /// `⌘S`, `⌃⌥←`), independent of the active keyboard layout — for the
   /// shortcut recorder field.
   public var symbols: String {
     var out = ""
-    if carbonModifiers & Self.control != 0 { out += "⌃" }
-    if carbonModifiers & Self.option != 0 { out += "⌥" }
-    if carbonModifiers & Self.shift != 0 { out += "⇧" }
-    if carbonModifiers & Self.cmd != 0 { out += "⌘" }
+    if carbonModifiers & Self.control != 0 {
+      out += "⌃"
+    }
+    if carbonModifiers & Self.option != 0 {
+      out += "⌥"
+    }
+    if carbonModifiers & Self.shift != 0 {
+      out += "⇧"
+    }
+    if carbonModifiers & Self.cmd != 0 {
+      out += "⌘"
+    }
     return out + keySymbol
   }
 
+  // MARK: Private
+
   private var keySymbol: String {
     switch carbonKeyCode {
-    case 36, 76: "↩"
+    case 36,
+         76: "↩"
     case 48: "⇥"
     case 49: "Space"
     case 51: "⌫"
@@ -197,19 +264,21 @@ extension HotKey {
     default: (Self.keyCodeToName[carbonKeyCode] ?? "0x" + String(carbonKeyCode, radix: 16)).uppercased()
     }
   }
+
 }
 
-// MARK: - Codable
+// MARK: - HotKey + Codable
 
 extension HotKey: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case carbonKeyCode, carbonModifiers
-  }
+
+  // MARK: Lifecycle
 
   public init(from decoder: Decoder) throws {
     // Preferred: skhd-style string.
-    if let container = try? decoder.singleValueContainer(),
-       let string = try? container.decode(String.self) {
+    if
+      let container = try? decoder.singleValueContainer(),
+      let string = try? container.decode(String.self)
+    {
       if let parsed = HotKey(parsing: string) {
         self = parsed
         return
@@ -221,49 +290,49 @@ extension HotKey: Codable {
       reporter.report(
         "Shortcuts",
         String(localized: "Invalid shortcut \"\(string)\" in config.toml — not registered"),
-        String(localized: "Expected syntax, for example: \"ctrl + alt - h\"")
+        String(localized: "Expected syntax, for example: \"ctrl + alt - h\""),
       )
       throw DecodingError.dataCorrupted(.init(
         codingPath: decoder.codingPath,
-        debugDescription: "unparseable shortcut string: \(string)"
+        debugDescription: "unparseable shortcut string: \(string)",
       ))
     }
     // Legacy: { carbonKeyCode, carbonModifiers } table.
     let keyed = try decoder.container(keyedBy: CodingKeys.self)
     self.init(
       carbonKeyCode: try keyed.decode(Int.self, forKey: .carbonKeyCode),
-      carbonModifiers: try keyed.decode(Int.self, forKey: .carbonModifiers)
+      carbonModifiers: try keyed.decode(Int.self, forKey: .carbonModifiers),
     )
   }
+
+  // MARK: Public
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
     try container.encode(displayString)
   }
+
+  // MARK: Private
+
+  private enum CodingKeys: String, CodingKey {
+    case carbonKeyCode
+    case carbonModifiers
+  }
+
 }
 
 // MARK: - US ANSI virtual key codes
 
 extension HotKey {
-  fileprivate static let keyCodeToName: [Int: String] = [
-    0: "a", 1: "s", 2: "d", 3: "f", 4: "h", 5: "g", 6: "z", 7: "x", 8: "c", 9: "v",
-    11: "b", 12: "q", 13: "w", 14: "e", 15: "r", 16: "y", 17: "t",
-    18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 24: "=", 25: "9",
-    26: "7", 27: "-", 28: "8", 29: "0", 30: "]", 31: "o", 32: "u", 33: "[",
-    34: "i", 35: "p", 36: "return", 37: "l", 38: "j", 39: "'", 40: "k",
-    41: ";", 42: "\\", 43: ",", 44: "/", 45: "n", 46: "m", 47: ".",
-    48: "tab", 49: "space", 50: "`", 51: "delete", 53: "escape",
-    76: "enter", 96: "f5", 97: "f6", 98: "f7", 99: "f3", 100: "f8",
-    101: "f9", 103: "f11", 105: "f13", 109: "f10", 111: "f12",
-    114: "help", 115: "home", 116: "pageup", 117: "forwarddelete",
-    118: "f4", 119: "end", 120: "f2", 121: "pagedown", 122: "f1",
-    123: "left", 124: "right", 125: "down", 126: "up",
-  ]
+
+  // MARK: Public
 
   /// QWERTY-position name for a virtual key code (layout-independent) — used
   /// by transient key capture (borrow chord) to decode keystrokes the same
   /// way shortcuts are stored. Nil for unmapped codes.
-  public static func keyName(for keyCode: Int) -> String? { keyCodeToName[keyCode] }
+  public static func keyName(for keyCode: Int) -> String? {
+    keyCodeToName[keyCode]
+  }
 
   /// QWERTY virtual key code for a single-character key name (e.g. a
   /// workspace's `keyEquivalent`), so a stored char + modifier mask forms a
@@ -279,7 +348,8 @@ extension HotKey {
     switch name.lowercased() {
     case "delete": "⌫"
     case "forwarddelete": "⌦"
-    case "return", "enter": "⏎"
+    case "return",
+         "enter": "⏎"
     case "tab": "⇥"
     case "space": "Space"
     case "escape": "⎋"
@@ -291,8 +361,89 @@ extension HotKey {
     }
   }
 
+  // MARK: Fileprivate
+
+  fileprivate static let keyCodeToName: [Int: String] = [
+    0: "a",
+    1: "s",
+    2: "d",
+    3: "f",
+    4: "h",
+    5: "g",
+    6: "z",
+    7: "x",
+    8: "c",
+    9: "v",
+    11: "b",
+    12: "q",
+    13: "w",
+    14: "e",
+    15: "r",
+    16: "y",
+    17: "t",
+    18: "1",
+    19: "2",
+    20: "3",
+    21: "4",
+    22: "6",
+    23: "5",
+    24: "=",
+    25: "9",
+    26: "7",
+    27: "-",
+    28: "8",
+    29: "0",
+    30: "]",
+    31: "o",
+    32: "u",
+    33: "[",
+    34: "i",
+    35: "p",
+    36: "return",
+    37: "l",
+    38: "j",
+    39: "'",
+    40: "k",
+    41: ";",
+    42: "\\",
+    43: ",",
+    44: "/",
+    45: "n",
+    46: "m",
+    47: ".",
+    48: "tab",
+    49: "space",
+    50: "`",
+    51: "delete",
+    53: "escape",
+    76: "enter",
+    96: "f5",
+    97: "f6",
+    98: "f7",
+    99: "f3",
+    100: "f8",
+    101: "f9",
+    103: "f11",
+    105: "f13",
+    109: "f10",
+    111: "f12",
+    114: "help",
+    115: "home",
+    116: "pageup",
+    117: "forwarddelete",
+    118: "f4",
+    119: "end",
+    120: "f2",
+    121: "pagedown",
+    122: "f1",
+    123: "left",
+    124: "right",
+    125: "down",
+    126: "up",
+  ]
+
   fileprivate static let nameToKeyCode: [String: Int] = {
-    var map: [String: Int] = [:]
+    var map = [String: Int]()
     for (code, name) in keyCodeToName { map[name] = code }
     // Friendly aliases.
     map["esc"] = 53
@@ -303,4 +454,5 @@ extension HotKey {
     map["pgdn"] = 121
     return map
   }()
+
 }

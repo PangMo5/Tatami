@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import Foundation
 import Darwin
+import Foundation
 
 // MARK: - CommandResult
 
@@ -22,7 +22,9 @@ public struct CommandResult: Sendable {
   public let standardOutput: String
   public let standardError: String
 
-  public var succeeded: Bool { status == 0 }
+  public var succeeded: Bool {
+    status == 0
+  }
 
 }
 
@@ -69,8 +71,6 @@ public enum Shell {
     return Darwin.kill(pid, 0) == 0 || errno == EPERM
   }
 
-  // MARK: Public
-
   /// Runs an executable directly. No shell is involved: arguments are passed as
   /// argv, never word-split or glob-expanded, which matches how Tatami itself
   /// runs hook commands and keeps demo scripts free of quoting surprises.
@@ -79,7 +79,7 @@ public enum Shell {
     _ executable: URL,
     _ arguments: [String] = [],
     environment: [String: String]? = nil,
-    currentDirectory: URL? = nil
+    currentDirectory: URL? = nil,
   ) throws -> CommandResult {
     let process = Process()
     process.executableURL = executable
@@ -89,7 +89,9 @@ public enum Shell {
       for (key, value) in environment { merged[key] = value }
       process.environment = merged
     }
-    if let currentDirectory { process.currentDirectoryURL = currentDirectory }
+    if let currentDirectory {
+      process.currentDirectoryURL = currentDirectory
+    }
 
     let outPipe = Pipe()
     let errPipe = Pipe()
@@ -115,7 +117,7 @@ public enum Shell {
     return CommandResult(
       status: process.terminationStatus,
       standardOutput: String(decoding: outData, as: UTF8.self),
-      standardError: String(decoding: errData, as: UTF8.self)
+      standardError: String(decoding: errData, as: UTF8.self),
     )
   }
 
@@ -124,7 +126,7 @@ public enum Shell {
     _ executable: URL,
     _ arguments: [String] = [],
     environment: [String: String]? = nil,
-    currentDirectory: URL? = nil
+    currentDirectory: URL? = nil,
   ) throws -> CommandResult {
     let result = try run(executable, arguments, environment: environment, currentDirectory: currentDirectory)
     guard result.succeeded else {
@@ -149,7 +151,7 @@ public enum Shell {
     _ executable: URL,
     _ arguments: [String] = [],
     log: URL,
-    environment: [String: String]? = nil
+    environment: [String: String]? = nil,
   ) throws -> Process {
     let process = Process()
     process.executableURL = executable
@@ -162,7 +164,7 @@ public enum Shell {
 
     try FileManager.default.createDirectory(
       at: log.deletingLastPathComponent(),
-      withIntermediateDirectories: true
+      withIntermediateDirectories: true,
     )
     if !FileManager.default.fileExists(atPath: log.path) {
       FileManager.default.createFile(atPath: log.path, contents: nil)
@@ -188,11 +190,13 @@ public enum Shell {
   public static func wait(
     timeout: Duration,
     poll: Duration = .milliseconds(60),
-    until condition: () throws -> Bool
+    until condition: () throws -> Bool,
   ) rethrows -> Bool {
     let deadline = ContinuousClock.now.advanced(by: timeout)
     while ContinuousClock.now < deadline {
-      if try condition() { return true }
+      if try condition() {
+        return true
+      }
       Thread.sleep(forTimeInterval: seconds(poll))
     }
     return try condition()

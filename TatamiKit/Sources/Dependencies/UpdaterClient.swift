@@ -6,6 +6,8 @@ import ComposableArchitecture
 import DependenciesMacros
 import Sparkle
 
+// MARK: - UpdaterClient
+
 /// Wraps Sparkle's updater so reducers/views can drive software updates
 /// without touching Sparkle directly. Configure the schedule before starting it.
 @DependencyClient
@@ -15,16 +17,18 @@ struct UpdaterClient: Sendable {
   /// Applies the scheduled-check preferences to the underlying updater.
   var configure: @MainActor @Sendable (
     _ automaticallyChecks: Bool,
-    _ interval: TimeInterval
+    _ interval: TimeInterval,
   ) -> Void
 }
+
+// MARK: DependencyKey
 
 extension UpdaterClient: DependencyKey {
   static let liveValue: UpdaterClient = MainActor.assumeIsolated {
     let controller = SPUStandardUpdaterController(
       startingUpdater: false,
       updaterDelegate: nil,
-      userDriverDelegate: nil
+      userDriverDelegate: nil,
     )
     let updater = controller.updater
     return UpdaterClient(
@@ -46,14 +50,14 @@ extension UpdaterClient: DependencyKey {
         updater.automaticallyChecksForUpdates = automaticallyChecks
         updater.updateCheckInterval = interval
         controller.startUpdater()
-      }
+      },
     )
   }
 
   /// Tests must not start Sparkle's background update schedule.
   static let testValue = UpdaterClient(
-    checkForUpdates: {},
-    configure: { _, _ in }
+    checkForUpdates: { },
+    configure: { _, _ in },
   )
   static let previewValue = testValue
 }

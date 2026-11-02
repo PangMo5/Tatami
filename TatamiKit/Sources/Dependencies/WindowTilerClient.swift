@@ -403,7 +403,9 @@ extension WindowTilerClient: DependencyKey {
     tolerance: CGFloat = 1,
     forceAllFrames: Bool = false,
   ) -> [WindowKey: CGRect] {
-    if forceAllFrames { return targets }
+    if forceAllFrames {
+      return targets
+    }
     var pending = [WindowKey: CGRect]()
     pending.reserveCapacity(targets.count)
     for (key, target) in targets {
@@ -549,7 +551,9 @@ extension WindowTilerClient: DependencyKey {
     // user enters fullscreen bounced them straight back to the Desktop. Leave
     // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
     guard !isCancelled() else { return "cancelled" }
-    if isFullScreen(window) { return "skipped-fullscreen" }
+    if isFullScreen(window) {
+      return "skipped-fullscreen"
+    }
     guard !isCancelled() else { return "cancelled" }
 
     func setPosition() -> AXError {
@@ -596,7 +600,9 @@ extension WindowTilerClient: DependencyKey {
       let sizeError = setSize()
       guard !isCancelled() else { return "cancelled" }
       let posError = setPosition()
-      if posError == .success, sizeError == .success { return "ok" }
+      if posError == .success, sizeError == .success {
+        return "ok"
+      }
       return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
 
     case .moveAndResizeTwice:
@@ -612,7 +618,9 @@ extension WindowTilerClient: DependencyKey {
       let posError = setPosition()
       guard !isCancelled() else { return "cancelled" }
       let sizeError = setSize()
-      if posError == .success, sizeError == .success { return "ok" }
+      if posError == .success, sizeError == .success {
+        return "ok"
+      }
       return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
     }
   }
@@ -728,8 +736,10 @@ func readWindowServerWindows(_ options: CGWindowListOption) -> [WindowServerWind
       let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
       let layer = entry[kCGWindowLayer as String] as? Int,
       let bounds = entry[kCGWindowBounds as String] as? [String: CGFloat],
-      let x = bounds["X"], let y = bounds["Y"],
-      let width = bounds["Width"], let height = bounds["Height"]
+      let x = bounds["X"],
+      let y = bounds["Y"],
+      let width = bounds["Width"],
+      let height = bounds["Height"]
     else { return nil }
     return WindowServerWindow(
       id: id,
@@ -780,7 +790,9 @@ func classifyWindowIdentity(
   layer: WindowServerLayerEvidence,
   subrole: String?,
 ) -> WindowDiscoveryIdentityDisposition {
-  if minimized { return .reject(reason: "minimized") }
+  if minimized {
+    return .reject(reason: "minimized")
+  }
   switch layer {
   case .missing:
     return .reject(reason: "noWindowServerDescription")
@@ -857,7 +869,9 @@ func boundGlobalAXMessagingTimeout() {
 @MainActor
 @discardableResult
 func ensureAccessibilityTrust() -> Bool {
-  if AXIsProcessTrusted() { return true }
+  if AXIsProcessTrusted() {
+    return true
+  }
   let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
   return AXIsProcessTrustedWithOptions(options)
 }
@@ -978,14 +992,18 @@ func discoverWindowCapabilities(
     kAXSubroleAttribute,
   ] as CFArray
   for bundleId in bundleIds {
-    if isCancelled() { break }
+    if isCancelled() {
+      break
+    }
     let pids = pidsByBundle[bundleId] ?? []
     guard !pids.isEmpty else {
       debugLog.log("Tiler", "discover \(bundleId): no running pid")
       continue
     }
     for pid in pids {
-      if isCancelled() { break }
+      if isCancelled() {
+        break
+      }
       let axApp = AXUIElementCreateApplication(pid)
       // Same rationale as the tile pass: bound the per-message wait so a
       // hung app can't occupy the discovery worker indefinitely.
@@ -1030,10 +1048,14 @@ func discoverWindowCapabilities(
       }
       var rejected = [String]()
       func reject(_ widProbe: CGWindowID, _ reason: @autoclosure () -> String) {
-        if logging { rejected.append("\(widProbe):\(reason())") }
+        if logging {
+          rejected.append("\(widProbe):\(reason())")
+        }
       }
       for (window, widProbe) in identifiedWindows {
-        if isCancelled() { break }
+        if isCancelled() {
+          break
+        }
         var valuesRef: CFArray?
         var minimized = false
         var subrole: String?
@@ -1084,7 +1106,9 @@ func discoverWindowCapabilities(
           // record the id so consumers keep tracking a window that's still
           // enumerated, rather than dropping it as closed. Known nonzero-layer
           // surfaces were rejected above and never receive this grace.
-          if widProbe != 0 { retainedIDs.insert(widProbe) }
+          if widProbe != 0 {
+            retainedIDs.insert(widProbe)
+          }
           reject(widProbe, "subrole=\(subrole)")
           continue
         }

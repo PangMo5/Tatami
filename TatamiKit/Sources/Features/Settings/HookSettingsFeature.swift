@@ -303,7 +303,11 @@ public struct HookSettingsFeature {
       action: \.alert,
       suppress: \.suppressConfirmation,
       kind: { action in
-        if case .confirmDelete = action { .deleteHook } else { nil }
+        if case .confirmDelete = action {
+          .deleteHook
+        } else {
+          nil
+        }
       },
     )
   }
@@ -338,7 +342,9 @@ public struct HookSettingsFeature {
 
   private func availableID(in hooks: [HookDefinition]) -> String {
     let ids = Set(hooks.map(\.id))
-    if !ids.contains("hook") { return "hook" }
+    if !ids.contains("hook") {
+      return "hook"
+    }
     var suffix = 2
     while ids.contains("hook-\(suffix)") { suffix += 1 }
     return "hook-\(suffix)"

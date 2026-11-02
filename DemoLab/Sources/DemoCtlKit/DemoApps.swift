@@ -77,7 +77,7 @@ public enum LabControl {
   /// so the budget is checked where the directory is chosen.
   private static func requireSocketBudget(_ directory: URL) throws {
     let leaf = (DemoCatalog.all.map(\.bundleIdentifier) + [DemoCatalog.overlayBundleIdentifier])
-      .map { ($0.split(separator: ".").last.map(String.init) ?? $0).utf8.count }
+      .lazy.map { ($0.split(separator: ".").last.map(String.init) ?? $0).utf8.count }
       .max() ?? 0
     // directory + "/" + leaf + ".sock" + the terminating NUL.
     let needed = directory.path.utf8.count + 1 + leaf + 5 + 1
@@ -166,7 +166,8 @@ public struct DemoAppsController {
   }
 
   public static func isRunning(_ spec: DemoAppSpec) -> Bool {
-    NSRunningApplication.runningApplications(withBundleIdentifier: spec.bundleIdentifier).contains { Shell.processExists($0.processIdentifier) }
+    NSRunningApplication.runningApplications(withBundleIdentifier: spec.bundleIdentifier)
+      .contains { Shell.processExists($0.processIdentifier) }
   }
 
   /// Whether the app answers on its control socket. `isRunning` is not enough:
@@ -192,18 +193,20 @@ public struct DemoAppsController {
     guard let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
       return 0
     }
-    return entries.filter { entry in
+    return entries.count(where: { entry in
       guard let owner = entry[kCGWindowOwnerPID as String] as? pid_t, processIDs.contains(owner) else {
         return false
       }
       let layer = entry[kCGWindowLayer as String] as? Int ?? 0
       guard layer == 0 else { return false }
-      guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
-            let width = bounds["Width"] as? Double, let height = bounds["Height"] as? Double
+      guard
+        let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+        let width = bounds["Width"] as? Double,
+        let height = bounds["Height"] as? Double
       else { return false }
       // Filter out the zero-size helper surfaces AppKit sometimes keeps around.
       return width > 40 && height > 40
-    }.count
+    })
   }
 
   public func missingBundles(_ specs: [DemoAppSpec]) -> [String] {
@@ -278,7 +281,7 @@ public struct DemoAppsController {
     _ specs: [DemoAppSpec],
     windowCounts: [DemoAppID: Int] = [:],
     settle: Duration = .milliseconds(350),
-    timeout: Duration = .seconds(15)
+    timeout: Duration = .seconds(15),
   ) throws {
     let missing = missingBundles(specs)
     guard missing.isEmpty else { throw DemoCtlError.bundlesMissing(missing) }
@@ -298,7 +301,7 @@ public struct DemoAppsController {
       try Shell.require(
         URL(fileURLWithPath: "/usr/bin/open"),
         arguments,
-        environment: LabControl.environment(paths)
+        environment: LabControl.environment(paths),
       )
 
       let expected = max(requested, 0)
@@ -309,7 +312,7 @@ public struct DemoAppsController {
         guard appeared else {
           throw DemoCtlError.waitTimedOut(
             what: "\(spec.name) to show \(expected) window(s)",
-            seconds: 15
+            seconds: 15,
           )
         }
       }
@@ -321,7 +324,7 @@ public struct DemoAppsController {
         throw DemoControlFailure.launchTimedOut(
           app: spec.name,
           socket: DemoControl.socket(for: spec.bundleIdentifier).path,
-          seconds: Shell.seconds(control)
+          seconds: Shell.seconds(control),
         )
       }
       // A short settle after the window appears lets Tatami's AX observers see
@@ -357,8 +360,6 @@ public struct OverlayController {
   /// the socket's leaf, is `Overlay`.
   public static let bundleName = "DemoOverlay"
 
-  public let paths: LabPaths
-
   public static var socketPath: String {
     DemoControl.socket(for: DemoCatalog.overlayBundleIdentifier).path
   }
@@ -369,12 +370,19 @@ public struct OverlayController {
     DemoControlClient.isListening(bundleIdentifier: DemoCatalog.overlayBundleIdentifier)
   }
 
-  public var bundle: URL { paths.appBundle(Self.bundleName) }
+  public let paths: LabPaths
 
-  public var bundleExists: Bool { FileManager.default.fileExists(atPath: bundle.path) }
+  public var bundle: URL {
+    paths.appBundle(Self.bundleName)
+  }
+
+  public var bundleExists: Bool {
+    FileManager.default.fileExists(atPath: bundle.path)
+  }
 
   public static func running() -> [NSRunningApplication] {
-    NSRunningApplication.runningApplications(withBundleIdentifier: DemoCatalog.overlayBundleIdentifier).filter { Shell.processExists($0.processIdentifier) }
+    NSRunningApplication.runningApplications(withBundleIdentifier: DemoCatalog.overlayBundleIdentifier)
+      .filter { Shell.processExists($0.processIdentifier) }
   }
 
   /// Launches the overlay and waits for it to answer.
@@ -394,14 +402,14 @@ public struct OverlayController {
     try Shell.require(
       URL(fileURLWithPath: "/usr/bin/open"),
       ["-n", "-a", bundle.path],
-      environment: LabControl.environment(paths)
+      environment: LabControl.environment(paths),
     )
     let answered = Shell.wait(timeout: timeout) { Self.isListening }
     guard answered else {
       throw DemoControlFailure.launchTimedOut(
         app: "Overlay",
         socket: Self.socketPath,
-        seconds: Shell.seconds(timeout)
+        seconds: Shell.seconds(timeout),
       )
     }
     // Every take starts on a blank layer.
@@ -450,6 +458,5 @@ public struct OverlayController {
   public func clear() throws -> String {
     try send("clear")
   }
-
 
 }

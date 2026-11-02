@@ -106,10 +106,18 @@ extension WorkspaceActivationFeature {
       newTree = newTree.updatingRatio(at: fencePath, ratio: ratio)
     }
 
-    if abs(newFrame.minX - expected.minX) > tolerance { adjust(.west, edge: newFrame.minX) }
-    if abs(newFrame.maxX - expected.maxX) > tolerance { adjust(.east, edge: newFrame.maxX) }
-    if abs(newFrame.minY - expected.minY) > tolerance { adjust(.north, edge: newFrame.minY) }
-    if abs(newFrame.maxY - expected.maxY) > tolerance { adjust(.south, edge: newFrame.maxY) }
+    if abs(newFrame.minX - expected.minX) > tolerance {
+      adjust(.west, edge: newFrame.minX)
+    }
+    if abs(newFrame.maxX - expected.maxX) > tolerance {
+      adjust(.east, edge: newFrame.maxX)
+    }
+    if abs(newFrame.minY - expected.minY) > tolerance {
+      adjust(.north, edge: newFrame.minY)
+    }
+    if abs(newFrame.maxY - expected.maxY) > tolerance {
+      adjust(.south, edge: newFrame.maxY)
+    }
 
     guard newTree != tree else { return .none }
     state.pendingLayoutRestorations[workspaceId] = nil
@@ -159,7 +167,9 @@ extension WorkspaceActivationFeature {
     // Dragging a fullscreen-zoomed window: it owns the whole work area, so
     // there's no tile-level drop target — and the tiles hidden behind it must
     // not light up an overlay.
-    if zoomed.contains(dragged) { return nil }
+    if zoomed.contains(dragged) {
+      return nil
+    }
 
     let settings = state.config.settings
     let (_, workArea) = tilingContext(for: workspaceId, state: state)

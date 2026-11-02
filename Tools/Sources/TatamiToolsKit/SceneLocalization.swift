@@ -52,12 +52,21 @@ struct SceneLocalizer {
       return values[locale].str
     }
     func native(_ text: String, _ locale: String) throws -> String {
-      if names.contains(text) { return text }
-      if let value = english[text]?[locale].string, !value.isEmpty { return value }
+      if names.contains(text) {
+        return text
+      }
+      if let value = english[text]?[locale].string, !value.isEmpty {
+        return value
+      }
       for (source, values) in english.sorted(by: { $0.key < $1.key }) {
         let normalized = replacing(#"%\d+\$lld"#, in: source) { _ in "%lld" }
-        if !normalized.contains("%lld") && !normalized.contains("%@") { continue }
-        let pattern = NSRegularExpression.escapedPattern(for: normalized).replacingOccurrences(of: "%lld", with: #"(\d+)"#).replacingOccurrences(of: "%@", with: #"(.+?)"#)
+        if !normalized.contains("%lld"), !normalized.contains("%@") {
+          continue
+        }
+        let pattern = NSRegularExpression.escapedPattern(for: normalized).replacing("%lld", with: #"(\d+)"#).replacing(
+          "%@",
+          with: #"(.+?)"#,
+        )
         guard let match = matches("^(?:" + pattern + ")$", text).first, !values[locale].str.isEmpty else { continue }
         let arguments = Array(match.dropFirst())
         var index = 0
@@ -81,20 +90,31 @@ struct SceneLocalizer {
           for index in steps.indices {
             var step = steps[index]
             let kind = step["kind"].str
-            if ["caption", "chapter"].contains(kind), !step["text"].str.isEmpty { step["text"] = .string(try translated(
-              step["text"].str,
-              locale,
-            )) }
+            if ["caption", "chapter"].contains(kind), !step["text"].str.isEmpty {
+              step["text"] = .string(try translated(
+                step["text"].str,
+                locale,
+              ))
+            }
             if
               kind == "typeText",
-              step["app"].str != "Terminal" { step["text"] = .string(try translated(step["text"].str, locale)) }
+              step["app"].str != "Terminal"
+            {
+              step["text"] = .string(try translated(step["text"].str, locale))
+            }
             if step["app"].str == "Tatami", !step["identifier"].isNull {
               let scope = step["identifier"].str.hasPrefix("sheet:") ? "sheet:" : ""
-              let components = String(step["identifier"].str.dropFirst(scope.count)).split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
-                .map(String.init)
+              let components = String(step["identifier"].str.dropFirst(scope.count)).split(
+                separator: ":",
+                maxSplits: 1,
+                omittingEmptySubsequences: false,
+              )
+              .map(String.init)
               if components.count == 2, ["text", "description", "title", "help", "button", "heading"].contains(components[0]) {
                 step["identifier"] = .string(try scope + components[0] + ":" + native(components[1], locale))
-                if kind == "expectValue" { step["value"] = .string(try native(step["value"].str, locale)) }
+                if kind == "expectValue" {
+                  step["value"] = .string(try native(step["value"].str, locale))
+                }
               }
             } else if kind == "expectValue", !app[step["value"].str].isNull || !film[step["value"].str].isNull {
               step["value"] = .string(try translated(step["value"].str, locale))
@@ -117,8 +137,11 @@ struct SceneLocalizer {
   func build(check: Bool) throws {
     let rendered = try outputs()
     for (file, text) in rendered {
-      if check { try require(try JSON.read(file) == JSON.parse(text), "Generated scene drift: \(file.path)") }
-      else { try JSON.parse(text).write(file) }
+      if check {
+        try require(try JSON.read(file) == JSON.parse(text), "Generated scene drift: \(file.path)")
+      } else {
+        try JSON.parse(text).write(file)
+      }
     }
     print("\(check ? "Verified" : "Compiled") \(rendered.count) localized scenes")
   }

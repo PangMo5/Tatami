@@ -6,6 +6,8 @@ import DependenciesMacros
 import OSLog
 import ServiceManagement
 
+// MARK: - LoginItemClient
+
 /// Registers/unregisters Tatami as a macOS login item via
 /// `SMAppService.mainApp`, so it can start automatically at login.
 @DependencyClient
@@ -13,6 +15,8 @@ struct LoginItemClient: Sendable {
   /// Register (true) or unregister (false) the app as a login item.
   var setEnabled: @Sendable (Bool) -> Void
 }
+
+// MARK: DependencyKey
 
 extension LoginItemClient: DependencyKey {
   static let liveValue = LoginItemClient(
@@ -36,7 +40,7 @@ extension LoginItemClient: DependencyKey {
           enabled
             ? String(localized: "Launch at Login could not be enabled")
             : String(localized: "Launch at Login could not be disabled"),
-          ErrorReportClient.describe(error)
+          ErrorReportClient.describe(error),
         )
       }
     }

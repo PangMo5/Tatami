@@ -19,7 +19,9 @@ struct TakeLibrary: Sendable {
     let dual = asset["presentation"].str == "dual"
     let pattern = NSRegularExpression.escapedPattern(for: name) + (dual ? #"-[0-9]\.take\.json"# : #"\.take\.json"#)
     let files = try folder.children().filter { fullMatch(pattern, $0.lastPathComponent) }
-    if files.count != (dual ? 2 : 1) { return nil }
+    if files.count != (dual ? 2 : 1) {
+      return nil
+    }
     let records = try files.map(JSON.read)
     guard
       records
@@ -50,7 +52,11 @@ struct TakeLibrary: Sendable {
       print("Rejected candidate \(locale)/\(name) in \(folder.lastPathComponent): \(error)")
       return nil
     }
-    return Candidate(folder: folder, bases: bases, loss: records.map { $0["droppedFrames"].double / $0["frames"].double }.max()!)
+    return Candidate(
+      folder: folder,
+      bases: bases,
+      loss: records.lazy.map { $0["droppedFrames"].double / $0["frames"].double }.max()!,
+    )
   }
 
   func select(output: URL, batches: [URL], selectedLocales: [String]) throws {
@@ -120,7 +126,7 @@ struct TakeLibrary: Sendable {
       )
     }
     var results = [JSON]()
-    var fatalError: (any Error)?
+    var fatalError: any Error?
     do {
       for asset in assets {
         let name = asset["scene"].str
@@ -128,7 +134,9 @@ struct TakeLibrary: Sendable {
         do {
           try await control(["reset"], locale: locale)
           try await control(["display", "disconnect"], locale: locale)
-          if asset["presentation"].str == "dual" { try await control(["display", "connect"], locale: locale) }
+          if asset["presentation"].str == "dual" {
+            try await control(["display", "connect"], locale: locale)
+          }
           try await control(["seed"] + asset["seedOptions"].array.map(\.str), locale: locale)
           try await control(
             [
@@ -161,7 +169,9 @@ struct TakeLibrary: Sendable {
           ]))
           print("CAPTURE FAILED: \(name): \(error)")
           try JSON.array(results).write(output.at("capture-report.json"))
-          if !continueOnError || Task.isCancelled { throw error }
+          if !continueOnError || Task.isCancelled {
+            throw error
+          }
         }
         try JSON.array(results).write(output.at("capture-report.json"))
       }
@@ -177,7 +187,9 @@ struct TakeLibrary: Sendable {
     let failures = results.filter { $0["status"].str != "passed" }
     print("Capture result: \(results.count - failures.count) passed, \(failures.count) failed. \(output.path)")
     try require(cleanupErrors.isEmpty, "Capture cleanup failed: \(cleanupErrors.joined(separator: "; "))")
-    if let fatalError { throw fatalError }
+    if let fatalError {
+      throw fatalError
+    }
     try require(failures.isEmpty, "Capture batch contains failed takes")
   }
 
@@ -190,7 +202,9 @@ struct TakeLibrary: Sendable {
         try !batches.contains { try candidate(folder: $0, asset: asset, locale: locale, enforceBudget: false) != nil }
       }.map { $0["scene"].str }
       print("LOCALE \(locale): \(assets.count - missing.count) accepted, \(missing.count) to record")
-      if missing.isEmpty { continue }
+      if missing.isEmpty {
+        continue
+      }
       let output = workspace.lab.at("recordings/v6-library-\(locale)-\(round)")
       do {
         try await capture(output: output, scenes: missing, fps: 30, locale: locale, continueOnError: true)
@@ -202,7 +216,9 @@ struct TakeLibrary: Sendable {
           ("exitCode", .integer(1)),
           ("error", .string(String(describing: error))),
         ]))
-        if Task.isCancelled { break }
+        if Task.isCancelled {
+          break
+        }
       }
     }
     print(try JSON.array(summary).rendered())

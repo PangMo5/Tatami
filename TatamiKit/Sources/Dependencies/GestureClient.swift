@@ -6,6 +6,8 @@ import Dependencies
 import DependenciesMacros
 import OSLog
 
+// MARK: - GestureClient
+
 /// Three- and four-finger trackpad swipes, surfaced as a stream of gestures.
 ///
 /// Built on the public `NSEvent.gesture` event tap. The recognizer tracks
@@ -19,6 +21,8 @@ struct GestureClient: Sendable {
   var events: @Sendable () -> AsyncStream<TrackpadGesture> = { AsyncStream { _ in } }
 }
 
+// MARK: DependencyKey
+
 extension GestureClient: DependencyKey {
   static let liveValue: GestureClient = {
     let recognizer = TrackpadSwipeRecognizer()
@@ -27,14 +31,14 @@ extension GestureClient: DependencyKey {
         await recognizer.start(threshold: threshold)
       },
       stop: { await recognizer.stop() },
-      events: { recognizer.gestures }
+      events: { recognizer.gestures },
     )
   }()
 
   static let testValue = GestureClient(
     start: { _ in },
-    stop: {},
-    events: { AsyncStream { _ in } }
+    stop: { },
+    events: { AsyncStream { _ in } },
   )
   static let previewValue = testValue
 }
@@ -48,6 +52,8 @@ extension DependencyValues {
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Gestures")
 
+// MARK: - TrackpadSwipeRecognizer
+
 /// Recognizes multi-finger horizontal swipes from the HID gesture tap.
 ///
 /// The tap source lives on the main run loop, so all mutable state is
@@ -59,39 +65,18 @@ private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "Gestures
 /// off-main-thread guarantee for either — the main-thread cost is only
 /// paid while the (off-by-default) gesture setting is on.
 private final class TrackpadSwipeRecognizer: @unchecked Sendable {
-  let gestures: AsyncStream<TrackpadGesture>
-  private let emit: AsyncStream<TrackpadGesture>.Continuation
 
-  /// Per-touch travel measured from the gesture's first coherent sample.
-  private struct Travel {
-    let origin: CGPoint
-    var current: CGPoint
-    var displacement: CGVector {
-      CGVector(dx: current.x - origin.x, dy: current.y - origin.y)
-    }
-  }
-
-  @Dependency(\.debugLog) private var debugLog
-
-  private var tap: CFMachPort?
-  private var accessRegistration: UUID?
-  private var installationGeneration: UInt64 = 0
-  private var runLoopSource: CFRunLoopSource?
-  private var threshold = 0.3
-
-  private var travelByTouch: [ObjectIdentifier: Travel] = [:]
-  private var activeFingerCount: Int?
-  private var didFireForCurrentGesture = false
-  private var lastSampleAt = Date.distantPast
-
-  /// A new gesture starts once the touchpad has been quiet this long.
-  private let restGap: TimeInterval = 0.8
+  // MARK: Lifecycle
 
   init() {
     var continuation: AsyncStream<TrackpadGesture>.Continuation!
-    self.gestures = AsyncStream(bufferingPolicy: .bufferingNewest(4)) { continuation = $0 }
-    self.emit = continuation
+    gestures = AsyncStream(bufferingPolicy: .bufferingNewest(4)) { continuation = $0 }
+    emit = continuation
   }
+
+  // MARK: Internal
+
+  let gestures: AsyncStream<TrackpadGesture>
 
   @MainActor
   func start(threshold: Double) async {
@@ -132,7 +117,7 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
         recognizer.consume(type: type, event: event)
         return Unmanaged.passUnretained(event)
       },
-      userInfo: context
+      userInfo: context,
     )
     guard let created else {
       logger.warning("gesture tap creation failed (accessibility?)")
@@ -153,7 +138,7 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
     CGEvent.tapEnable(tap: created, enable: true)
     debugLog.log(
       "Gesture",
-      "tap started fingers=3,4 threshold=\(threshold)"
+      "tap started fingers=3,4 threshold=\(threshold)",
     )
   }
 
@@ -177,6 +162,8 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
     debugLog.log("Gesture", "tap stopped")
   }
 
+  // MARK: Fileprivate
+
   /// C-callback entry point. Re-enables the tap if the system disabled it,
   /// otherwise folds the gesture event in — directly, on the caller's thread.
   ///
@@ -191,14 +178,47 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
     guard EventTapAccess.shared.permitsInput() else { return }
     if type == .tapDisabledByUserInput || type == .tapDisabledByTimeout {
       debugLog.log("Gesture", "tap disabled by system (\(type.rawValue)) — re-enabling")
-      if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+      if let tap {
+        CGEvent.tapEnable(tap: tap, enable: true)
+      }
       return
     }
-    guard type.rawValue == NSEvent.EventType.gesture.rawValue,
-          let nsEvent = NSEvent(cgEvent: event)
+    guard
+      type.rawValue == NSEvent.EventType.gesture.rawValue,
+      let nsEvent = NSEvent(cgEvent: event)
     else { return }
     ingest(nsEvent)
   }
+
+  // MARK: Private
+
+  /// Per-touch travel measured from the gesture's first coherent sample.
+  private struct Travel {
+    let origin: CGPoint
+    var current: CGPoint
+
+    var displacement: CGVector {
+      CGVector(dx: current.x - origin.x, dy: current.y - origin.y)
+    }
+  }
+
+  private let emit: AsyncStream<TrackpadGesture>.Continuation
+
+  @Dependency(\.debugLog) private var debugLog
+
+  private var tap: CFMachPort?
+  private var accessRegistration: UUID?
+  private var installationGeneration: UInt64 = 0
+  private var runLoopSource: CFRunLoopSource?
+  private var threshold = 0.3
+
+  private var travelByTouch = [ObjectIdentifier: Travel]()
+  private var activeFingerCount: Int?
+  private var didFireForCurrentGesture = false
+  private var lastSampleAt = Date.distantPast
+
+  /// A new gesture starts once the touchpad has been quiet this long.
+  private let restGap: TimeInterval = 0.8
 
   private func ingest(_ event: NSEvent) {
     let touches = event.allTouches().filter {
@@ -235,12 +255,13 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
       }
     }
 
-    guard let fingerCount = activeFingerCount,
-          travelByTouch.count == fingerCount,
-          let direction = GestureDirection.resolve(
-            displacements: travelByTouch.values.map(\.displacement),
-            threshold: threshold
-          )
+    guard
+      let fingerCount = activeFingerCount,
+      travelByTouch.count == fingerCount,
+      let direction = GestureDirection.resolve(
+        displacements: travelByTouch.values.map(\.displacement),
+        threshold: threshold,
+      )
     else { return }
 
     didFireForCurrentGesture = true
@@ -255,7 +276,7 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
       let position = touch.normalizedPosition
       travelByTouch[ObjectIdentifier(touch.identity)] = Travel(
         origin: position,
-        current: position
+        current: position,
       )
     }
   }
@@ -278,12 +299,13 @@ private final class TrackpadSwipeRecognizer: @unchecked Sendable {
         "Gesture",
         "gesture ended without fire: fingers=\(travelByTouch.count) "
           + "total=(\(String(format: "%.3f", total.dx)),"
-          + "\(String(format: "%.3f", total.dy))) threshold=\(threshold)"
+          + "\(String(format: "%.3f", total.dy))) threshold=\(threshold)",
       )
     }
     clearTracking()
     didFireForCurrentGesture = false
   }
+
 }
 
 extension GestureDirection {
@@ -292,7 +314,7 @@ extension GestureDirection {
   /// palms/jitter without making diagonal swipes fire twice.
   static func resolve(
     displacements: [CGVector],
-    threshold: Double
+    threshold: Double,
   ) -> Self? {
     guard !displacements.isEmpty else { return nil }
     let floor = CGFloat(threshold * 0.3)

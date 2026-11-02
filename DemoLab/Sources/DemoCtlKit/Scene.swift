@@ -41,24 +41,24 @@ public struct SceneRequirements: Sendable, Decodable {
 public enum SceneStep: Sendable {
   /// Narration only. Printed with its cue time so the voiceover script and the
   /// recording stay in sync.
-  case clipboard(text:String)
+  case clipboard(text: String)
   case closeSettings
   case prepareSettings
-  case saveControlFrame(app:String,identifier:String,name:String)
-  case expectControlMoved(app:String,identifier:String,name:String)
-  case saveWindow(app:String)
-  case restoreWindow(app:String)
-  case assertWindow(app:String)
-  case expectPointer(app:String)
-  case hover(app:String,identifier:String)
-  case dragWindow(app:String,target:String,x:Double,y:Double)
-  case resizeWindow(app:String,dx:Double,dy:Double)
-  case expectFront(app:String)
-  case expectLayoutChanged(name:String)
-  case configure(key:String,value:String)
-  case virtualDisplay(connected:Bool)
-  case expectCommand(command:String,code:Int)
-  case expectHook(field:String,value:String)
+  case saveControlFrame(app: String, identifier: String, name: String)
+  case expectControlMoved(app: String, identifier: String, name: String)
+  case saveWindow(app: String)
+  case restoreWindow(app: String)
+  case assertWindow(app: String)
+  case expectPointer(app: String)
+  case hover(app: String, identifier: String)
+  case dragWindow(app: String, target: String, x: Double, y: Double)
+  case resizeWindow(app: String, dx: Double, dy: Double)
+  case expectFront(app: String)
+  case expectLayoutChanged(name: String)
+  case configure(key: String, value: String)
+  case virtualDisplay(connected: Bool)
+  case expectCommand(command: String, code: Int)
+  case expectHook(field: String, value: String)
   case click(app: String, identifier: String, activate: Bool)
   case expectEnabled(app: String, identifier: String, enabled: Bool)
   case configureAssignment(app: String, workspace: String, profile: String, autoOpen: Bool)
@@ -109,21 +109,21 @@ public enum SceneStep: Sendable {
     case .clipboard: "prepare example clipboard content"
     case .closeSettings: "close Tatami window"
     case .prepareSettings: "size and position the native Tatami window"
-    case .saveControlFrame(_,_,let name): "save control frame \(name)"
-    case .expectControlMoved(_,_,let name): "verify control moved \(name)"
+    case .saveControlFrame(_, _, let name): "save control frame \(name)"
+    case .expectControlMoved(_, _, let name): "verify control moved \(name)"
     case .saveWindow(let app): "save window \(app)"
     case .restoreWindow(let app): "restore window by dragging \(app)"
     case .assertWindow(let app): "verify window frame \(app)"
     case .expectPointer(let app): "verify pointer in \(app)"
-    case .hover(let app,let id): "hover \(app) / \(id)"
-    case .dragWindow(let app,let target,_,_): "drag \(app) to \(target)"
-    case .resizeWindow(let app,_,_): "resize \(app)"
+    case .hover(let app, let id): "hover \(app) / \(id)"
+    case .dragWindow(let app, let target, _, _): "drag \(app) to \(target)"
+    case .resizeWindow(let app, _, _): "resize \(app)"
     case .expectFront(let app): "verify focused app \(app)"
     case .expectLayoutChanged(let name): "verify changed layout \(name)"
-    case .configure(let key,let value): "configure \(key) = \(value)"
+    case .configure(let key, let value): "configure \(key) = \(value)"
     case .virtualDisplay(let connected): connected ? "connect secondary display" : "disconnect secondary display"
-    case .expectCommand(let command,_): "verify command \(command)"
-    case .expectHook(let field,let value): "verify hook \(field) = \(value)"
+    case .expectCommand(let command, _): "verify command \(command)"
+    case .expectHook(let field, let value): "verify hook \(field) = \(value)"
     case .waitWindows: "waitWindows"
     case .saveLayout: "saveLayout"
     case .assertLayout: "assertLayout"
@@ -169,63 +169,168 @@ extension SceneStep: Decodable {
     let kind = try container.decode(String.self, forKey: .kind)
 
     switch kind {
-    case "rightClick": self = .rightClick(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier))
-    case "expectPlacement": self = .expectPlacement(app: try container.decode(String.self, forKey: .app), target: try container.decode(String.self, forKey: .target), edge: try container.decode(String.self, forKey: .value))
+    case "rightClick": self = .rightClick(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+      )
+
+    case "expectPlacement": self = .expectPlacement(
+        app: try container.decode(String.self, forKey: .app),
+        target: try container.decode(String.self, forKey: .target),
+        edge: try container.decode(String.self, forKey: .value),
+      )
+
     case "expectProfileCount": self = .expectProfileCount(try container.decode(Int.self, forKey: .count))
+
     case "expectAssignment":
-      self = .expectAssignment(app: try container.decode(String.self, forKey: .app), workspace: try container.decode(String.self, forKey: .workspace), profile: try container.decode(String.self, forKey: .profile), present: try container.decodeIfPresent(Bool.self, forKey: .present) ?? true, layout: try container.decodeIfPresent(String.self, forKey: .layout), autoOpen: try container.decodeIfPresent(Bool.self, forKey: .autoOpen))
+      self = .expectAssignment(
+        app: try container.decode(String.self, forKey: .app),
+        workspace: try container.decode(String.self, forKey: .workspace),
+        profile: try container.decode(String.self, forKey: .profile),
+        present: try container.decodeIfPresent(Bool.self, forKey: .present) ?? true,
+        layout: try container.decodeIfPresent(String.self, forKey: .layout),
+        autoOpen: try container.decodeIfPresent(Bool.self, forKey: .autoOpen),
+      )
+
     case "configureAssignment":
-      self = .configureAssignment(app: try container.decode(String.self, forKey: .app), workspace: try container.decode(String.self, forKey: .workspace), profile: try container.decode(String.self, forKey: .profile), autoOpen: try container.decode(Bool.self, forKey: .autoOpen))
+      self = .configureAssignment(
+        app: try container.decode(String.self, forKey: .app),
+        workspace: try container.decode(String.self, forKey: .workspace),
+        profile: try container.decode(String.self, forKey: .profile),
+        autoOpen: try container.decode(Bool.self, forKey: .autoOpen),
+      )
+
     case "expectEnabled":
-      self = .expectEnabled(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier), enabled: try container.decode(Bool.self, forKey: .enabled))
+      self = .expectEnabled(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+        enabled: try container.decode(Bool.self, forKey: .enabled),
+      )
+
     case "waitWindows":
-      self = .waitWindows(apps: try container.decode([String].self, forKey: .apps),
-        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 12000)
+      self = .waitWindows(
+        apps: try container.decode([String].self, forKey: .apps),
+        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 12000,
+      )
+
     case "saveLayout":
       self = .saveLayout(name: try container.decode(String.self, forKey: .text))
+
     case "assertLayout":
       self = .assertLayout(name: try container.decode(String.self, forKey: .text))
-    case "clipboard": self = .clipboard(text:try container.decode(String.self,forKey:.text))
+
+    case "clipboard": self = .clipboard(text: try container.decode(String.self, forKey: .text))
+
     case "closeSettings": self = .closeSettings
+
     case "prepareSettings": self = .prepareSettings
-    case "saveControlFrame": self = .saveControlFrame(app:try container.decode(String.self,forKey:.app),identifier:try container.decode(String.self,forKey:.identifier),name:try container.decode(String.self,forKey:.text))
-    case "expectControlMoved": self = .expectControlMoved(app:try container.decode(String.self,forKey:.app),identifier:try container.decode(String.self,forKey:.identifier),name:try container.decode(String.self,forKey:.text))
-    case "saveWindow": self = .saveWindow(app:try container.decode(String.self,forKey:.app))
-    case "restoreWindow": self = .restoreWindow(app:try container.decode(String.self,forKey:.app))
-    case "assertWindow": self = .assertWindow(app:try container.decode(String.self,forKey:.app))
-    case "expectPointer": self = .expectPointer(app:try container.decode(String.self,forKey:.app))
-    case "hover": self = .hover(app:try container.decode(String.self,forKey:.app),identifier:try container.decode(String.self,forKey:.identifier))
-    case "dragWindow": self = .dragWindow(app:try container.decode(String.self,forKey:.app),target:try container.decode(String.self,forKey:.target),x:try container.decodeIfPresent(Double.self,forKey:.x) ?? 0.5,y:try container.decodeIfPresent(Double.self,forKey:.y) ?? 0.5)
-    case "resizeWindow": self = .resizeWindow(app:try container.decode(String.self,forKey:.app),dx:try container.decode(Double.self,forKey:.x),dy:try container.decodeIfPresent(Double.self,forKey:.y) ?? 0)
-    case "expectFront": self = .expectFront(app:try container.decode(String.self,forKey:.app))
-    case "expectLayoutChanged": self = .expectLayoutChanged(name:try container.decode(String.self,forKey:.text))
-    case "configure": self = .configure(key:try container.decode(String.self,forKey:.field),value:try container.decode(String.self,forKey:.value))
-    case "virtualDisplay": self = .virtualDisplay(connected:try container.decode(Bool.self,forKey:.connected))
-    case "expectCommand": self = .expectCommand(command:try container.decode(String.self,forKey:.text),code:try container.decodeIfPresent(Int.self,forKey:.code) ?? 0)
-    case "expectHook": self = .expectHook(field:try container.decode(String.self,forKey:.field),value:try container.decode(String.self,forKey:.value))
+
+    case "saveControlFrame": self = .saveControlFrame(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+        name: try container.decode(String.self, forKey: .text),
+      )
+
+    case "expectControlMoved": self = .expectControlMoved(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+        name: try container.decode(String.self, forKey: .text),
+      )
+
+    case "saveWindow": self = .saveWindow(app: try container.decode(String.self, forKey: .app))
+
+    case "restoreWindow": self = .restoreWindow(app: try container.decode(String.self, forKey: .app))
+
+    case "assertWindow": self = .assertWindow(app: try container.decode(String.self, forKey: .app))
+
+    case "expectPointer": self = .expectPointer(app: try container.decode(String.self, forKey: .app))
+
+    case "hover": self = .hover(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+      )
+
+    case "dragWindow": self = .dragWindow(
+        app: try container.decode(String.self, forKey: .app),
+        target: try container.decode(String.self, forKey: .target),
+        x: try container.decodeIfPresent(Double.self, forKey: .x) ?? 0.5,
+        y: try container.decodeIfPresent(Double.self, forKey: .y) ?? 0.5,
+      )
+
+    case "resizeWindow": self = .resizeWindow(
+        app: try container.decode(String.self, forKey: .app),
+        dx: try container.decode(Double.self, forKey: .x),
+        dy: try container.decodeIfPresent(Double.self, forKey: .y) ?? 0,
+      )
+
+    case "expectFront": self = .expectFront(app: try container.decode(String.self, forKey: .app))
+
+    case "expectLayoutChanged": self = .expectLayoutChanged(name: try container.decode(String.self, forKey: .text))
+
+    case "configure": self = .configure(
+        key: try container.decode(String.self, forKey: .field),
+        value: try container.decode(String.self, forKey: .value),
+      )
+
+    case "virtualDisplay": self = .virtualDisplay(connected: try container.decode(Bool.self, forKey: .connected))
+
+    case "expectCommand": self = .expectCommand(
+        command: try container.decode(String.self, forKey: .text),
+        code: try container.decodeIfPresent(Int.self, forKey: .code) ?? 0,
+      )
+
+    case "expectHook": self = .expectHook(
+        field: try container.decode(String.self, forKey: .field),
+        value: try container.decode(String.self, forKey: .value),
+      )
+
     case "click":
-      self = .click(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier), activate: try container.decodeIfPresent(Bool.self, forKey: .activate) ?? true)
+      self = .click(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+        activate: try container.decodeIfPresent(Bool.self, forKey: .activate) ?? true,
+      )
+
     case "typeText":
-      self = .typeText(app: try container.decode(String.self, forKey: .app), text: try container.decode(String.self, forKey: .text), intervalMilliseconds: try container.decodeIfPresent(Int.self, forKey: .ms) ?? 55)
+      self = .typeText(
+        app: try container.decode(String.self, forKey: .app),
+        text: try container.decode(String.self, forKey: .text),
+        intervalMilliseconds: try container.decodeIfPresent(Int.self, forKey: .ms) ?? 55,
+      )
+
     case "expectStory":
-      self = .expectStory(field: try container.decode(String.self, forKey: .field), value: try container.decode(String.self, forKey: .value))
+      self = .expectStory(
+        field: try container.decode(String.self, forKey: .field),
+        value: try container.decode(String.self, forKey: .value),
+      )
+
     case "expectValue":
-      self = .expectValue(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier), value: try container.decode(String.self, forKey: .value))
+      self = .expectValue(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+        value: try container.decode(String.self, forKey: .value),
+      )
+
     case "scroll":
-      self = .scroll(app: try container.decode(String.self, forKey: .app), identifier: try container.decode(String.self, forKey: .identifier), pixels: try container.decode(Int.self, forKey: .pixels))
+      self = .scroll(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+        pixels: try container.decode(Int.self, forKey: .pixels),
+      )
+
     case "note":
       self = .note(text: try container.decode(String.self, forKey: .text))
 
     case "beat":
       self = .beat(
         milliseconds: try container.decode(Int.self, forKey: .ms),
-        note: try container.decodeIfPresent(String.self, forKey: .note)
+        note: try container.decodeIfPresent(String.self, forKey: .note),
       )
 
     case "launch":
       self = .launch(
         apps: try container.decode([String].self, forKey: .apps),
-        windows: try container.decodeIfPresent([String: Int].self, forKey: .windows) ?? [:]
+        windows: try container.decodeIfPresent([String: Int].self, forKey: .windows) ?? [:],
       )
 
     case "quitApps":
@@ -235,13 +340,13 @@ extension SceneStep: Decodable {
       self = .pointer(
         display: try container.decodeIfPresent(Int.self, forKey: .display) ?? 0,
         x: try container.decodeIfPresent(Double.self, forKey: .x) ?? 0.5,
-        y: try container.decodeIfPresent(Double.self, forKey: .y) ?? 0.5
+        y: try container.decodeIfPresent(Double.self, forKey: .y) ?? 0.5,
       )
 
     case "activateWorkspace":
       self = .activateWorkspace(
         workspace: try container.decode(String.self, forKey: .workspace),
-        profile: try container.decodeIfPresent(String.self, forKey: .profile)
+        profile: try container.decodeIfPresent(String.self, forKey: .profile),
       )
 
     case "activateProfile":
@@ -250,14 +355,14 @@ extension SceneStep: Decodable {
     case "cli":
       self = .cli(
         arguments: try container.decode([String].self, forKey: .args),
-        expect: try container.decodeIfPresent(String.self, forKey: .expect) ?? "accepted"
+        expect: try container.decodeIfPresent(String.self, forKey: .expect) ?? "accepted",
       )
 
     case "key":
       self = .key(
         chord: try container.decode(String.self, forKey: .chord),
         repeats: try container.decodeIfPresent(Int.self, forKey: .repeats) ?? 1,
-        holdMilliseconds: try container.decodeIfPresent(Int.self, forKey: .holdMs) ?? 24
+        holdMilliseconds: try container.decodeIfPresent(Int.self, forKey: .holdMs) ?? 24,
       )
 
     case "hold":
@@ -265,26 +370,26 @@ extension SceneStep: Decodable {
         modifiers: try container.decode(String.self, forKey: .modifiers),
         keys: try container.decode([String].self, forKey: .keys),
         gapMilliseconds: try container.decodeIfPresent(Int.self, forKey: .gapMs) ?? 320,
-        releaseAfterMilliseconds: try container.decodeIfPresent(Int.self, forKey: .releaseAfterMs) ?? 700
+        releaseAfterMilliseconds: try container.decodeIfPresent(Int.self, forKey: .releaseAfterMs) ?? 700,
       )
 
     case "waitWorkspace":
       self = .waitWorkspace(
         workspace: try container.decode(String.self, forKey: .workspace),
-        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 10_000
+        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 10_000,
       )
 
     case "waitProfile":
       self = .waitProfile(
         profile: try container.decode(String.self, forKey: .profile),
-        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 10_000
+        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 10_000,
       )
 
     case "borrow":
       self = .borrow(
         workspace: try container.decode(String.self, forKey: .workspace),
         expectApps: try container.decodeIfPresent([String].self, forKey: .expectApps) ?? [],
-        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 10_000
+        timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 10_000,
       )
 
     case "dismissBorrow":
@@ -295,7 +400,7 @@ extension SceneStep: Decodable {
     case "appWindows":
       self = .appWindows(
         app: try container.decode(String.self, forKey: .app),
-        count: try container.decode(Int.self, forKey: .count)
+        count: try container.decode(Int.self, forKey: .count),
       )
 
     case "chapter":
@@ -320,7 +425,7 @@ extension SceneStep: Decodable {
       throw DecodingError.dataCorruptedError(
         forKey: .kind,
         in: container,
-        debugDescription: "unknown scene step kind \"\(kind)\""
+        debugDescription: "unknown scene step kind \"\(kind)\"",
       )
     }
   }
@@ -328,10 +433,44 @@ extension SceneStep: Decodable {
   // MARK: Private
 
   private enum CodingKeys: String, CodingKey {
-    case kind, text, ms, note, apps, windows, display, x, y, app, state, count
-    case identifier, field, value, pixels, target, connected, code, activate, present, layout, autoOpen, enabled
-    case workspace, profile, args, expect, chord, repeats, holdMs
-    case modifiers, keys, gapMs, releaseAfterMs, timeoutMs, expectApps, settleMs
+    case kind
+    case text
+    case ms
+    case note
+    case apps
+    case windows
+    case display
+    case x
+    case y
+    case app
+    case state
+    case count
+    case identifier
+    case field
+    case value
+    case pixels
+    case target
+    case connected
+    case code
+    case activate
+    case present
+    case layout
+    case autoOpen
+    case enabled
+    case workspace
+    case profile
+    case args
+    case expect
+    case chord
+    case repeats
+    case holdMs
+    case modifiers
+    case keys
+    case gapMs
+    case releaseAfterMs
+    case timeoutMs
+    case expectApps
+    case settleMs
   }
 
 }
@@ -340,12 +479,10 @@ extension SceneStep: Decodable {
 
 public enum SceneLoader {
 
-  // MARK: Public
-
   public static func available(in paths: LabPaths) -> [String] {
     let contents = (try? FileManager.default.contentsOfDirectory(
       at: paths.scenesRoot,
-      includingPropertiesForKeys: nil
+      includingPropertiesForKeys: nil,
     )) ?? []
     return contents
       .filter { $0.pathExtension == "json" }

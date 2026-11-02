@@ -21,7 +21,7 @@ permissions:
 jobs:
   portable-tools:
     runs-on: ubuntu-latest
-    container: swift:6.2-noble
+    container: swift:6.4.2-noble
     steps:
       - uses: actions/checkout@v6
       - name: Test native automation and generated content

@@ -130,7 +130,9 @@ private func runHook(
     ) { execution in
       await supervise(execution, timeoutMs: hook.timeoutMs)
     }
-    if result.closureResult == .cancelled { return .cancelled }
+    if result.closureResult == .cancelled {
+      return .cancelled
+    }
     if result.closureResult == .timedOut {
       return .failure(
         message: String(
@@ -172,7 +174,9 @@ private func runHook(
   } catch is CancellationError {
     return .cancelled
   } catch {
-    if Task.isCancelled { return .cancelled }
+    if Task.isCancelled {
+      return .cancelled
+    }
     return .failure(message: String(describing: error), stdout: "", stderr: "")
   }
 }
@@ -323,7 +327,9 @@ private func environmentOverrides(_ values: [String: String?]) -> [Subprocess.En
 }
 
 private func expandHome(in path: String) -> String {
-  if path == "~" { return NSHomeDirectory() }
+  if path == "~" {
+    return NSHomeDirectory()
+  }
   guard path.hasPrefix("~/") else { return path }
   return NSHomeDirectory() + path.dropFirst()
 }
@@ -363,7 +369,9 @@ extension HookInvocation {
     }
     if let display {
       values["TATAMI_DISPLAY_NAME"] = display.name
-      if let uuid = display.uuid { values["TATAMI_DISPLAY_UUID"] = uuid }
+      if let uuid = display.uuid {
+        values["TATAMI_DISPLAY_UUID"] = uuid
+      }
     }
     if let hud {
       values["TATAMI_HUD_TITLE"] = hud.title
@@ -373,7 +381,9 @@ extension HookInvocation {
       if let symbolIconName = hud.symbolIconName {
         values["TATAMI_HUD_SYMBOL_ICON_NAME"] = symbolIconName
       }
-      if let subtitle = hud.subtitle { values["TATAMI_HUD_SUBTITLE"] = subtitle }
+      if let subtitle = hud.subtitle {
+        values["TATAMI_HUD_SUBTITLE"] = subtitle
+      }
       if let subtitleSymbolIconName = hud.subtitleSymbolIconName {
         values["TATAMI_HUD_SUBTITLE_SYMBOL_ICON_NAME"] = subtitleSymbolIconName
       }

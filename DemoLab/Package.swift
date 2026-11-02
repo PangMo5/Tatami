@@ -1,17 +1,17 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.4
 
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import PackageDescription
 
-// Tatami Demo Lab.
-//
-// Deliberately a *standalone* SwiftPM package with zero external dependencies:
-// `swift build` works offline with only the Command Line Tools, and nothing
-// here can reach the product's Tuist graph. Tuist resolves its root as the
-// closest directory containing `Tuist/` or `.git/`, so a nested Tuist manifest
-// would have shared the app's dependency resolution — this does not.
+/// Tatami Demo Lab.
+///
+/// Deliberately a *standalone* SwiftPM package with zero external dependencies:
+/// `swift build` works offline with only the Command Line Tools, and nothing
+/// here can reach the product's Tuist graph. Tuist resolves its root as the
+/// closest directory containing `Tuist/` or `.git/`, so a nested Tuist manifest
+/// would have shared the app's dependency resolution — this does not.
 let package = Package(
   name: "TatamiDemoLab",
   platforms: [.macOS(.v14)],
@@ -60,7 +60,7 @@ let package = Package(
     .executableTarget(
       name: "DemoRecorder",
       dependencies: ["DemoRecorderKit"],
-      path: "Sources/DemoRecorder"
+      path: "Sources/DemoRecorder",
     ),
 
     // Renders app icons from SF Symbols at build time so the demo apps are
@@ -75,7 +75,7 @@ let package = Package(
     .testTarget(
       name: "DemoLabTests",
       dependencies: ["DemoCtlKit", "DemoAppKit", "DemoDriverKit", "DemoRecorderKit"],
-      path: "Tests/DemoLabTests"
+      path: "Tests/DemoLabTests",
     ),
-  ]
+  ],
 )

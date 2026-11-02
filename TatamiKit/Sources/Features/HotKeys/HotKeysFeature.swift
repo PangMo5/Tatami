@@ -9,14 +9,24 @@ import Sharing
 /// fire events back as actions.
 @Reducer
 public struct HotKeysFeature {
+
+  // MARK: Lifecycle
+
+  public init() { }
+
+  // MARK: Public
+
   @ObservableState
   public struct State: Equatable {
-    @Shared(.tatamiConfig) public var config
-    public init() {}
+    public init() { }
 
-    // Derived from the config — see `AppConfig.hotKeyBindings`, shared with
-    // the recorders' conflict detection so the two never disagree.
-    public var bindings: [HotKeyBinding] { config.hotKeyBindings }
+    @Shared(.tatamiConfig) public var config
+
+    /// Derived from the config — see `AppConfig.hotKeyBindings`, shared with
+    /// the recorders' conflict detection so the two never disagree.
+    public var bindings: [HotKeyBinding] {
+      config.hotKeyBindings
+    }
   }
 
   public enum Action {
@@ -24,15 +34,6 @@ public struct HotKeysFeature {
     case refreshBindings
     case actionTriggered(HotKeyAction)
   }
-
-  @Dependency(\.hotKeys) var hotKeys
-
-  /// `HotKeysCenter.events` is a single-consumer stream; `cancelInFlight`
-  /// makes a repeated `.onAppear` replace the subscription instead of
-  /// adding a second consumer (which traps in AsyncStream).
-  private enum CancelID { case events }
-
-  public init() {}
 
   public var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -48,7 +49,7 @@ public struct HotKeysFeature {
               await send(.actionTriggered(event))
             }
           }
-          .cancellable(id: CancelID.events, cancelInFlight: true)
+          .cancellable(id: CancelID.events, cancelInFlight: true),
         )
 
       case .refreshBindings:
@@ -62,4 +63,16 @@ public struct HotKeysFeature {
       }
     }
   }
+
+  // MARK: Internal
+
+  @Dependency(\.hotKeys) var hotKeys
+
+  // MARK: Private
+
+  /// `HotKeysCenter.events` is a single-consumer stream; `cancelInFlight`
+  /// makes a repeated `.onAppear` replace the subscription instead of
+  /// adding a second consumer (which traps in AsyncStream).
+  private enum CancelID { case events }
+
 }

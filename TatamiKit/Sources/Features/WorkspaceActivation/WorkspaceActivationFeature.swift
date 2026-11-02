@@ -446,7 +446,9 @@ public struct WorkspaceActivationFeature {
     /// name-only key, so exact dictionary lookup alone is not sufficient.
     func composition(on display: DisplayName?) -> Composition? {
       guard let display else { return nil }
-      if let exact = compositionsByDisplay[display] { return exact }
+      if let exact = compositionsByDisplay[display] {
+        return exact
+      }
       let matches = compositionsByDisplay.filter { key, _ in key.matches(display) }
       guard matches.count == 1 else { return nil }
       return matches.first?.value
@@ -503,14 +505,20 @@ public struct WorkspaceActivationFeature {
       // UUID display; otherwise preserving the ambiguous key is safer than
       // collapsing two identical-model monitors into one dictionary entry.
       let isAlias: (DisplayName) -> Bool = { key in
-        if key == canonicalDisplay { return true }
+        if key == canonicalDisplay {
+          return true
+        }
         guard key.name == canonicalDisplay.name else { return false }
         guard key.uuid == nil || canonicalDisplay.uuid == nil else { return false }
         return knownUUIDDisplaysWithName.count <= 1
       }
       let priority: (DisplayName) -> Int = { key in
-        if key == canonicalDisplay { return 0 }
-        if key.uuid == nil { return 1 }
+        if key == canonicalDisplay {
+          return 0
+        }
+        if key.uuid == nil {
+          return 1
+        }
         return 2
       }
       let matchingActiveKeys = activeWorkspacesByDisplay.keys
@@ -652,8 +660,12 @@ public struct WorkspaceActivationFeature {
         let matchingKeys = oldHistory.keys
           .filter { canonicalLiveDisplay($0) == live }
           .sorted { lhs, rhs in
-            if lhs == live { return true }
-            if rhs == live { return false }
+            if lhs == live {
+              return true
+            }
+            if rhs == live {
+              return false
+            }
             return lhs.description < rhs.description
           }
         var merged = [Workspace.ID]()
@@ -725,7 +737,9 @@ public struct WorkspaceActivationFeature {
           {
             return slot.workspace
           }
-          if tilingTrees[comp.host]?.windows.contains(key) == true { return comp.host }
+          if tilingTrees[comp.host]?.windows.contains(key) == true {
+            return comp.host
+          }
         }
       }
       guard
@@ -754,13 +768,17 @@ public struct WorkspaceActivationFeature {
       let treeOwners = orderedVisible.filter {
         tilingTrees[$0]?.windows.contains(where: { $0.bundleId == bundleId }) == true
       }
-      if !treeOwners.isEmpty { return treeOwners }
+      if !treeOwners.isEmpty {
+        return treeOwners
+      }
 
       let registeredOwners = orderedVisible.filter { workspaceId in
         config.activeProfile?.workspaces[id: workspaceId]?
           .apps.contains(where: { $0.bundleIdentifier == bundleId }) == true
       }
-      if !registeredOwners.isEmpty { return registeredOwners }
+      if !registeredOwners.isEmpty {
+        return registeredOwners
+      }
       return composedOwner(bundleId: bundleId, key: nil).map { [$0] } ?? []
     }
 
@@ -787,7 +805,9 @@ public struct WorkspaceActivationFeature {
       key: WindowKey?,
     ) -> Bool {
       guard let key else { return true }
-      if workspaceContaining(key) != nil { return false }
+      if workspaceContaining(key) != nil {
+        return false
+      }
 
       if
         visibleWorkspaceIDs.contains(where: { workspaceId in
@@ -1004,7 +1024,9 @@ public struct WorkspaceActivationFeature {
       }
       let treeWindows = tilingTrees[workspaceId]?.windows ?? []
       let inTree = treeWindows.contains(key)
-      if inTree { insertionPoint[workspaceId] = key }
+      if inTree {
+        insertionPoint[workspaceId] = key
+      }
 
       let workspaceApps = config.activeProfile?.workspaces[id: workspaceId]?.apps ?? []
       if
@@ -1038,7 +1060,9 @@ public struct WorkspaceActivationFeature {
       in placements: [DisplayName: Workspace.ID],
     ) -> Workspace.ID? {
       guard let display else { return nil }
-      if let exact = placements[display] { return exact }
+      if let exact = placements[display] {
+        return exact
+      }
       let connectedUUIDsWithSameName = Set(connectedDisplays.compactMap { candidate in
         candidate.name == display.name ? candidate.uuid : nil
       })
@@ -1732,7 +1756,9 @@ public struct WorkspaceActivationFeature {
           // A top-left resize fires Moved and Resized interleaved; once a
           // resize is pending it stays the commit — a move event must not
           // demote it to a drop/snap-back.
-          if case .resizing = state.drag { return .none }
+          if case .resizing = state.drag {
+            return .none
+          }
           // Cursor-based drop preview: find the tile + region under the
           // cursor and highlight it. Freeze the decision so the mouse-up
           // commit lands exactly where the overlay showed.
@@ -1970,7 +1996,9 @@ public struct WorkspaceActivationFeature {
             )
           }
           let isFocusTransition = state.lastObservedFocusedWindow != key
-          if let key { state.markWindowServerSurfaceVisible(key) }
+          if let key {
+            state.markWindowServerSurfaceVisible(key)
+          }
           state.lastObservedFocusedWindow = key
           // Keep the per-workspace insertion point current — even for
           // same-app window switches (which don't fire
@@ -2234,7 +2262,9 @@ public struct WorkspaceActivationFeature {
         return .merge(bundleIds.map { requestWindowSync($0) })
 
       case .appLaunched(let bundleId, _, let pid):
-        if pid != 0 { overlayAwareness.clearBackgroundedProcess(pid) }
+        if pid != 0 {
+          overlayAwareness.clearBackgroundedProcess(pid)
+        }
         // Observe the new app immediately — even before it's in any tree.
         // A transient (unregistered) app's first window can appear seconds after
         // launch with AX not yet ready; the initial sync then discovers nothing,
@@ -2274,8 +2304,10 @@ public struct WorkspaceActivationFeature {
         guard
           generation == state.activationGeneration,
           profileID == state.config.activeProfile?.id,
-          !state.isActivating, state.activeActivationGeneration == nil,
-          !state.isLayoutSuspended, !state.isRecoveringSystemLayout,
+          !state.isActivating,
+          state.activeActivationGeneration == nil,
+          !state.isLayoutSuspended,
+          !state.isRecoveringSystemLayout,
           let frontmost = windowSnapshot.frontmostApp(),
           frontmost.bundleId == key.bundleId,
           frontmost.pid == key.pid,
@@ -2587,8 +2619,11 @@ public struct WorkspaceActivationFeature {
 
       case .pruneOffscreenWindows:
         guard
-          !state.isActivating, !state.isLayoutSuspended, !state.isRecoveringSystemLayout,
-          !state.isInFullscreenSpace, !state.isTilingPaused
+          !state.isActivating,
+          !state.isLayoutSuspended,
+          !state.isRecoveringSystemLayout,
+          !state.isInFullscreenSpace,
+          !state.isTilingPaused
         else { return .none }
         let generation = state.activationGeneration
         return .run { [windowSnapshot] send in
@@ -3120,7 +3155,11 @@ public struct WorkspaceActivationFeature {
           }
         let isFinalRestore = state.focusWorkspaceOnRestore == workspaceId
         let ownsProfileCleanup =
-          if case .workspaceCleanup? = assignment.presentation { true } else { false }
+          if case .workspaceCleanup? = assignment.presentation {
+            true
+          } else {
+            false
+          }
         let takesFocus = (isFinalRestore && state.finalRestoreTakesFocus)
           || (ownsProfileCleanup
             && !isFinalRestore
@@ -3165,9 +3204,9 @@ public struct WorkspaceActivationFeature {
         if
           takesFocus,
           state.activeActivationGeneration == nil,
-          state.activeWorkspacesByDisplay.first(where: {
+          state.activeWorkspacesByDisplay.contains(where: {
             $0.value == workspaceId && $0.key.matches(display)
-          }) != nil,
+          }),
           visibleFocusTarget(workspaceId, state: state) != nil
         {
           let focus = focusVisibleWorkspace(
@@ -3768,8 +3807,12 @@ public struct WorkspaceActivationFeature {
           state: &state,
         ) }
         // Tatami must never enter its own membership sets.
-        if MacApp.isTatami(bundleId) { return rejectMembershipRequest(requestID, state: &state) }
-        if pid != 0, overlayAwareness.isBackgroundedProcess(pid) { return rejectMembershipRequest(requestID, state: &state) }
+        if MacApp.isTatami(bundleId) {
+          return rejectMembershipRequest(requestID, state: &state)
+        }
+        if pid != 0, overlayAwareness.isBackgroundedProcess(pid) {
+          return rejectMembershipRequest(requestID, state: &state)
+        }
         debugLog.log("App", "membership \(String(describing: edit)) bundle=\(bundleId)")
         let targetID: Workspace.ID?
         let operation: AssignmentOperation
@@ -3854,8 +3897,12 @@ public struct WorkspaceActivationFeature {
           activationGeneration: state.activationGeneration,
         )
         var cleanup = [Effect<Action>]()
-        if state.borrowCapture != nil { cleanup.append(endBorrowCapture(state: &state)) }
-        if let cycle = state.windowCycleSession { cleanup.append(finishWindowCycle(cycle, commit: false, state: &state)) }
+        if state.borrowCapture != nil {
+          cleanup.append(endBorrowCapture(state: &state))
+        }
+        if let cycle = state.windowCycleSession {
+          cleanup.append(finishWindowCycle(cycle, commit: false, state: &state))
+        }
         return .concatenate(.merge(cleanup), .run { [workspaceHUD] send in
           let result = await workspaceHUD.confirmAssignment(request)
           guard !Task.isCancelled else {
@@ -3867,7 +3914,9 @@ public struct WorkspaceActivationFeature {
             confirmed: result.confirmed,
             suppressFuture: result.suppressFuture,
           ))
-          if Task.isCancelled { await workspaceHUD.dismissConfirmation(request.id) }
+          if Task.isCancelled {
+            await workspaceHUD.dismissConfirmation(request.id)
+          }
         }.cancellable(id: CancelID.assignmentConfirmation))
 
       case .membershipResolutionFailed(let id):
@@ -4513,7 +4562,8 @@ public struct WorkspaceActivationFeature {
         // user last had on it — same rules as a reconnect. Skipped mid-cascade
         // (a reconnect plan already schedules its own refills).
         if
-          state.pendingDisplayRestores.isEmpty, !emptiedByMove.isEmpty,
+          state.pendingDisplayRestores.isEmpty,
+          !emptiedByMove.isEmpty,
           let profile = state.config.activeProfile
         {
           var byId = [Workspace.ID: Workspace]()
@@ -4912,7 +4962,9 @@ public struct WorkspaceActivationFeature {
         for zoomedKey in zoomed { frames[zoomedKey] = context.rect }
       }
       for key in keys {
-        if let frame = frames[key] { expected[key] = frame }
+        if let frame = frames[key] {
+          expected[key] = frame
+        }
       }
     }
     return expected
@@ -5341,7 +5393,9 @@ public struct WorkspaceActivationFeature {
           sharedNonTiledBundles,
           false,
         )
-        if !sharedWindows.isEmpty { allWindows += keysOnDisplay(sharedWindows) }
+        if !sharedWindows.isEmpty {
+          allWindows += keysOnDisplay(sharedWindows)
+        }
       }
     }
     if !includesSharedApps {
@@ -5860,7 +5914,10 @@ public struct WorkspaceActivationFeature {
         workspaceID: workspaceId,
         display: display,
         confirmationID: confirmationID,
-        moving: { if case .move = edit { return true }
+        moving: {
+          if case .move = edit {
+            return true
+          }
           return false
         }(),
         state: &state,

@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
+
 import DemoAppKit
 import DemoCtlKit
 import Foundation
@@ -7,18 +8,20 @@ import Testing
 
 @Suite("Localized demo contracts")
 struct LocalizationTests {
-  @Test("localized fixture data still demonstrates a failing draft and a passing revision", arguments: DemoLocale.allCases)
-  func localizedCopyChecks(locale: DemoLocale) {
+  @Test(arguments: DemoLocale.allCases)
+  func `localized fixture data still demonstrates a failing draft and a passing revision`(locale: DemoLocale) {
     var story = LaunchStory(locale: locale)
     #expect(story.headline.count > 40)
     #expect(story.evaluateCopy().filter(\.passed).count == 2)
     story.headline = locale.string("A calmer way to work.")
     #expect(story.evaluateCopy().allSatisfy { $0.passed })
-    if locale != .en { #expect(story.headline != "A calmer way to work.") }
+    if locale != .en {
+      #expect(story.headline != "A calmer way to work.")
+    }
   }
 
-  @Test("every catalog entry has all five displayed values and matching placeholders")
-  func catalogCompleteness() throws {
+  @Test
+  func `every catalog entry has all five displayed values and matching placeholders`() throws {
     let root = try #require(LabPaths.discoverPackageRoot())
     let file = root.appendingPathComponent("Localization/Localizable.xcstrings")
     let catalog = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])

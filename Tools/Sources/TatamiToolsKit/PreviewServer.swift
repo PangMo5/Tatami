@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Foundation
+import Hummingbird
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
-import Hummingbird
 #if canImport(System)
 import System
 #else
@@ -45,10 +45,13 @@ struct PreviewServer: Sendable {
 
   func start(background: Bool, detached: Bool) async throws {
     try require(directory.at("index.html").exists, "index.html is missing in \(directory.path)")
-    if background { try await startBackground()
+    if background {
+      try await startBackground()
       return
     }
-    if detached { _ = setsid() }
+    if detached {
+      _ = setsid()
+    }
     print("\(address) → \(directory.path)")
     try await application().runService()
   }
@@ -73,7 +76,9 @@ struct PreviewServer: Sendable {
     let state = workspace.root.at(".build/site-preview")
     try state.makeDirectory()
     let logURL = state.at("\(port).log")
-    if !logURL.exists { try logURL.write("") }
+    if !logURL.exists {
+      try logURL.write("")
+    }
     let log = try FileHandle(forWritingTo: logURL)
     try log.seekToEnd()
     defer { try? log.close() }
@@ -141,7 +146,9 @@ private struct PreviewFileProvider: FileProvider {
   let filesystem: LocalFileSystem
 
   func getFileIdentifier(_ path: String) -> String? {
-    if let alias = aliases[path] { return alias.path }
+    if let alias = aliases[path] {
+      return alias.path
+    }
     let file = directory.at(String(path.drop(while: { $0 == "/" }))).resolvingSymlinksInPath()
     let filePath = Self.resolvedPath(file)
     let prefix = directoryPath == "/" ? "/" : directoryPath + "/"
@@ -200,8 +207,10 @@ private struct PreviewHeaders: RouterMiddleware {
     // start beyond EOF. Normalize to a bounded explicit range before FileMiddleware.
     // Remove this compatibility adapter when upstream passes the preview range tests.
     if
-      let range = request.headers[.range], let path = request.uri.path.removingPercentEncoding,
-      let file = provider.getFileIdentifier(path), let attributes = try await provider.getAttributes(id: file),
+      let range = request.headers[.range],
+      let path = request.uri.path.removingPercentEncoding,
+      let file = provider.getFileIdentifier(path),
+      let attributes = try await provider.getAttributes(id: file),
       !attributes.isFolder
     {
       do {

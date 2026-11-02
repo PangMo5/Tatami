@@ -6,10 +6,12 @@ import Foundation
 import Testing
 @testable import TatamiKit
 
+// MARK: - HotKeyTests
+
 @Suite("HotKey skhd encoding")
 struct HotKeyTests {
   @Test
-  func encodesAsSkhdString() throws {
+  func `encodes as skhd string`() throws {
     // keyCode 4 = h, modifiers 6144 = control(4096) + option(2048)
     let key = HotKey(carbonKeyCode: 4, carbonModifiers: 6144)
     #expect(key.displayString == "ctrl + alt - h")
@@ -19,7 +21,7 @@ struct HotKeyTests {
   }
 
   @Test
-  func roundTripsThroughString() throws {
+  func `round trips through string`() throws {
     let key = HotKey(carbonKeyCode: 45, carbonModifiers: 256 + 512) // cmd+shift - n
     let data = try JSONEncoder().encode(key)
     let decoded = try JSONDecoder().decode(HotKey.self, from: data)
@@ -28,26 +30,26 @@ struct HotKeyTests {
   }
 
   @Test
-  func parsesLooseForm() {
+  func `parses loose form`() {
     #expect(HotKey(parsing: "ctrl+alt+h") == HotKey(carbonKeyCode: 4, carbonModifiers: 6144))
     #expect(HotKey(parsing: "cmd - return") == HotKey(carbonKeyCode: 36, carbonModifiers: 256))
     #expect(HotKey(parsing: "left") == HotKey(carbonKeyCode: 123, carbonModifiers: 0))
   }
 
   @Test
-  func decodesLegacyCarbonTable() throws {
+  func `decodes legacy carbon table`() throws {
     let json = #"{"carbonKeyCode":4,"carbonModifiers":6144}"#
     let decoded = try JSONDecoder().decode(HotKey.self, from: Data(json.utf8))
     #expect(decoded == HotKey(carbonKeyCode: 4, carbonModifiers: 6144))
   }
 
   @Test
-  func rejectsUnknownKey() {
+  func `rejects unknown key`() {
     #expect(HotKey(parsing: "cmd - boguskey") == nil)
   }
 
   @Test
-  func reverseCycleBindingKeepsOnlyThePrimaryModifier() throws {
+  func `reverse cycle binding keeps only the primary modifier`() throws {
     let reverse = try #require(HotKey(parsing: "alt + shift - tab"))
     let shiftOnly = try #require(HotKey(parsing: "shift - tab"))
 
@@ -56,10 +58,12 @@ struct HotKeyTests {
   }
 }
 
+// MARK: - ProfileScopedHotKeyTests
+
 @Suite("Profile-scoped hot keys")
 struct ProfileScopedHotKeyTests {
   @Test
-  func runtimeProjectionRegistersOnlyTheSelectedProfilesWorkspaceBinding() throws {
+  func `runtime projection registers only the selected profiles workspace binding`() throws {
     let key = try #require(HotKey(parsing: "ctrl + alt - a"))
     let defaultWorkspaceId = try #require(
       UUID(uuidString: "00000000-0000-0000-0000-000000000011")
@@ -76,42 +80,42 @@ struct ProfileScopedHotKeyTests {
     let defaultWorkspace = Workspace(
       id: defaultWorkspaceId,
       name: "Default A",
-      activateShortcut: key
+      activateShortcut: key,
     )
     let dualWorkspace = Workspace(
       id: dualWorkspaceId,
       name: "Dual A",
-      activateShortcut: key
+      activateShortcut: key,
     )
     let defaultProfile = Profile(
       id: defaultProfileId,
       name: "Default",
-      workspaces: [defaultWorkspace]
+      workspaces: [defaultWorkspace],
     )
     let dualProfile = Profile(
       id: dualProfileId,
       name: "Dual",
-      workspaces: [dualWorkspace]
+      workspaces: [dualWorkspace],
     )
     var config = AppConfig(
       profiles: [defaultProfile, dualProfile],
-      activeProfileId: defaultProfile.id
+      activeProfileId: defaultProfile.id,
     )
 
     expectNoDifference(
       config.hotKeyBindings.filter { $0.hotKey == key }.map(\.action),
-      [.activateWorkspace(defaultWorkspace.id)]
+      [.activateWorkspace(defaultWorkspace.id)],
     )
 
     config.activeProfileId = dualProfile.id
     expectNoDifference(
       config.hotKeyBindings.filter { $0.hotKey == key }.map(\.action),
-      [.activateWorkspace(dualWorkspace.id)]
+      [.activateWorkspace(dualWorkspace.id)],
     )
   }
 
   @Test
-  func inactiveProfileCanReuseAWorkspaceKeyFromTheActiveProfile() throws {
+  func `inactive profile can reuse A workspace key from the active profile`() throws {
     let key = try #require(HotKey(parsing: "ctrl + alt - a"))
     let defaultWorkspace = Workspace(name: "Default A", keyEquivalent: "a")
     let dualWorkspace = Workspace(name: "Dual A", keyEquivalent: "a")
@@ -119,20 +123,20 @@ struct ProfileScopedHotKeyTests {
     let dualProfile = Profile(name: "Dual", workspaces: [dualWorkspace])
     let config = AppConfig(
       profiles: [defaultProfile, dualProfile],
-      activeProfileId: defaultProfile.id
+      activeProfileId: defaultProfile.id,
     )
 
     #expect(
       config.shortcutConflict(
         for: key,
         excluding: .activateWorkspace(dualWorkspace.id),
-        in: dualProfile.id
+        in: dualProfile.id,
       ) == nil
     )
   }
 
   @Test
-  func inactiveProfileStillRejectsAKeyUsedByItsSiblingWorkspace() throws {
+  func `inactive profile still rejects A key used by its sibling workspace`() throws {
     let key = try #require(HotKey(parsing: "ctrl + alt - a"))
     let defaultWorkspace = Workspace(name: "Default A", keyEquivalent: "a")
     let dualWorkspace = Workspace(name: "Dual A")
@@ -141,7 +145,7 @@ struct ProfileScopedHotKeyTests {
     let dualProfile = Profile(name: "Dual", workspaces: [dualWorkspace, dualSibling])
     let config = AppConfig(
       profiles: [defaultProfile, dualProfile],
-      activeProfileId: defaultProfile.id
+      activeProfileId: defaultProfile.id,
     )
     let expectedTitle = String(localized: "Activate \(dualSibling.name)")
 
@@ -149,33 +153,33 @@ struct ProfileScopedHotKeyTests {
       config.shortcutConflict(
         for: key,
         excluding: .activateWorkspace(dualWorkspace.id),
-        in: dualProfile.id
+        in: dualProfile.id,
       ) == expectedTitle
     )
   }
 
   @Test
-  func globalShortcutRejectsAKeyUsedByAnInactiveProfilesWorkspace() throws {
+  func `global shortcut rejects A key used by an inactive profiles workspace`() throws {
     let key = try #require(HotKey(parsing: "ctrl + alt - a"))
     let defaultProfile = Profile(name: "Default")
     let dualWorkspace = Workspace(name: "Dual A", activateShortcut: key)
     let dualProfile = Profile(name: "Dual", workspaces: [dualWorkspace])
     let config = AppConfig(
       profiles: [defaultProfile, dualProfile],
-      activeProfileId: defaultProfile.id
+      activeProfileId: defaultProfile.id,
     )
     let expectedTitle = String(localized: "Activate \(dualWorkspace.name)")
 
     #expect(
       config.shortcutConflict(
         for: key,
-        excluding: .focusLeft
+        excluding: .focusLeft,
       ) == expectedTitle
     )
   }
 
   @Test
-  func workspaceKeyEquivalentIgnoresActionsWithExplicitOverrides() throws {
+  func `workspace key equivalent ignores actions with explicit overrides`() throws {
     let derivedKey = try #require(HotKey(parsing: "ctrl - a"))
     let explicitKey = try #require(HotKey(parsing: "cmd - x"))
     let workspace = Workspace(name: "Coding", activateShortcut: explicitKey)
@@ -186,13 +190,13 @@ struct ProfileScopedHotKeyTests {
     settings.shortcuts.focusLeft = derivedKey
     var config = AppConfig(
       profiles: [Profile(name: "Default", workspaces: [workspace])],
-      settings: settings
+      settings: settings,
     )
 
     #expect(
       config.workspaceKeyEquivalentConflict(
         for: "a",
-        workspaceId: workspace.id
+        workspaceId: workspace.id,
       ) == nil
     )
 
@@ -200,13 +204,13 @@ struct ProfileScopedHotKeyTests {
     #expect(
       config.workspaceKeyEquivalentConflict(
         for: "a",
-        workspaceId: workspace.id
+        workspaceId: workspace.id,
       ) == String(localized: "Focus left")
     )
   }
 
   @Test
-  func navigationKeyEquivalentIgnoresActionsWithExplicitOverrides() throws {
+  func `navigation key equivalent ignores actions with explicit overrides`() throws {
     let derivedKey = try #require(HotKey(parsing: "ctrl - a"))
     let explicitKey = try #require(HotKey(parsing: "cmd - x"))
     var settings = AppSettings()
@@ -224,7 +228,7 @@ struct ProfileScopedHotKeyTests {
         assignAction: .assignFocusedAppToRecentWorkspace,
         assignOverride: nil,
         borrowAction: .borrowRecentWorkspace,
-        borrowOverride: nil
+        borrowOverride: nil,
       ) == nil
     )
 
@@ -236,7 +240,7 @@ struct ProfileScopedHotKeyTests {
         assignAction: .assignFocusedAppToRecentWorkspace,
         assignOverride: nil,
         borrowAction: .borrowRecentWorkspace,
-        borrowOverride: nil
+        borrowOverride: nil,
       ) == String(localized: "Focus left")
     )
   }

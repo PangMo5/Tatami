@@ -346,7 +346,9 @@ private struct HookEditorBottomBarStatus: View {
   @State private var isShowingDetails = false
 
   private var summary: LocalizedStringResource {
-    if saveError != nil { return "Hook could not be saved" }
+    if saveError != nil {
+      return "Hook could not be saved"
+    }
     if validationIssues.count == 1, let issue = validationIssues.first {
       return issue.code.localizedMessage
     }

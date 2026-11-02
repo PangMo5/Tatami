@@ -3,10 +3,10 @@
 
 import AppKit
 import CoreGraphics
+import CryptoKit
 import DemoAppKit
 import DemoDriverKit
 import Foundation
-import CryptoKit
 
 // MARK: - DemoCtl
 
@@ -43,40 +43,66 @@ public enum DemoCtl {
 
     do {
       switch command {
-      case "help", "--help", "-h": print(usage)
+      case "help",
+           "--help",
+           "-h": print(usage)
+
       case "catalog":
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         print(String(decoding: try encoder.encode(DemoCatalog.bundles), as: UTF8.self))
+
       case "build": try build(arguments)
+
       case "inspect":
         let paths = try resolvePaths()
         let name = arguments.first ?? "Tatami"
         let install = try resolveInstall(explicit: nil)
-        let bundle = name == "Tatami" ? install.bundleIdentifier : DemoCatalog.spec(named:name)?.bundleIdentifier
-        guard let bundle else {throw DemoCtlError.usage("unknown app")}
+        let bundle = name == "Tatami" ? install.bundleIdentifier : DemoCatalog.spec(named: name)?.bundleIdentifier
+        guard let bundle else { throw DemoCtlError.usage("unknown app") }
         _ = paths
-        print(try NativeInteractionDriver.snapshot(bundleIdentifier:bundle))
+        print(try NativeInteractionDriver.snapshot(bundleIdentifier: bundle))
+
       case "display":
         let paths = try resolvePaths()
-        if arguments.first == "connect" {try VirtualDisplayController.connect(paths)}
-        else if arguments.first == "disconnect" {try VirtualDisplayController.disconnect(paths)}
-        else {throw DemoCtlError.usage("display connect|disconnect")}
+        if arguments.first == "connect" {
+          try VirtualDisplayController.connect(paths)
+        } else if arguments.first == "disconnect" {
+          try VirtualDisplayController.disconnect(paths)
+        } else {
+          throw DemoCtlError.usage("display connect|disconnect")
+        }
+
       case "doctor": try doctor(arguments)
+
       case "displays": try displays()
+
       case "reset": try reset(arguments)
+
       case "seed": try seed(arguments)
+
       case "launch": try launch(arguments)
+
       case "app": try app(arguments)
+
       case "overlay": try overlay(arguments)
+
       case "quit": try quit()
+
       case "scene": try scene(arguments)
+
       case "take": try take(arguments)
+
       case "record": try record(arguments)
+
       case "subtitle": try subtitle(arguments)
+
       case "events": try events(arguments)
+
       case "config": try config(arguments)
+
       case "restore": try restore(arguments)
+
       default:
         FileHandle.standardError.write(Data("unknown command \"\(command)\"\n\n".utf8))
         print(usage)
@@ -95,74 +121,78 @@ public enum DemoCtl {
   // MARK: Private
 
   private static let usage = """
-  democtl — Tatami Demo Lab control
+    democtl — Tatami Demo Lab control
 
-  Setup
-    catalog                     Print bundle metadata from the shared app catalog as JSON
-    build                       Build every demo app, the recorder and the tools into .build/DemoLab
-    doctor                      Check everything that must be true before a take
-    displays                    Print each screen's Tatami display-hint string
+    Setup
+      catalog                     Print bundle metadata from the shared app catalog as JSON
+      build                       Build every demo app, the recorder and the tools into .build/DemoLab
+      doctor                      Check everything that must be true before a take
+      displays                    Print each screen's Tatami display-hint string
 
-  Run
-    reset [--restore-defaults] [--tatami-app <path>]
-                                Quit the demo apps and Tatami, then delete all lab state
-    seed [options]              Render the config, start an isolated Tatami, verify it round-trips
-    launch <set|App...>         Launch an app set (\(appSets.keys.sorted().joined(separator: ", ")))
-    app <Name> windows <n>      Open or close that app's windows until it has n
-    app --list                  Every app, its role, and whether it answers
-    overlay caption <text>      Narrate: "<headline> | <why>", or empty text to clear the card
-    overlay chapter <text>      The pill at the top of the screen, or empty text to clear it
-    overlay keys <chord>        Keycaps for an action that was not a keystroke
-    overlay mode all|keys|off   How much of the narration layer is drawn at all
-    overlay clear               Wipe the whole narration layer
-    quit                        Quit the demo apps, the overlay, and the lab's Tatami
+    Run
+      reset [--restore-defaults] [--tatami-app <path>]
+                                  Quit the demo apps and Tatami, then delete all lab state
+      seed [options]              Render the config, start an isolated Tatami, verify it round-trips
+      launch <set|App...>         Launch an app set (\(appSets.keys.sorted().joined(separator: ", ")))
+      app <Name> windows <n>      Open or close that app's windows until it has n
+      app --list                  Every app, its role, and whether it answers
+      overlay caption <text>      Narrate: "<headline> | <why>", or empty text to clear the card
+      overlay chapter <text>      The pill at the top of the screen, or empty text to clear it
+      overlay keys <chord>        Keycaps for an action that was not a keystroke
+      overlay mode all|keys|off   How much of the narration layer is drawn at all
+      overlay clear               Wipe the whole narration layer
+      quit                        Quit the demo apps, the overlay, and the lab's Tatami
 
-  Record
-    scene <name> [--dry-run] [--overlay full|keys|off] [--keycast-hold <ms>]
-                                Play a scene
-    take <name> [options]       Record a scene end to end and write the .mov plus its sidecars
-    record start|stop|status    Drive the recorder on its own
-    record warmup [--seconds N] Throw away a short recording so the screen-capture consent panel,
-                                which macOS 15+ re-shows periodically, appears now and not mid-take
-    record preflight            Report whether DemoRecorder holds Screen Recording access
-    subtitle burn <movie> [--ass <file>] [--output <file>]
-                                Burn a take's .ass sidecar into a copy of the movie. Needs an
-                                ffmpeg with libass, or mpv. Neither is in the recording VM, so
-                                this is a host-side step after tatami-tools vm-fetch-recordings
-    events [--all]              Print the Tatami lifecycle events the hooks logged
+    Record
+      scene <name> [--dry-run] [--overlay full|keys|off] [--keycast-hold <ms>]
+                                  Play a scene
+      take <name> [options]       Record a scene end to end and write the .mov plus its sidecars
+      record start|stop|status    Drive the recorder on its own
+      record warmup [--seconds N] Throw away a short recording so the screen-capture consent panel,
+                                  which macOS 15+ re-shows periodically, appears now and not mid-take
+      record preflight            Report whether DemoRecorder holds Screen Recording access
+      subtitle burn <movie> [--ass <file>] [--output <file>]
+                                  Burn a take's .ass sidecar into a copy of the movie. Needs an
+                                  ffmpeg with libass, or mpv. Neither is in the recording VM, so
+                                  this is a host-side step after tatami-tools vm-fetch-recordings
+      events [--all]              Print the Tatami lifecycle events the hooks logged
 
-  Inspect
-    config [--print]            Show or validate the rendered config
-    restore [--tatami-app <path>]
-                                Put Tatami's UserDefaults domain back as it was before `seed`
+    Inspect
+      config [--print]            Show or validate the rendered config
+      restore [--tatami-app <path>]
+                                  Put Tatami's UserDefaults domain back as it was before `seed`
 
-  seed options
-    --pulse floating|unmanaged|tiled   Shared Pulse as Always on Top (default), Leave As Is, or Tiled
-    --borrow-edge top|bottom|left|right
-    --focus-follows-mouse              Turn FFM on (off by default: it is hard to film)
-    --no-mouse-follows-focus           Turn MFF off (on by default)
-    --debug-logging                    Ask Tatami to write its debug log into the lab directory
-    --no-launch                        Render and verify the config without starting Tatami
+    seed options
+      --pulse floating|unmanaged|tiled   Shared Pulse as Always on Top (default), Leave As Is, or Tiled
+      --borrow-edge top|bottom|left|right
+      --focus-follows-mouse              Turn FFM on (off by default: it is hard to film)
+      --no-mouse-follows-focus           Turn MFF off (on by default)
+      --debug-logging                    Ask Tatami to write its debug log into the lab directory
+      --no-launch                        Render and verify the config without starting Tatami
 
-  take options
-    --output <path.mov>   --display <index|main|all>   --fps <n>   --keep-running
-    --display takes an index from `democtl displays` (0-based, the same index a
-    scene `pointer` step uses), or `main`, or `all` for one file per display
-    --overlay full|keys|off    How much narration is drawn into the frame. Default `off` for a
-                               take: every word and keycap goes to <name>.ass instead, where a
-                               capture stream cannot drop it and an editor can restyle it.
-                               Default `full` for `scene`, which nobody is recording
-    --keycast-hold <ms>        How long the keycaps are held, and so how long they run in the
-                               sidecar (default \(SceneRunner.defaultKeycastHoldMilliseconds))
+    take options
+      --output <path.mov>   --display <index|main|all>   --fps <n>   --keep-running
+      --display takes an index from `democtl displays` (0-based, the same index a
+      scene `pointer` step uses), or `main`, or `all` for one file per display
+      --overlay full|keys|off    How much narration is drawn into the frame. Default `off` for a
+                                 take: every word and keycap goes to <name>.ass instead, where a
+                                 capture stream cannot drop it and an editor can restyle it.
+                                 Default `full` for `scene`, which nobody is recording
+      --keycast-hold <ms>        How long the keycaps are held, and so how long they run in the
+                                 sidecar (default \(SceneRunner.defaultKeycastHoldMilliseconds))
 
-  Every take writes two sidecars next to the .mov, with the same basename:
-    <name>.ass             the subtitles, restyle or translate them and burn them in later
-    <name>.timeline.json   every narration event with its start and end, for any other tool
-  They are written even when the scene fails partway, so a failed take is still diagnosable.
+    Every take writes two sidecars next to the .mov, with the same basename:
+      <name>.ass             the subtitles, restyle or translate them and burn them in later
+      <name>.timeline.json   every narration event with its start and end, for any other tool
+    They are written even when the scene fails partway, so a failed take is still diagnosable.
 
-  Global
-    --tatami-app <path>   Use a specific Tatami.app (or set DEMOLAB_TATAMI_APP)
-  """
+    Global
+      --tatami-app <path>   Use a specific Tatami.app (or set DEMOLAB_TATAMI_APP)
+    """
+
+  /// A finalized movie carries a moov atom and real frames. Anything smaller is
+  /// a stub, the same threshold `RecorderController` holds a take to.
+  private static let minimumUsableMovieBytes = 65_536
 
   private static func resolvePaths() throws -> LabPaths {
     guard let root = LabPaths.discoverPackageRoot() else { throw DemoCtlError.packageRootNotFound }
@@ -217,13 +247,17 @@ public enum DemoCtl {
   /// identifier here removes the ambiguity instead of documenting it.
   private static func displayOption(_ arguments: inout [String]) throws -> String {
     guard let value = try takeOption(&arguments, "--display") else { return "main" }
-    if value == "main" || value == "all" { return value }
-    if value.hasPrefix("id:") { return value }
+    if value == "main" || value == "all" {
+      return value
+    }
+    if value.hasPrefix("id:") {
+      return value
+    }
 
     let displays = DisplayInfo.all()
     guard let index = Int(value), displays.indices.contains(index) else {
       let known = displays
-        .map { "\($0.index) = \($0.name)" }
+        .lazy.map { "\($0.index) = \($0.name)" }
         .joined(separator: ", ")
       throw DemoCtlError.usage(
         "--display expects \"main\", \"all\", or a display index from `democtl displays` "
@@ -253,7 +287,7 @@ public enum DemoCtl {
   /// and its captions live in the sidecar instead.
   private static func overlayModeOption(
     _ arguments: inout [String],
-    default fallback: OverlayMode
+    default fallback: OverlayMode,
   ) throws -> OverlayMode {
     guard let raw = try takeOption(&arguments, "--overlay") else { return fallback }
     guard let mode = OverlayMode(rawValue: raw) else {
@@ -289,17 +323,21 @@ public enum DemoCtl {
     }
   }
 
-  // MARK: - Commands
-
   private static func build(_ arguments: [String]) throws {
     let paths = try resolvePaths()
     let executable = paths.automationExecutable
     guard FileManager.default.isExecutableFile(atPath: executable.path) else {
       throw DemoCtlError.usage("Run swift run --package-path Tools tatami-tools bundle-apps in the checkout first")
     }
-    let result = try Shell.run(executable, ["bundle-apps", "--root", paths.packageRoot.deletingLastPathComponent().path] + arguments, currentDirectory: paths.packageRoot)
+    let result = try Shell.run(
+      executable,
+      ["bundle-apps", "--root", paths.packageRoot.deletingLastPathComponent().path] + arguments,
+      currentDirectory: paths.packageRoot,
+    )
     print(result.standardOutput, terminator: "")
-    if !result.standardError.isEmpty { FileHandle.standardError.write(Data(result.standardError.utf8)) }
+    if !result.standardError.isEmpty {
+      FileHandle.standardError.write(Data(result.standardError.utf8))
+    }
     guard result.succeeded else { throw DemoCtlError.usage("tatami-tools bundle-apps failed with exit \(result.status)") }
   }
 
@@ -350,7 +388,7 @@ public enum DemoCtl {
     guard let domain = DefaultsGuard.capturedDomain(in: directory) else {
       throw DemoCtlError.defaultsSnapshotUnstamped(
         backup: backup.path,
-        stamp: DefaultsGuard.domainStampURL(in: directory).path
+        stamp: DefaultsGuard.domainStampURL(in: directory).path,
       )
     }
     if let explicit {
@@ -359,7 +397,7 @@ public enum DemoCtl {
         throw DemoCtlError.defaultsSnapshotForeign(
           captured: domain,
           requested: install.bundleIdentifier,
-          backup: backup.path
+          backup: backup.path,
         )
       }
     }
@@ -377,13 +415,17 @@ public enum DemoCtl {
     // matched to a domain has to stop the command, not be discovered halfway
     // through it.
     var guardian: DefaultsGuard?
-    if restoreDefaults { guardian = try restoreGuard(paths: paths, explicit: explicit) }
+    if restoreDefaults {
+      guardian = try restoreGuard(paths: paths, explicit: explicit)
+    }
     let apps = DemoAppsController(paths: paths)
 
     // `quitAll` covers the narration overlay as well as the demo apps: one left
     // running would caption the next take with the last one's words.
     let quitApps = apps.quitAllIncludingOverlay()
-    if quitApps.isEmpty { print("demo apps: none running") } else {
+    if quitApps.isEmpty {
+      print("demo apps: none running")
+    } else {
       print("demo apps: quit \(quitApps.count) (\(quitApps.joined(separator: ", ")))")
     }
 
@@ -429,11 +471,21 @@ public enum DemoCtl {
       throw DemoCtlError.bundlesMissing(["demohook"])
     }
     var options = SeedOptions()
-    if let pulse = try takeOption(&arguments, "--pulse") { options.pulseLayout = pulse }
-    if let edge = try takeOption(&arguments, "--borrow-edge") { options.borrowEdge = edge }
-    if takeFlag(&arguments, "--focus-follows-mouse") { options.focusFollowsMouse = true }
-    if takeFlag(&arguments, "--no-mouse-follows-focus") { options.mouseFollowsFocus = false }
-    if takeFlag(&arguments, "--debug-logging") { options.debugLogging = true }
+    if let pulse = try takeOption(&arguments, "--pulse") {
+      options.pulseLayout = pulse
+    }
+    if let edge = try takeOption(&arguments, "--borrow-edge") {
+      options.borrowEdge = edge
+    }
+    if takeFlag(&arguments, "--focus-follows-mouse") {
+      options.focusFollowsMouse = true
+    }
+    if takeFlag(&arguments, "--no-mouse-follows-focus") {
+      options.mouseFollowsFocus = false
+    }
+    if takeFlag(&arguments, "--debug-logging") {
+      options.debugLogging = true
+    }
     let skipLaunch = takeFlag(&arguments, "--no-launch")
     let keepWindow = takeFlag(&arguments, "--keep-window")
     try rejectUnknown(arguments, command: "seed")
@@ -446,12 +498,15 @@ public enum DemoCtl {
 
     let guardian = DefaultsGuard(
       domain: install.bundleIdentifier,
-      snapshotDirectory: paths.defaultsSnapshotRoot
+      snapshotDirectory: paths.defaultsSnapshotRoot,
     )
     try guardian.captureIfNeeded()
     try guardian.suppressFirstRunWindows(appVersion: install.version)
     for domain in [install.bundleIdentifier] + DemoCatalog.all.map(\.bundleIdentifier) {
-      _ = try Shell.require(URL(fileURLWithPath: "/usr/bin/defaults"), ["write", domain, "AppleLanguages", "-array", DemoLocale.selected.rawValue])
+      _ = try Shell.require(
+        URL(fileURLWithPath: "/usr/bin/defaults"),
+        ["write", domain, "AppleLanguages", "-array", DemoLocale.selected.rawValue],
+      )
     }
     print(
       "defaults: Guided Setup, What's New and window restoration suppressed for "
@@ -460,8 +515,12 @@ public enum DemoCtl {
 
     let renderer = ConfigRenderer(paths: paths)
     try StoryRepository(file: paths.controlDirectory.appendingPathComponent("launch-story.json")).write(LaunchStory())
-    let cliContext = DemoCLIContext(executable: install.cli.path, socket: paths.socketPath.path,
-      automationExecutable: paths.automationExecutable.path, config: paths.configFile.path)
+    let cliContext = DemoCLIContext(
+      executable: install.cli.path,
+      socket: paths.socketPath.path,
+      automationExecutable: paths.automationExecutable.path,
+      config: paths.configFile.path,
+    )
     try JSONEncoder().encode(cliContext).write(to: DemoCLIContext.file, options: .atomic)
     try renderer.write(options)
     print("config: wrote \(paths.configFile.path)")
@@ -487,7 +546,7 @@ public enum DemoCtl {
     _ = try events.wait(
       since: mark,
       timeout: .seconds(20),
-      describing: "Tatami's tatamiLaunched hook"
+      describing: "Tatami's tatamiLaunched hook",
     ) { $0.event == "tatamiLaunched" }
     print("hooks: tatamiLaunched received — the scene barrier works")
 
@@ -597,7 +656,7 @@ public enum DemoCtl {
   /// Every app, its role in the workflow, and whether it is
   /// reachable right now. The control directory is printed first because a whole
   /// column of "not answering" usually means an app was launched without it.
-  private static func listApps(_ paths: LabPaths) {
+  private static func listApps(_: LabPaths) {
     print("control sockets: \(DemoControl.directory.path)")
     for spec in DemoCatalog.all {
       print("")
@@ -612,7 +671,9 @@ public enum DemoCtl {
   }
 
   private static func status(of spec: DemoAppSpec) -> String {
-    if DemoAppsController.isListening(spec) { return "answering" }
+    if DemoAppsController.isListening(spec) {
+      return "answering"
+    }
     return DemoAppsController.isRunning(spec) ? "running, not answering" : "not running"
   }
 
@@ -635,15 +696,20 @@ public enum DemoCtl {
 
     switch action {
     case "caption": print(try overlay.caption(text))
+
     case "chapter": print(try overlay.chapter(text))
+
     case "keys": print(try overlay.keys(text))
+
     // The same command `scene` and `take` send through --overlay, reachable by
     // hand for staging a shot. The overlay validates the value, so a typo comes
     // back as a rejection rather than as a silently different mode.
     case "mode": print(try overlay.send("mode \(text)"))
+
     case "clear":
       guard text.isEmpty else { throw DemoCtlError.usage("overlay clear takes no text") }
       print(try overlay.clear())
+
     default:
       throw DemoCtlError.usage(
         "overlay: unknown action \"\(action)\" (caption, chapter, keys, mode or clear)"
@@ -690,11 +756,13 @@ public enum DemoCtl {
       paths: paths,
       client: client,
       apps: DemoAppsController(paths: paths),
-      log: { print($0); fflush(stdout) },
+      log: { print($0)
+        fflush(stdout)
+      },
       overlayMode: overlayMode,
-      keycastHoldMilliseconds: keycastHold
+      keycastHoldMilliseconds: keycastHold,
     )
-    defer {runner.restoreClipboard()}
+    defer { runner.restoreClipboard() }
     try runner.prepare(scene, dryRun: dryRun)
     try runner.run(scene, dryRun: dryRun)
   }
@@ -730,9 +798,16 @@ public enum DemoCtl {
     guard !FileManager.default.fileExists(atPath: output.path) else {
       throw DemoCtlError.usage("refusing to overwrite an existing take: \(output.path)")
     }
-    let preparation = SceneRunner(paths: paths, client: client,
-      apps: DemoAppsController(paths: paths), log: { print($0); fflush(stdout) }, overlayMode: .off)
-    defer {preparation.restoreClipboard()}
+    let preparation = SceneRunner(
+      paths: paths,
+      client: client,
+      apps: DemoAppsController(paths: paths),
+      log: { print($0)
+        fflush(stdout)
+      },
+      overlayMode: .off,
+    )
+    defer { preparation.restoreClipboard() }
     try preparation.prepare(scene)
     try recorder.start(output: output, display: display, fps: fps)
     defer {
@@ -759,17 +834,19 @@ public enum DemoCtl {
       paths: paths,
       client: client,
       apps: DemoAppsController(paths: paths),
-      log: { print($0); fflush(stdout) },
+      log: { print($0)
+        fflush(stdout)
+      },
       timeline: timeline,
       overlayMode: overlayMode,
-      keycastHoldMilliseconds: keycastHold
+      keycastHoldMilliseconds: keycastHold,
     )
 
     if scene.captureSecondary == true {
       runner.secondaryCapture = (output.deletingPathExtension().appendingPathExtension("secondary.mov"), fps)
     }
-    defer {runner.restoreClipboard()}
-    var sceneFailure: (any Error)?
+    defer { runner.restoreClipboard() }
+    var sceneFailure: any Error?
     do {
       try CaptureGate.requireCleanDesktop()
       try runner.run(scene)
@@ -779,28 +856,34 @@ public enum DemoCtl {
     }
     // Before the recorder is asked to stop, so the last caption ends with the
     // last frame rather than with however long the writer takes to drain.
-    do { try runner.finishSecondaryCapture() } catch { if sceneFailure == nil { sceneFailure = error } }
+    do { try runner.finishSecondaryCapture() } catch {
+      if sceneFailure == nil {
+        sceneFailure = error
+      }
+    }
     timeline.finish()
 
     var outcome: RecordingOutcome?
-    var stopFailure: (any Error)?
+    var stopFailure: any Error?
     do { outcome = try recorder.stop() } catch { stopFailure = error }
 
     // A failed take gets its sidecars too: they are the record of how far it
     // got. When the recorder itself failed there is no list of finalized files,
     // so they go next to the path the take was aiming at.
     var movies = outcome?.outputs ?? []
-    if movies.isEmpty { movies = [output] }
+    if movies.isEmpty {
+      movies = [output]
+    }
 
     let resolution = scriptResolution(display: display, paths: paths)
-    var sidecarFailure: (any Error)?
+    var sidecarFailure: any Error?
     do {
       for movie in movies {
         for file in try SceneSidecars.write(
           timeline,
           besides: movie,
           resolution: resolution,
-          drawnLive: overlayMode.liveTracks
+          drawnLive: overlayMode.liveTracks,
         ) {
           print("wrote \(file.path)")
         }
@@ -823,9 +906,13 @@ public enum DemoCtl {
       let record: [String: Any] = [
         "capture": metadata,
         "locale": DemoLocale.selected.rawValue,
-        "schemaVersion": 2, "scene": name, "status": failures.isEmpty ? "passed" : "failed",
-        "tatamiVersion": install.version ?? "unknown", "overlay": overlayMode.rawValue,
-        "frames": stats["frames"] ?? 0, "droppedFrames": stats["dropped"] ?? 0,
+        "schemaVersion": 2,
+        "scene": name,
+        "status": failures.isEmpty ? "passed" : "failed",
+        "tatamiVersion": install.version ?? "unknown",
+        "overlay": overlayMode.rawValue,
+        "frames": stats["frames"] ?? 0,
+        "droppedFrames": stats["dropped"] ?? 0,
         "durationSeconds": timeline.durationSeconds,
         "sceneSHA256": SHA256.hash(data: sceneData).map { String(format: "%02x", $0) }.joined(),
       ]
@@ -833,8 +920,12 @@ public enum DemoCtl {
       try JSONSerialization.data(withJSONObject: record, options: [.prettyPrinted, .sortedKeys])
         .write(to: movie.deletingPathExtension().appendingPathExtension("take.json"), options: .atomic)
     }
-    if let headline = failures.first { throw headline }
-    if let outcome { report(outcome) }
+    if let headline = failures.first {
+      throw headline
+    }
+    if let outcome {
+      report(outcome)
+    }
     if let movie = movies.first {
       print("subtitles: burn them in where ffmpeg lives with `democtl subtitle burn \(movie.path)`")
     }
@@ -859,7 +950,7 @@ public enum DemoCtl {
     if let screen = recordedDisplay(display) {
       let size = SceneSubtitles.Resolution(
         width: evenFloor(Int((screen.frame.width * screen.scale).rounded())),
-        height: evenFloor(Int((screen.frame.height * screen.scale).rounded()))
+        height: evenFloor(Int((screen.frame.height * screen.scale).rounded())),
       )
       print("subtitles: \(size.width)x\(size.height), the backing pixels of display \(screen.index)")
       if display == "all" {
@@ -903,15 +994,20 @@ public enum DemoCtl {
       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
       let width = firstInt(object["width"]),
       let height = firstInt(object["height"]),
-      width > 0, height > 0
+      width > 0,
+      height > 0
     else { return nil }
     return SceneSubtitles.Resolution(width: width, height: height)
   }
 
   /// One number, whether the recorder reported one or a list of them.
   private static func firstInt(_ value: Any?) -> Int? {
-    if let number = value as? Int { return number }
-    if let numbers = value as? [Int] { return numbers.first }
+    if let number = value as? Int {
+      return number
+    }
+    if let numbers = value as? [Int] {
+      return numbers.first
+    }
     return nil
   }
 
@@ -951,19 +1047,23 @@ public enum DemoCtl {
       try warmup(&arguments, recorder: recorder, paths: paths)
 
     case "status":
-      if let pid = recorder.runningPID { print("recording (pid \(pid))") } else { print("idle") }
+      if let pid = recorder.runningPID {
+        print("recording (pid \(pid))")
+      } else {
+        print("idle")
+      }
 
     case "preflight":
       let granted = try recorder.preflight()
       print(granted ? "screen recording: granted" : "screen recording: denied")
-      if !granted { throw DemoCtlError.usage("grant Screen Recording to DemoRecorder.app, then relaunch it") }
+      if !granted {
+        throw DemoCtlError.usage("grant Screen Recording to DemoRecorder.app, then relaunch it")
+      }
 
     default:
       throw DemoCtlError.usage("record: unknown action \"\(action)\"")
     }
   }
-
-  // MARK: - Subtitles
 
   /// Burns a take's ASS sidecar into a copy of the movie.
   ///
@@ -1073,15 +1173,11 @@ public enum DemoCtl {
     guard let size, size >= minimumUsableMovieBytes else {
       throw DemoCtlError.recordingFailed([
         "\(output.path) is \(size.map { "only \($0) bytes" } ?? "not on disk") "
-          + "after ffmpeg reported success",
+          + "after ffmpeg reported success"
       ])
     }
     print("wrote \(output.path) (\(size / 1_048_576) MB)")
   }
-
-  /// A finalized movie carries a moov atom and real frames. Anything smaller is
-  /// a stub, the same threshold `RecorderController` holds a take to.
-  private static let minimumUsableMovieBytes = 65_536
 
   /// mpv renders the subtitles through libass in its own video chain, so `--vf=sub`
   /// is what actually bakes them in; without it the encode is a clean copy.
@@ -1112,7 +1208,9 @@ public enum DemoCtl {
   private static func locate(_ tool: String) -> URL? {
     for directory in searchPath() {
       let candidate = URL(fileURLWithPath: directory).appendingPathComponent(tool)
-      if FileManager.default.isExecutableFile(atPath: candidate.path) { return candidate }
+      if FileManager.default.isExecutableFile(atPath: candidate.path) {
+        return candidate
+      }
     }
     return nil
   }
@@ -1120,13 +1218,23 @@ public enum DemoCtl {
   private static func burnArguments(movie: URL, subtitles: URL, output: URL) -> [String] {
     [
       "-y",
-      "-i", movie.path,
-      "-vf", "scale=iw*0.8666666667:ih*0.8666666667:flags=lanczos,pad=iw/0.8666666667:ih/0.8666666667:(ow-iw)/2:oh*0.04:color=0x\(FilmTheme.background),ass=filename=\(filterEscaped(subtitles.path))",
+      "-i",
+      movie.path,
+      "-vf",
+      "scale=iw*0.8666666667:ih*0.8666666667:flags=lanczos,pad=iw/0.8666666667:ih/0.8666666667:(ow-iw)/2:oh*0.04:color=0x\(FilmTheme.background),ass=filename=\(filterEscaped(subtitles.path))",
       // Named rather than left to the container's default: a demo has to play
       // everywhere, and a silently chosen mpeg4 stream does not.
-      "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "medium",
+      "-crf",
+      "18",
+      "-pix_fmt",
+      "yuv420p",
       // Copied, never re-encoded. A take with no audio track simply has none.
-      "-c:a", "copy",
+      "-c:a",
+      "copy",
       output.path,
     ]
   }
@@ -1138,9 +1246,9 @@ public enum DemoCtl {
   /// any of them would be read as graph syntax and produce a confusing parse
   /// error, or worse, a graph that runs without the subtitles in it.
   private static func filterEscaped(_ path: String) -> String {
-    var out = path.replacingOccurrences(of: "\\", with: "\\\\")
+    var out = path.replacing("\\", with: "\\\\")
     for character in [":", "'", "[", "]", ",", ";"] {
-      out = out.replacingOccurrences(of: character, with: "\\" + character)
+      out = out.replacing(character, with: "\\" + character)
     }
     return out
   }
@@ -1160,7 +1268,9 @@ public enum DemoCtl {
   private static func locateFFmpeg() -> URL? {
     for directory in searchPath() {
       let candidate = URL(fileURLWithPath: directory).appendingPathComponent("ffmpeg")
-      if FileManager.default.isExecutableFile(atPath: candidate.path) { return candidate }
+      if FileManager.default.isExecutableFile(atPath: candidate.path) {
+        return candidate
+      }
     }
     return nil
   }
@@ -1191,7 +1301,7 @@ public enum DemoCtl {
   private static func quoted(_ token: String) -> String {
     let safe = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/:=-")
     guard !token.isEmpty, token.allSatisfy({ safe.contains($0) }) else {
-      return "'" + token.replacingOccurrences(of: "'", with: "'\\''") + "'"
+      return "'" + token.replacing("'", with: "'\\''") + "'"
     }
     return token
   }
@@ -1207,7 +1317,7 @@ public enum DemoCtl {
   private static func warmup(
     _ arguments: inout [String],
     recorder: RecorderController,
-    paths: LabPaths
+    paths: LabPaths,
   ) throws {
     let seconds = try secondsOption(&arguments, default: 3)
     try rejectUnknown(arguments, command: "record warmup")
@@ -1311,7 +1421,9 @@ public enum DemoCtl {
 
 extension DemoCtlError {
   fileprivate var isUsage: Bool {
-    if case .usage = self { return true }
+    if case .usage = self {
+      return true
+    }
     return false
   }
 }

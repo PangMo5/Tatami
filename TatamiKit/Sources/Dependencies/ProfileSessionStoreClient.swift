@@ -135,7 +135,9 @@ actor ProfileSessionStore {
     var session = loaded()
     guard session.activeProfileId != id else { return }
     session.activeProfileId = id
-    if write(session) { cached = session }
+    if write(session) {
+      cached = session
+    }
   }
 
   func saveWorkspaceState(
@@ -159,7 +161,9 @@ actor ProfileSessionStore {
     else { return }
     session.displayWorkspaceHistory = history
     session.workspaceMRU = workspaceMRU
-    if write(session) { cached = session }
+    if write(session) {
+      cached = session
+    }
   }
 
   // MARK: Private
@@ -170,7 +174,9 @@ actor ProfileSessionStore {
   private var cached: ProfileSession?
 
   private func loaded() -> ProfileSession {
-    if let cached { return cached }
+    if let cached {
+      return cached
+    }
     let session = read()
     cached = session
     return session

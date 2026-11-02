@@ -68,7 +68,9 @@ struct PersistentConfirmationTests {
     store.exhaustivity = .off
     await store.send(.layoutChanged(bundleIdentifier: "app.test", layout: .floating))
     #expect(store.state.apps.first?.layout == .tiled)
-    if changed { state.$config.withLock { $0.sharedApps[0].layout = .unmanaged } }
+    if changed {
+      state.$config.withLock { $0.sharedApps[0].layout = .unmanaged }
+    }
     await store.send(.alert(.presented(.confirmLayoutChange(bundleIdentifier: "app.test", previous: .tiled, layout: .floating))))
     await store.finish()
     #expect(store.state.apps.first?.layout == (changed ? .unmanaged : .floating))

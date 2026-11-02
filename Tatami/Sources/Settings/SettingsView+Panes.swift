@@ -9,7 +9,7 @@ import TatamiKit
 /// `SettingsView.swift` so the shell (sidebar + helpers) and the form content
 /// stay separately navigable.
 extension SettingsView {
-  @ViewBuilder
+  @ContentBuilder
   var generalPane: some View {
     Section("General") {
       Toggle(isOn: setting(\.general.launchAtLogin)) {
@@ -158,7 +158,7 @@ extension SettingsView {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   var tilingPane: some View {
     Section("Layout") {
       Picker(selection: setting(\.layout.autoBalance)) {
@@ -253,7 +253,7 @@ extension SettingsView {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   var focusMousePane: some View {
     Section("Focus") {
       Toggle(isOn: setting(\.focus.mouseFollowsFocus)) {
@@ -303,7 +303,7 @@ extension SettingsView {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   var workspacesPane: some View {
     Section("Workspace Switching") {
       Toggle(isOn: setting(\.switching.loop)) {
@@ -499,7 +499,7 @@ extension SettingsView {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   var workspaceKeysPane: some View {
     Section {
       modifierToggleRow(
@@ -570,7 +570,7 @@ extension SettingsView {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   var gesturesPane: some View {
     Section("Trackpad") {
       Toggle(isOn: setting(\.gestures.enabled)) {
@@ -611,7 +611,7 @@ extension SettingsView {
     )
   }
 
-  @ViewBuilder
+  @ContentBuilder
   var appearancePane: some View {
     Section {
       Toggle(isOn: setting(\.menuBar.showWorkspaceIcon)) {
@@ -777,7 +777,7 @@ extension SettingsView {
   /// A navigation target (recent / next / previous) shown like a workspace:
   /// one key equivalent plus a Switch / Assign / Borrow row, each combining
   /// that key with its global modifier and overridable by an explicit shortcut.
-  @ViewBuilder
+  @ContentBuilder
   func navTarget(
     _ title: LocalizedStringResource,
     description: LocalizedStringResource,
@@ -824,7 +824,7 @@ extension SettingsView {
 
   /// One action row under a nav target: the derived combo (its modifier + the
   /// target's key) and an explicit-shortcut override beside it.
-  @ViewBuilder
+  @ContentBuilder
   func navDerivedRow(
     _ label: LocalizedStringResource,
     context: LocalizedStringResource,
@@ -915,7 +915,9 @@ extension SettingsView {
       set: { on in
         $config.withLock { c in
           var mods = c.settings.shortcuts[keyPath: keyPath].filter { $0 != token }
-          if on { mods.append(token) }
+          if on {
+            mods.append(token)
+          }
           c.settings.shortcuts[keyPath: keyPath] = mods
         }
       },
@@ -923,7 +925,7 @@ extension SettingsView {
     .toggleStyle(.button)
   }
 
-  @ViewBuilder
+  @ContentBuilder
   func shortcut(
     _ title: LocalizedStringResource,
     _ action: HotKeyAction,

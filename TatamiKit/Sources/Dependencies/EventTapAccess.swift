@@ -111,7 +111,9 @@ final class EventTapAccess: @unchecked Sendable {
         stopMonitoring = stop
         return true
       }
-      if !keep { stop() }
+      if !keep {
+        stop()
+      }
     }
     return lock.withLock { observers[id] == nil ? nil : id }
   }

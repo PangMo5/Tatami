@@ -127,20 +127,30 @@ enum ActionHUDContentPolicy {
   static func merge(current: ActionHUDRequest, incoming: ActionHUDRequest) -> ActionHUDRequest? {
     if
       current.priority == .warning && incoming.priority < .warning,
-      incoming.warningDomain == nil || incoming.warningDomain != current.warningDomain { return nil }
+      incoming.warningDomain == nil || incoming.warningDomain != current.warningDomain
+    {
+      return nil
+    }
     if current.priority == .instruction && incoming.priority < .warning {
       guard incoming.priority == .completion, let id = current.contextID, id == incoming.contextID else { return nil }
     }
     guard
-      let contextID = current.contextID, contextID == incoming.contextID,
+      let contextID = current.contextID,
+      contextID == incoming.contextID,
       Set([current.priority, incoming.priority]) == Set([.navigation, .completion])
     else { return incoming }
     let result = current.priority == .completion ? current : incoming
     let navigation = current.priority == .navigation ? current : incoming
     var lines = navigation.subtitle.map { $0.components(separatedBy: "\n") } ?? []
-    if navigation.subtitleSymbolIconName == nil { lines.removeAll { $0 == result.contextName } }
-    if navigation.name != result.contextName { lines.append(navigation.name) }
-    if let subtitle = result.subtitle, !lines.contains(subtitle) { lines.append(subtitle) }
+    if navigation.subtitleSymbolIconName == nil {
+      lines.removeAll { $0 == result.contextName }
+    }
+    if navigation.name != result.contextName {
+      lines.append(navigation.name)
+    }
+    if let subtitle = result.subtitle, !lines.contains(subtitle) {
+      lines.append(subtitle)
+    }
     var unique = [String]()
     for line in lines where !line.isEmpty && !unique.contains(line) { unique.append(line) }
     // Preserve chain identity on the first line so its link glyph stays valid;
@@ -149,7 +159,9 @@ enum ActionHUDContentPolicy {
       ? nil
       : [unique[0], unique.dropFirst().joined(separator: " · ")]
         .filter { !$0.isEmpty }.joined(separator: "\n")
-    if incoming.priority == .navigation, subtitle == current.subtitle { return nil }
+    if incoming.priority == .navigation, subtitle == current.subtitle {
+      return nil
+    }
     return ActionHUDRequest(
       name: result.name,
       symbolIconName: result.symbolIconName,
@@ -469,7 +481,7 @@ enum HUDLayout {
     if let subtitle {
       let subtitleWidth = subtitle.components(separatedBy: "\n")
         .enumerated()
-        .map { index, line in
+        .lazy.map { index, line in
           textWidth(
             line,
             font: .systemFont(ofSize: NSFont.smallSystemFontSize),
@@ -800,14 +812,25 @@ private final class WorkspaceHUDController {
     else { return nil }
     if
       let confirmationID = incoming.replacingConfirmationID,
-      entries[screenID]?.awaitingResultID != confirmationID { return nil }
+      entries[screenID]?.awaitingResultID != confirmationID
+    {
+      return nil
+    }
     if let current = entries[screenID], current.isPresented {
       if
-        current.confirmation != nil, incoming.replacingConfirmationID == nil,
-        incoming.priority < .warning { return nil }
+        current.confirmation != nil,
+        incoming.replacingConfirmationID == nil,
+        incoming.priority < .warning
+      {
+        return nil
+      }
       if
-        current.awaitingResultID != nil, incoming.replacingConfirmationID == nil,
-        incoming.priority < .completion { return nil }
+        current.awaitingResultID != nil,
+        incoming.replacingConfirmationID == nil,
+        incoming.priority < .completion
+      {
+        return nil
+      }
       if current.actionContent?.value.confirmation == nil, let previous = current.lastRequest {
         guard let merged = ActionHUDContentPolicy.merge(current: previous, incoming: incoming) else { return nil }
         request = merged
@@ -1222,7 +1245,9 @@ private final class WorkspaceHUDController {
       confirmed: confirmed,
       suppressFuture: confirmed && entry.actionContent?.suppressFuture == true,
     ))
-    if !confirmed { fadeOut(screenID) }
+    if !confirmed {
+      fadeOut(screenID)
+    }
   }
 
   private func resolveConfirmation(_ entry: Entry, result: ActionConfirmationResult) {
@@ -1231,8 +1256,12 @@ private final class WorkspaceHUDController {
     entry.panel.onCancel = nil
     entry.panel.acceptsConfirmation = false
     entry.panel.ignoresMouseEvents = true
-    if let observer = entry.screenObservation { NotificationCenter.default.removeObserver(observer) }
-    if let observer = entry.terminationObservation { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
+    if let observer = entry.screenObservation {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    if let observer = entry.terminationObservation {
+      NSWorkspace.shared.notificationCenter.removeObserver(observer)
+    }
     entry.screenObservation = nil
     entry.terminationObservation = nil
     if entry.panel.isKeyWindow {
@@ -1602,7 +1631,9 @@ private final class WindowSwitcherInputTap: @unchecked Sendable {
       CGEvent.tapEnable(tap: eventTap, enable: false)
       CFMachPortInvalidate(eventTap)
     }
-    if let runLoopSource { EventTapThread.shared.removeSource(runLoopSource) }
+    if let runLoopSource {
+      EventTapThread.shared.removeSource(runLoopSource)
+    }
     eventTap = nil
     runLoopSource = nil
     debugLog.log("HUDDiag", "window switcher input disarmed")
@@ -2040,7 +2071,7 @@ private struct WindowSwitcherPresentationModifier: ViewModifier {
 
 struct HUDGlassSurface<Content: View, Surface: InsettableShape>: View {
   let surface: Surface
-  @ViewBuilder let content: Content
+  @ContentBuilder let content: Content
 
   var body: some View {
     if #available(macOS 26.0, *) {
@@ -2113,10 +2144,14 @@ private struct WindowSwitcherHUDView: View {
           }
           .scrollIndicators(.hidden)
           .onAppear {
-            if let selectedItem { proxy.scrollTo(selectedItem, anchor: .center) }
+            if let selectedItem {
+              proxy.scrollTo(selectedItem, anchor: .center)
+            }
           }
           .onChange(of: selectedItem) { _, item in
-            if let item { proxy.scrollTo(item, anchor: .center) }
+            if let item {
+              proxy.scrollTo(item, anchor: .center)
+            }
           }
         }
       }
@@ -2284,24 +2319,42 @@ private struct WindowSwitcherItemView: View {
   @State private var isHovering = false
 
   private var backgroundStyle: Color {
-    if isSelected { return Color.accentColor.opacity(0.13) }
-    if isHovering { return Color.white.opacity(0.06) }
+    if isSelected {
+      return Color.accentColor.opacity(0.13)
+    }
+    if isHovering {
+      return Color.white.opacity(0.06)
+    }
     return .clear
   }
 
   private var borderStyle: Color {
-    if isSelected { return Color.accentColor.opacity(0.48) }
-    if isHovering { return Color.white.opacity(0.16) }
+    if isSelected {
+      return Color.accentColor.opacity(0.48)
+    }
+    if isHovering {
+      return Color.white.opacity(0.16)
+    }
     return .clear
   }
 
   private var indicatorAccessibilityValue: String {
     var values = [String]()
-    if item.indicators.isFloating { values.append(String(localized: "Floating")) }
-    if item.indicators.isShared { values.append(String(localized: "Shared Apps")) }
-    if item.indicators.isBorrowed { values.append(String(localized: "Borrow")) }
-    if item.indicators.isFocused { values.append(String(localized: "Focused")) }
-    if item.indicators.isFullscreen { values.append(String(localized: "Fullscreen")) }
+    if item.indicators.isFloating {
+      values.append(String(localized: "Floating"))
+    }
+    if item.indicators.isShared {
+      values.append(String(localized: "Shared Apps"))
+    }
+    if item.indicators.isBorrowed {
+      values.append(String(localized: "Borrow"))
+    }
+    if item.indicators.isFocused {
+      values.append(String(localized: "Focused"))
+    }
+    if item.indicators.isFullscreen {
+      values.append(String(localized: "Fullscreen"))
+    }
     return values.formatted()
   }
 
@@ -2376,7 +2429,7 @@ private struct WindowSwitcherAppIcon: View {
 
 @MainActor
 private struct WindowSwitcherIndicatorGroup<Content: View>: View {
-  @ViewBuilder let content: Content
+  @ContentBuilder let content: Content
 
   var body: some View {
     HStack(spacing: 2) {

@@ -24,11 +24,17 @@ enum OverlayMode: String, CaseIterable {
 
   // MARK: Internal
 
-  var showsChapter: Bool { self == .all }
+  var showsChapter: Bool {
+    self == .all
+  }
 
-  var showsCaption: Bool { self == .all }
+  var showsCaption: Bool {
+    self == .all
+  }
 
-  var showsKeys: Bool { self != .off }
+  var showsKeys: Bool {
+    self != .off
+  }
 }
 
 // MARK: - OverlayModel
@@ -80,7 +86,7 @@ final class OverlayApp: NSObject, NSApplicationDelegate {
     NotificationCenter.default.addObserver(
       forName: NSApplication.didChangeScreenParametersNotification,
       object: nil,
-      queue: .main
+      queue: .main,
     ) { [weak self] _ in
       MainActor.assumeIsolated { self?.rebuildPanels() }
     }
@@ -104,7 +110,7 @@ final class OverlayApp: NSObject, NSApplicationDelegate {
         contentRect: screen.frame,
         styleMask: [.borderless, .nonactivatingPanel],
         backing: .buffered,
-        defer: false
+        defer: false,
       )
       panel.isFloatingPanel = true
       panel.level = .screenSaver
@@ -250,7 +256,9 @@ private struct OverlayView: View {
 
       HStack(alignment: .bottom, spacing: 18) {
         Spacer(minLength: 0)
-        if model.mode.showsCaption, !model.caption.isEmpty { caption }
+        if model.mode.showsCaption, !model.caption.isEmpty {
+          caption
+        }
         Spacer(minLength: 0)
       }
       // A symmetric gutter, so the card stays centred on the screen and still

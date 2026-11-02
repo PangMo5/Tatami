@@ -11,30 +11,15 @@ import Testing
 /// the "Workspaces" and "Scratchpads" sections. `after` mirrors the insertion
 /// line: land before the target (above its midline) or after it (below).
 struct WorkspaceReorderTests {
-  private func makeConfig(_ workspaces: [Workspace]) -> AppConfig {
-    AppConfig(profiles: [
-      Profile(name: "Default", workspaces: IdentifiedArray(uniqueElements: workspaces))
-    ])
-  }
 
-  private func names(_ config: AppConfig) -> [String] {
-    config.activeProfile?.workspaces.map(\.name) ?? []
-  }
-
-  private func kind(_ config: AppConfig, _ name: String) -> WorkspaceKind? {
-    config.activeProfile?.workspaces.first { $0.name == name }?.kind
-  }
-
-  private func id(_ config: AppConfig, _ name: String) -> Workspace.ID {
-    config.activeProfile!.workspaces.first { $0.name == name }!.id
-  }
-
-  // MARK: - Same-section reorder
+  // MARK: Internal
 
   @Test
-  func droppingAboveTargetLandsBeforeIt() {
+  func `dropping above target lands before it`() {
     var config = makeConfig([
-      Workspace(name: "A"), Workspace(name: "B"), Workspace(name: "C"),
+      Workspace(name: "A"),
+      Workspace(name: "B"),
+      Workspace(name: "C"),
     ])
     // Line above A → before A.
     config.placeWorkspace(id(config, "C"), kind: .normal, relativeTo: id(config, "A"), after: false)
@@ -42,9 +27,11 @@ struct WorkspaceReorderTests {
   }
 
   @Test
-  func droppingBelowLastTargetReachesTheEnd() {
+  func `dropping below last target reaches the end`() {
     var config = makeConfig([
-      Workspace(name: "A"), Workspace(name: "B"), Workspace(name: "C"),
+      Workspace(name: "A"),
+      Workspace(name: "B"),
+      Workspace(name: "C"),
     ])
     // Line below C → after C (the very end is reachable).
     config.placeWorkspace(id(config, "A"), kind: .normal, relativeTo: id(config, "C"), after: true)
@@ -52,7 +39,7 @@ struct WorkspaceReorderTests {
   }
 
   @Test
-  func droppingOntoSelfIsANoOp() {
+  func `dropping onto self is A no op`() {
     var config = makeConfig([Workspace(name: "A"), Workspace(name: "B")])
     let before = names(config)
     config.placeWorkspace(id(config, "A"), kind: .normal, relativeTo: id(config, "A"), after: true)
@@ -60,7 +47,7 @@ struct WorkspaceReorderTests {
   }
 
   @Test
-  func reorderingLeavesTheOtherSectionInPlace() {
+  func `reordering leaves the other section in place`() {
     var config = makeConfig([
       Workspace(name: "N0", kind: .normal),
       Workspace(name: "S0", kind: .scratchpad),
@@ -72,10 +59,8 @@ struct WorkspaceReorderTests {
     #expect(kind(config, "S0") == .scratchpad)
   }
 
-  // MARK: - Cross-section move
-
   @Test
-  func draggingIntoScratchpadsRetypesAndPositions() {
+  func `dragging into scratchpads retypes and positions`() {
     var config = makeConfig([
       Workspace(name: "N0", kind: .normal),
       Workspace(name: "N1", kind: .normal),
@@ -108,7 +93,7 @@ struct WorkspaceReorderTests {
   }
 
   @Test
-  func draggingScratchpadIntoWorkspacesRetypes() {
+  func `dragging scratchpad into workspaces retypes`() {
     var config = makeConfig([
       Workspace(name: "N0", kind: .normal),
       Workspace(name: "S0", kind: .scratchpad),
@@ -119,7 +104,7 @@ struct WorkspaceReorderTests {
   }
 
   @Test
-  func droppingWithNoTargetAppendsToTheKindSubset() {
+  func `dropping with no target appends to the kind subset`() {
     var config = makeConfig([
       Workspace(name: "N0", kind: .normal),
       Workspace(name: "N1", kind: .normal),
@@ -129,4 +114,25 @@ struct WorkspaceReorderTests {
     #expect(names(config) == ["N1", "N0"])
     #expect(kind(config, "N0") == .scratchpad)
   }
+
+  // MARK: Private
+
+  private func makeConfig(_ workspaces: [Workspace]) -> AppConfig {
+    AppConfig(profiles: [
+      Profile(name: "Default", workspaces: IdentifiedArray(uniqueElements: workspaces))
+    ])
+  }
+
+  private func names(_ config: AppConfig) -> [String] {
+    config.activeProfile?.workspaces.map(\.name) ?? []
+  }
+
+  private func kind(_ config: AppConfig, _ name: String) -> WorkspaceKind? {
+    config.activeProfile?.workspaces.first { $0.name == name }?.kind
+  }
+
+  private func id(_ config: AppConfig, _ name: String) -> Workspace.ID {
+    config.activeProfile!.workspaces.first { $0.name == name }!.id
+  }
+
 }

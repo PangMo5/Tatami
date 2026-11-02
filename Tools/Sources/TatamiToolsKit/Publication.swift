@@ -25,7 +25,8 @@ struct Publication {
       let regex = try NSRegularExpression(pattern: #"<section\b[^>]*\bid=""# + NSRegularExpression
         .escapedPattern(for: section) + #""[^>]*>"#)
       guard
-        let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)), let range = Range(
+        let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+        let range = Range(
           match.range,
           in: text,
         ),
@@ -51,10 +52,12 @@ struct Publication {
         at: position,
       )
     }
-    if !text.contains("src=\"./demos.js\"") { text = text.replacingOccurrences(
-      of: "</body>",
-      with: "<script src=\"./demos.js\" defer></script>\n</body>",
-    ) }
+    if !text.contains("src=\"./demos.js\"") {
+      text = text.replacing(
+        "</body>",
+        with: "<script src=\"./demos.js\" defer></script>\n</body>",
+      )
+    }
     guard let hero = manifest["assets"].array.first(where: { $0["scene"].str == "tour" }) else { throw ToolError("Missing tour") }
     text = replacing(#"(?s)<!-- DEMO-SETTINGS:tour:START -->.*?<!-- DEMO-SETTINGS:tour:END -->"#, in: text) { _ in
       "<!-- DEMO-SETTINGS:tour:START -->" + gallery.settingsLinks(hero) + "<!-- DEMO-SETTINGS:tour:END -->"
@@ -67,7 +70,7 @@ struct Publication {
       }
     }
     try page.write(text)
-    print("Collections: " + groups.map { "\($0.0) (\($0.1.count))" }.joined(separator: ", "))
+    print("Collections: " + groups.lazy.map { "\($0.0) (\($0.1.count))" }.joined(separator: ", "))
   }
 
   func install(bundle: URL, allLocales: Bool) throws {
@@ -89,7 +92,9 @@ struct Publication {
       ) } }
       try copy(bundle.at("manifest.json"), target.at(locale == "en" ? "demo-manifest.json" : "manifest.json"))
     }
-    if validated.contains(where: { $0.1 == "en" }) { try renderSource() }
+    if validated.contains(where: { $0.1 == "en" }) {
+      try renderSource()
+    }
     print("Installed \(validated.count) reviewed locales locally in web/")
   }
 
@@ -121,10 +126,12 @@ struct Publication {
     }
     try archive.makeDirectory()
     try copy(bundle.at("manifest.json"), archive.at("manifest.json"))
-    if bundle.at("evidence/ocr-audit.json").exists { try copy(
-      bundle.at("evidence/ocr-audit.json"),
-      archive.at("evidence/ocr-audit.json"),
-    ) }
+    if bundle.at("evidence/ocr-audit.json").exists {
+      try copy(
+        bundle.at("evidence/ocr-audit.json"),
+        archive.at("evidence/ocr-audit.json"),
+      )
+    }
     for asset in update["assets"].array {
       let scene = asset["scene"].str
       let old = byScene[scene]!

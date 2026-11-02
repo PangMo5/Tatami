@@ -6,6 +6,8 @@ import CoreGraphics
 import SwiftUI
 import TatamiKit
 
+// MARK: - FullscreenItem
+
 private struct FullscreenItem: Identifiable, Equatable {
   var index: Int
   var bundleId: String
@@ -13,8 +15,13 @@ private struct FullscreenItem: Identifiable, Equatable {
   /// Slot of this fullscreen window (nil when live) — lets restore target the
   /// exact same-app window's occurrence in an inactive preview.
   var slot: SlotID?
-  var id: Int { index }
+
+  var id: Int {
+    index
+  }
 }
+
+// MARK: - LayoutDropOverlay
 
 private struct LayoutDropOverlay: View {
   var targetRect: CGRect
@@ -34,7 +41,7 @@ private struct LayoutDropOverlay: View {
   }
 }
 
-// MARK: - Preview view
+// MARK: - WorkspaceLayoutPreview
 
 /// Graphical layout preview + editor at the top of a workspace's detail. A pure
 /// renderer over `WorkspaceLayoutFeature`: it draws `store.resolved`, forwards
@@ -45,7 +52,34 @@ private struct LayoutDropOverlay: View {
 /// flip / balance / toggle a split / fullscreen. A scratchpad shows the screen
 /// with the scratchpad docked at its borrow edge + width, the rest dimmed.
 struct WorkspaceLayoutPreview: View {
+
+  // MARK: Internal
+
   let store: StoreOf<WorkspaceLayoutFeature>
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      // Indicator until this workspace's async loads (snapshot + window info)
+      // settle — one render instead of flickering through the load burst.
+      if !store.previewReady {
+        loadingPlaceholder
+      } else if resolved == nil {
+        emptyState
+      } else {
+        toolbar
+        canvas
+        if !store.nonTiledApps.isEmpty {
+          nonTiledBand
+        }
+        footnote
+      }
+    }
+    .task(id: store.workspaceId) { store.send(.onAppear) }
+    .task { store.send(.startObservingAppActivity) }
+    .task(id: store.tiledBundleIds) { store.send(.loadWindowTitles(bundleIds: store.tiledBundleIds)) }
+  }
+
+  // MARK: Private
 
   /// In-progress divider resize (trimmed branch path + ratio) — committed on
   /// release. Transient, so it stays view-local.
@@ -59,29 +93,20 @@ struct WorkspaceLayoutPreview: View {
   private let bandHeight: CGFloat = 56
   private let bandGap: CGFloat = 8
 
-  private var resolved: ResolvedLayout? { store.resolved }
-  private var hidden: Set<String> { store.hiddenSharedBundleIds }
-  private var hasFullscreen: Bool { resolved?.hasFullscreen ?? false }
-  private var tileAreaTop: CGFloat { hasFullscreen ? bandHeight + bandGap : 0 }
+  private var resolved: ResolvedLayout? {
+    store.resolved
+  }
 
-  var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      // Indicator until this workspace's async loads (snapshot + window info)
-      // settle — one render instead of flickering through the load burst.
-      if !store.previewReady {
-        loadingPlaceholder
-      } else if resolved == nil {
-        emptyState
-      } else {
-        toolbar
-        canvas
-        if !store.nonTiledApps.isEmpty { nonTiledBand }
-        footnote
-      }
-    }
-    .task(id: store.workspaceId) { store.send(.onAppear) }
-    .task { store.send(.startObservingAppActivity) }
-    .task(id: store.tiledBundleIds) { store.send(.loadWindowTitles(bundleIds: store.tiledBundleIds)) }
+  private var hidden: Set<String> {
+    store.hiddenSharedBundleIds
+  }
+
+  private var hasFullscreen: Bool {
+    resolved?.hasFullscreen ?? false
+  }
+
+  private var tileAreaTop: CGFloat {
+    hasFullscreen ? bandHeight + bandGap : 0
   }
 
   private var loadingPlaceholder: some View {
@@ -92,8 +117,6 @@ struct WorkspaceLayoutPreview: View {
     .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
     .padding(.vertical, 8)
   }
-
-  // MARK: Non-tiled band (floating + ignored, read-only)
 
   private var nonTiledBand: some View {
     VStack(alignment: .leading, spacing: 3) {
@@ -116,53 +139,6 @@ struct WorkspaceLayoutPreview: View {
     )
   }
 
-  private func nonTiledChip(_ app: NonTiledApp) -> some View {
-    HStack(spacing: 5) {
-      if app.isShared {
-        Image(systemName: "square.on.square").font(.system(size: 9)).foregroundStyle(.secondary)
-      }
-      AppIcon(bundleIdentifier: app.bundleId, iconPath: app.iconPath)
-        .frame(width: 18, height: 18)
-      Text(app.name).font(.caption).lineLimit(1).truncationMode(.middle).frame(maxWidth: 150)
-      Image(systemName: app.mode == .floating ? "rectangle.on.rectangle" : "nosign")
-        .font(.caption2)
-        .foregroundStyle(.secondary)
-    }
-    .padding(.horizontal, 8)
-    .padding(.vertical, 5)
-    .background(Capsule().fill(Color.secondary.opacity(0.12)))
-    .help(String(localized: nonTiledHelp(app)))
-    .contextMenu {
-      Button {
-        store.send(.revealApp(bundleId: app.bundleId, isShared: app.isShared))
-      } label: {
-        Label(
-          app.isShared ? "Configure in Shared Apps" : "Configure in Apps",
-          systemImage: "gearshape"
-        )
-      }
-    }
-  }
-
-  private func nonTiledHelp(_ app: NonTiledApp) -> LocalizedStringResource {
-    switch (app.mode, app.isShared) {
-    case (.floating, true):
-      "Always on Top. Kept above the tiles and shared with every workspace."
-    case (.floating, false):
-      "Always on Top. Kept above the tiles in this workspace."
-    case (_, true):
-      "Leave As Is. Kept in place and shared with every workspace."
-    case (_, false):
-      "Leave As Is. Kept in place in this workspace."
-    }
-  }
-
-  private func isShared(_ bundleId: String) -> Bool {
-    store.config.sharedApps.contains { $0.bundleIdentifier == bundleId }
-  }
-
-  // MARK: Empty
-
   private var emptyState: some View {
     HStack(spacing: 8) {
       Image(systemName: "rectangle.split.2x2").foregroundStyle(.secondary)
@@ -172,8 +148,6 @@ struct WorkspaceLayoutPreview: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.vertical, 8)
   }
-
-  // MARK: Toolbar
 
   private var toolbar: some View {
     HStack(spacing: 4) {
@@ -192,39 +166,26 @@ struct WorkspaceLayoutPreview: View {
       toolButton(
         "rectangle.split.2x1",
         help: "Toggle split orientation of the selected tile",
-        enabled: store.selectedTile != nil
+        enabled: store.selectedTile != nil,
       ) {
         store.send(.toggleOrientation)
       }
       toolButton(
         "arrow.up.left.and.arrow.down.right",
         help: "Fullscreen the selected tile",
-        enabled: store.selectedTile != nil
+        enabled: store.selectedTile != nil,
       ) {
         if let sel = store.selectedTile {
           store.send(.toggleFullscreen(
-            bundleId: sel.bundleId, liveKey: sel.liveKey, occurrence: sel.occurrence, zoomIn: true
+            bundleId: sel.bundleId,
+            liveKey: sel.liveKey,
+            occurrence: sel.occurrence,
+            zoomIn: true,
           ))
         }
       }
     }
   }
-
-  private func toolButton(
-    _ symbol: String,
-    help: LocalizedStringResource,
-    enabled: Bool = true,
-    action: @escaping () -> Void
-  ) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol).frame(width: 22, height: 22)
-    }
-    .buttonStyle(.borderless)
-    .disabled(!enabled)
-    .help(String(localized: help))
-  }
-
-  // MARK: Canvas (fullscreen band + tile area share one coordinate space)
 
   private var canvas: some View {
     GeometryReader { geo in
@@ -234,8 +195,9 @@ struct WorkspaceLayoutPreview: View {
       let canvasRect = fittedCanvas(in: tileArea).offsetBy(dx: 0, dy: tileAreaTop)
       let dock = dockRect(in: canvasRect)
       let regions = resolved?.renderRegions(
-        in: dock, hidden: hidden,
-        pendingRatio: pendingRatio.map { ($0.trimmedPath, $0.ratio) }
+        in: dock,
+        hidden: hidden,
+        pendingRatio: pendingRatio.map { ($0.trimmedPath, $0.ratio) },
       ) ?? (tiles: [], dividers: [])
       let labels = windowLabels(fullscreen: fullscreen, tiles: regions.tiles)
 
@@ -283,7 +245,7 @@ struct WorkspaceLayoutPreview: View {
           dragGhost(
             bundleId: chip.item.bundleId,
             label: labels.chips[chip.item.index] ?? "",
-            at: chip.location
+            at: chip.location,
           )
         }
       }
@@ -321,7 +283,72 @@ struct WorkspaceLayoutPreview: View {
     .foregroundStyle(.secondary)
   }
 
-  // MARK: Cursor (single source of truth over the whole canvas)
+  private var resolvedEdge: BorrowEdge {
+    store.workspace?.borrowEdge ?? store.config.settings.switching.borrowDefaultEdge ?? .right
+  }
+
+  private var resolvedFraction: CGFloat {
+    CGFloat(store.workspace?.borrowFraction ?? store.config.settings.switching.borrowFraction)
+  }
+
+  private func nonTiledChip(_ app: NonTiledApp) -> some View {
+    HStack(spacing: 5) {
+      if app.isShared {
+        Image(systemName: "square.on.square").font(.system(size: 9)).foregroundStyle(.secondary)
+      }
+      AppIcon(bundleIdentifier: app.bundleId, iconPath: app.iconPath)
+        .frame(width: 18, height: 18)
+      Text(app.name).font(.caption).lineLimit(1).truncationMode(.middle).frame(maxWidth: 150)
+      Image(systemName: app.mode == .floating ? "rectangle.on.rectangle" : "nosign")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 5)
+    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+    .help(String(localized: nonTiledHelp(app)))
+    .contextMenu {
+      Button {
+        store.send(.revealApp(bundleId: app.bundleId, isShared: app.isShared))
+      } label: {
+        Label(
+          app.isShared ? "Configure in Shared Apps" : "Configure in Apps",
+          systemImage: "gearshape",
+        )
+      }
+    }
+  }
+
+  private func nonTiledHelp(_ app: NonTiledApp) -> LocalizedStringResource {
+    switch (app.mode, app.isShared) {
+    case (.floating, true):
+      "Always on Top. Kept above the tiles and shared with every workspace."
+    case (.floating, false):
+      "Always on Top. Kept above the tiles in this workspace."
+    case (_, true):
+      "Leave As Is. Kept in place and shared with every workspace."
+    case (_, false):
+      "Leave As Is. Kept in place in this workspace."
+    }
+  }
+
+  private func isShared(_ bundleId: String) -> Bool {
+    store.config.sharedApps.contains { $0.bundleIdentifier == bundleId }
+  }
+
+  private func toolButton(
+    _ symbol: String,
+    help: LocalizedStringResource,
+    enabled: Bool = true,
+    action: @escaping () -> Void,
+  ) -> some View {
+    Button(action: action) {
+      Image(systemName: symbol).frame(width: 22, height: 22)
+    }
+    .buttonStyle(.borderless)
+    .disabled(!enabled)
+    .help(String(localized: help))
+  }
 
   private func updateCursor(at loc: CGPoint, regions: (tiles: [RenderLeaf], dividers: [RenderDivider])) {
     if let divider = regions.dividers.first(where: { dividerHitRect($0).contains(loc) }) {
@@ -343,10 +370,10 @@ struct WorkspaceLayoutPreview: View {
     return CGRect(x: x - w / 2, y: y - h / 2, width: w, height: h)
   }
 
-  // MARK: Fullscreen band (drag target + draggable chips)
-
   private func fullscreenBand(
-    _ items: [FullscreenItem], labels: [Int: String], in rect: CGRect
+    _ items: [FullscreenItem],
+    labels: [Int: String],
+    in rect: CGRect,
   ) -> some View {
     let armed = tileDrag != nil
     return VStack(alignment: .leading, spacing: 3) {
@@ -367,8 +394,10 @@ struct WorkspaceLayoutPreview: View {
     .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(armed ? 0.22 : 0.08)))
     .overlay(
       RoundedRectangle(cornerRadius: 8)
-        .strokeBorder(Color.accentColor.opacity(armed ? 0.9 : 0.4),
-                      style: StrokeStyle(lineWidth: armed ? 2 : 1, dash: [4, 3]))
+        .strokeBorder(
+          Color.accentColor.opacity(armed ? 0.9 : 0.4),
+          style: StrokeStyle(lineWidth: armed ? 2 : 1, dash: [4, 3]),
+        )
     )
     .position(x: rect.midX, y: rect.midY)
   }
@@ -394,7 +423,10 @@ struct WorkspaceLayoutPreview: View {
     .help("Tap or drag onto the tiles to restore")
     .onTapGesture {
       store.send(.toggleFullscreen(
-        bundleId: item.bundleId, liveKey: item.liveKey, occurrence: item.slot?.occurrence, zoomIn: false
+        bundleId: item.bundleId,
+        liveKey: item.liveKey,
+        occurrence: item.slot?.occurrence,
+        zoomIn: false,
       ))
     }
     .gesture(chipDragGesture(item))
@@ -403,7 +435,9 @@ struct WorkspaceLayoutPreview: View {
   private func chipDragGesture(_ item: FullscreenItem) -> some Gesture {
     DragGesture(minimumDistance: 6, coordinateSpace: .named(coordinateSpace))
       .onChanged { value in
-        if chipDrag == nil { NSCursor.closedHand.set() }
+        if chipDrag == nil {
+          NSCursor.closedHand.set()
+        }
         chipDrag = (item, value.location)
       }
       .onEnded { value in
@@ -414,13 +448,14 @@ struct WorkspaceLayoutPreview: View {
         // Dropped below the band, onto the tile area → restore (re-tile).
         if value.location.y > bandHeight {
           store.send(.toggleFullscreen(
-            bundleId: item.bundleId, liveKey: item.liveKey, occurrence: item.slot?.occurrence, zoomIn: false
+            bundleId: item.bundleId,
+            liveKey: item.liveKey,
+            occurrence: item.slot?.occurrence,
+            zoomIn: false,
           ))
         }
       }
   }
-
-  // MARK: Tile
 
   private func tileView(_ leaf: RenderLeaf, allLeaves: [RenderLeaf], label: String) -> some View {
     let isDragging = tileDrag?.source == leaf.path
@@ -430,8 +465,10 @@ struct WorkspaceLayoutPreview: View {
         .fill(Color(nsColor: .controlBackgroundColor))
         .overlay(
           RoundedRectangle(cornerRadius: 5)
-            .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.25),
-                          lineWidth: isSelected ? 2.5 : 1)
+            .strokeBorder(
+              isSelected ? Color.accentColor : Color.secondary.opacity(0.25),
+              lineWidth: isSelected ? 2.5 : 1,
+            )
         )
       VStack(spacing: 3) {
         if let bid = leaf.representative {
@@ -475,7 +512,10 @@ struct WorkspaceLayoutPreview: View {
     .onTapGesture {
       if let bid = leaf.representative {
         store.send(.tileTapped(
-          path: leaf.path, bundleId: bid, liveKey: leaf.liveKey, occurrence: leaf.slot?.occurrence
+          path: leaf.path,
+          bundleId: bid,
+          liveKey: leaf.liveKey,
+          occurrence: leaf.slot?.occurrence,
         ))
       }
     }
@@ -485,7 +525,9 @@ struct WorkspaceLayoutPreview: View {
   private func tileDragGesture(_ leaf: RenderLeaf, allLeaves: [RenderLeaf]) -> some Gesture {
     DragGesture(minimumDistance: 6, coordinateSpace: .named(coordinateSpace))
       .onChanged { value in
-        if tileDrag == nil { NSCursor.closedHand.set() }
+        if tileDrag == nil {
+          NSCursor.closedHand.set()
+        }
         tileDrag = (leaf.path, value.location)
       }
       .onEnded { value in
@@ -496,7 +538,10 @@ struct WorkspaceLayoutPreview: View {
         // Dropped on the fullscreen band → fullscreen this window.
         if hasFullscreen, value.location.y < bandHeight, let bid = leaf.representative {
           store.send(.toggleFullscreen(
-            bundleId: bid, liveKey: leaf.liveKey, occurrence: leaf.slot?.occurrence, zoomIn: true
+            bundleId: bid,
+            liveKey: leaf.liveKey,
+            occurrence: leaf.slot?.occurrence,
+            zoomIn: true,
           ))
           return
         }
@@ -504,8 +549,6 @@ struct WorkspaceLayoutPreview: View {
         store.send(.tileMoved(sourceTrimmedPath: leaf.path, targetTrimmedPath: drop.path, zone: drop.zone))
       }
   }
-
-  // MARK: Drag ghost
 
   private func dragGhost(bundleId: String, label: String, at point: CGPoint) -> some View {
     HStack(spacing: 6) {
@@ -525,8 +568,6 @@ struct WorkspaceLayoutPreview: View {
     .allowsHitTesting(false)
   }
 
-  // MARK: Divider
-
   private func dividerHandle(_ divider: RenderDivider) -> some View {
     let thickness: CGFloat = 10
     let isVertical = divider.axis == .vertical
@@ -538,14 +579,14 @@ struct WorkspaceLayoutPreview: View {
       .contentShape(Rectangle())
       .frame(
         width: isVertical ? thickness : divider.rect.width,
-        height: isVertical ? divider.rect.height : thickness
+        height: isVertical ? divider.rect.height : thickness,
       )
       .overlay(
         Capsule()
           .fill(Color.secondary.opacity(isActive ? 0.7 : 0.35))
           .frame(
             width: isVertical ? 3 : max(16, divider.rect.width * 0.2),
-            height: isVertical ? max(16, divider.rect.height * 0.2) : 3
+            height: isVertical ? max(16, divider.rect.height * 0.2) : 3,
           )
       )
       .position(x: x, y: y)
@@ -568,41 +609,31 @@ struct WorkspaceLayoutPreview: View {
       }
   }
 
-  // MARK: Drop overlay
-
   private func dropTarget(leaves: [RenderLeaf], source: [BSPSide], at point: CGPoint) -> (path: [BSPSide], zone: DropZone)? {
-    guard let target = leaves.first(where: { $0.path != source && $0.rect.contains(point) }),
-          let zone = DropZone.quadrant(point: point, in: target.rect)
+    guard
+      let target = leaves.first(where: { $0.path != source && $0.rect.contains(point) }),
+      let zone = DropZone.quadrant(point: point, in: target.rect)
     else { return nil }
     return (target.path, zone)
   }
 
   private func dropOverlayRects(leaves: [RenderLeaf]) -> (target: CGRect, zone: CGRect)? {
-    guard let drag = tileDrag,
-          let drop = dropTarget(leaves: leaves, source: drag.source, at: drag.location),
-          let target = leaves.first(where: { $0.path == drop.path })
+    guard
+      let drag = tileDrag,
+      let drop = dropTarget(leaves: leaves, source: drag.source, at: drag.location),
+      let target = leaves.first(where: { $0.path == drop.path })
     else { return nil }
     return (target.rect, zoneRect(in: target.rect, zone: drop.zone))
   }
 
   private func zoneRect(in rect: CGRect, zone: DropZone) -> CGRect {
     switch zone {
-    case .swap: return rect
-    case .left: return CGRect(x: rect.minX, y: rect.minY, width: rect.width / 2, height: rect.height)
-    case .right: return CGRect(x: rect.midX, y: rect.minY, width: rect.width / 2, height: rect.height)
-    case .top: return CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height / 2)
-    case .bottom: return CGRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2)
+    case .swap: rect
+    case .left: CGRect(x: rect.minX, y: rect.minY, width: rect.width / 2, height: rect.height)
+    case .right: CGRect(x: rect.midX, y: rect.minY, width: rect.width / 2, height: rect.height)
+    case .top: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height / 2)
+    case .bottom: CGRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2)
     }
-  }
-
-  // MARK: Scratchpad dock geometry
-
-  private var resolvedEdge: BorrowEdge {
-    store.workspace?.borrowEdge ?? store.config.settings.switching.borrowDefaultEdge ?? .right
-  }
-
-  private var resolvedFraction: CGFloat {
-    CGFloat(store.workspace?.borrowFraction ?? store.config.settings.switching.borrowFraction)
   }
 
   private func dockRect(in canvas: CGRect) -> CGRect {
@@ -612,25 +643,28 @@ struct WorkspaceLayoutPreview: View {
     case .right: return CGRect(x: canvas.maxX - canvas.width * f, y: canvas.minY, width: canvas.width * f, height: canvas.height)
     case .left: return CGRect(x: canvas.minX, y: canvas.minY, width: canvas.width * f, height: canvas.height)
     case .top: return CGRect(x: canvas.minX, y: canvas.minY, width: canvas.width, height: canvas.height * f)
-    case .bottom: return CGRect(x: canvas.minX, y: canvas.maxY - canvas.height * f, width: canvas.width, height: canvas.height * f)
+    case .bottom: return CGRect(
+        x: canvas.minX,
+        y: canvas.maxY - canvas.height * f,
+        width: canvas.width,
+        height: canvas.height * f,
+      )
     }
   }
 
   private func hostLabel(canvas: CGRect, dock: CGRect) -> some View {
-    let center: CGPoint
-    switch resolvedEdge {
-    case .right: center = CGPoint(x: (canvas.minX + dock.minX) / 2, y: canvas.midY)
-    case .left: center = CGPoint(x: (dock.maxX + canvas.maxX) / 2, y: canvas.midY)
-    case .top: center = CGPoint(x: canvas.midX, y: (dock.maxY + canvas.maxY) / 2)
-    case .bottom: center = CGPoint(x: canvas.midX, y: (canvas.minY + dock.minY) / 2)
-    }
+    let center =
+      switch resolvedEdge {
+      case .right: CGPoint(x: (canvas.minX + dock.minX) / 2, y: canvas.midY)
+      case .left: CGPoint(x: (dock.maxX + canvas.maxX) / 2, y: canvas.midY)
+      case .top: CGPoint(x: canvas.midX, y: (dock.maxY + canvas.maxY) / 2)
+      case .bottom: CGPoint(x: canvas.midX, y: (canvas.minY + dock.minY) / 2)
+      }
     return Text("Host workspace")
       .font(.caption2)
       .foregroundStyle(.tertiary)
       .position(x: center.x, y: center.y)
   }
-
-  // MARK: Canvas geometry
 
   private func fittedCanvas(in size: CGSize) -> CGRect {
     var w = size.width
@@ -641,8 +675,6 @@ struct WorkspaceLayoutPreview: View {
     }
     return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
   }
-
-  // MARK: App metadata + labels
 
   private func iconPath(for bundleId: String) -> String? {
     store.workspace?.apps.first { $0.bundleIdentifier == bundleId }?.iconPath
@@ -661,22 +693,28 @@ struct WorkspaceLayoutPreview: View {
   /// `titlesByBundle` (also windowID-sorted), so several windows of one app read
   /// distinctly and consistently across chips and tiles.
   private func windowLabels(fullscreen: [FullscreenItem], tiles: [RenderLeaf])
-    -> (chips: [Int: String], tiles: [[BSPSide]: String]) {
+    -> (chips: [Int: String], tiles: [[BSPSide]: String])
+  {
     let byBundle = store.titlesByBundle
     let titles = store.windowTitles
     func label(_ bid: String, liveKey: WindowKey?, occurrence: Int?) -> String {
-      if let key = liveKey, let title = titles[key], !title.isEmpty { return title }
-      if let occurrence, let list = byBundle[bid], occurrence < list.count { return list[occurrence] }
+      if let key = liveKey, let title = titles[key], !title.isEmpty {
+        return title
+      }
+      if let occurrence, let list = byBundle[bid], occurrence < list.count {
+        return list[occurrence]
+      }
       return appName(for: bid)
     }
-    var chips: [Int: String] = [:]
+    var chips = [Int: String]()
     for item in fullscreen {
       chips[item.index] = label(item.bundleId, liveKey: item.liveKey, occurrence: item.slot?.occurrence)
     }
-    var tileOut: [[BSPSide]: String] = [:]
+    var tileOut = [[BSPSide]: String]()
     for tile in tiles where tile.representative != nil {
       tileOut[tile.path] = label(tile.representative!, liveKey: tile.liveKey, occurrence: tile.slot?.occurrence)
     }
     return (chips, tileOut)
   }
+
 }

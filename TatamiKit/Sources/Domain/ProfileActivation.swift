@@ -3,6 +3,8 @@
 
 import Foundation
 
+// MARK: - DisplaySetRule
+
 /// How the connected-display set must look for a profile to auto-activate.
 /// `exactly` is fully-specified (nothing else connected); `contains` requires
 /// these but tolerates extras. Only `contains` has a meaningful "disconnected"
@@ -14,10 +16,13 @@ public enum DisplaySetRule: Hashable, Sendable {
 
   public var displays: [DisplayName] {
     switch self {
-    case .exactly(let d), .contains(let d): d
+    case .exactly(let d),
+         .contains(let d): d
     }
   }
 }
+
+// MARK: - CountRule
 
 /// A constraint on the number of connected displays.
 public enum CountRule: Hashable, Sendable {
@@ -25,22 +30,7 @@ public enum CountRule: Hashable, Sendable {
   case atLeast(Int)
   case atMost(Int)
 
-  func satisfied(by count: Int) -> Bool {
-    switch self {
-    case .exactly(let n): count == n
-    case .atLeast(let n): count >= n
-    case .atMost(let n): count <= n
-    }
-  }
-
-  /// Compact, human-editable TOML form: `"==1"`, `">=2"`, `"<=1"`.
-  var encoded: String {
-    switch self {
-    case .exactly(let n): "==\(n)"
-    case .atLeast(let n): ">=\(n)"
-    case .atMost(let n): "<=\(n)"
-    }
-  }
+  // MARK: Lifecycle
 
   init?(parsing raw: String) {
     let s = raw.trimmingCharacters(in: .whitespaces)
@@ -56,7 +46,28 @@ public enum CountRule: Hashable, Sendable {
       return nil
     }
   }
+
+  // MARK: Internal
+
+  /// Compact, human-editable TOML form: `"==1"`, `">=2"`, `"<=1"`.
+  var encoded: String {
+    switch self {
+    case .exactly(let n): "==\(n)"
+    case .atLeast(let n): ">=\(n)"
+    case .atMost(let n): "<=\(n)"
+    }
+  }
+
+  func satisfied(by count: Int) -> Bool {
+    switch self {
+    case .exactly(let n): count == n
+    case .atLeast(let n): count >= n
+    case .atMost(let n): count <= n
+    }
+  }
 }
+
+// MARK: - ProfileActivation
 
 /// Rule that auto-activates a profile when the connected displays match. Every
 /// stated condition must hold (AND); an unset field means "don't care". A
@@ -64,39 +75,27 @@ public enum CountRule: Hashable, Sendable {
 /// no stated conditions is a catch-all that matches *any* configuration — i.e.
 /// auto-activation is enabled but not narrowed (a fallback profile).
 public struct ProfileActivation: Hashable, Sendable {
-  /// The connected set must equal (`exactly`) or include (`contains`) these.
-  public var whenConnected: DisplaySetRule?
-  /// None of these may be connected.
-  public var whenDisconnected: [DisplayName]
-  /// Constraint on the number of connected displays.
-  public var displayCount: CountRule?
+
+  // MARK: Lifecycle
 
   public init(
     whenConnected: DisplaySetRule? = nil,
     whenDisconnected: [DisplayName] = [],
-    displayCount: CountRule? = nil
+    displayCount: CountRule? = nil,
   ) {
     self.whenConnected = whenConnected
     self.whenDisconnected = whenDisconnected
     self.displayCount = displayCount
   }
 
-  /// Whether the rule holds for the current `connected` set. Uses
-  /// `DisplayName.matches` (uuid-preferred, name fallback) so a rule authored
-  /// with just a name still matches. A rule with no stated conditions is a
-  /// catch-all that matches any configuration.
-  public func matches(connected: Set<DisplayName>) -> Bool {
-    func present(_ d: DisplayName) -> Bool { connected.contains { $0.matches(d) } }
-    if let whenConnected, !whenConnected.displays.isEmpty {
-      let required = whenConnected.displays
-      guard required.allSatisfy(present) else { return false }
-      if case .exactly = whenConnected, connected.count != required.count { return false }
-    }
-    if whenDisconnected.contains(where: present) { return false }
-    if let displayCount, !displayCount.satisfied(by: connected.count) { return false }
-    // No stated condition ⇒ a catch-all that matches every configuration.
-    return true
-  }
+  // MARK: Public
+
+  /// The connected set must equal (`exactly`) or include (`contains`) these.
+  public var whenConnected: DisplaySetRule?
+  /// None of these may be connected.
+  public var whenDisconnected: [DisplayName]
+  /// Constraint on the number of connected displays.
+  public var displayCount: CountRule?
 
   /// Higher = more specific, so it wins when several profiles match. `exactly`
   /// outranks `contains`; more pinned displays and more conditions rank higher.
@@ -108,7 +107,9 @@ public struct ProfileActivation: Hashable, Sendable {
     case nil: break
     }
     score += whenDisconnected.count
-    if displayCount != nil { score += 1 }
+    if displayCount != nil {
+      score += 1
+    }
     return score
   }
 
@@ -120,6 +121,31 @@ public struct ProfileActivation: Hashable, Sendable {
       || displayCount != nil
   }
 
+  /// Whether the rule holds for the current `connected` set. Uses
+  /// `DisplayName.matches` (uuid-preferred, name fallback) so a rule authored
+  /// with just a name still matches. A rule with no stated conditions is a
+  /// catch-all that matches any configuration.
+  public func matches(connected: Set<DisplayName>) -> Bool {
+    func present(_ d: DisplayName) -> Bool {
+      connected.contains { $0.matches(d) }
+    }
+    if let whenConnected, !whenConnected.displays.isEmpty {
+      let required = whenConnected.displays
+      guard required.allSatisfy(present) else { return false }
+      if case .exactly = whenConnected, connected.count != required.count {
+        return false
+      }
+    }
+    if whenDisconnected.contains(where: present) {
+      return false
+    }
+    if let displayCount, !displayCount.satisfied(by: connected.count) {
+      return false
+    }
+    // No stated condition ⇒ a catch-all that matches every configuration.
+    return true
+  }
+
   /// Whether some connected-display set satisfies BOTH rules — i.e. they can
   /// fire on the same configuration, so the resolver has to break the tie by
   /// specificity/order. Probed over every subset of the displays the two rules
@@ -127,7 +153,7 @@ public struct ProfileActivation: Hashable, Sendable {
   /// exercise `contains` / count rules. A catch-all (no conditions) matches
   /// everything, so it overlaps any satisfiable rule.
   public func overlaps(with other: ProfileActivation) -> Bool {
-    var universe: [DisplayName] = []
+    var universe = [DisplayName]()
     var seen = Set<DisplayName>()
     for d in displaysReferenced + other.displaysReferenced where seen.insert(d).inserted {
       universe.append(d)
@@ -144,11 +170,15 @@ public struct ProfileActivation: Hashable, Sendable {
       for extra in 0 ... pad {
         var connected = base
         for k in 0 ..< extra { connected.insert(DisplayName(name: "\u{1}anon\(k)")) }
-        if matches(connected: connected), other.matches(connected: connected) { return true }
+        if matches(connected: connected), other.matches(connected: connected) {
+          return true
+        }
       }
     }
     return false
   }
+
+  // MARK: Private
 
   /// Every display this rule names (connected + disconnected conditions).
   private var displaysReferenced: [DisplayName] {
@@ -160,57 +190,66 @@ public struct ProfileActivation: Hashable, Sendable {
   private var countCeiling: Int {
     var ceiling = whenConnected?.displays.count ?? 0
     switch displayCount {
-    case .exactly(let n), .atLeast(let n): ceiling = Swift.max(ceiling, n)
-    case .atMost, nil: break
+    case .exactly(let n),
+         .atLeast(let n): ceiling = Swift.max(ceiling, n)
+    case .atMost,
+         nil: break
     }
     return ceiling
   }
+
 }
 
-// MARK: - Diagnostic
+// MARK: - ProfileActivationDiagnostic
 
 /// How a profile's auto-activation rule overlaps other profiles', for the UI.
 /// `ambiguousWith` is a real conflict (equal specificity → order alone decides,
 /// includes identical rules); `shadowedBy` / `shadows` are intended precedence
 /// (different specificity) surfaced as information.
 public struct ProfileActivationDiagnostic: Equatable, Sendable {
+  public init() { }
+
   /// Profiles matching the same configuration at the *same* specificity — the
   /// resolver falls back to profile order, so one silently shadows the other.
-  public var ambiguousWith: [String] = []
+  public var ambiguousWith = [String]()
   /// More-specific profiles that win wherever both match (this one loses there).
-  public var shadowedBy: [String] = []
+  public var shadowedBy = [String]()
   /// Less-specific profiles this one wins over wherever both match.
-  public var shadows: [String] = []
-
-  public init() {}
+  public var shadows = [String]()
 
   /// A genuine conflict the user should resolve (vs. informational shadowing).
-  public var hasConflict: Bool { !ambiguousWith.isEmpty }
-  public var isEmpty: Bool { ambiguousWith.isEmpty && shadowedBy.isEmpty && shadows.isEmpty }
+  public var hasConflict: Bool {
+    !ambiguousWith.isEmpty
+  }
+
+  public var isEmpty: Bool {
+    ambiguousWith.isEmpty && shadowedBy.isEmpty && shadows.isEmpty
+  }
 }
 
-// MARK: - Codable (legible, flat TOML keys)
+// MARK: - ProfileActivation + Codable
 
 extension ProfileActivation: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case whenConnectedMatch, whenConnected, whenDisconnected, displayCount
-  }
+
+  // MARK: Lifecycle
 
   public init(from decoder: Decoder) throws {
     let c = try decoder.container(keyedBy: CodingKeys.self)
     if let displays = try? c.decode([DisplayName].self, forKey: .whenConnected) {
       let match = (try? c.decode(String.self, forKey: .whenConnectedMatch)) ?? "contains"
-      self.whenConnected = match == "exactly" ? .exactly(displays) : .contains(displays)
+      whenConnected = match == "exactly" ? .exactly(displays) : .contains(displays)
     } else {
-      self.whenConnected = nil
+      whenConnected = nil
     }
-    self.whenDisconnected = (try? c.decode([DisplayName].self, forKey: .whenDisconnected)) ?? []
+    whenDisconnected = (try? c.decode([DisplayName].self, forKey: .whenDisconnected)) ?? []
     if let countStr = try? c.decode(String.self, forKey: .displayCount) {
-      self.displayCount = CountRule(parsing: countStr)
+      displayCount = CountRule(parsing: countStr)
     } else {
-      self.displayCount = nil
+      displayCount = nil
     }
   }
+
+  // MARK: Public
 
   public func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
@@ -218,13 +257,29 @@ extension ProfileActivation: Codable {
     case .exactly(let d):
       try c.encode("exactly", forKey: .whenConnectedMatch)
       try c.encode(d, forKey: .whenConnected)
+
     case .contains(let d):
       try c.encode("contains", forKey: .whenConnectedMatch)
       try c.encode(d, forKey: .whenConnected)
+
     case nil:
       break
     }
-    if !whenDisconnected.isEmpty { try c.encode(whenDisconnected, forKey: .whenDisconnected) }
-    if let displayCount { try c.encode(displayCount.encoded, forKey: .displayCount) }
+    if !whenDisconnected.isEmpty {
+      try c.encode(whenDisconnected, forKey: .whenDisconnected)
+    }
+    if let displayCount {
+      try c.encode(displayCount.encoded, forKey: .displayCount)
+    }
   }
+
+  // MARK: Private
+
+  private enum CodingKeys: String, CodingKey {
+    case whenConnectedMatch
+    case whenConnected
+    case whenDisconnected
+    case displayCount
+  }
+
 }

@@ -46,7 +46,9 @@ struct LayoutStoreTests {
 
       // Repair the file without recreating the store: failed reads must not
       // publish an empty cache that discards the recovered workspace.
-      if corruptJSON { try original.write(to: url) }
+      if corruptJSON {
+        try original.write(to: url)
+      }
       await store.save(workspaceId: newID, snapshot: new)
       let disk = try JSONDecoder().decode([String: LayoutSnapshot].self, from: Data(contentsOf: url))
       expectNoDifference(disk, [existingID.uuidString: existing, newID.uuidString: new])

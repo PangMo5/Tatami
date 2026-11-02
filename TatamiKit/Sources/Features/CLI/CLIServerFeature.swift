@@ -728,7 +728,7 @@ public struct CLIServerFeature {
           valid: validIDs.contains($0.id),
         )
       }
-      let plain = values.map {
+      let plain = values.lazy.map {
         "\($0.id)\t\($0.event)\t\($0.enabled ? "enabled" : "disabled")"
           + ($0.valid ? "" : "\tinvalid")
       }.joined(separator: "\n")
@@ -987,11 +987,11 @@ private enum CLIResolveError: Error, CustomStringConvertible {
   var description: String {
     switch self {
     case .ambiguousProfile(let key, let profiles):
-      let candidates = profiles.map { "\($0.name) (\($0.id.uuidString))" }.joined(separator: ", ")
+      let candidates = profiles.lazy.map { "\($0.name) (\($0.id.uuidString))" }.joined(separator: ", ")
       return "Profile name is ambiguous: \(key). Candidates: \(candidates)"
 
     case .ambiguousWorkspace(let key, let workspaces):
-      let candidates = workspaces.map { "\($0.name) (\($0.id.uuidString))" }.joined(separator: ", ")
+      let candidates = workspaces.lazy.map { "\($0.name) (\($0.id.uuidString))" }.joined(separator: ", ")
       return "Workspace name is ambiguous: \(key). Candidates: \(candidates)"
 
     case .noActiveProfile:
@@ -1026,7 +1026,9 @@ private func resolveWorkspace(
 ) throws -> (Profile, Workspace) {
   if let id = UUID(uuidString: key), profileKey == nil {
     for profile in config.profiles {
-      if let workspace = profile.workspaces[id: id] { return (profile, workspace) }
+      if let workspace = profile.workspaces[id: id] {
+        return (profile, workspace)
+      }
     }
     // A valid UUID string can also be a user-chosen workspace name. Prefer a
     // globally unique ID when it exists, then fall through to the ordinary
