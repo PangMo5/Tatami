@@ -52,5 +52,5 @@ jobs:
           tuist xcodebuild test -workspace Tatami.xcworkspace -scheme Tatami -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
       - name: Test Demo Lab
         run: |
-          swift run --package-path Tools tatami-tools compile-localization
+          swift run --package-path Tools tatami-tools bundle-apps
           DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" swift test --package-path DemoLab
