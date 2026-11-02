@@ -79,21 +79,6 @@ jobs:
           apt-get update
           apt-get install --yes --no-install-recommends curl
 
-      - name: Assemble site
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          set -euo pipefail
-          SITE="$RUNNER_TEMP/site"
-          mkdir -p "$SITE"
-
-          # Latest release version for the no-JS download/version fallback in
-          # index.html (the page also resolves this live via the API).
-          echo "Latest version: $VERSION"
-
-          swift test --package-path Tools
-          swift run --package-path Tools tatami-tools build-site --output "$SITE" --version "$VERSION"
-
       - name: Download signed release appcast
         env:
           REPO: ${{ github.repository }}
@@ -101,12 +86,27 @@ jobs:
         run: |
           set -euo pipefail
           SITE="$RUNNER_TEMP/site"
+          mkdir -p "$SITE"
           # Every deployment must include the latest signed release feed.
           # Fail if it is unavailable instead of publishing a stale or missing feed.
           curl --fail --location --show-error \
             "https://github.com/$REPO/releases/download/v$VERSION/appcast.xml" \
             --output "$SITE/appcast.xml"
           echo "appcast.xml: $(wc -c < "$SITE/appcast.xml") bytes"
+
+      - name: Assemble site
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          SITE="$RUNNER_TEMP/site"
+
+          # Latest release version for the no-JS download/version fallback in
+          # index.html (the page also resolves this live via the API).
+          echo "Latest version: $VERSION"
+
+          swift test --package-path Tools
+          swift run --package-path Tools tatami-tools build-site --output "$SITE" --version "$VERSION"
 
       - name: Add static asset headers
         run: cp web/_headers "$RUNNER_TEMP/site/_headers"
