@@ -35,6 +35,7 @@ jobs:
     outputs:
       should-build: ${{ steps.release.outputs.should-build }}
       version: ${{ steps.release.outputs.version }}
+      release-version: ${{ steps.release.outputs.release-version }}
     steps:
       - uses: actions/checkout@v6
 
@@ -47,12 +48,13 @@ jobs:
         run: |
           set -euo pipefail
           APP_VERSION="$(sed -nE 's/^let appVersion = "([^"]+)"/\1/p' Project.swift)"
+          RELEASE_VERSION="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null | sed 's/^v//' || true)"
+          echo "release-version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "should-build=true" >> "$GITHUB_OUTPUT"
             echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          RELEASE_VERSION="$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null | sed 's/^v//' || true)"
           if [ -z "$RELEASE_VERSION" ] || [ "$APP_VERSION" != "$RELEASE_VERSION" ]; then
             echo "should-build=false" >> "$GITHUB_OUTPUT"
             echo "Skipping site: app version ${APP_VERSION:-<unknown>} is ahead of latest release ${RELEASE_VERSION:-<none>}"
@@ -72,13 +74,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install HTTP client
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends curl
+
+      - name: Download signed release appcast
+        env:
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.release-version }}
+        run: |
+          set -euo pipefail
+          SITE="$RUNNER_TEMP/site"
+          mkdir -p "$SITE"
+          # Every deployment must include the latest signed release feed.
+          # Fail if it is unavailable instead of publishing a stale or missing feed.
+          curl --fail --location --show-error \
+            "https://github.com/$REPO/releases/download/v$VERSION/appcast.xml" \
+            --output "$SITE/appcast.xml"
+          echo "appcast.xml: $(wc -c < "$SITE/appcast.xml") bytes"
+
       - name: Assemble site
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           SITE="$RUNNER_TEMP/site"
-          mkdir -p "$SITE"
 
           # Latest release version for the no-JS download/version fallback in
           # index.html (the page also resolves this live via the API).
@@ -86,21 +107,6 @@ jobs:
 
           swift test --package-path Tools
           swift run --package-path Tools tatami-tools build-site --output "$SITE" --version "$VERSION"
-
-      - name: Download signed release appcast
-        if: github.event_name != 'pull_request'
-        env:
-          REPO: ${{ github.repository }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          set -euo pipefail
-          SITE="$RUNNER_TEMP/site"
-          # Every deployment must include the latest signed release feed.
-          # Fail if it is unavailable instead of publishing a stale or missing feed.
-          curl --fail --location --show-error \
-            "https://github.com/$REPO/releases/download/v$VERSION/appcast.xml" \
-            --output "$SITE/appcast.xml"
-          echo "appcast.xml: $(wc -c < "$SITE/appcast.xml") bytes"
 
       - name: Add static asset headers
         run: cp web/_headers "$RUNNER_TEMP/site/_headers"
