@@ -135,7 +135,7 @@ struct WorkspaceListView: View {
     .navigationTitle("Tatami")
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private var contentColumn: some View {
     if store.isViewingShared {
       // Shared Apps is a global editor shown in the detail column; col 2 has
@@ -226,7 +226,7 @@ struct WorkspaceListView: View {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private var detailColumn: some View {
     if let detailStore = store.scope(state: \.detail, action: \.detail) {
       WorkspaceDetailView(store: detailStore, activationStore: activationStore, editorFocus: $editorFocus)
@@ -331,7 +331,7 @@ struct WorkspaceListView: View {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private func editableName(
     _ name: String,
     target: WorkspaceListFeature.NameTarget,
@@ -401,7 +401,7 @@ struct WorkspaceListView: View {
       }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private func insertionLine(visible: Bool) -> some View {
     if visible {
       Capsule()

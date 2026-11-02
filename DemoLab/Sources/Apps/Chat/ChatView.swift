@@ -1,12 +1,17 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
+
 import DemoAppKit
 import SwiftUI
 
+// MARK: - ChatView
+
 struct ChatView: View {
+
+  // MARK: Internal
+
   let context: DemoRenderContext
-  @State private var session = StorySession()
-  @State private var message = ""
+
   var body: some View {
     DemoWindow {
       DemoTitle("# launch", symbol: "bubble.left.and.bubble.right", accent: .indigo, subtitle: "Team / 2 members")
@@ -29,7 +34,9 @@ struct ChatView: View {
                 ForEach(session.story.messages) { item in ChatMessageRow(message: item).id(item.id) }
               }.padding(32).frame(maxWidth: 860, alignment: .leading).frame(maxWidth: .infinity)
             }.onChange(of: session.story.messages.count) { _, _ in
-              if let id = session.story.messages.last?.id { proxy.scrollTo(id, anchor: .bottom) }
+              if let id = session.story.messages.last?.id {
+                proxy.scrollTo(id, anchor: .bottom)
+              }
             }
           }
           Divider()
@@ -49,20 +56,35 @@ struct ChatView: View {
       Text("\(session.story.messages.count) messages")
     }.onAppear { session.start() }
   }
+
+  // MARK: Private
+
+  @State private var session = StorySession()
+  @State private var message = ""
+
   private func send() {
     let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
     session.update { story in
       story.messages.append(StoryMessage(id: (story.messages.map(\.id).max() ?? 0) + 1, author: "You", text: text))
-    }; message = ""
+    }
+    message = ""
   }
+
 }
+
+// MARK: - ChatMessageRow
+
 private struct ChatMessageRow: View {
   let message: StoryMessage
+
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
       Text(message.author == "You" ? "Y" : "M").font(.system(size: 15, weight: .semibold))
-        .frame(width: 38, height: 38).background(message.author == "You" ? Color.blue.opacity(0.12) : Color.purple.opacity(0.12), in: .rect(cornerRadius: 12))
+        .frame(width: 38, height: 38).background(
+          message.author == "You" ? Color.blue.opacity(0.12) : Color.purple.opacity(0.12),
+          in: .rect(cornerRadius: 12),
+        )
       VStack(alignment: .leading, spacing: 8) {
         Text(message.author == "You" ? String(localized: "You") : message.author).font(.system(size: 15, weight: .semibold))
         Text(message.text).font(.system(size: 18)).lineSpacing(5)

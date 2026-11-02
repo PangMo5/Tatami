@@ -76,7 +76,9 @@ struct SiteBuilder {
         let catalog = TextCatalog(values: values, locale: locale)
         let document = try translateHTML(source, catalog, "web/" + page)
         func walk(_ node: HTMLNode) throws {
-          if node.tag == "html" { node["lang"] = locale }
+          if node.tag == "html" {
+            node["lang"] = locale
+          }
           if node.tag == "video", let poster = node["poster"] {
             let name = URL(fileURLWithPath: URLComponents(string: poster)?.path ?? poster).stem
             guard let asset = assets.first(where: { $0["scene"].str == name })
@@ -102,13 +104,16 @@ struct SiteBuilder {
           if let source = node["data-document-src"] {
             let name = URL(fileURLWithPath: source).lastPathComponent
             node["data-document-src"] = (locale == "en" ? "./" : "../") + "content/" + locale + "/" + name
-            if locale != "en" { node["data-source-url"] = node["data-source-url"]?.replacingOccurrences(
-              of: "/docs/",
-              with: "/docs/" + locale + "/",
-            ) }
+            if locale != "en" {
+              node["data-source-url"] = node["data-source-url"]?.replacing(
+                "/docs/",
+                with: "/docs/" + locale + "/",
+              )
+            }
           }
           if
-            node.tag == "a", let href = node["href"],
+            node.tag == "a",
+            let href = node["href"],
             ["/docs/CLI.md", "/docs/CONFIGURATION.md"].contains(where: { href.hasSuffix($0) })
           {
             node["href"] = (locale == "en" ? "./" : "../") + "content/" + locale + "/" + URL(fileURLWithPath: href)
@@ -117,7 +122,11 @@ struct SiteBuilder {
           if node.tag == "a", let href = node["href"] {
             node["href"] = DocumentBuilder(workspace: workspace).localizedNoticeLink(href, locale: locale)
           }
-          for child in node.children { if let child = child.node { try walk(child) } }
+          for child in node.children {
+            if let child = child.node {
+              try walk(child)
+            }
+          }
           if node.tag == "div", node["class"] == "nav-inner" {
             let picker = HTMLNode(
               "select",
@@ -129,7 +138,9 @@ struct SiteBuilder {
             )
             for code in locales {
               var attrs: [(String, String?)] = [("value", pageLink(page, locale: code, from: locale))]
-              if code == locale { attrs.append(("selected", nil)) }
+              if code == locale {
+                attrs.append(("selected", nil))
+              }
               picker.children.append(.node(HTMLNode("option", attrs, [.text(languageNames[code]!)])))
             }
             node.children.append(.node(picker))
@@ -141,7 +152,9 @@ struct SiteBuilder {
             )
             for code in locales {
               var attrs: [(String, String?)] = [("href", pageLink(page, locale: code, from: locale)), ("data-language-link", "")]
-              if code == locale { attrs.append(("aria-current", "page")) }
+              if code == locale {
+                attrs.append(("aria-current", "page"))
+              }
               links.children.append(.node(HTMLNode("a", attrs, [.text(languageNames[code]!)])))
             }
             node.children.append(.node(links))
@@ -160,7 +173,7 @@ struct SiteBuilder {
           }
         }
         try walk(document)
-        var text = document.render().replacingOccurrences(of: "__VERSION__", with: version)
+        var text = document.render().replacing("__VERSION__", with: version)
         text = try replacing(#"<div data-collection="([^"]+)"></div>"#, in: text) { match in
           guard let assets = groups.first(where: { $0.0 == match[1] })?.1
           else { throw ToolError("Missing collection: \(match[1])") }

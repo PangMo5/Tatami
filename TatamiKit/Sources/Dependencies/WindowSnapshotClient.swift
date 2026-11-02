@@ -41,8 +41,10 @@ private func resolveFocusedWindowKey(pid: pid_t, bundleId: String) -> WindowKey?
 func isForegroundWorkWindow(_ key: WindowKey, in windows: [WindowServerWindow]) -> Bool {
   guard
     let focused = windows.first(where: { $0.id == key.windowID && $0.surface.ownerPID == key.pid }),
-    focused.surface.layer == 0, focused.alpha > 0,
-    focused.surface.frame.width > 1, focused.surface.frame.height > 1
+    focused.surface.layer == 0,
+    focused.alpha > 0,
+    focused.surface.frame.width > 1,
+    focused.surface.frame.height > 1
   else { return false }
   let center = CGPoint(x: focused.surface.frame.midX, y: focused.surface.frame.midY)
   return windows.first(where: {
@@ -77,7 +79,8 @@ private func liveFrontmostWorkWindow(_ bundleId: String, expectedPID: pid_t) asy
     }
   } onCancel: { cancellation.cancel() }
   guard
-    !Task.isCancelled, !app.isTerminated,
+    !Task.isCancelled,
+    !app.isTerminated,
     NSWorkspace.shared.frontmostApplication?.isEqual(app) == true
   else { return nil }
   return key
@@ -527,7 +530,9 @@ private func liveWindowTitles(
   guard !keys.isEmpty, !isCancelled() else { return [:] }
   var out = [WindowKey: String]()
   for (pid, group) in Dictionary(grouping: keys, by: \.pid) {
-    if isCancelled() { break }
+    if isCancelled() {
+      break
+    }
     let axApp = AXUIElementCreateApplication(pid)
     AXUIElementSetMessagingTimeout(axApp, 0.25)
     var raw: CFTypeRef?
@@ -537,14 +542,17 @@ private func liveWindowTitles(
     else { continue }
     var titleByWindowID = [CGWindowID: String]()
     for window in windows {
-      if isCancelled() { break }
+      if isCancelled() {
+        break
+      }
       AXUIElementSetMessagingTimeout(window, 0.25)
       var wid: CGWindowID = 0
       guard _AXUIElementGetWindow(window, &wid) == .success, wid != 0 else { continue }
       var titleRaw: CFTypeRef?
       if
         AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRaw) == .success,
-        let title = titleRaw as? String, !title.isEmpty
+        let title = titleRaw as? String,
+        !title.isEmpty
       {
         titleByWindowID[wid] = title
       }
@@ -1071,7 +1079,8 @@ extension WindowSnapshotClient: DependencyKey {
         MainActor.assumeIsolated {
           NSWorkspace.shared.frontmostApplication.flatMap { app in
             guard
-              let bundleId = app.bundleIdentifier, !bundleId.isEmpty
+              let bundleId = app.bundleIdentifier,
+              !bundleId.isEmpty
             else { return nil }
             return FrontmostApp(
               pid: cachedApplicationProcessIdentifier(app) ?? 0,
@@ -1248,7 +1257,9 @@ final class WindowKeyCache {
       entries[key] = filtered.isEmpty ? nil : filtered
       changed = true
     }
-    if changed { publishManagedWindows() }
+    if changed {
+      publishManagedWindows()
+    }
   }
 
   /// Record a visibility/membership edge without throwing away last-known
@@ -1303,7 +1314,9 @@ final class WindowKeyCache {
       entries[key] = filtered.isEmpty ? nil : filtered
       changed = true
     }
-    if changed { publishManagedWindows() }
+    if changed {
+      publishManagedWindows()
+    }
   }
 
   func cachedKey(windowID: CGWindowID) -> WindowKey? {

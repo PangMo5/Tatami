@@ -1,3 +1,7 @@
 [tools]
-"aqua:tuist/tuist" = "4.195.6"
-swiftformat = "0.62.1"
+"aqua:tuist/tuist" = "4.214.1"
+swiftformat = "0.64.5"
+"aqua:jj-vcs/jj" = "0.46.0"
+
+[env]
+_.source = "scripts/development-env.sh"

@@ -22,7 +22,7 @@ struct AppDocumentTests {
       ~~~~
       """
     let doc = try ParsedAppDocument(markdown: source, document: .projectNotices, language: "ko")
-    let text = doc.blocks.map { String($0.text.characters) }.joined(separator: "\n")
+    let text = doc.blocks.lazy.map { String($0.text.characters) }.joined(separator: "\n")
     #expect(!text.contains("LANGUAGE-LINKS"))
     #expect(!text.contains("English"))
     #expect(!text.contains("<a id="))
@@ -119,11 +119,13 @@ struct AppDocumentTests {
       for document in AppDocument.allCases {
         let parsed = try await loader.load(document, language: language, bundle: bundle)
         #expect(!parsed.blocks.isEmpty)
-        let text = parsed.blocks.map { String($0.text.characters) }.joined(separator: "\n")
+        let text = parsed.blocks.lazy.map { String($0.text.characters) }.joined(separator: "\n")
         let exposesMetadata = text.contains("LANGUAGE-LINKS") || text.contains("<a id=")
         #expect(!exposesMetadata, "\(language) / \(document)")
         let exposesStrongMarkup = parsed.blocks.contains { block in
-          if case .code = block.kind { return false }
+          if case .code = block.kind {
+            return false
+          }
           return String(block.text.characters).contains("**")
         }
         #expect(!exposesStrongMarkup, "\(language) / \(document)")
@@ -137,8 +139,12 @@ struct AppDocumentTests {
             encoding: .utf8,
           )))
         }
-        if document == .changelog { #expect(String(parsed.blocks[0].text.characters) == firstRelease) }
-        if document == .cli { #expect(parsed.blocks.contains { !$0.rows.isEmpty }) }
+        if document == .changelog {
+          #expect(String(parsed.blocks[0].text.characters) == firstRelease)
+        }
+        if document == .cli {
+          #expect(parsed.blocks.contains { !$0.rows.isEmpty })
+        }
       }
     }
     try FileManager.default.removeItem(at: resources.appendingPathComponent("ko/CLI.md"))

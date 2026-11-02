@@ -159,7 +159,9 @@ private struct WorkspaceChainSettingsRow: View {
 
   private var title: String {
     let name = chain.name?.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let name, !name.isEmpty { return name }
+    if let name, !name.isEmpty {
+      return name
+    }
     return String(localized: "Untitled Workspace Chain")
   }
 
@@ -425,7 +427,11 @@ struct WorkspaceChainEditorView: View {
     }
     if
       validationIssues.contains(where: { issue in
-        if case .duplicateChainID = issue { true } else { false }
+        if case .duplicateChainID = issue {
+          true
+        } else {
+          false
+        }
       })
     {
       return String(
@@ -617,7 +623,9 @@ struct WorkspaceChainEditorView: View {
 
   private func setDynamicInChain(_ isDynamic: Bool, workspaceID: Workspace.ID) {
     draft.dynamicWorkspaceIDs.removeAll { $0 == workspaceID }
-    if isDynamic { draft.dynamicWorkspaceIDs.append(workspaceID) }
+    if isDynamic {
+      draft.dynamicWorkspaceIDs.append(workspaceID)
+    }
     draft.normalizeDynamicWorkspaceIDs()
   }
 

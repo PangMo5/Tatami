@@ -102,7 +102,9 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     } catch {
       retireFrameSource(ObjectIdentifier(stream))
       logger.error("mirror start failed: \(error.localizedDescription, privacy: .public)")
-      if generation == startedGeneration { ScreenRecordingAccess.shared.captureFailed(error) }
+      if generation == startedGeneration {
+        ScreenRecordingAccess.shared.captureFailed(error)
+      }
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
       return false
@@ -126,7 +128,9 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     guard let activeStream else { return }
     let previousStop = stopCompletion
     stopCompletion = Task {
-      if let previousStop { _ = await previousStop.value }
+      if let previousStop {
+        _ = await previousStop.value
+      }
       do {
         try await activeStream.stopCapture()
         return true
@@ -146,15 +150,20 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
       let id = UUID()
       await withTaskCancellationHandler {
         await withCheckedContinuation { continuation in
-          if Task.isCancelled { continuation.resume() }
-          else { startWaiters[id] = continuation }
+          if Task.isCancelled {
+            continuation.resume()
+          } else {
+            startWaiters[id] = continuation
+          }
         }
       } onCancel: {
         Task { @MainActor [weak self] in self?.startWaiters.removeValue(forKey: id)?.resume() }
       }
     }
     guard !Task.isCancelled, generation == expectedGeneration, startingStopSucceeded else { return false }
-    if let stopCompletion, !(await stopCompletion.value) { return false }
+    if let stopCompletion, !(await stopCompletion.value) {
+      return false
+    }
     return !Task.isCancelled && generation == expectedGeneration && stream == nil && !isStarting
   }
 
@@ -224,7 +233,9 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     } catch {
       retireFrameSource(ObjectIdentifier(stream))
       logger.error("mirror resume failed: \(error.localizedDescription, privacy: .public)")
-      if generation == startedGeneration { ScreenRecordingAccess.shared.captureFailed(error) }
+      if generation == startedGeneration {
+        ScreenRecordingAccess.shared.captureFailed(error)
+      }
       self.stream = nil
       finishPendingFirstFrame(for: stream, outcome: .failed)
     }
@@ -255,7 +266,9 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     config.height = max(2, Int(height * scale))
     config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(max(1, maxFPS)))
     stream?.updateConfiguration(config) { error in
-      if let error { logger.error("mirror resize failed: \(error.localizedDescription, privacy: .public)") }
+      if let error {
+        logger.error("mirror resize failed: \(error.localizedDescription, privacy: .public)")
+      }
     }
   }
 
@@ -349,8 +362,12 @@ final class WindowMirrorCapture: NSObject, @unchecked Sendable {
     outcome: FirstFrameOutcome,
   ) {
     guard let pending = pendingFirstFrame else { return }
-    if let stream, pending.stream !== stream { return }
-    if let token, pending.token != token { return }
+    if let stream, pending.stream !== stream {
+      return
+    }
+    if let token, pending.token != token {
+      return
+    }
     pendingFirstFrame = nil
     firstFrameGate.cancel(token: pending.token)
     for callback in pending.callbacks {
@@ -395,7 +412,11 @@ final class CaptureStreamFrameGate: Sendable {
   }
 
   func deactivate(_ stream: ObjectIdentifier) {
-    current.withLock { if $0 == stream { $0 = nil } }
+    current.withLock {
+      if $0 == stream {
+        $0 = nil
+      }
+    }
   }
 
   func invalidate() {
@@ -491,13 +512,16 @@ extension WindowMirrorCapture: SCStreamOutput, SCStreamDelegate {
     of type: SCStreamOutputType,
   ) {
     guard
-      type == .screen, sampleBuffer.isValid,
+      type == .screen,
+      sampleBuffer.isValid,
       !ScreenRecordingAccess.shared.isClosed,
       frameGate.accepts(ObjectIdentifier(stream))
     else { return }
     // Apple explicitly supports background enqueuing through this renderer.
     // The CALayer remains a presentation object owned by the main actor.
-    if renderer.status == .failed { renderer.flush() }
+    if renderer.status == .failed {
+      renderer.flush()
+    }
     renderer.enqueue(sampleBuffer)
     lastBuffer.store(sampleBuffer)
     guard let token = firstFrameGate.take(for: stream) else { return }

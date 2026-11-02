@@ -42,7 +42,7 @@ public struct DemoAppSpec: Sendable, Equatable {
     defaultWindowCount: Int,
     windowSize: CGSize,
     windowTitles: [LocalizedStringResource],
-    categoryType: String
+    categoryType: String,
   ) {
     self.id = id
     self.role = role
@@ -75,13 +75,16 @@ public struct DemoAppSpec: Sendable, Equatable {
   /// LaunchServices category used by the app bundler.
   public let categoryType: String
 
-  public var name: String { id.rawValue }
+  public var name: String {
+    id.rawValue
+  }
 
   /// Deliberately **not** under `dev.PangMo5.Tatami.` — `MacApp.isTatami`
   /// treats that exact prefix as Tatami itself, and a demo app must never be
   /// mistaken for the window manager driving it.
-  public var bundleIdentifier: String { "dev.PangMo5.DemoLab.\(id.rawValue)" }
-
+  public var bundleIdentifier: String {
+    "dev.PangMo5.DemoLab.\(id.rawValue)"
+  }
 
   public func windowTitle(at index: Int) -> String {
     guard !windowTitles.isEmpty else { return name }
@@ -137,11 +140,28 @@ public struct DemoAccent: Sendable, Equatable {
 
 public enum DemoCatalog {
 
-  // MARK: Public
+  public struct BundleSpecification: Codable, Sendable {
+    public let name: String
+    public let bundleIdentifier: String
+    public let categoryType: String
+    public let agent: Bool
+    public let captureUsageDescription: String?
+  }
 
   public static let all: [DemoAppSpec] = [
-    DemoAppSpec(id: .canvas, role: "Design preview of the saved draft", symbolName: "square.stack.3d.up", accent: .purple,
-      defaultWindowCount: 1, windowSize: CGSize(width: 1100, height: 800), windowTitles: ["Launch page — canvas", "Launch page — alternate"], categoryType: "public.app-category.graphics-design"),
+    DemoAppSpec(
+      id: .canvas,
+      role: "Design preview of the saved draft",
+      symbolName: "square.stack.3d.up",
+      accent: .purple,
+      defaultWindowCount: 1,
+      windowSize: CGSize(width: 1100, height: 800),
+      windowTitles: [
+        "Launch page — canvas",
+        "Launch page — alternate",
+      ],
+      categoryType: "public.app-category.graphics-design",
+    ),
     DemoAppSpec(
       id: .editor,
       role: "Draft editor: edit and save the launch page",
@@ -150,7 +170,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 980, height: 640),
       windowTitles: ["Launch page", "Launch page — alternate"],
-      categoryType: "public.app-category.developer-tools"
+      categoryType: "public.app-category.developer-tools",
     ),
     DemoAppSpec(
       id: .terminal,
@@ -160,7 +180,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 860, height: 520),
       windowTitles: ["Launch checks", "Launch checks — second session"],
-      categoryType: "public.app-category.developer-tools"
+      categoryType: "public.app-category.developer-tools",
     ),
     DemoAppSpec(
       id: .review,
@@ -170,7 +190,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 1100, height: 700),
       windowTitles: ["Launch copy — review", "Launch copy — second review"],
-      categoryType: "public.app-category.developer-tools"
+      categoryType: "public.app-category.developer-tools",
     ),
     DemoAppSpec(
       id: .docs,
@@ -180,7 +200,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 900, height: 660),
       windowTitles: ["Launch brief", "Content direction"],
-      categoryType: "public.app-category.reference"
+      categoryType: "public.app-category.reference",
     ),
     DemoAppSpec(
       id: .chat,
@@ -190,7 +210,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 960, height: 660),
       windowTitles: ["#launch", "#team"],
-      categoryType: "public.app-category.social-networking"
+      categoryType: "public.app-category.social-networking",
     ),
     DemoAppSpec(
       id: .notes,
@@ -200,7 +220,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 560, height: 620),
       windowTitles: ["Launch checklist"],
-      categoryType: "public.app-category.productivity"
+      categoryType: "public.app-category.productivity",
     ),
     DemoAppSpec(
       id: .monitor,
@@ -210,7 +230,7 @@ public enum DemoCatalog {
       defaultWindowCount: 1,
       windowSize: CGSize(width: 400, height: 310),
       windowTitles: ["Launch status"],
-      categoryType: "public.app-category.developer-tools"
+      categoryType: "public.app-category.developer-tools",
     ),
   ]
 
@@ -219,24 +239,30 @@ public enum DemoCatalog {
   /// Tatami's `settings.visibility.overlayAwareApps` instead.
   public static let overlayBundleIdentifier = "dev.PangMo5.DemoLab.Overlay"
 
-  public struct BundleSpecification: Codable, Sendable {
-    public let name: String
-    public let bundleIdentifier: String
-    public let categoryType: String
-    public let agent: Bool
-    public let captureUsageDescription: String?
-  }
-
   public static var bundles: [BundleSpecification] {
     all.map {
-      BundleSpecification(name: $0.name, bundleIdentifier: $0.bundleIdentifier,
-                          categoryType: $0.categoryType, agent: false, captureUsageDescription: nil)
+      BundleSpecification(
+        name: $0.name,
+        bundleIdentifier: $0.bundleIdentifier,
+        categoryType: $0.categoryType,
+        agent: false,
+        captureUsageDescription: nil,
+      )
     } + [
-      BundleSpecification(name: "DemoRecorder", bundleIdentifier: "dev.PangMo5.DemoLab.DemoRecorder",
-                          categoryType: "public.app-category.video", agent: true,
-                          captureUsageDescription: "Demo Lab records the screen to produce Tatami demo videos."),
-      BundleSpecification(name: "DemoOverlay", bundleIdentifier: overlayBundleIdentifier,
-                          categoryType: "public.app-category.utilities", agent: true, captureUsageDescription: nil),
+      BundleSpecification(
+        name: "DemoRecorder",
+        bundleIdentifier: "dev.PangMo5.DemoLab.DemoRecorder",
+        categoryType: "public.app-category.video",
+        agent: true,
+        captureUsageDescription: "Demo Lab records the screen to produce Tatami demo videos.",
+      ),
+      BundleSpecification(
+        name: "DemoOverlay",
+        bundleIdentifier: overlayBundleIdentifier,
+        categoryType: "public.app-category.utilities",
+        agent: true,
+        captureUsageDescription: nil,
+      ),
     ]
   }
 

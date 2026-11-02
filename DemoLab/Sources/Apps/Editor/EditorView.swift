@@ -1,27 +1,38 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
+
 import DemoAppKit
 import SwiftUI
 
+// MARK: - EditorView
+
 struct EditorView: View {
+
+  // MARK: Internal
+
   let context: DemoRenderContext
-  @State private var session = StorySession()
-  @State private var headline = LaunchStory().headline
-  @State private var description = LaunchStory().body
+
   var body: some View {
     DemoWindow {
       DemoTitle("Launch page", symbol: "doc.text", accent: .blue, subtitle: "Copy / Draft")
       Spacer()
       Button("Save") {
         session.update { story in
-          story.headline = headline; story.body = description
-          story.revision += 1; story.approved = false; story.checks = []
+          story.headline = headline
+          story.body = description
+          story.revision += 1
+          story.approved = false
+          story.checks = []
         }
       }.keyboardShortcut("s").accessibilityIdentifier("editor.save")
     } content: {
       ScrollView {
         VStack(alignment: .leading, spacing: 28) {
-          StoryHeading("WEBSITE / LAUNCH", "Make room for better work.", "A short introduction for people meeting the product for the first time.")
+          StoryHeading(
+            "WEBSITE / LAUNCH",
+            "Make room for better work.",
+            "A short introduction for people meeting the product for the first time.",
+          )
           DraftFields(headline: $headline, description: $description)
           Divider()
           HStack {
@@ -32,19 +43,36 @@ struct EditorView: View {
         }.padding(32)
       }.background(Color(nsColor: .textBackgroundColor))
     } status: {
-      StoryStatus(headline == session.story.headline && description == session.story.body ? "All changes saved" : "Unsaved changes", error: session.error)
+      StoryStatus(
+        headline == session.story.headline && description == session.story.body
+          ? "All changes saved"
+          : "Unsaved changes",
+        error: session.error,
+      )
       Spacer()
       Text("Revision \(session.story.revision)")
     }
     .onAppear {
-      session.start(); headline = session.story.headline; description = session.story.body
+      session.start()
+      headline = session.story.headline
+      description = session.story.body
     }
   }
+
+  // MARK: Private
+
+  @State private var session = StorySession()
+  @State private var headline = LaunchStory().headline
+  @State private var description = LaunchStory().body
+
 }
+
+// MARK: - DraftFields
 
 private struct DraftFields: View {
   @Binding var headline: String
   @Binding var description: String
+
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack {

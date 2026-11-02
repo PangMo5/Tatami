@@ -453,7 +453,9 @@ private func receives<Value: Hashable & Sendable>(
       var remaining = expected
       for await value in stream {
         remaining.remove(value)
-        if remaining.isEmpty { return true }
+        if remaining.isEmpty {
+          return true
+        }
       }
       return false
     }

@@ -94,7 +94,8 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
         as? NSRunningApplication,
-        let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
+        let bundleId = app.bundleIdentifier,
+        !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
       self?.broadcast(
@@ -113,7 +114,8 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
         as? NSRunningApplication,
-        let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
+        let bundleId = app.bundleIdentifier,
+        !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
       self?.broadcast(.activated(bundleId: bundleId, pid: Self.liveProcessIdentifier(app)))
@@ -130,7 +132,8 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
         as? NSRunningApplication,
-        let bundleId = app.bundleIdentifier, !bundleId.isEmpty,
+        let bundleId = app.bundleIdentifier,
+        !bundleId.isEmpty,
         app.activationPolicy == .regular
       else { return }
       self?.broadcast(.unhidden(bundleId: bundleId, pid: Self.liveProcessIdentifier(app)))
@@ -143,7 +146,8 @@ private final class AppLaunchObserverCenter: @unchecked Sendable {
       guard
         let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
         as? NSRunningApplication,
-        let bundleId = app.bundleIdentifier, !bundleId.isEmpty
+        let bundleId = app.bundleIdentifier,
+        !bundleId.isEmpty
       else { return }
       self?.broadcast(.terminated(bundleId: bundleId, pid: app.processIdentifier))
     }

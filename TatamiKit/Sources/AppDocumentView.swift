@@ -110,12 +110,14 @@ public struct AppDocumentView: View {
       .textSelection(.enabled)
       .environment(\.openURL, OpenURLAction { url in
         guard
-          url.scheme == "tatami-document", let host = url.host,
+          url.scheme == "tatami-document",
+          let host = url.host,
           let target = AppDocument(rawValue: host)
         else { return .systemAction(url) }
         if target == current.document {
           let id = url.fragment.flatMap { content.anchors[$0] } ?? (url.fragment == nil ? content.blocks.first?.id : nil)
-          if let id { proxy.scrollTo(id, anchor: .top)
+          if let id {
+            proxy.scrollTo(id, anchor: .top)
             return .handled
           }
           var components = URLComponents(url: target.sourceURL, resolvingAgainstBaseURL: false)!
@@ -126,13 +128,15 @@ public struct AppDocumentView: View {
         return .handled
       })
       .onAppear {
-        if let fragment = current.fragment, let id = content.anchors[fragment] { proxy.scrollTo(id, anchor: .top) }
+        if let fragment = current.fragment, let id = content.anchors[fragment] {
+          proxy.scrollTo(id, anchor: .top)
+        }
       }
     }
     .id(current)
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private func blockView(_ block: DocumentBlock) -> some View {
     switch block.kind {
     case .heading(let level):
@@ -181,8 +185,12 @@ public struct AppDocumentView: View {
 
     case .text:
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        if block.isQuote { Rectangle().fill(.tertiary).frame(width: 3) }
-        if let marker = block.marker { Text(verbatim: marker).foregroundStyle(.secondary) }
+        if block.isQuote {
+          Rectangle().fill(.tertiary).frame(width: 3)
+        }
+        if let marker = block.marker {
+          Text(verbatim: marker).foregroundStyle(.secondary)
+        }
         Text(block.text).fixedSize(horizontal: false, vertical: true)
       }
       .padding(.leading, CGFloat(block.indentation) * 18)

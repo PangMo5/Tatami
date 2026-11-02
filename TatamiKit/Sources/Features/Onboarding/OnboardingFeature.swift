@@ -750,7 +750,9 @@ public struct OnboardingFeature {
         state.conflictingConfig = nil
         state.isApplying = false
         state.isPresented = preparation.requestsPresentation
-        if preparation.requestsPresentation { state.presentationRequest += 1 }
+        if preparation.requestsPresentation {
+          state.presentationRequest += 1
+        }
         return persist(state)
 
       case .viewAppeared:
@@ -863,7 +865,9 @@ public struct OnboardingFeature {
           keyEquivalent: key,
         )
         state.draft.mutateProfile(profileID) { $0.workspaces.append(workspace) }
-        if state.demoActiveWorkspaceID == nil { state.demoActiveWorkspaceID = workspace.id }
+        if state.demoActiveWorkspaceID == nil {
+          state.demoActiveWorkspaceID = workspace.id
+        }
         if state.demoBorrowWorkspaceID == nil {
           state.demoBorrowWorkspaceID = preferredBorrowWorkspaceID(state: state)
         }
@@ -1740,12 +1744,24 @@ public struct OnboardingFeature {
 
   private func suggestedWorkspaceSymbol(for name: String) -> String {
     let value = name.lowercased()
-    if value.contains("code") || value.contains("develop") { return "chevron.left.forwardslash.chevron.right" }
-    if value.contains("design") { return "paintpalette.fill" }
-    if value.contains("research") || value.contains("browse") { return "safari.fill" }
-    if value.contains("write") || value.contains("document") { return "doc.text.fill" }
-    if value.contains("chat") || value.contains("communicat") { return "ellipsis.message.fill" }
-    if value.contains("plan") || value.contains("manage") { return "checklist" }
+    if value.contains("code") || value.contains("develop") {
+      return "chevron.left.forwardslash.chevron.right"
+    }
+    if value.contains("design") {
+      return "paintpalette.fill"
+    }
+    if value.contains("research") || value.contains("browse") {
+      return "safari.fill"
+    }
+    if value.contains("write") || value.contains("document") {
+      return "doc.text.fill"
+    }
+    if value.contains("chat") || value.contains("communicat") {
+      return "ellipsis.message.fill"
+    }
+    if value.contains("plan") || value.contains("manage") {
+      return "checklist"
+    }
     return "square.stack.3d.up"
   }
 
@@ -2798,7 +2814,9 @@ public struct OnboardingFeature {
         let hasRunningApp = candidate.apps.contains {
           runningBundleIDs.contains($0.bundleIdentifier)
         }
-        if !hasRunningApp { continue }
+        if !hasRunningApp {
+          continue
+        }
       }
       return candidate.id
     }

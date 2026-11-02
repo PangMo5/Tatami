@@ -7,21 +7,21 @@ import Testing
 
 @testable import DemoCtlKit
 
-// MARK: - Catalog
+// MARK: - DemoCatalogTests
 
 @Suite("Demo app catalog")
 struct DemoCatalogTests {
 
-  @Test("has one spec per app id")
-  func coversEveryID() {
+  @Test
+  func `has one spec per app id`() {
     #expect(DemoCatalog.all.count == DemoAppID.allCases.count)
     for id in DemoAppID.allCases {
       #expect(DemoCatalog.spec(id).id == id)
     }
   }
 
-  @Test("bundle identifiers are unique")
-  func identifiersAreUnique() {
+  @Test
+  func `bundle identifiers are unique`() {
     let identifiers = DemoCatalog.all.map(\.bundleIdentifier)
     #expect(Set(identifiers).count == identifiers.count)
   }
@@ -30,18 +30,21 @@ struct DemoCatalogTests {
   /// `dev.PangMo5.Tatami.` as *itself* and excludes it from management. A demo
   /// app caught by that test would never be tiled, and the failure would look
   /// like a tiling bug rather than a naming mistake.
-  @Test("no demo app can be mistaken for Tatami")
-  func identifiersAreNotTatami() {
+  @Test
+  func `no demo app can be mistaken for Tatami`() {
     for spec in DemoCatalog.all {
       #expect(!TatamiInstall.isTatami(spec.bundleIdentifier), "\(spec.bundleIdentifier) reads as Tatami")
     }
   }
 
-  @Test("window titles are fixed, distinct and non-empty")
-  func windowTitlesAreDeterministic() {
+  @Test
+  func `window titles are fixed, distinct and non-empty`() {
     for spec in DemoCatalog.all {
       #expect(!spec.windowTitles.isEmpty, "\(spec.name) has no window titles")
-      #expect(Set(spec.windowTitles.map { String(localized: $0) }).count == spec.windowTitles.count, "\(spec.name) repeats a title")
+      #expect(
+        Set(spec.windowTitles.map { String(localized: $0) }).count == spec.windowTitles.count,
+        "\(spec.name) repeats a title",
+      )
       for title in spec.windowTitles { #expect(!String(localized: title).isEmpty) }
       // Same ordinal, same title — twice, in the same process and across runs.
       #expect(spec.windowTitle(at: 0) == spec.windowTitle(at: 0))
@@ -50,8 +53,8 @@ struct DemoCatalogTests {
     }
   }
 
-  @Test("launch options parse the flags scenes use, and reject anything else")
-  func launchOptionsParse() throws {
+  @Test
+  func `launch options parse the flags scenes use, and reject anything else`() throws {
     let options = try DemoLaunchOptions.parse(["--windows", "2", "--variant", "1"])
     #expect(options.windowCount == 2)
     #expect(options.variant == 1)
@@ -64,15 +67,15 @@ struct DemoCatalogTests {
 
 }
 
-// MARK: - Scenes
+// MARK: - SceneTests
 
 @Suite("Scenes")
 struct SceneTests {
 
   // MARK: Internal
 
-  @Test("every shipped scene decodes")
-  func scenesDecode() throws {
+  @Test
+  func `every shipped scene decodes`() throws {
     let paths = try paths()
     let names = SceneLoader.available(in: paths)
     #expect(names.contains("tour"), "the long integrated take must exist")
@@ -83,8 +86,8 @@ struct SceneTests {
     }
   }
 
-  @Test("scenes only reference apps and workspaces that exist")
-  func scenesReferenceRealThings() throws {
+  @Test
+  func `scenes only reference apps and workspaces that exist`() throws {
     let paths = try paths()
     let config = try TomlLite.parse(try ConfigRenderer(paths: paths).render(SeedOptions()))
     let profiles = try #require(config["profiles"]?.tableArray)
@@ -92,9 +95,13 @@ struct SceneTests {
     var workspaceNames = Set<String>()
     var profileNames = Set<String>()
     for profile in profiles {
-      if let name = profile["name"]?.stringValue { profileNames.insert(name) }
+      if let name = profile["name"]?.stringValue {
+        profileNames.insert(name)
+      }
       for workspace in profile["workspaces"]?.tableArray ?? [] {
-        if let name = workspace["name"]?.stringValue { workspaceNames.insert(name) }
+        if let name = workspace["name"]?.stringValue {
+          workspaceNames.insert(name)
+        }
       }
     }
 
@@ -104,9 +111,12 @@ struct SceneTests {
         switch step {
         case .activateWorkspace(let workspace, let profile):
           #expect(workspaceNames.contains(workspace), "\(name): unknown workspace \(workspace)")
-          if let profile { #expect(profileNames.contains(profile), "\(name): unknown profile \(profile)") }
+          if let profile {
+            #expect(profileNames.contains(profile), "\(name): unknown profile \(profile)")
+          }
 
-        case .activateProfile(let profile), .waitProfile(let profile, _):
+        case .activateProfile(let profile),
+             .waitProfile(let profile, _):
           #expect(profileNames.contains(profile), "\(name): unknown profile \(profile)")
 
         case .waitWorkspace(let workspace, _):
@@ -136,8 +146,8 @@ struct SceneTests {
   /// posts real key events, Tatami ignores them, `democtl` reports the step as
   /// successful, and the recording is of nothing happening. Checking it here
   /// means a mistyped shortcut fails `swift test` instead of a take.
-  @Test("every chord a scene types is bound in the seeded config")
-  func sceneChordsAreBound() throws {
+  @Test
+  func `every chord a scene types is bound in the seeded config`() throws {
     let paths = try paths()
     let bound = try boundChords(in: try ConfigRenderer(paths: paths).render(SeedOptions()))
 
@@ -148,7 +158,7 @@ struct SceneTests {
         case .key(let chord, _, _):
           #expect(
             bound.contains(Self.canonical(chord)),
-            "\(name): \"\(chord)\" is not bound in the config and would do nothing"
+            "\(name): \"\(chord)\" is not bound in the config and would do nothing",
           )
 
         case .hold(let modifiers, let keys, _, _):
@@ -156,7 +166,7 @@ struct SceneTests {
             let chord = key.contains("-") || key.contains("+") ? key : "\(modifiers) - \(key)"
             #expect(
               bound.contains(Self.canonical(chord)),
-              "\(name): \"\(chord)\" is not bound in the config and would do nothing"
+              "\(name): \"\(chord)\" is not bound in the config and would do nothing",
             )
           }
 
@@ -167,10 +177,29 @@ struct SceneTests {
     }
   }
 
+  // MARK: Private
+
   /// Shortcuts that belong to macOS or to the app being driven rather than to
   /// Tatami, so they are correct without appearing in `config.toml`.
-  private static let systemChords: Set<String> = [
-    "cmd-tab", "cmd-ctrl-f", "ctrl-cmd-f", "left", "right", "up", "down", "esc", "cmd-a", "return", "cmd-,", "cmd-w", "cmd-n", "cmd-s", "cmd-m", "cmd-f", "cmd-q", "cmd-shift-w",
+  private static let systemChords: Set = [
+    "cmd-tab",
+    "cmd-ctrl-f",
+    "ctrl-cmd-f",
+    "left",
+    "right",
+    "up",
+    "down",
+    "esc",
+    "cmd-a",
+    "return",
+    "cmd-,",
+    "cmd-w",
+    "cmd-n",
+    "cmd-s",
+    "cmd-m",
+    "cmd-f",
+    "cmd-q",
+    "cmd-shift-w",
   ]
 
   /// Canonical form: modifiers in a fixed order, then the key, all lowercased.
@@ -209,17 +238,25 @@ struct SceneTests {
 
     for (key, value) in shortcuts {
       guard !modifierArrays.contains(key), !navigationKeys.contains(key) else { continue }
-      if let chord = value.stringValue { bound.insert(Self.canonical(chord)) }
+      if let chord = value.stringValue {
+        bound.insert(Self.canonical(chord))
+      }
     }
 
     let sets = modifierArrays.compactMap { shortcuts[$0]?.stringArray }
     var keys = navigationKeys.compactMap { shortcuts[$0]?.stringValue }
     for profile in root["profiles"]?.tableArray ?? [] {
-      if let shortcut = profile["shortcut"]?.stringValue { bound.insert(Self.canonical(shortcut)) }
+      if let shortcut = profile["shortcut"]?.stringValue {
+        bound.insert(Self.canonical(shortcut))
+      }
       for workspace in profile["workspaces"]?.tableArray ?? [] {
-        if let equivalent = workspace["keyEquivalent"]?.stringValue { keys.append(equivalent) }
+        if let equivalent = workspace["keyEquivalent"]?.stringValue {
+          keys.append(equivalent)
+        }
         for explicit in ["activateShortcut", "assignAppShortcut", "borrowShortcut"] {
-          if let chord = workspace[explicit]?.stringValue { bound.insert(Self.canonical(chord)) }
+          if let chord = workspace[explicit]?.stringValue {
+            bound.insert(Self.canonical(chord))
+          }
         }
       }
     }
@@ -231,8 +268,6 @@ struct SceneTests {
     }
     return bound
   }
-
-  // MARK: Private
 
   private func paths() throws -> LabPaths {
     guard let root = LabPaths.discoverPackageRoot() else { throw DemoCtlError.packageRootNotFound }

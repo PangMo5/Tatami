@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import Foundation
+import Testing
+@testable import TatamiToolsKit
 #if canImport(FoundationXML)
 import FoundationXML
 #endif
-import Testing
-@testable import TatamiToolsKit
 
 @Test
 func `appcast accumulates only the current minor and preserves signatures`() throws {
@@ -24,8 +24,8 @@ func `appcast accumulates only the current minor and preserves signatures`() thr
     """)
   let english = try fixture.directory.at("CHANGELOG.md").text()
   for locale in locales.dropFirst() {
-    try fixture.directory.at("docs/\(locale)/CHANGELOG.md").write(english.replacingOccurrences(
-      of: "Keep **focus**",
+    try fixture.directory.at("docs/\(locale)/CHANGELOG.md").write(english.replacing(
+      "Keep **focus**",
       with: "\(locale) **focus**",
     ))
   }

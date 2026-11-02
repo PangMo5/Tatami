@@ -252,7 +252,9 @@ public struct WorkspaceLayoutFeature {
           .cancellable(id: CancelID.appActivity, cancelInFlight: true),
           .run { [windowObserver] send in
             for await event in windowObserver.events() {
-              if case .windowTitleChanged = event { await send(.appActivityTick) }
+              if case .windowTitleChanged = event {
+                await send(.appActivityTick)
+              }
             }
           }
           .cancellable(id: CancelID.windowTitles, cancelInFlight: true),

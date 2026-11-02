@@ -4,32 +4,41 @@
 import Dependencies
 import DependenciesMacros
 import Foundation
-import OSLog
 import os
+import OSLog
+
+// MARK: - ErrorReport
 
 /// A user-relevant failure. One report per `domain` — a newer report for the
 /// same domain replaces the older one.
 public struct ErrorReport: Equatable, Sendable, Identifiable {
-  /// Stable grouping key ("Config", "Shortcuts", "Layouts", "CLI", …).
-  var domain: String
-  /// Short, user-facing description shown in the HUD and the menu bar.
-  public var message: String
-  /// Optional first-line error detail (HUD subtitle / log).
-  var detail: String?
-
-  public var id: String { domain }
-
   init(domain: String, message: String, detail: String? = nil) {
     self.domain = domain
     self.message = message
     self.detail = detail
   }
+
+  /// Short, user-facing description shown in the HUD and the menu bar.
+  public var message: String
+
+  public var id: String {
+    domain
+  }
+
+  /// Stable grouping key ("Config", "Shortcuts", "Layouts", "CLI", …).
+  var domain: String
+  /// Optional first-line error detail (HUD subtitle / log).
+  var detail: String?
 }
+
+// MARK: - ErrorReportEvent
 
 public enum ErrorReportEvent: Equatable, Sendable {
   case reported(ErrorReport)
   case resolved(domain: String)
 }
+
+// MARK: - ErrorReportClient
 
 /// Central channel for surfacing internal failures (config parse errors,
 /// invalid shortcuts, I/O failures) in the UI instead of just a log line.
@@ -65,6 +74,8 @@ struct ErrorReportClient: Sendable {
   }
 }
 
+// MARK: DependencyKey
+
 extension ErrorReportClient: DependencyKey {
   static let liveValue: ErrorReportClient = {
     let hub = Hub()
@@ -82,7 +93,7 @@ extension ErrorReportClient: DependencyKey {
       beginPass: { hub.beginPass($0) },
       commitPass: { hub.commitPass($0) },
       abortPass: { hub.abortPass($0) },
-      events: { hub.stream() }
+      events: { hub.stream() },
     )
   }()
 
@@ -92,7 +103,7 @@ extension ErrorReportClient: DependencyKey {
     beginPass: { _ in },
     commitPass: { _ in },
     abortPass: { _ in },
-    events: { .finished }
+    events: { .finished },
   )
   static let previewValue = testValue
 }
@@ -104,15 +115,12 @@ extension DependencyValues {
   }
 }
 
+// MARK: - Hub
+
 /// Lock-guarded report store fanning events out to every subscriber.
 private final class Hub: Sendable {
-  private struct State {
-    var reports: [String: ErrorReport] = [:]
-    var provisional: Set<String> = []
-    var continuations: [UUID: AsyncStream<ErrorReportEvent>.Continuation] = [:]
-  }
 
-  private let state = OSAllocatedUnfairLock(initialState: State())
+  // MARK: Internal
 
   /// Returns false when the identical report is already standing (dedupe).
   func upsert(_ report: ErrorReport) -> Bool {
@@ -173,6 +181,17 @@ private final class Hub: Sendable {
       }
     }
   }
+
+  // MARK: Private
+
+  private struct State {
+    var reports = [String: ErrorReport]()
+    var provisional = Set<String>()
+    var continuations = [UUID: AsyncStream<ErrorReportEvent>.Continuation]()
+  }
+
+  private let state = OSAllocatedUnfairLock(initialState: State())
+
 }
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "ErrorReport")

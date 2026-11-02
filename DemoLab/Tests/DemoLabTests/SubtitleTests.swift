@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import DemoAppKit
-@testable import DemoCtlKit
 import Foundation
 import Testing
+@testable import DemoCtlKit
 
 // MARK: - KeyChordFormatterTests
 
 @Suite("Key chords")
 struct KeyChordFormatterTests {
 
-  @Test("reads Tatami's own spelling into caps, in keyboard order")
-  func caps() {
+  @Test
+  func `reads Tatami's own spelling into caps, in keyboard order`() {
     #expect(KeyChordFormatter.caps(from: "ctrl + alt - l") == ["⌃", "⌥", "L"])
     // Config order is whatever the author typed; the caps are always canonical.
     #expect(KeyChordFormatter.caps(from: "cmd + shift + ctrl - 3") == ["⌃", "⇧", "⌘", "3"])
@@ -21,13 +21,13 @@ struct KeyChordFormatterTests {
     #expect(KeyChordFormatter.caps(from: "  ").isEmpty)
   }
 
-  @Test("finds the separator from the end, so a literal dash is still a key")
-  func literalDash() {
+  @Test
+  func `finds the separator from the end, so a literal dash is still a key`() {
     #expect(KeyChordFormatter.caps(from: "ctrl + alt - -") == ["⌃", "⌥", "-"])
   }
 
-  @Test("spells long-form modifiers the same as short ones")
-  func synonyms() {
+  @Test
+  func `spells long-form modifiers the same as short ones`() {
     #expect(
       KeyChordFormatter.caps(from: "control + option + command - k")
         == KeyChordFormatter.caps(from: "ctrl + alt + cmd - k")
@@ -42,8 +42,10 @@ struct KeyChordFormatterTests {
 @Suite("Subtitles")
 struct SubtitleTests {
 
-  @Test("the sidecar carries what the overlay did not draw")
-  func complement() {
+  // MARK: Internal
+
+  @Test
+  func `the sidecar carries what the overlay did not draw`() {
     let timeline = SceneTimeline(scene: "t", t0: .now)
     timeline.record(.chapter, text: "Chapter", at: 0)
     timeline.record(.caption, text: "Headline | why", at: 1)
@@ -61,8 +63,8 @@ struct SubtitleTests {
     #expect(complete.contains("Keys,,"))
   }
 
-  @Test("keycaps are burned as caps, never as the config spelling")
-  func keycaps() {
+  @Test
+  func `keycaps are burned as caps, never as the config spelling`() {
     let timeline = SceneTimeline(scene: "t", t0: .now)
     timeline.record(.keys, text: "ctrl + alt - l", at: 0)
     timeline.finish(at: 2)
@@ -72,8 +74,8 @@ struct SubtitleTests {
     #expect(!ass.contains("ctrl + alt - l"))
   }
 
-  @Test("a two-line caption stays in one overlay event")
-  func captionIsOneEvent() {
+  @Test
+  func `a two-line caption stays in one overlay event`() {
     let timeline = SceneTimeline(scene: "t", t0: .now)
     timeline.record(.caption, text: "Headline\(SceneTimeline.captionSeparator)why it matters", at: 0)
     timeline.finish(at: 2)
@@ -93,15 +95,15 @@ struct SubtitleTests {
     #expect(styleField("Outline", of: "Caption", in: ass) == "10")
   }
 
-  @Test("a clear ends the words rather than writing an empty line")
-  func clears() {
+  @Test
+  func `a clear ends the words rather than writing an empty line`() {
     let timeline = SceneTimeline(scene: "t", t0: .now)
     timeline.record(.caption, text: "Headline", at: 0)
     timeline.record(.caption, text: "", at: 1)
     timeline.finish(at: 2)
 
     let ass = SceneSubtitles.ass(timeline, resolution: .fallback)
-    #expect(ass.split(separator: "\n").filter { $0.hasPrefix("Dialogue:") }.count == 1)
+    #expect(ass.split(separator: "\n").count(where: { $0.hasPrefix("Dialogue:") }) == 1)
   }
 
   // MARK: Private
@@ -130,16 +132,16 @@ struct SubtitleTests {
 @Suite("ASS escaping")
 struct EscapingTests {
 
-  @Test("a literal backslash stays one backslash")
-  func backslash() {
+  @Test
+  func `a literal backslash stays one backslash`() {
     // The `\` key's own keycast. Doubling it, which is what most formats want,
     // put two backslashes on screen.
     #expect(SceneSubtitles.escaped("\\") == "\\")
     #expect(SceneSubtitles.escaped("⌃ ⌥ ⇧ \\") == "⌃ ⌥ ⇧ \\")
   }
 
-  @Test("a backslash cannot turn the text after it into a command")
-  func neutralisesCommands() {
+  @Test
+  func `a backslash cannot turn the text after it into a command`() {
     // `\N` is a hard break, `\h` a hard space: text holding either must not
     // become one.
     #expect(SceneSubtitles.escaped("C:\\next") == "C:\\{}next")
@@ -147,15 +149,15 @@ struct EscapingTests {
     #expect(SceneSubtitles.escaped("a\\hb") == "a\\{}hb")
   }
 
-  @Test("braces cannot open an override block")
-  func braces() {
+  @Test
+  func `braces cannot open an override block`() {
     // The point is the braces: whatever the renderer makes of the rest, it can
     // no longer be read as styling.
     #expect(SceneSubtitles.escaped("{\\an8}") == "\\{\\an8\\}")
   }
 
-  @Test("a real newline becomes the hard break, and survives the pass above")
-  func newlines() {
+  @Test
+  func `a real newline becomes the hard break, and survives the pass above`() {
     #expect(SceneSubtitles.escaped("a\nb") == "a\\Nb")
     #expect(SceneSubtitles.escaped("a\r\nb") == "a\\Nb")
   }

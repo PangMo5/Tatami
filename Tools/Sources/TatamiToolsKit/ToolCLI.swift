@@ -125,7 +125,9 @@ struct PreviewSite: AsyncParsableCommand {
   var detached = false
 
   mutating func validate() throws {
-    if port == 0 { throw ValidationError("Port must be 1...65535") }
+    if port == 0 {
+      throw ValidationError("Port must be 1...65535")
+    }
   }
 
   mutating func run() async throws {

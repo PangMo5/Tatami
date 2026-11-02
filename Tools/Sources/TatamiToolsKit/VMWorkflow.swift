@@ -30,18 +30,24 @@ struct VMWorkflow: Sendable {
     let help = try await runProcess(["tart", "--help"], capture: true)
     try require(!matches(#"(?m)^\s+exec\b"#, help).isEmpty, "This Tart build has no exec command; upgrade Tart")
     let listing = try JSON.parse(await runProcess(["tart", "list", "--format", "json"], capture: true))
-    if !listing.array.contains(where: { $0["Name"].str == name }) { try await runProcess([
-      "tart",
-      "clone",
-      environment["BASE_IMAGE"] ?? "ghcr.io/cirruslabs/macos-sequoia-base:latest",
-      name,
-    ]) }
+    if !listing.array.contains(where: { $0["Name"].str == name }) {
+      try await runProcess([
+        "tart",
+        "clone",
+        environment["BASE_IMAGE"] ?? "ghcr.io/cirruslabs/macos-sequoia-base:latest",
+        name,
+      ])
+    }
     let current = try JSON.parse(await runProcess(["tart", "list", "--format", "json"], capture: true))
     guard let entry = current.array.first(where: { $0["Name"].str == name }) else { throw ToolError("Cannot determine VM state") }
     let running: Bool
-    if !entry["Running"].isNull { running = entry["Running"].boolean }
-    else if ["running", "stopped"].contains(entry["State"].str) { running = entry["State"].str == "running" }
-    else { throw ToolError("Tart did not report a readable VM state; refusing to change hardware") }
+    if !entry["Running"].isNull {
+      running = entry["Running"].boolean
+    } else if ["running", "stopped"].contains(entry["State"].str) {
+      running = entry["State"].str == "running"
+    } else {
+      throw ToolError("Tart did not report a readable VM state; refusing to change hardware")
+    }
     if running {
       try require(
         !["DISPLAY_SIZE", "CPUS", "MEMORY_MB", "DISK_GB"].contains(where: { environment[$0] != nil }),
@@ -116,7 +122,11 @@ struct VMWorkflow: Sendable {
     }
     for entry in VMGuest.managed {
       let source = workspace.lab.at(entry)
-      if source.exists { try copy(source, stage.at(entry)) } else { try stage.at(entry).makeDirectory() }
+      if source.exists {
+        try copy(source, stage.at(entry))
+      } else {
+        try stage.at(entry).makeDirectory()
+      }
     }
     let executable = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
     try copy(executable, helper)
@@ -227,10 +237,12 @@ enum VMGuest {
     try destination.makeDirectory()
     for entry in managed { try copy(stage.at(entry), destination.at(entry)) }
     try copy(stage.at("tatami-tools"), destination.at(".build/tools/tatami-tools"))
-    if build { try await BundleBuilder(workspace: Workspace(
-      root: destination.deletingLastPathComponent(),
-      labOverride: destination,
-    )).build(output: nil) }
+    if build {
+      try await BundleBuilder(workspace: Workspace(
+        root: destination.deletingLastPathComponent(),
+        labOverride: destination,
+      )).build(output: nil)
+    }
   }
 
   static func exportArchive(batch: URL, archive: URL, marker: URL, nonce: String) async throws {

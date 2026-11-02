@@ -13,7 +13,9 @@ struct Narration {
     for field in ["setup", "steps"] where !scene[field].isNull {
       scene[field] = .array(scene[field].array.map { step in
         var step = step
-        if ["caption", "chapter"].contains(step["kind"].str) { step["text"] = .bool(!step["text"].str.isEmpty) }
+        if ["caption", "chapter"].contains(step["kind"].str) {
+          step["text"] = .bool(!step["text"].str.isEmpty)
+        }
         return step
       })
     }
@@ -21,10 +23,10 @@ struct Narration {
   }
 
   static func escaped(_ text: String) -> String {
-    let protected = text.replacingOccurrences(of: "{", with: "｛").replacingOccurrences(of: "}", with: "｝")
+    let protected = text.replacing("{", with: "｛").replacing("}", with: "｝")
     return replacing(#"\\([Nnh])"#, in: protected) { #"\{}"# + $0[1] }
-      .replacingOccurrences(of: "\r\n", with: #"\N"#).replacingOccurrences(of: "\n", with: #"\N"#).replacingOccurrences(
-        of: "\r",
+      .replacing("\r\n", with: #"\N"#).replacing("\n", with: #"\N"#).replacing(
+        "\r",
         with: #"\N"#,
       )
   }
@@ -45,7 +47,7 @@ struct Narration {
       let start = event["start"].double
       let end = event["end"].double
       try require(start.isFinite && end.isFinite, "Invalid narration timestamp")
-      let text = escaped(event["text"].str).replacingOccurrences(of: " | ", with: #"\N"#)
+      let text = escaped(event["text"].str).replacing(" | ", with: #"\N"#)
       output
         .append(
           "Dialogue: 0,\(timestamp(start)),\(timestamp(max(end, start + 0.01))),\(event["track"].str.capitalized),,0,0,0,,{\\fad(100,100)}\(text)"

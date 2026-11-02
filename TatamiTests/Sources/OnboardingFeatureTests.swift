@@ -1451,7 +1451,9 @@ struct OnboardingFeatureTests {
     let baseline = AppConfig(profiles: [profile])
     var latest = baseline
     latest.activeProfileId = profile.id
-    if settingsChanged { latest.settings.layout.gapInner += 1 }
+    if settingsChanged {
+      latest.settings.layout.gapInner += 1
+    }
     var draft = baseline
     draft.profiles[0].name = "My setup"
     draft.settings.focus.focusFollowsMouse = true

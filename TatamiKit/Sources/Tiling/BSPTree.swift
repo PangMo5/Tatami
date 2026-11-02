@@ -358,8 +358,12 @@ extension BSPNode {
     case .leaf(let leaf):
       return leaf.contains(window) ? [] : nil
     case .branch(let b):
-      if let l = b.left.pathTo(window: window) { return [.left] + l }
-      if let r = b.right.pathTo(window: window) { return [.right] + r }
+      if let l = b.left.pathTo(window: window) {
+        return [.left] + l
+      }
+      if let r = b.right.pathTo(window: window) {
+        return [.right] + r
+      }
       return nil
     }
   }
@@ -456,7 +460,9 @@ extension BSPNode {
       if
         let anchor,
         let hit = info.first(where: { leaf in
-          if case .leaf(let l) = self.subtree(at: leaf.path) { return l.contains(anchor) }
+          if case .leaf(let l) = self.subtree(at: leaf.path) {
+            return l.contains(anchor)
+          }
           return false
         })
       {
@@ -476,8 +482,12 @@ extension BSPNode {
         return .leaf(leaf)
       }
       let axis: SplitAxis = {
-        if let s = leaf.preferredSplit { return s }
-        if let s = viewSplitType { return s }
+        if let s = leaf.preferredSplit {
+          return s
+        }
+        if let s = viewSplitType {
+          return s
+        }
         return target.rect.width >= target.rect.height ? .vertical : .horizontal
       }()
       let placement: Child = leaf.preferredChild ?? globalPlacement
@@ -678,7 +688,8 @@ extension BSPNode {
   /// layout's orientation rather than assuming a left/right arrangement.
   public func resizing(window: WindowID, delta: CGFloat) -> BSPNode {
     guard
-      let path = pathTo(window: window), !path.isEmpty,
+      let path = pathTo(window: window),
+      !path.isEmpty,
       case .branch(let parent) = subtree(at: Array(path.dropLast()))
     else { return self }
     return resizing(window: window, axis: parent.split, delta: delta)
@@ -782,9 +793,11 @@ extension BSPNode {
     gap: CGFloat = 0,
     splitAxis: SplitAxis? = nil,
   ) -> BSPNode {
-    autoBalance == .none
-      ? bspBalanced(in: rect, gap: gap, splitAxis: splitAxis)
-      : balanced(axis: autoBalance)
+    if autoBalance == .none {
+      bspBalanced(in: rect, gap: gap, splitAxis: splitAxis)
+    } else {
+      balanced(axis: autoBalance)
+    }
   }
 
   /// Rebuild into a master-and-remainder BSP: the first leaf occupies half of
@@ -1008,7 +1021,9 @@ extension BSPNode {
     func walk(_ node: BSPNode, _ path: [Side]) -> BSPNode {
       switch node {
       case .leaf(var leaf):
-        if path != keepPath { leaf.parentZoom = false }
+        if path != keepPath {
+          leaf.parentZoom = false
+        }
         return .leaf(leaf)
 
       case .branch(var b):

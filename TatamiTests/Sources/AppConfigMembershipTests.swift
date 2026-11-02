@@ -10,18 +10,11 @@ import Testing
 /// now that the mutations live on `AppConfig` instead of inside the
 /// activation reducer.
 struct AppConfigMembershipTests {
-  private func makeConfig(workspaces: [Workspace]) -> AppConfig {
-    AppConfig(profiles: [
-      Profile(name: "Default", workspaces: IdentifiedArray(uniqueElements: workspaces))
-    ])
-  }
 
-  private func apps(_ config: AppConfig, _ id: Workspace.ID) -> [String] {
-    config.activeProfile?.workspaces[id: id]?.apps.map(\.bundleIdentifier) ?? []
-  }
+  // MARK: Internal
 
   @Test
-  func toggleMembershipEnforcesSingleMembership() {
+  func `toggle membership enforces single membership`() {
     let ws1 = Workspace(name: "one", apps: [AppAssignment(bundleIdentifier: "a", name: "A")])
     let ws2 = Workspace(name: "two")
     var config = makeConfig(workspaces: [ws1, ws2])
@@ -37,7 +30,7 @@ struct AppConfigMembershipTests {
   }
 
   @Test
-  func toggleFloatingAddsUnassignedAppAsFloatingMember() {
+  func `toggle floating adds unassigned app as floating member`() {
     let ws = Workspace(name: "one")
     var config = makeConfig(workspaces: [ws])
 
@@ -53,7 +46,7 @@ struct AppConfigMembershipTests {
   }
 
   @Test
-  func toggleSharedFloatingJoinsSharedAppsButNeverRemoves() {
+  func `toggle shared floating joins shared apps but never removes`() {
     var config = makeConfig(workspaces: [])
 
     let nowShared = config.toggleSharedFloating(bundleId: "a", name: "A")
@@ -68,7 +61,7 @@ struct AppConfigMembershipTests {
   }
 
   @Test
-  func toggleSharedMembershipAddsTiledAndRemovesEntirely() {
+  func `toggle shared membership adds tiled and removes entirely`() {
     var config = makeConfig(workspaces: [])
 
     let added = config.toggleSharedMembership(bundleId: "a", name: "A")
@@ -81,9 +74,12 @@ struct AppConfigMembershipTests {
   }
 
   @Test
-  func moveAppCarriesExistingAssignmentMetadata() {
+  func `move app carries existing assignment metadata`() {
     let assignment = AppAssignment(
-      bundleIdentifier: "a", name: "Custom Name", autoOpen: true, layout: .floating
+      bundleIdentifier: "a",
+      name: "Custom Name",
+      autoOpen: true,
+      layout: .floating,
     )
     let ws1 = Workspace(name: "one", apps: [assignment])
     let ws2 = Workspace(name: "two")
@@ -98,7 +94,7 @@ struct AppConfigMembershipTests {
   }
 
   @Test
-  func assignAppKeepsExistingMembershipsAndDeduplicates() {
+  func `assign app keeps existing memberships and deduplicates`() {
     let ws1 = Workspace(name: "one", apps: [AppAssignment(bundleIdentifier: "a", name: "A")])
     let ws2 = Workspace(name: "two")
     var config = makeConfig(workspaces: [ws1, ws2])
@@ -111,4 +107,17 @@ struct AppConfigMembershipTests {
     config.assignApp(bundleId: "a", name: "A", to: ws2.id)
     #expect(apps(config, ws2.id) == ["a"])
   }
+
+  // MARK: Private
+
+  private func makeConfig(workspaces: [Workspace]) -> AppConfig {
+    AppConfig(profiles: [
+      Profile(name: "Default", workspaces: IdentifiedArray(uniqueElements: workspaces))
+    ])
+  }
+
+  private func apps(_ config: AppConfig, _ id: Workspace.ID) -> [String] {
+    config.activeProfile?.workspaces[id: id]?.apps.map(\.bundleIdentifier) ?? []
+  }
+
 }

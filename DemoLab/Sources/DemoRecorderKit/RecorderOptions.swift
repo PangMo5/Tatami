@@ -44,7 +44,7 @@ public struct RecorderOptions: Sendable {
     durationSeconds: Double? = nil,
     bitrateMbps: Double? = nil,
     showsCursor: Bool = true,
-    pidfile: URL? = nil
+    pidfile: URL? = nil,
   ) {
     self.output = output
     self.display = display
@@ -57,16 +57,6 @@ public struct RecorderOptions: Sendable {
 
   // MARK: Public
 
-  /// `democtl` passes `--pidfile` explicitly. This fallback keeps a hand-run
-  /// recorder signalable and mirrors `LabPaths.recorderPidFile`.
-  public static func defaultPidfile() -> URL? {
-    guard let root = ProcessInfo.processInfo.environment["DEMOLAB_ROOT"], !root.isEmpty else {
-      return nil
-    }
-    return URL(fileURLWithPath: root, isDirectory: true)
-      .appendingPathComponent(".build/lab/run/recorder.pid")
-  }
-
   public let output: URL
   public let display: DisplaySelection
   /// Drives the cadence clock, the capture ceiling, and the encoder hints alike.
@@ -77,6 +67,16 @@ public struct RecorderOptions: Sendable {
   public let bitrateMbps: Double?
   public let showsCursor: Bool
   public let pidfile: URL?
+
+  /// `democtl` passes `--pidfile` explicitly. This fallback keeps a hand-run
+  /// recorder signalable and mirrors `LabPaths.recorderPidFile`.
+  public static func defaultPidfile() -> URL? {
+    guard let root = ProcessInfo.processInfo.environment["DEMOLAB_ROOT"], !root.isEmpty else {
+      return nil
+    }
+    return URL(fileURLWithPath: root, isDirectory: true)
+      .appendingPathComponent(".build/lab/run/recorder.pid")
+  }
 
 }
 
@@ -133,7 +133,6 @@ public enum RecorderError: Error, CustomStringConvertible, Sendable {
       "no frame ever reached the writer; \(url.path) was not finalized"
     }
   }
-
 }
 
 // MARK: - StandardError
@@ -146,8 +145,12 @@ public enum StandardError {
   }
 
   public static func describe(_ error: any Error) -> String {
-    if let recorderError = error as? RecorderError { return recorderError.description }
-    if let usageError = error as? UsageError { return usageError.description }
+    if let recorderError = error as? RecorderError {
+      return recorderError.description
+    }
+    if let usageError = error as? UsageError {
+      return usageError.description
+    }
     let nsError = error as NSError
     return "\(nsError.localizedDescription) [\(nsError.domain) \(nsError.code)]"
   }
@@ -216,13 +219,15 @@ public enum RecorderCommand: Sendable {
     while cursor < arguments.count {
       let argument = arguments[cursor]
       switch argument {
-      case "--help", "-h":
+      case "--help",
+           "-h":
         return .help
       case "--list-displays":
         return .listDisplays
       case "--preflight":
         return .preflight
-      case "--output", "-o":
+      case "--output",
+           "-o":
         output = try nextValue(for: "--output")
       case "--display":
         display = try parseDisplay(nextValue(for: "--display"))
@@ -252,7 +257,7 @@ public enum RecorderCommand: Sendable {
       durationSeconds: durationSeconds,
       bitrateMbps: bitrateMbps,
       showsCursor: showsCursor,
-      pidfile: pidfile.map { fileURL($0, defaultExtension: nil) } ?? RecorderOptions.defaultPidfile()
+      pidfile: pidfile.map { fileURL($0, defaultExtension: nil) } ?? RecorderOptions.defaultPidfile(),
     ))
   }
 
@@ -299,5 +304,4 @@ public enum RecorderCommand: Sendable {
     }
     return url
   }
-
 }

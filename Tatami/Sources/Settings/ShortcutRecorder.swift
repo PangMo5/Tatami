@@ -14,6 +14,9 @@ import TatamiKit
 /// (LSUIElement) app. Replaces `KeyboardShortcuts.Recorder`, which tore
 /// recording down whenever the Settings window wasn't key.
 struct ShortcutRecorder: View {
+
+  // MARK: Internal
+
   let hotKey: HotKey?
   /// Action-specific VoiceOver label supplied by the row that owns this field.
   let accessibilityLabel: LocalizedStringResource
@@ -25,8 +28,6 @@ struct ShortcutRecorder: View {
   /// while it's `true` so the combo being typed doesn't fire its action.
   var onRecordingChanged: (Bool) -> Void = { _ in }
   let onChange: (HotKey?) -> Void
-
-  @State private var presentedConflict: ShortcutConflictPresentation?
 
   var body: some View {
     HStack(spacing: 4) {
@@ -48,9 +49,13 @@ struct ShortcutRecorder: View {
     }
   }
 
-  // The capsule fill: Liquid Glass on macOS 26+, a material fallback below
-  // (matching WorkspaceHUDClient's availability split).
-  @ViewBuilder
+  // MARK: Private
+
+  @State private var presentedConflict: ShortcutConflictPresentation?
+
+  /// The capsule fill: Liquid Glass on macOS 26+, a material fallback below
+  /// (matching WorkspaceHUDClient's availability split).
+  @ContentBuilder
   private var field: some View {
     let representable = RecorderRepresentable(
       hotKey: hotKey,
@@ -61,7 +66,7 @@ struct ShortcutRecorder: View {
         presentedConflict = owner.map { ShortcutConflictPresentation(owner: $0) }
       },
       onRecordingChanged: onRecordingChanged,
-      onChange: onChange
+      onChange: onChange,
     )
     if #available(macOS 26.0, *) {
       representable.glassEffect(.regular, in: Capsule())
@@ -69,6 +74,7 @@ struct ShortcutRecorder: View {
       representable.background(.ultraThinMaterial, in: Capsule())
     }
   }
+
 }
 
 // MARK: - ComboCapsule
@@ -99,6 +105,9 @@ struct ComboCapsule: View {
 /// a capsule showing the effective combo (e.g. `⌃⌥D`), click to capture one
 /// key, with conflict detection and a clear button.
 struct KeyEquivalentRecorder: View {
+
+  // MARK: Internal
+
   let key: String?
   /// The switch-modifier glyphs shown before the key (e.g. `⌃⌥`).
   let modifierSymbols: String
@@ -108,8 +117,6 @@ struct KeyEquivalentRecorder: View {
   var conflict: (String) -> String? = { _ in nil }
   var onRecordingChanged: (Bool) -> Void = { _ in }
   let onChange: (String?) -> Void
-
-  @State private var presentedConflict: ShortcutConflictPresentation?
 
   var body: some View {
     HStack(spacing: 4) {
@@ -131,7 +138,11 @@ struct KeyEquivalentRecorder: View {
     }
   }
 
-  @ViewBuilder
+  // MARK: Private
+
+  @State private var presentedConflict: ShortcutConflictPresentation?
+
+  @ContentBuilder
   private var field: some View {
     let representable = KeyCapRepresentable(
       key: key,
@@ -143,7 +154,7 @@ struct KeyEquivalentRecorder: View {
         presentedConflict = owner.map { ShortcutConflictPresentation(owner: $0) }
       },
       onRecordingChanged: onRecordingChanged,
-      onChange: onChange
+      onChange: onChange,
     )
     if #available(macOS 26.0, *) {
       representable.glassEffect(.regular, in: Capsule())
@@ -151,7 +162,10 @@ struct KeyEquivalentRecorder: View {
       representable.background(.ultraThinMaterial, in: Capsule())
     }
   }
+
 }
+
+// MARK: - KeyCapRepresentable
 
 private struct KeyCapRepresentable: NSViewRepresentable {
   let key: String?
@@ -194,10 +208,16 @@ private struct KeyCapRepresentable: NSViewRepresentable {
   }
 }
 
+// MARK: - KeyCapField
+
 final class KeyCapField: NSView {
+
+  // MARK: Internal
+
   var onChange: ((String?) -> Void)?
   var conflict: ((String) -> String?)?
   var onRecordingChanged: ((Bool) -> Void)?
+
   var modifierSymbols = "" {
     didSet {
       guard modifierSymbols != oldValue else { return }
@@ -214,13 +234,6 @@ final class KeyCapField: NSView {
     }
   }
 
-  /// Local keyDown monitor active only while recording. A bare special key
-  /// (Delete, arrows…) inside a SwiftUI Form/List is otherwise eaten by the
-  /// responder chain before reaching `keyDown`; the monitor intercepts every
-  /// keyDown app-wide and consumes the captured one.
-  private var monitor: Any?
-  private lazy var conflictPresenter = ShortcutConflictPresenter(view: self)
-
   private(set) var isRecording = false {
     didSet {
       guard isRecording != oldValue else { return }
@@ -230,10 +243,21 @@ final class KeyCapField: NSView {
     }
   }
 
-  override var acceptsFirstResponder: Bool { true }
-  override var intrinsicContentSize: NSSize { NSSize(width: 96, height: 24) }
-  override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
-  override func becomeFirstResponder() -> Bool { true }
+  override var acceptsFirstResponder: Bool {
+    true
+  }
+
+  override var intrinsicContentSize: NSSize {
+    NSSize(width: 96, height: 24)
+  }
+
+  override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+    true
+  }
+
+  override func becomeFirstResponder() -> Bool {
+    true
+  }
 
   override func accessibilityPerformPress() -> Bool {
     window?.makeFirstResponder(self)
@@ -259,74 +283,12 @@ final class KeyCapField: NSView {
     startRecording()
   }
 
-  private func startRecording() {
-    guard monitor == nil else { return }
-    conflictPresenter.clear()
-    isRecording = true
-    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-      guard let self, self.isRecording else { return event }
-      return self.record(event) ? nil : event
-    }
-  }
-
-  fileprivate func updateAccessibilityValue(announce: Bool = true) {
-    let value = if isRecording {
-      String(localized: "Recording")
-    } else {
-      key.map { modifierSymbols + HotKey.keySymbol(forName: $0) } ?? String(localized: "None")
-    }
-    setAccessibilityValue(value)
-    if announce, window != nil {
-      NSAccessibility.post(element: self, notification: .valueChanged)
-    }
-  }
-
-  private func stopRecording() {
-    if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
-    isRecording = false
-  }
-
-  /// Capture one bare key (modifiers ignored — the switch modifier is global).
-  /// Returns true when the event was consumed.
-  private func record(_ event: NSEvent) -> Bool {
-    if event.keyCode == 53 { // Escape cancels.
-      stopRecording()
-      return true
-    }
-    guard let name = HotKey.keyName(for: Int(event.keyCode)) else {
-      NSSound.beep()
-      return true
-    }
-    if let owner = conflict?(name) {
-      NSSound.beep()
-      stopRecording()
-      showConflict(owner)
-      return true
-    }
-    key = name
-    onChange?(name)
-    stopRecording()
-    return true
-  }
-
-  private func showConflict(_ owner: String) {
-    conflictPresenter.show(owner: owner)
-  }
-
-  fileprivate func setConflictPresentationHandler(_ handler: @escaping (String?) -> Void) {
-    conflictPresenter.onPresentationChanged = handler
-  }
-
-  fileprivate func clearConflictFeedback() {
-    conflictPresenter.clear()
-  }
-
   override func draw(_: NSRect) {
     if isRecording {
       let ring = NSBezierPath(
         roundedRect: bounds.insetBy(dx: 1, dy: 1),
         xRadius: bounds.height / 2,
-        yRadius: bounds.height / 2
+        yRadius: bounds.height / 2,
       )
       ring.lineWidth = 2
       NSColor.controlAccentColor.setStroke()
@@ -365,9 +327,87 @@ final class KeyCapField: NSView {
       color: color,
       bold: bold,
       leadingSymbol: leadingSymbol,
-      horizontalInset: 6
+      horizontalInset: 6,
     )
   }
+
+  // MARK: Fileprivate
+
+  fileprivate func updateAccessibilityValue(announce: Bool = true) {
+    let value =
+      if isRecording {
+        String(localized: "Recording")
+      } else {
+        key.map { modifierSymbols + HotKey.keySymbol(forName: $0) } ?? String(localized: "None")
+      }
+    setAccessibilityValue(value)
+    if announce, window != nil {
+      NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+  }
+
+  fileprivate func setConflictPresentationHandler(_ handler: @escaping (String?) -> Void) {
+    conflictPresenter.onPresentationChanged = handler
+  }
+
+  fileprivate func clearConflictFeedback() {
+    conflictPresenter.clear()
+  }
+
+  // MARK: Private
+
+  /// Local keyDown monitor active only while recording. A bare special key
+  /// (Delete, arrows…) inside a SwiftUI Form/List is otherwise eaten by the
+  /// responder chain before reaching `keyDown`; the monitor intercepts every
+  /// keyDown app-wide and consumes the captured one.
+  private var monitor: Any?
+  private lazy var conflictPresenter = ShortcutConflictPresenter(view: self)
+
+  private func startRecording() {
+    guard monitor == nil else { return }
+    conflictPresenter.clear()
+    isRecording = true
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+      guard let self, isRecording else { return event }
+      return record(event) ? nil : event
+    }
+  }
+
+  private func stopRecording() {
+    if let monitor {
+      NSEvent.removeMonitor(monitor)
+      self.monitor = nil
+    }
+    isRecording = false
+  }
+
+  /// Capture one bare key (modifiers ignored — the switch modifier is global).
+  /// Returns true when the event was consumed.
+  private func record(_ event: NSEvent) -> Bool {
+    if event.keyCode == 53 { // Escape cancels.
+      stopRecording()
+      return true
+    }
+    guard let name = HotKey.keyName(for: Int(event.keyCode)) else {
+      NSSound.beep()
+      return true
+    }
+    if let owner = conflict?(name) {
+      NSSound.beep()
+      stopRecording()
+      showConflict(owner)
+      return true
+    }
+    key = name
+    onChange?(name)
+    stopRecording()
+    return true
+  }
+
+  private func showConflict(_ owner: String) {
+    conflictPresenter.show(owner: owner)
+  }
+
 }
 
 // MARK: - RecorderRepresentable
@@ -432,13 +472,6 @@ final class RecorderField: NSView {
     }
   }
 
-  /// Local keyDown monitor active only while recording. Capturing through a
-  /// monitor (rather than keyDown/performKeyEquivalent) means special keys
-  /// (Backspace, arrows, Return…) the SwiftUI responder chain would otherwise
-  /// swallow still reach the recorder.
-  private var monitor: Any?
-  private lazy var conflictPresenter = ShortcutConflictPresenter(view: self)
-
   private(set) var isRecording = false {
     didSet {
       guard isRecording != oldValue else { return }
@@ -448,13 +481,17 @@ final class RecorderField: NSView {
     }
   }
 
-  override var acceptsFirstResponder: Bool { true }
+  override var acceptsFirstResponder: Bool {
+    true
+  }
 
   override var intrinsicContentSize: NSSize {
     NSSize(width: 150, height: 24)
   }
 
-  override func acceptsFirstMouse(for _: NSEvent?) -> Bool { true }
+  override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
+    true
+  }
 
   override func becomeFirstResponder() -> Bool {
     // Recording starts only on an explicit click (see mouseDown), not when
@@ -486,31 +523,6 @@ final class RecorderField: NSView {
     startRecording()
   }
 
-  private func startRecording() {
-    guard monitor == nil else { return }
-    conflictPresenter.clear()
-    isRecording = true
-    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
-      guard let self, self.isRecording else { return event }
-      return self.record(event) ? nil : event
-    }
-  }
-
-  fileprivate func updateAccessibilityValue(announce: Bool = true) {
-    let value = isRecording
-      ? String(localized: "Recording")
-      : hotKey?.symbols ?? String(localized: "None")
-    setAccessibilityValue(value)
-    if announce, window != nil {
-      NSAccessibility.post(element: self, notification: .valueChanged)
-    }
-  }
-
-  private func stopRecording() {
-    if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
-    isRecording = false
-  }
-
   override func draw(_: NSRect) {
     // The capsule behind us provides the fill; we draw the focus ring, the
     // combo text, and the clear button on top of it.
@@ -518,7 +530,7 @@ final class RecorderField: NSView {
       let ring = NSBezierPath(
         roundedRect: bounds.insetBy(dx: 1, dy: 1),
         xRadius: bounds.height / 2,
-        yRadius: bounds.height / 2
+        yRadius: bounds.height / 2,
       )
       ring.lineWidth = 2
       NSColor.controlAccentColor.setStroke()
@@ -557,19 +569,72 @@ final class RecorderField: NSView {
       color: color,
       bold: bold,
       leadingSymbol: leadingSymbol,
-      horizontalInset: 8
+      horizontalInset: 8,
     )
+  }
+
+  // MARK: Fileprivate
+
+  fileprivate func updateAccessibilityValue(announce: Bool = true) {
+    let value = isRecording
+      ? String(localized: "Recording")
+      : hotKey?.symbols ?? String(localized: "None")
+    setAccessibilityValue(value)
+    if announce, window != nil {
+      NSAccessibility.post(element: self, notification: .valueChanged)
+    }
+  }
+
+  fileprivate func setConflictPresentationHandler(_ handler: @escaping (String?) -> Void) {
+    conflictPresenter.onPresentationChanged = handler
+  }
+
+  fileprivate func clearConflictFeedback() {
+    conflictPresenter.clear()
   }
 
   // MARK: Private
 
+  /// Local keyDown monitor active only while recording. Capturing through a
+  /// monitor (rather than keyDown/performKeyEquivalent) means special keys
+  /// (Backspace, arrows, Return…) the SwiftUI responder chain would otherwise
+  /// swallow still reach the recorder.
+  private var monitor: Any?
+  private lazy var conflictPresenter = ShortcutConflictPresenter(view: self)
+
+  private func startRecording() {
+    guard monitor == nil else { return }
+    conflictPresenter.clear()
+    isRecording = true
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+      guard let self, isRecording else { return event }
+      return record(event) ? nil : event
+    }
+  }
+
+  private func stopRecording() {
+    if let monitor {
+      NSEvent.removeMonitor(monitor)
+      self.monitor = nil
+    }
+    isRecording = false
+  }
+
   /// Carbon modifier masks (cmd 256, shift 512, option 2048, control 4096).
   private func carbonModifiers(_ flags: NSEvent.ModifierFlags) -> Int {
     var carbon = 0
-    if flags.contains(.command) { carbon |= 256 }
-    if flags.contains(.shift) { carbon |= 512 }
-    if flags.contains(.option) { carbon |= 2048 }
-    if flags.contains(.control) { carbon |= 4096 }
+    if flags.contains(.command) {
+      carbon |= 256
+    }
+    if flags.contains(.shift) {
+      carbon |= 512
+    }
+    if flags.contains(.option) {
+      carbon |= 2048
+    }
+    if flags.contains(.control) {
+      carbon |= 4096
+    }
     return carbon
   }
 
@@ -606,13 +671,6 @@ final class RecorderField: NSView {
     conflictPresenter.show(owner: owner)
   }
 
-  fileprivate func setConflictPresentationHandler(_ handler: @escaping (String?) -> Void) {
-    conflictPresenter.onPresentationChanged = handler
-  }
-
-  fileprivate func clearConflictFeedback() {
-    conflictPresenter.clear()
-  }
 }
 
 // MARK: - ShortcutConflictPresenter
@@ -622,9 +680,14 @@ final class RecorderField: NSView {
 /// warning; the popover and hover/VoiceOver help carry the untruncated detail.
 @MainActor
 private final class ShortcutConflictPresenter {
+
+  // MARK: Lifecycle
+
   init(view: NSView) {
     self.view = view
   }
+
+  // MARK: Internal
 
   private(set) var isPresenting = false
   var onPresentationChanged: ((String?) -> Void)?
@@ -646,7 +709,7 @@ private final class ShortcutConflictPresenter {
       userInfo: [
         .announcement: message,
         .priority: NSAccessibilityPriorityLevel.high.rawValue,
-      ]
+      ],
     )
     onPresentationChanged?(owner)
 
@@ -674,20 +737,23 @@ private final class ShortcutConflictPresenter {
     }
   }
 
+  // MARK: Private
+
   private weak var view: NSView?
   private var previousAccessibilityValue: Any?
   private var resetTask: Task<Void, Never>?
+
 }
 
-// MARK: - ShortcutConflictPopover
+// MARK: - ShortcutConflictPresentation
 
 private struct ShortcutConflictPresentation: Identifiable {
   let id = UUID()
   let owner: String
 }
 
-private extension View {
-  func shortcutConflictPopover(
+extension View {
+  fileprivate func shortcutConflictPopover(
     item: Binding<ShortcutConflictPresentation?>
   ) -> some View {
     popover(
@@ -700,6 +766,8 @@ private extension View {
   }
 }
 
+// MARK: - ShortcutConflictPopover
+
 private struct ShortcutConflictPopover: View {
   let owner: String
 
@@ -707,7 +775,7 @@ private struct ShortcutConflictPopover: View {
     Label {
       Text(
         "This shortcut is already used by \(owner).",
-        comment: "Shortcut recorder conflict. The variable is the action already using the shortcut."
+        comment: "Shortcut recorder conflict. The variable is the action already using the shortcut.",
       )
       .fixedSize(horizontal: false, vertical: true)
     } icon: {
@@ -726,7 +794,7 @@ private func drawRecorderStatus(
   color: NSColor,
   bold: Bool,
   leadingSymbol: String?,
-  horizontalInset: CGFloat
+  horizontalInset: CGFloat,
 ) {
   let style = NSMutableParagraphStyle()
   style.alignment = .center
@@ -758,13 +826,13 @@ private func drawRecorderStatus(
         x: originX,
         y: (bounds.height - iconSize) / 2,
         width: iconSize,
-        height: iconSize
+        height: iconSize,
       ),
       from: .zero,
       operation: .sourceOver,
       fraction: 1,
       respectFlipped: true,
-      hints: nil
+      hints: nil,
     )
   }
 
@@ -774,8 +842,8 @@ private func drawRecorderStatus(
       x: textX,
       y: (bounds.height - textSize.height) / 2,
       width: textWidth,
-      height: textSize.height
+      height: textSize.height,
     ),
-    withAttributes: attributes
+    withAttributes: attributes,
   )
 }

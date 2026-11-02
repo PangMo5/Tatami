@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
+
 import DemoAppKit
 import Foundation
 import Testing
 
 @Suite("Shared work across demo apps")
 struct StoryTests {
-  @Test("copy validation follows the saved content, not a staged success screen")
-  func checksFollowContent() {
+  @Test
+  func `copy validation follows the saved content, not a staged success screen`() {
     var draft = LaunchStory(locale: .en)
     #expect(draft.evaluateCopy().filter(\.passed).count == 2)
     draft.headline = "A calmer way to work."
@@ -16,8 +17,8 @@ struct StoryTests {
     #expect(draft.evaluateCopy().filter(\.passed).count == 1)
   }
 
-  @Test("independent apps read the same saved draft, review and follow-up")
-  func persistence() throws {
+  @Test
+  func `independent apps read the same saved draft, review and follow-up`() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
     let editor = StoryRepository(file: directory.appendingPathComponent("story.json"))
@@ -37,8 +38,8 @@ struct StoryTests {
     #expect(reopened.checks.allSatisfy { $0.passed })
   }
 
-  @Test("corrupt saved work fails instead of silently becoming the initial fixture")
-  func corruption() throws {
+  @Test
+  func `corrupt saved work fails instead of silently becoming the initial fixture`() throws {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: file) }
     try Data("not a draft".utf8).write(to: file)

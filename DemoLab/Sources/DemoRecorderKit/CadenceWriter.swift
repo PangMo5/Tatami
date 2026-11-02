@@ -21,7 +21,7 @@ public struct RecordingSummary: Sendable {
     frameCount: Int,
     capturedFrameCount: Int,
     droppedFrameCount: Int,
-    duration: Double
+    duration: Double,
   ) {
     self.outputURL = outputURL
     self.width = width
@@ -81,7 +81,7 @@ public final class CadenceWriter: @unchecked Sendable {
     height: Int,
     fps: Int,
     bitrateMbps: Double?,
-    label: String
+    label: String,
   ) throws {
     self.outputURL = outputURL
     self.width = width
@@ -92,7 +92,7 @@ public final class CadenceWriter: @unchecked Sendable {
 
     try FileManager.default.createDirectory(
       at: outputURL.deletingLastPathComponent(),
-      withIntermediateDirectories: true
+      withIntermediateDirectories: true,
     )
     if FileManager.default.fileExists(atPath: outputURL.path) {
       try FileManager.default.removeItem(at: outputURL)
@@ -107,7 +107,7 @@ public final class CadenceWriter: @unchecked Sendable {
       width: width,
       height: height,
       fps: fps,
-      bitrateMbps: bitrateMbps
+      bitrateMbps: bitrateMbps,
     )
     if !writer.canApply(outputSettings: settings, forMediaType: .video) {
       // A machine without a hardware HEVC encoder — a VM, typically — rejects
@@ -120,7 +120,7 @@ public final class CadenceWriter: @unchecked Sendable {
         width: width,
         height: height,
         fps: fps,
-        bitrateMbps: bitrateMbps
+        bitrateMbps: bitrateMbps,
       )
       guard writer.canApply(outputSettings: settings, forMediaType: .video) else {
         throw RecorderError.noApplicableEncoder(width: width, height: height)
@@ -150,6 +150,12 @@ public final class CadenceWriter: @unchecked Sendable {
   /// `hevc` or `h264`, whichever the writer accepted.
   public let codec: String
 
+  /// Startup succeeds only after the first encoded frame. The bounded wait
+  /// turns a stalled capture stream into an explicit failure before any action.
+  public var firstFrameUptime: UInt64? {
+    lock.withLock { startUptime }
+  }
+
   /// Starts the writer and the cadence clock. Call once, after capture is live.
   public func start() throws {
     guard writer.startWriting() else {
@@ -161,7 +167,7 @@ public final class CadenceWriter: @unchecked Sendable {
     timer.schedule(
       deadline: .now(),
       repeating: .nanoseconds(1_000_000_000 / fps),
-      leeway: .nanoseconds(0)
+      leeway: .nanoseconds(0),
     )
     timer.setEventHandler { [weak self] in
       self?.tick()
@@ -180,14 +186,12 @@ public final class CadenceWriter: @unchecked Sendable {
     lock.unlock()
   }
 
-  /// Startup succeeds only after the first encoded frame. The bounded wait
-  /// turns a stalled capture stream into an explicit failure before any action.
-  public var firstFrameUptime: UInt64? { lock.withLock { startUptime } }
-
   public func awaitFirstFrame(timeout: Duration = .seconds(3)) async -> Bool {
     let deadline = ContinuousClock.now.advanced(by: timeout)
     while true {
-      if lock.withLock({ appendedFrameCount > 0 }) { return true }
+      if lock.withLock({ appendedFrameCount > 0 }) {
+        return true
+      }
       guard ContinuousClock.now < deadline else { return false }
       try? await Task.sleep(for: .milliseconds(10))
     }
@@ -241,7 +245,7 @@ public final class CadenceWriter: @unchecked Sendable {
       frameCount: frames,
       capturedFrameCount: captured,
       droppedFrameCount: dropped,
-      duration: CMTimeGetSeconds(CMTimeSubtract(end, start))
+      duration: CMTimeGetSeconds(CMTimeSubtract(end, start)),
     )
   }
 
@@ -273,7 +277,7 @@ public final class CadenceWriter: @unchecked Sendable {
     width: Int,
     height: Int,
     fps: Int,
-    bitrateMbps: Double?
+    bitrateMbps: Double?,
   ) -> [String: Any] {
     let bitrate = bitrateMbps.map { Int($0 * 1_000_000) }
       ?? defaultBitrate(width: width, height: height, fps: fps, codec: codec)
@@ -315,7 +319,7 @@ public final class CadenceWriter: @unchecked Sendable {
     codec == .hevc ? "hevc" : "h264"
   }
 
-  private static func reason(_ error: (any Error)?) -> String {
+  private static func reason(_ error: any Error?) -> String {
     guard let error else { return "no error reported" }
     return StandardError.describe(error)
   }
@@ -371,7 +375,7 @@ public final class CadenceWriter: @unchecked Sendable {
     var timing = CMSampleTimingInfo(
       duration: frameDuration,
       presentationTimeStamp: presentationTime,
-      decodeTimeStamp: .invalid
+      decodeTimeStamp: .invalid,
     )
     var retimed: CMSampleBuffer?
     let status = CMSampleBufferCreateCopyWithNewTiming(
@@ -379,7 +383,7 @@ public final class CadenceWriter: @unchecked Sendable {
       sampleBuffer: source,
       sampleTimingEntryCount: 1,
       sampleTimingArray: &timing,
-      sampleBufferOut: &retimed
+      sampleBufferOut: &retimed,
     )
     guard status == noErr, let retimed else {
       countDrop()

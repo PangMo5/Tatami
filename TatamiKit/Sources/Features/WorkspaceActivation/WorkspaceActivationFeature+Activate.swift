@@ -418,7 +418,8 @@ extension WorkspaceActivationFeature {
           history: history,
           workspaceMRU: workspaceMRU,
           connected: Set(connected),
-        ), byId[target] != nil
+        ),
+        byId[target] != nil
       else { return }
       if let other = displayShowing(target), other != display {
         // Already up on another display — only pull it over if it's pinned here.
@@ -448,7 +449,9 @@ extension WorkspaceActivationFeature {
     connected: [DisplayName],
     active: [DisplayName: Workspace.ID],
   ) -> Workspace.ID? {
-    if let exact = active[display] { return exact }
+    if let exact = active[display] {
+      return exact
+    }
     let connectedUUIDsWithSameName = Set(connected.compactMap { candidate in
       candidate.name == display.name ? candidate.uuid : nil
     })
@@ -2434,7 +2437,7 @@ extension WorkspaceActivationFeature {
         context: $0,
         state: state,
       )
-    } ?? self.focusMovedHUDRequest(
+    } ?? focusMovedHUDRequest(
       workspace: workspace,
       from: oldDisplay,
       to: targetDisplay,
@@ -2663,7 +2666,7 @@ extension WorkspaceActivationFeature {
                   [WindowKey: CGRect],
                   Set<WindowKey>,
                   Set<SlotID>,
-                  [SlotID: WindowKey]
+                  [SlotID: WindowKey],
                 ) in
                 let workArea = displays.workArea(targetDisplay).insetBy(
                   dx: CGFloat(settings.layout.gapOuter),
@@ -3021,7 +3024,9 @@ extension WorkspaceActivationFeature {
             return displays.resolveOrPrimary(hint)?.matches(focused) ?? true
           }
           // Dynamic: the monitor it was last on (or include if never activated).
-          if let last = state.lastActiveDisplay[ws.id] { return last.matches(focused) }
+          if let last = state.lastActiveDisplay[ws.id] {
+            return last.matches(focused)
+          }
           return true
         }
       } else {
@@ -3063,7 +3068,9 @@ extension WorkspaceActivationFeature {
         let hasRunning = candidate.apps.contains {
           runningBundleIds.contains($0.bundleIdentifier)
         }
-        if !hasRunning { continue }
+        if !hasRunning {
+          continue
+        }
       }
       return candidate.id
     }
@@ -3690,7 +3697,7 @@ extension WorkspaceActivationFeature {
         context: $0,
         state: state,
       )
-    } ?? self.focusMovedHUDRequest(
+    } ?? focusMovedHUDRequest(
       workspace: workspace,
       from: oldDisplay,
       to: display,
@@ -3860,8 +3867,12 @@ extension WorkspaceActivationFeature {
         fraction: slot.fraction,
         gap: gap,
       )
-      if workspaceId == comp.host { return (display, hostRect) }
-      if workspaceId == slot.workspace { return (display, borrowedRect) }
+      if workspaceId == comp.host {
+        return (display, hostRect)
+      }
+      if workspaceId == slot.workspace {
+        return (display, borrowedRect)
+      }
     }
     // Tile on the display the workspace is *actually* on — not its logical
     // home. A pinned workspace displaced off its (disconnected/other) monitor,

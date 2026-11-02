@@ -6,12 +6,20 @@ import Dependencies
 import DependenciesMacros
 import SwiftUI
 
+// MARK: - DropZone
+
 /// Where a dragged window will land relative to the tile under the cursor.
 /// `swap` exchanges the two windows in place; the others insert the dragged
 /// window on that side of the target.
 public enum DropZone: Sendable, Hashable {
-  case swap, left, right, top, bottom
+  case swap
+  case left
+  case right
+  case top
+  case bottom
 }
+
+// MARK: - DragPreviewClient
 
 /// Translucent overlay that previews the drop target while the user drags a
 /// window. Driven live by the activation reducer (one update per AX
@@ -25,19 +33,21 @@ struct DragPreviewClient: Sendable {
   var hide: @MainActor @Sendable () -> Void
 }
 
+// MARK: DependencyKey
+
 extension DragPreviewClient: DependencyKey {
   static let liveValue: DragPreviewClient = MainActor.assumeIsolated {
     let controller = DragPreviewController()
     return DragPreviewClient(
       show: { rect, zone in controller.show(targetRect: rect, zone: zone) },
-      hide: { controller.hide() }
+      hide: { controller.hide() },
     )
   }
 
   // Macro-synthesized unimplemented endpoints: a test that reaches the
   // drag preview without stubbing it should fail, not silently no-op.
   static let testValue = DragPreviewClient()
-  static let previewValue = DragPreviewClient(show: { _, _ in }, hide: {})
+  static let previewValue = DragPreviewClient(show: { _, _ in }, hide: { })
 }
 
 extension DependencyValues {
@@ -47,10 +57,12 @@ extension DependencyValues {
   }
 }
 
+// MARK: - DragPreviewController
+
 @MainActor
 private final class DragPreviewController {
-  private var panel: NSPanel?
-  private var lastZone: DropZone?
+
+  // MARK: Internal
 
   func show(targetRect: CGRect, zone: DropZone) {
     let panel = panel ?? makePanel()
@@ -63,7 +75,9 @@ private final class DragPreviewController {
     }
     let cocoa = AXWindowGeometry.flipToCocoa(Self.highlightRect(in: targetRect, zone: zone))
     panel.setFrame(cocoa, display: true, animate: false)
-    if !panel.isVisible { panel.orderFrontRegardless() }
+    if !panel.isVisible {
+      panel.orderFrontRegardless()
+    }
   }
 
   func hide() {
@@ -71,21 +85,26 @@ private final class DragPreviewController {
     lastZone = nil
   }
 
+  // MARK: Private
+
+  private var panel: NSPanel?
+  private var lastZone: DropZone?
+
   /// Sub-rect of the target tile to highlight: the whole tile for a swap,
   /// or the half the dragged window would occupy after a directional insert.
   /// Coordinates are AX top-left, so `top` is the smaller-Y half.
   private static func highlightRect(in rect: CGRect, zone: DropZone) -> CGRect {
     switch zone {
     case .swap:
-      return rect
+      rect
     case .left:
-      return CGRect(x: rect.minX, y: rect.minY, width: rect.width / 2, height: rect.height)
+      CGRect(x: rect.minX, y: rect.minY, width: rect.width / 2, height: rect.height)
     case .right:
-      return CGRect(x: rect.midX, y: rect.minY, width: rect.width / 2, height: rect.height)
+      CGRect(x: rect.midX, y: rect.minY, width: rect.width / 2, height: rect.height)
     case .top:
-      return CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height / 2)
+      CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height / 2)
     case .bottom:
-      return CGRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2)
+      CGRect(x: rect.minX, y: rect.midY, width: rect.width, height: rect.height / 2)
     }
   }
 
@@ -94,7 +113,7 @@ private final class DragPreviewController {
       contentRect: .zero,
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
-      defer: false
+      defer: false,
     )
     panel.isOpaque = false
     panel.backgroundColor = .clear
@@ -108,7 +127,10 @@ private final class DragPreviewController {
 
   /// AX/CG frames use top-left origin against the primary screen;
   /// `NSWindow.setFrame` wants bottom-left Cocoa coordinates.
+
 }
+
+// MARK: - DragPreviewView
 
 private struct DragPreviewView: View {
   /// Swap drops use one accent (blue); directional inserts another (green),

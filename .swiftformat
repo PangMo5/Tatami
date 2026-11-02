@@ -1,14 +1,20 @@
-# Exclude checkout directories for common package managers
---exclude Carthage,Pods,.build,Derived,DerivedData,Tuist/.build,.tuist
+# Based on Airbnb's Swift style configuration:
+# https://github.com/airbnb/swift/blob/341e15448fce4c28aa8d36af171f39ab98b2913b/Sources/AirbnbSwiftFormatTool/airbnb.swiftformat
+# Repository overrides: generated directories, Swift 6 mode, SPDX headers,
+# and conditional test assertions (which must not become unconditional requirements).
+--min-version 0.64.5
+
+# Exclude checkout directories and generated sources
+--exclude Carthage,Pods,.build,Derived,DerivedData,.tuist,**/.build,**/*.xcodeproj,**/*.xcworkspace
 
 # options
---swift-version 6.2
---language-mode 5
+--swift-version 6.4
+--language-mode 6
 # REUSE-IgnoreStart
 --header "SPDX-FileCopyrightText: 2026 PangMo5 and contributors\n// SPDX-License-Identifier: AGPL-3.0-only"
 # REUSE-IgnoreEnd
 --self remove # redundantSelf
---import-grouping testable-bottom # sortedImports
+--import-grouping access-control,alpha,attributes-last # sortedImports
 --trailing-commas multi-element-lists # trailingCommas
 --trim-whitespace always # trailingSpace
 --indent 2 #indent
@@ -49,10 +55,13 @@
 --else-position same-line # elseOnSameLine
 --guard-else next-line # elseOnSameLine
 --single-line-for-each convert # preferForLoop
+--single-line-ternary preserve # ifExpressions
 --short-optionals always # typeSugar
 --semicolons never # semicolons
 --doc-comments preserve # docComments
---prefer-synthesized-init-for-internal-structs View,ViewBuilder # redundantMemberwiseInit
+--prefer-synthesized-init-for-internal-structs View,ViewModifier # redundantMemberwiseInit
+--guard-like-if-statements preserve # noGuardInTests
+--prefer-content-builder true # contentBuilder
 
 # Customized default modifier order to put `override` after access control
 --modifier-order private,fileprivate,internal,package,public,open,private(set),fileprivate(set),internal(set),package(set),public(set),open(set),override,final,dynamic,optional,required,convenience,indirect,isolated,nonisolated,nonisolated(unsafe),lazy,weak,unowned,unowned(safe),unowned(unsafe),static,class,borrowing,consuming,mutating,nonmutating,prefix,infix,postfix,async # modifierOrder
@@ -73,6 +82,7 @@
 --rules indent
 --rules markTypes
 --rules organizeDeclarations
+--rules redundantBackticks
 --rules redundantParens
 --rules redundantReturn
 --rules redundantSelf
@@ -128,9 +138,12 @@
 --rules sortTypealiases
 --rules preferForLoop
 --rules conditionalAssignment
+--rules ifExpressions
 --rules wrapMultilineConditionalAssignment
 --rules wrapFunctionBodies
 --rules wrapPropertyBodies
+--rules wrapIfStatementBodies
+--rules wrapIfExpressionBodies
 --rules void
 --rules blankLineAfterSwitchCase
 --rules consistentSwitchCaseSpacing
@@ -138,13 +151,22 @@
 --rules propertyTypes
 --rules blankLinesBetweenChainedFunctions
 --rules preferCountWhere
+--rules isEmpty
+--rules preferFlatMap
+--rules preferContains
+--rules preferFirstWhere
+--rules preferLazyMap
+--rules preferMinOverSorted
+--rules preferSwiftStringAPI
 --rules swiftTestingTestCaseNames
 --rules redundantSwiftTestingSuite
+--rules preferStructSwiftTestingSuites
 --rules modifiersOnSameLine
 --rules noForceTryInTests
 --rules noForceUnwrapInTests
 --rules redundantThrows
 --rules redundantAsync
+--rules redundantExtendedLifetime
 --rules noGuardInTests
 --rules testSuiteAccessControl
 --rules validateTestCases
@@ -154,4 +176,5 @@
 --rules preferFinalClasses
 --rules simplifyGenericConstraints
 --rules redundantEmptyView
---rules redundantViewBuilder
+--rules contentBuilder
+--rules redundantSwiftUIGroup

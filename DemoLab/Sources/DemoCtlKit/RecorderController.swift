@@ -52,57 +52,6 @@ public struct RecorderController {
 
   // MARK: Public
 
-  public let paths: LabPaths
-  private let recordingName: String
-  private var pidFile: URL { paths.runRoot.appendingPathComponent(recordingName + ".pid") }
-  private var resultFile: URL { pidFile.deletingPathExtension().appendingPathExtension("json") }
-
-  public var runningPID: Int32? {
-    guard let text = try? String(contentsOf: pidFile, encoding: .utf8),
-          let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
-          pid > 0
-    else { return nil }
-    // kill(pid, 0) only tests for existence and permission; it sends nothing.
-    return kill(pid, 0) == 0 ? pid : nil
-  }
-
-  private var readyFile: URL { pidFile.deletingPathExtension().appendingPathExtension("ready.json") }
-
-  public func elapsedSinceFirstFrame() throws -> Double {
-    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: readyFile)) as? [String: Any]
-    guard let start = object?["firstFrameUptimeNanoseconds"] as? UInt64 else {
-      throw DemoCtlError.usage("recorder did not report its first-frame clock")
-    }
-    let now = DispatchTime.now().uptimeNanoseconds
-    guard now >= start else { throw DemoCtlError.usage("invalid recorder clock") }
-    return Double(now - start) / 1_000_000_000
-  }
-
-  public func captureMetadata(for movie:URL) throws -> [String:Double] {
-    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: readyFile)) as? [String:Any]
-    guard let offsets = object?["outputOffsets"] as? [String:Double], let offset = offsets[movie.lastPathComponent] else {
-      throw DemoCtlError.usage("recorder did not report output offsets; rebuild the recorder bundle")
-    }
-    var metadata = ((object?["displays"] as? [String:[String:Double]])?[movie.lastPathComponent]) ?? [:]
-    metadata["captureOffsetSeconds"] = offset
-    return metadata
-  }
-  public func outputStatistics(for movie:URL) throws -> [String:Int] {
-    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: resultFile)) as? [String:Any]
-    guard let stats=(object?["outputStatistics"] as? [String:[String:Int]])?[movie.lastPathComponent] else {
-      throw DemoCtlError.usage("recorder did not report per-output statistics")
-    }
-    return stats
-  }
-
-  public var bundleExists: Bool {
-    FileManager.default.fileExists(atPath: paths.recorderBundle.path)
-  }
-
-  public var executable: URL {
-    paths.recorderBundle.appendingPathComponent("Contents/MacOS/DemoRecorder")
-  }
-
   /// How the recorder process is started.
   ///
   /// This is not a preference, it is a correctness question. macOS attributes a
@@ -122,60 +71,115 @@ public struct RecorderController {
     case direct
   }
 
+  public let paths: LabPaths
+
+  public var runningPID: Int32? {
+    guard
+      let text = try? String(contentsOf: pidFile, encoding: .utf8),
+      let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+      pid > 0
+    else { return nil }
+    // kill(pid, 0) only tests for existence and permission; it sends nothing.
+    return kill(pid, 0) == 0 ? pid : nil
+  }
+
+  public var bundleExists: Bool {
+    FileManager.default.fileExists(atPath: paths.recorderBundle.path)
+  }
+
+  public var executable: URL {
+    paths.recorderBundle.appendingPathComponent("Contents/MacOS/DemoRecorder")
+  }
+
+  public func elapsedSinceFirstFrame() throws -> Double {
+    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: readyFile)) as? [String: Any]
+    guard let start = object?["firstFrameUptimeNanoseconds"] as? UInt64 else {
+      throw DemoCtlError.usage("recorder did not report its first-frame clock")
+    }
+    let now = DispatchTime.now().uptimeNanoseconds
+    guard now >= start else { throw DemoCtlError.usage("invalid recorder clock") }
+    return Double(now - start) / 1_000_000_000
+  }
+
+  public func captureMetadata(for movie: URL) throws -> [String: Double] {
+    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: readyFile)) as? [String: Any]
+    guard let offsets = object?["outputOffsets"] as? [String: Double], let offset = offsets[movie.lastPathComponent] else {
+      throw DemoCtlError.usage("recorder did not report output offsets; rebuild the recorder bundle")
+    }
+    var metadata = ((object?["displays"] as? [String: [String: Double]])?[movie.lastPathComponent]) ?? [:]
+    metadata["captureOffsetSeconds"] = offset
+    return metadata
+  }
+
+  public func outputStatistics(for movie: URL) throws -> [String: Int] {
+    let object = try JSONSerialization.jsonObject(with: Data(contentsOf: resultFile)) as? [String: Any]
+    guard let stats = (object?["outputStatistics"] as? [String: [String: Int]])?[movie.lastPathComponent] else {
+      throw DemoCtlError.usage("recorder did not report per-output statistics")
+    }
+    return stats
+  }
+
   @discardableResult
   public func start(
     output: URL,
     display: String,
     fps: Int,
-    launchPath: LaunchPath = .auto
+    launchPath: LaunchPath = .auto,
   ) throws -> URL {
     guard bundleExists else { throw DemoCtlError.bundlesMissing(["DemoRecorder"]) }
-    if let pid = runningPID { throw DemoCtlError.recorderAlreadyRunning(pid: pid) }
+    if let pid = runningPID {
+      throw DemoCtlError.recorderAlreadyRunning(pid: pid)
+    }
 
     try FileManager.default.createDirectory(
       at: output.deletingLastPathComponent(),
-      withIntermediateDirectories: true
+      withIntermediateDirectories: true,
     )
     // Both handshake files, and loudly: a result file left by the previous take
     // would be read as this one's verdict, which is the exact silent difference
     // between takes this lab exists to prevent.
     for stale in [pidFile, resultFile, readyFile]
-      where FileManager.default.fileExists(atPath: stale.path) {
+      where FileManager.default.fileExists(atPath: stale.path)
+    {
       try FileManager.default.removeItem(at: stale)
     }
 
     let arguments = [
-      "--output", output.path,
-      "--display", display,
-      "--fps", String(fps),
-      "--pidfile", pidFile.path,
+      "--output",
+      output.path,
+      "--display",
+      display,
+      "--fps",
+      String(fps),
+      "--pidfile",
+      pidFile.path,
     ]
 
     // `auto`: if this process can already capture the screen, a direct child
     // inherits that. If it cannot, LaunchServices is the only path that can
     // ever be granted.
-    let resolved: LaunchPath = {
+    let resolved: LaunchPath =
       switch launchPath {
       case .auto: CGPreflightScreenCaptureAccess() ? .direct : .viaLaunchServices
       case let explicit: explicit
       }
-    }()
 
     switch resolved {
-    case .direct, .auto:
+    case .direct,
+         .auto:
       // Detached for the same reason Tatami is: the recorder runs until it is
       // signalled, and holding the caller's stdout would hang any pipeline
       // `democtl` was started from.
       try Shell.launchDetached(
         executable,
         arguments,
-        log: paths.runRoot.appendingPathComponent(recordingName + "-stdout.log")
+        log: paths.runRoot.appendingPathComponent(recordingName + "-stdout.log"),
       )
 
     case .viaLaunchServices:
       try Shell.require(
         URL(fileURLWithPath: "/usr/bin/open"),
-        ["-n", "-a", paths.recorderBundle.path, "--args"] + arguments
+        ["-n", "-a", paths.recorderBundle.path, "--args"] + arguments,
       )
     }
 
@@ -213,7 +217,7 @@ public struct RecorderController {
     guard finished else {
       throw DemoCtlError.waitTimedOut(
         what: "the recorder to finish writing",
-        seconds: Shell.seconds(timeout)
+        seconds: Shell.seconds(timeout),
       )
     }
     return try verifiedOutcome()
@@ -237,6 +241,20 @@ public struct RecorderController {
   /// A finalized MOV carries a moov atom and at least a few frames of mdat.
   /// Anything smaller is a stub the writer never flushed.
   private static let minimumUsableRecordingBytes = 65_536
+
+  private let recordingName: String
+
+  private var pidFile: URL {
+    paths.runRoot.appendingPathComponent(recordingName + ".pid")
+  }
+
+  private var resultFile: URL {
+    pidFile.deletingPathExtension().appendingPathExtension("json")
+  }
+
+  private var readyFile: URL {
+    pidFile.deletingPathExtension().appendingPathExtension("ready.json")
+  }
 
   private func verifiedOutcome() throws -> RecordingOutcome {
     let result = try readResult()
@@ -269,12 +287,12 @@ public struct RecorderController {
     let file = resultFile
     guard let data = try? Data(contentsOf: file) else {
       throw DemoCtlError.recordingFailed([
-        "the recorder exited without writing \(file.path), so nothing about this take was verified",
+        "the recorder exited without writing \(file.path), so nothing about this take was verified"
       ])
     }
     guard let result = RecorderResult(data: data) else {
       throw DemoCtlError.recordingFailed([
-        "\(file.path) is not a result this democtl understands, so the take was not verified",
+        "\(file.path) is not a result this democtl understands, so the take was not verified"
       ])
     }
     return result
@@ -314,7 +332,9 @@ private struct RecorderResult {
   let frames: Int?
   let dropped: Int?
 
-  var isOK: Bool { status == "ok" }
+  var isOK: Bool {
+    status == "ok"
+  }
 
   var failureReason: String {
     guard let error, !error.isEmpty else { return "the recorder reported status \"\(status)\"" }
@@ -324,8 +344,12 @@ private struct RecorderResult {
   // MARK: Private
 
   private static func total(_ value: Any?) -> Int? {
-    if let number = value as? Int { return number }
-    if let numbers = value as? [Int] { return numbers.reduce(0, +) }
+    if let number = value as? Int {
+      return number
+    }
+    if let numbers = value as? [Int] {
+      return numbers.reduce(0, +)
+    }
     return nil
   }
 

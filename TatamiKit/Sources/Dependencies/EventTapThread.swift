@@ -70,7 +70,9 @@ final class EventTapThread: @unchecked Sendable {
       CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, work)
       return runLoop
     }
-    if let workerRunLoop { CFRunLoopWakeUp(workerRunLoop) }
+    if let workerRunLoop {
+      CFRunLoopWakeUp(workerRunLoop)
+    }
   }
 
   // MARK: Private

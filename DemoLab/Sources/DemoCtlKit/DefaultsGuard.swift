@@ -41,6 +41,18 @@ public struct DefaultsGuard: Sendable {
   public let domain: String
   public let snapshotDirectory: URL
 
+  public var backup: URL {
+    Self.backupURL(in: snapshotDirectory)
+  }
+
+  public var domainStamp: URL {
+    Self.domainStampURL(in: snapshotDirectory)
+  }
+
+  public var hasBackup: Bool {
+    FileManager.default.fileExists(atPath: backup.path)
+  }
+
   /// The exported domain. `defaults export` writes a plist, and it records only
   /// the key/value pairs — never which domain they came from.
   public static func backupURL(in directory: URL) -> URL {
@@ -68,11 +80,6 @@ public struct DefaultsGuard: Sendable {
     return domain
   }
 
-  public var backup: URL { Self.backupURL(in: snapshotDirectory) }
-  public var domainStamp: URL { Self.domainStampURL(in: snapshotDirectory) }
-
-  public var hasBackup: Bool { FileManager.default.fileExists(atPath: backup.path) }
-
   /// Snapshots the domain, once. A second call is a no-op so `democtl seed`
   /// stays idempotent and never overwrites the pristine snapshot with one taken
   /// mid-demo — and, because the snapshot outlives `democtl reset`, that holds
@@ -90,7 +97,7 @@ public struct DefaultsGuard: Sendable {
         throw DemoCtlError.defaultsSnapshotForeign(
           captured: captured,
           requested: domain,
-          backup: backup.path
+          backup: backup.path,
         )
       }
       return
@@ -101,7 +108,7 @@ public struct DefaultsGuard: Sendable {
     // complete one: no export means no stamp, and no stamp is a loud failure.
     let stamp = try JSONSerialization.data(
       withJSONObject: ["domain": domain],
-      options: [.prettyPrinted, .sortedKeys]
+      options: [.prettyPrinted, .sortedKeys],
     )
     try stamp.write(to: domainStamp, options: .atomic)
   }
@@ -127,12 +134,12 @@ public struct DefaultsGuard: Sendable {
 
     try Shell.require(
       Self.defaultsTool,
-      ["write", domain, "onboarding.completedSchemaVersion", "-int", "1"]
+      ["write", domain, "onboarding.completedSchemaVersion", "-int", "1"],
     )
     if let appVersion {
       try Shell.require(
         Self.defaultsTool,
-        ["write", domain, "whatsNew.lastShownVersion", "-string", appVersion]
+        ["write", domain, "whatsNew.lastShownVersion", "-string", appVersion],
       )
     }
 
@@ -156,7 +163,7 @@ public struct DefaultsGuard: Sendable {
       throw DemoCtlError.defaultsSnapshotNotCleared(
         directory: snapshotDirectory.path,
         domain: domain,
-        reason: "\(error)"
+        reason: "\(error)",
       )
     }
   }

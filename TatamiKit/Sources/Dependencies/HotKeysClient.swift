@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import CoreGraphics
 import Dependencies
 import DependenciesMacros
-import CoreGraphics
 import Foundation
 import Magnet
 
@@ -96,56 +96,93 @@ extension HotKeyAction {
     case .activateWorkspace(let id):
       String(
         localized:
-          "Activate \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
+        "Activate \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
       )
+
     case .assignFocusedAppToWorkspace(let id):
       String(
         localized:
-          "Assign app to \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
+        "Assign app to \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
       )
+
     case .borrowWorkspace(let id):
       String(
         localized:
-          "Borrow \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
+        "Borrow \(config.workspace(id: id)?.name ?? String(localized: "workspace"))"
       )
+
     case .switchToNextWorkspace: String(localized: "Next workspace")
+
     case .switchToPreviousWorkspace: String(localized: "Previous workspace")
+
     case .switchToRecentWorkspace: String(localized: "Recent workspace")
+
     case .activateProfile(let id):
       String(
         localized:
-          "Switch to \(config.profiles.first(where: { $0.id == id })?.name ?? String(localized: "profile"))"
+        "Switch to \(config.profiles.first(where: { $0.id == id })?.name ?? String(localized: "profile"))"
       )
+
     case .moveFocusedAppToNextWorkspace: String(localized: "Move app to next workspace")
+
     case .moveFocusedAppToPreviousWorkspace: String(localized: "Move app to previous workspace")
+
     case .focusNextDisplay: String(localized: "Focus next display")
+
     case .focusPreviousDisplay: String(localized: "Focus previous display")
+
     case .focusLeft: String(localized: "Focus left")
+
     case .focusRight: String(localized: "Focus right")
+
     case .focusUp: String(localized: "Focus up")
+
     case .focusDown: String(localized: "Focus down")
+
     case .cycleNextWindow: String(localized: "Cycle next window")
+
     case .cyclePreviousWindow: String(localized: "Cycle previous window")
+
     case .resizeGrow: String(localized: "Grow")
+
     case .resizeShrink: String(localized: "Shrink")
+
     case .swapLeft: String(localized: "Swap left")
+
     case .swapRight: String(localized: "Swap right")
+
     case .swapUp: String(localized: "Swap up")
+
     case .swapDown: String(localized: "Swap down")
+
     case .toggleOrientation: String(localized: "Toggle orientation")
+
     case .toggleFullscreen: String(localized: "Toggle fullscreen")
+
     case .balance: String(localized: "Balance layout")
+
     case .toggleFloating: String(localized: "Toggle floating")
+
     case .toggleSharedFloating: String(localized: "Toggle shared floating")
+
     case .toggleSpaceActivated: String(localized: "Toggle pause")
+
     case .toggleFocusedAppInActiveWorkspace: String(localized: "Toggle app in workspace")
+
     case .toggleAppInSharedApps: String(localized: "Toggle app in Shared Apps")
+
     case .assignFocusedAppToRecentWorkspace: String(localized: "Assign app to recent workspace")
+
     case .assignFocusedAppToNextWorkspace: String(localized: "Assign app to next workspace")
+
     case .assignFocusedAppToPreviousWorkspace: String(localized: "Assign app to previous workspace")
+
     case .borrowRecentWorkspace: String(localized: "Borrow recent workspace")
+
     case .borrowNextWorkspace: String(localized: "Borrow next workspace")
+
     case .borrowPreviousWorkspace: String(localized: "Borrow previous workspace")
+
     case .dismissBorrow: String(localized: "Dismiss borrow")
     }
   }
@@ -275,14 +312,24 @@ struct ModifierKeysClient: Sendable {
   var current: @Sendable () -> HotKeyModifiers = { [] }
 }
 
+// MARK: DependencyKey
+
 extension ModifierKeysClient: DependencyKey {
   static let liveValue = ModifierKeysClient {
     let flags = CGEventSource.flagsState(.combinedSessionState)
     var modifiers: HotKeyModifiers = []
-    if flags.contains(.maskCommand) { modifiers.insert(.command) }
-    if flags.contains(.maskShift) { modifiers.insert(.shift) }
-    if flags.contains(.maskAlternate) { modifiers.insert(.option) }
-    if flags.contains(.maskControl) { modifiers.insert(.control) }
+    if flags.contains(.maskCommand) {
+      modifiers.insert(.command)
+    }
+    if flags.contains(.maskShift) {
+      modifiers.insert(.shift)
+    }
+    if flags.contains(.maskAlternate) {
+      modifiers.insert(.option)
+    }
+    if flags.contains(.maskControl) {
+      modifiers.insert(.control)
+    }
     return modifiers
   }
 

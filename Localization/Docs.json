@@ -3178,12 +3178,12 @@
     "zh-Hans": "**键盘操作：** 使用推荐快捷键时，按住 {0}，配合 {1}、{2}、{3} 或 {4} 移动焦点，配合方向键交换窗口，配合 {5} 或 {6} 放大或缩小焦点窗口所在的区域。",
     "zh-Hant": "**鍵盤操作：** 使用建議快速鍵時，按住 {0}，搭配 {1}、{2}、{3} 或 {4} 移動焦點，搭配方向鍵交換視窗，搭配 {5} 或 {6} 放大或縮小取得焦點的區塊。"
   },
-  "add4ca695d67c690": {
-    "en": "Use Xcode 26 or later with a Swift 6.2 or later toolchain. The app runs on macOS 14 or later; its runtime requirement is separate from the tools needed to build it.",
-    "ko": "Xcode 26 이상과 Swift 6.2 이상의 툴체인을 사용해요. 앱은 macOS 14 이상에서 실행되며, 실행 환경과 빌드 도구의 요구사항은 별개예요.",
-    "ja": "Xcode 26 以降と Swift 6.2 以降のツールチェーンを使ってください。アプリは macOS 14 以降で動作します。実行環境とビルドツールの要件は別です。",
-    "zh-Hans": "请使用 Xcode 26 或更新版本，以及 Swift 6.2 或更新版本的工具链。应用可在 macOS 14 或更新版本上运行；运行环境要求与构建工具要求不同。",
-    "zh-Hant": "請使用 Xcode 26 或更新版本，以及 Swift 6.2 或更新版本的工具鏈。App 可在 macOS 14 或更新版本執行；執行環境與建置工具的需求不同。"
+  "5a6e311d0fd4adeb": {
+    "en": "Use Xcode 27.2 with its Swift 6.4 toolchain. The app runs on macOS 14 or later; its runtime requirement is separate from the tools needed to build it.",
+    "ko": "Xcode 27.2와 함께 제공되는 Swift 6.4 툴체인을 사용해요. 앱은 macOS 14 이상에서 실행되며, 실행 환경과 빌드 도구의 요구사항은 별개예요.",
+    "ja": "Xcode 27.2 に付属する Swift 6.4 ツールチェーンを使ってください。アプリは macOS 14 以降で動作します。実行環境とビルドツールの要件は別です。",
+    "zh-Hans": "请使用 Xcode 27.2 及其自带的 Swift 6.4 工具链。应用可在 macOS 14 或更新版本上运行；运行环境要求与构建工具要求不同。",
+    "zh-Hant": "請使用 Xcode 27.2 及隨附的 Swift 6.4 工具鏈。App 可在 macOS 14 或更新版本執行；執行環境與建置工具的需求不同。"
   },
   "b1a74651529b32af": {
     "en": "Tatami's app dependency versions and revisions come from {0}.",

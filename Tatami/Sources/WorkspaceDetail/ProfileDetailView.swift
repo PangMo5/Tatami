@@ -164,7 +164,7 @@ struct ProfileDetailView: View {
   /// Profiles keep independent workspaces, so assignments and settings can
   /// drift. This previews another profile's apps and workspace settings for
   /// same-named workspaces, then copies only the changes the user selects.
-  @ViewBuilder
+  @ContentBuilder
   private var syncSection: some View {
     let others = store.config.profiles.filter { $0.id != store.profileId }
     if !others.isEmpty {
@@ -181,7 +181,7 @@ struct ProfileDetailView: View {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private func syncRow(_ source: Profile) -> some View {
     let diverged = store.config.workspacesDiffering(in: store.profileId, comparedTo: source.id)
     HStack {
@@ -283,8 +283,11 @@ struct ProfileDetailView: View {
       let parts = id.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
       guard parts.count == 3, let wsId = UUID(uuidString: String(parts[0])) else { continue }
       let key = String(parts[2])
-      if parts[1] == "app" { excApps[wsId, default: []].insert(key) }
-      else if parts[1] == "field" { excFields[wsId, default: []].insert(key) }
+      if parts[1] == "app" {
+        excApps[wsId, default: []].insert(key)
+      } else if parts[1] == "field" {
+        excFields[wsId, default: []].insert(key)
+      }
     }
     return (excApps, excFields)
   }
@@ -295,7 +298,7 @@ struct ProfileDetailView: View {
     store.send(.autoActivationChanged(rule))
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private func autoActivationSection(_ profile: Profile) -> some View {
     let enabled = profile.autoActivation != nil
     let cur = profile.autoActivation ?? ProfileActivation()
@@ -373,8 +376,12 @@ struct ProfileDetailView: View {
           ForEach(store.availableDisplays, id: \.self) { display in
             Picker(display.name, selection: Binding<DisplayReq>(
               get: {
-                if cur.whenDisconnected.contains(where: { $0.matches(display) }) { return .excluded }
-                if cur.whenConnected?.displays.contains(where: { $0.matches(display) }) ?? false { return .required }
+                if cur.whenDisconnected.contains(where: { $0.matches(display) }) {
+                  return .excluded
+                }
+                if cur.whenConnected?.displays.contains(where: { $0.matches(display) }) ?? false {
+                  return .required
+                }
                 return .any
               },
               set: { req in
@@ -399,7 +406,9 @@ struct ProfileDetailView: View {
         }
 
         let diagnostic = store.autoActivationDiagnostic
-        if !diagnostic.isEmpty { diagnosticRows(diagnostic) }
+        if !diagnostic.isEmpty {
+          diagnosticRows(diagnostic)
+        }
       }
     } header: {
       Text("Auto-Activation")
@@ -419,7 +428,7 @@ struct ProfileDetailView: View {
 
   /// Inline warning (equal-specificity conflict) + info (intended shadowing)
   /// about how this profile's rule overlaps the others'.
-  @ViewBuilder
+  @ContentBuilder
   private func diagnosticRows(_ d: ProfileActivationDiagnostic) -> some View {
     if !d.ambiguousWith.isEmpty {
       Label {
@@ -450,7 +459,7 @@ struct ProfileDetailView: View {
   }
 
   private func quoted(_ names: [String]) -> String {
-    names.map { "“\($0)”" }.joined(separator: ", ")
+    names.lazy.map { "“\($0)”" }.joined(separator: ", ")
   }
 
 }

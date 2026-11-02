@@ -24,6 +24,23 @@ public struct TatamiInstall: Sendable {
 
   // MARK: Public
 
+  public let bundle: URL
+  public let bundleIdentifier: String
+  public let version: String?
+
+  /// Tatami embeds its CLI in the app bundle; using this copy rather than
+  /// `/usr/local/bin/tatami` guarantees the CLI and the running app are the
+  /// same build, which matters because a newer CLI refuses plain output from an
+  /// older app when `--json` was requested.
+  public var cli: URL {
+    bundle.appendingPathComponent("Contents/Resources/tatami")
+  }
+
+  public var executable: URL {
+    bundle.appendingPathComponent("Contents/MacOS")
+      .appendingPathComponent(bundle.deletingPathExtension().lastPathComponent)
+  }
+
   /// `dev.PangMo5.Tatami` or `dev.PangMo5.Tatami.debug`. Tatami's own
   /// `MacApp.isTatami` uses exactly this test, and the lab's demo apps live
   /// under `dev.PangMo5.DemoLab.` specifically so they can never match it.
@@ -33,9 +50,13 @@ public struct TatamiInstall: Sendable {
 
   public static func locate(explicit: String? = nil) throws -> TatamiInstall {
     var candidates = [URL]()
-    if let explicit { candidates.append(URL(fileURLWithPath: explicit)) }
-    if let fromEnvironment = ProcessInfo.processInfo.environment["DEMOLAB_TATAMI_APP"],
-       !fromEnvironment.isEmpty {
+    if let explicit {
+      candidates.append(URL(fileURLWithPath: explicit))
+    }
+    if
+      let fromEnvironment = ProcessInfo.processInfo.environment["DEMOLAB_TATAMI_APP"],
+      !fromEnvironment.isEmpty
+    {
       candidates.append(URL(fileURLWithPath: fromEnvironment))
     }
     candidates.append(URL(fileURLWithPath: "/Applications/Tatami.app"))
@@ -55,31 +76,17 @@ public struct TatamiInstall: Sendable {
     }
 
     for candidate in candidates {
-      guard FileManager.default.fileExists(atPath: candidate.path),
-            let bundle = Bundle(url: candidate),
-            let identifier = bundle.bundleIdentifier,
-            isTatami(identifier)
+      guard
+        FileManager.default.fileExists(atPath: candidate.path),
+        let bundle = Bundle(url: candidate),
+        let identifier = bundle.bundleIdentifier,
+        isTatami(identifier)
       else { continue }
       let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
       return TatamiInstall(bundle: candidate, bundleIdentifier: identifier, version: version)
     }
 
     throw DemoCtlError.tatamiNotFound(candidates.map(\.path))
-  }
-
-  public let bundle: URL
-  public let bundleIdentifier: String
-  public let version: String?
-
-  /// Tatami embeds its CLI in the app bundle; using this copy rather than
-  /// `/usr/local/bin/tatami` guarantees the CLI and the running app are the
-  /// same build, which matters because a newer CLI refuses plain output from an
-  /// older app when `--json` was requested.
-  public var cli: URL { bundle.appendingPathComponent("Contents/Resources/tatami") }
-
-  public var executable: URL {
-    bundle.appendingPathComponent("Contents/MacOS")
-      .appendingPathComponent(bundle.deletingPathExtension().lastPathComponent)
   }
 
   public func validate() throws {
@@ -96,7 +103,27 @@ public struct TatamiInstall: Sendable {
 @MainActor
 public enum TatamiProcess {
 
-  // MARK: Public
+  /// How the Tatami process is started.
+  ///
+  /// The same correctness question as the recorder's ``RecorderController/LaunchPath``,
+  /// with the same answer for the same reason. macOS attributes a Screen
+  /// Recording grant to the *responsible* process, and Tatami needs one for
+  /// **Always on Top**, whose windows are ScreenCaptureKit mirrors.
+  ///
+  /// - On a desktop, `democtl` runs from a terminal that holds no such grant,
+  ///   so Tatami has to become its own responsible process. That means
+  ///   LaunchServices, and it is the only path a person can grant.
+  /// - In a VM driven by `tart exec`, the parent already holds the grant and a
+  ///   direct child inherits it. This is not a nicety: a hand-written TCC row
+  ///   for Tatami was measured being ignored by macOS 26's tccd even with SIP
+  ///   off, so inheritance is the only way Always on Top works in a guest.
+  ///   Without it Tatami raises a standing Problem and puts a warning triangle
+  ///   in the menu bar, in shot, for the whole take.
+  public enum LaunchPath: Sendable {
+    case auto
+    case viaLaunchServices
+    case direct
+  }
 
   public static func running() -> [NSRunningApplication] {
     NSWorkspace.shared.runningApplications.filter {
@@ -150,8 +177,9 @@ public enum TatamiProcess {
       for application in running() {
         let element = AXUIElementCreateApplication(application.processIdentifier)
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
-              let windows = value as? [AXUIElement]
+        guard
+          AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
+          let windows = value as? [AXUIElement]
         else { continue }
         for window in windows {
           sawWindow = true
@@ -159,7 +187,7 @@ public enum TatamiProcess {
           guard AXUIElementCopyAttributeValue(
             window,
             kAXCloseButtonAttribute as CFString,
-            &button
+            &button,
           ) == .success, let raw = button, CFGetTypeID(raw) == AXUIElementGetTypeID() else { continue }
           let closeButton = unsafeDowncast(raw, to: AXUIElement.self)
           if AXUIElementPerformAction(closeButton, kAXPressAction as CFString) == .success {
@@ -174,59 +202,39 @@ public enum TatamiProcess {
     return closed
   }
 
-  /// How the Tatami process is started.
-  ///
-  /// The same correctness question as the recorder's ``RecorderController/LaunchPath``,
-  /// with the same answer for the same reason. macOS attributes a Screen
-  /// Recording grant to the *responsible* process, and Tatami needs one for
-  /// **Always on Top**, whose windows are ScreenCaptureKit mirrors.
-  ///
-  /// - On a desktop, `democtl` runs from a terminal that holds no such grant,
-  ///   so Tatami has to become its own responsible process. That means
-  ///   LaunchServices, and it is the only path a person can grant.
-  /// - In a VM driven by `tart exec`, the parent already holds the grant and a
-  ///   direct child inherits it. This is not a nicety: a hand-written TCC row
-  ///   for Tatami was measured being ignored by macOS 26's tccd even with SIP
-  ///   off, so inheritance is the only way Always on Top works in a guest.
-  ///   Without it Tatami raises a standing Problem and puts a warning triangle
-  ///   in the menu bar, in shot, for the whole take.
-  public enum LaunchPath: Sendable {
-    case auto
-    case viaLaunchServices
-    case direct
-  }
-
   /// Launches Tatami with the lab's isolation flags.
   public static func launch(
     install: TatamiInstall,
     paths: LabPaths,
-    launchPath: LaunchPath = .auto
+    launchPath: LaunchPath = .auto,
   ) throws {
     let arguments = [
-      "--tatami-config-home", paths.configHome.path,
-      "--tatami-socket-path", paths.socketPath.path,
+      "--tatami-config-home",
+      paths.configHome.path,
+      "--tatami-socket-path",
+      paths.socketPath.path,
     ]
-    let resolved: LaunchPath = {
+    let resolved: LaunchPath =
       switch launchPath {
       case .auto: CGPreflightScreenCaptureAccess() ? .direct : .viaLaunchServices
       case let explicit: explicit
       }
-    }()
 
     switch resolved {
-    case .direct, .auto:
+    case .direct,
+         .auto:
       // Detached: Tatami outlives `democtl`, and a child holding the caller's
       // stdout keeps a shell pipeline open forever after `democtl` has exited.
       try Shell.launchDetached(
         install.executable,
         arguments,
-        log: paths.runRoot.appendingPathComponent("tatami-stdout.log")
+        log: paths.runRoot.appendingPathComponent("tatami-stdout.log"),
       )
 
     case .viaLaunchServices:
       try Shell.require(
         URL(fileURLWithPath: "/usr/bin/open"),
-        ["-n", "-a", install.bundle.path, "--args"] + arguments
+        ["-n", "-a", install.bundle.path, "--args"] + arguments,
       )
     }
   }
@@ -272,16 +280,18 @@ public struct TatamiClient: Sendable {
     guard result.succeeded else {
       throw DemoCtlError.tatamiCommandFailed(
         command: arguments.joined(separator: " "),
-        message: Self.errorMessage(from: result)
+        message: Self.errorMessage(from: result),
       )
     }
     let text = result.standardOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let data = text.data(using: .utf8), !data.isEmpty,
-          let value = try? JSONSerialization.jsonObject(with: data)
+    guard
+      let data = text.data(using: .utf8),
+      !data.isEmpty,
+      let value = try? JSONSerialization.jsonObject(with: data)
     else {
       throw DemoCtlError.tatamiCommandFailed(
         command: arguments.joined(separator: " "),
-        message: "expected JSON on stdout, got: \(text)"
+        message: "expected JSON on stdout, got: \(text)",
       )
     }
     return value
@@ -292,7 +302,9 @@ public struct TatamiClient: Sendable {
   /// actually landed, so scenes lean on it wherever they can.
   public func activateWorkspace(_ name: String, profile: String? = nil) throws {
     var arguments = ["workspace", "activate", name]
-    if let profile { arguments += ["--profile", profile] }
+    if let profile {
+      arguments += ["--profile", profile]
+    }
     let value = try json(arguments)
     try expect(status: "completed", in: value, command: arguments.joined(separator: " "))
   }
@@ -311,14 +323,18 @@ public struct TatamiClient: Sendable {
 
   public func workspaceNames(profile: String? = nil) throws -> [String] {
     var arguments = ["workspace", "list"]
-    if let profile { arguments += ["--profile", profile] }
+    if let profile {
+      arguments += ["--profile", profile]
+    }
     guard let rows = try json(arguments) as? [[String: Any]] else { return [] }
     return rows.compactMap { $0["name"] as? String }
   }
 
   public func workspaces(profile: String? = nil) throws -> [[String: Any]] {
     var arguments = ["workspace", "list"]
-    if let profile { arguments += ["--profile", profile] }
+    if let profile {
+      arguments += ["--profile", profile]
+    }
     return (try json(arguments) as? [[String: Any]]) ?? []
   }
 
@@ -342,9 +358,11 @@ public struct TatamiClient: Sendable {
 
   private static func errorMessage(from result: CommandResult) -> String {
     let stderr = result.standardError.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let data = stderr.data(using: .utf8),
-       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-       let message = object["error"] as? String {
+    if
+      let data = stderr.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let message = object["error"] as? String
+    {
       return message
     }
     return stderr.isEmpty ? result.standardOutput : stderr
@@ -354,7 +372,7 @@ public struct TatamiClient: Sendable {
     try Shell.run(
       install.cli,
       arguments,
-      environment: ["TATAMI_SOCKET_PATH": paths.socketPath.path]
+      environment: ["TATAMI_SOCKET_PATH": paths.socketPath.path],
     )
   }
 
@@ -368,7 +386,7 @@ public struct TatamiClient: Sendable {
     guard actual == status else {
       throw DemoCtlError.tatamiCommandFailed(
         command: command,
-        message: "expected status \(status), got \(actual)"
+        message: "expected status \(status), got \(actual)",
       )
     }
   }

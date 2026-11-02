@@ -89,7 +89,7 @@ public struct EventLog: Sendable {
     since offset: UInt64,
     timeout: Duration,
     describing description: String,
-    matching predicate: @escaping (TatamiEvent) -> Bool
+    matching predicate: @escaping (TatamiEvent) -> Bool,
   ) throws -> TatamiEvent {
     var found: TatamiEvent?
     let satisfied = Shell.wait(timeout: timeout, poll: .milliseconds(40)) {
@@ -99,7 +99,7 @@ public struct EventLog: Sendable {
     guard satisfied, let found else {
       throw DemoCtlError.waitTimedOut(
         what: description,
-        seconds: Double(timeout.components.seconds)
+        seconds: Double(timeout.components.seconds),
       )
     }
     return found
@@ -116,7 +116,7 @@ public struct EventLog: Sendable {
         profile: fields[2],
         workspace: fields[3],
         kind: fields[4],
-        display: fields[5]
+        display: fields[5],
       )
     }
   }

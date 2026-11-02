@@ -86,7 +86,7 @@ public final class SceneRunner {
     log: @escaping (String) -> Void,
     timeline: SceneTimeline? = nil,
     overlayMode: OverlayMode = .full,
-    keycastHoldMilliseconds: Int = SceneRunner.defaultKeycastHoldMilliseconds
+    keycastHoldMilliseconds: Int = SceneRunner.defaultKeycastHoldMilliseconds,
   ) {
     self.paths = paths
     self.client = client
@@ -119,14 +119,7 @@ public final class SceneRunner {
   public let overlayMode: OverlayMode
   public let keycastHoldMilliseconds: Int
 
-  // MARK: Private
-
-  private let overlay: OverlayController
-  private var clipboardBackup: [[NSPasteboard.PasteboardType:Data]]?
-  private var windowFrames: [String:CGRect] = [:]
-  private var layouts: [String: [String: CGRect]] = [:]
-  private var markBeforePreviousStep: UInt64 = 0
-  private var markBeforeCurrentStep: UInt64 = 0
+  public var secondaryCapture: (output: URL, fps: Int)?
 
   public func prepare(_ scene: Scene, dryRun: Bool = false) throws {
     if !dryRun, let count = scene.requires?.displays, DisplayInfo.all().count < count {
@@ -137,7 +130,9 @@ public final class SceneRunner {
     try run(preparation, dryRun: dryRun)
     if !dryRun {
       try CaptureGate.waitForApps(scene.openingApps ?? [], timeout: .seconds(15))
-      if let names = scene.openingApps { try CaptureGate.requireOpening(names) }
+      if let names = scene.openingApps {
+        try CaptureGate.requireOpening(names)
+      }
       try CaptureGate.requireCleanDesktop()
     }
   }
@@ -146,8 +141,12 @@ public final class SceneRunner {
     let events = EventLog(url: paths.eventLog)
 
     log("scene \(scene.name): \(scene.title)")
-    if let summary = scene.summary { log("  \(summary)") }
-    if let requires = scene.requires { logRequirements(requires) }
+    if let summary = scene.summary {
+      log("  \(summary)")
+    }
+    if let requires = scene.requires {
+      logRequirements(requires)
+    }
     log("")
 
     // Key steps need Accessibility. Check once, up front, rather than failing
@@ -163,7 +162,9 @@ public final class SceneRunner {
       )
     }
 
-    if !dryRun { try applyOverlayMode() }
+    if !dryRun {
+      try applyOverlayMode()
+    }
 
     for (index, step) in scene.steps.enumerated() {
       let ordinal = String(format: "%2d", index + 1)
@@ -189,31 +190,87 @@ public final class SceneRunner {
     log("scene \(scene.name) complete")
   }
 
-  public var secondaryCapture: (output: URL, fps: Int)?
-  private var secondaryOffset: Double?
-
   public func finishSecondaryCapture() throws {
     guard let capture = secondaryCapture, let offset = secondaryOffset else { return }
     let recorder = RecorderController(paths: paths, recordingName: "recorder-secondary")
     let end = try RecorderController(paths: paths).elapsedSinceFirstFrame()
     _ = try recorder.stop()
     let stats = try recorder.outputStatistics(for: capture.output)
-    guard let frames = stats["frames"], frames > 0,
-          Double(stats["dropped"] ?? 0) / Double(frames) <= 0.01
+    guard
+      let frames = stats["frames"],
+      frames > 0,
+      Double(stats["dropped"] ?? 0) / Double(frames) <= 0.01
     else { throw DemoCtlError.usage("secondary display capture failed quality checks") }
-    let data: [String: Any] = ["start": offset, "end": end, "frames": frames,
-      "droppedFrames": stats["dropped"] ?? 0, "capture": try recorder.captureMetadata(for: capture.output)]
+    let data: [String: Any] = [
+      "start": offset,
+      "end": end,
+      "frames": frames,
+      "droppedFrames": stats["dropped"] ?? 0,
+      "capture": try recorder.captureMetadata(for: capture.output),
+    ]
     try JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys])
       .write(to: capture.output.deletingPathExtension().appendingPathExtension("json"), options: .atomic)
     secondaryOffset = nil
   }
 
+  public func restoreClipboard() {
+    guard let backup = clipboardBackup else { return }
+    let items = backup.map { values in let item = NSPasteboardItem()
+      for (type, data) in values { item.setData(data, forType: type) }
+      return item
+    }
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.writeObjects(items)
+    clipboardBackup = nil
+  }
+
+  // MARK: Private
+
+  private let overlay: OverlayController
+  private var clipboardBackup: [[NSPasteboard.PasteboardType: Data]]?
+  private var windowFrames = [String: CGRect]()
+  private var layouts = [String: [String: CGRect]]()
+  private var markBeforePreviousStep: UInt64 = 0
+  private var markBeforeCurrentStep: UInt64 = 0
+
+  private var secondaryOffset: Double?
+
+  /// The keycap label for a `hold` step: the modifiers that stay down, then the
+  /// key or keys tapped under them. Consecutive repeats collapse, so holding
+  /// ctrl+alt and tapping `2` three times reads as one keycap rather than three.
+  private static func holdLabel(modifiers: String, keys: [String]) -> String {
+    var tapped = [String]()
+    for key in keys where tapped.last != key { tapped.append(key) }
+    return "\(modifiers) - \(tapped.joined(separator: " "))"
+  }
+
+  /// The modifier half of a `hold` step, read with the same grammar as the
+  /// modifier half of a chord, so the two front ends cannot drift apart.
+  private static func flags(from text: String) throws -> CGEventFlags {
+    let flags: CGEventFlags
+    do {
+      flags = try ChordParser.parseModifiers(text)
+    } catch {
+      throw DemoCtlError.usage("bad modifiers \"\(text)\" in hold step: \(error)")
+    }
+    guard !flags.isEmpty else { throw DemoCtlError.usage("hold step needs at least one modifier") }
+    return flags
+  }
+
   private func logRequirements(_ requires: SceneRequirements) {
     var lines = [String]()
-    if let displays = requires.displays { lines.append("displays: \(displays)") }
-    if let profile = requires.profile { lines.append("starting profile: \(profile)") }
-    if let apps = requires.apps { lines.append("apps: \(apps.joined(separator: ", "))") }
-    if let note = requires.note { lines.append(note) }
+    if let displays = requires.displays {
+      lines.append("displays: \(displays)")
+    }
+    if let profile = requires.profile {
+      lines.append("starting profile: \(profile)")
+    }
+    if let apps = requires.apps {
+      lines.append("apps: \(apps.joined(separator: ", "))")
+    }
+    if let note = requires.note {
+      lines.append(note)
+    }
     for line in lines { log("  requires \(line)") }
   }
 
@@ -225,19 +282,34 @@ public final class SceneRunner {
     switch step {
     case .clipboard(let text):
       if clipboardBackup == nil {
-        clipboardBackup=(NSPasteboard.general.pasteboardItems ?? []).map {item in
-          Dictionary(uniqueKeysWithValues:item.types.compactMap {type in item.data(forType:type).map {(type,$0)}})
+        clipboardBackup = (NSPasteboard.general.pasteboardItems ?? []).map { item in
+          Dictionary(uniqueKeysWithValues: item.types.compactMap { type in item.data(forType: type).map { (type, $0) }})
         }
       }
       NSPasteboard.general.clearContents()
-      guard NSPasteboard.general.setString(text,forType:.string) else {throw DemoCtlError.usage("could not prepare clipboard")}
+      guard NSPasteboard.general.setString(text, forType: .string)
+      else { throw DemoCtlError.usage("could not prepare clipboard") }
+
     case .closeSettings:
-      guard TatamiProcess.closeOwnWindows()>0 else {throw DemoCtlError.usage("Tatami window could not be closed")}
-    case .saveControlFrame(let app,let id,let name): windowFrames[name]=try NativeInteractionDriver.controlFrame(bundleIdentifier:bundle(app),identifier:id)
-    case .expectControlMoved(let app,let id,let name):
-      guard let expected=windowFrames[name] else {throw DemoCtlError.usage("missing control checkpoint")}
-      guard try Shell.wait(timeout:.seconds(4),until:{!CaptureGate.matches([name:try NativeInteractionDriver.controlFrame(bundleIdentifier:bundle(app),identifier:id)],[name:expected])}) else {throw DemoCtlError.usage("control geometry did not change: \(name)")}
-    case .saveWindow(let app): windowFrames[app]=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
+      guard TatamiProcess.closeOwnWindows() > 0 else { throw DemoCtlError.usage("Tatami window could not be closed") }
+
+    case .saveControlFrame(let app, let id, let name): windowFrames[name] = try NativeInteractionDriver.controlFrame(
+        bundleIdentifier: bundle(app),
+        identifier: id,
+      )
+
+    case .expectControlMoved(let app, let id, let name):
+      guard let expected = windowFrames[name] else { throw DemoCtlError.usage("missing control checkpoint") }
+      guard try Shell.wait(
+        timeout: .seconds(4),
+        until: { !CaptureGate.matches(
+          [name: try NativeInteractionDriver.controlFrame(bundleIdentifier: bundle(app), identifier: id)],
+          [name: expected],
+        ) },
+      ) else { throw DemoCtlError.usage("control geometry did not change: \(name)") }
+
+    case .saveWindow(let app): windowFrames[app] = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
+
     case .restoreWindow(let app):
       guard let saved = windowFrames[app] else { throw DemoCtlError.usage("missing saved window: \(app)") }
       try activate(app: app)
@@ -245,53 +317,88 @@ public final class SceneRunner {
       var current = try NativeInteractionDriver.windowFrame(bundleIdentifier: identifier)
       if abs(current.width - saved.width) > 4 || abs(current.height - saved.height) > 4 {
         let corner = CGPoint(x: current.maxX - 4, y: current.maxY - 4)
-        try NativeInteractionDriver.drag(from: corner, to: CGPoint(x: corner.x + saved.width - current.width, y: corner.y + saved.height - current.height))
+        try NativeInteractionDriver.drag(
+          from: corner,
+          to: CGPoint(x: corner.x + saved.width - current.width, y: corner.y + saved.height - current.height),
+        )
       }
       current = try NativeInteractionDriver.windowFrame(bundleIdentifier: identifier)
-      try NativeInteractionDriver.drag(from: CGPoint(x: current.midX, y: current.minY + 14), to: CGPoint(x: saved.midX, y: saved.minY + 14))
+      try NativeInteractionDriver.drag(
+        from: CGPoint(x: current.midX, y: current.minY + 14),
+        to: CGPoint(x: saved.midX, y: saved.minY + 14),
+      )
+
     case .assertWindow(let app):
-      guard let expected=windowFrames[app] else {throw DemoCtlError.usage("missing window checkpoint")}
-      let actual=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
-      guard CaptureGate.matches([app:actual],[app:expected]) else {throw DemoCtlError.usage("window frame changed: \(app); expected \(expected); actual \(actual)")}
+      guard let expected = windowFrames[app] else { throw DemoCtlError.usage("missing window checkpoint") }
+      let actual = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
+      guard CaptureGate.matches([app: actual], [app: expected])
+      else { throw DemoCtlError.usage("window frame changed: \(app); expected \(expected); actual \(actual)") }
+
     case .expectPointer(let app):
-      let frame=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
-      guard let point=CGEvent(source:nil)?.location,frame.contains(point) else {throw DemoCtlError.usage("pointer did not follow focus to \(app)")}
-    case .hover(let app,let id): try NativeInteractionDriver.hover(bundleIdentifier:bundle(app),identifier:id)
-    case .dragWindow(let app,let target,let x,let y):
-      try activate(app:app)
-      let source=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
-      let destination=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(target))
-      try NativeInteractionDriver.drag(from:CGPoint(x:source.midX,y:source.minY+14),to:CGPoint(x:destination.minX+destination.width*x,y:destination.minY+destination.height*y))
-    case .resizeWindow(let app,let dx,let dy):
-      try activate(app:app)
-      let frame=try NativeInteractionDriver.windowFrame(bundleIdentifier:bundle(app))
-      let point=CGPoint(x:frame.maxX-1,y:frame.midY)
-      try NativeInteractionDriver.drag(from:point,to:CGPoint(x:point.x+dx,y:point.y+dy))
+      let frame = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
+      guard
+        let point = CGEvent(source: nil)?.location,
+        frame.contains(point)
+      else { throw DemoCtlError.usage("pointer did not follow focus to \(app)") }
+
+    case .hover(let app, let id): try NativeInteractionDriver.hover(bundleIdentifier: bundle(app), identifier: id)
+
+    case .dragWindow(let app, let target, let x, let y):
+      try activate(app: app)
+      let source = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
+      let destination = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(target))
+      try NativeInteractionDriver.drag(
+        from: CGPoint(x: source.midX, y: source.minY + 14),
+        to: CGPoint(x: destination.minX + destination.width * x, y: destination.minY + destination.height * y),
+      )
+
+    case .resizeWindow(let app, let dx, let dy):
+      try activate(app: app)
+      let frame = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
+      let point = CGPoint(x: frame.maxX - 1, y: frame.midY)
+      try NativeInteractionDriver.drag(from: point, to: CGPoint(x: point.x + dx, y: point.y + dy))
+
     case .prepareSettings:
       try activate(app: "Tatami")
       try NativeInteractionDriver.prepareSettingsWindow(bundleIdentifier: client.install.bundleIdentifier)
+
     case .rightClick(let app, let identifier):
       try NativeInteractionDriver.rightClick(bundleIdentifier: bundle(app), identifier: identifier)
+
     case .expectProfileCount(let count):
       guard try Shell.wait(timeout: .seconds(4), until: { try client.profiles().count == count })
       else { throw DemoCtlError.usage("unexpected profile count") }
+
     case .configureAssignment(let app, let workspace, let profile, let autoOpen):
-      try LiveConfigEditor.updateAssignment(file: paths.configFile, bundleIdentifier: bundle(app), workspace: workspace, profile: profile, autoOpen: autoOpen)
+      try LiveConfigEditor.updateAssignment(
+        file: paths.configFile,
+        bundleIdentifier: bundle(app),
+        workspace: workspace,
+        profile: profile,
+        autoOpen: autoOpen,
+      )
+
     case .expectEnabled(let app, let identifier, let enabled):
       let actual = try NativeInteractionDriver.isEnabled(bundleIdentifier: bundle(app), identifier: identifier)
       guard actual == enabled else { throw DemoCtlError.usage("unexpected enabled state for \(identifier): \(actual)") }
+
     case .expectAssignment(let app, let workspace, let profile, let present, let layout, let autoOpen):
       let identifier = try bundle(app)
       guard try Shell.wait(timeout: .seconds(5), until: {
-        guard let rows = try client.json(["workspace", "apps", workspace, "--profile", profile]) as? [[String: Any]] else { return false }
+        guard let rows = try client.json(["workspace", "apps", workspace, "--profile", profile]) as? [[String: Any]]
+        else { return false }
         let row = rows.first { $0["bundleIdentifier"] as? String == identifier }
-        if !present { return row == nil }
+        if !present {
+          return row == nil
+        }
         guard let row else { return false }
         return (layout == nil || row["layout"] as? String == layout)
           && (autoOpen == nil || row["autoOpen"] as? Bool == autoOpen)
       }) else { throw DemoCtlError.usage("assignment mismatch for \(profile)/\(workspace)/\(app)") }
+
     case .expectPlacement(let app, let target, let edge):
-      let sourceBundle = try bundle(app), targetBundle = try bundle(target)
+      let sourceBundle = try bundle(app)
+      let targetBundle = try bundle(target)
       guard ["left", "right", "above", "below"].contains(edge) else { throw DemoCtlError.usage("unknown placement edge") }
       let passed = try Shell.wait(timeout: .seconds(5)) {
         let frames = try CaptureGate.demoFrames()
@@ -309,24 +416,33 @@ public final class SceneRunner {
         }
       }
       guard passed else { throw DemoCtlError.usage("\(app) did not appear \(edge) of \(target)") }
+
     case .expectFront(let app):
-      let id=try bundle(app)
-      guard Shell.wait(timeout:.seconds(4),until:{NativeInteractionDriver.frontmostBundleIdentifier()==id}) else {throw DemoCtlError.usage("focus did not reach \(app)")}
+      let id = try bundle(app)
+      guard Shell.wait(timeout: .seconds(4), until: { NativeInteractionDriver.frontmostBundleIdentifier() == id })
+      else { throw DemoCtlError.usage("focus did not reach \(app)") }
+
     case .expectLayoutChanged(let name):
-      guard let expected=layouts[name] else {throw DemoCtlError.usage("missing layout checkpoint")}
-      guard try Shell.wait(timeout:.seconds(4),until:{!CaptureGate.matches(try CaptureGate.demoFrames(),expected)}) else {throw DemoCtlError.usage("layout \(name) did not change")}
-    case .configure(let key,let value):
-      try LiveConfigEditor.update(file:paths.configFile,key:key,value:value)
+      guard let expected = layouts[name] else { throw DemoCtlError.usage("missing layout checkpoint") }
+      guard try Shell.wait(timeout: .seconds(4), until: { !CaptureGate.matches(try CaptureGate.demoFrames(), expected) })
+      else { throw DemoCtlError.usage("layout \(name) did not change") }
+
+    case .configure(let key, let value):
+      try LiveConfigEditor.update(file: paths.configFile, key: key, value: value)
       Shell.sleep(.milliseconds(800))
+
     case .virtualDisplay(let connected):
       if connected {
         try VirtualDisplayController.connect(paths)
         if let capture = secondaryCapture {
           var ids = [CGDirectDisplayID](repeating: 0, count: 16)
           var count: UInt32 = 0
-          guard secondaryOffset == nil, !FileManager.default.fileExists(atPath: capture.output.path),
-                CGGetOnlineDisplayList(16, &ids, &count) == .success,
-                let display = ids.prefix(Int(count)).first(where: { CGDisplayVendorNumber($0) == 0x5050 && CGDisplayModelNumber($0) == 0x1001 })
+          guard
+            secondaryOffset == nil,
+            !FileManager.default.fileExists(atPath: capture.output.path),
+            CGGetOnlineDisplayList(16, &ids, &count) == .success,
+            let display = ids.prefix(Int(count))
+              .first(where: { CGDisplayVendorNumber($0) == 0x5050 && CGDisplayModelNumber($0) == 0x1001 })
           else { throw DemoCtlError.usage("expected a new secondary display capture") }
           let secondary = RecorderController(paths: paths, recordingName: "recorder-secondary")
           try secondary.start(output: capture.output, display: "id:\(display)", fps: capture.fps)
@@ -336,35 +452,52 @@ public final class SceneRunner {
         try finishSecondaryCapture()
         try VirtualDisplayController.disconnect(paths)
       }
-    case .expectCommand(let command,let code):
-      let file=paths.controlDirectory.appendingPathComponent("terminal-result.json")
-      guard Shell.wait(timeout:.seconds(15),until:{
-        guard let data=try? Data(contentsOf:file),let result=try? JSONDecoder().decode(TerminalResult.self,from:data) else {return false}
-        return result.command==command && result.exitCode==Int32(code)
-      }) else {throw DemoCtlError.usage("command did not complete successfully: \(command)")}
-    case .expectHook(let field,let value):
-      let file=paths.controlDirectory.appendingPathComponent(field == "title" ? "hud-hook.json" : "workspace-hook.json")
-      guard Shell.wait(timeout:.seconds(5),until:{
-        guard let data=try? Data(contentsOf:file),let hook=try? JSONDecoder().decode(HookActivity.self,from:data) else {return false}
-        switch field {case "workspace":return hook.workspace==value;case "profile":return hook.profile==value;case "title":return hook.title.contains(value);default:return hook.event==value}
-      }) else {throw DemoCtlError.usage("hook did not report \(field) = \(value)")}
+
+    case .expectCommand(let command, let code):
+      let file = paths.controlDirectory.appendingPathComponent("terminal-result.json")
+      guard Shell.wait(timeout: .seconds(15), until: {
+        guard
+          let data = try? Data(contentsOf: file),
+          let result = try? JSONDecoder().decode(TerminalResult.self, from: data)
+        else { return false }
+        return result.command == command && result.exitCode == Int32(code)
+      }) else { throw DemoCtlError.usage("command did not complete successfully: \(command)") }
+
+    case .expectHook(let field, let value):
+      let file = paths.controlDirectory.appendingPathComponent(field == "title" ? "hud-hook.json" : "workspace-hook.json")
+      guard Shell.wait(timeout: .seconds(5), until: {
+        guard
+          let data = try? Data(contentsOf: file),
+          let hook = try? JSONDecoder().decode(HookActivity.self, from: data)
+        else { return false }
+        switch field { case "workspace": return hook.workspace == value
+        case "profile": return hook.profile == value
+        case "title": return hook.title.contains(value)
+        default: return hook.event == value }
+      }) else { throw DemoCtlError.usage("hook did not report \(field) = \(value)") }
+
     case .click(let name, let identifier, let activateBeforeClick):
       // Reactivating an app while its popup menu is open can dismiss the menu
       // before the intended item receives the click.
       let menuItem = name == "Tatami"
         ? try NativeInteractionDriver.isMenuItem(bundleIdentifier: bundle(name), identifier: identifier)
         : false
-      if activateBeforeClick && !menuItem { try activate(app: name) }
+      if activateBeforeClick, !menuItem {
+        try activate(app: name)
+      }
       try NativeInteractionDriver.click(bundleIdentifier: bundle(name), identifier: identifier)
+
     case .typeText(let name, let text, let interval):
       let identifier = try bundle(name)
       guard NativeInteractionDriver.frontmostBundleIdentifier() == identifier else {
         throw DemoCtlError.usage("refusing to type into an unexpected frontmost app; expected \(name)")
       }
       try NativeInteractionDriver.type(text, intervalMilliseconds: interval)
+
     case .expectValue(let name, let identifier, let value):
       let actual = try NativeInteractionDriver.value(bundleIdentifier: bundle(name), identifier: identifier)
       guard actual == value else { throw DemoCtlError.usage("native value mismatch for \(identifier): \(actual)") }
+
     case .expectStory(let field, let value):
       let repository = StoryRepository(file: paths.controlDirectory.appendingPathComponent("launch-story.json"))
       let passed = try Shell.wait(timeout: .seconds(4)) {
@@ -383,12 +516,16 @@ public final class SceneRunner {
         }
       }
       guard passed else { throw DemoCtlError.usage("saved work did not match: \(field) = \(value)") }
+
     case .scroll(let name, let identifier, let pixels):
       try NativeInteractionDriver.scroll(bundleIdentifier: bundle(name), identifier: identifier, pixels: pixels)
+
     case .waitWindows(let names, let milliseconds):
       try CaptureGate.waitForApps(names, timeout: .milliseconds(milliseconds))
+
     case .saveLayout(let name):
       layouts[name] = try CaptureGate.demoFrames()
+
     case .assertLayout(let name):
       guard let expected = layouts[name], !expected.isEmpty else {
         throw DemoCtlError.usage("no layout checkpoint named \(name)")
@@ -398,11 +535,14 @@ public final class SceneRunner {
       }
       guard restored else { throw DemoCtlError.usage("layout \(name) was not restored") }
       log("      verified layout restoration: \(name)")
+
     case .note(let text):
       log("      \(text)")
 
     case .beat(let milliseconds, let note):
-      if let note { log("      \(note)") }
+      if let note {
+        log("      \(note)")
+      }
       Shell.sleep(.milliseconds(milliseconds))
 
     case .launch(let names, let windows):
@@ -436,12 +576,13 @@ public final class SceneRunner {
     case .cli(let arguments, let expect):
       switch expect {
       case "any": _ = try client.json(arguments)
-      case "completed", "accepted": try expectStatus(expect, arguments)
+      case "completed",
+           "accepted": try expectStatus(expect, arguments)
       default: throw DemoCtlError.usage("cli step expect must be accepted, completed or any")
       }
 
     case .key(let chord, let repeats, let holdMilliseconds):
-      var notes: [String] = []
+      var notes = [String]()
       let parsed = try ChordParser.parse(chord, notes: &notes)
       // A layout note means the demo is pressing a different physical key than
       // the shortcut text reads as. It belongs in the take's log, not nowhere.
@@ -468,8 +609,8 @@ public final class SceneRunner {
       // Same resolution as a `key` step, deliberately: Magnet registers the
       // *active layout's* key code, so a QWERTY lookup here would press a key
       // Tatami never registered and record a scene where nothing happens.
-      var notes: [String] = []
-      var codes: [CGKeyCode] = []
+      var notes = [String]()
+      var codes = [CGKeyCode]()
       for name in keys {
         let chord: Chord
         do {
@@ -494,7 +635,7 @@ public final class SceneRunner {
           modifiers: flags,
           tapping: codes,
           gapMilliseconds: gapMilliseconds,
-          holdAfterMilliseconds: releaseAfterMilliseconds
+          holdAfterMilliseconds: releaseAfterMilliseconds,
         )
       } catch {
         try? showKeycaps("")
@@ -507,7 +648,7 @@ public final class SceneRunner {
       let found = try events.wait(
         since: markBeforePreviousStep,
         timeout: .milliseconds(timeoutMilliseconds),
-        describing: "workspaceActivated for \(workspace)"
+        describing: "workspaceActivated for \(workspace)",
       ) { $0.event == "workspaceActivated" && $0.workspace == workspace }
       log("      \(found.summary)")
 
@@ -515,7 +656,7 @@ public final class SceneRunner {
       let found = try events.wait(
         since: markBeforePreviousStep,
         timeout: .milliseconds(timeoutMilliseconds),
-        describing: "profileChanged to \(profile)"
+        describing: "profileChanged to \(profile)",
       ) { $0.event == "profileChanged" && $0.profile == profile }
       log("      \(found.summary)")
 
@@ -535,7 +676,7 @@ public final class SceneRunner {
       guard appeared else {
         throw DemoCtlError.waitTimedOut(
           what: "borrowed \(workspace) to show \(expectApps.joined(separator: ", "))",
-          seconds: Double(timeoutMilliseconds) / 1000
+          seconds: Double(timeoutMilliseconds) / 1000,
         )
       }
 
@@ -559,40 +700,44 @@ public final class SceneRunner {
     // steps fail when the overlay is not there. The keycaps a `key` step adds by
     // itself are the opposite case, and stay quiet.
     //
+
     // The timeline is stamped *before* the overlay is told, so a sidecar records
     // the narration a take asked for even when the overlay is the thing that
     // failed. In `--overlay keys` the overlay draws none of this, and the
     // sidecar is then the only copy of the words.
     case .chapter(let text):
       timeline?.record(.chapter, text: text)
-      if overlayMode == .full { try overlay.chapter(text) }
+      if overlayMode == .full {
+        try overlay.chapter(text)
+      }
 
     case .caption(let text):
       timeline?.record(.caption, text: text)
-      if overlayMode == .full { try overlay.caption(text) }
+      if overlayMode == .full {
+        try overlay.caption(text)
+      }
 
     case .keys(let chord):
       timeline?.record(.keys, text: chord)
-      if overlayMode != .off { try overlay.keys(chord) }
+      if overlayMode != .off {
+        try overlay.keys(chord)
+      }
 
     case .clearOverlay:
       for track in SceneTimeline.Track.allCases { timeline?.record(track, text: "") }
-      if OverlayController.isListening { try overlay.clear() }
+      if OverlayController.isListening {
+        try overlay.clear()
+      }
 
     case .activateApp(let name):
       try activate(app: name)
     }
   }
 
-  public func restoreClipboard() {
-    guard let backup=clipboardBackup else {return}
-    let items=backup.map {values in let item=NSPasteboardItem();for (type,data) in values {item.setData(data,forType:type)};return item}
-    NSPasteboard.general.clearContents();NSPasteboard.general.writeObjects(items)
-    clipboardBackup=nil
-  }
-
-  private func bundle(_ name:String) throws -> String {
-    if name == "Tatami" {return client.install.bundleIdentifier}
+  private func bundle(_ name: String) throws -> String {
+    if name == "Tatami" {
+      return client.install.bundleIdentifier
+    }
     return try spec(name).bundleIdentifier
   }
 
@@ -657,15 +802,6 @@ public final class SceneRunner {
     log("")
   }
 
-  /// The keycap label for a `hold` step: the modifiers that stay down, then the
-  /// key or keys tapped under them. Consecutive repeats collapse, so holding
-  /// ctrl+alt and tapping `2` three times reads as one keycap rather than three.
-  private static func holdLabel(modifiers: String, keys: [String]) -> String {
-    var tapped = [String]()
-    for key in keys where tapped.last != key { tapped.append(key) }
-    return "\(modifiers) - \(tapped.joined(separator: " "))"
-  }
-
   /// Brings an app to the front. `"Tatami"` means the Tatami this lab drives,
   /// resolved through the located install so a Debug build is addressed by its
   /// own bundle identifier.
@@ -679,16 +815,19 @@ public final class SceneRunner {
       demoApp = spec
       identifier = spec.bundleIdentifier
     }
-    guard let application = NSRunningApplication
-      .runningApplications(withBundleIdentifier: identifier).first
+    guard
+      let application = NSRunningApplication
+        .runningApplications(withBundleIdentifier: identifier).first
     else {
       throw DemoCtlError.usage("activateApp: \(name) (\(identifier)) is not running")
     }
-    if NativeInteractionDriver.frontmostBundleIdentifier() == identifier { return }
+    if NativeInteractionDriver.frontmostBundleIdentifier() == identifier {
+      return
+    }
     if demoApp != nil {
       // A real title-bar click has a user activation context. Background
       // activate() requests can be declined even when the control socket replies.
-      try NativeInteractionDriver.clickWindowTitle(bundleIdentifier:identifier)
+      try NativeInteractionDriver.clickWindowTitle(bundleIdentifier: identifier)
     } else {
       try NativeInteractionDriver.clickSettingsWindowTitle(bundleIdentifier: identifier)
     }
@@ -712,7 +851,7 @@ public final class SceneRunner {
       guard let object = value as? [String: Any], object["status"] as? String == "completed" else {
         throw DemoCtlError.tatamiCommandFailed(
           command: arguments.joined(separator: " "),
-          message: "expected status completed"
+          message: "expected status completed",
         )
       }
     } else {
@@ -720,25 +859,21 @@ public final class SceneRunner {
     }
   }
 
-  /// The modifier half of a `hold` step, read with the same grammar as the
-  /// modifier half of a chord, so the two front ends cannot drift apart.
-  private static func flags(from text: String) throws -> CGEventFlags {
-    let flags: CGEventFlags
-    do {
-      flags = try ChordParser.parseModifiers(text)
-    } catch {
-      throw DemoCtlError.usage("bad modifiers \"\(text)\" in hold step: \(error)")
-    }
-    guard !flags.isEmpty else { throw DemoCtlError.usage("hold step needs at least one modifier") }
-    return flags
-  }
-
 }
 
 extension SceneStep {
   fileprivate var needsKeyboard: Bool {
     switch self {
-    case .key, .hold, .click, .rightClick, .prepareSettings, .typeText, .scroll, .hover, .dragWindow, .resizeWindow: true
+    case .key,
+         .hold,
+         .click,
+         .rightClick,
+         .prepareSettings,
+         .typeText,
+         .scroll,
+         .hover,
+         .dragWindow,
+         .resizeWindow: true
     default: false
     }
   }

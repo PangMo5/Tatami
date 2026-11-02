@@ -59,7 +59,9 @@ struct OnboardingView: View {
       // cannot close in that interval; wait for the owning window's sheet end.
       dismissalIsPending = true
       let window = NSApp.windows.first { $0.identifier?.rawValue == "onboarding" }
-      if window?.attachedSheet == nil { dismissOnboardingWindow() }
+      if window?.attachedSheet == nil {
+        dismissOnboardingWindow()
+      }
     }
     .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEndSheetNotification)) { notification in
       guard
@@ -1409,7 +1411,11 @@ private struct OnboardingFloatingStep: View {
               "App to configure",
               selection: Binding(
                 get: { store.demoPrimarySlot },
-                set: { if let slot = $0 { store.send(.demoTileTapped(.host, slot)) } },
+                set: {
+                  if let slot = $0 {
+                    store.send(.demoTileTapped(.host, slot))
+                  }
+                },
               ),
             ) {
               ForEach(store.demoLayoutTree?.windows ?? [], id: \.self) { slot in
@@ -1878,7 +1884,9 @@ private struct OnboardingCumulativeLayoutStage: View {
         }
       },
       onDividerResized: { path, ratio in
-        if isHost { store.send(.demoDividerResized(path, ratio)) }
+        if isHost {
+          store.send(.demoDividerResized(path, ratio))
+        }
       },
     )
     .frame(width: frame.width, height: frame.height)

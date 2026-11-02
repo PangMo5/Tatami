@@ -21,6 +21,12 @@ public struct DemoLaunchOptions: Sendable, Equatable {
 
   // MARK: Public
 
+  public var windowCount: Int?
+  public var frame: CGRect?
+  /// Selects between fixed content variants (never random, never time-based).
+  /// It shifts a window's title with its content, because both read one index.
+  public var variant: Int
+
   /// Parses `--windows N`, `--frame x,y,w,h`, and `--variant N`. Unknown
   /// arguments are rejected loudly: a typo in a scene file must not silently
   /// produce a different window count on camera.
@@ -73,12 +79,6 @@ public struct DemoLaunchOptions: Sendable, Equatable {
     return options
   }
 
-  public var windowCount: Int?
-  public var frame: CGRect?
-  /// Selects between fixed content variants (never random, never time-based).
-  /// It shifts a window's title with its content, because both read one index.
-  public var variant: Int
-
 }
 
 // MARK: - DemoLaunchError
@@ -115,7 +115,7 @@ public enum DemoAppHost {
   /// `content` receives stable window identity; the app owns its editable state.
   public static func run(
     _ id: DemoAppID,
-    @ViewBuilder content: @escaping (DemoRenderContext) -> some View
+    @ContentBuilder content: @escaping (DemoRenderContext) -> some View,
   ) -> Never {
     let spec = DemoCatalog.spec(id)
     let arguments = Array(CommandLine.arguments.dropFirst())
@@ -136,7 +136,7 @@ public enum DemoAppHost {
     application.setActivationPolicy(.regular)
     application.run()
     // `run()` does not return; this keeps the delegate alive for the compiler.
-    withExtendedLifetime(delegate) {}
+    withExtendedLifetime(delegate) { }
     exit(0)
   }
 
@@ -152,7 +152,7 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   init(
     spec: DemoAppSpec,
     options: DemoLaunchOptions,
-    content: @escaping (DemoRenderContext) -> AnyView
+    content: @escaping (DemoRenderContext) -> AnyView,
   ) {
     self.spec = spec
     self.options = options
@@ -160,6 +160,15 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   }
 
   // MARK: Internal
+
+  let spec: DemoAppSpec
+  var control: DemoControlServer?
+
+  /// Windows currently on screen. A scene can grow or shrink this to film a
+  /// window being opened or closed, which is what the tiler reacts to.
+  var windowCount: Int {
+    windows.count
+  }
 
   func applicationDidFinishLaunching(_: Notification) {
     buildMenu()
@@ -169,12 +178,16 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     startControlServer()
   }
 
-  func applicationSupportsSecureRestorableState(_: NSApplication) -> Bool { true }
+  func applicationSupportsSecureRestorableState(_: NSApplication) -> Bool {
+    true
+  }
 
   /// Clicking the Dock icon of an app whose windows Tatami hid must not spawn
   /// an extra window — that would change the window count mid-take.
   func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows: Bool) -> Bool {
-    if !hasVisibleWindows, windows.isEmpty { openWindow(nil) }
+    if !hasVisibleWindows, windows.isEmpty {
+      openWindow(nil)
+    }
     return true
   }
 
@@ -209,7 +222,7 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       contentRect: CGRect(origin: .zero, size: spec.windowSize),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
-      defer: false
+      defer: false,
     )
     window.title = spec.windowTitle(at: contentIndex)
     // The tiler dictates every frame these windows ever have, so the SwiftUI
@@ -239,20 +252,13 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
   // MARK: Private
 
-  let spec: DemoAppSpec
-  var control: DemoControlServer?
-
-  /// Windows currently on screen. A scene can grow or shrink this to film a
-  /// window being opened or closed, which is what the tiler reacts to.
-  var windowCount: Int { windows.count }
-
-  private let options: DemoLaunchOptions
-  private let content: (DemoRenderContext) -> AnyView
-
   /// The smallest content size a take can ask a window for. A four-way split
   /// of the 1920x1200 recording display is 286pt wide and `resize shrink` steps
   /// go under that, so anything a window refuses below this lands on camera.
   private static let smallestTile = CGSize(width: 200, height: 120)
+
+  private let options: DemoLaunchOptions
+  private let content: (DemoRenderContext) -> AnyView
 
   private var windows = [NSWindow]()
   /// Monotonic, so titles and AX identifiers stay unique for the whole session.
@@ -275,7 +281,9 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
       && abs(granted.height - Self.smallestTile.height) < 0.5
     guard !honored else { return }
 
-    func describe(_ value: CGSize) -> String { String(format: "%.0fx%.0f", value.width, value.height) }
+    func describe(_ value: CGSize) -> String {
+      String(format: "%.0fx%.0f", value.width, value.height)
+    }
     let message = "\(spec.name): window \(ordinal) refused a \(describe(Self.smallestTile)) content size and "
       + "took \(describe(granted)) instead (contentMinSize \(describe(window.contentMinSize))). "
       + "A window that clamps the tiler records a wrong frame with no error anywhere."
@@ -293,7 +301,9 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   /// the launch happened to be on, and two takes on one machine can then put the
   /// same untouched window on different displays.
   private func frame(for ordinal: Int, of window: NSWindow) -> CGRect {
-    if let explicit = options.frame { return explicit }
+    if let explicit = options.frame {
+      return explicit
+    }
     // `screens[0]` is the menu-bar screen; testing the origin pins the choice to
     // the display at (0, 0) whatever order the array comes back in.
     let primary = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first
@@ -319,15 +329,24 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     appMenu.addItem(
       withTitle: String(localized: "Quit \(spec.name)"),
       action: #selector(NSApplication.terminate(_:)),
-      keyEquivalent: "q"
+      keyEquivalent: "q",
     )
 
     let editItem = NSMenuItem()
     mainMenu.addItem(editItem)
     let editMenu = NSMenu(title: String(localized: "Edit"))
     editItem.submenu = editMenu
-    let editActions: [(LocalizedStringResource, String, String)] = [("Undo", "undo:", "z"), ("Cut", "cut:", "x"),
-      ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")]
+    let editActions: [(LocalizedStringResource, String, String)] = [
+      ("Undo", "undo:", "z"),
+      ("Cut", "cut:", "x"),
+      ("Copy", "copy:", "c"),
+      ("Paste", "paste:", "v"),
+      (
+        "Select All",
+        "selectAll:",
+        "a",
+      ),
+    ]
     for (title, selector, key) in editActions {
       editMenu.addItem(withTitle: String(localized: title), action: Selector(selector), keyEquivalent: key)
     }
@@ -340,27 +359,31 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let newItem = NSMenuItem(
       title: String(localized: "New Window"),
       action: #selector(openWindow(_:)),
-      keyEquivalent: "n"
+      keyEquivalent: "n",
     )
     newItem.target = self
     windowMenu.addItem(newItem)
     windowMenu.addItem(
       withTitle: String(localized: "Close"),
       action: #selector(NSWindow.performClose(_:)),
-      keyEquivalent: "w"
+      keyEquivalent: "w",
     )
     windowMenu.addItem(
       withTitle: String(localized: "Minimize"),
       action: #selector(NSWindow.performMiniaturize(_:)),
-      keyEquivalent: "m"
+      keyEquivalent: "m",
     )
     windowMenu.addItem(
       withTitle: String(localized: "Zoom"),
       action: #selector(NSWindow.performZoom(_:)),
-      keyEquivalent: ""
+      keyEquivalent: "",
     )
     // Exercises the native-fullscreen path Tatami has to detect and step out of.
-    let fullscreenItem = NSMenuItem(title: String(localized: "Enter Full Screen"), action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+    let fullscreenItem = NSMenuItem(
+      title: String(localized: "Enter Full Screen"),
+      action: #selector(NSWindow.toggleFullScreen(_:)),
+      keyEquivalent: "f",
+    )
     fullscreenItem.keyEquivalentModifierMask = [.control, .command]
     windowMenu.addItem(fullscreenItem)
     NSApp.windowsMenu = windowMenu
@@ -375,13 +398,18 @@ final class DemoAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 /// Stable window identity. Editable content is owned by each app's views and
 /// shared saved work lives in StoryRepository.
 public struct DemoRenderContext: Equatable, Sendable {
-  public init(ordinal: Int) { self.ordinal = ordinal }
+  public init(ordinal: Int) {
+    self.ordinal = ordinal
+  }
+
   public let ordinal: Int
 }
 
 // MARK: - Control channel
 
 extension DemoAppDelegate {
+
+  // MARK: Internal
 
   /// Commands a scene can send. Every one is absolute, and every one is
   /// acknowledged, so the scene runner waits on a real answer rather than a
@@ -394,6 +422,8 @@ extension DemoAppDelegate {
     server.start()
     control = server
   }
+
+  // MARK: Private
 
   private func handle(_ request: DemoControlRequest) -> String {
     switch request.verb {

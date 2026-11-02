@@ -138,7 +138,9 @@ public struct WorkspaceListFeature {
 
     /// The profile selected in col 1, or nil when Shared Apps (or nothing) is.
     public var selectedProfileId: Profile.ID? {
-      if case .profile(let id) = topSelection { return id }
+      if case .profile(let id) = topSelection {
+        return id
+      }
       return nil
     }
 
@@ -544,7 +546,9 @@ public struct WorkspaceListFeature {
         return .none
 
       case .renameRequested(let target):
-        if state.renameSession?.target == target { return .none }
+        if state.renameSession?.target == target {
+          return .none
+        }
         commitRename(state: &state)
         guard let name = name(for: target, in: state.config) else { return .none }
         select(target, state: &state)
@@ -767,7 +771,9 @@ public struct WorkspaceListFeature {
 
     let fieldChanges = WorkspaceSync.fieldChanges(from: source, to: copy)
     let excludedFields = Set(fieldChanges.compactMap { change in
-      if !includeShortcuts, isShortcutIdentity(change) { return change.id }
+      if !includeShortcuts, isShortcutIdentity(change) {
+        return change.id
+      }
       return excludedItemIDs.contains(DuplicationOptionID.field(change.id, in: source.id))
         ? change.id
         : nil
@@ -922,7 +928,9 @@ public struct WorkspaceListFeature {
     case .profile(let id):
       let selectionChanged = state.topSelection != .profile(id)
         || state.selection != .profileSettings
-      if selectionChanged { state.selectionRevision &+= 1 }
+      if selectionChanged {
+        state.selectionRevision &+= 1
+      }
       state.topSelection = .profile(id)
       state.selection = .profileSettings
       if state.profileDetail?.profileId != id {
@@ -935,7 +943,9 @@ public struct WorkspaceListFeature {
       let owner = state.config.profileId(owning: id)
       let selectionChanged = state.topSelection != owner.map { .profile($0) }
         || state.selection != .workspace(id)
-      if selectionChanged { state.selectionRevision &+= 1 }
+      if selectionChanged {
+        state.selectionRevision &+= 1
+      }
       if let profileId = state.config.profileId(owning: id) {
         state.topSelection = .profile(profileId)
       }

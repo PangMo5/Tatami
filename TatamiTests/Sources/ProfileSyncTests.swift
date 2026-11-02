@@ -8,12 +8,11 @@ import Testing
 
 @Suite("Workspace / profile sync")
 struct ProfileSyncTests {
-  private func app(_ bundleId: String, layout: LayoutMode = .tiled, autoOpen: Bool = false) -> AppAssignment {
-    AppAssignment(bundleIdentifier: bundleId, name: bundleId, autoOpen: autoOpen, layout: layout)
-  }
+
+  // MARK: Internal
 
   @Test
-  func copyAvailabilityIgnoresIdentityNamesAndAppDisplayMetadata() {
+  func `copy availability ignores identity names and app display metadata`() {
     var source = Workspace(name: "Source", apps: [app("a"), app("b")])
     let target = Workspace(name: "Target", apps: [app("b"), app("a")])
     source.apps[0].name = "Different display name"
@@ -23,7 +22,7 @@ struct ProfileSyncTests {
   }
 
   @Test(arguments: ["add", "remove", "layout", "autoOpen", "display", "key"])
-  func copyAvailabilityIncludesAppAndWorkspaceChanges(_ change: String) {
+  func `copy availability includes app and workspace changes`(_ change: String) {
     let target = Workspace(name: "Target", apps: [app("a")])
     var source = Workspace(name: "Source", apps: target.apps)
     switch change {
@@ -38,22 +37,35 @@ struct ProfileSyncTests {
     #expect(WorkspaceSync.hasChanges(from: source, to: target))
   }
 
-  // MARK: - App diff
-
   @Test
-  func appChangesClassifyAddRemoveModify() {
+  func `app changes classify add remove modify`() {
     let source = [app("keep"), app("changed", layout: .floating), app("added")]
     let target = [app("keep"), app("changed", layout: .tiled), app("gone")]
     let changes = WorkspaceSync.appChanges(from: source, to: target)
     // "keep" unchanged → no entry.
     #expect(!changes.contains { $0.bundleId == "keep" })
-    #expect(changes.contains { if case .add(let a) = $0.kind { return a.bundleIdentifier == "added" }; return false })
-    #expect(changes.contains { if case .remove(let a) = $0.kind { return a.bundleIdentifier == "gone" }; return false })
-    #expect(changes.contains { if case .modify = $0.kind { return $0.bundleId == "changed" }; return false })
+    #expect(changes.contains {
+      if case .add(let a) = $0.kind {
+        return a.bundleIdentifier == "added"
+      }
+      return false
+    })
+    #expect(changes.contains {
+      if case .remove(let a) = $0.kind {
+        return a.bundleIdentifier == "gone"
+      }
+      return false
+    })
+    #expect(changes.contains {
+      if case .modify = $0.kind {
+        return $0.bundleId == "changed"
+      }
+      return false
+    })
   }
 
   @Test
-  func applyAppChangesHonorsExclusions() {
+  func `apply app changes honors exclusions`() {
     let source = [app("a"), app("b")]
     let target = [app("c")]
     let changes = WorkspaceSync.appChanges(from: source, to: target)
@@ -65,10 +77,8 @@ struct ProfileSyncTests {
     #expect(full.map(\.bundleIdentifier).sorted() == ["a", "b"])
   }
 
-  // MARK: - Field diff (display pin included)
-
   @Test
-  func fieldChangesIncludeDisplayAndSettings() {
+  func `field changes include display and settings`() {
     let source = Workspace(name: "W", displayHint: "External", symbolIconName: "star", keyEquivalent: "x")
     let target = Workspace(name: "W", displayHint: "Built-in", symbolIconName: "bolt", keyEquivalent: "x")
     let changes = WorkspaceSync.fieldChanges(from: source, to: target)
@@ -79,7 +89,7 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func applyFieldChangesHonorsExclusions() {
+  func `apply field changes honors exclusions`() {
     let source = Workspace(name: "W", displayHint: "External", symbolIconName: "star")
     var target = Workspace(name: "W", displayHint: "Built-in", symbolIconName: "bolt")
     let changes = WorkspaceSync.fieldChanges(from: source, to: target)
@@ -90,89 +100,76 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func effectiveSelectionDropsStaleAndDisabledChildIDs() {
-    let selected: Set<String> = ["parent", "child", "stale"]
-    let valid: Set<String> = ["parent", "child"]
+  func `effective selection drops stale and disabled child IDs`() {
+    let selected: Set = ["parent", "child", "stale"]
+    let valid: Set = ["parent", "child"]
     #expect(WorkspaceSync.effectiveSelection(
       selected: selected,
       validIDs: valid,
-      parentByItemID: ["child": "parent"]
+      parentByItemID: ["child": "parent"],
     ) == ["parent", "child"])
     #expect(WorkspaceSync.effectiveSelection(
       selected: ["child", "stale"],
       validIDs: valid,
-      parentByItemID: ["child": "parent"]
+      parentByItemID: ["child": "parent"],
     ).isEmpty)
   }
 
-  // MARK: - Profile sync
-
-  private func twoProfiles() -> AppConfig {
-    let base = Profile(name: "Default", workspaces: [
-      Workspace(name: "Browser", displayHint: "Built-in", apps: [app("zen"), app("comet")]),
-    ])
-    let dual = Profile(name: "Dual", workspaces: [
-      Workspace(name: "Browser", displayHint: "External", apps: [app("zen")]),
-    ])
-    return AppConfig(profiles: [base, dual])
-  }
-
   @Test
-  func differingCountsAppsAndFields() {
+  func `differing counts apps and fields`() {
     let config = twoProfiles()
     let diverged = config.workspacesDiffering(in: config.profiles[1].id, comparedTo: config.profiles[0].id)
     #expect(diverged == ["Browser"]) // apps differ (comet) and display differs
   }
 
   @Test
-  func profileSyncAppliesAppsAndFieldsExceptExcluded() {
+  func `profile sync applies apps and fields except excluded`() throws {
     var config = twoProfiles()
     let base = config.profiles[0].id
     let dual = config.profiles[1]
-    let ws = dual.workspaces.first!.id
+    let ws = try #require(dual.workspaces.first?.id)
     // Sync everything EXCEPT the display change → apps match, display preserved.
     config.applyProfileSync(
-      into: dual.id, from: base,
-      excludedFieldsByWorkspace: [ws: ["displayHint"]]
+      into: dual.id,
+      from: base,
+      excludedFieldsByWorkspace: [ws: ["displayHint"]],
     )
-    let browser = config.profiles[1].workspaces[id: ws]!
+    let browser = try #require(config.profiles[1].workspaces[id: ws])
     #expect(browser.apps.map(\.bundleIdentifier) == ["zen", "comet"])
     #expect(browser.displayHint == "External") // excluded, so kept
   }
 
-  // MARK: - Workspace import
-
   @Test
-  func importWorkspacePullsAppsAndFields() {
+  func `import workspace pulls apps and fields`() throws {
     let source = Profile(name: "Src", workspaces: [
-      Workspace(name: "Src WS", displayHint: "External", symbolIconName: "star", apps: [app("x"), app("y")]),
+      Workspace(name: "Src WS", displayHint: "External", symbolIconName: "star", apps: [app("x"), app("y")])
     ])
     let target = Profile(name: "Tgt", workspaces: [
-      Workspace(name: "Tgt WS", displayHint: "Built-in", symbolIconName: "bolt", apps: [app("x")]),
+      Workspace(name: "Tgt WS", displayHint: "Built-in", symbolIconName: "bolt", apps: [app("x")])
     ])
     var config = AppConfig(profiles: [target, source], activeProfileId: target.id)
-    let targetWsId = target.workspaces.first!.id
-    let sourceWsId = source.workspaces.first!.id
+    let targetWsId = try #require(target.workspaces.first?.id)
+    let sourceWsId = try #require(source.workspaces.first?.id)
     config.importWorkspace(
-      into: targetWsId, from: source.id, sourceWorkspace: sourceWsId,
-      excludingFields: ["displayHint"] // keep target's display
+      into: targetWsId,
+      from: source.id,
+      sourceWorkspace: sourceWsId,
+      excludingFields: ["displayHint"], // keep target's display
     )
-    let ws = config.profiles[0].workspaces[id: targetWsId]!
+    let ws = try #require(config.profiles[0].workspaces[id: targetWsId])
     #expect(ws.apps.map(\.bundleIdentifier) == ["x", "y"])
     #expect(ws.symbolIconName == "star") // pulled
     #expect(ws.displayHint == "Built-in") // excluded, kept
   }
 
-  // MARK: - Shortcut-safe projections
-
   @Test
-  func workspaceImportUsesProjectedExplicitOverridePrecedence() throws {
+  func `workspace import uses projected explicit override precedence`() throws {
     let explicit = try #require(HotKey(parsing: "cmd - x"))
     let derived = try #require(HotKey(parsing: "ctrl + alt - a"))
     let sourceWorkspace = Workspace(
       name: "Source",
       activateShortcut: explicit,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let targetWorkspace = Workspace(name: "Target", keyEquivalent: "b")
     let source = Profile(name: "Source", workspaces: [sourceWorkspace])
@@ -186,7 +183,7 @@ struct ProfileSyncTests {
     let allSelected = try #require(config.workspaceImportProjection(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     ))
     #expect(allSelected.conflicts.isEmpty)
     #expect(allSelected.config.workspace(id: targetWorkspace.id)?.keyEquivalent == "a")
@@ -196,25 +193,25 @@ struct ProfileSyncTests {
       into: targetWorkspace.id,
       from: source.id,
       sourceWorkspace: sourceWorkspace.id,
-      excludingFields: [WorkspaceShortcutField.activateShortcut.rawValue]
+      excludingFields: [WorkspaceShortcutField.activateShortcut.rawValue],
     ))
     #expect(withoutOverride.conflicts.map(\.selection.field) == [.keyEquivalent])
     #expect(withoutOverride.conflicts.map(\.hotKey) == [derived])
   }
 
   @Test
-  func profileSyncDetectsConflictsBetweenSelectedWorkspaceKeys() throws {
+  func `profile sync detects conflicts between selected workspace keys`() throws {
     let firstOverride = try #require(HotKey(parsing: "cmd - x"))
     let secondOverride = try #require(HotKey(parsing: "cmd - y"))
     let sourceFirst = Workspace(
       name: "First",
       activateShortcut: firstOverride,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let sourceSecond = Workspace(
       name: "Second",
       activateShortcut: secondOverride,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let targetFirst = Workspace(name: "First", keyEquivalent: "b")
     let targetSecond = Workspace(name: "Second", keyEquivalent: "c")
@@ -231,7 +228,7 @@ struct ProfileSyncTests {
       excludedFieldsByWorkspace: [
         targetFirst.id: [WorkspaceShortcutField.activateShortcut.rawValue],
         targetSecond.id: [WorkspaceShortcutField.activateShortcut.rawValue],
-      ]
+      ],
     ))
 
     #expect(Set(projection.conflicts.map(\.selection)) == [
@@ -242,7 +239,7 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func workspaceKeysMayBeReusedAcrossProfiles() throws {
+  func `workspace keys may be reused across profiles`() throws {
     let sourceWorkspace = Workspace(name: "Browser", keyEquivalent: "a")
     let targetWorkspace = Workspace(name: "Browser", keyEquivalent: "b")
     let source = Profile(name: "Default", workspaces: [sourceWorkspace])
@@ -254,7 +251,7 @@ struct ProfileSyncTests {
 
     let projection = try #require(config.profileSyncProjection(
       into: target.id,
-      from: source.id
+      from: source.id,
     ))
 
     #expect(projection.conflicts.isEmpty)
@@ -262,7 +259,7 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func unrelatedLegacyConflictDoesNotBlockNonShortcutCopy() throws {
+  func `unrelated legacy conflict does not block non shortcut copy`() throws {
     let legacyConflict = try #require(HotKey(parsing: "cmd - h"))
     let sourceWorkspace = Workspace(name: "Source", symbolIconName: "star")
     let targetWorkspace = Workspace(name: "Target", symbolIconName: "bolt")
@@ -276,7 +273,7 @@ struct ProfileSyncTests {
     let conflicts = config.importWorkspace(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     )
 
     #expect(conflicts.isEmpty)
@@ -284,12 +281,12 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func representationOnlyExplicitOverrideDoesNotIntroduceLegacyConflict() throws {
+  func `representation only explicit override does not introduce legacy conflict`() throws {
     let effectiveKey = try #require(HotKey(parsing: "ctrl + alt - a"))
     let sourceWorkspace = Workspace(
       name: "Source",
       activateShortcut: effectiveKey,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let targetWorkspace = Workspace(name: "Target", keyEquivalent: "a")
     let source = Profile(name: "Source", workspaces: [sourceWorkspace])
@@ -303,27 +300,27 @@ struct ProfileSyncTests {
     let projection = try #require(config.workspaceImportProjection(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     ))
     #expect(projection.conflicts.isEmpty)
 
     let conflicts = config.importWorkspace(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     )
     #expect(conflicts.isEmpty)
     #expect(config.workspace(id: targetWorkspace.id)?.activateShortcut == effectiveKey)
   }
 
   @Test
-  func counterfactualAttributesCombinedCollisionOnlyToCausalField() throws {
+  func `counterfactual attributes combined collision only to causal field`() throws {
     let effectiveKey = try #require(HotKey(parsing: "ctrl + alt - a"))
     let sourceWorkspace = Workspace(
       name: "Source",
       activateShortcut: effectiveKey,
       assignAppShortcut: effectiveKey,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let targetWorkspace = Workspace(name: "Target", keyEquivalent: "a")
     let source = Profile(name: "Source", workspaces: [sourceWorkspace])
@@ -336,7 +333,7 @@ struct ProfileSyncTests {
     let projection = try #require(config.workspaceImportProjection(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     ))
 
     #expect(projection.conflicts.map(\.selection.field) == [.assignAppShortcut])
@@ -344,12 +341,12 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func jointKeyAndExplicitFieldsCannotHideIntroducedCollision() throws {
+  func `joint key and explicit fields cannot hide introduced collision`() throws {
     let conflictingKey = try #require(HotKey(parsing: "ctrl + alt - a"))
     let sourceWorkspace = Workspace(
       name: "Source",
       activateShortcut: conflictingKey,
-      keyEquivalent: "a"
+      keyEquivalent: "a",
     )
     let targetWorkspace = Workspace(name: "Target", keyEquivalent: "b")
     let source = Profile(name: "Source", workspaces: [sourceWorkspace])
@@ -363,7 +360,7 @@ struct ProfileSyncTests {
     let projection = try #require(config.workspaceImportProjection(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     ))
 
     #expect(Set(projection.conflicts.map(\.selection.field)) == [
@@ -373,7 +370,7 @@ struct ProfileSyncTests {
     let conflicts = config.importWorkspace(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     )
     #expect(!conflicts.isEmpty)
     #expect(config.workspace(id: targetWorkspace.id)?.keyEquivalent == "b")
@@ -381,13 +378,13 @@ struct ProfileSyncTests {
   }
 
   @Test
-  func applyRevalidatesCurrentConfigAndRejectsWholeCopy() throws {
+  func `apply revalidates current config and rejects whole copy`() throws {
     let derived = try #require(HotKey(parsing: "ctrl + alt - a"))
     let copiedApp = app("copied")
     let sourceWorkspace = Workspace(
       name: "Source",
       keyEquivalent: "a",
-      apps: [copiedApp]
+      apps: [copiedApp],
     )
     let targetWorkspace = Workspace(name: "Target", keyEquivalent: "b")
     let source = Profile(name: "Source", workspaces: [sourceWorkspace])
@@ -397,7 +394,7 @@ struct ProfileSyncTests {
     let chooserProjection = try #require(config.workspaceImportProjection(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     ))
     #expect(chooserProjection.conflicts.isEmpty)
 
@@ -407,11 +404,28 @@ struct ProfileSyncTests {
     let conflicts = config.importWorkspace(
       into: targetWorkspace.id,
       from: source.id,
-      sourceWorkspace: sourceWorkspace.id
+      sourceWorkspace: sourceWorkspace.id,
     )
 
     #expect(!conflicts.isEmpty)
     #expect(config.workspace(id: targetWorkspace.id)?.keyEquivalent == "b")
     #expect(config.workspace(id: targetWorkspace.id)?.apps.isEmpty == true)
   }
+
+  // MARK: Private
+
+  private func app(_ bundleId: String, layout: LayoutMode = .tiled, autoOpen: Bool = false) -> AppAssignment {
+    AppAssignment(bundleIdentifier: bundleId, name: bundleId, autoOpen: autoOpen, layout: layout)
+  }
+
+  private func twoProfiles() -> AppConfig {
+    let base = Profile(name: "Default", workspaces: [
+      Workspace(name: "Browser", displayHint: "Built-in", apps: [app("zen"), app("comet")])
+    ])
+    let dual = Profile(name: "Dual", workspaces: [
+      Workspace(name: "Browser", displayHint: "External", apps: [app("zen")])
+    ])
+    return AppConfig(profiles: [base, dual])
+  }
+
 }

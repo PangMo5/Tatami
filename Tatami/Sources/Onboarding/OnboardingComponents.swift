@@ -14,7 +14,7 @@ struct OnboardingSection<Content: View>: View {
   init(
     title: LocalizedStringResource,
     subtitle: LocalizedStringResource? = nil,
-    @ViewBuilder content: () -> Content,
+    @ContentBuilder content: () -> Content,
   ) {
     self.title = title
     self.subtitle = subtitle
@@ -25,7 +25,7 @@ struct OnboardingSection<Content: View>: View {
 
   let title: LocalizedStringResource
   let subtitle: LocalizedStringResource?
-  @ViewBuilder let content: Content
+  @ContentBuilder let content: Content
 
   var body: some View {
     VStack(alignment: .leading, spacing: 13) {
@@ -371,7 +371,7 @@ private struct OnboardingAppDestinationMenu: View {
       } label: {
         destinationLabel(
           String(localized: "Not managed"),
-          selected: destination == .unassigned
+          selected: destination == .unassigned,
         )
       }
       Button {
@@ -379,7 +379,7 @@ private struct OnboardingAppDestinationMenu: View {
       } label: {
         destinationLabel(
           String(localized: "Shared Apps"),
-          selected: destination == .shared
+          selected: destination == .shared,
         )
       }
       Divider()
@@ -419,7 +419,7 @@ private struct OnboardingAppDestinationMenu: View {
 
   private func destinationLabel(
     _ title: String,
-    selected: Bool
+    selected: Bool,
   ) -> some View {
     Label(title, systemImage: selected ? "checkmark" : "circle")
   }
@@ -521,7 +521,11 @@ struct OnboardingWorkspaceContextPicker: View {
         label,
         selection: Binding(
           get: { selectedID },
-          set: { if let id = $0 { onSelect(id) } },
+          set: {
+            if let id = $0 {
+              onSelect(id)
+            }
+          },
         ),
       ) {
         ForEach(workspaces) { group in
@@ -1070,7 +1074,7 @@ struct OnboardingDemoMonitor<Content: View>: View {
     title: String,
     status: String,
     hud: String? = nil,
-    @ViewBuilder content: () -> Content,
+    @ContentBuilder content: () -> Content,
   ) {
     self.title = title
     self.status = status
@@ -1083,7 +1087,7 @@ struct OnboardingDemoMonitor<Content: View>: View {
   let title: String
   let status: String
   let hud: String?
-  @ViewBuilder let content: Content
+  @ContentBuilder let content: Content
 
   var body: some View {
     VStack(spacing: 0) {
@@ -1190,7 +1194,7 @@ struct OnboardingDemoMonitor<Content: View>: View {
 struct OnboardingDemoControlPanel<Content: View>: View {
   let title: LocalizedStringResource
   let detail: LocalizedStringResource
-  @ViewBuilder let content: Content
+  @ContentBuilder let content: Content
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -1751,14 +1755,14 @@ private struct OnboardingGestureConsole: View {
   private func lessonBadge(
     number: Int,
     title: LocalizedStringResource,
-    completed: Bool
+    completed: Bool,
   ) -> some View {
     Label(
       "\(number) · \(String(localized: title))",
-      systemImage: completed ? "checkmark.circle.fill" : "circle"
+      systemImage: completed ? "checkmark.circle.fill" : "circle",
     )
-      .font(.caption.weight(.semibold))
-      .foregroundStyle(completed ? Color.green : Color.secondary)
+    .font(.caption.weight(.semibold))
+    .foregroundStyle(completed ? Color.green : Color.secondary)
   }
 
   private func workspaceButton(_ workspace: Workspace) -> some View {
@@ -1920,7 +1924,7 @@ struct OnboardingLayoutToolbar: View {
 
   private func commandGroup(
     _ title: LocalizedStringResource,
-    @ViewBuilder content: () -> some View,
+    @ContentBuilder content: () -> some View,
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       Text(title)

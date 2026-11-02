@@ -4,6 +4,8 @@
 import Foundation
 import IdentifiedCollections
 
+// MARK: - AppConfig
+
 /// Root of the on-disk Tatami configuration.
 ///
 /// Serialized to `$XDG_CONFIG_HOME/tatami/config.toml` (defaulting to
@@ -14,6 +16,63 @@ import IdentifiedCollections
 /// outside the GUI (vim, dotfiles, etc.) are picked up via Sharing's file
 /// watcher.
 public struct AppConfig: Hashable, Sendable, Codable {
+
+  // MARK: Lifecycle
+
+  public init(
+    profiles: [Profile] = [Profile.makeDefault()],
+    sharedApps: [SharedApp] = [],
+    settings: AppSettings = AppSettings(),
+    hooks: [HookDefinition] = [],
+    activeProfileId: Profile.ID? = nil,
+  ) {
+    self.profiles = profiles
+    self.sharedApps = sharedApps
+    self.settings = settings
+    self.hooks = hooks
+    self.activeProfileId = activeProfileId
+  }
+
+  public init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: CodingKeys.self)
+    // A *missing* key is the normal partial-config case and gets the
+    // default. A key that is PRESENT but corrupt must fail the decode:
+    // defaulting here would silently reset (and the next GUI write would
+    // persist the reset, wiping the user's workspaces) — the fileStorage
+    // containment keeps the previous in-memory config and reports instead.
+    profiles = c.contains(.profiles)
+      ? try c.decode([Profile].self, forKey: .profiles)
+      : [Profile.makeDefault()]
+    settings = c.contains(.settings)
+      ? try c.decode(AppSettings.self, forKey: .settings)
+      : AppSettings()
+    hooks = c.contains(.hooks)
+      ? try c.decode([HookDefinition].self, forKey: .hooks)
+      : []
+    if c.contains(.sharedApps) {
+      sharedApps = try c.decode([SharedApp].self, forKey: .sharedApps)
+    } else if c.contains(.floatingApps) {
+      // One-time migration: old floating apps were "untiled + everywhere",
+      // which is exactly a shared floating app.
+      sharedApps = try c.decode([LegacyFloatingApp].self, forKey: .floatingApps).map {
+        SharedApp(
+          bundleIdentifier: $0.bundleIdentifier,
+          name: $0.name,
+          iconPath: $0.iconPath,
+          layout: .floating,
+        )
+      }
+    } else {
+      sharedApps = []
+    }
+    // Which profile is active is session state, not a setting — it's persisted
+    // separately (ProfileSessionStore, like layouts.json) and injected at
+    // startup, so it never clutters config.toml or overwrites hand-edits.
+    activeProfileId = nil
+  }
+
+  // MARK: Public
+
   public var profiles: [Profile]
   /// Apps present in every workspace. Each carries a `floating` flag: tiled
   /// into each workspace's layout when `false`, untiled + on top when `true`.
@@ -27,62 +86,6 @@ public struct AppConfig: Hashable, Sendable, Codable {
   /// display-activation rule.
   public var activeProfileId: Profile.ID?
 
-  public init(
-    profiles: [Profile] = [Profile.makeDefault()],
-    sharedApps: [SharedApp] = [],
-    settings: AppSettings = AppSettings(),
-    hooks: [HookDefinition] = [],
-    activeProfileId: Profile.ID? = nil
-  ) {
-    self.profiles = profiles
-    self.sharedApps = sharedApps
-    self.settings = settings
-    self.hooks = hooks
-    self.activeProfileId = activeProfileId
-  }
-
-  private enum CodingKeys: String, CodingKey {
-    case profiles, sharedApps, settings, hooks
-    // DEPRECATED: legacy key, read once to migrate into `sharedApps`. The
-    // first GUI/CLI write re-serializes as `sharedApps`, so it disappears.
-    // Remove after a few releases.
-    case floatingApps
-  }
-
-  public init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    // A *missing* key is the normal partial-config case and gets the
-    // default. A key that is PRESENT but corrupt must fail the decode:
-    // defaulting here would silently reset (and the next GUI write would
-    // persist the reset, wiping the user's workspaces) — the fileStorage
-    // containment keeps the previous in-memory config and reports instead.
-    self.profiles = c.contains(.profiles)
-      ? try c.decode([Profile].self, forKey: .profiles)
-      : [Profile.makeDefault()]
-    self.settings = c.contains(.settings)
-      ? try c.decode(AppSettings.self, forKey: .settings)
-      : AppSettings()
-    self.hooks = c.contains(.hooks)
-      ? try c.decode([HookDefinition].self, forKey: .hooks)
-      : []
-    if c.contains(.sharedApps) {
-      self.sharedApps = try c.decode([SharedApp].self, forKey: .sharedApps)
-    } else if c.contains(.floatingApps) {
-      // One-time migration: old floating apps were "untiled + everywhere",
-      // which is exactly a shared floating app.
-      self.sharedApps = try c.decode([LegacyFloatingApp].self, forKey: .floatingApps).map {
-        SharedApp(bundleIdentifier: $0.bundleIdentifier, name: $0.name,
-                  iconPath: $0.iconPath, layout: .floating)
-      }
-    } else {
-      self.sharedApps = []
-    }
-    // Which profile is active is session state, not a setting — it's persisted
-    // separately (ProfileSessionStore, like layouts.json) and injected at
-    // startup, so it never clutters config.toml or overwrites hand-edits.
-    self.activeProfileId = nil
-  }
-
   public func encode(to encoder: Encoder) throws {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(profiles, forKey: .profiles)
@@ -93,31 +96,37 @@ public struct AppConfig: Hashable, Sendable, Codable {
     // ProfileSessionStore (see the decode note above).
     // Legacy `floatingApps` is intentionally never written.
   }
+
+  // MARK: Private
+
+  private enum CodingKeys: String, CodingKey {
+    case profiles
+    case sharedApps
+    case settings
+    case hooks
+    // DEPRECATED: legacy key, read once to migrate into `sharedApps`. The
+    // first GUI/CLI write re-serializes as `sharedApps`, so it disappears.
+    // Remove after a few releases.
+    case floatingApps
+  }
+
 }
 
 extension AppConfig {
-  /// Compare the configuration that is actually encoded to `config.toml`.
-  /// `activeProfileId` is session state and must not create false conflicts
-  /// while an asynchronous mutation prepares external data such as layouts.
-  func hasSamePersistedContent(as other: AppConfig) -> Bool {
-    var lhs = self
-    var rhs = other
-    lhs.activeProfileId = nil
-    rhs.activeProfileId = nil
-    return lhs == rhs
-  }
+
+  // MARK: Public
 
   public struct ProfileDuplication: Equatable, Sendable {
-    public let profileId: Profile.ID
-    public let workspaceIdMap: [Workspace.ID: Workspace.ID]
-
     public init(
       profileId: Profile.ID,
-      workspaceIdMap: [Workspace.ID: Workspace.ID]
+      workspaceIdMap: [Workspace.ID: Workspace.ID],
     ) {
       self.profileId = profileId
       self.workspaceIdMap = workspaceIdMap
     }
+
+    public let profileId: Profile.ID
+    public let workspaceIdMap: [Workspace.ID: Workspace.ID]
   }
 
   /// The active profile: the one `activeProfileId` points at, falling back to
@@ -137,7 +146,9 @@ extension AppConfig {
     for profile in profiles {
       guard let rule = profile.autoActivation, rule.matches(connected: connected) else { continue }
       let score = rule.specificity
-      if best == nil || score > best!.score { best = (profile.id, score) }
+      if best == nil || score > best!.score {
+        best = (profile.id, score)
+      }
     }
     return best?.id
   }
@@ -190,7 +201,9 @@ extension AppConfig {
   /// resolve a workspace without knowing — or caring — which profile is active.
   public func workspace(id: Workspace.ID) -> Workspace? {
     for profile in profiles {
-      if let workspace = profile.workspaces[id: id] { return workspace }
+      if let workspace = profile.workspaces[id: id] {
+        return workspace
+      }
     }
     return nil
   }
@@ -205,14 +218,6 @@ extension AppConfig {
   public mutating func mutateProfile(_ id: Profile.ID, _ body: (inout Profile) -> Void) {
     guard let idx = profiles.firstIndex(where: { $0.id == id }) else { return }
     body(&profiles[idx])
-  }
-
-  /// Index of the active profile in `profiles`, or nil when there are none.
-  private var activeProfileIndex: Int? {
-    if let id = activeProfileId, let idx = profiles.firstIndex(where: { $0.id == id }) {
-      return idx
-    }
-    return profiles.isEmpty ? nil : 0
   }
 
   public mutating func mutateActiveProfile(_ body: (inout Profile) -> Void) {
@@ -231,8 +236,8 @@ extension AppConfig {
   public mutating func duplicateProfile(_ id: Profile.ID) -> ProfileDuplication? {
     guard let srcIdx = profiles.firstIndex(where: { $0.id == id }) else { return nil }
     let src = profiles[srcIdx]
-    var remap: [Workspace.ID: Workspace.ID] = [:]
-    var clonedWorkspaces: [Workspace] = []
+    var remap = [Workspace.ID: Workspace.ID]()
+    var clonedWorkspaces = [Workspace]()
     for var ws in src.workspaces {
       let newId = UUID()
       remap[ws.id] = newId
@@ -243,7 +248,7 @@ extension AppConfig {
     clone.id = UUID()
     clone.name = Self.duplicateName(
       for: src.name,
-      existingNames: profiles.lazy.map(\.name)
+      existingNames: profiles.lazy.map(\.name),
     )
     clone.shortcut = nil
     // Don't inherit the source's switch shortcut or auto-activation rule — two
@@ -292,7 +297,7 @@ extension AppConfig {
     clone.id = UUID()
     clone.name = Self.duplicateName(
       for: source.name,
-      existingNames: profiles[profileIndex].workspaces.lazy.map(\.name)
+      existingNames: profiles[profileIndex].workspaces.lazy.map(\.name),
     )
     clone.keyEquivalent = nil
     clone.activateShortcut = nil
@@ -306,16 +311,20 @@ extension AppConfig {
   /// workspace in `sourceId` — by apps or by any field (display pin included).
   /// Drift indicator for the profile-sync tool.
   public func workspacesDiffering(
-    in targetId: Profile.ID, comparedTo sourceId: Profile.ID
+    in targetId: Profile.ID,
+    comparedTo sourceId: Profile.ID,
   ) -> [String] {
-    guard targetId != sourceId,
-          let target = profiles.first(where: { $0.id == targetId }),
-          let source = profiles.first(where: { $0.id == sourceId })
+    guard
+      targetId != sourceId,
+      let target = profiles.first(where: { $0.id == targetId }),
+      let source = profiles.first(where: { $0.id == sourceId })
     else { return [] }
-    var diverged: [String] = []
+    var diverged = [String]()
     for ws in target.workspaces {
       guard let match = source.workspaces.first(where: { $0.name == ws.name }) else { continue }
-      if WorkspaceSync.hasChanges(from: match, to: ws) { diverged.append(ws.name) }
+      if WorkspaceSync.hasChanges(from: match, to: ws) {
+        diverged.append(ws.name)
+      }
     }
     return diverged
   }
@@ -328,11 +337,12 @@ extension AppConfig {
     into targetId: Profile.ID,
     from sourceId: Profile.ID,
     excludedAppsByWorkspace: [Workspace.ID: Set<String>] = [:],
-    excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:]
+    excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:],
   ) -> WorkspaceSyncProjection? {
-    guard targetId != sourceId,
-          let sourceIdx = profiles.firstIndex(where: { $0.id == sourceId }),
-          let targetIdx = profiles.firstIndex(where: { $0.id == targetId })
+    guard
+      targetId != sourceId,
+      let sourceIdx = profiles.firstIndex(where: { $0.id == sourceId }),
+      let targetIdx = profiles.firstIndex(where: { $0.id == targetId })
     else { return nil }
 
     let source = profiles[sourceIdx]
@@ -355,7 +365,7 @@ extension AppConfig {
       updated.apps = WorkspaceSync.apply(
         appChanges,
         to: updated.apps,
-        excluding: excludedAppsByWorkspace[workspace.id] ?? []
+        excluding: excludedAppsByWorkspace[workspace.id] ?? [],
       )
       WorkspaceSync.apply(fieldChanges, to: &updated, excluding: excludedFields)
       projected.profiles[targetIdx].workspaces[id: workspace.id] = updated
@@ -367,8 +377,8 @@ extension AppConfig {
       config: projected,
       conflicts: projected.shortcutCopyConflicts(
         for: shortcutSelections,
-        comparedTo: self
-      )
+        comparedTo: self,
+      ),
     )
   }
 
@@ -382,13 +392,13 @@ extension AppConfig {
     into targetId: Profile.ID,
     from sourceId: Profile.ID,
     excludedAppsByWorkspace: [Workspace.ID: Set<String>] = [:],
-    excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:]
+    excludedFieldsByWorkspace: [Workspace.ID: Set<String>] = [:],
   ) -> [WorkspaceShortcutConflict] {
     guard let projection = profileSyncProjection(
       into: targetId,
       from: sourceId,
       excludedAppsByWorkspace: excludedAppsByWorkspace,
-      excludedFieldsByWorkspace: excludedFieldsByWorkspace
+      excludedFieldsByWorkspace: excludedFieldsByWorkspace,
     ) else { return [] }
     guard projection.conflicts.isEmpty else { return projection.conflicts }
     self = projection.config
@@ -402,7 +412,7 @@ extension AppConfig {
     from sourceProfileId: Profile.ID,
     sourceWorkspace sourceWorkspaceId: Workspace.ID,
     excludingApps: Set<String> = [],
-    excludingFields: Set<String> = []
+    excludingFields: Set<String> = [],
   ) -> WorkspaceSyncProjection? {
     guard
       let sourceWorkspace = profiles.first(where: { $0.id == sourceProfileId })?
@@ -412,11 +422,11 @@ extension AppConfig {
 
     let appChanges = WorkspaceSync.appChanges(
       from: sourceWorkspace.apps,
-      to: targetWorkspace.apps
+      to: targetWorkspace.apps,
     )
     let fieldChanges = WorkspaceSync.fieldChanges(
       from: sourceWorkspace,
-      to: targetWorkspace
+      to: targetWorkspace,
     )
     var shortcutSelections = Set<WorkspaceShortcutSelection>()
     for change in fieldChanges where !excludingFields.contains(change.id) {
@@ -430,7 +440,7 @@ extension AppConfig {
       workspace.apps = WorkspaceSync.apply(
         appChanges,
         to: workspace.apps,
-        excluding: excludingApps
+        excluding: excludingApps,
       )
       WorkspaceSync.apply(fieldChanges, to: &workspace, excluding: excludingFields)
     }
@@ -438,8 +448,8 @@ extension AppConfig {
       config: projected,
       conflicts: projected.shortcutCopyConflicts(
         for: shortcutSelections,
-        comparedTo: self
-      )
+        comparedTo: self,
+      ),
     )
   }
 
@@ -452,14 +462,14 @@ extension AppConfig {
     from sourceProfileId: Profile.ID,
     sourceWorkspace sourceWsId: Workspace.ID,
     excludingApps: Set<String> = [],
-    excludingFields: Set<String> = []
+    excludingFields: Set<String> = [],
   ) -> [WorkspaceShortcutConflict] {
     guard let projection = workspaceImportProjection(
       into: targetWsId,
       from: sourceProfileId,
       sourceWorkspace: sourceWsId,
       excludingApps: excludingApps,
-      excludingFields: excludingFields
+      excludingFields: excludingFields,
     ) else { return [] }
     guard projection.conflicts.isEmpty else { return projection.conflicts }
     self = projection.config
@@ -471,10 +481,11 @@ extension AppConfig {
   /// globally unique, so this resolves to exactly one workspace.
   public mutating func mutateWorkspace(
     _ id: Workspace.ID,
-    _ body: (inout Workspace) -> Void
+    _ body: (inout Workspace) -> Void,
   ) {
-    guard let pIdx = profiles.firstIndex(where: { $0.workspaces[id: id] != nil }),
-          var workspace = profiles[pIdx].workspaces[id: id]
+    guard
+      let pIdx = profiles.firstIndex(where: { $0.workspaces[id: id] != nil }),
+      var workspace = profiles[pIdx].workspaces[id: id]
     else { return }
     body(&workspace)
     profiles[pIdx].workspaces[id: id] = workspace
@@ -503,7 +514,7 @@ extension AppConfig {
     kind: WorkspaceKind,
     relativeTo targetId: Workspace.ID?,
     after: Bool,
-    in profileId: Profile.ID? = nil
+    in profileId: Profile.ID? = nil,
   ) {
     guard draggedId != targetId else { return }
     let target = profileId ?? activeProfileId ?? profiles.first?.id
@@ -529,11 +540,34 @@ extension AppConfig {
     }
   }
 
+  // MARK: Internal
+
+  /// Compare the configuration that is actually encoded to `config.toml`.
+  /// `activeProfileId` is session state and must not create false conflicts
+  /// while an asynchronous mutation prepares external data such as layouts.
+  func hasSamePersistedContent(as other: AppConfig) -> Bool {
+    var lhs = self
+    var rhs = other
+    lhs.activeProfileId = nil
+    rhs.activeProfileId = nil
+    return lhs == rhs
+  }
+
+  // MARK: Private
+
+  /// Index of the active profile in `profiles`, or nil when there are none.
+  private var activeProfileIndex: Int? {
+    if let id = activeProfileId, let idx = profiles.firstIndex(where: { $0.id == id }) {
+      return idx
+    }
+    return profiles.isEmpty ? nil : 0
+  }
+
   /// Finder-style duplicate names: `Name copy`, then `Name copy 2`, while
   /// continuing an existing suffix instead of producing `copy copy`.
   private static func duplicateName(
     for sourceName: String,
-    existingNames: some Sequence<String>
+    existingNames: some Sequence<String>,
   ) -> String {
     let (baseName, firstIndex) = duplicateNameComponents(sourceName)
     let existingNames = Set(existingNames)
@@ -542,7 +576,9 @@ extension AppConfig {
       let candidate = index == 1
         ? "\(baseName) copy"
         : "\(baseName) copy \(index)"
-      if !existingNames.contains(candidate) { return candidate }
+      if !existingNames.contains(candidate) {
+        return candidate
+      }
       index += 1
     }
   }
@@ -561,4 +597,5 @@ extension AppConfig {
     }
     return (name, 1)
   }
+
 }

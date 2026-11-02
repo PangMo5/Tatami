@@ -29,7 +29,8 @@ enum AXWindowGeometry {
         AXCopyMultipleAttributeOptions(),
         &valuesRef,
       ) == .success,
-      let values = valuesRef as? [CFTypeRef], values.count == 2,
+      let values = valuesRef as? [CFTypeRef],
+      values.count == 2,
       CFGetTypeID(values[0]) == AXValueGetTypeID(),
       CFGetTypeID(values[1]) == AXValueGetTypeID()
     else { return nil }

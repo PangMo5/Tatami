@@ -37,14 +37,17 @@ private struct PersistentConfirmations<Base: Reducer, AlertAction: Equatable>: R
     let previous = state[keyPath: alert]
     if
       case .presented(let chosen) = path.extract(from: incoming),
-      destructiveAction(previous) == chosen, state[keyPath: suppress],
+      destructiveAction(previous) == chosen,
+      state[keyPath: suppress],
       let category = kind(chosen)
     {
       state[keyPath: config].withLock { $0.settings.confirmations[category] = false }
     }
     let effect = base._reduce(into: &state, action: incoming)
     let current = state[keyPath: alert]
-    if previous?.id != current?.id { state[keyPath: suppress] = false }
+    if previous?.id != current?.id {
+      state[keyPath: suppress] = false
+    }
     if
       previous?.id != current?.id,
       let chosen = destructiveAction(current),

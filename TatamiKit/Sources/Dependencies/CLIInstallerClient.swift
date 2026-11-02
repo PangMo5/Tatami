@@ -112,12 +112,12 @@ extension DependencyValues {
 /// Run a shell command as administrator via AppleScript (surfaces the macOS
 /// auth prompt). `with administrator privileges` already elevates to root.
 private func shellQuoted(_ value: String) -> String {
-  "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+  "'" + value.replacing("'", with: "'\"'\"'") + "'"
 }
 
 private func runAdminScript(_ command: String) {
-  let escaped = command.replacingOccurrences(of: "\\", with: "\\\\")
-    .replacingOccurrences(of: "\"", with: "\\\"")
+  let escaped = command.replacing("\\", with: "\\\\")
+    .replacing("\"", with: "\\\"")
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
   process.arguments = ["-e", "do shell script \"\(escaped)\" with administrator privileges"]

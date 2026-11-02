@@ -149,7 +149,9 @@ struct WindowEventSequence: AsyncSequence, Sendable {
 
     func next() async -> WindowChangeEvent? {
       let event = await buffer.next()
-      if event == nil { cancel() }
+      if event == nil {
+        cancel()
+      }
       return event
     }
 
@@ -402,7 +404,11 @@ extension WindowChangeEvent {
   }
 
   fileprivate var isCoalescingBarrier: Bool {
-    if case .windowDragEnded = self { true } else { false }
+    if case .windowDragEnded = self {
+      true
+    } else {
+      false
+    }
   }
 }
 
@@ -500,17 +506,25 @@ final class WindowFrameWriteTracker: @unchecked Sendable {
   ) -> GeometryEventRoute {
     lock.withLock {
       if let entry = entries[key] {
-        if entry.isWriting { return .ignore }
+        if entry.isWriting {
+          return .ignore
+        }
         entries[key] = nil
         let matchesTarget =
           abs(entry.target.minX - frame.minX) <= tolerance
             && abs(entry.target.minY - frame.minY) <= tolerance
             && abs(entry.target.width - frame.width) <= tolerance
             && abs(entry.target.height - frame.height) <= tolerance
-        if matchesTarget { return .ignore }
+        if matchesTarget {
+          return .ignore
+        }
       }
-      if pointerDriven { return .pointerDriven }
-      if monitoredKeys.contains(key) { return .presentationChange }
+      if pointerDriven {
+        return .pointerDriven
+      }
+      if monitoredKeys.contains(key) {
+        return .presentationChange
+      }
       return .ignore
     }
   }
@@ -1074,7 +1088,9 @@ private final class ObservedApp: @unchecked Sendable {
       lastSubscribedWindowCount = 0
       let isAnsweredEmpty =
         windowsError == .noValue || windowsError == .attributeUnsupported
-      if !isAnsweredEmpty { needsAXRetry = true }
+      if !isAnsweredEmpty {
+        needsAXRetry = true
+      }
       return isAnsweredEmpty
     }
     lastSubscribedWindowCount = windows.count
@@ -1326,7 +1342,9 @@ private func routeGeometryNotification(
   // unrelated window; only the exact WindowServer surface captured at
   // mouse-down is a manual drag.
   let preflight = tracker.geometryReadDisposition(for: key, pointerDriven: false)
-  if preflight == .suppressOwnWrite { return }
+  if preflight == .suppressOwnWrite {
+    return
+  }
   let pointerDriven = WindowPointerDragTracker.shared.isDragging(key.windowID)
   switch (preflight, pointerDriven) {
   case (.ignore, false):

@@ -434,7 +434,9 @@ public struct WorkspaceDetailFeature {
         let requestID = UUID()
         state.persistenceRequestID = requestID
         var candidate = projection.config
-        if suppressFuture { candidate.settings.confirmations[.copyWorkspace] = false }
+        if suppressFuture {
+          candidate.settings.confirmations[.copyWorkspace] = false
+        }
         let committed = candidate
         let config = state.$config
         return .run { [configPersistence] send in

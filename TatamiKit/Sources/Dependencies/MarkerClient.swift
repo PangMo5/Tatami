@@ -323,7 +323,9 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, operation)
       return runLoop
     }
-    if let workerRunLoop { CFRunLoopWakeUp(workerRunLoop) }
+    if let workerRunLoop {
+      CFRunLoopWakeUp(workerRunLoop)
+    }
   }
 
   private func updateTargetsOnThread(
@@ -419,7 +421,9 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
         if accepted(resized) {
           AXObserverRemoveNotification(observer, element, resizedName)
         }
-        if isCancelled() { return }
+        if isCancelled() {
+          return
+        }
         continue
       }
       subscribed.insert(key)
@@ -427,7 +431,9 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   }
 
   private func observer(for pid: pid_t) -> AXObserver? {
-    if let observer = observers[pid] { return observer }
+    if let observer = observers[pid] {
+      return observer
+    }
     var observer: AXObserver?
     guard
       AXObserverCreate(pid, markerGeometryWorkerCallback, &observer) == .success,
@@ -625,8 +631,12 @@ private final class MarkerController {
   /// after a newer one.
   func prepareFocusedWindow(_ key: WindowKey?) -> MarkerFocusRefreshRequest? {
     let next: (pid: pid_t, windowID: CGWindowID)? = key.map { ($0.pid, $0.windowID) }
-    if let new = next, let old = focused, new == old { return nil }
-    if next == nil, focused == nil { return nil }
+    if let new = next, let old = focused, new == old {
+      return nil
+    }
+    if next == nil, focused == nil {
+      return nil
+    }
     focused = next
     focusRefreshGeneration &+= 1
     let cursor = NSEvent.mouseLocation
@@ -746,13 +756,17 @@ private final class MarkerController {
       }
       lastFrame[key] = cocoa
     }
-    if !panel.isVisible { panel.orderFrontRegardless() }
+    if !panel.isVisible {
+      panel.orderFrontRegardless()
+    }
     updateAlpha(for: key, cursor: cursor)
   }
 
   private func hideAfterFrameReadFailure(_ key: WindowKey) {
     guard let panel = panels[key] else { return }
-    if panel.alphaValue > 0.01 { panel.alphaValue = 0 }
+    if panel.alphaValue > 0.01 {
+      panel.alphaValue = 0
+    }
     // A failed read invalidates the cached placement. Otherwise an identical
     // subsequent `setTargets` sees a non-nil lastFrame and returns early
     // forever, leaving the marker hidden even after AX recovers.
@@ -908,7 +922,9 @@ extension Color {
   /// Parse `#RRGGBB` or `#RRGGBBAA`. Returns nil on malformed input.
   public init?(hex: String) {
     var raw = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-    if raw.hasPrefix("#") { raw.removeFirst() }
+    if raw.hasPrefix("#") {
+      raw.removeFirst()
+    }
     guard raw.count == 6 || raw.count == 8 else { return nil }
     var value: UInt64 = 0
     guard Scanner(string: raw).scanHexInt64(&value) else { return nil }
@@ -937,7 +953,8 @@ extension Color {
   public func toHex() -> String? {
     guard
       let cg = NSColor(self).usingColorSpace(.sRGB)?.cgColor,
-      let components = cg.components, components.count >= 3
+      let components = cg.components,
+      components.count >= 3
     else { return nil }
     let r = Int((components[0] * 255).rounded())
     let g = Int((components[1] * 255).rounded())

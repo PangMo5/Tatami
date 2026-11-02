@@ -26,7 +26,9 @@ struct AppAssignmentRow: View {
       HStack(spacing: 16) {
         identity.fixedSize(horizontal: true, vertical: false)
         Spacer(minLength: 12)
-        if showLayoutOptions { horizontalControls }
+        if showLayoutOptions {
+          horizontalControls
+        }
         actions
       }
       VStack(alignment: .leading, spacing: 12) {

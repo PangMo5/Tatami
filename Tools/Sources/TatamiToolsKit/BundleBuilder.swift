@@ -31,7 +31,9 @@ struct BundleBuilder: Sendable {
       let name = spec["name"].str
       let bundle = out.at(name + ".app")
       try require(fm.isExecutableFile(atPath: bin.at(name).path), "Missing executable: \(name)")
-      if bundle.exists { try fm.removeItem(at: bundle) }
+      if bundle.exists {
+        try fm.removeItem(at: bundle)
+      }
       let resources = bundle.at("Contents/Resources")
       try resources.makeDirectory()
       try copy(bin.at(name), bundle.at("Contents/MacOS/" + name))
@@ -55,12 +57,19 @@ struct BundleBuilder: Sendable {
         "NSSupportsAutomaticTermination": false,
         "NSSupportsSuddenTermination": false,
       ]
-      if spec["agent"].boolean { plist["LSUIElement"] = true }
-      if let usage = spec["captureUsageDescription"].string { plist["NSScreenCaptureUsageDescription"] = usage }
+      if spec["agent"].boolean {
+        plist["LSUIElement"] = true
+      }
+      if let usage = spec["captureUsageDescription"].string {
+        plist["NSScreenCaptureUsageDescription"] = usage
+      }
       let icon = scratch.at(name + ".icns")
-      if icon.exists { try copy(icon, resources.at(icon.lastPathComponent))
+      if icon.exists {
+        try copy(icon, resources.at(icon.lastPathComponent))
         plist["CFBundleIconFile"] = name
-      } else { try require(spec["agent"].boolean, "Missing icon for \(name)") }
+      } else {
+        try require(spec["agent"].boolean, "Missing icon for \(name)")
+      }
       let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
       try data.write(to: bundle.at("Contents/Info.plist"), options: .atomic)
       try await runProcess(["codesign", "--force", "--sign", identity, "--timestamp=none", bundle.path])
@@ -75,7 +84,9 @@ struct BundleBuilder: Sendable {
     try await buildVirtualDisplay()
     let tools = workspace.lab.at(".build/tools/tatami-tools")
     let current = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
-    if current != tools.resolvingSymlinksInPath() { try copy(current, tools) }
+    if current != tools.resolvingSymlinksInPath() {
+      try copy(current, tools)
+    }
     print("Bundles: \(out.path). Signed with \(identity). Ad-hoc rebuilds require renewed Screen Recording consent.")
     #else
     throw ToolError("Demo app bundling requires macOS")

@@ -6,6 +6,8 @@ import Dependencies
 import DependenciesMacros
 import os
 
+// MARK: - ManagedWindowsClient
+
 /// The window ids Tatami manages (tiled + floating). Written on the main
 /// thread; read off-main by the focus-follows-mouse hit-test.
 @DependencyClient
@@ -14,12 +16,14 @@ struct ManagedWindowsClient: Sendable {
   var isManaged: @Sendable (CGWindowID) -> Bool = { _ in false }
 }
 
+// MARK: DependencyKey
+
 extension ManagedWindowsClient: DependencyKey {
   static let liveValue: ManagedWindowsClient = {
     let ids = OSAllocatedUnfairLock<Set<CGWindowID>>(initialState: [])
     return ManagedWindowsClient(
       setManaged: { next in ids.withLock { $0 = next } },
-      isManaged: { id in ids.withLock { $0.contains(id) } }
+      isManaged: { id in ids.withLock { $0.contains(id) } },
     )
   }()
 

@@ -11,8 +11,9 @@ public enum ConfigLocation {
 
   /// Returns `$XDG_CONFIG_HOME/tatami/` when set, otherwise `~/.config/tatami/`.
   public static var directory: URL {
-    if let custom = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"],
-       !custom.isEmpty
+    if
+      let custom = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"],
+      !custom.isEmpty
     {
       return URL(fileURLWithPath: custom, isDirectory: true)
         .appendingPathComponent(directoryName, isDirectory: true)
@@ -30,7 +31,7 @@ public enum ConfigLocation {
   public static func ensureDirectoryExists() throws {
     try FileManager.default.createDirectory(
       at: directory,
-      withIntermediateDirectories: true
+      withIntermediateDirectories: true,
     )
   }
 }

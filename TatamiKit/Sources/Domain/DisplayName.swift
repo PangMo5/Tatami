@@ -4,6 +4,8 @@
 import AppKit
 import Foundation
 
+// MARK: - DisplayName
+
 /// A reference to a macOS display: a stable per-monitor `uuid` (from
 /// `CGDisplayCreateUUIDFromDisplayID`) plus the human-readable `name`
 /// (`localizedName`).
@@ -17,10 +19,8 @@ import Foundation
 /// Persisted form (TOML, kept human-readable): `"<uuid>::<name>"`, or just
 /// `"<name>"` when the UUID isn't known yet (legacy / hand-edited).
 public struct DisplayName: Hashable, Sendable, Codable, ExpressibleByStringLiteral {
-  /// Stable per-physical-display identifier; `nil` until learned.
-  public var uuid: String?
-  /// Localized display name, shown in the UI and used as a matching fallback.
-  public var name: String
+
+  // MARK: Lifecycle
 
   public init(uuid: String? = nil, name: String) {
     self.uuid = uuid
@@ -29,7 +29,7 @@ public struct DisplayName: Hashable, Sendable, Codable, ExpressibleByStringLiter
 
   /// Name-only (no UUID). Convenience for tests / literals / hand-edits.
   public init(_ name: String) {
-    self.uuid = nil
+    uuid = nil
     self.name = name
   }
 
@@ -37,37 +37,39 @@ public struct DisplayName: Hashable, Sendable, Codable, ExpressibleByStringLiter
     self.init(value)
   }
 
+  public init(from decoder: Decoder) throws {
+    let raw = try decoder.singleValueContainer().decode(String.self)
+    if let range = raw.range(of: Self.separator) {
+      uuid = String(raw[raw.startIndex ..< range.lowerBound])
+      name = String(raw[range.upperBound...])
+    } else {
+      uuid = nil
+      name = raw
+    }
+  }
+
+  // MARK: Public
+
+  /// Stable per-physical-display identifier; `nil` until learned.
+  public var uuid: String?
+  /// Localized display name, shown in the UI and used as a matching fallback.
+  public var name: String
+
+  public static func ==(lhs: DisplayName, rhs: DisplayName) -> Bool {
+    lhs.canonicalKey == rhs.canonicalKey
+  }
+
   /// Same physical display? UUID match wins; otherwise compare names. (Not
   /// `==`, which uses the canonical key for stable hashing.)
   public func matches(_ other: DisplayName) -> Bool {
-    if let uuid, let otherUUID = other.uuid { return uuid == otherUUID }
+    if let uuid, let otherUUID = other.uuid {
+      return uuid == otherUUID
+    }
     return name == other.name
-  }
-
-  /// Canonical identity for `Hashable`: the UUID when known, else the name.
-  private var canonicalKey: String { uuid ?? name }
-
-  public static func == (lhs: DisplayName, rhs: DisplayName) -> Bool {
-    lhs.canonicalKey == rhs.canonicalKey
   }
 
   public func hash(into hasher: inout Hasher) {
     hasher.combine(canonicalKey)
-  }
-
-  // MARK: Codable — single string "<uuid>::<name>" (or "<name>")
-
-  private static let separator = "::"
-
-  public init(from decoder: Decoder) throws {
-    let raw = try decoder.singleValueContainer().decode(String.self)
-    if let range = raw.range(of: Self.separator) {
-      self.uuid = String(raw[raw.startIndex ..< range.lowerBound])
-      self.name = String(raw[range.upperBound...])
-    } else {
-      self.uuid = nil
-      self.name = raw
-    }
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -78,10 +80,24 @@ public struct DisplayName: Hashable, Sendable, Codable, ExpressibleByStringLiter
       try container.encode(name)
     }
   }
+
+  // MARK: Private
+
+  private static let separator = "::"
+
+  /// Canonical identity for `Hashable`: the UUID when known, else the name.
+  private var canonicalKey: String {
+    uuid ?? name
+  }
+
 }
 
+// MARK: CustomStringConvertible
+
 extension DisplayName: CustomStringConvertible {
-  public var description: String { name }
+  public var description: String {
+    name
+  }
 }
 
 // MARK: - NSScreen display identity
@@ -94,8 +110,9 @@ extension NSScreen {
 
   /// Stable UUID string for this screen's physical display.
   public var displayUUID: String? {
-    guard let id = displayID,
-          let cfUUID = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue()
+    guard
+      let id = displayID,
+      let cfUUID = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue()
     else { return nil }
     return CFUUIDCreateString(nil, cfUUID) as String?
   }
@@ -107,7 +124,7 @@ extension NSScreen {
   }
 }
 
-// MARK: - Resolution
+// MARK: - DisplayResolver
 
 public enum DisplayResolver {
   /// The primary display (menu-bar display) — the fallback used everywhere
@@ -125,8 +142,10 @@ public enum DisplayResolver {
   @MainActor
   public static func connectedScreen(for ref: DisplayName) -> NSScreen? {
     let screens = NSScreen.screens
-    if let uuid = ref.uuid,
-       let byUUID = screens.first(where: { $0.displayUUID == uuid }) {
+    if
+      let uuid = ref.uuid,
+      let byUUID = screens.first(where: { $0.displayUUID == uuid })
+    {
       return byUUID
     }
     return screens.first { $0.localizedName == ref.name }

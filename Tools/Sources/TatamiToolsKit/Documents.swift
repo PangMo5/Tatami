@@ -22,8 +22,12 @@ struct DocumentBuilder {
 
   func destination(_ source: String, _ locale: String) -> URL {
     let file = workspace.root.at(source)
-    if locale == "en" { return file }
-    if !source.contains("/") { return workspace.root.at("docs").at(locale).at(file.lastPathComponent) }
+    if locale == "en" {
+      return file
+    }
+    if !source.contains("/") {
+      return workspace.root.at("docs").at(locale).at(file.lastPathComponent)
+    }
     return file.deletingLastPathComponent().at(locale).at(file.lastPathComponent)
   }
 
@@ -31,7 +35,9 @@ struct DocumentBuilder {
     guard locale != "en" else { return value }
     for source in ["NOTICE.md", "THIRD_PARTY_NOTICES.md"] where value.hasSuffix("/" + source) {
       let localized = relativePath(destination(source, locale), from: workspace.root)
-      if value.hasSuffix("/" + localized) { return value }
+      if value.hasSuffix("/" + localized) {
+        return value
+      }
       return String(value.dropLast(source.count)) + localized
     }
     return value
@@ -39,7 +45,7 @@ struct DocumentBuilder {
 
   func languageLinks(_ source: String, _ locale: String) -> String {
     let parent = destination(source, locale).deletingLastPathComponent()
-    return "<!-- LANGUAGE-LINKS:START -->\n" + locales.map { "[" + languageNames[$0]! + "](" + relativePath(
+    return "<!-- LANGUAGE-LINKS:START -->\n" + locales.lazy.map { "[" + languageNames[$0]! + "](" + relativePath(
       destination(source, $0),
       from: parent,
     ) + ")" }.joined(separator: " · ") + "\n<!-- LANGUAGE-LINKS:END -->\n\n"
@@ -53,7 +59,7 @@ struct DocumentBuilder {
       let line = sourceLines[lineNumber]
       if let heading = matches(#"^#{1,6}\s+(.+)"#, line).first {
         let label = replacing("<[^>]+>", in: heading[1]) { _ in "" }
-        let slug = trim(replacing(#"[^\w\s-]"#, in: label.lowercased()) { _ in "" }).replacingOccurrences(of: " ", with: "-")
+        let slug = trim(replacing(#"[^\w\s-]"#, in: label.lowercased()) { _ in "" }).replacing(" ", with: "-")
         let count = used[slug, default: 0]
         used[slug] = count + 1
         result.append(slug + (count > 0 ? "-\(count)" : ""))
@@ -91,14 +97,19 @@ struct DocumentBuilder {
         parts.path = "/" + locale + "/" + tail
         return parts.string ?? value
       }
-      if parts.scheme != nil || parts.host != nil || parts.path.isEmpty { return value }
+      if parts.scheme != nil || parts.host != nil || parts.path.isEmpty {
+        return value
+      }
       let absolute = workspace.root.at(source).deletingLastPathComponent().at(parts.path).standardizedFileURL
       guard absolute.path.hasPrefix(workspace.root.path + "/") else { return value }
       let relative = relativePath(absolute, from: workspace.root)
       var localized = known.contains(relative) && relative != "THIRD_PARTY_NOTICES.md" ? destination(relative, locale) : absolute
       if
         absolute.deletingLastPathComponent() == workspace.root.at("web"),
-        absolute.pathExtension == "jpg" { localized = workspace.root.at("web/media").at(locale).at(absolute.lastPathComponent) }
+        absolute.pathExtension == "jpg"
+      {
+        localized = workspace.root.at("web/media").at(locale).at(absolute.lastPathComponent)
+      }
       // Preserve the original query and fragment; code fences never enter this path.
       let suffix = (value.contains("?") ? "?" + (parts.percentEncodedQuery ?? "") : "") + (value.contains("#")
         ? "#" + (parts.percentEncodedFragment ?? "")
@@ -109,7 +120,8 @@ struct DocumentBuilder {
     let codeLines = MarkdownStructure(text).codeLines
     for (lineNumber, original) in lines(text).enumerated() {
       var line = original
-      if codeLines.contains(lineNumber) { result.append(line)
+      if codeLines.contains(lineNumber) {
+        result.append(line)
         continue
       }
       line = replacing(#"(?<=\]\()([^\s)]+)(?=\))"#, in: line) { url($0[0]) }
@@ -145,8 +157,11 @@ struct DocumentBuilder {
   func build(selected: [String] = [], check: Bool = false) throws {
     let outputs = try outputs(selected: selected)
     for (file, text) in outputs {
-      if check { try require(try file.text() == text, "Generated document drift: \(file.path)") }
-      else { try file.write(text) }
+      if check {
+        try require(try file.text() == text, "Generated document drift: \(file.path)")
+      } else {
+        try file.write(text)
+      }
     }
     print("\(check ? "Verified" : "Generated") \(outputs.count) localized documents")
   }

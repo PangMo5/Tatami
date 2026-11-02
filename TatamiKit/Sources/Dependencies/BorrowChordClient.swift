@@ -10,6 +10,8 @@ import OSLog
 
 private let logger = Logger(subsystem: "dev.PangMo5.Tatami", category: "BorrowChord")
 
+// MARK: - BorrowChordKey
+
 /// One decoded keystroke from the borrow direction pick.
 public enum BorrowChordKey: Sendable, Equatable {
   /// A direction key (h/j/k/l or an arrow) → dock edge, commits the borrow.
@@ -17,6 +19,8 @@ public enum BorrowChordKey: Sendable, Equatable {
   /// Escape or any other key → cancel the pending borrow.
   case cancel
 }
+
+// MARK: - BorrowChordClient
 
 /// Transient global key capture for placing a borrow: after the borrow combo
 /// selects a workspace, a `CGEventTap` consumes the next direction (or escape)
@@ -30,17 +34,21 @@ public struct BorrowChordClient: Sendable {
   public var setArmed: @Sendable (_ armed: Bool) async -> Void
 }
 
+// MARK: DependencyKey
+
 extension BorrowChordClient: DependencyKey {
   public static var liveValue: BorrowChordClient {
     let (stream, continuation) = AsyncStream<BorrowChordKey>.makeStream()
     let tap = BorrowChordTap { continuation.yield($0) }
     return BorrowChordClient(
       events: { stream },
-      setArmed: { armed in tap.setArmed(armed) }
+      setArmed: { armed in tap.setArmed(armed) },
     )
   }
 
-  public static var testValue: BorrowChordClient { BorrowChordClient() }
+  public static var testValue: BorrowChordClient {
+    BorrowChordClient()
+  }
 }
 
 extension DependencyValues {
@@ -50,20 +58,20 @@ extension DependencyValues {
   }
 }
 
+// MARK: - BorrowChordTap
+
 /// Owns the keyDown `CGEventTap`. Mirrors `MirrorClickTap`: same shared
 /// `EventTapThread`, same permission lifetime, install/teardown routed through the
 /// tap thread.
 final class BorrowChordTap: @unchecked Sendable {
-  @Dependency(\.debugLog) private var debugLog
 
-  private var eventTap: CFMachPort?
-  private var accessRegistration: UUID?
-  private var runLoopSource: CFRunLoopSource?
-  private let emit: @Sendable (BorrowChordKey) -> Void
+  // MARK: Lifecycle
 
   init(emit: @escaping @Sendable (BorrowChordKey) -> Void) {
     self.emit = emit
   }
+
+  // MARK: Internal
 
   func setArmed(_ armed: Bool) {
     EventTapThread.shared.perform { [self] in
@@ -74,6 +82,60 @@ final class BorrowChordTap: @unchecked Sendable {
       }
     }
   }
+
+  // MARK: Fileprivate
+
+  fileprivate func reEnable() {
+    guard EventTapAccess.shared.permitsInput() else { return }
+    if let tap = eventTap {
+      debugLog.log("BorrowChord", "tap disabled by system — re-enabling")
+      CGEvent.tapEnable(tap: tap, enable: true)
+    }
+  }
+
+  /// Runs on the event-tap thread. Returns `true` to consume the keystroke.
+  /// Only direction keys (h/j/k/l + arrows) and escape are recognized; a
+  /// keystroke with ⌘/⌃/⌥ held (e.g. the borrow combo's own release, app
+  /// switching) or any other key cancels and passes through so it isn't eaten.
+  fileprivate func handle(keyCode: Int, hasCommandModifiers: Bool) -> Bool {
+    guard !hasCommandModifiers, let name = HotKey.keyName(for: keyCode) else {
+      emit(.cancel)
+      return false
+    }
+    switch name {
+    case "escape": emit(.cancel)
+      return true
+
+    case "h",
+         "left": emit(.edge(.left))
+      return true
+
+    case "l",
+         "right": emit(.edge(.right))
+      return true
+
+    case "k",
+         "up": emit(.edge(.top))
+      return true
+
+    case "j",
+         "down": emit(.edge(.bottom))
+      return true
+
+    default:
+      emit(.cancel)
+      return false
+    }
+  }
+
+  // MARK: Private
+
+  @Dependency(\.debugLog) private var debugLog
+
+  private var eventTap: CFMachPort?
+  private var accessRegistration: UUID?
+  private var runLoopSource: CFRunLoopSource?
+  private let emit: @Sendable (BorrowChordKey) -> Void
 
   /// Runs on the event-tap thread.
   private func install() {
@@ -94,7 +156,7 @@ final class BorrowChordTap: @unchecked Sendable {
       options: .defaultTap,
       eventsOfInterest: CGEventMask(mask),
       callback: borrowChordTapCallback,
-      userInfo: info
+      userInfo: info,
     ) else {
       logger.error("borrow chord tap: CGEvent.tapCreate failed")
       debugLog.log("BorrowChord", "tap create FAILED (accessibility?)")
@@ -130,49 +192,23 @@ final class BorrowChordTap: @unchecked Sendable {
       CGEvent.tapEnable(tap: tap, enable: false)
       CFMachPortInvalidate(tap)
     }
-    if let source = runLoopSource { EventTapThread.shared.removeSource(source) }
+    if let source = runLoopSource {
+      EventTapThread.shared.removeSource(source)
+    }
     eventTap = nil
     runLoopSource = nil
     debugLog.log("BorrowChord", "tap disarmed")
   }
 
-  fileprivate func reEnable() {
-    guard EventTapAccess.shared.permitsInput() else { return }
-    if let tap = eventTap {
-      debugLog.log("BorrowChord", "tap disabled by system — re-enabling")
-      CGEvent.tapEnable(tap: tap, enable: true)
-    }
-  }
-
-  /// Runs on the event-tap thread. Returns `true` to consume the keystroke.
-  /// Only direction keys (h/j/k/l + arrows) and escape are recognized; a
-  /// keystroke with ⌘/⌃/⌥ held (e.g. the borrow combo's own release, app
-  /// switching) or any other key cancels and passes through so it isn't eaten.
-  fileprivate func handle(keyCode: Int, hasCommandModifiers: Bool) -> Bool {
-    guard !hasCommandModifiers, let name = HotKey.keyName(for: keyCode) else {
-      emit(.cancel)
-      return false
-    }
-    switch name {
-    case "escape": emit(.cancel); return true
-    case "h", "left": emit(.edge(.left)); return true
-    case "l", "right": emit(.edge(.right)); return true
-    case "k", "up": emit(.edge(.top)); return true
-    case "j", "down": emit(.edge(.bottom)); return true
-    default:
-      emit(.cancel)
-      return false
-    }
-  }
 }
 
 /// CGEventTap C callback for the borrow chord — decodes keyDown, consumes
 /// recognized keys, passes the rest through.
 private func borrowChordTapCallback(
-  proxy: CGEventTapProxy,
+  proxy _: CGEventTapProxy,
   type: CGEventType,
   event: CGEvent,
-  refcon: UnsafeMutableRawPointer?
+  refcon: UnsafeMutableRawPointer?,
 ) -> Unmanaged<CGEvent>? {
   guard EventTapAccess.shared.permitsInput() else { return Unmanaged.passUnretained(event) }
   guard let refcon else { return Unmanaged.passUnretained(event) }
@@ -183,10 +219,14 @@ private func borrowChordTapCallback(
     let hasCommandModifiers = !event.flags
       .intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty
     return tap.handle(keyCode: keyCode, hasCommandModifiers: hasCommandModifiers)
-      ? nil : Unmanaged.passUnretained(event)
-  case .tapDisabledByTimeout, .tapDisabledByUserInput:
+      ? nil
+      : Unmanaged.passUnretained(event)
+
+  case .tapDisabledByTimeout,
+       .tapDisabledByUserInput:
     tap.reEnable()
     return Unmanaged.passUnretained(event)
+
   default:
     return Unmanaged.passUnretained(event)
   }

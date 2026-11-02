@@ -181,7 +181,8 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       EventTapThread.shared.perform { [self] in
         guard
           EventTapAccess.shared.permitsInput(),
-          let latest = pointerInputs.takeLatest(), config.enabled
+          let latest = pointerInputs.takeLatest(),
+          config.enabled
         else { return }
         applyHitTest(latest, windows: windows, displays: displays)
       }
@@ -189,7 +190,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   }
 
   fileprivate func modifiersChanged(_ flags: CGEventFlags) {
-    if modifiersIndicateDisable(flags) { cancelPendingInput() }
+    if modifiersIndicateDisable(flags) {
+      cancelPendingInput()
+    }
   }
 
   // MARK: Private
@@ -248,7 +251,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
     // Dedup on the window, not the app — moving between two windows of
     // the same app (e.g. two Ghostty windows) must still move focus.
-    if info.windowID == lastFocusedWindowID { return }
+    if info.windowID == lastFocusedWindowID {
+      return
+    }
     lastFocusedWindowID = info.windowID
     if debugLog.isEnabled() {
       debugLog.log(
@@ -290,7 +295,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
 
   /// Runs on the event-tap thread (via `configure` / the tap callback).
   private func installOrTearDown(_ next: FocusFollowsMouseConfig) {
-    if config != next { cancelPendingInput() }
+    if config != next {
+      cancelPendingInput()
+    }
     config = next
     if next.enabled, eventTap == nil {
       install()
@@ -439,7 +446,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     if let display = displays.first(where: { $0.contains(point) }), covers(candidate.bounds, display) {
       // Opt-in: never hover-focus a full-screen window — you reach those by
       // clicking, not by skimming the cursor across them.
-      if config.ignoreFullscreen { return nil }
+      if config.ignoreFullscreen {
+        return nil
+      }
       // Otherwise, gap guard: only skip when the cursor is wedged in the
       // spacing right next to a smaller window layered in front (a tile) — the
       // full-screen window shows through there, so keep the current focus. A
@@ -451,7 +460,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
           && !covers(bounds, display)
           && bounds.insetBy(dx: -gapMargin, dy: -gapMargin).contains(point)
       }
-      if inTileGap { return nil }
+      if inTileGap {
+        return nil
+      }
     }
     return candidate
   }

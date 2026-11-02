@@ -39,7 +39,9 @@ func resolveApplicationProcessIdentifier(
   windowOwnerPIDs: [pid_t],
   belongsToApplication: (pid_t) -> Bool,
 ) -> pid_t? {
-  if reportedPID > 0 { return reportedPID }
+  if reportedPID > 0 {
+    return reportedPID
+  }
   let matching = Set(windowOwnerPIDs).filter { $0 > 0 && belongsToApplication($0) }
   // Ambiguous ownership is not evidence for selecting an arbitrary process.
   return matching.count == 1 ? matching.first : nil
@@ -146,11 +148,14 @@ private final class ApplicationProcessResolver: Sendable {
   func cachedIdentifier(_ app: NSRunningApplication) -> pid_t? {
     guard !app.isTerminated else { return nil }
     let reported = app.processIdentifier
-    if reported > 0 { return reported }
+    if reported > 0 {
+      return reported
+    }
     guard
       let pid = published.withLock({ $0[app] }),
       let owner = NSRunningApplication(processIdentifier: pid),
-      !owner.isTerminated, owner.isEqual(app)
+      !owner.isTerminated,
+      owner.isEqual(app)
     else { return nil }
     return pid
   }

@@ -424,14 +424,20 @@ extension WorkspaceManagerClient: DependencyKey {
             if MacApp.isTatami(bundleId) {
               continue
             }
-            if keepVisible.contains(bundleId) { continue }
+            if keepVisible.contains(bundleId) {
+              continue
+            }
             // Borrow-scoped: only hide apps Tatami actually manages somewhere.
             // An app the user never registered — a floating utility, a system
             // dialog, a one-off window — is never ours to hide, so a borrow in
             // or release leaves it where it is. (Empty set → legacy hide-
             // everything for plain switches that don't supply the universe.)
-            if !managedBundleIds.isEmpty, !managedBundleIds.contains(bundleId) { continue }
-            if app.isFinder, !isAnyWorkspaceAppRunning { continue }
+            if !managedBundleIds.isEmpty, !managedBundleIds.contains(bundleId) {
+              continue
+            }
+            if app.isFinder, !isAnyWorkspaceAppRunning {
+              continue
+            }
             guard let pid = processIDs[app] else { continue }
             if
               let pidsOnTargetDisplay,

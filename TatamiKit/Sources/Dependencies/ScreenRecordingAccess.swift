@@ -33,7 +33,9 @@ final class ScreenRecordingAccess: @unchecked Sendable {
   func isGranted() -> Bool {
     guard !isClosed else { return false }
     // Do not hold the UI-readable lock over a system permission query.
-    if !preflight() { close() }
+    if !preflight() {
+      close()
+    }
     return !isClosed
   }
 

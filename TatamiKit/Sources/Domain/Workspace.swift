@@ -153,6 +153,8 @@ public enum BorrowEdge: String, Hashable, Sendable, Codable, CaseIterable {
   case left
   case right
 
+  // MARK: Public
+
   public var displayName: LocalizedStringResource {
     switch self {
     case .top: "Top"

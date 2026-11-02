@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import Foundation
 import DemoAppKit
+import Foundation
 
 // MARK: - LabPaths
 
@@ -27,6 +27,125 @@ public struct LabPaths: Sendable {
   }
 
   // MARK: Public
+
+  public let packageRoot: URL
+
+  public var buildRoot: URL {
+    packageRoot.appendingPathComponent(".build")
+  }
+
+  /// Where `tatami-tools bundle-apps` assembles the `.app` bundles.
+  public var bundlesRoot: URL {
+    buildRoot.appendingPathComponent("DemoLab")
+  }
+
+  public var binRoot: URL {
+    bundlesRoot.appendingPathComponent("bin")
+  }
+
+  /// The pristine `UserDefaults` snapshot and the stamp naming the domain it
+  /// came from. Deliberately **outside** ``labRoot``: `democtl reset` removes
+  /// that whole tree between takes, and a snapshot destroyed there would let the
+  /// next `seed` export an already-suppressed domain and call it pristine —
+  /// after which `democtl restore` can never undo the suppression on the user's
+  /// real Tatami. ``DefaultsGuard`` owns the file names inside this directory so
+  /// the stamp cannot drift away from the export it describes.
+  public var defaultsSnapshotRoot: URL {
+    buildRoot.appendingPathComponent("defaults-snapshot")
+  }
+
+  /// Everything the lab creates at run time. `democtl reset` deletes this whole
+  /// tree, so nothing outside it may hold demo state.
+  public var labRoot: URL {
+    buildRoot.appendingPathComponent("lab")
+  }
+
+  /// Passed to Tatami as `--tatami-config-home`; it appends `tatami/`.
+  public var configHome: URL {
+    labRoot.appendingPathComponent("xdg")
+  }
+
+  /// The directory Tatami actually reads, i.e. `<configHome>/tatami`.
+  public var tatamiConfigDirectory: URL {
+    configHome.appendingPathComponent("tatami")
+  }
+
+  public var configFile: URL {
+    tatamiConfigDirectory.appendingPathComponent("config.toml")
+  }
+
+  public var layoutsFile: URL {
+    tatamiConfigDirectory.appendingPathComponent("layouts.json")
+  }
+
+  public var profileSessionFile: URL {
+    tatamiConfigDirectory.appendingPathComponent("profile-session.json")
+  }
+
+  public var runRoot: URL {
+    labRoot.appendingPathComponent("run")
+  }
+
+  /// Kept short on purpose: a UNIX socket path has a hard `sun_path` limit and
+  /// Tatami's CLI does not length-check an override before truncating it.
+  public var socketPath: URL {
+    runRoot.appendingPathComponent("t.sock")
+  }
+
+  /// Where the demo apps and the overlay bind their control sockets.
+  ///
+  /// `democtl` exports it as `DEMOLAB_CONTROL_DIR` for itself and for everything
+  /// it launches, so the lab's sockets live with the rest of the lab state and
+  /// `democtl reset` removes them with it. Kept to one short component for the
+  /// same reason ``socketPath`` is: a UNIX socket path has a hard `sun_path`
+  /// limit, and the socket's own leaf name is added on top of this directory.
+  public var controlDirectory: URL {
+    runRoot.appendingPathComponent("ctl")
+  }
+
+  public var eventLog: URL {
+    runRoot.appendingPathComponent("events.tsv")
+  }
+
+  public var recorderPidFile: URL {
+    runRoot.appendingPathComponent("recorder.pid")
+  }
+
+  /// The recorder's machine-readable outcome: it shares the pid file's basename
+  /// and is written before the pid file goes away, so the pid-file wait doubles
+  /// as the barrier for reading it. A cross-process contract with DemoRecorder,
+  /// like the exit codes.
+  public var recorderResultFile: URL {
+    recorderPidFile.deletingPathExtension().appendingPathExtension("json")
+  }
+
+  public var seedStamp: URL {
+    runRoot.appendingPathComponent("seed.json")
+  }
+
+  public var recordingsRoot: URL {
+    packageRoot.appendingPathComponent("recordings")
+  }
+
+  public var templateFile: URL {
+    packageRoot.appendingPathComponent("config/tatami-demo.toml.in")
+  }
+
+  public var hookExecutable: URL {
+    binRoot.appendingPathComponent("demohook")
+  }
+
+  public var automationExecutable: URL {
+    buildRoot.appendingPathComponent("tools/tatami-tools")
+  }
+
+  public var scenesRoot: URL {
+    packageRoot.appendingPathComponent("scenes")
+  }
+
+  public var recorderBundle: URL {
+    bundlesRoot.appendingPathComponent("DemoRecorder.app")
+  }
 
   /// The DemoLab package directory, located by walking up from the running
   /// executable until a directory containing `Package.swift` and `Sources` is
@@ -53,74 +172,21 @@ public struct LabPaths: Sendable {
       for _ in 0..<8 {
         let manifest = directory.appendingPathComponent("Package.swift")
         let sources = directory.appendingPathComponent("Sources/DemoAppKit")
-        if FileManager.default.fileExists(atPath: manifest.path),
-           FileManager.default.fileExists(atPath: sources.path) {
+        if
+          FileManager.default.fileExists(atPath: manifest.path),
+          FileManager.default.fileExists(atPath: sources.path)
+        {
           return directory
         }
         let parent = directory.deletingLastPathComponent()
-        if parent == directory { break }
+        if parent == directory {
+          break
+        }
         directory = parent
       }
     }
     return nil
   }
-
-  public let packageRoot: URL
-
-  public var buildRoot: URL { packageRoot.appendingPathComponent(".build") }
-  /// Where `tatami-tools bundle-apps` assembles the `.app` bundles.
-  public var bundlesRoot: URL { buildRoot.appendingPathComponent("DemoLab") }
-  public var binRoot: URL { bundlesRoot.appendingPathComponent("bin") }
-
-  /// The pristine `UserDefaults` snapshot and the stamp naming the domain it
-  /// came from. Deliberately **outside** ``labRoot``: `democtl reset` removes
-  /// that whole tree between takes, and a snapshot destroyed there would let the
-  /// next `seed` export an already-suppressed domain and call it pristine —
-  /// after which `democtl restore` can never undo the suppression on the user's
-  /// real Tatami. ``DefaultsGuard`` owns the file names inside this directory so
-  /// the stamp cannot drift away from the export it describes.
-  public var defaultsSnapshotRoot: URL { buildRoot.appendingPathComponent("defaults-snapshot") }
-
-  /// Everything the lab creates at run time. `democtl reset` deletes this whole
-  /// tree, so nothing outside it may hold demo state.
-  public var labRoot: URL { buildRoot.appendingPathComponent("lab") }
-  /// Passed to Tatami as `--tatami-config-home`; it appends `tatami/`.
-  public var configHome: URL { labRoot.appendingPathComponent("xdg") }
-  /// The directory Tatami actually reads, i.e. `<configHome>/tatami`.
-  public var tatamiConfigDirectory: URL { configHome.appendingPathComponent("tatami") }
-  public var configFile: URL { tatamiConfigDirectory.appendingPathComponent("config.toml") }
-  public var layoutsFile: URL { tatamiConfigDirectory.appendingPathComponent("layouts.json") }
-  public var profileSessionFile: URL {
-    tatamiConfigDirectory.appendingPathComponent("profile-session.json")
-  }
-
-  public var runRoot: URL { labRoot.appendingPathComponent("run") }
-  /// Kept short on purpose: a UNIX socket path has a hard `sun_path` limit and
-  /// Tatami's CLI does not length-check an override before truncating it.
-  public var socketPath: URL { runRoot.appendingPathComponent("t.sock") }
-  /// Where the demo apps and the overlay bind their control sockets.
-  ///
-  /// `democtl` exports it as `DEMOLAB_CONTROL_DIR` for itself and for everything
-  /// it launches, so the lab's sockets live with the rest of the lab state and
-  /// `democtl reset` removes them with it. Kept to one short component for the
-  /// same reason ``socketPath`` is: a UNIX socket path has a hard `sun_path`
-  /// limit, and the socket's own leaf name is added on top of this directory.
-  public var controlDirectory: URL { runRoot.appendingPathComponent("ctl") }
-  public var eventLog: URL { runRoot.appendingPathComponent("events.tsv") }
-  public var recorderPidFile: URL { runRoot.appendingPathComponent("recorder.pid") }
-  /// The recorder's machine-readable outcome: it shares the pid file's basename
-  /// and is written before the pid file goes away, so the pid-file wait doubles
-  /// as the barrier for reading it. A cross-process contract with DemoRecorder,
-  /// like the exit codes.
-  public var recorderResultFile: URL {
-    recorderPidFile.deletingPathExtension().appendingPathExtension("json")
-  }
-
-  public var seedStamp: URL { runRoot.appendingPathComponent("seed.json") }
-
-  public var recordingsRoot: URL { packageRoot.appendingPathComponent("recordings") }
-
-  // MARK: - Take sidecars
 
   /// The subtitle sidecar for a take: same directory, same basename, `.ass`.
   ///
@@ -150,16 +216,6 @@ public struct LabPaths: Sendable {
     return movie.deletingLastPathComponent().appendingPathComponent("\(base)-subtitled.\(ext)")
   }
 
-  public var templateFile: URL {
-    packageRoot.appendingPathComponent("config/tatami-demo.toml.in")
-  }
-
-  public var hookExecutable: URL { binRoot.appendingPathComponent("demohook") }
-
-  public var automationExecutable: URL { buildRoot.appendingPathComponent("tools/tatami-tools") }
-
-  public var scenesRoot: URL { packageRoot.appendingPathComponent("scenes") }
-
   public func sceneFile(_ name: String) -> URL {
     (DemoLocale.selected == .en ? scenesRoot : scenesRoot.appendingPathComponent(DemoLocale.selected.rawValue))
       .appendingPathComponent("\(name).json")
@@ -168,8 +224,6 @@ public struct LabPaths: Sendable {
   public func appBundle(_ name: String) -> URL {
     bundlesRoot.appendingPathComponent("\(name).app")
   }
-
-  public var recorderBundle: URL { bundlesRoot.appendingPathComponent("DemoRecorder.app") }
 
   public func ensureRuntimeDirectories() throws {
     for directory in [labRoot, configHome, tatamiConfigDirectory, runRoot, controlDirectory] {

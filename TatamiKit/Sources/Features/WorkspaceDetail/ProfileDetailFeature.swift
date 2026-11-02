@@ -137,11 +137,17 @@ public struct ProfileDetailFeature {
           var seen = Set<DisplayName>()
           var out = [DisplayName]()
           func add(_ d: DisplayName) {
-            if seen.insert(d).inserted { out.append(d) }
+            if seen.insert(d).inserted {
+              out.append(d)
+            }
           }
           liveDisplays.forEach(add)
           for profile in state.config.profiles {
-            for ws in profile.workspaces { if let hint = ws.displayHint { add(hint) } }
+            for ws in profile.workspaces {
+              if let hint = ws.displayHint {
+                add(hint)
+              }
+            }
           }
           state.availableDisplays = out
           return .none
@@ -252,7 +258,9 @@ public struct ProfileDetailFeature {
           let requestID = UUID()
           state.persistenceRequestID = requestID
           var candidate = projection.config
-          if suppressFuture { candidate.settings.confirmations[.copyProfile] = false }
+          if suppressFuture {
+            candidate.settings.confirmations[.copyProfile] = false
+          }
           let committed = candidate
           let config = state.$config
           return .run { [configPersistence] send in
@@ -279,7 +287,11 @@ public struct ProfileDetailFeature {
       action: \.alert,
       suppress: \.suppressConfirmation,
       kind: { action in
-        if case .confirmWorkspaceChainDeletion = action { .deleteWorkspaceChain } else { nil }
+        if case .confirmWorkspaceChainDeletion = action {
+          .deleteWorkspaceChain
+        } else {
+          nil
+        }
       },
     )
   }
@@ -367,7 +379,9 @@ public struct ProfileDetailFeature {
 
   private func workspaceChainName(_ chain: WorkspaceChain) -> String {
     let name = chain.name?.trimmingCharacters(in: .whitespacesAndNewlines)
-    if let name, !name.isEmpty { return name }
+    if let name, !name.isEmpty {
+      return name
+    }
     return String(localized: "Untitled Workspace Chain")
   }
 

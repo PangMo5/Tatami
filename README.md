@@ -205,12 +205,13 @@ release also links its exact corresponding source archive.
 
 ### Build from source
 
-Use Xcode 26 or later with a Swift 6.2 or later toolchain. The app runs on macOS
+Use Xcode 27.2 with its Swift 6.4 toolchain. The app runs on macOS
 14 or later; its runtime requirement is separate from the tools needed to build it.
 
 ```sh
-brew install tuist                     # or: mise install
-tuist install && tuist generate --no-open
+mise install
+mise exec -- tuist install
+mise exec -- tuist generate --no-open
 open Tatami.xcworkspace
 ```
 

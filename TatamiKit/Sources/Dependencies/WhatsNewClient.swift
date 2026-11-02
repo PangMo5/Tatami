@@ -62,7 +62,9 @@ private final class WhatsNewController {
     guard hasExistingConfig else { return }
     // Patch releases share their minor's feature wave — someone who saw
     // 1.4.0's window must not get the identical one again on 1.4.1.
-    if let lastShown, majorMinor(lastShown) == majorMinor(current) { return }
+    if let lastShown, majorMinor(lastShown) == majorMinor(current) {
+      return
+    }
 
     let window = NSWindow(
       contentRect: .zero,

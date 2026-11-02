@@ -150,7 +150,10 @@ struct WorkspaceActivationFeatureTests {
     store.exhaustivity = .off
 
     await store.send(.activate(workspaceId: workspace.id, setFocus: false))
-    await store.receive { if case .activationCompleted = $0 { return true }
+    await store.receive {
+      if case .activationCompleted = $0 {
+        return true
+      }
       return false
     }
     await store.finish()
@@ -194,7 +197,10 @@ struct WorkspaceActivationFeatureTests {
     }
     store.exhaustivity = .off
     await store.send(.activate(workspaceId: workspace.id, setFocus: false))
-    await store.receive { if case .activationCompleted = $0 { return true }
+    await store.receive {
+      if case .activationCompleted = $0 {
+        return true
+      }
       return false
     }
     await store.finish()
@@ -574,7 +580,9 @@ struct WorkspaceActivationFeatureTests {
       $0.overlayAwareness.isBackgroundedProcess = { $0 == 935 && backgrounded.value }
       $0.overlayAwareness.isBackgroundedBundle = { $0 == "notion.id" && backgrounded.value }
       $0.overlayAwareness.clearBackgroundedProcess = { pid in
-        if pid == 935 { backgrounded.setValue(false) }
+        if pid == 935 {
+          backgrounded.setValue(false)
+        }
       }
       $0.workspaceManager.activate = { _ in }
       $0.floatingOverlay.retainOnly = { _ in }

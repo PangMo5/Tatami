@@ -46,7 +46,9 @@ struct CommitOnChangeStepper<V: Strideable>: View {
   var body: some View {
     Stepper(value: $local, in: range, step: step) {
       Text(label(local))
-      if let detail { Text(detail) }
+      if let detail {
+        Text(detail)
+      }
     }
     .task(id: local) {
       guard local != external else { return }
@@ -56,7 +58,9 @@ struct CommitOnChangeStepper<V: Strideable>: View {
     }
     // Reflect external changes (config edited elsewhere) back into the value.
     .onChange(of: external) { _, newValue in
-      if newValue != local { local = newValue }
+      if newValue != local {
+        local = newValue
+      }
     }
   }
 
@@ -145,7 +149,9 @@ struct CommitOnEndSlider<V: BinaryFloatingPoint>: View where V.Stride: BinaryFlo
       }
     }
     .onChange(of: external) { _, newValue in
-      if newValue != local { local = newValue }
+      if newValue != local {
+        local = newValue
+      }
     }
   }
 

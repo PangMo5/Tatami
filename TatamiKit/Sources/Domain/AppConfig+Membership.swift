@@ -13,7 +13,9 @@ extension AppConfig {
   /// workspace (an app never lives in two registered sets). Returns
   /// whether the app was added (`false` = removed).
   public mutating func toggleMembership(
-    bundleId: String, name: String, in workspaceId: Workspace.ID
+    bundleId: String,
+    name: String,
+    in workspaceId: Workspace.ID,
   ) -> Bool {
     var didAdd = false
     mutateActiveProfile { profile in
@@ -38,7 +40,9 @@ extension AppConfig {
   /// to the workspace yet adds it as a floating member. Returns the
   /// app's new floating state.
   public mutating func toggleFloating(
-    bundleId: String, name: String, in workspaceId: Workspace.ID
+    bundleId: String,
+    name: String,
+    in workspaceId: Workspace.ID,
   ) -> Bool {
     var nowFloating = false
     mutateWorkspace(workspaceId) { workspace in
@@ -48,7 +52,9 @@ extension AppConfig {
       } else {
         workspace.apps.append(
           AppAssignment(
-            bundleIdentifier: bundleId, name: name.isEmpty ? bundleId : name, layout: .floating
+            bundleIdentifier: bundleId,
+            name: name.isEmpty ? bundleId : name,
+            layout: .floating,
           )
         )
         nowFloating = true
@@ -90,7 +96,9 @@ extension AppConfig {
   /// carrying an existing assignment's metadata (display name, icon,
   /// auto-open) across the move.
   public mutating func moveApp(
-    bundleId: String, name: String, to workspaceId: Workspace.ID
+    bundleId: String,
+    name: String,
+    to workspaceId: Workspace.ID,
   ) {
     mutateActiveProfile { profile in
       let existing = profile.workspaces
@@ -109,7 +117,9 @@ extension AppConfig {
   /// Duplicate-assign: add to the target *without* removing the app from
   /// any workspace it already belongs to (unlike `moveApp`).
   public mutating func assignApp(
-    bundleId: String, name: String, to workspaceId: Workspace.ID
+    bundleId: String,
+    name: String,
+    to workspaceId: Workspace.ID,
   ) {
     mutateWorkspace(workspaceId) { workspace in
       guard !workspace.apps.contains(where: { $0.bundleIdentifier == bundleId }) else { return }

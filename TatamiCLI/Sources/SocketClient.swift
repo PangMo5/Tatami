@@ -9,6 +9,21 @@ import YYJSON
 /// Minimal blocking client for the Tatami app's Unix domain socket.
 /// One connection per request — the server replies once and closes.
 enum SocketClient {
+  enum Error: Swift.Error, CustomStringConvertible {
+    case socket(Int32)
+    case connect(Int32)
+    case emptyResponse
+
+    var description: String {
+      switch self {
+      case .socket(let code): "socket() failed (errno=\(code))"
+      case .connect(let code):
+        "Could not connect to Tatami at \(CLIMessage.socketPath) (errno=\(code)). Is the app running?"
+      case .emptyResponse: "Empty response from Tatami app."
+      }
+    }
+  }
+
   static func send(_ request: CLIMessage.Request) throws -> CLIMessage.Response {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw Error.socket(errno) }
@@ -52,32 +67,23 @@ enum SocketClient {
       }
     }
 
-    var responseBytes: [UInt8] = []
+    var responseBytes = [UInt8]()
     var byte: UInt8 = 0
     while true {
       let n = Darwin.read(fd, &byte, 1)
-      if n <= 0 { break }
-      if byte == 0x0A { break }
+      if n <= 0 {
+        break
+      }
+      if byte == 0x0A {
+        break
+      }
       responseBytes.append(byte)
-      if responseBytes.count > 65_536 { break }
+      if responseBytes.count > 65_536 {
+        break
+      }
     }
 
     guard !responseBytes.isEmpty else { throw Error.emptyResponse }
     return try YYJSONDecoder().decode(CLIMessage.Response.self, from: Data(responseBytes))
-  }
-
-  enum Error: Swift.Error, CustomStringConvertible {
-    case socket(Int32)
-    case connect(Int32)
-    case emptyResponse
-
-    var description: String {
-      switch self {
-      case .socket(let code): "socket() failed (errno=\(code))"
-      case .connect(let code):
-        "Could not connect to Tatami at \(CLIMessage.socketPath) (errno=\(code)). Is the app running?"
-      case .emptyResponse: "Empty response from Tatami app."
-      }
-    }
   }
 }

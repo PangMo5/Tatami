@@ -413,7 +413,8 @@ private func slsWindowNotifyCallback(
   cid _: Int32,
 ) {
   guard
-    let data, dataLength >= MemoryLayout<UInt32>.size,
+    let data,
+    dataLength >= MemoryLayout<UInt32>.size,
     let context
   else { return }
   let wid = data.loadUnaligned(as: UInt32.self)

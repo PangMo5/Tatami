@@ -18,9 +18,9 @@ struct MirrorInputHandoverTests {
       hitTestWindow: { _ in nil },
       prepareNativeWindow: { _, _ in false },
       finishNativeInput: { _ in },
-      onAccessRevoked: {},
+      onAccessRevoked: { },
       onFailure: { reason in failures.withValue { $0.append(reason) } },
-      onOutsideClick: {},
+      onOutsideClick: { },
       makeEventSource: {
         sourceRequests.withValue { $0 += 1 }
         return nil

@@ -196,12 +196,16 @@ struct AsyncConfigStoreTests {
         }
         let label = asynchronous ? "async" : "sync"
         row["\(label)_load_admission_ms"] = ms(started)
-        if asynchronous { try await config.load() }
+        if asynchronous {
+          try await config.load()
+        }
         row["\(label)_load_complete_ms"] = ms(started)
         let saveStarted = clock.now
         config.withLock { $0.mutateProfile(profiles[0].id) { $0.name = "Updated" } }
         row["\(label)_save_admission_ms"] = ms(saveStarted)
-        if let diskStore { await diskStore.flush() }
+        if let diskStore {
+          await diskStore.flush()
+        }
         row["\(label)_save_complete_ms"] = ms(saveStarted)
         #expect(config.saveError == nil)
         #expect(try decodeTatamiConfig(Data(contentsOf: url)).profiles.first?.name == "Updated")

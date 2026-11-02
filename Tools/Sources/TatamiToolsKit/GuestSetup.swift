@@ -115,7 +115,9 @@ extension VMGuest {
       )
       await attempt("unschedule updates", ["sudo", "-n", "softwareupdate", "--schedule", "off"])
       await attempt("disable indexing", ["sudo", "-n", "mdutil", "-a", "-i", "off"])
-    } else { print("skip: system sleep, software updates and indexing need sudo") }
+    } else {
+      print("skip: system sleep, software updates and indexing need sudo")
+    }
     print(
       "Set Focus, wallpaper and screen-capture permissions in System Settings, then snapshot. Log out and back in for desktop settings to settle."
     )

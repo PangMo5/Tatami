@@ -72,8 +72,12 @@ struct ConfirmationSettingsSection: View {
 
   private func status(for group: ConfirmationKind.Group) -> LocalizedStringResource {
     let enabled = group.actions.count { settings[$0] }
-    if enabled == group.actions.count { return "Ask for all" }
-    if enabled == 0 { return "Run immediately" }
+    if enabled == group.actions.count {
+      return "Ask for all"
+    }
+    if enabled == 0 {
+      return "Run immediately"
+    }
     return "Ask for \(enabled) actions"
   }
 

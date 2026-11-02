@@ -1,4 +1,5 @@
 # Tuist-generated artifacts
+.jj/
 *.xcodeproj/
 *.xcworkspace/
 .tuist/

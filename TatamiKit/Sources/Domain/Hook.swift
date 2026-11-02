@@ -318,7 +318,9 @@ extension HookDefinition {
           code: code,
           message: message,
         ))
-        if !issues.contains(message) { issues.append(message) }
+        if !issues.contains(message) {
+          issues.append(message)
+        }
       }
 
       if hook.id.isEmpty {

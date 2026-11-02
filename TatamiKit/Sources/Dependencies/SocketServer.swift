@@ -164,7 +164,9 @@ private actor SocketServer {
     while true {
       let clientFD = Darwin.accept(listenFD, nil, nil)
       if clientFD < 0 {
-        if errno == EINTR { continue }
+        if errno == EINTR {
+          continue
+        }
         logger.error("accept failed: \(errno) — exiting accept loop")
         return
       }
@@ -212,11 +214,15 @@ private actor SocketServer {
       reply: CLIReply(
         claim: { responseBox.claim() },
         finish: { response in
-          if responseBox.finish(response) { replied.signal() }
+          if responseBox.finish(response) {
+            replied.signal()
+          }
         },
         respond: { response in
           let responded = responseBox.respond(response)
-          if responded { replied.signal() }
+          if responded {
+            replied.signal()
+          }
           return responded
         },
       ),
@@ -263,10 +269,16 @@ private actor SocketServer {
     var byte: UInt8 = 0
     while true {
       let n = Darwin.read(fd, &byte, 1)
-      if n <= 0 { break }
-      if byte == 0x0A { break }
+      if n <= 0 {
+        break
+      }
+      if byte == 0x0A {
+        break
+      }
       buffer.append(byte)
-      if buffer.count > 16_384 { return nil }
+      if buffer.count > 16_384 {
+        return nil
+      }
     }
     return buffer.isEmpty ? nil : String(decoding: buffer, as: UTF8.self)
   }

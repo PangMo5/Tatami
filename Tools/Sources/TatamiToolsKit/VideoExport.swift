@@ -18,8 +18,9 @@ struct VideoExporter {
       "Choose either posterSeconds or posterCaptionIndex",
     )
     var second = 0.5
-    if !asset["posterSeconds"].isNull { second = asset["posterSeconds"].double }
-    else if !asset["posterCaptionIndex"].isNull {
+    if !asset["posterSeconds"].isNull {
+      second = asset["posterSeconds"].double
+    } else if !asset["posterCaptionIndex"].isNull {
       let captions = timeline["events"].array.filter { $0["track"].str == "caption" && !$0["text"].str.isEmpty }
       let index = asset["posterCaptionIndex"].int
       try require(captions.indices.contains(index), "Poster caption index out of range")
@@ -55,7 +56,12 @@ struct VideoExporter {
     _ = try narration.verifiedScenes(movie: movie, asset: asset, record: record)
     try require(Self.acceptedFrames(record), "\(movie.path): missing frames or more than 1% capture drops")
     let timeline = try JSON.read(movie.replacingExtension("timeline.json"))
-    let mediaInfo: JSON = if let info { info } else { try await probe(movie) }
+    let mediaInfo: JSON =
+      if let info {
+        info
+      } else {
+        try await probe(movie)
+      }
     let info = mediaInfo
     let duration = info["format"]["duration"].double
     guard let video = info["streams"].array.first(where: { $0["codec_type"].str == "video" })
@@ -94,7 +100,9 @@ struct VideoExporter {
       locale: asset["locale"].string ?? "en",
       dual: dual,
     )
-    if dual { subtitles = subtitles.replacingOccurrences(of: "PlayResY: 1200", with: "PlayResY: 600") }
+    if dual {
+      subtitles = subtitles.replacing("PlayResY: 1200", with: "PlayResY: 600")
+    }
     try styled.write(subtitles)
     let geometry = dual ? "scale=1920:600:flags=lanczos" : "scale=1920:1200:flags=lanczos"
     try await runProcess([
@@ -308,7 +316,7 @@ struct VideoExporter {
         "A display failed capture acceptance",
       )
       try require(Set(items.map { $0.1["sceneSHA256"].str }).count == 1, "Different scenes in one composite")
-      let duration = items.map { $0.1["durationSeconds"].double }.min()!
+      let duration = items.lazy.map { $0.1["durationSeconds"].double }.min()!
       var filters = items.enumerated().map { index, item in
         "[\(index):v]setpts=PTS-STARTPTS,tpad=start_duration=\(item.1["capture"]["captureOffsetSeconds"].double):start_mode=clone,trim=duration=\(duration),fps=60[v\(index)]"
       }
@@ -329,8 +337,8 @@ struct VideoExporter {
         output.replacingExtension(suffix),
       ) }
       var record = items[0].1
-      record["frames"] = .integer(items.map { $0.1["frames"].int }.min()!)
-      record["droppedFrames"] = .integer(items.map { $0.1["droppedFrames"].int }.max()!)
+      record["frames"] = .integer(items.lazy.map { $0.1["frames"].int }.min()!)
+      record["droppedFrames"] = .integer(items.lazy.map { $0.1["droppedFrames"].int }.max()!)
       record["compositeSources"] = .array(try items.map { file, record in
         try .object([("file", .string(file.lastPathComponent)), ("sha256", .string(sha(file))), ("capture", record["capture"])])
       })

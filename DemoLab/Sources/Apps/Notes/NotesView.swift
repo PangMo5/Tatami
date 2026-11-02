@@ -1,12 +1,17 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
+
 import DemoAppKit
 import SwiftUI
 
+// MARK: - NotesView
+
 struct NotesView: View {
+
+  // MARK: Internal
+
   let context: DemoRenderContext
-  @State private var session = StorySession()
-  @State private var newTask = ""
+
   var body: some View {
     DemoWindow {
       DemoTitle("Launch checklist", symbol: "checklist", accent: .orange, subtitle: "Notes")
@@ -43,21 +48,35 @@ struct NotesView: View {
       Text("\(session.story.tasks.filter(\.done).count) of \(session.story.tasks.count) done")
     }.onAppear { session.start() }
   }
+
+  // MARK: Private
+
+  @State private var session = StorySession()
+  @State private var newTask = ""
+
   private func addTask() {
     let text = newTask.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !text.isEmpty else { return }
     session.update { story in
       story.tasks.append(StoryTask(id: (story.tasks.map(\.id).max() ?? 0) + 1, text: text, done: false))
-    }; newTask = ""
+    }
+    newTask = ""
   }
+
 }
+
+// MARK: - ChecklistRow
+
 private struct ChecklistRow: View {
   let item: StoryTask
   let toggle: () -> Void
+
   var body: some View {
     Button(action: toggle) {
       HStack(alignment: .top, spacing: 12) {
-        Image(systemName: item.done ? "checkmark.circle.fill" : "circle").foregroundStyle(item.done ? Color.orange : Color.secondary)
+        Image(systemName: item.done ? "checkmark.circle.fill" : "circle").foregroundStyle(item.done
+          ? Color.orange
+          : Color.secondary)
         Text(item.text).strikethrough(item.done).foregroundStyle(item.done ? Color.secondary : Color.primary)
         Spacer(minLength: 0)
       }.font(.system(size: 18)).frame(maxWidth: .infinity, alignment: .leading)

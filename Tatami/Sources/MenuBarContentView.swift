@@ -35,7 +35,7 @@ struct MenuBarLabel: View {
     return image
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private var labelContent: some View {
     let config = store.workspaceList.config
     let menuBar = config.settings.menuBar

@@ -1,0 +1,56 @@
+name: Swift
+
+on:
+  pull_request:
+    paths:
+      - "**/*.swift"
+      - "**/Package.resolved"
+      - ".mise.toml"
+      - ".swiftformat"
+      - ".xcode-version"
+      - "scripts/development-env.sh"
+      - "Makefile"
+      - ".github/workflows/swift.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+        with:
+          install_args: swiftformat
+      - run: make lint
+
+  macos:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v6
+      - name: Read project Xcode version
+        id: xcode
+        run: echo "version=$(cat .xcode-version)" >> "$GITHUB_OUTPUT"
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ steps.xcode.outputs.version }}
+      - name: Verify Xcode version
+        run: |
+          test "$(xcodebuild -version | head -n 1)" = "Xcode $(cat .xcode-version)"
+          xcrun swift --version
+          xcrun --sdk macosx --show-sdk-version
+      - uses: jdx/mise-action@v4
+      - name: Resolve dependencies and generate project
+        run: |
+          tuist install
+          tuist generate --no-open
+      - name: Test Tatami
+        run: |
+          tuist xcodebuild build -workspace Tatami.xcworkspace -scheme TatamiCLI -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+          tuist xcodebuild test -workspace Tatami.xcworkspace -scheme Tatami -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+      - name: Test Demo Lab
+        run: |
+          swift run --package-path Tools tatami-tools compile-localization
+          DEMOLAB_LOCALIZATION_DIR="$PWD/DemoLab/.build/DemoLab/Localization" swift test --package-path DemoLab

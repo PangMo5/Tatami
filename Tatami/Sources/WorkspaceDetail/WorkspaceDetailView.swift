@@ -74,7 +74,9 @@ struct WorkspaceDetailView: View {
                 .focused(editorFocus, equals: .workspaceName(workspace.id))
                 .onSubmit { commitNameDraft() }
                 .onChange(of: editorFocus.wrappedValue) { previous, current in
-                  if previous == .workspaceName(workspace.id), previous != current { commitNameDraft() }
+                  if previous == .workspaceName(workspace.id), previous != current {
+                    commitNameDraft()
+                  }
                 }
             }
 
@@ -480,7 +482,7 @@ struct WorkspaceDetailView: View {
     }
   }
 
-  @ViewBuilder
+  @ContentBuilder
   private func copyFromSection(_ workspace: Workspace) -> some View {
     let profiles = store.config.profiles
     let hasSources = profiles.contains { p in p.workspaces.contains { $0.id != workspace.id } }
@@ -609,8 +611,11 @@ struct WorkspaceDetailView: View {
     var excApps = Set<String>()
     var excFields = Set<String>()
     for id in excluded {
-      if id.hasPrefix("app:") { excApps.insert(String(id.dropFirst(4))) }
-      else if id.hasPrefix("field:") { excFields.insert(String(id.dropFirst(6))) }
+      if id.hasPrefix("app:") {
+        excApps.insert(String(id.dropFirst(4)))
+      } else if id.hasPrefix("field:") {
+        excFields.insert(String(id.dropFirst(6)))
+      }
     }
     return (excApps, excFields)
   }
@@ -808,7 +813,9 @@ private actor AppIconLoader {
 
   func load(bundleIdentifier: String, iconPath: String?) -> CGImage? {
     let key = (bundleIdentifier + "\n" + (iconPath ?? "")) as NSString
-    if let hit = cache.object(forKey: key) { return hit }
+    if let hit = cache.object(forKey: key) {
+      return hit
+    }
     let image: NSImage? =
       if let iconPath, let fromFile = NSImage(contentsOfFile: iconPath) {
         fromFile

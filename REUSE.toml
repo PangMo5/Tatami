@@ -6,6 +6,7 @@ path = [
   ".gitignore",
   ".mise.toml",
   ".swiftformat",
+  ".xcode-version",
   "CHANGELOG.md",
   "DemoLab/**",
   "Makefile",

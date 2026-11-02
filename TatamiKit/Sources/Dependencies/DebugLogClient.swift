@@ -86,7 +86,9 @@ final class DebugLogWriter: @unchecked Sendable {
     fastEnabled.withLock { $0 = enabled }
     queue.async { [weak self] in
       guard let self else { return }
-      if enabled == enabledFlag { return }
+      if enabled == enabledFlag {
+        return
+      }
       enabledFlag = enabled
       if enabled {
         openSession()
@@ -144,7 +146,7 @@ final class DebugLogWriter: @unchecked Sendable {
       let logs = directory.appendingPathComponent("logs", isDirectory: true)
       let files = FileManager.default
       try files.createDirectory(at: logs, withIntermediateDirectories: true)
-      let stamp = formatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+      let stamp = formatter.string(from: Date()).replacing(":", with: "-")
       let session = "\(stamp)-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)"
       let sessionURL = logs.appendingPathComponent("tatami-\(session).log")
       try Data().write(to: sessionURL, options: .withoutOverwriting)
