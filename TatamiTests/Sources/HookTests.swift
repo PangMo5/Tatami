@@ -407,6 +407,7 @@ struct HookRunnerTests {
       id: "reserved-context",
       event: .profileChanged,
       command: ["/bin/zsh", "-c", script],
+      workingDirectory: FileManager.default.temporaryDirectory.path,
       environment: [
         "TATAMI_WORKSPACE_ID": "stale-workspace",
         "TATAMI_DISPLAY_NAME": "stale-display",
@@ -463,6 +464,7 @@ struct HookRunnerTests {
       id: "hud-environment",
       event: .hud,
       command: ["/bin/zsh", "-c", script],
+      workingDirectory: FileManager.default.temporaryDirectory.path,
     )
 
     let result = await HookRunnerClient.liveValue.run(hook, invocation)
@@ -483,6 +485,7 @@ struct HookRunnerTests {
       id: "failure",
       event: .profileChanged,
       command: ["/bin/zsh", "-c", "print output; print error >&2; exit 7"],
+      workingDirectory: FileManager.default.temporaryDirectory.path,
     )
 
     let result = await HookRunnerClient.liveValue.run(hook, invocation())
@@ -515,6 +518,7 @@ struct HookRunnerTests {
       event: .profileChanged,
       command: ["/bin/zsh", "-c", script],
       timeoutMs: 2_000,
+      workingDirectory: directory.path,
     )
     let clock = ContinuousClock()
     let started = clock.now
@@ -568,6 +572,7 @@ struct HookRunnerTests {
       event: .profileChanged,
       command: ["/bin/zsh", "-c", script],
       timeoutMs: 5_000,
+      workingDirectory: directory.path,
     )
 
     let result = await HookRunnerClient.liveValue.run(hook, invocation())
@@ -588,6 +593,7 @@ struct HookRunnerTests {
       event: .profileChanged,
       command: ["/bin/sleep", "10"],
       timeoutMs: 5_000,
+      workingDirectory: FileManager.default.temporaryDirectory.path,
     )
     let task = Task {
       await HookRunnerClient.liveValue.run(hook, invocation())
