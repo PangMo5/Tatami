@@ -67,6 +67,7 @@ struct ActivationRequest: Sendable, Hashable {
     borrowedApps: [AppAssignment] = [],
     managedBundleIds: Set<String> = [],
     knownWindows: Set<WindowKey> = [],
+    retainedBundleIds: Set<String> = [],
   ) {
     self.workspace = workspace
     self.sharedApps = sharedApps
@@ -77,6 +78,7 @@ struct ActivationRequest: Sendable, Hashable {
     self.borrowedApps = borrowedApps
     self.managedBundleIds = managedBundleIds
     self.knownWindows = knownWindows
+    self.retainedBundleIds = retainedBundleIds
   }
 
   // MARK: Internal
@@ -109,6 +111,9 @@ struct ActivationRequest: Sendable, Hashable {
   /// windows snapshot means `unhide()` is sufficient — replaying Dock-style
   /// reopen at the same time can destroy/recreate the existing window.
   var knownWindows = Set<WindowKey>()
+  /// Apps owned by another visible/planned display must survive this hide
+  /// pass, including Leave As Is windows whose physical frame stayed here.
+  var retainedBundleIds = Set<String>()
 
 }
 
@@ -424,7 +429,7 @@ extension WorkspaceManagerClient: DependencyKey {
             if MacApp.isTatami(bundleId) {
               continue
             }
-            if keepVisible.contains(bundleId) {
+            if keepVisible.contains(bundleId) || request.retainedBundleIds.contains(bundleId) {
               continue
             }
             // Borrow-scoped: only hide apps Tatami actually manages somewhere.

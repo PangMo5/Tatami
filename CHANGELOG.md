@@ -10,6 +10,18 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.15.0
+
+This release is in development.
+
+Settings search and more consistent workspace layouts.
+
+- **Search Settings:** Find settings by name, description, shortcut, or abbreviations such as FFM and MFF. Select a result to reveal and highlight its control.
+- **Keep adjusted proportions:** Returning to a workspace and restoring saved windows preserve manual split ratios with Auto-balance enabled. Newly inserted windows still use Auto-balance.
+- **Bring apps to the selected workspace:** Selecting a workspace takes priority over another display using the same registered app. Other windows stay in their workspace; an emptied display uses its existing workspace history to find a replacement.
+- **Bring scratchpads to the pointer display:** Summoning an open scratchpad on another display moves it here and restores its previous host. This option is on by default.
+- **Follow focus across displays:** Mouse Follows Focus uses the visible window position even when an app has not yet published its accessibility frame, including freshly summoned scratchpads.
+
 ## 1.14.2 (2026-09-17)
 
 More reliable window focus and Guided Setup.

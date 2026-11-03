@@ -798,6 +798,7 @@ extension AppSettings {
       cycleSameAppWindows: Bool = false,
       includeSharedAppsInWindowSwitcher: Bool = true,
       toggleBorrowOnRepeat: Bool = true,
+      bringScratchpadToPointerDisplay: Bool = true,
       borrowDefaultEdge: BorrowEdge? = nil,
       borrowFraction: Double = 0.4,
     ) {
@@ -810,6 +811,7 @@ extension AppSettings {
       self.cycleSameAppWindows = cycleSameAppWindows
       self.includeSharedAppsInWindowSwitcher = includeSharedAppsInWindowSwitcher
       self.toggleBorrowOnRepeat = toggleBorrowOnRepeat
+      self.bringScratchpadToPointerDisplay = bringScratchpadToPointerDisplay
       self.borrowDefaultEdge = borrowDefaultEdge
       self.borrowFraction = borrowFraction
     }
@@ -828,6 +830,7 @@ extension AppSettings {
         default: true,
       )
       toggleBorrowOnRepeat = c.decode(.toggleBorrowOnRepeat, default: true)
+      bringScratchpadToPointerDisplay = c.decode(.bringScratchpadToPointerDisplay, default: true)
       borrowDefaultEdge = c.decodeIfValid(.borrowDefaultEdge)
       borrowFraction = c.decode(.borrowFraction, default: 0.4)
     }
@@ -866,6 +869,8 @@ extension AppSettings {
     /// Summoning the same workspace already borrowed on the interaction
     /// display dismisses that borrow instead of re-docking it.
     public var toggleBorrowOnRepeat: Bool
+    /// Summoning a scratchpad on another display transfers its existing block.
+    public var bringScratchpadToPointerDisplay: Bool
     /// Default edge a borrow docks to. `nil` → no default: a direction key is
     /// picked after the borrow combo. A per-workspace `borrowEdge` overrides.
     public var borrowDefaultEdge: BorrowEdge?
@@ -885,6 +890,7 @@ extension AppSettings {
       case cycleSameAppWindows
       case includeSharedAppsInWindowSwitcher
       case toggleBorrowOnRepeat
+      case bringScratchpadToPointerDisplay
       case borrowDefaultEdge
       case borrowFraction
     }

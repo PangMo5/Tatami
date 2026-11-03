@@ -155,6 +155,8 @@ actions show feedback.
 
 ### Window and layout restoration
 
+Re-entering a workspace or restoring saved windows keeps manually adjusted proportions, including when Auto-balance is enabled. Auto-balance still applies when new windows are inserted.
+
 Tatami remembers split directions, proportions, and fullscreen zoom separately for each
 workspace. When windows close or arrive one at a time, the remaining windows fill the
 available space while Tatami keeps the missing layout slots. Reopened windows can return
@@ -201,6 +203,7 @@ launches its apps separately from macOS document restoration.
 | `cycleSameAppWindows` | bool | `false` | Next/previous-window switching granularity. `false` (default) switches app-by-app and recalls each app's most-recent window. `true` visits every window, including multiple windows of the same app. The active workspace's Tiled, Always on Top, and Leave As Is windows participate; while Borrow is active, the host and borrowed tiled blocks form one switching order. The key name is retained for compatibility. |
 | `includeSharedAppsInWindowSwitcher` | bool | `true` | Include Shared Apps in the app/window switcher. During Borrow, shared non-tiled windows join the host and borrowed tiled blocks; `false` excludes every Shared App from switching everywhere. |
 | `toggleBorrowOnRepeat` | bool | `true` | Borrowing a workspace already beside the current one returns it and restores the host. `false` moves the borrowed workspace instead. |
+| `bringScratchpadToPointerDisplay` | bool | `true` | Move a scratchpad already borrowed on another display to the display under the pointer, restoring its previous host. Turn this off to keep the existing placement and show where it is open. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
 
@@ -675,6 +678,8 @@ Workspace fields:
 | `borrowFraction` | double? | Override the borrowed-block size for this workspace (0.1…0.9). Omit to use `settings.switching.borrowFraction`. |
 | `appToFocusBundleId` | string? | Bundle ID of the assigned app to focus on activation. Omit for most-recently-used. |
 | `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to open the workspace on the display under the mouse. Falls back to the primary display when the pinned monitor is absent. When a dynamic workspace leaves a display, Tatami refills that display from its own history, but only with a workspace pinned to it or a dynamic one no other display is using. A workspace pinned to a monitor that is currently disconnected is never pulled in. When nothing qualifies, the display is left empty on purpose. |
+
+An app can be registered in several workspaces. Activating a workspace gives it priority for those apps even when they are visible on another display. Registration stays unchanged. Other windows remain in the previous workspace; if none remain, that display uses its existing workspace history to find a replacement. Automatic replacements do not take the apps back.
 
 App assignment fields:
 

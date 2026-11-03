@@ -5053,5 +5053,75 @@
     "ja": "現在のプロファイルとワークスペースを確認してください。接続中のモニターが変わると、ディスプレイルールによってプロファイルが自動で切り替わることがあります。別のプロファイルに同じアプリがあっても、配置と全画面表示の状態はワークスペースごとに記憶されます。使う各プロファイルで配置を設定するか、意図しない切り替えならプロファイルのディスプレイルールを調整してください。",
     "zh-Hans": "请检查当前启用的配置方案和工作区。连接的显示器发生变化时，显示器规则可能会自动切换配置方案。即使另一个配置方案包含相同应用，每个工作区的布局和全屏状态仍分别保存。请在使用的各配置方案中设置布局，或调整显示器规则以避免意外切换。",
     "zh-Hant": "請檢查目前使用的設定組合和工作空間。連接的顯示器改變時，顯示器規則可能會自動切換設定組合。即使另一個設定組合包含相同 App，每個工作空間的配置和全螢幕狀態仍會分別儲存。請在使用的各設定組合中設定配置，或調整顯示器規則以避免意外切換。"
+  },
+  "c7234a8e46bdb45c": {
+    "en": "Settings search and more consistent workspace layouts.",
+    "ko": "설정 검색을 추가하고 작업 공간 배치를 더 안정적으로 유지해요.",
+    "ja": "設定の検索に対応し、ワークスペースの配置をより安定して維持します。",
+    "zh-Hans": "新增设置搜索，更稳定地保留工作区布局。",
+    "zh-Hant": "新增設定搜尋，讓工作空間配置維持得更穩定。"
+  },
+  "26087a1fbdb96831": {
+    "en": "**Search Settings:** Find settings by name, description, shortcut, or abbreviations such as FFM and MFF. Select a result to reveal and highlight its control.",
+    "ko": "**설정을 검색해요:** 이름, 설명, 단축키, FFM·MFF 같은 약어로 설정을 찾아요. 결과를 선택하면 해당 설정으로 이동해 강조해요.",
+    "ja": "**設定を検索:** 名前、説明、ショートカット、FFM・MFF などの略称で設定を探せます。結果を選ぶと、その設定に移動して強調表示します。",
+    "zh-Hans": "**搜索设置：** 按名称、说明、快捷键或 FFM、MFF 等缩写查找设置。选择结果后，定位并突出显示对应设置。",
+    "zh-Hant": "**搜尋設定：** 依名稱、說明、快速鍵或 FFM、MFF 等縮寫尋找設定。選取結果後，會前往並標示對應設定。"
+  },
+  "1d1502f893f04813": {
+    "en": "**Keep adjusted proportions:** Returning to a workspace and restoring saved windows preserve manual split ratios with Auto-balance enabled. Newly inserted windows still use Auto-balance.",
+    "ko": "**조절한 비율을 유지해요:** 자동 균등 배치를 켜도 작업 공간으로 돌아오거나 저장된 창을 복원할 때 직접 조절한 분할 비율을 유지해요. 새 창을 추가할 때는 자동 균등 배치를 적용해요.",
+    "ja": "**調整した比率を維持:** 自動均等配置が有効でも、ワークスペースに戻るときや保存済みのウインドウを復元するときは、手動で調整した分割比率を維持します。新しいウインドウの追加時には自動均等配置を適用します。",
+    "zh-Hans": "**保留调整后的比例：** 即使启用自动均衡，返回工作区或恢复已保存的窗口时，也会保留手动调整的分割比例。新增窗口仍使用自动均衡。",
+    "zh-Hant": "**保留調整後的比例：** 即使開啟自動平衡，返回工作空間或還原已儲存的視窗時，也會保留手動調整的分割比例。新增視窗仍會套用自動平衡。"
+  },
+  "3c12d0f48742c8dc": {
+    "en": "**Bring apps to the selected workspace:** Selecting a workspace takes priority over another display using the same registered app. Other windows stay in their workspace; an emptied display uses its existing workspace history to find a replacement.",
+    "ko": "**선택한 작업 공간으로 앱을 가져와요:** 같은 앱을 다른 화면에서 사용 중이어도 마지막으로 선택한 작업 공간을 우선해요. 이전 작업 공간의 다른 창은 유지하고, 화면이 비면 기존 작업 공간 이력에서 대신 표시할 공간을 찾아요.",
+    "ja": "**選んだワークスペースにアプリを移動:** 同じ登録アプリが別の画面で使われていても、最後に選んだワークスペースを優先します。ほかのウインドウは元のワークスペースに残り、画面が空になる場合は、その画面の履歴から代わりのワークスペースを探します。",
+    "zh-Hans": "**将应用移到所选工作区：** 即使同一已注册应用正在其他显示器上使用，也优先放到最后选择的工作区。其他窗口留在原工作区；显示器变空时，从该显示器的工作区历史中查找替代项。",
+    "zh-Hant": "**將 App 帶到所選工作空間：** 即使同一個已登錄 App 正在其他顯示器使用，也會優先放到最後選取的工作空間。其他視窗留在原工作空間；顯示器清空時，會從該顯示器的工作空間記錄尋找替代項目。"
+  },
+  "1838e330392598d8": {
+    "en": "**Bring scratchpads to the pointer display:** Summoning an open scratchpad on another display moves it here and restores its previous host. This option is on by default.",
+    "ko": "**마우스가 있는 화면으로 임시 공간을 가져와요:** 다른 화면에 열려 있는 임시 공간을 호출하면 현재 화면으로 옮기고 이전 화면의 원래 배치를 복원해요. 이 옵션은 기본으로 켜져 있어요.",
+    "ja": "**ポインタのある画面に一時スペースを移動:** 別の画面に開いている一時スペースを呼び出すと、ポインタのある画面へ移し、元のワークスペースの配置を戻します。この設定は初期状態で有効です。",
+    "zh-Hans": "**将暂存区移到指针所在显示器：** 调用已在其他显示器打开的暂存区时，会将其移到当前显示器，并恢复原工作区的布局。此选项默认开启。",
+    "zh-Hant": "**將暫存區帶到游標所在顯示器：** 呼叫已在其他顯示器開啟的暫存區時，會將它帶到目前顯示器，並還原原工作空間的配置。此選項預設開啟。"
+  },
+  "ae58d45028fdeebf": {
+    "en": "Re-entering a workspace or restoring saved windows keeps manually adjusted proportions, including when Auto-balance is enabled. Auto-balance still applies when new windows are inserted.",
+    "ko": "자동 균등 배치를 켜도 작업 공간에 다시 들어가거나 저장된 창을 복원할 때 직접 조절한 비율을 유지해요. 새 창을 추가할 때는 자동 균등 배치를 적용해요.",
+    "ja": "自動均等配置が有効でも、ワークスペースに戻るときや保存済みのウインドウを復元するときは、手動で調整した比率を維持します。新しいウインドウを追加するときには自動均等配置を適用します。",
+    "zh-Hans": "即使启用自动均衡，重新进入工作区或恢复已保存的窗口时，也会保留手动调整的比例。新增窗口时仍应用自动均衡。",
+    "zh-Hant": "即使開啟自動平衡，重新進入工作空間或還原已儲存的視窗時，也會保留手動調整的比例。新增視窗時仍會套用自動平衡。"
+  },
+  "23a563ee830c4eab": {
+    "en": "Move a scratchpad already borrowed on another display to the display under the pointer, restoring its previous host. Turn this off to keep the existing placement and show where it is open.",
+    "ko": "다른 화면에 빌려온 임시 공간을 마우스가 있는 화면으로 옮기고 이전 화면의 원래 배치를 복원해요. 끄면 현재 위치를 유지하고 어느 화면에 열려 있는지 알려줘요.",
+    "ja": "別の画面に借りている一時スペースをポインタのある画面へ移し、元のワークスペースの配置を戻します。オフにすると位置を変えず、開いている画面を表示します。",
+    "zh-Hans": "将在其他显示器借用的暂存区移到指针所在显示器，并恢复原工作区的布局。关闭后会保留当前位置，并提示其所在显示器。",
+    "zh-Hant": "將在其他顯示器借用的暫存區帶到游標所在顯示器，並還原原工作空間的配置。關閉後會保留目前位置，並提示它開在哪個顯示器。"
+  },
+  "a70ebf37e058e9c3": {
+    "en": "An app can be registered in several workspaces. Activating a workspace gives it priority for those apps even when they are visible on another display. Registration stays unchanged. Other windows remain in the previous workspace; if none remain, that display uses its existing workspace history to find a replacement. Automatic replacements do not take the apps back.",
+    "ko": "한 앱을 여러 작업 공간에 등록할 수 있어요. 다른 화면에 떠 있어도 마지막으로 활성화한 작업 공간이 해당 앱을 우선 사용해요. 등록 정보는 바뀌지 않아요. 이전 작업 공간의 다른 창은 유지하고, 아무 창도 남지 않으면 그 화면의 작업 공간 이력에서 대신 표시할 공간을 찾아요. 자동으로 대신 표시한 작업 공간이 앱을 다시 가져오지는 않아요.",
+    "ja": "同じアプリを複数のワークスペースに登録できます。別の画面に表示されていても、最後に有効にしたワークスペースを優先します。登録内容は変わりません。ほかのウインドウは元のワークスペースに残り、何も残らない場合は、その画面の履歴から代わりのワークスペースを探します。自動的に表示したワークスペースがアプリを取り戻すことはありません。",
+    "zh-Hans": "同一应用可以注册到多个工作区。即使应用显示在其他显示器上，也优先放到最后激活的工作区，注册信息保持不变。其他窗口留在原工作区；没有窗口剩余时，从该显示器的工作区历史中查找替代项。自动显示的替代工作区不会将应用抢回。",
+    "zh-Hant": "同一個 App 可以登錄到多個工作空間。即使 App 顯示在其他顯示器，也會優先放到最後啟用的工作空間，登錄資訊維持不變。其他視窗留在原工作空間；沒有視窗剩下時，會從該顯示器的工作空間記錄尋找替代項目。自動顯示的替代工作空間不會將 App 帶回。"
+  },
+  "8974e3d2b2ce4882": {
+    "en": "This release is in development.",
+    "ko": "출시를 준비하고 있어요.",
+    "ja": "このバージョンは開発中です。",
+    "zh-Hans": "此版本正在开发中。",
+    "zh-Hant": "此版本仍在開發中。"
+  },
+  "f21439a96ab246e5": {
+    "en": "**Follow focus across displays:** Mouse Follows Focus uses the visible window position even when an app has not yet published its accessibility frame, including freshly summoned scratchpads.",
+    "ko": "**다른 화면으로도 포커스를 따라가요:** 앱이 접근성 창 위치를 아직 제공하지 않아도 화면에 표시된 창을 기준으로 마우스가 포커스를 따라가요. 방금 불러온 임시 공간에서도 동작해요.",
+    "ja": "**別の画面でもフォーカスに追従:** アプリがアクセシビリティ経由のウインドウ位置をまだ提供していなくても、画面に表示された位置にマウスが追従します。呼び出した直後の一時スペースでも動作します。",
+    "zh-Hans": "**跨显示器跟随焦点：** 即使应用尚未通过辅助功能提供窗口位置，鼠标跟随焦点也会使用屏幕上的实际窗口位置，包括刚唤出的暂存区。",
+    "zh-Hant": "**跨顯示器跟隨焦點：** 即使 App 尚未透過輔助使用提供視窗位置，滑鼠跟隨焦點也會使用螢幕上的實際視窗位置，包括剛喚出的暫存區。"
   }
 }

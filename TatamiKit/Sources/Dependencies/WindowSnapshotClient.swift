@@ -698,6 +698,11 @@ struct WindowSnapshotClient: Sendable {
   var windowFrame: @Sendable (_ key: WindowKey) -> CGRect? = { _ in nil }
   var windowFrameAsync:
     @Sendable (_ key: WindowKey) async -> AsyncWindowSnapshot<CGRect?> = { _ in .unavailable }
+  /// Exact visible geometry for focus/MFF. A newly opened app can display its
+  /// window before it answers AX frame requests. WindowServer owns the visible
+  /// surface and does not wait on that app's run loop.
+  var visibleWindowFrameAsync:
+    @Sendable (_ key: WindowKey) async -> AsyncWindowSnapshot<CGRect?> = { _ in .unavailable }
   /// Fresh geometry for every on-screen window from one WindowServer snapshot.
   /// This is local IPC rather than a per-app AX round trip.
   var onScreenWindowFrames: @Sendable () -> [CGWindowID: CGRect] = { [:] }
@@ -866,6 +871,15 @@ extension WindowSnapshotClient {
       await MainActor.run {
         focusedWindowKey()
       }
+    }
+  }
+
+  func visibleWindowFrameOffMain(_ key: WindowKey) async -> CGRect? {
+    switch await visibleWindowFrameAsync(key) {
+    case .value(let frame): frame
+    // Lightweight dependency overrides supply the synchronous AX-shaped
+    // endpoint. The live endpoint always returns .value, including absence.
+    case .unavailable: await windowFrameOffMain(key)
     }
   }
 
@@ -1065,6 +1079,14 @@ extension WindowSnapshotClient: DependencyKey {
       windowFrameAsync: { key in
         .value(await liveWindowFrameAsync(key))
       },
+      visibleWindowFrameAsync: { key in
+        let windows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        let frame = windows.first {
+          $0.id == key.windowID && $0.surface.ownerPID == key.pid && $0.alpha > 0
+            && $0.surface.frame.width > 1 && $0.surface.frame.height > 1
+        }?.surface.frame
+        return .value(frame)
+      },
       onScreenWindowFrames: {
         preconditionFailure("Live WindowServer reads require onScreenWindowFramesOffMain")
       },
@@ -1141,6 +1163,7 @@ extension WindowSnapshotClient: DependencyKey {
     focusedWindowKeyForAppAsync: { _, _ in .unavailable },
     windowFrame: { _ in nil },
     windowFrameAsync: { _ in .unavailable },
+    visibleWindowFrameAsync: { _ in .unavailable },
     onScreenWindowFrames: { [:] },
     onScreenWindowSurfaces: { [:] },
     onScreenWindowSurfacesAsync: { .unavailable },

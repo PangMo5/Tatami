@@ -16,6 +16,19 @@ import TOML
 /// containment keeps the previous config instead of silently resetting.
 struct ConfigDecodeTests {
   @Test
+  func `scratchpad display transfer defaults on and preserves explicit opt out`() throws {
+    let legacy = try TOMLDecoder().decode(AppConfig.self, from: "[settings.switching]\n")
+    #expect(legacy.settings.switching.bringScratchpadToPointerDisplay)
+    let disabled = try TOMLDecoder().decode(
+      AppConfig.self,
+      from: "[settings.switching]\nbringScratchpadToPointerDisplay = false",
+    )
+    let data = try TOMLEncoder().encode(disabled)
+    let restored = try TOMLDecoder().decode(AppConfig.self, from: data)
+    #expect(!restored.settings.switching.bringScratchpadToPointerDisplay)
+  }
+
+  @Test
   func `legacy assignment confirmation migrates to the global policy`() throws {
     let config = try TOMLDecoder().decode(AppConfig.self, from: "[settings.switching]\nconfirmAppAssignment = false")
     #expect(ConfirmationKind.allCases.allSatisfy { !config.settings.confirmations[$0] })

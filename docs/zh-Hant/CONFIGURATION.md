@@ -141,6 +141,8 @@ overlayAwareApps = ["notion.id"]
 <a id="window-and-layout-restoration"></a>
 ### 視窗與配置回復
 
+即使開啟自動平衡，重新進入工作空間或還原已儲存的視窗時，也會保留手動調整的比例。新增視窗時仍會套用自動平衡。
+
 Tatami 會分別記住每個工作空間的分割方向、比例和全螢幕狀態。視窗關閉或陸續開啟時，現有視窗會填滿可用空間，同時保留缺少視窗的位置。重新開啟的視窗可以回到這些位置。手動調整大小、重新排列或切換全螢幕等配置操作，會依目前的視窗重新儲存配置。
 
 由 macOS 和各個 App 決定重新開啟哪些視窗。Tatami 會將記住的配置套用至這些視窗，不會自行重新開啟文件。以下 macOS 設定分別控制不同情況：
@@ -176,6 +178,7 @@ Tatami 依 App 和視窗順序比對配置位置，而非文件名稱。如果 A
 |`cycleSameAppWindows`|bool|`false`|前後視窗切換粒度。預設 `false` 依 App 切換並還原該 App 最近視窗；`true` 走訪每個視窗，包含同一 App 的多個視窗。作用中工作空間的並排、置頂和維持原狀視窗參與；借用時兩側並排區域組成同一順序。鍵名為相容保留。|
 |`includeSharedAppsInWindowSwitcher`|bool|`true`|在 App 視窗切換器中包含共用 App。借用時，非並排共用視窗與兩側並排區域一起參與；`false` 在所有情境中排除共用 App。|
 |`toggleBorrowOnRepeat`|bool|`true`|再次借用已在旁邊的工作空間會歸還並還原主工作空間；`false` 則移動借來的工作空間。|
+|`bringScratchpadToPointerDisplay`|bool|`true`|將在其他顯示器借用的暫存區帶到游標所在顯示器，並還原原工作空間的配置。關閉後會保留目前位置，並提示它開在哪個顯示器。|
 |`borrowDefaultEdge`|string?|_（未設定）_|預設借用停靠位置：`top`、`bottom`、`left`、`right`。未設定時等待 h/j/k/l 或方向鍵；工作空間的 `borrowEdge` 會覆寫此值。|
 |`borrowFraction`|double|`0.4`|借用區域沿分割軸佔螢幕的比例（0.1…0.9），工作空間的 `borrowFraction` 會覆寫此值。|
 
@@ -516,6 +519,8 @@ dynamicWorkspaceIds = ["00000000-0000-0000-0000-000000000011"]
 |`borrowFraction`|double?|覆寫此工作空間借用區域的大小（0.1…0.9），省略使用 `settings.switching.borrowFraction`。|
 |`appToFocusBundleId`|string?|啟用時聚焦的已指派 App 套件 ID，省略則使用最近 App。|
 |`displayHint`|string?|用 `"<uuid>::<name>"` 或 `"<name>"` 固定到顯示器。省略則在游標所在螢幕開啟，固定顯示器缺少時回到主螢幕。動態工作空間離開後，原顯示器依自身記錄補位，只能使用固定到該螢幕的工作空間，或未被其他螢幕使用的動態工作空間。不會拉入固定到已中斷顯示器的工作空間；無候選時保持空白。|
+
+同一個 App 可以登錄到多個工作空間。即使 App 顯示在其他顯示器，也會優先放到最後啟用的工作空間，登錄資訊維持不變。其他視窗留在原工作空間；沒有視窗剩下時，會從該顯示器的工作空間記錄尋找替代項目。自動顯示的替代工作空間不會將 App 帶回。
 
 App 指派欄位：
 

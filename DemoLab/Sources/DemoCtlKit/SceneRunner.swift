@@ -335,11 +335,15 @@ public final class SceneRunner {
       else { throw DemoCtlError.usage("window frame changed: \(app); expected \(expected); actual \(actual)") }
 
     case .expectPointer(let app):
-      let frame = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
-      guard
-        let point = CGEvent(source: nil)?.location,
-        frame.contains(point)
-      else { throw DemoCtlError.usage("pointer did not follow focus to \(app)") }
+      let identifier = try bundle(app)
+      // Borrow is accepted before its layout/focus transaction finishes.
+      // Observe the actual pointer/frame condition, as expectFront already
+      // does for focus, rather than asserting while that transaction is live.
+      guard try Shell.wait(timeout: .seconds(4), until: {
+        let frames = try CaptureGate.demoFrames().filter { $0.key.hasPrefix(identifier + ":") }
+        guard let point = CGEvent(source: nil)?.location else { return false }
+        return frames.values.contains { $0.contains(point) }
+      }) else { throw DemoCtlError.usage("pointer did not follow focus to \(app)") }
 
     case .hover(let app, let id): try NativeInteractionDriver.hover(bundleIdentifier: bundle(app), identifier: id)
 

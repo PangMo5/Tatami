@@ -18,6 +18,591 @@ struct WorkspaceActivationFeatureTests {
   // MARK: Internal
 
   @Test
+  func `Borrow waits for the existing activation tail and keeps its captured display`() async {
+    let secondary = DisplayName("Secondary")
+    let host = Workspace(name: "Host")
+    let scratch = Workspace(name: "Scratch", kind: .scratchpad)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let state = Self.makeState(workspaces: [host, scratch]) {
+      $0.activeWorkspacesByDisplay[secondary] = host.id
+      $0.activeActivationGeneration = 9
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.current = { secondary }
+      $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.borrow(workspaceId: scratch.id, edge: .right))
+    #expect(store.state.deferredBorrow?.display == secondary)
+    #expect(store.state.compositionsByDisplay.isEmpty)
+    #expect(requests.value.isEmpty)
+    await store.send(.activationTailFinished(generation: 9))
+    await store.receive {
+      if case .borrowedTilingTreeHydrated = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .borrowLayoutSettled = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(store.state.deferredBorrow == nil)
+    #expect(store.state.compositionsByDisplay[secondary]?.borrowed.first?.workspace == scratch.id)
+    #expect(requests.value.map(\.targetDisplay) == [secondary])
+    #expect(store.state.pendingAppClaims.isEmpty)
+  }
+
+  @Test
+  func `suspension keeps Borrow data but prevents its late focus`() async {
+    let host = Workspace(name: "Host")
+    let key = WindowKey(pid: 3, windowID: 301, bundleId: "app.scratch")
+    let scratch = Workspace(name: "Scratch", kind: .scratchpad)
+    let focused = LockIsolated<[WindowKey]>([])
+    let state = Self.makeState(workspaces: [host, scratch]) {
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.compositionsByDisplay[Self.display] = Composition(host: host.id, borrowed: [
+        BorrowedSlot(workspace: scratch.id, edge: .right, fraction: 0.3)
+      ])
+      $0.borrowGenerationByDisplay[Self.display] = 2
+      $0.borrowHydrationsByDisplay[Self.display] = .init(workspaceId: scratch.id, generation: 2)
+      $0.pendingBorrowCompletionByDisplay[Self.display] = .init(workspaceId: scratch.id, generation: 2)
+      $0.pendingAppClaims.insert(scratch.id)
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.focusManager.focusWindow = { key in focused.withValue { $0.append(key) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.systemWillSuspend)
+    await store.send(.borrowedTilingTreeHydrated(
+      display: Self.display,
+      workspaceId: scratch.id,
+      generation: 2,
+      previousTree: nil,
+      tree: .leaf(key),
+    ))
+    await store.finish()
+    #expect(store.state.tilingTrees[scratch.id] == .leaf(key))
+    #expect(store.state.borrowHydrationsByDisplay.isEmpty)
+    #expect(store.state.pendingBorrowCompletionByDisplay.isEmpty)
+    #expect(focused.value.isEmpty)
+  }
+
+  @Test
+  func `Borrow observer discovery cannot overwrite a saved layout before it is loaded`() async {
+    let keys = [
+      WindowKey(pid: 3, windowID: 301, bundleId: "app.scratch"),
+      WindowKey(pid: 3, windowID: 302, bundleId: "app.scratch"),
+    ]
+    let host = Workspace(name: "Host")
+    let scratch = Workspace(name: "Scratch", kind: .scratchpad, apps: [
+      AppAssignment(bundleIdentifier: "app.scratch", name: "Scratch")
+    ])
+    let desired = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.7, left: .leaf(keys[1]), right: .leaf(keys[0])))
+    let saved = LayoutSnapshot(liveTree: desired, fullscreenZoomed: [])
+    let (stream, continuation) = AsyncStream<LayoutSnapshot>.makeStream()
+    let writes = LockIsolated<[LayoutSnapshot]>([])
+    let state = Self.makeState(workspaces: [host, scratch]) {
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.cachedKeysOnlyAsync = { _, _ in .hit(keys) }
+      $0.windowSnapshot.discoverKeys = { _, _ in keys }
+      $0.windowSnapshot.existingWindowKeys = { Set($0) }
+      $0.layoutStore.load = { _ in
+        var iterator = stream.makeAsyncIterator()
+        return await iterator.next()
+      }
+      $0.layoutStore.save = { _, snapshot in writes.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.borrow(workspaceId: scratch.id, edge: .right))
+    await store.send(.syncAppWindowsResolved(bundleId: "app.scratch", resizableKeys: keys, onScreenFrames: [:]))
+    #expect(store.state.tilingTrees[scratch.id] == nil)
+    #expect(writes.value.isEmpty)
+    continuation.yield(saved)
+    continuation.finish()
+    await store.receive {
+      if case .borrowedTilingTreeHydrated = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .syncAppWindowsResolved = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[scratch.id], desired)
+    #expect(writes.value.isEmpty)
+  }
+
+  @Test(arguments: [false, true])
+  func `ordinary removal still balances while retaining the desired restoration template`(prune: Bool) async {
+    let a = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 202, bundleId: "app.b")
+    let c = WindowKey(pid: 3, windowID: 303, bundleId: "app.c")
+    let workspace = Workspace(name: "Work", apps: [a, b, c].map {
+      AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId)
+    })
+    let original = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.3,
+      left: .leaf(a),
+      right: .branch(BSPBranch(split: .horizontal, ratio: 0.2, left: .leaf(b), right: .leaf(c))),
+    ))
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = original
+      $0.$config.withLock {
+        $0.settings.layout.autoBalance = .both
+        $0.settings.focus.refocusOnClose = false
+      }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.onScreenWindowIDs = { [a.windowID, b.windowID] }
+    }
+    store.exhaustivity = .off
+    if prune {
+      await store.send(.windowServerWindowEvent(.terminated(c.windowID)))
+    }
+    await store.send(.syncAppWindowsResolved(bundleId: c.bundleId, resizableKeys: [], onScreenFrames: [:]))
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[workspace.id], original.removing(c)?.balanced(axis: .both))
+    expectNoDifference(
+      store.state.pendingLayoutRestorations[workspace.id],
+      LayoutSnapshot(liveTree: original, fullscreenZoomed: []),
+    )
+  }
+
+  @Test
+  func `post layout MFF uses the visible surface without waiting for an unresponsive AX frame`() async {
+    let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.notes")
+    let workspace = Workspace(name: "Notes", apps: [AppAssignment(bundleIdentifier: key.bundleId, name: "Notes")])
+    let frame = CGRect(x: 2200, y: 100, width: 600, height: 800)
+    let points = LockIsolated<[CGPoint]>([])
+    let axReads = LockIsolated(0)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(key)
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(frame) }
+      $0.windowSnapshot.windowFrameAsync = { _ in
+        axReads.withValue { $0 += 1 }
+        return .value(nil)
+      }
+      $0.windowSnapshot.focusedWindowKey = { key }
+      $0.mouse.warp = { point in points.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.settleFocusAfterLayout(windowKey: key, workspaceId: workspace.id, shouldFocus: true))
+    await store.receive {
+      if case .cursorWarpFinished = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    expectNoDifference(points.value, [CGPoint(x: 2500, y: 500)])
+    #expect(axReads.value == 0)
+  }
+
+  @Test(arguments: [false, true])
+  func `Borrow restores saved proportions and zoom after relaunch or app transfer`(pending: Bool) async {
+    let old = [
+      WindowKey(pid: 3, windowID: 301, bundleId: "app.scratch"),
+      WindowKey(pid: 3, windowID: 302, bundleId: "app.scratch"),
+    ]
+    let live = [
+      WindowKey(pid: 4, windowID: 401, bundleId: "app.scratch"),
+      WindowKey(pid: 4, windowID: 402, bundleId: "app.scratch"),
+    ]
+    let host = Workspace(name: "Host")
+    let scratch = Workspace(name: "Scratch", kind: .scratchpad, apps: [
+      AppAssignment(bundleIdentifier: "app.scratch", name: "Scratch")
+    ])
+    let original = BSPNode.branch(BSPBranch(split: .horizontal, ratio: 0.3, left: .leaf(old[1]), right: .leaf(old[0])))
+    let saved = LayoutSnapshot(liveTree: original, fullscreenZoomed: [old[1]])
+    let expected = original.mapWindows { $0 == old[0] ? live[0] : live[1] }
+    let state = Self.makeState(workspaces: [host, scratch]) {
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      if pending {
+        $0.pendingLayoutRestorations[scratch.id] = saved
+        $0.layoutRestorationBindings[scratch.id] = slotToKey(old)
+      }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.cachedKeysOnlyAsync = { _, _ in .hit(live) }
+      $0.windowSnapshot.existingWindowKeys = { Set($0) }
+      $0.layoutStore.load = { _ in saved }
+    }
+    store.exhaustivity = .off
+    await store.send(.borrow(workspaceId: scratch.id, edge: .right))
+    await store.receive {
+      if case .borrowedTilingTreeHydrated = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[scratch.id], expected)
+    expectNoDifference(store.state.fullscreenZoomed[scratch.id], [live[1]])
+    #expect(store.state.pendingLayoutRestorations[scratch.id] == nil)
+  }
+
+  @Test
+  func `borrowing the hosts last app keeps the composition and explicit return restores ownership`() async {
+    let a = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let assignment = AppAssignment(bundleIdentifier: a.bundleId, name: "A")
+    let host = Workspace(name: "Host", apps: [assignment])
+    let scratch = Workspace(name: "Scratch", kind: .scratchpad, apps: [assignment])
+    let fallback = Workspace(name: "Fallback")
+    let state = Self.makeState(workspaces: [host, scratch, fallback]) {
+      $0.activeWorkspacesByDisplay[Self.display] = host.id
+      $0.tilingTrees[host.id] = .leaf(a)
+      $0.displayWorkspaceHistory[Self.display] = [host.id, fallback.id]
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.windowSnapshot.cachedKeysOnlyAsync = { _, _ in .hit([a]) }
+      $0.windowSnapshot.cachedKeys = { _, _ in [a] }
+      $0.windowSnapshot.existingWindowKeys = { Set($0) }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.borrow(workspaceId: scratch.id, edge: .right))
+    await store.receive {
+      if case .borrowFocusCompleted = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .displacedAppWorkspaceResolved = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    expectNoDifference(store.state.activeWorkspace(on: Self.display), host.id)
+    expectNoDifference(store.state.compositionsByDisplay[Self.display]?.borrowed.first?.workspace, scratch.id)
+    expectNoDifference(store.state.tilingTrees[scratch.id], .leaf(a))
+    #expect(store.state.tilingTrees[host.id] == nil)
+
+    await store.send(.dismissBorrow(display: Self.display))
+    await Self.receiveActivationCompletion(store, workspaceID: host.id, display: Self.display)
+    await store.finish()
+    #expect(store.state.compositionsByDisplay[Self.display] == nil)
+    expectNoDifference(store.state.tilingTrees[host.id], .leaf(a))
+    expectNoDifference(store.state.appOwner(a.bundleId), host.id)
+  }
+
+  @Test
+  func `displaced app presence cannot empty a display while the system layout is suspended`() async {
+    let left = DisplayName("Left")
+    let first = Workspace(name: "First")
+    let state = Self.makeState(workspaces: [first]) {
+      $0.activeWorkspacesByDisplay[left] = first.id
+      $0.displacedAppWorkspaces = [first.id]
+      $0.layoutSuspensionReasons = [.systemSleep]
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
+    store.exhaustivity = .off
+    await store.send(.displacedAppWorkspaceResolved(
+      workspaceId: first.id,
+      display: left,
+      hasWindows: false,
+      generation: state.appOwnershipGeneration,
+      profileID: state.config.activeProfile?.id,
+    ))
+    expectNoDifference(store.state.activeWorkspacesByDisplay, [left: first.id])
+    expectNoDifference(store.state.displacedAppWorkspaces, [first.id])
+    await store.finish()
+  }
+
+  @Test
+  func `background app transfer reconciliation does not write frames while tiling is paused`() async {
+    let left = DisplayName("Left")
+    let b = WindowKey(pid: 2, windowID: 202, bundleId: "app.b")
+    let first = Workspace(name: "First", apps: [AppAssignment(bundleIdentifier: b.bundleId, name: "B")])
+    let applications = LockIsolated(0)
+    let state = Self.makeState(workspaces: [first]) {
+      $0.activeWorkspacesByDisplay[left] = first.id
+      $0.tilingTrees[first.id] = .leaf(b)
+      $0.displacedAppWorkspaces = [first.id]
+      $0.isTilingPaused = true
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowTiler.apply = { _ in applications.withValue { $0 += 1 } }
+    }
+    store.exhaustivity = .off
+    await store.send(.reconcileDisplacedAppWorkspaces)
+    await store.finish()
+    #expect(applications.value == 0)
+    expectNoDifference(store.state.tilingTrees[first.id], .leaf(b))
+  }
+
+  @Test
+  func `CLI activation waits for displaced workspace presence before completing`() async {
+    let left = DisplayName("Left")
+    let right = DisplayName("Right")
+    let a = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let first = Workspace(name: "First", apps: [
+      AppAssignment(bundleIdentifier: a.bundleId, name: "A"),
+      AppAssignment(bundleIdentifier: "app.b", name: "B", layout: .unmanaged),
+    ])
+    let second = Workspace(name: "Second", apps: [AppAssignment(bundleIdentifier: a.bundleId, name: "A")])
+    let replies = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      id: UUID(1),
+      target: .workspace(second.id),
+      complete: { error in replies.withValue { $0.append(error) } },
+    )
+    let state = Self.makeState(workspaces: [first, second]) {
+      $0.activeWorkspacesByDisplay = [left: first.id, right: second.id]
+      $0.tilingTrees[second.id] = .leaf(a)
+      $0.appWorkspaceOwners[a.bundleId] = second.id
+      $0.displacedAppWorkspaces = [first.id]
+      $0.pendingCLIActivation = request
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
+    store.exhaustivity = .off
+    await store.send(.cliActivationEffectFinished(workspaceId: second.id, requestID: request.id))
+    #expect(replies.value.isEmpty)
+    #expect(store.state.pendingCLIActivation != nil)
+    await store.send(.displacedAppWorkspaceResolved(
+      workspaceId: first.id,
+      display: left,
+      hasWindows: true,
+      generation: state.appOwnershipGeneration,
+      profileID: state.config.activeProfile?.id,
+    ))
+    await store.finish()
+    expectNoDifference(replies.value, [nil])
+    #expect(store.state.pendingCLIActivation == nil)
+  }
+
+  @Test(arguments: WorkspaceKind.allCases, [false, true])
+  func `only enabled scratchpads transfer an existing borrow to the pointer display`(
+    kind: WorkspaceKind,
+    enabled: Bool,
+  ) async {
+    let source = DisplayName("Source")
+    let destination = DisplayName("Destination")
+    let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
+    let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")
+    let scratchWindows = [
+      WindowKey(pid: 3, windowID: 303, bundleId: "app.scratch"),
+      WindowKey(pid: 3, windowID: 304, bundleId: "app.scratch"),
+    ]
+    let firstHost = Workspace(name: "First", apps: [AppAssignment(bundleIdentifier: first.bundleId, name: "First")])
+    let secondHost = Workspace(name: "Second", apps: [AppAssignment(bundleIdentifier: second.bundleId, name: "Second")])
+    let scratch = Workspace(name: "Scratch", kind: kind, apps: [
+      AppAssignment(bundleIdentifier: "app.scratch", name: "Scratch")
+    ])
+    let scratchTree = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(scratchWindows[0]),
+      right: .leaf(scratchWindows[1]),
+    ))
+    let original = Composition(host: firstHost.id, borrowed: [.init(workspace: scratch.id, edge: .right)])
+    let state = Self.makeState(workspaces: [firstHost, secondHost, scratch]) {
+      $0.activeWorkspacesByDisplay = [source: firstHost.id, destination: secondHost.id]
+      $0.connectedDisplays = [source, destination]
+      $0.focusedDisplay = source
+      $0.tilingTrees[firstHost.id] = .leaf(first)
+      $0.tilingTrees[secondHost.id] = .leaf(second)
+      $0.tilingTrees[scratch.id] = scratchTree
+      $0.compositionsByDisplay[source] = original
+      $0.borrowGenerationByDisplay[source] = 1
+      $0.$config.withLock { $0.settings.switching.bringScratchpadToPointerDisplay = enabled }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.current = { destination }
+      $0.displays.workArea = { display in
+        CGRect(x: display == destination ? 1000 : 0, y: 0, width: 1000, height: 800)
+      }
+      $0.windowSnapshot.cachedKeysOnlyAsync = { _, _ in .hit(scratchWindows) }
+      $0.windowSnapshot.existingWindowKeys = { Set($0) }
+    }
+    store.exhaustivity = .off
+    await store.send(.borrow(workspaceId: scratch.id, edge: .left))
+    await store.finish()
+    if kind == .scratchpad, enabled {
+      #expect(store.state.compositionsByDisplay[source] == nil)
+      expectNoDifference(store.state.compositionsByDisplay[destination]?.borrowed.first?.workspace, scratch.id)
+      expectNoDifference(store.state.borrowGenerationByDisplay[source], 2)
+      // The old render cannot overwrite the new owner's live tree.
+      await store.send(.borrowedTilingTreeHydrated(
+        display: source,
+        workspaceId: scratch.id,
+        generation: 1,
+        previousTree: scratchTree,
+        tree: .leaf(scratchWindows[0]),
+      ))
+      await store.finish()
+    } else {
+      expectNoDifference(store.state.compositionsByDisplay[source], original)
+      #expect(store.state.compositionsByDisplay[destination] == nil)
+    }
+    expectNoDifference(store.state.tilingTrees[scratch.id], scratchTree)
+    expectNoDifference(store.state.activeWorkspacesByDisplay, [source: firstHost.id, destination: secondHost.id])
+  }
+
+  @Test
+  func `explicit selection reclaims an app across displays and keeps both remaining workspaces`() async {
+    let left = DisplayName("Left")
+    let right = DisplayName("Right")
+    let a = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 202, bundleId: "app.b")
+    let c = WindowKey(pid: 3, windowID: 303, bundleId: "app.c")
+    let first = Workspace(name: "First", displayHint: left, apps: [a, b].map {
+      AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId)
+    })
+    let second = Workspace(name: "Second", displayHint: right, apps: [a, c].map {
+      AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId)
+    })
+    let original = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.7, left: .leaf(a), right: .leaf(b)))
+    let state = Self.makeState(workspaces: [first, second]) {
+      $0.connectedDisplays = [left, right]
+      $0.activeWorkspacesByDisplay = [left: first.id, right: second.id]
+      $0.focusedDisplay = left
+      $0.tilingTrees[first.id] = original
+      $0.tilingTrees[second.id] = .leaf(c)
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [left, right] }
+      $0.displays.connected = { $0 }
+      $0.windowSnapshot.cachedKeys = { bundles, _ in [a, b, c].filter { bundles.contains($0.bundleId) } }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: second.id, setFocus: false))
+    await Self.receiveActivationCompletion(store, workspaceID: second.id, display: right)
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[first.id], .leaf(b))
+    #expect(Set(store.state.tilingTrees[second.id]?.windows ?? []) == [a, c])
+    expectNoDifference(store.state.activeWorkspacesByDisplay, [left: first.id, right: second.id])
+
+    // A delayed notification from the old app owner cannot take it back.
+    await store.send(.syncAppWindowsResolved(bundleId: a.bundleId, resizableKeys: [a], onScreenFrames: [:]))
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[first.id], .leaf(b))
+
+    await store.send(.activate(workspaceId: first.id, setFocus: false))
+    await Self.receiveActivationCompletion(store, workspaceID: first.id, display: left)
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[first.id], original)
+    expectNoDifference(store.state.tilingTrees[second.id], .leaf(c))
+    expectNoDifference(store.state.appOwner(a.bundleId), first.id)
+  }
+
+  @Test
+  func `app transfer refills an empty source without reclaiming the selected app`() async {
+    let left = DisplayName("Left")
+    let right = DisplayName("Right")
+    let a = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
+    let b = WindowKey(pid: 2, windowID: 202, bundleId: "app.b")
+    let assignment = AppAssignment(bundleIdentifier: a.bundleId, name: "A")
+    let first = Workspace(id: UUID(1), name: "First", displayHint: left, apps: [assignment])
+    let second = Workspace(id: UUID(2), name: "Second", displayHint: right, apps: [assignment])
+    let fallback = Workspace(id: UUID(3), name: "Fallback", displayHint: left, apps: [
+      assignment,
+      AppAssignment(bundleIdentifier: b.bundleId, name: "B"),
+    ])
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let state = Self.makeState(workspaces: [first, second, fallback]) {
+      $0.connectedDisplays = [left, right]
+      $0.activeWorkspacesByDisplay = [left: first.id]
+      $0.displayWorkspaceHistory[left] = [first.id, fallback.id]
+      $0.focusedDisplay = right
+      $0.tilingTrees[first.id] = .leaf(a)
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [left, right] }
+      $0.displays.connected = { $0 }
+      $0.windowSnapshot.cachedKeys = { bundles, _ in [a, b].filter { bundles.contains($0.bundleId) } }
+      $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: second.id, setFocus: false))
+    await Self.receiveActivationCompletion(store, workspaceID: second.id, display: right)
+    await Self.receiveActivationCompletion(store, workspaceID: fallback.id, display: left)
+    await store.finish()
+    expectNoDifference(store.state.activeWorkspacesByDisplay, [left: fallback.id, right: second.id])
+    expectNoDifference(store.state.tilingTrees[second.id], .leaf(a))
+    expectNoDifference(store.state.tilingTrees[fallback.id], .leaf(b))
+    expectNoDifference(store.state.appOwner(a.bundleId), second.id)
+    expectNoDifference(store.state.focusedDisplay, right)
+    #expect(requests.value.last(where: { $0.workspace.id == fallback.id })?.retainedBundleIds.contains(a.bundleId) == true)
+  }
+
+  @Test(arguments: AutoBalanceMode.allCases, [false, true])
+  func `activation preserves saved ratios without a new window`(
+    mode: AutoBalanceMode,
+    resident: Bool,
+  ) async {
+    let keys = (1...3).map {
+      WindowKey(pid: Int32($0), windowID: UInt32($0 * 100), bundleId: "app.\($0)")
+    }
+    let workspace = Workspace(name: "Work", apps: keys.map {
+      AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId)
+    })
+    let original = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(keys[0]),
+      right: .branch(BSPBranch(split: .vertical, ratio: 0.7, left: .leaf(keys[1]), right: .leaf(keys[2]))),
+    ))
+    let saved = LayoutSnapshot(liveTree: original, fullscreenZoomed: [])
+    let writes = LockIsolated<[LayoutSnapshot]>([])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      if resident {
+        $0.tilingTrees[workspace.id] = original
+      }
+      $0.$config.withLock { $0.settings.layout.autoBalance = mode }
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.windowSnapshot.cachedKeys = { bundles, _ in keys.filter { bundles.contains($0.bundleId) } }
+      $0.layoutStore.load = { _ in saved }
+      $0.layoutStore.save = { _, snapshot in writes.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: workspace.id, setFocus: false))
+    await Self.receiveActivationCompletion(store, workspaceID: workspace.id, display: Self.display)
+    await store.finish()
+    expectNoDifference(store.state.tilingTrees[workspace.id], original)
+    expectNoDifference(writes.value.last, saved)
+  }
+
+  @Test
   func `a pending absent window does not undo auto balance on a no op sync`() async {
     let first = WindowKey(pid: 1, windowID: 101, bundleId: "app.first")
     let second = WindowKey(pid: 2, windowID: 202, bundleId: "app.second")
@@ -52,8 +637,11 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.pendingLayoutRestorations[workspace.id] != nil)
   }
 
-  @Test(arguments: [false, true])
-  func `a surviving window keeps its slot through another windows removal and return`(prune: Bool) async {
+  @Test(arguments: [false, true], AutoBalanceMode.allCases)
+  func `a surviving window keeps its slot through another windows removal and return`(
+    prune: Bool,
+    mode: AutoBalanceMode,
+  ) async {
     let first = WindowKey(pid: 41, windowID: 101, bundleId: "app.editor")
     let survivor = WindowKey(pid: 41, windowID: 102, bundleId: first.bundleId)
     let replacement = WindowKey(pid: 41, windowID: 201, bundleId: first.bundleId)
@@ -73,7 +661,7 @@ struct WorkspaceActivationFeatureTests {
       $0.focusedDisplay = Self.display
       $0.tilingTrees[workspace.id] = original
       $0.fullscreenZoomed[workspace.id] = [first]
-      $0.$config.withLock { $0.settings.layout.autoBalance = .none }
+      $0.$config.withLock { $0.settings.layout.autoBalance = mode }
     }
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
       $0.windowSnapshot.onScreenWindowIDs = { [survivor.windowID] }
@@ -164,8 +752,11 @@ struct WorkspaceActivationFeatureTests {
     #expect(applications.value.last?.windowFrames[live[0]] == applications.value.last?.windowFrames[live[1]])
   }
 
-  @Test(arguments: [false, true])
-  func `saved layout survives staggered windows from one app`(autoOpen: Bool) async throws {
+  @Test(arguments: [false, true], AutoBalanceMode.allCases)
+  func `saved layout survives staggered windows from one app`(
+    autoOpen: Bool,
+    mode: AutoBalanceMode,
+  ) async throws {
     let first = WindowKey(pid: 42, windowID: 101, bundleId: "app.editor")
     let late = WindowKey(pid: 42, windowID: 202, bundleId: "app.editor")
     let workspace = Workspace(name: "Editor", apps: [
@@ -185,7 +776,7 @@ struct WorkspaceActivationFeatureTests {
     let writes = LockIsolated<[LayoutSnapshot]>([])
     let state = Self.makeState(workspaces: [workspace]) {
       $0.focusedDisplay = Self.display
-      $0.$config.withLock { $0.settings.layout.autoBalance = .none }
+      $0.$config.withLock { $0.settings.layout.autoBalance = mode }
     }
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
       $0.continuousClock = TestClock()
@@ -9202,6 +9793,8 @@ struct WorkspaceActivationFeatureTests {
           let generation,
           let previousTree,
           let tree,
+          _,
+          _,
         ) = $0
       else { return false }
       return owner == display && generation == 1
@@ -9276,6 +9869,8 @@ struct WorkspaceActivationFeatureTests {
           let generation,
           let previousTree,
           let tree,
+          _,
+          _,
         ) = $0
       else { return false }
       return owner == display

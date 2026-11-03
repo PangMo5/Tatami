@@ -1780,6 +1780,8 @@ extension WorkspaceActivationFeature {
     continuesCLIActivation: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
+    state.deferredBorrow = nil
+    let transferredApps = claimWorkspaceApps(workspaceId, state: &state)
     // A deliberate switch supersedes any in-flight reconnect restore cascade.
     // The user's action wins over the display-restore queue.
     state.pendingDisplayRestores = []
@@ -1906,6 +1908,7 @@ extension WorkspaceActivationFeature {
     // is a display focus transfer. Re-activation would tear down its Borrow.
     if
       state.activeActivationGeneration == nil,
+      !transferredApps,
       setFocus,
       let display = state.activeWorkspacesByDisplay.first(where: {
         $0.value == workspaceId
@@ -1990,6 +1993,698 @@ extension WorkspaceActivationFeature {
     suppressSwitchHUD: Bool = false,
     workspaceChainHUD: WorkspaceChainHUDContext? = nil,
     workspaceChainCleanup: WorkspaceChainCleanupTransaction? = nil,
+    continuesCLIActivation: Bool = false,
+    followsCursor: Bool = false,
+    state: inout State,
+  ) -> Effect<Action> {
+    let cancellation = setFocus || followsCursor ? supersedePendingFocus(state: &state) : .none
+    if setFocus || followsCursor, !continuesCLIActivation {
+      state.deferredBorrow = nil
+    }
+    return .concatenate(cancellation, activateWorkspace(
+      workspaceId: workspaceId,
+      setFocus: setFocus,
+      displayOverride: displayOverride,
+      suppressSwitchHUD: suppressSwitchHUD,
+      workspaceChainHUD: workspaceChainHUD,
+      workspaceChainCleanup: workspaceChainCleanup,
+      continuesCLIActivation: continuesCLIActivation,
+      followsCursor: followsCursor,
+      state: &state,
+    ))
+  }
+
+  func supersedePendingCLIActivation(state: inout State) -> Effect<Action> {
+    guard let request = state.pendingCLIActivation else { return .none }
+    state.pendingCLIActivation = nil
+    state.pendingCLIActivationBinding = nil
+    return .run { _ in
+      request.complete("Activation was superseded by a newer user action")
+    }
+  }
+
+  func cycle(
+    by direction: Int,
+    display: DisplayName?,
+    state: inout State,
+  ) -> Effect<Action> {
+    let inFlightAnchor = state.config.settings.switching.cycleAcrossDisplays
+      ? state.activatingWorkspaceID
+      : state.activatingWorkspace(on: display)
+    let anchor = inFlightAnchor
+      ?? state.activeWorkspace(on: display)
+      ?? state.primaryActiveWorkspaceID
+    let workspaces = state.config.activeProfile?.workspaces
+    let name = { (id: Workspace.ID?) -> String in
+      id.flatMap { workspaces?[id: $0]?.name } ?? "nil"
+    }
+    guard let id = adjacentWorkspaceId(by: direction, state: state, display: display) else {
+      debugLog.log(
+        "Activate",
+        "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)): no eligible target",
+      )
+      return .none
+    }
+    debugLog.log(
+      "Activate",
+      "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)) → \(name(id))",
+    )
+    return .send(.activate(
+      workspaceId: id,
+      setFocus: true,
+      interactionDisplay: display,
+    ))
+  }
+
+  /// The workspace `direction` steps from the active one, honoring the
+  /// `loop` / `skipEmpty` switching preferences. Shared by cycling and by
+  /// "move focused app to next/previous workspace". Returns `nil` when there
+  /// is no eligible target (e.g. at an end with looping off).
+  func adjacentWorkspaceId(
+    by direction: Int,
+    state: State,
+    display: DisplayName?,
+  ) -> Workspace.ID? {
+    // Scratchpads are borrow-only — never a cycle destination.
+    guard
+      let all = state.config.activeProfile?.workspaces
+        .filter({ $0.kind != .scratchpad }),
+      !all.isEmpty
+    else { return nil }
+    let settings = state.config.settings
+    // Scope the cycle. `cycleAcrossDisplays` → every workspace. Otherwise stay
+    // on the cursor's display: pinned workspaces by their display, dynamic
+    // (unpinned) ones by the display they were last activated on (never-active
+    // ones are included so they stay reachable).
+    let workspaces: IdentifiedArrayOf<Workspace> =
+      if
+        !settings.switching.cycleAcrossDisplays,
+        let focused = display ?? state.focusedDisplay
+      {
+        all.filter { ws in
+          if let hint = ws.displayHint {
+            // A pinned workspace belongs to the display it actually tiles on —
+            // the connected screen, or the primary as fallback — so one pinned
+            // to a *disconnected* display stays reachable on the primary.
+            return displays.resolveOrPrimary(hint)?.matches(focused) ?? true
+          }
+          // Dynamic: the monitor it was last on (or include if never activated).
+          if let last = state.lastActiveDisplay[ws.id] {
+            return last.matches(focused)
+          }
+          return true
+        }
+      } else {
+        all
+      }
+    guard !workspaces.isEmpty else { return nil }
+    // Anchor at the in-flight activation's target when it belongs to this
+    // cycle scope, else the active workspace on the interaction display.
+    // `primaryActive` only
+    // updates on completion, so without the in-flight anchor every press
+    // during a slow switch re-resolved to the same target.
+    let inFlightWorkspaceID = settings.switching.cycleAcrossDisplays
+      ? state.activatingWorkspaceID
+      : state.activatingWorkspace(on: display ?? state.focusedDisplay)
+    let currentID = inFlightWorkspaceID.flatMap { id in
+      workspaces.contains(where: { $0.id == id }) ? id : nil
+    }
+      ?? state.activeWorkspace(on: display ?? state.focusedDisplay)
+      ?? state.primaryActiveWorkspaceID
+    let count = workspaces.count
+    let currentIndex = workspaces.firstIndex { $0.id == currentID }
+      ?? (direction > 0 ? -1 : count)
+
+    let runningBundleIds: Set<String> = settings.switching.skipEmpty
+      ? windowSnapshot.runningBundleIds()
+      : []
+
+    var index = currentIndex
+    for _ in 0 ..< count {
+      let next = index + direction
+      if settings.switching.loop {
+        index = (next + count) % count
+      } else {
+        guard next >= 0, next < count else { return nil }
+        index = next
+      }
+      let candidate = workspaces[index]
+      if settings.switching.skipEmpty {
+        let hasRunning = candidate.apps.contains {
+          runningBundleIds.contains($0.bundleIdentifier)
+        }
+        if !hasRunning {
+          continue
+        }
+      }
+      return candidate.id
+    }
+    return nil
+  }
+
+  /// The full set of (display → workspace) activations to run when the display
+  /// configuration changes. Pure so the rules + reclaim recursion are testable.
+  ///
+  /// It re-asserts every still-connected display's current workspace (so macOS's
+  /// own window shuffle on a config change is overwritten by Tatami's layout),
+  /// and fills each `newlyConnected` monitor per `chooseWorkspaceForDisplay`.
+  /// When a pinned workspace is reclaimed from another display A, A is refilled
+  /// by walking its history (recursively), skipping anything in use elsewhere.
+  /// Per-display profile-switch HUDs: on each monitor, the profile name (title)
+  /// + the workspace that lands there (subtitle). One HUD per display so a
+  /// multi-monitor switch reads correctly on each screen; the per-workspace
+  /// switch HUD is suppressed during the switch so these aren't clobbered.
+  func profileSwitchHUDs(
+    profile: Profile,
+    plan: [DisplayAssignment],
+    show: Bool,
+    durationMs: Int,
+    position: HUDPosition,
+    size: HUDSize,
+  ) -> Effect<Action> {
+    guard show else { return .none }
+    let name = profile.name
+    let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
+    let entries = plan.compactMap { assignment in
+      profile.workspaces[id: assignment.workspace].map { (assignment.display, $0.id, $0.name) }
+    }
+    guard !entries.isEmpty else { return .none }
+    return .run { [workspaceHUD] _ in
+      for (display, workspaceID, workspaceName) in entries {
+        await workspaceHUD.showAction(
+          ActionHUDRequest(
+            name: name,
+            symbolIconName: symbol,
+            subtitle: workspaceName,
+            durationMs: durationMs,
+            position: position,
+            size: size,
+            display: display,
+            contextID: workspaceID,
+            contextName: workspaceName,
+          )
+        )
+      }
+    }
+  }
+
+  /// Flush the display's composition (host + borrowed blocks) in one apply:
+  /// each workspace's tree laid into its sub-rect, frames merged, applied
+  /// together. No-op when the display has no active composition.
+  func applyComposition(
+    display: DisplayName?,
+    forceAllFrames: Bool = false,
+    followUp: PostLayoutFocus? = nil,
+    monitorsPresentationChanges: Bool = false,
+    presentationRepairKeys: Set<WindowKey> = [],
+    borrowPhaseCompletion: BorrowPhase? = nil,
+    // Default false: a borrow summon's own layout should still carry the
+    // cursor to the borrowed block. Only a pointer-driven flush sets this.
+    preservesPointer: Bool = false,
+    state: inout State,
+  ) -> Effect<Action> {
+    let settings = state.config.settings
+    guard
+      let display,
+      let comp = state.compositionsByDisplay[display],
+      let slot = comp.borrowed.first,
+      let hostTree = state.tilingTrees[comp.host]
+    else {
+      guard let phase = borrowPhaseCompletion else { return .none }
+      return .send(
+        .borrowCompositionLayoutCompleted(
+          display: phase.display,
+          workspaceId: phase.workspaceId,
+          generation: phase.generation,
+          composition: phase.composition,
+        )
+      )
+    }
+    let borrowedTree = state.tilingTrees[slot.workspace]
+    let hostZoom = state.fullscreenZoomed[comp.host] ?? []
+    let borrowedZoom = state.fullscreenZoomed[slot.workspace] ?? []
+    let edge = slot.edge
+    let fraction = slot.fraction
+    let monitoredKeys = monitorsPresentationChanges
+      ? state.armPresentationMonitoring(
+        Set(hostTree.windows + (borrowedTree?.windows ?? [])),
+        preservesPointer: preservesPointer,
+      )
+      : []
+    state.layoutWriteGeneration &+= 1
+    let layoutGeneration = state.layoutWriteGeneration
+    state.activeLayoutWriteGenerations.insert(layoutGeneration)
+    let writer = Effect<Action>.run { [tiler = windowTiler, displays] send in
+      let merged: [WindowKey: CGRect] = await MainActor.run {
+        let workArea = displays.workArea(display).insetBy(
+          dx: CGFloat(settings.layout.gapOuter),
+          dy: CGFloat(settings.layout.gapOuter),
+        )
+        let gap = CGFloat(settings.layout.gapInner)
+        let (hostRect, borrowedRect) = Self.subRects(
+          workArea: workArea,
+          edge: edge,
+          fraction: fraction,
+          gap: gap,
+        )
+        let hf = Self.computeFrames(
+          tree: hostTree,
+          settings: settings,
+          targetDisplay: display,
+          fullscreenZoomed: hostZoom,
+          targetRect: hostRect,
+        )
+        let bf = Self.computeFrames(
+          tree: borrowedTree,
+          settings: settings,
+          targetDisplay: display,
+          fullscreenZoomed: borrowedZoom,
+          targetRect: borrowedRect,
+        )
+        return hf.merging(bf) { current, _ in current }
+      }
+      /// A Borrow's focus must not ride this writer's cancellation. Superseding
+      /// layout writes are routine. A sync folding the borrowed window into the
+      /// tree starts one, and they change where the block lands, not whether it
+      /// gets focus. Dropping the notification here left the block summoned but
+      /// unfocused, with the cursor still on the host. The reducer re-validates
+      /// generation, pending completion and composition identity, so a genuinely
+      /// stale one is rejected there rather than silently lost here.
+      @Sendable
+      func publishBorrowPhase() async {
+        guard let phase = borrowPhaseCompletion else { return }
+        await send(
+          .borrowCompositionLayoutCompleted(
+            display: phase.display,
+            workspaceId: phase.workspaceId,
+            generation: phase.generation,
+            composition: phase.composition,
+          )
+        )
+      }
+      guard !Task.isCancelled else {
+        await publishBorrowPhase()
+        return
+      }
+      guard !merged.isEmpty else {
+        await publishBorrowPhase()
+        return
+      }
+      await tiler.apply(
+        FrameApplication(windowFrames: merged, forceAllFrames: forceAllFrames)
+      )
+      await publishBorrowPhase()
+      guard !Task.isCancelled else { return }
+      if let followUp {
+        await send(
+          .settleFocusAfterLayout(
+            windowKey: followUp.windowKey,
+            workspaceId: followUp.workspaceId,
+            shouldFocus: followUp.shouldFocus,
+          )
+        )
+      }
+    }
+    return .concatenate(
+      writer.cancellable(
+        id: CancelID.layout(display),
+        cancelInFlight: true,
+      ),
+      .send(
+        .layoutWriteFinished(
+          generation: layoutGeneration,
+          verificationKeys: presentationRepairKeys.union(monitoredKeys),
+        )
+      ),
+    )
+  }
+
+  /// Re-apply a borrowed block after one of its windows becomes focused.
+  /// Notification clicks and app-owned window selectors can make an already
+  /// tiled window restore its saved frame after the immediate AX focus event.
+  /// Membership is unchanged, so the ordinary sync is intentionally a no-op.
+  /// Arm the exact affected windows and let their real geometry notification
+  /// drive convergence; the immediate WindowServer verification covers a
+  /// restore that landed just before this focus event.
+  func monitorBorrowedPresentationAfterFocus(
+    bundleId: String,
+    preservesPointer: Bool,
+    state: State,
+  ) -> Effect<Action> {
+    let sharedTiled = state.config.sharedApps.contains {
+      $0.bundleIdentifier == bundleId && $0.layout == .tiled
+    }
+    let keys = state.compositionsByDisplay.values.reduce(into: Set<WindowKey>()) {
+      keys, composition in
+      guard
+        let slot = composition.borrowed.first,
+        state.tilingTrees[slot.workspace]?.windows.contains(where: {
+          $0.bundleId == bundleId
+        }) == true
+        || sharedTiled
+        || state.config.activeProfile?.workspaces[id: slot.workspace]?
+        .apps.contains(where: {
+          $0.bundleIdentifier == bundleId && $0.layout == .tiled
+        }) == true
+      else { return }
+      keys.formUnion(
+        (state.tilingTrees[slot.workspace]?.windows ?? [])
+          .filter { sharedTiled || $0.bundleId == bundleId }
+      )
+    }
+    guard !keys.isEmpty else { return .none }
+    return .send(
+      .presentationLayoutApplied(
+        keys: keys,
+        preservesPointer: preservesPointer,
+      )
+    )
+  }
+
+  /// Borrow `targetId` into the pointer display's host workspace, docked to
+  /// `edge`. Re-borrowing a target already borrowed there dismisses it when
+  /// `toggleBorrowOnRepeat` is on, otherwise it re-docks to the new edge. Live:
+  /// the borrowed block reuses the target's real tree, so
+  /// edits persist to it. Only the borrowed workspace's *tiled* apps take part
+  /// — its floating / unmanaged apps are ignored while borrowed.
+  func performBorrow(
+    targetId: Workspace.ID,
+    edge: BorrowEdge,
+    displayOverride: DisplayName? = nil,
+    state: inout State,
+  ) -> Effect<Action> {
+    let cancellation = supersedePendingFocus(state: &state)
+    guard
+      let profile = state.config.activeProfile,
+      let target = profile.workspaces[id: targetId],
+      let display = displayOverride ?? interactionDisplay(state: state)
+    else { return cancellation }
+    if
+      let queued = state.deferredBorrow,
+      queued.workspaceId == targetId,
+      queued.display.matches(display),
+      state.config.settings.switching.toggleBorrowOnRepeat
+    {
+      state.deferredBorrow = nil
+      return cancellation
+    }
+    if state.isActivating || state.activeActivationGeneration != nil || !state.pendingDisplayRestores.isEmpty {
+      state.deferredBorrow = .init(workspaceId: targetId, edge: edge, display: display, profileId: profile.id)
+      return .concatenate(
+        cancellation,
+        hudEffect(state, \.borrow, "Borrow \(target.name)", Self.borrowEdgeIcon(edge), display: display),
+      )
+    }
+    state.deferredBorrow = nil
+    return .concatenate(cancellation, beginBorrow(targetId: targetId, edge: edge, displayOverride: display, state: &state))
+  }
+
+  /// Land focus on a just-summoned borrowed block: the last-used window still
+  /// in its tree, else the tree's first window, and — under mouse-follows-focus
+  /// — warp the cursor onto it. A deliberate borrow means "work in this now", so
+  /// focus + cursor should follow; the borrow itself only *unhides* the apps
+  /// (`setFocus: false`) and leaves both on the host. A scratchpad seemed to
+  /// land focus only by accident — force-opening its app spawns a fresh window
+  /// that the new-window sync warps to — but borrowing an already-running
+  /// workspace creates no window, so it never warped. This makes both
+  /// consistent. No-op while the borrowed tree is still empty (a cold-launching
+  /// app); the new-window sync warps once its window appears, as before.
+  func focusBorrowedBlock(
+    workspaceId: Workspace.ID,
+    completion: BorrowPhase? = nil,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard let tree = state.tilingTrees[workspaceId] else { return .none }
+    let target = (state.mruWindows[workspaceId] ?? [])
+      .first { tree.windows.contains($0) } ?? tree.windows.first
+    guard let target else { return .none }
+    debugLog.log("Borrow", "focus borrowed block → \(target.bundleId)#\(target.windowID)")
+    // Keep the two main-thread AX operations ordered. Merging focus and warp
+    // let app activation win the race after the pointer had already moved,
+    // producing a focused Borrow block with the cursor left on its host.
+    return settleFocusAfterLayout(
+      target,
+      workspaceId: workspaceId,
+      shouldFocus: true,
+      borrowCompletion: completion,
+      state: &state,
+    )
+  }
+
+  /// End the borrow on `display`: drop the composition and re-activate the
+  /// host alone, which hides the borrowed apps (no longer in keepVisible) and
+  /// re-tiles the host to the full work area. Fire-and-forget.
+  /// The recent target shared by switch / assign / borrow. Local mode uses a
+  /// strict per-display history; global mode walks workspace MRU across every
+  /// display while excluding the workspace on the interaction display.
+  func recentWorkspaceId(state: State, display: DisplayName?) -> Workspace.ID? {
+    let interactionDisplay = display ?? state.focusedDisplay
+    guard let workspaces = state.config.activeProfile?.workspaces else { return nil }
+    let isEligible: (Workspace.ID) -> Bool = { id in
+      workspaces[id: id]?.kind == .normal
+    }
+    guard state.config.settings.switching.recentAcrossDisplays else {
+      if let interactionDisplay {
+        if let previous = state.previousWorkspace(on: interactionDisplay), isEligible(previous) {
+          return previous
+        }
+        let exactHistory = state.displayWorkspaceHistory[interactionDisplay]
+        let connectedUUIDsWithSameName = Set(state.connectedDisplays.compactMap { candidate in
+          candidate.name == interactionDisplay.name ? candidate.uuid : nil
+        })
+        let matchingHistory = connectedUUIDsWithSameName.count <= 1
+          ? state.displayWorkspaceHistory.first(where: {
+            $0.key.matches(interactionDisplay)
+          })?.value
+          : nil
+        let current = state.activeWorkspace(on: interactionDisplay)
+        return (exactHistory ?? matchingHistory ?? []).first {
+          $0 != current && isEligible($0)
+        }
+      }
+      return state.previousWorkspacesByDisplay.values.first(where: isEligible)
+    }
+    let current = state.activeWorkspace(on: interactionDisplay)
+      ?? state.primaryActiveWorkspaceID
+    return state.workspaceMRU.first { $0 != current && isEligible($0) }
+  }
+
+  /// The window a visible workspace can hand keyboard focus to right now.
+  /// Nil means there is nothing to focus, so a focus transfer would be a
+  /// silent no-op and the caller has to run a real activation instead.
+  func visibleFocusTarget(_ workspaceId: Workspace.ID, state: State) -> WindowKey? {
+    (state.mruWindows[workspaceId] ?? []).first
+      ?? state.tilingTrees[workspaceId]?.windows.first
+  }
+
+  /// Transfer keyboard focus to a workspace that is already visible without
+  /// re-running activation. Activation intentionally tears down the target
+  /// display's Borrow composition before re-tiling its host; display focus
+  /// navigation must preserve that composition and focus its existing window.
+  func focusVisibleWorkspace(
+    workspaceId: Workspace.ID,
+    display: DisplayName,
+    workspaceChainHUD: WorkspaceChainHUDContext? = nil,
+    workspaceChainCleanup: WorkspaceChainCleanupTransaction? = nil,
+    state: inout State,
+  ) -> Effect<Action> {
+    let cancellation = supersedePendingFocus(state: &state)
+    return .concatenate(cancellation, transferFocusToVisibleWorkspace(
+      workspaceId: workspaceId,
+      display: display,
+      workspaceChainHUD: workspaceChainHUD,
+      workspaceChainCleanup: workspaceChainCleanup,
+      state: &state,
+    ), .send(.processDeferredBorrow))
+  }
+
+  func dismissBorrow(
+    display: DisplayName?,
+    setFocus: Bool = true,
+    claimsApps: Bool = true,
+    state: inout State,
+  ) -> Effect<Action> {
+    // A hotkey passes nil → resolve the pointer display. Internal collapse
+    // actions pass their exact owner so a background monitor stays isolated.
+    let requestedDisplay = display ?? interactionDisplay(state: state)
+      ?? state.compositionsByDisplay.keys.first
+    guard
+      let requestedDisplay,
+      let display = state.compositionsByDisplay.keys.first(where: {
+        $0.matches(requestedDisplay)
+      }),
+      let comp = state.compositionsByDisplay[display]
+    else { return .none }
+    if claimsApps {
+      claimWorkspaceApps(comp.host, state: &state)
+    }
+    debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
+    state.borrowGenerationByDisplay[display, default: 0] &+= 1
+    state.pendingBorrowCompletionByDisplay[display] = nil
+    state.borrowHydrationsByDisplay[display] = nil
+    for slot in comp.borrowed {
+      state.pendingCenterWarps[slot.workspace] = nil
+    }
+    // Re-activate the host on the composition's own display. A plain
+    // `.activate` re-resolves a dynamic host from interaction focus/cursor and
+    // could pull a background-display composition onto the wrong monitor.
+    return performActivate(
+      workspaceId: comp.host,
+      setFocus: setFocus,
+      displayOverride: display,
+      state: &state,
+    )
+  }
+
+  /// Disarm the borrow direction pick: clear the target, remove the tap, and
+  /// cancel the auto-timeout.
+  func endBorrowCapture(state: inout State) -> Effect<Action> {
+    state.borrowCapture = nil
+    return .merge(
+      .run { [borrowChord] _ in await borrowChord.setArmed(false) },
+      .cancel(id: CancelID.borrowChordTimeout),
+    )
+  }
+
+  /// Auto-cancel the borrow direction pick after a few idle seconds so a
+  /// half-finished borrow can't keep the key tap swallowing keystrokes.
+  func borrowChordTimeout() -> Effect<Action> {
+    .run { [clock] send in
+      try await clock.sleep(for: .seconds(5))
+      await send(.borrowChordKey(.cancel))
+    }
+    .cancellable(id: CancelID.borrowChordTimeout, cancelInFlight: true)
+  }
+
+  /// HUD hint while a borrow direction pick is armed: which workspace, and
+  /// that a direction key places it.
+  func borrowChordHint(state: State) -> Effect<Action> {
+    guard
+      state.config.settings.hud.shows(\.borrow),
+      let capture = state.borrowCapture,
+      let name = state.config.activeProfile?.workspaces[id: capture.workspaceId]?.name
+    else { return .none }
+    let durationMs = max(state.config.settings.hud.durationMs, 4000)
+    let position = state.config.settings.hud.position
+    let size = state.config.settings.hud.size
+    return .run { [workspaceHUD] _ in
+      await workspaceHUD.showAction(
+        ActionHUDRequest(
+          name: String(localized: "Borrow \(name)"),
+          symbolIconName: "rectangle.split.2x1",
+          subtitle: String(localized: "press a direction · h j k l / arrows · esc"),
+          durationMs: durationMs,
+          position: position,
+          size: size,
+          display: capture.display,
+          priority: .instruction,
+          contextID: capture.workspaceId,
+        )
+      )
+    }
+  }
+
+  /// Directional focus at a block edge crossing into the sibling composition
+  /// block (host ↔ borrowed): the nearest window in the sibling toward the
+  /// shared boundary, plus the geometry for a mouse warp. Nil when the
+  /// direction doesn't point across the boundary or there's no sibling window.
+  func crossBlockFocus(
+    from key: WindowKey,
+    currentId: Workspace.ID,
+    currentTree: BSPNode<WindowKey>,
+    currentRect: CGRect,
+    direction: BSPDirection,
+    state: State,
+  ) -> (target: WindowKey, display: DisplayName?, tree: BSPNode<WindowKey>, rect: CGRect, zoomed: Set<WindowKey>)? {
+    guard
+      let display = state.displayShowing(currentId),
+      let comp = state.compositionsByDisplay[display],
+      let slot = comp.borrowed.first
+    else { return nil }
+    let dirEdge: BorrowEdge =
+      switch direction {
+      case .east: .right
+      case .west: .left
+      case .north: .top
+      case .south: .bottom
+      }
+    // Host crosses toward the borrowed dock; borrowed crosses back (opposite).
+    let siblingId: Workspace.ID
+    if currentId == comp.host {
+      guard dirEdge == slot.edge else { return nil }
+      siblingId = slot.workspace
+    } else if currentId == slot.workspace {
+      guard dirEdge == slot.edge.opposite else { return nil }
+      siblingId = comp.host
+    } else {
+      return nil
+    }
+    guard let siblingTree = state.tilingTrees[siblingId], !siblingTree.windows.isEmpty
+    else { return nil }
+    let gap = CGFloat(state.config.settings.layout.gapInner)
+    let (_, siblingRect) = tilingContext(for: siblingId, state: state)
+    let siblingFrames = siblingTree.frames(in: siblingRect, gap: gap)
+    guard !siblingFrames.isEmpty else { return nil }
+    let center: CGPoint = currentTree.frames(in: currentRect, gap: gap)[key]
+      .map { CGPoint(x: $0.midX, y: $0.midY) }
+      ?? CGPoint(x: currentRect.midX, y: currentRect.midY)
+    let target = siblingFrames.min {
+      hypot($0.value.midX - center.x, $0.value.midY - center.y)
+        < hypot($1.value.midX - center.x, $1.value.midY - center.y)
+    }?.key
+    guard let target else { return nil }
+    return (target, display, siblingTree, siblingRect, state.fullscreenZoomed[siblingId] ?? [])
+  }
+
+  /// The display + rect a workspace's tree should tile into right now: its
+  /// composition sub-rect when it's a host/borrowed block, else its own
+  /// display's full work area (pre-feature behavior). The single place every
+  /// focus-relative BSP op resolves geometry, so composed and uncomposed
+  /// paths can't drift.
+  func tilingContext(for workspaceId: Workspace.ID, state: State) -> (display: DisplayName?, rect: CGRect) {
+    if
+      let display = state.displayShowing(workspaceId),
+      let comp = state.compositionsByDisplay[display],
+      let slot = comp.borrowed.first
+    {
+      let workArea = tilingWorkArea(for: display, settings: state.config.settings)
+      let gap = CGFloat(state.config.settings.layout.gapInner)
+      let (hostRect, borrowedRect) = Self.subRects(
+        workArea: workArea,
+        edge: slot.edge,
+        fraction: slot.fraction,
+        gap: gap,
+      )
+      if workspaceId == comp.host {
+        return (display, hostRect)
+      }
+      if workspaceId == slot.workspace {
+        return (display, borrowedRect)
+      }
+    }
+    // Tile on the display the workspace is *actually* on — not its logical
+    // home. A pinned workspace displaced off its (disconnected/other) monitor,
+    // or a dynamic one moved across monitors, must lay out for the display it
+    // really occupies; resolving to `displayHint`/`displays.current()` sized it
+    // to the wrong monitor, leaving a gap / wrong ratio (the intermittent
+    // cross-display tiling bug). `activeWorkspacesByDisplay` is the source of
+    // truth for placement; fall back to the hint (fresh pinned activation) then
+    // the cursor (fresh dynamic activation).
+    let display = state.displayShowing(workspaceId)
+      ?? state.config.activeProfile?.workspaces[id: workspaceId]?.displayHint
+      ?? displays.current()
+    return (display, tilingWorkArea(for: display, settings: state.config.settings))
+  }
+
+  // MARK: Private
+
+  private func activateWorkspace(
+    workspaceId: Workspace.ID,
+    setFocus: Bool,
+    displayOverride: DisplayName? = nil,
+    suppressSwitchHUD: Bool = false,
+    workspaceChainHUD: WorkspaceChainHUDContext? = nil,
+    workspaceChainCleanup: WorkspaceChainCleanupTransaction? = nil,
     /// Planned profile restores and the originating workspace CLI command keep
     /// ownership of the pending CLI request. Every other activation supersedes
     /// that request instead of silently rebinding it to unrelated work.
@@ -2004,7 +2699,7 @@ extension WorkspaceActivationFeature {
   ) -> Effect<Action> {
     guard
       let profile = state.config.activeProfile,
-      let workspace = profile.workspaces[id: workspaceId]
+      let workspace = state.presentedWorkspace(workspaceId)
     else { return .none }
     // (Switching to a borrowed workspace fully activates it — the composition
     // is dropped as the display re-tiles. Moving focus *into* a borrowed block
@@ -2196,6 +2891,7 @@ extension WorkspaceActivationFeature {
       }
       state.borrowGenerationByDisplay[compositionDisplay, default: 0] &+= 1
       state.pendingBorrowCompletionByDisplay[compositionDisplay] = nil
+      state.borrowHydrationsByDisplay[compositionDisplay] = nil
       for slot in comp.borrowed {
         state.pendingCenterWarps[slot.workspace] = nil
       }
@@ -2220,6 +2916,7 @@ extension WorkspaceActivationFeature {
       guard composition.host != workspaceId else { continue }
       state.borrowGenerationByDisplay[sourceDisplay, default: 0] &+= 1
       state.pendingBorrowCompletionByDisplay[sourceDisplay] = nil
+      state.borrowHydrationsByDisplay[sourceDisplay] = nil
       for slot in composition.borrowed {
         state.pendingCenterWarps[slot.workspace] = nil
       }
@@ -2266,6 +2963,7 @@ extension WorkspaceActivationFeature {
       mouseHidesOnFocus: setFocus && state.config.settings.focus.mouseHidesOnFocus,
       windowKeyToFocus: mruWindow,
       managedBundleIds: restoringHost ? state.managedBundleIds : [],
+      retainedBundleIds: retainedApps(onOtherDisplaysThan: targetDisplay, state: state),
     )
     let warpMouse = (setFocus || followsCursor)
       && state.config.settings.focus.mouseFollowsFocus
@@ -2693,13 +3391,16 @@ extension WorkspaceActivationFeature {
                   settings: settings,
                 )
                 let axis = settings.layout.autoBalance
+                let insertedWindows = !Set(keys).isSubset(of: Set(base?.windows ?? []))
                 // No resident tree and no persisted template (or a template with
                 // zero matching windows) means the old shape is genuinely gone.
                 // Initialize from the same contract as explicit Balance:
                 // Auto-balance axes when enabled, canonical BSP when Off.
                 let tree =
                   if restoredLayout {
-                    axis == .none ? merged : merged?.balanced(axis: axis)
+                    // Restoring an existing layout is not an insert. Re-entering
+                    // a workspace must not erase the user's saved proportions.
+                    axis == .none || !insertedWindows ? merged : merged?.balanced(axis: axis)
                   } else {
                     merged?.balancedForCommand(
                       autoBalance: axis,
@@ -2822,7 +3523,7 @@ extension WorkspaceActivationFeature {
                 if let mruWindow, frames[mruWindow] == nil {
                   if let frame = liveWindowServerFrames[mruWindow.windowID] {
                     fallbackFrames[mruWindow] = frame
-                  } else if let frame = await snapshot.windowFrameOffMain(mruWindow) {
+                  } else if let frame = await snapshot.visibleWindowFrameOffMain(mruWindow) {
                     fallbackFrames[mruWindow] = frame
                   }
                 }
@@ -2840,7 +3541,7 @@ extension WorkspaceActivationFeature {
                   if let frame = liveWindowServerFrames[candidateFocus.windowID] {
                     fallbackFrames[candidateFocus] = frame
                   } else {
-                    let frame = await snapshot.windowFrameOffMain(candidateFocus)
+                    let frame = await snapshot.visibleWindowFrameOffMain(candidateFocus)
                     guard !Task.isCancelled else { return }
                     // Geometry is another suspension point. Validate focus again
                     // and accept that frame only if the same window still owns it.
@@ -2949,360 +3650,7 @@ extension WorkspaceActivationFeature {
     )
   }
 
-  func supersedePendingCLIActivation(state: inout State) -> Effect<Action> {
-    guard let request = state.pendingCLIActivation else { return .none }
-    state.pendingCLIActivation = nil
-    state.pendingCLIActivationBinding = nil
-    return .run { _ in
-      request.complete("Activation was superseded by a newer user action")
-    }
-  }
-
-  func cycle(
-    by direction: Int,
-    display: DisplayName?,
-    state: inout State,
-  ) -> Effect<Action> {
-    let inFlightAnchor = state.config.settings.switching.cycleAcrossDisplays
-      ? state.activatingWorkspaceID
-      : state.activatingWorkspace(on: display)
-    let anchor = inFlightAnchor
-      ?? state.activeWorkspace(on: display)
-      ?? state.primaryActiveWorkspaceID
-    let workspaces = state.config.activeProfile?.workspaces
-    let name = { (id: Workspace.ID?) -> String in
-      id.flatMap { workspaces?[id: $0]?.name } ?? "nil"
-    }
-    guard let id = adjacentWorkspaceId(by: direction, state: state, display: display) else {
-      debugLog.log(
-        "Activate",
-        "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)): no eligible target",
-      )
-      return .none
-    }
-    debugLog.log(
-      "Activate",
-      "cycle \(direction > 0 ? "next" : "previous") from=\(name(anchor)) → \(name(id))",
-    )
-    return .send(.activate(
-      workspaceId: id,
-      setFocus: true,
-      interactionDisplay: display,
-    ))
-  }
-
-  /// The workspace `direction` steps from the active one, honoring the
-  /// `loop` / `skipEmpty` switching preferences. Shared by cycling and by
-  /// "move focused app to next/previous workspace". Returns `nil` when there
-  /// is no eligible target (e.g. at an end with looping off).
-  func adjacentWorkspaceId(
-    by direction: Int,
-    state: State,
-    display: DisplayName?,
-  ) -> Workspace.ID? {
-    // Scratchpads are borrow-only — never a cycle destination.
-    guard
-      let all = state.config.activeProfile?.workspaces
-        .filter({ $0.kind != .scratchpad }),
-      !all.isEmpty
-    else { return nil }
-    let settings = state.config.settings
-    // Scope the cycle. `cycleAcrossDisplays` → every workspace. Otherwise stay
-    // on the cursor's display: pinned workspaces by their display, dynamic
-    // (unpinned) ones by the display they were last activated on (never-active
-    // ones are included so they stay reachable).
-    let workspaces: IdentifiedArrayOf<Workspace> =
-      if
-        !settings.switching.cycleAcrossDisplays,
-        let focused = display ?? state.focusedDisplay
-      {
-        all.filter { ws in
-          if let hint = ws.displayHint {
-            // A pinned workspace belongs to the display it actually tiles on —
-            // the connected screen, or the primary as fallback — so one pinned
-            // to a *disconnected* display stays reachable on the primary.
-            return displays.resolveOrPrimary(hint)?.matches(focused) ?? true
-          }
-          // Dynamic: the monitor it was last on (or include if never activated).
-          if let last = state.lastActiveDisplay[ws.id] {
-            return last.matches(focused)
-          }
-          return true
-        }
-      } else {
-        all
-      }
-    guard !workspaces.isEmpty else { return nil }
-    // Anchor at the in-flight activation's target when it belongs to this
-    // cycle scope, else the active workspace on the interaction display.
-    // `primaryActive` only
-    // updates on completion, so without the in-flight anchor every press
-    // during a slow switch re-resolved to the same target.
-    let inFlightWorkspaceID = settings.switching.cycleAcrossDisplays
-      ? state.activatingWorkspaceID
-      : state.activatingWorkspace(on: display ?? state.focusedDisplay)
-    let currentID = inFlightWorkspaceID.flatMap { id in
-      workspaces.contains(where: { $0.id == id }) ? id : nil
-    }
-      ?? state.activeWorkspace(on: display ?? state.focusedDisplay)
-      ?? state.primaryActiveWorkspaceID
-    let count = workspaces.count
-    let currentIndex = workspaces.firstIndex { $0.id == currentID }
-      ?? (direction > 0 ? -1 : count)
-
-    let runningBundleIds: Set<String> = settings.switching.skipEmpty
-      ? windowSnapshot.runningBundleIds()
-      : []
-
-    var index = currentIndex
-    for _ in 0 ..< count {
-      let next = index + direction
-      if settings.switching.loop {
-        index = (next + count) % count
-      } else {
-        guard next >= 0, next < count else { return nil }
-        index = next
-      }
-      let candidate = workspaces[index]
-      if settings.switching.skipEmpty {
-        let hasRunning = candidate.apps.contains {
-          runningBundleIds.contains($0.bundleIdentifier)
-        }
-        if !hasRunning {
-          continue
-        }
-      }
-      return candidate.id
-    }
-    return nil
-  }
-
-  /// The full set of (display → workspace) activations to run when the display
-  /// configuration changes. Pure so the rules + reclaim recursion are testable.
-  ///
-  /// It re-asserts every still-connected display's current workspace (so macOS's
-  /// own window shuffle on a config change is overwritten by Tatami's layout),
-  /// and fills each `newlyConnected` monitor per `chooseWorkspaceForDisplay`.
-  /// When a pinned workspace is reclaimed from another display A, A is refilled
-  /// by walking its history (recursively), skipping anything in use elsewhere.
-  /// Per-display profile-switch HUDs: on each monitor, the profile name (title)
-  /// + the workspace that lands there (subtitle). One HUD per display so a
-  /// multi-monitor switch reads correctly on each screen; the per-workspace
-  /// switch HUD is suppressed during the switch so these aren't clobbered.
-  func profileSwitchHUDs(
-    profile: Profile,
-    plan: [DisplayAssignment],
-    show: Bool,
-    durationMs: Int,
-    position: HUDPosition,
-    size: HUDSize,
-  ) -> Effect<Action> {
-    guard show else { return .none }
-    let name = profile.name
-    let symbol = profile.symbolIconName ?? "rectangle.stack.fill"
-    let entries = plan.compactMap { assignment in
-      profile.workspaces[id: assignment.workspace].map { (assignment.display, $0.id, $0.name) }
-    }
-    guard !entries.isEmpty else { return .none }
-    return .run { [workspaceHUD] _ in
-      for (display, workspaceID, workspaceName) in entries {
-        await workspaceHUD.showAction(
-          ActionHUDRequest(
-            name: name,
-            symbolIconName: symbol,
-            subtitle: workspaceName,
-            durationMs: durationMs,
-            position: position,
-            size: size,
-            display: display,
-            contextID: workspaceID,
-            contextName: workspaceName,
-          )
-        )
-      }
-    }
-  }
-
-  /// Flush the display's composition (host + borrowed blocks) in one apply:
-  /// each workspace's tree laid into its sub-rect, frames merged, applied
-  /// together. No-op when the display has no active composition.
-  func applyComposition(
-    display: DisplayName?,
-    forceAllFrames: Bool = false,
-    followUp: PostLayoutFocus? = nil,
-    monitorsPresentationChanges: Bool = false,
-    presentationRepairKeys: Set<WindowKey> = [],
-    borrowPhaseCompletion: BorrowPhase? = nil,
-    // Default false: a borrow summon's own layout should still carry the
-    // cursor to the borrowed block. Only a pointer-driven flush sets this.
-    preservesPointer: Bool = false,
-    state: inout State,
-  ) -> Effect<Action> {
-    let settings = state.config.settings
-    guard
-      let display,
-      let comp = state.compositionsByDisplay[display],
-      let slot = comp.borrowed.first,
-      let hostTree = state.tilingTrees[comp.host]
-    else {
-      guard let phase = borrowPhaseCompletion else { return .none }
-      return .send(
-        .borrowCompositionLayoutCompleted(
-          display: phase.display,
-          workspaceId: phase.workspaceId,
-          generation: phase.generation,
-          composition: phase.composition,
-        )
-      )
-    }
-    let borrowedTree = state.tilingTrees[slot.workspace]
-    let hostZoom = state.fullscreenZoomed[comp.host] ?? []
-    let borrowedZoom = state.fullscreenZoomed[slot.workspace] ?? []
-    let edge = slot.edge
-    let fraction = slot.fraction
-    let monitoredKeys = monitorsPresentationChanges
-      ? state.armPresentationMonitoring(
-        Set(hostTree.windows + (borrowedTree?.windows ?? [])),
-        preservesPointer: preservesPointer,
-      )
-      : []
-    state.layoutWriteGeneration &+= 1
-    let layoutGeneration = state.layoutWriteGeneration
-    state.activeLayoutWriteGenerations.insert(layoutGeneration)
-    let writer = Effect<Action>.run { [tiler = windowTiler, displays] send in
-      let merged: [WindowKey: CGRect] = await MainActor.run {
-        let workArea = displays.workArea(display).insetBy(
-          dx: CGFloat(settings.layout.gapOuter),
-          dy: CGFloat(settings.layout.gapOuter),
-        )
-        let gap = CGFloat(settings.layout.gapInner)
-        let (hostRect, borrowedRect) = Self.subRects(
-          workArea: workArea,
-          edge: edge,
-          fraction: fraction,
-          gap: gap,
-        )
-        let hf = Self.computeFrames(
-          tree: hostTree,
-          settings: settings,
-          targetDisplay: display,
-          fullscreenZoomed: hostZoom,
-          targetRect: hostRect,
-        )
-        let bf = Self.computeFrames(
-          tree: borrowedTree,
-          settings: settings,
-          targetDisplay: display,
-          fullscreenZoomed: borrowedZoom,
-          targetRect: borrowedRect,
-        )
-        return hf.merging(bf) { current, _ in current }
-      }
-      /// A Borrow's focus must not ride this writer's cancellation. Superseding
-      /// layout writes are routine. A sync folding the borrowed window into the
-      /// tree starts one, and they change where the block lands, not whether it
-      /// gets focus. Dropping the notification here left the block summoned but
-      /// unfocused, with the cursor still on the host. The reducer re-validates
-      /// generation, pending completion and composition identity, so a genuinely
-      /// stale one is rejected there rather than silently lost here.
-      @Sendable
-      func publishBorrowPhase() async {
-        guard let phase = borrowPhaseCompletion else { return }
-        await send(
-          .borrowCompositionLayoutCompleted(
-            display: phase.display,
-            workspaceId: phase.workspaceId,
-            generation: phase.generation,
-            composition: phase.composition,
-          )
-        )
-      }
-      guard !Task.isCancelled else {
-        await publishBorrowPhase()
-        return
-      }
-      guard !merged.isEmpty else {
-        await publishBorrowPhase()
-        return
-      }
-      await tiler.apply(
-        FrameApplication(windowFrames: merged, forceAllFrames: forceAllFrames)
-      )
-      await publishBorrowPhase()
-      guard !Task.isCancelled else { return }
-      if let followUp {
-        await send(
-          .settleFocusAfterLayout(
-            windowKey: followUp.windowKey,
-            workspaceId: followUp.workspaceId,
-            shouldFocus: followUp.shouldFocus,
-          )
-        )
-      }
-    }
-    return .concatenate(
-      writer.cancellable(
-        id: CancelID.layout(display),
-        cancelInFlight: true,
-      ),
-      .send(
-        .layoutWriteFinished(
-          generation: layoutGeneration,
-          verificationKeys: presentationRepairKeys.union(monitoredKeys),
-        )
-      ),
-    )
-  }
-
-  /// Re-apply a borrowed block after one of its windows becomes focused.
-  /// Notification clicks and app-owned window selectors can make an already
-  /// tiled window restore its saved frame after the immediate AX focus event.
-  /// Membership is unchanged, so the ordinary sync is intentionally a no-op.
-  /// Arm the exact affected windows and let their real geometry notification
-  /// drive convergence; the immediate WindowServer verification covers a
-  /// restore that landed just before this focus event.
-  func monitorBorrowedPresentationAfterFocus(
-    bundleId: String,
-    preservesPointer: Bool,
-    state: State,
-  ) -> Effect<Action> {
-    let sharedTiled = state.config.sharedApps.contains {
-      $0.bundleIdentifier == bundleId && $0.layout == .tiled
-    }
-    let keys = state.compositionsByDisplay.values.reduce(into: Set<WindowKey>()) {
-      keys, composition in
-      guard
-        let slot = composition.borrowed.first,
-        state.tilingTrees[slot.workspace]?.windows.contains(where: {
-          $0.bundleId == bundleId
-        }) == true
-        || sharedTiled
-        || state.config.activeProfile?.workspaces[id: slot.workspace]?
-        .apps.contains(where: {
-          $0.bundleIdentifier == bundleId && $0.layout == .tiled
-        }) == true
-      else { return }
-      keys.formUnion(
-        (state.tilingTrees[slot.workspace]?.windows ?? [])
-          .filter { sharedTiled || $0.bundleId == bundleId }
-      )
-    }
-    guard !keys.isEmpty else { return .none }
-    return .send(
-      .presentationLayoutApplied(
-        keys: keys,
-        preservesPointer: preservesPointer,
-      )
-    )
-  }
-
-  /// Borrow `targetId` into the pointer display's host workspace, docked to
-  /// `edge`. Re-borrowing a target already borrowed there dismisses it when
-  /// `toggleBorrowOnRepeat` is on, otherwise it re-docks to the new edge. Live:
-  /// the borrowed block reuses the target's real tree, so
-  /// edits persist to it. Only the borrowed workspace's *tiled* apps take part
-  /// — its floating / unmanaged apps are ignored while borrowed.
-  func performBorrow(
+  private func beginBorrow(
     targetId: Workspace.ID,
     edge: BorrowEdge,
     displayOverride: DisplayName? = nil,
@@ -3315,7 +3663,7 @@ extension WorkspaceActivationFeature {
       ?? state.activeWorkspacesByDisplay.keys.first,
       let hostId = state.activeWorkspace(on: display),
       hostId != targetId,
-      let hostWs = profile.workspaces[id: hostId]
+      profile.workspaces[id: hostId] != nil
     else { return .none }
     // Already borrowed here → dismiss by default. Users who want repeated
     // summons to move/refocus the block can turn the toggle behavior off.
@@ -3351,31 +3699,53 @@ extension WorkspaceActivationFeature {
         )
       )
     }
-    // One workspace/tree can have one physical display owner. Borrowing a
-    // workspace already visible on another monitor would make two layout
-    // writers fight over the same WindowKeys. Keep that monitor intact and
-    // report the conflict instead of silently duplicating it.
+    var sourceRestore = Effect<Action>.none
+    // Transfer the one physical owner before starting the destination's
+    // writer. Only scratchpads opt into this behavior; ordinary workspaces
+    // retain their explicit display placement.
     if
       let sourceDisplay = state.displayShowing(targetId),
       !sourceDisplay.matches(display)
     {
-      debugLog.log(
-        "Borrow",
-        "skip \(target.name): already visible on \(sourceDisplay.name)",
-      )
-      return hudEffect(
-        state,
-        \.borrow,
-        "Already visible",
-        "rectangle.on.rectangle.slash",
-        subtitle: "\(target.name) is on \(sourceDisplay.name)",
-        display: display,
+      guard
+        target.kind == .scratchpad,
+        state.config.settings.switching.bringScratchpadToPointerDisplay,
+        var source = state.compositionsByDisplay[sourceDisplay],
+        source.borrowed.contains(where: { $0.workspace == targetId })
+      else {
+        return hudEffect(
+          state,
+          \.borrow,
+          "Already visible",
+          "rectangle.on.rectangle.slash",
+          subtitle: "\(target.name) is on \(sourceDisplay.name)",
+          display: display,
+        )
+      }
+      source.borrowed.removeAll { $0.workspace == targetId }
+      state.compositionsByDisplay[sourceDisplay] = source.borrowed.isEmpty ? nil : source
+      state.borrowGenerationByDisplay[sourceDisplay, default: 0] &+= 1
+      state.pendingBorrowCompletionByDisplay[sourceDisplay] = nil
+      state.borrowHydrationsByDisplay[sourceDisplay] = nil
+      state.pendingCenterWarps[targetId] = nil
+      if state.tilingTrees[source.host]?.windows.isEmpty ?? true {
+        state.displacedAppWorkspaces.insert(source.host)
+      }
+      sourceRestore = .concatenate(
+        .cancel(id: CancelID.borrowRender(sourceDisplay)),
+        .cancel(id: CancelID.borrowFocus(sourceDisplay)),
+        .cancel(id: CancelID.layout(sourceDisplay)),
+        flushLayout(workspaceId: source.host, state: &state),
       )
     }
+    claimWorkspaceApps(targetId, state: &state)
+    guard let presentedHost = state.presentedWorkspace(hostId) else { return .none }
     let fraction = target.borrowFraction ?? state.config.settings.switching.borrowFraction
     let slot = BorrowedSlot(workspace: targetId, edge: edge, fraction: fraction)
     state.borrowGenerationByDisplay[display, default: 0] &+= 1
     let borrowGeneration = state.borrowGenerationByDisplay[display, default: 0]
+    state.pendingAppClaims.insert(targetId)
+    state.borrowHydrationsByDisplay[display] = .init(workspaceId: targetId, generation: borrowGeneration)
     state.pendingBorrowCompletionByDisplay[display] = .init(
       workspaceId: targetId,
       generation: borrowGeneration,
@@ -3393,18 +3763,25 @@ extension WorkspaceActivationFeature {
       }
       : tiledBorrowed
     let existingBorrowedTree = state.tilingTrees[targetId]
+    let previousRestoration = state.pendingLayoutRestorations[targetId]
+    let borrowedTemplate = previousRestoration ?? existingBorrowedTree.map {
+      LayoutSnapshot(liveTree: $0, fullscreenZoomed: state.fullscreenZoomed[targetId] ?? [])
+    }
+    let borrowedBindings = state.layoutRestorationBindings[targetId]
+      ?? slotToKey(existingBorrowedTree?.windows ?? [])
     let request = ActivationRequest(
-      workspace: hostWs,
+      workspace: presentedHost,
       sharedApps: state.config.sharedApps,
       targetDisplay: display,
       setFocus: false,
       borrowedApps: borrowedApps,
       managedBundleIds: state.managedBundleIds,
       knownWindows: Set(existingBorrowedTree?.windows ?? []),
+      retainedBundleIds: retainedApps(onOtherDisplaysThan: display, state: state),
     )
     let settings = state.config.settings
     let focusedForBorrowMerge = state.lastObservedFocusedWindow
-    debugLog.log("Borrow", "borrow \(target.name) → host=\(hostWs.name) edge=\(edge)")
+    debugLog.log("Borrow", "borrow \(target.name) → host=\(presentedHost.name) edge=\(edge)")
     let hud = hudEffect(
       state,
       \.borrow,
@@ -3418,6 +3795,7 @@ extension WorkspaceActivationFeature {
         mgr = workspaceManager,
         observer = windowObserver,
         snapshot = windowSnapshot,
+        store = layoutStore,
         displays,
       ] send in
       // Borrowed workspaces are visible without becoming the display's active
@@ -3426,6 +3804,13 @@ extension WorkspaceActivationFeature {
       // appears after discovery then gets an immediate sync.
       async let observation: Void = observer.observe(tiledBorrowedBundleIds)
       await mgr.activate(request)
+      let restoredLayout: LayoutSnapshot? =
+        if let borrowedTemplate {
+          borrowedTemplate
+        } else {
+          await store.load(targetId)
+        }
+      guard !Task.isCancelled else { return }
       // Independent app processes resolve concurrently; WindowSnapshotClient
       // still serializes every AX operation per PID. This bounds cold Borrow
       // latency by the slowest app instead of summing every app's timeout.
@@ -3466,14 +3851,25 @@ extension WorkspaceActivationFeature {
           dx: CGFloat(settings.layout.gapOuter),
           dy: CGFloat(settings.layout.gapOuter),
         )
-        return Self.mergeTree(
-          existing: existingBorrowedTree,
+        let base: BSPNode<WindowKey>?
+        if let restoredLayout {
+          let bindings = restoredLayout.restorationBindings(keys: keys, retaining: borrowedBindings)
+          let live = bindings.filter { Set(keys).contains($0.value) }
+          base = BSPNode.hydrate(template: restoredLayout.tree, keyForSlot: live)
+        } else {
+          base = existingBorrowedTree
+        }
+        let merged = Self.mergeTree(
+          existing: base,
           target: keys,
           focused: { focusedForBorrowMerge },
           insertionPoint: nil,
           workArea: workArea,
           settings: settings,
         )
+        let inserted = !Set(keys).isSubset(of: Set(base?.windows ?? []))
+        let axis = settings.layout.autoBalance
+        return axis == .none || !inserted ? merged : merged?.balanced(axis: axis)
       }
       await send(
         .borrowedTilingTreeHydrated(
@@ -3482,19 +3878,12 @@ extension WorkspaceActivationFeature {
           generation: borrowGeneration,
           previousTree: existingBorrowedTree,
           tree: tree,
+          restoredLayout: restoredLayout,
+          previousRestoration: previousRestoration,
         )
       )
-      // The borrowed tree is now in state. Apply every host/borrow AX frame
-      // first, then land focus + cursor on the completed block. Previously the
-      // layout and focus effects raced on the main actor, which made the
-      // summon visibly hitch and could wake an overlapping floating mirror.
-      await send(
-        .flushCompositionAndFocus(
-          display: display,
-          workspaceId: targetId,
-          generation: borrowGeneration,
-        )
-      )
+      // The reducer commits layout/focus only after validating this discovery
+      // against the current composition and restoration context.
       // Observer readiness is not part of the visible layout/focus critical
       // path. Its synthetic create event reconciles any surface that raced the
       // snapshot, and this verification catches a frame restore that landed
@@ -3512,93 +3901,12 @@ extension WorkspaceActivationFeature {
     )
     return .concatenate(
       .cancel(id: CancelID.borrowFocus(display)),
+      sourceRestore,
       .merge(render, hud),
     )
   }
 
-  /// Land focus on a just-summoned borrowed block: the last-used window still
-  /// in its tree, else the tree's first window, and — under mouse-follows-focus
-  /// — warp the cursor onto it. A deliberate borrow means "work in this now", so
-  /// focus + cursor should follow; the borrow itself only *unhides* the apps
-  /// (`setFocus: false`) and leaves both on the host. A scratchpad seemed to
-  /// land focus only by accident — force-opening its app spawns a fresh window
-  /// that the new-window sync warps to — but borrowing an already-running
-  /// workspace creates no window, so it never warped. This makes both
-  /// consistent. No-op while the borrowed tree is still empty (a cold-launching
-  /// app); the new-window sync warps once its window appears, as before.
-  func focusBorrowedBlock(
-    workspaceId: Workspace.ID,
-    completion: BorrowPhase? = nil,
-    state: inout State,
-  ) -> Effect<Action> {
-    guard let tree = state.tilingTrees[workspaceId] else { return .none }
-    let target = (state.mruWindows[workspaceId] ?? [])
-      .first { tree.windows.contains($0) } ?? tree.windows.first
-    guard let target else { return .none }
-    debugLog.log("Borrow", "focus borrowed block → \(target.bundleId)#\(target.windowID)")
-    // Keep the two main-thread AX operations ordered. Merging focus and warp
-    // let app activation win the race after the pointer had already moved,
-    // producing a focused Borrow block with the cursor left on its host.
-    return settleFocusAfterLayout(
-      target,
-      workspaceId: workspaceId,
-      shouldFocus: true,
-      borrowCompletion: completion,
-      state: &state,
-    )
-  }
-
-  /// End the borrow on `display`: drop the composition and re-activate the
-  /// host alone, which hides the borrowed apps (no longer in keepVisible) and
-  /// re-tiles the host to the full work area. Fire-and-forget.
-  /// The recent target shared by switch / assign / borrow. Local mode uses a
-  /// strict per-display history; global mode walks workspace MRU across every
-  /// display while excluding the workspace on the interaction display.
-  func recentWorkspaceId(state: State, display: DisplayName?) -> Workspace.ID? {
-    let interactionDisplay = display ?? state.focusedDisplay
-    guard let workspaces = state.config.activeProfile?.workspaces else { return nil }
-    let isEligible: (Workspace.ID) -> Bool = { id in
-      workspaces[id: id]?.kind == .normal
-    }
-    guard state.config.settings.switching.recentAcrossDisplays else {
-      if let interactionDisplay {
-        if let previous = state.previousWorkspace(on: interactionDisplay), isEligible(previous) {
-          return previous
-        }
-        let exactHistory = state.displayWorkspaceHistory[interactionDisplay]
-        let connectedUUIDsWithSameName = Set(state.connectedDisplays.compactMap { candidate in
-          candidate.name == interactionDisplay.name ? candidate.uuid : nil
-        })
-        let matchingHistory = connectedUUIDsWithSameName.count <= 1
-          ? state.displayWorkspaceHistory.first(where: {
-            $0.key.matches(interactionDisplay)
-          })?.value
-          : nil
-        let current = state.activeWorkspace(on: interactionDisplay)
-        return (exactHistory ?? matchingHistory ?? []).first {
-          $0 != current && isEligible($0)
-        }
-      }
-      return state.previousWorkspacesByDisplay.values.first(where: isEligible)
-    }
-    let current = state.activeWorkspace(on: interactionDisplay)
-      ?? state.primaryActiveWorkspaceID
-    return state.workspaceMRU.first { $0 != current && isEligible($0) }
-  }
-
-  /// The window a visible workspace can hand keyboard focus to right now.
-  /// Nil means there is nothing to focus, so a focus transfer would be a
-  /// silent no-op and the caller has to run a real activation instead.
-  func visibleFocusTarget(_ workspaceId: Workspace.ID, state: State) -> WindowKey? {
-    (state.mruWindows[workspaceId] ?? []).first
-      ?? state.tilingTrees[workspaceId]?.windows.first
-  }
-
-  /// Transfer keyboard focus to a workspace that is already visible without
-  /// re-running activation. Activation intentionally tears down the target
-  /// display's Borrow composition before re-tiling its host; display focus
-  /// navigation must preserve that composition and focus its existing window.
-  func focusVisibleWorkspace(
+  private func transferFocusToVisibleWorkspace(
     workspaceId: Workspace.ID,
     display: DisplayName,
     workspaceChainHUD: WorkspaceChainHUDContext? = nil,
@@ -3718,177 +4026,6 @@ extension WorkspaceActivationFeature {
     .cancellable(id: CancelID.activationHUD, cancelInFlight: true)
     return .merge(.concatenate(focus, visibilityCleanup), hud)
   }
-
-  func dismissBorrow(display: DisplayName?, state: inout State) -> Effect<Action> {
-    // A hotkey passes nil → resolve the pointer display. Internal collapse
-    // actions pass their exact owner so a background monitor stays isolated.
-    let requestedDisplay = display ?? interactionDisplay(state: state)
-      ?? state.compositionsByDisplay.keys.first
-    guard
-      let requestedDisplay,
-      let display = state.compositionsByDisplay.keys.first(where: {
-        $0.matches(requestedDisplay)
-      }),
-      let comp = state.compositionsByDisplay[display]
-    else { return .none }
-    debugLog.log("Borrow", "dismiss borrow on \(display.name) → restore host")
-    state.borrowGenerationByDisplay[display, default: 0] &+= 1
-    state.pendingBorrowCompletionByDisplay[display] = nil
-    for slot in comp.borrowed {
-      state.pendingCenterWarps[slot.workspace] = nil
-    }
-    // Re-activate the host on the composition's own display. A plain
-    // `.activate` re-resolves a dynamic host from interaction focus/cursor and
-    // could pull a background-display composition onto the wrong monitor.
-    return performActivate(
-      workspaceId: comp.host,
-      setFocus: true,
-      displayOverride: display,
-      state: &state,
-    )
-  }
-
-  /// Disarm the borrow direction pick: clear the target, remove the tap, and
-  /// cancel the auto-timeout.
-  func endBorrowCapture(state: inout State) -> Effect<Action> {
-    state.borrowCapture = nil
-    return .merge(
-      .run { [borrowChord] _ in await borrowChord.setArmed(false) },
-      .cancel(id: CancelID.borrowChordTimeout),
-    )
-  }
-
-  /// Auto-cancel the borrow direction pick after a few idle seconds so a
-  /// half-finished borrow can't keep the key tap swallowing keystrokes.
-  func borrowChordTimeout() -> Effect<Action> {
-    .run { [clock] send in
-      try await clock.sleep(for: .seconds(5))
-      await send(.borrowChordKey(.cancel))
-    }
-    .cancellable(id: CancelID.borrowChordTimeout, cancelInFlight: true)
-  }
-
-  /// HUD hint while a borrow direction pick is armed: which workspace, and
-  /// that a direction key places it.
-  func borrowChordHint(state: State) -> Effect<Action> {
-    guard
-      state.config.settings.hud.shows(\.borrow),
-      let capture = state.borrowCapture,
-      let name = state.config.activeProfile?.workspaces[id: capture.workspaceId]?.name
-    else { return .none }
-    let durationMs = max(state.config.settings.hud.durationMs, 4000)
-    let position = state.config.settings.hud.position
-    let size = state.config.settings.hud.size
-    return .run { [workspaceHUD] _ in
-      await workspaceHUD.showAction(
-        ActionHUDRequest(
-          name: String(localized: "Borrow \(name)"),
-          symbolIconName: "rectangle.split.2x1",
-          subtitle: String(localized: "press a direction · h j k l / arrows · esc"),
-          durationMs: durationMs,
-          position: position,
-          size: size,
-          display: capture.display,
-          priority: .instruction,
-          contextID: capture.workspaceId,
-        )
-      )
-    }
-  }
-
-  /// Directional focus at a block edge crossing into the sibling composition
-  /// block (host ↔ borrowed): the nearest window in the sibling toward the
-  /// shared boundary, plus the geometry for a mouse warp. Nil when the
-  /// direction doesn't point across the boundary or there's no sibling window.
-  func crossBlockFocus(
-    from key: WindowKey,
-    currentId: Workspace.ID,
-    currentTree: BSPNode<WindowKey>,
-    currentRect: CGRect,
-    direction: BSPDirection,
-    state: State,
-  ) -> (target: WindowKey, display: DisplayName?, tree: BSPNode<WindowKey>, rect: CGRect, zoomed: Set<WindowKey>)? {
-    guard
-      let display = state.displayShowing(currentId),
-      let comp = state.compositionsByDisplay[display],
-      let slot = comp.borrowed.first
-    else { return nil }
-    let dirEdge: BorrowEdge =
-      switch direction {
-      case .east: .right
-      case .west: .left
-      case .north: .top
-      case .south: .bottom
-      }
-    // Host crosses toward the borrowed dock; borrowed crosses back (opposite).
-    let siblingId: Workspace.ID
-    if currentId == comp.host {
-      guard dirEdge == slot.edge else { return nil }
-      siblingId = slot.workspace
-    } else if currentId == slot.workspace {
-      guard dirEdge == slot.edge.opposite else { return nil }
-      siblingId = comp.host
-    } else {
-      return nil
-    }
-    guard let siblingTree = state.tilingTrees[siblingId], !siblingTree.windows.isEmpty
-    else { return nil }
-    let gap = CGFloat(state.config.settings.layout.gapInner)
-    let (_, siblingRect) = tilingContext(for: siblingId, state: state)
-    let siblingFrames = siblingTree.frames(in: siblingRect, gap: gap)
-    guard !siblingFrames.isEmpty else { return nil }
-    let center: CGPoint = currentTree.frames(in: currentRect, gap: gap)[key]
-      .map { CGPoint(x: $0.midX, y: $0.midY) }
-      ?? CGPoint(x: currentRect.midX, y: currentRect.midY)
-    let target = siblingFrames.min {
-      hypot($0.value.midX - center.x, $0.value.midY - center.y)
-        < hypot($1.value.midX - center.x, $1.value.midY - center.y)
-    }?.key
-    guard let target else { return nil }
-    return (target, display, siblingTree, siblingRect, state.fullscreenZoomed[siblingId] ?? [])
-  }
-
-  /// The display + rect a workspace's tree should tile into right now: its
-  /// composition sub-rect when it's a host/borrowed block, else its own
-  /// display's full work area (pre-feature behavior). The single place every
-  /// focus-relative BSP op resolves geometry, so composed and uncomposed
-  /// paths can't drift.
-  func tilingContext(for workspaceId: Workspace.ID, state: State) -> (display: DisplayName?, rect: CGRect) {
-    if
-      let display = state.displayShowing(workspaceId),
-      let comp = state.compositionsByDisplay[display],
-      let slot = comp.borrowed.first
-    {
-      let workArea = tilingWorkArea(for: display, settings: state.config.settings)
-      let gap = CGFloat(state.config.settings.layout.gapInner)
-      let (hostRect, borrowedRect) = Self.subRects(
-        workArea: workArea,
-        edge: slot.edge,
-        fraction: slot.fraction,
-        gap: gap,
-      )
-      if workspaceId == comp.host {
-        return (display, hostRect)
-      }
-      if workspaceId == slot.workspace {
-        return (display, borrowedRect)
-      }
-    }
-    // Tile on the display the workspace is *actually* on — not its logical
-    // home. A pinned workspace displaced off its (disconnected/other) monitor,
-    // or a dynamic one moved across monitors, must lay out for the display it
-    // really occupies; resolving to `displayHint`/`displays.current()` sized it
-    // to the wrong monitor, leaving a gap / wrong ratio (the intermittent
-    // cross-display tiling bug). `activeWorkspacesByDisplay` is the source of
-    // truth for placement; fall back to the hint (fresh pinned activation) then
-    // the cursor (fresh dynamic activation).
-    let display = state.displayShowing(workspaceId)
-      ?? state.config.activeProfile?.workspaces[id: workspaceId]?.displayHint
-      ?? displays.current()
-    return (display, tilingWorkArea(for: display, settings: state.config.settings))
-  }
-
-  // MARK: Private
 
   private func workspaceChainSourceHUDRequests(
     _ sources: [WorkspaceChainSourceCompositionHUD],

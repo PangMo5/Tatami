@@ -21,7 +21,7 @@ extension WorkspaceActivationFeature {
     workspaceIDs: Set<Workspace.ID>,
   ) -> [String] {
     let perWorkspace = workspaceIDs.flatMap { id in
-      state.config.activeProfile?.workspaces[id: id]?
+      state.presentedWorkspace(id)?
         .apps.filter { $0.layout == .floating }.map(\.bundleIdentifier) ?? []
     }
     let shared = state.config.sharedApps.filter { $0.layout == .floating }.map(\.bundleIdentifier)
@@ -41,7 +41,7 @@ extension WorkspaceActivationFeature {
     workspaceIDs: Set<Workspace.ID>,
   ) -> [String] {
     let perWorkspace = workspaceIDs.flatMap { id in
-      state.config.activeProfile?.workspaces[id: id]?
+      state.presentedWorkspace(id)?
         .apps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier) ?? []
     }
     let shared = state.config.sharedApps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier)
@@ -91,6 +91,23 @@ extension WorkspaceActivationFeature {
       }
     }
     return out
+  }
+
+  /// A newer explicit focus/workspace request owns input. Layout discovery may
+  /// finish in the background, but an older Borrow must not take focus later.
+  func supersedePendingFocus(state: inout State) -> Effect<Action> {
+    var effects = [Effect<Action>]()
+    var workspaces = state.visibleWorkspaceIDs.union(state.pendingCenterWarps.keys)
+    if let activating = state.activatingWorkspaceID {
+      workspaces.insert(activating)
+    }
+    for workspace in workspaces { effects.append(.cancel(id: CancelID.warp(workspace))) }
+    for display in state.compositionsByDisplay.keys {
+      effects.append(.cancel(id: CancelID.borrowFocus(display)))
+    }
+    state.pendingBorrowCompletionByDisplay = [:]
+    state.pendingCenterWarps = [:]
+    return .merge(effects)
   }
 
   /// Warp the cursor to the center of `key`'s tile when mouse-follows-focus is
@@ -195,7 +212,7 @@ extension WorkspaceActivationFeature {
       guard !Task.isCancelled else { return }
 
       if shouldWarp {
-        let frame = await snapshot.windowFrameOffMain(key)
+        let frame = await snapshot.visibleWindowFrameOffMain(key)
         guard !Task.isCancelled else { return }
         // Validate focus last. The frame read is cross-process IPC and focus
         // can change while it is suspended; checking before it could warp to
