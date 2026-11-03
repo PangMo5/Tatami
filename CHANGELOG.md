@@ -21,6 +21,7 @@ Settings search and more consistent workspace layouts.
 - **Bring apps to the selected workspace:** Selecting a workspace takes priority over another display using the same registered app. Other windows stay in their workspace; an emptied display uses its existing workspace history to find a replacement.
 - **Bring scratchpads to the pointer display:** Summoning an open scratchpad on another display moves it here and restores its previous host. This option is on by default.
 - **Follow focus across displays:** Mouse Follows Focus uses the visible window position even when an app has not yet published its accessibility frame, including freshly summoned scratchpads.
+- **Match layout previews to current windows:** Inactive previews omit obsolete app registrations and missing saved occurrences when current windows are known. Saved slots remain available for reopened windows, and restored proportions match activation.
 
 ## 1.14.2 (2026-09-17)
 

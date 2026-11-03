@@ -37,6 +37,12 @@ The file has four top-level parts:
 - **`[[profiles]]`:** Workspaces and their app assignments
 - **`[[hooks]]`:** Programs triggered by Tatami lifecycle and action-feedback events
 
+## Search Settings
+
+Press Command-F while Settings is open, or use its search field. Search matches the current interface language, English setting names, descriptions, configured shortcut symbols, and aliases such as FFM and MFF. Multiple words must all match the same setting. Selecting a result opens its category, scrolls to the control, and highlights it. Clear the field or press Escape there to return to the category list.
+
+Search covers Settings controls and section names. It does not search workspace names, app assignments, hook contents, or arbitrary configuration values.
+
 ## Shortcut syntax
 
 Shortcuts use an skhd-style string: zero or more modifiers joined by `+`, then
@@ -149,13 +155,15 @@ actions show feedback.
 | --- | --- | --- | --- |
 | `gapInner` | int | `8` | Pixels between adjacent tiled windows. |
 | `gapOuter` | int | `8` | Pixels between the tiles and the screen edge. |
-| `autoBalance` | string | `"none"` | Re-equalize splits after every insert/remove. One of `none`, `horizontal`, `vertical`, `both`. (Legacy bool values still decode: `true` → `both`, `false` → `none`.) |
+| `autoBalance` | string | `"none"` | Equalize splits when genuinely new windows are inserted or existing windows are removed. Returning saved windows keep their restored proportions. One of `none`, `horizontal`, `vertical`, `both`. (Legacy bool values still decode: `true` → `both`, `false` → `none`.) |
 | `splitType` | string | `"auto"` | Default split axis when a new window splits a tile: `auto` (aspect-based), `horizontal`, `vertical`. |
 | `windowPlacement` | string | `"second"` | Which child of the new split holds the inserted window: `first` (top/left) or `second` (bottom/right). |
 
 ### Window and layout restoration
 
 Re-entering a workspace or restoring saved windows keeps manually adjusted proportions, including when Auto-balance is enabled. Auto-balance still applies when new windows are inserted.
+
+Borrow uses the same saved layout. Tatami loads that layout before accepting window notifications that could otherwise replace it with a new default layout. This preserves split directions, proportions, and fullscreen zoom when a borrowed workspace is opened after relaunch.
 
 Tatami remembers split directions, proportions, and fullscreen zoom separately for each
 workspace. When windows close or arrive one at a time, the remaining windows fill the
@@ -190,6 +198,8 @@ launches its apps separately from macOS document restoration.
 | `focusFollowsMouseIgnoreFullscreen` | bool | `true` | While focus-follows-mouse is on, don't shift focus to a window that fills the whole display (full-screen / maximized). |
 | `focusFollowsMouseDisableHotkey` | string | `"Alt"` | Modifier that temporarily suspends focus-follows-mouse: `None`, `Alt`, `Cmd`, `Ctrl`, `Shift`. |
 
+FFM and MFF work across displays without moving their workspaces. The default FFM exclusion also applies to maximized windows on another display; turn off `focusFollowsMouseIgnoreFullscreen` to focus those windows on hover. MFF uses the visible window's position, even if accessibility geometry is not ready. A missing or superseded window does not receive a cursor warp.
+
 ## `[settings.switching]`
 
 | Key | Type | Default | Description |
@@ -206,6 +216,10 @@ launches its apps separately from macOS document restoration.
 | `bringScratchpadToPointerDisplay` | bool | `true` | Move a scratchpad already borrowed on another display to the display under the pointer, restoring its previous host. Turn this off to keep the existing placement and show where it is open. |
 | `borrowDefaultEdge` | string? | _(unset)_ | Where a borrow docks by default: `top`, `bottom`, `left`, `right`. Unset → the borrow combo waits for a direction key (h/j/k/l or arrows). A workspace's `borrowEdge` overrides this. |
 | `borrowFraction` | double | `0.4` | The borrowed block's share of the screen along the split axis (0.1…0.9). A workspace's `borrowFraction` overrides this. |
+
+`bringScratchpadToPointerDisplay` applies only to scratchpads borrowed on another display. It transfers the existing block instead of creating another copy. Ordinary workspaces already visible elsewhere stay there, and Tatami shows their location. Repeating a summon on the same display still follows `toggleBorrowOnRepeat`: return by default, or re-dock and focus when that option is off. Borrow requires a current host workspace on the destination display.
+
+Scratchpads auto-open their tiled apps; Always on Top and Leave As Is assignments do not join the borrowed block. A call made during a workspace activation waits for that activation to finish and keeps the display chosen at the time of the call. A newer selection supersedes pending focus, and sleep, screen lock, or native fullscreen prevents late results from moving focus.
 
 Keyboard window switching remembers recent focus separately for each workspace
 while Tatami is running. Tap and release the next-window shortcut to return to
@@ -680,6 +694,8 @@ Workspace fields:
 | `displayHint` | string? | Pin the workspace to a display using `"<uuid>::<name>"` or just `"<name>"`. Omit to open the workspace on the display under the mouse. Falls back to the primary display when the pinned monitor is absent. When a dynamic workspace leaves a display, Tatami refills that display from its own history, but only with a workspace pinned to it or a dynamic one no other display is using. A workspace pinned to a monitor that is currently disconnected is never pulled in. When nothing qualifies, the display is left empty on purpose. |
 
 An app can be registered in several workspaces. Activating a workspace gives it priority for those apps even when they are visible on another display. Registration stays unchanged. Other windows remain in the previous workspace; if none remain, that display uses its existing workspace history to find a replacement. Automatic replacements do not take the apps back.
+
+This priority applies to the app's registered windows, rather than assigning individual documents to different workspaces. Shared Apps are excluded and continue to join every workspace. Priority is tracked while Tatami is running; the app-owner claims themselves are not saved across relaunches. Saved workspace layouts and display history are persisted separately.
 
 App assignment fields:
 

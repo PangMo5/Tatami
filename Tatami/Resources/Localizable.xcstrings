@@ -19040,31 +19040,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "창이 추가되거나 사라질 때마다 모든 분할 비율을 같게 맞춰요."
+            "value": "창을 추가하거나 제거하면 비율을 고르게 맞춰요. 저장된 자리로 돌아온 창은 기존 비율을 유지해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ウインドウが追加または削除されるたびに、すべての分割比率を揃えます。"
+            "value": "ウインドウの追加・削除時に分割を均等にします。保存済みの位置に戻るウインドウは比率を維持します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每次添加或移除窗口时，自动均衡所有分区。"
+            "value": "添加或移除窗口时均衡分割。返回已保存位置的窗口保留原有比例。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "每次加入或移除視窗時，自動平衡所有分割區。"
+            "value": "新增或移除視窗時平均調整分割。回到已儲存位置的視窗保留原有比例。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Equalize every split whenever a window is added or removed."
+            "value": "Equalize when windows are added or removed. Returning saved windows keep their proportions."
           }
         }
       }

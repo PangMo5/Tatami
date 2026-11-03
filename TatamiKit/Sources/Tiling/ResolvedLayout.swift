@@ -50,6 +50,7 @@ public enum ResolvedLayout: Equatable {
     liveZoomed: Set<WindowKey>,
     snapshot: LayoutSnapshot?,
     autoBalance: AutoBalanceMode,
+    availableSlots: Set<SlotID> = [],
   ) -> ResolvedLayout? {
     // Only the *currently active* workspace has an authoritative live tree.
     // A workspace that was active earlier keeps a stale tree in `tilingTrees`,
@@ -63,11 +64,12 @@ public enum ResolvedLayout: Equatable {
       workspace: workspace,
       sharedApps: sharedApps,
       presentBundleIds: presentBundleIds,
+      availableSlots: availableSlots,
     ), !template.windows.isEmpty else { return nil }
-    // Activation applies auto-balance to the tree it builds (and to a restored
-    // snapshot) — mirror it so the inactive preview matches. Balancing only
-    // re-weights ratios, so edit-op paths are unaffected.
-    if autoBalance != .none {
+    // Activation preserves restored ratios. Balance only a fresh layout or
+    // genuinely new slots, rather than changing the inactive preview on entry.
+    let insertedSlots = !Set(template.windows).isSubset(of: Set(snapshot?.tree.windows ?? []))
+    if autoBalance != .none, insertedSlots {
       template = template.balanced(axis: autoBalance)
     }
     return .template(template, zoomedSlots: snapshot?.fullscreenZoomedSlots ?? [])

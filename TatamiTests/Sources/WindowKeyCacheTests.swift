@@ -14,6 +14,28 @@ struct WindowKeyCacheTests {
 
   // MARK: Internal
 
+  @Test(arguments: [false, true])
+  func `unclassified preview evidence never grants eligibility and respects invalidation`(bundleInvalidation: Bool) {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+      let epoch = cache.invalidationGeneration(for: [key.bundleId])
+      let discovery = WindowCapabilityDiscovery(retained: [key.windowID], unclassifiedKeys: [key])
+      let before = cache.storeAndResolve(discovery, bundleIds: [key.bundleId], ifUnchangedSince: epoch)
+      #expect(before.unclassifiedKeys == [key])
+      #expect(before.resizableKeys.isEmpty && before.movableKeys.isEmpty)
+      #expect(cache.cached(key.bundleId, requireResizable: true) == [])
+      #expect(cache.cached(key.bundleId, requireResizable: false) == [])
+      if bundleInvalidation {
+        cache.invalidate(bundleId: key.bundleId)
+      } else {
+        cache.invalidate(windowIDs: [key.windowID])
+      }
+      let stale = cache.storeAndResolve(discovery, bundleIds: [key.bundleId], ifUnchangedSince: epoch)
+      #expect(stale.unclassifiedKeys.isEmpty)
+    }
+  }
+
   @Test
   func `authoritative invalidation removes stale windows from every cache variant`() {
     let ghostty = WindowKey(pid: 1, windowID: 101, bundleId: "com.mitchellh.ghostty")

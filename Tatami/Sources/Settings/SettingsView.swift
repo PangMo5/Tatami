@@ -118,8 +118,15 @@ struct SettingsView: View {
         .navigationTitle((pane ?? .general).title)
         .environment(\.highlightedSettingsItem, selectedSearchItem)
         .task(id: searchNavigationID) {
-          if let selectedSearchItem {
-            proxy.scrollTo(selectedSearchItem, anchor: .center)
+          guard let selectedSearchItem else { return }
+          let request = searchNavigationID
+          proxy.scrollTo(selectedSearchItem, anchor: .center)
+          do {
+            try await Task.sleep(for: .milliseconds(reduceMotion ? 750 : 200))
+          } catch { return }
+          guard !Task.isCancelled, searchNavigationID == request else { return }
+          withAnimation(reduceMotion ? nil : .easeOut(duration: 0.7)) {
+            self.selectedSearchItem = nil
           }
         }
       }
@@ -221,5 +228,6 @@ struct SettingsView: View {
   @State private var searchNavigationID: UInt64 = 0
   @State private var searchFocusRequest: UInt64 = 0
   @State private var searchResetRequest: UInt64 = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
 }

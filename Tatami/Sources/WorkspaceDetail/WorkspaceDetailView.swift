@@ -15,6 +15,7 @@ private struct ActivationSlice: Equatable {
   var liveTree: BSPNode<WindowKey>?
   var liveZoomed: Set<WindowKey>
   var isActive: Bool
+  var restorationBindings: [SlotID: WindowKey]
 }
 
 // MARK: - WorkspaceDetailView
@@ -367,6 +368,7 @@ struct WorkspaceDetailView: View {
             liveTree: slice.liveTree,
             liveZoomed: slice.liveZoomed,
             isActive: slice.isActive,
+            restorationBindings: slice.restorationBindings,
           )))
         }
         // Refresh the pinned-display picker when monitors are plugged/unplugged.
@@ -440,6 +442,7 @@ struct WorkspaceDetailView: View {
       liveTree: activationStore.tilingTrees[id],
       liveZoomed: activationStore.fullscreenZoomed[id] ?? [],
       isActive: activationStore.activeWorkspacesByDisplay.values.contains(id),
+      restorationBindings: activationStore.layoutRestorationBindings[id] ?? [:],
     )
   }
 

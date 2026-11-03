@@ -89,6 +89,7 @@ displays, and automation that work together, with native settings and no SIP cha
 - **Workspace chains:** Link an ordered set of workspaces inside a profile. Switching to any member restores available companions in chain priority, honoring connected display pins and Chain Dynamic placement while focus stays with the workspace you chose.
 - **Cross-display control:** Jump focus between displays or move the focused app to another workspace.
 - **Shared apps:** Add apps that should join every workspace.
+- **Selection priority:** Apps registered in several workspaces follow the workspace you explicitly select, even across displays. Other windows stay in their workspace; an emptied display uses its own history.
 
 <br clear="right" />
 
@@ -129,6 +130,7 @@ displays, and automation that work together, with native settings and no SIP cha
 - **Cross-boundary focus and switching:** Directional focus and MFF move between blocks. Host and borrowed tiled windows share one app / window switching order until the borrowed workspace is returned. Activating a borrowed workspace switches to it fully, borrowing it again returns it by default, and `esc` cancels placement.
 - **Visible ownership:** Borrowed windows show the borrowed workspace's icon.
 - **Scratchpads:** Borrow-only workspaces stay out of regular switching, never activate alone, and auto-open their apps when summoned.
+- **Summon here:** By default, calling an open scratchpad from another display moves its existing block to the pointer display and restores its previous host. Turn this off in Settings to keep its current placement.
 
 <br clear="right" />
 
@@ -162,6 +164,7 @@ displays, and automation that work together, with native settings and no SIP cha
 - **Adaptive on-screen feedback:** Compact spring feedback confirms workspace, profile, Always on Top, membership, layout, and Borrow actions on the display they affect. Choose one of nine positions and three sizes, or mirror the same localized payload to another surface with a HUD hook.
 - **Workspace icons:** Choose a per-workspace SF Symbol.
 - **Native settings:** Configure Tatami in SwiftUI.
+- **Settings search:** Press Command-F in Settings to find a control by its name, description, configured shortcut, or abbreviations such as FFM and MFF. Select a result to reveal and highlight it.
 - **skhd-style shortcuts:** For example, `ctrl + alt - h`.
 - **Plain TOML:** Edit `~/.config/tatami/config.toml` with XDG support and live reloads.
 - **Native hook editor:** Add, edit, delete, enable, or disable lifecycle and action-feedback hooks in **Settings → Hooks**, including their executable, argv, environment, working directory, and timeout.

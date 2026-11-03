@@ -24,11 +24,14 @@ private struct SettingsSearchTarget: ViewModifier {
   func body(content: Content) -> some View {
     let target = content
       .id(id)
-      .overlay {
+      .background {
         if highlighted == id {
-          RoundedRectangle(cornerRadius: 6)
-            .strokeBorder(.tint, lineWidth: 2)
+          RoundedRectangle(cornerRadius: 8)
+            .fill(.tint.opacity(0.12))
+            .padding(.horizontal, -6)
+            .padding(.vertical, -4)
             .allowsHitTesting(false)
+            .transition(.opacity)
         }
       }
     // Section identifiers propagate to every descendant control in a macOS

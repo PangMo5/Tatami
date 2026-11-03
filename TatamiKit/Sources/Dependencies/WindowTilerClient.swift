@@ -917,6 +917,9 @@ struct WindowCapabilityDiscovery: Sendable {
   var resizableKeys = [WindowKey]()
   var unreachable = Set<String>()
   var retained = Set<CGWindowID>()
+  /// Enumerated identities whose subrole is temporarily unclassified. These
+  /// bound saved preview occurrences without granting tiling eligibility.
+  var unclassifiedKeys = [WindowKey]()
 
   func discovery(requireResizable: Bool) -> WindowDiscovery {
     WindowDiscovery(
@@ -987,6 +990,7 @@ func discoverWindowCapabilities(
   var resizableKeys = [WindowKey]()
   var unreachable = Set<String>()
   var retainedIDs = Set<CGWindowID>()
+  var unclassifiedKeys = [WindowKey]()
   let attrs = [
     kAXMinimizedAttribute,
     kAXSubroleAttribute,
@@ -1108,6 +1112,7 @@ func discoverWindowCapabilities(
           // surfaces were rejected above and never receive this grace.
           if widProbe != 0 {
             retainedIDs.insert(widProbe)
+            unclassifiedKeys.append(WindowKey(pid: pid, windowID: widProbe, bundleId: bundleId))
           }
           reject(widProbe, "subrole=\(subrole)")
           continue
@@ -1177,6 +1182,7 @@ func discoverWindowCapabilities(
     resizableKeys: resizableKeys,
     unreachable: unreachable,
     retained: retainedIDs,
+    unclassifiedKeys: unclassifiedKeys,
   )
 }
 

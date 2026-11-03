@@ -282,9 +282,24 @@ public func previewLayoutTemplate(
   workspace: Workspace,
   sharedApps: [SharedApp],
   presentBundleIds: Set<String>,
+  availableSlots: Set<SlotID> = [],
 ) -> BSPNode<SlotID>? {
   let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
   var tree = snapshot ?? BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: tiled)
+  let allowed = Set(tiled)
+  let observed = Set(availableSlots.map(\.bundleId))
+  let absent = Set((tree?.windows ?? []).filter { slot in
+    if !allowed.contains(slot.bundleId) {
+      return true
+    }
+    // Positive discovery proves how many windows can be restored now. An
+    // empty/unavailable AX read does not prove that a saved window is gone.
+    return observed.contains(slot.bundleId) && !availableSlots.contains(slot)
+  })
+  tree = tree?.removingAll(absent)
+  if tree == nil {
+    tree = BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: tiled)
+  }
   guard workspace.kind != .scratchpad else { return tree }
   let inTree = Set((tree?.windows ?? []).map(\.bundleId))
   let missing = sharedApps

@@ -688,21 +688,24 @@ struct WorkspaceLayoutPreview: View {
   }
 
   /// Labels for every rendered window — fullscreen chips *and* tiles. A live
-  /// window uses its exact title (by key); an inactive one indexes the app's
-  /// titles by its slot occurrence (windowID rank), which aligns with
-  /// `titlesByBundle` (also windowID-sorted), so several windows of one app read
-  /// distinctly and consistently across chips and tiles.
+  /// window uses its exact title; an inactive one uses the same retained slot
+  /// binding as activation, even when an earlier same-app window has closed.
   private func windowLabels(fullscreen: [FullscreenItem], tiles: [RenderLeaf])
     -> (chips: [Int: String], tiles: [[BSPSide]: String])
   {
-    let byBundle = store.titlesByBundle
+    let bindings = store.previewWindowBindings
     let titles = store.windowTitles
     func label(_ bid: String, liveKey: WindowKey?, occurrence: Int?) -> String {
       if let key = liveKey, let title = titles[key], !title.isEmpty {
         return title
       }
-      if let occurrence, let list = byBundle[bid], occurrence < list.count {
-        return list[occurrence]
+      if
+        let occurrence,
+        let key = bindings[SlotID(bundleId: bid, occurrence: occurrence)],
+        let title = titles[key],
+        !title.isEmpty
+      {
+        return title
       }
       return appName(for: bid)
     }

@@ -230,6 +230,7 @@ actor WindowDiscoveryCoordinator {
       merged.resizableKeys += discovery.resizableKeys
       merged.unreachable.formUnion(discovery.unreachable)
       merged.retained.formUnion(discovery.retained)
+      merged.unclassifiedKeys += discovery.unclassifiedKeys
     }
     if !merged.unreachable.isEmpty {
       merged.movableKeys.removeAll {
@@ -238,6 +239,7 @@ actor WindowDiscoveryCoordinator {
       merged.resizableKeys.removeAll {
         merged.unreachable.contains($0.bundleId)
       }
+      merged.unclassifiedKeys.removeAll { merged.unreachable.contains($0.bundleId) }
     }
     merged.retained.subtract(merged.movableKeys.map(\.windowID))
     return merged
@@ -620,6 +622,7 @@ enum WindowKeyCacheLookup: Equatable, Sendable {
 struct WindowCapabilitySnapshot: Equatable, Sendable {
   var movableKeys: [WindowKey]
   var resizableKeys: [WindowKey]
+  var unclassifiedKeys = [WindowKey]()
 }
 
 // MARK: - WindowSnapshotClient
@@ -1458,6 +1461,12 @@ final class WindowKeyCache {
     return WindowCapabilitySnapshot(
       movableKeys: movableKeys,
       resizableKeys: resizableKeys,
+      unclassifiedKeys: discovery.unclassifiedKeys.filter { key in
+        guard bundleIds.contains(key.bundleId), !discovery.unreachable.contains(key.bundleId) else { return false }
+        guard let epoch = expectedInvalidationEpoch else { return true }
+        return bundleInvalidationEpoch[key.bundleId, default: 0] <= epoch
+          && invalidationEpoch(for: key.windowID) <= epoch
+      },
     )
   }
 
