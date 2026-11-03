@@ -110,7 +110,27 @@ public enum NativeInteractionDriver {
     try move(to: center(of: target))
   }
 
+  /// Read visibility without revealing or scrolling the control. An AX node
+  /// existing offscreen is not evidence that search navigation reached it.
+  public static func isControlFullyVisible(bundleIdentifier: String, identifier: String) throws -> Bool {
+    var node = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
+    let frame = try bounds(of: node)
+    guard frame.width > 0, frame.height > 0 else { return false }
+    for _ in 0..<30 {
+      let role = attribute(node, kAXRoleAttribute) as? String
+      if role == kAXScrollAreaRole || role == kAXWindowRole {
+        guard try bounds(of: node).contains(frame) else { return false }
+      }
+      guard let parent = attribute(node, kAXParentAttribute), CFGetTypeID(parent) == AXUIElementGetTypeID() else { break }
+      node = unsafeDowncast(parent, to: AXUIElement.self)
+    }
+    return true
+  }
+
   public static func windowFrame(bundleIdentifier: String) throws -> CGRect {
+    if bundleIdentifier == "dev.PangMo5.Tatami" || bundleIdentifier == "dev.PangMo5.Tatami.debug" {
+      return try bounds(of: element(bundleIdentifier: bundleIdentifier, identifier: "main"))
+    }
     guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first
     else { throw InteractionError("app is not running") }
     let root = AXUIElementCreateApplication(app.processIdentifier)

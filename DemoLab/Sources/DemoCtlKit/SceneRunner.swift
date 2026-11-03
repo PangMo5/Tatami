@@ -308,6 +308,11 @@ public final class SceneRunner {
         ) },
       ) else { throw DemoCtlError.usage("control geometry did not change: \(name)") }
 
+    case .expectControlVisible(let app, let id):
+      guard try Shell.wait(timeout: .seconds(4), until: {
+        try NativeInteractionDriver.isControlFullyVisible(bundleIdentifier: bundle(app), identifier: id)
+      }) else { throw DemoCtlError.usage("control is outside its visible viewport: \(app) / \(id)") }
+
     case .saveWindow(let app): windowFrames[app] = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
 
     case .restoreWindow(let app):
@@ -359,7 +364,7 @@ public final class SceneRunner {
     case .resizeWindow(let app, let dx, let dy):
       try activate(app: app)
       let frame = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
-      let point = CGPoint(x: frame.maxX - 1, y: frame.midY)
+      let point = CGPoint(x: frame.maxX - 1, y: dy == 0 ? frame.midY : frame.maxY - 1)
       try NativeInteractionDriver.drag(from: point, to: CGPoint(x: point.x + dx, y: point.y + dy))
 
     case .prepareSettings:

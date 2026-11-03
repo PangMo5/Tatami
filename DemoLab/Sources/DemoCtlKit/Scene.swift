@@ -46,6 +46,7 @@ public enum SceneStep: Sendable {
   case prepareSettings
   case saveControlFrame(app: String, identifier: String, name: String)
   case expectControlMoved(app: String, identifier: String, name: String)
+  case expectControlVisible(app: String, identifier: String)
   case saveWindow(app: String)
   case restoreWindow(app: String)
   case assertWindow(app: String)
@@ -111,6 +112,7 @@ public enum SceneStep: Sendable {
     case .prepareSettings: "size and position the native Tatami window"
     case .saveControlFrame(_, _, let name): "save control frame \(name)"
     case .expectControlMoved(_, _, let name): "verify control moved \(name)"
+    case .expectControlVisible(let app, let id): "verify control fully visible \(app) / \(id)"
     case .saveWindow(let app): "save window \(app)"
     case .restoreWindow(let app): "restore window by dragging \(app)"
     case .assertWindow(let app): "verify window frame \(app)"
@@ -235,6 +237,11 @@ extension SceneStep: Decodable {
         app: try container.decode(String.self, forKey: .app),
         identifier: try container.decode(String.self, forKey: .identifier),
         name: try container.decode(String.self, forKey: .text),
+      )
+
+    case "expectControlVisible": self = .expectControlVisible(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
       )
 
     case "saveWindow": self = .saveWindow(app: try container.decode(String.self, forKey: .app))

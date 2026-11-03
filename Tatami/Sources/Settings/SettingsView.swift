@@ -80,7 +80,12 @@ struct SettingsView: View {
     NavigationSplitView {
       SettingsSidebar(
         config: config,
-        pane: $pane,
+        pane: Binding(get: { pane }, set: { value in
+          guard pane != value else { return }
+          pane = value
+          selectedSearchItem = nil
+          searchNavigator.cancel()
+        }),
         focusRequest: searchFocusRequest,
         resetRequest: searchResetRequest,
       ) { item in
@@ -88,9 +93,10 @@ struct SettingsView: View {
         pane = destination
         selectedSearchItem = item.id
         searchNavigationID &+= 1
+        searchNavigator.select(item.id, request: searchNavigationID, reduceMotion: reduceMotion)
       }
     } detail: {
-      ScrollViewReader { proxy in
+      Group {
         Form {
           switch pane ?? .general {
           case .general: generalPane
@@ -116,19 +122,8 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .navigationTitle((pane ?? .general).title)
-        .environment(\.highlightedSettingsItem, selectedSearchItem)
-        .task(id: searchNavigationID) {
-          guard let selectedSearchItem else { return }
-          let request = searchNavigationID
-          proxy.scrollTo(selectedSearchItem, anchor: .center)
-          do {
-            try await Task.sleep(for: .milliseconds(reduceMotion ? 750 : 200))
-          } catch { return }
-          guard !Task.isCancelled, searchNavigationID == request else { return }
-          withAnimation(reduceMotion ? nil : .easeOut(duration: 0.7)) {
-            self.selectedSearchItem = nil
-          }
-        }
+        .environment(\.settingsSearchSelection, selectedSearchItem)
+        .environment(\.settingsSearchNavigator, searchNavigator)
       }
     }
     .toolbar {
@@ -181,6 +176,7 @@ struct SettingsView: View {
       )
     }
     .frame(minWidth: 680, minHeight: 540)
+    .onDisappear { searchNavigator.cancel() }
     // All side effects (status reads, permission/CLI/update streams, the AX
     // change subscription) live in the reducer — the view just starts it.
     .task { await store.send(.task).finish() }
@@ -190,6 +186,7 @@ struct SettingsView: View {
       guard let section, let target = Pane(rawValue: section.rawValue) else { return }
       searchResetRequest &+= 1
       selectedSearchItem = nil
+      searchNavigator.cancel()
       pane = target
       onSectionConsumed()
     }
@@ -228,6 +225,7 @@ struct SettingsView: View {
   @State private var searchNavigationID: UInt64 = 0
   @State private var searchFocusRequest: UInt64 = 0
   @State private var searchResetRequest: UInt64 = 0
+  @State private var searchNavigator = SettingsSearchNavigator()
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
 }
