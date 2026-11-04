@@ -11205,6 +11205,286 @@ struct WorkspaceActivationFeatureTests {
     #expect(applications.value.last?.forceAllFrames == true)
   }
 
+  @Test(arguments: [true, false])
+  func `orientation changes the visible split from either side of a zoomed sibling`(
+    focusLeft: Bool
+  ) async throws {
+    let fullscreen = WindowKey(pid: 1, windowID: 101, bundleId: "app.fullscreen")
+    let left = WindowKey(pid: 2, windowID: 202, bundleId: "app.discord")
+    let right = WindowKey(pid: 3, windowID: 303, bundleId: "app.editor")
+    let workspace = Workspace(name: "Work")
+    let workArea = ScreenGeometry.workArea(for: Self.display)
+    let hiddenSplit = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.35,
+      left: .leaf(fullscreen),
+      right: .leaf(left),
+    ))
+    let initial = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.6,
+      left: hiddenSplit,
+      right: .leaf(right),
+    ))
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = initial
+      $0.fullscreenZoomed[workspace.id] = [fullscreen]
+    }
+    let applications = LockIsolated<[FrameApplication]>([])
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.workArea = { _ in workArea }
+      $0.windowTiler.apply = { request in applications.withValue { $0.append(request) } }
+      $0.layoutStore.save = { _, snapshot in saved.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.bspOpResolved(windowKey: focusLeft ? left : right, op: .toggleOrientation))
+    await store.finish()
+
+    let tree = try #require(store.state.tilingTrees[workspace.id])
+    guard case .branch(let root) = tree else {
+      Issue.record("Expected the full tree to retain its root branch")
+      return
+    }
+    #expect(root.split == .horizontal)
+    #expect(root.ratio == 0.6)
+    #expect(root.left == hiddenSplit)
+    #expect(store.state.fullscreenZoomed[workspace.id] == [fullscreen])
+    let topHeight = (workArea.height * 0.6).rounded()
+    #expect(applications.value.last?.windowFrames[left] == CGRect(
+      x: workArea.minX,
+      y: workArea.minY,
+      width: workArea.width,
+      height: topHeight,
+    ))
+    #expect(applications.value.last?.windowFrames[right] == CGRect(
+      x: workArea.minX,
+      y: workArea.minY + topHeight,
+      width: workArea.width,
+      height: workArea.height - topHeight,
+    ))
+    #expect(applications.value.last?.windowFrames[fullscreen] == workArea)
+    #expect(saved.value.last == LayoutSnapshot(liveTree: tree, fullscreenZoomed: [fullscreen]))
+  }
+
+  @Test
+  func `post layout MFF uses acknowledged app geometry when WindowServer still has the old size`() async {
+    let key = WindowKey(pid: 2, windowID: 202, bundleId: "app.discord")
+    let workspace = Workspace(name: "Work")
+    let oldFrame = CGRect(x: 0, y: 400, width: 500, height: 800)
+    // The app enforces a minimum height; neither the old surface size nor the
+    // requested 400-point tile is its actual post-write geometry.
+    let actualFrame = CGRect(x: 0, y: 400, width: 1_000, height: 600)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(key)
+    }
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.focusedWindowKey = { key }
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(oldFrame) }
+      $0.windowSnapshot.windowFrameAsync = { _ in .value(actualFrame) }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.settleFocusAfterLayout(
+      windowKey: key,
+      workspaceId: workspace.id,
+      shouldFocus: false,
+      expectedFrame: CGRect(x: 0, y: 400, width: 1_000, height: 400),
+    ))
+    await store.finish()
+
+    #expect(warped.value == [CGPoint(x: actualFrame.midX, y: actualFrame.midY)])
+  }
+
+  @Test(arguments: [false, true])
+  func `post write MFF keeps the WindowServer fast path when the target frame is published`(enabled: Bool) async {
+    let key = WindowKey(pid: 2, windowID: 202, bundleId: "app.editor")
+    let workspace = Workspace(name: "Work")
+    let frame = CGRect(x: 0, y: 400, width: 1_000, height: 600)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = enabled }
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(key)
+    }
+    let axReads = LockIsolated(0)
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.focusedWindowKey = { key }
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(frame) }
+      $0.windowSnapshot.windowFrameAsync = { _ in
+        axReads.withValue { $0 += 1 }
+        return .value(nil)
+      }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.settleFocusAfterLayout(
+      windowKey: key,
+      workspaceId: workspace.id,
+      shouldFocus: false,
+      expectedFrame: frame,
+    ))
+    await store.finish()
+    #expect(axReads.value == 0)
+    #expect(warped.value == (enabled ? [CGPoint(x: frame.midX, y: frame.midY)] : []))
+  }
+
+  @Test
+  func `post write MFF rechecks focus after acknowledged geometry arrives`() async {
+    let key = WindowKey(pid: 2, windowID: 202, bundleId: "app.discord")
+    let other = WindowKey(pid: 3, windowID: 303, bundleId: "app.editor")
+    let workspace = Workspace(name: "Work")
+    let focus = LockIsolated(key)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(key)
+    }
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.focusedWindowKey = { focus.value }
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(CGRect(x: 0, y: 0, width: 500, height: 800)) }
+      $0.windowSnapshot.windowFrameAsync = { _ in
+        focus.setValue(other)
+        return .value(CGRect(x: 0, y: 400, width: 1_000, height: 600))
+      }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.settleFocusAfterLayout(
+      windowKey: key,
+      workspaceId: workspace.id,
+      shouldFocus: false,
+      expectedFrame: CGRect(x: 0, y: 400, width: 1_000, height: 400),
+    ))
+    await store.receive(\.cursorWarpFinished)
+    await store.finish()
+    #expect(warped.value.isEmpty)
+    #expect(store.state.pendingCenterWarps[workspace.id] == nil)
+  }
+
+  @Test
+  func `post write MFF never revives an AX frame for a surface that is no longer visible`() async {
+    let key = WindowKey(pid: 2, windowID: 202, bundleId: "app.closed")
+    let workspace = Workspace(name: "Work")
+    let frame = CGRect(x: 0, y: 400, width: 1_000, height: 600)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .leaf(key)
+    }
+    let axReads = LockIsolated(0)
+    let warped = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.focusedWindowKey = { key }
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(nil) }
+      $0.windowSnapshot.windowFrameAsync = { _ in
+        axReads.withValue { $0 += 1 }
+        return .value(frame)
+      }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.settleFocusAfterLayout(
+      windowKey: key,
+      workspaceId: workspace.id,
+      shouldFocus: false,
+      expectedFrame: frame,
+    ))
+    await store.finish()
+    #expect(axReads.value == 0)
+    #expect(warped.value.isEmpty)
+  }
+
+  @Test
+  func `a newer orientation command cancels an older suspended center warp`() async {
+    let key = WindowKey(pid: 2, windowID: 202, bundleId: "app.discord")
+    let other = WindowKey(pid: 3, windowID: 303, bundleId: "app.editor")
+    let workspace = Workspace(name: "Work")
+    let oldFrame = CGRect(x: 0, y: 0, width: 500, height: 800)
+    let finalFrame = CGRect(x: 0, y: 0, width: 1_000, height: 600)
+    let started = AsyncStream<Void>.makeStream()
+    let release = AsyncStream<Void>.makeStream()
+    let reads = LockIsolated(0)
+    let warped = LockIsolated<[CGPoint]>([])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock { $0.settings.focus.mouseFollowsFocus = true }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(BSPBranch(
+        split: .vertical,
+        ratio: 0.5,
+        left: .leaf(key),
+        right: .leaf(other),
+      ))
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.focusedWindowKey = { key }
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(oldFrame) }
+      $0.windowSnapshot.windowFrameAsync = { _ in
+        let count = reads.withValue { $0 += 1
+          return $0
+        }
+        if count == 1 {
+          started.continuation.yield(())
+          for await _ in release.stream { break }
+          return .value(oldFrame)
+        }
+        return .value(finalFrame)
+      }
+      $0.mouse.warp = { point in warped.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+    var iterator = started.stream.makeAsyncIterator()
+    await store.send(.settleFocusAfterLayout(
+      windowKey: key,
+      workspaceId: workspace.id,
+      shouldFocus: false,
+      expectedFrame: finalFrame,
+    ))
+    #expect(await iterator.next() != nil)
+    await store.send(.bspOpResolved(windowKey: key, op: .toggleOrientation))
+    release.continuation.finish()
+    started.continuation.finish()
+    await store.receive(\.settleFocusAfterLayout)
+    await store.receive(\.cursorWarpFinished)
+    await store.finish()
+    #expect(reads.value == 2)
+    #expect(warped.value == [CGPoint(x: finalFrame.midX, y: finalFrame.midY)])
+  }
+
+  @Test(arguments: [true, false])
+  func `orientation without a visible split preserves pending restoration`(focusFullscreen: Bool) async {
+    let fullscreen = WindowKey(pid: 1, windowID: 101, bundleId: "app.fullscreen")
+    let visible = WindowKey(pid: 2, windowID: 202, bundleId: "app.visible")
+    let workspace = Workspace(name: "Work")
+    let tree = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.3, left: .leaf(fullscreen), right: .leaf(visible)))
+    let saved = LayoutSnapshot(liveTree: tree, fullscreenZoomed: [fullscreen])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = tree
+      $0.fullscreenZoomed[workspace.id] = [fullscreen]
+      $0.pendingLayoutRestorations[workspace.id] = saved
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
+    await store.send(.bspOpResolved(windowKey: focusFullscreen ? fullscreen : visible, op: .toggleOrientation))
+    await store.finish()
+    #expect(store.state.tilingTrees[workspace.id] == tree)
+    #expect(store.state.pendingLayoutRestorations[workspace.id] == saved)
+  }
+
   @Test
   func `borrowed swap commits the newest complete composition before MFF`() async {
     let display = Self.display
@@ -11270,7 +11550,7 @@ struct WorkspaceActivationFeatureTests {
       )
     )
     await store.receive {
-      guard case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus) = $0
+      guard case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus, _) = $0
       else { return false }
       return key == left && workspaceId == borrowed.id && !shouldFocus
     }

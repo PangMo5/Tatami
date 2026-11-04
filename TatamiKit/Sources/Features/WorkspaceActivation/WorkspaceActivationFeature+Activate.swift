@@ -2301,6 +2301,7 @@ extension WorkspaceActivationFeature {
             windowKey: followUp.windowKey,
             workspaceId: followUp.workspaceId,
             shouldFocus: followUp.shouldFocus,
+            expectedFrame: merged[followUp.windowKey],
           )
         )
       }

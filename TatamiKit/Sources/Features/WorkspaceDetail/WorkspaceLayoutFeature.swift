@@ -378,13 +378,14 @@ public struct WorkspaceLayoutFeature {
       case .toggleOrientation:
         guard
           let sel = state.selectedTile,
-          let full = state.resolved?.fullLeafPath(
-            trimmedLeafPath: sel.path,
+          !sel.path.isEmpty,
+          let full = state.resolved?.fullBranchPath(
+            trimmedBranchPath: Array(sel.path.dropLast()),
             hidden: state.hiddenSharedBundleIds,
           )
         else { return .none }
         state.selectedTile = nil
-        return route(.toggleOrientation(leafPath: full), state: &state)
+        return route(.toggleOrientation(branchPath: full), state: &state)
 
       case .toggleFullscreen(let bundleId, let liveKey, let occurrence, let zoomIn):
         state.selectedTile = nil

@@ -305,7 +305,7 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 |`focusLeft` / `focusRight` / `focusUp` / `focusDown`|聚焦指定方向的並排區域，在邊緣可跨入借用區域。|
 |`swapLeft` / `swapRight` / `swapUp` / `swapDown`|沿指定方向交換聚焦區域。|
 |`resizeGrow` / `resizeShrink`|依上層分割的左右或上下方向，擴大或縮小目前選取視窗的區域|
-|`toggleOrientation`|切換聚焦分割的方向。|
+|`toggleOrientation`|切換目前並排視窗的可見分割方向。全螢幕視窗保留已儲存的位置；只有一個並排視窗時不會變更。|
 |`toggleFullscreen`|把聚焦視窗放大到整個工作空間。|
 |`balance`|套用設定的 `autoBalance` 軸。關閉自動平均排列時，依目前視窗順序重建標準 BSP 拓樸與比例。|
 |`cycleNextWindow` / `cyclePreviousWindow`|在可見的 Tatami 工作空間內切換 App 或視窗。排除 Command-Tab 中無關的執行中 App，也能跨越 Command-backtick 的單一 App 範圍。|

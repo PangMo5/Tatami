@@ -305,7 +305,7 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 |`focusLeft` / `focusRight` / `focusUp` / `focusDown`|聚焦指定方向的平铺区域，在边缘可跨入借用区域。|
 |`swapLeft` / `swapRight` / `swapUp` / `swapDown`|沿指定方向交换聚焦区域。|
 |`resizeGrow` / `resizeShrink`|根据父级分割的左右或上下方向，扩大或缩小当前选中窗口的区域|
-|`toggleOrientation`|切换聚焦分割的方向。|
+|`toggleOrientation`|切换聚焦平铺窗口的可见分割方向。全屏窗口保留已保存的位置；只有一个平铺窗口时不会改变。|
 |`toggleFullscreen`|把聚焦窗口放大到整个工作区。|
 |`balance`|应用配置的 `autoBalance` 轴。关闭自动均衡时，根据当前窗口顺序重建标准 BSP 拓扑和比例。|
 |`cycleNextWindow` / `cyclePreviousWindow`|在可见的 Tatami 工作区内切换应用或窗口。排除 Command-Tab 中无关的运行应用，也能跨越 Command-backtick 的单应用范围。|

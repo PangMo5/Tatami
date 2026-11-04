@@ -17,9 +17,8 @@ import Foundation
 public enum LayoutEditOp: Hashable, Sendable {
   /// Set the split ratio of the branch at `path`.
   case setRatio(path: [BSPSide], ratio: CGFloat)
-  /// Flip the split axis of the branch that is the parent of the leaf at
-  /// `leafPath`.
-  case toggleOrientation(leafPath: [BSPSide])
+  /// Flip the exact full-tree branch mapped from the rendered layout.
+  case toggleOrientation(branchPath: [BSPSide])
   /// Rotate the whole tree clockwise (90 / 180 / 270).
   case rotate(degrees: Int)
   /// Mirror the whole tree along `axis`.
@@ -41,8 +40,8 @@ extension BSPNode {
     switch op {
     case .setRatio(let path, let ratio):
       return updatingRatio(at: path, ratio: ratio)
-    case .toggleOrientation(let leafPath):
-      return togglingSplit(atLeafPath: leafPath)
+    case .toggleOrientation(let branchPath):
+      return togglingSplit(atBranchPath: branchPath)
     case .rotate(let degrees):
       return rotated(by: degrees)
     case .mirror(let axis):
@@ -72,12 +71,9 @@ extension BSPNode {
 // MARK: - Path-based structural edits
 
 extension BSPNode {
-  /// Flip the split axis of the branch that is the parent of the leaf at
-  /// `leafPath`. No-op when the leaf is the root (no parent split).
-  public func togglingSplit(atLeafPath leafPath: [Side]) -> BSPNode {
-    guard !leafPath.isEmpty else { return self }
-    let parentPath = Array(leafPath.dropLast())
-    return replacing(path: parentPath) { node in
+  /// Flip an exact branch, preserving its ratio and both child subtrees.
+  public func togglingSplit(atBranchPath branchPath: [Side]) -> BSPNode {
+    replacing(path: branchPath) { node in
       guard case .branch(let b) = node else { return node }
       let flipped: SplitAxis = b.split == .horizontal ? .vertical : .horizontal
       return .branch(b.with(split: flipped))

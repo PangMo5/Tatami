@@ -185,6 +185,7 @@ extension WorkspaceActivationFeature {
     _ key: WindowKey,
     workspaceId: Workspace.ID,
     shouldFocus: Bool,
+    expectedFrame: CGRect? = nil,
     borrowCompletion: BorrowPhase? = nil,
     state: inout State,
   ) -> Effect<Action> {
@@ -212,7 +213,23 @@ extension WorkspaceActivationFeature {
       guard !Task.isCancelled else { return }
 
       if shouldWarp {
-        let frame = await snapshot.visibleWindowFrameOffMain(key)
+        var frame = await snapshot.visibleWindowFrameOffMain(key)
+        if
+          let surface = frame,
+          let expectedFrame,
+          WindowTilerClient.frameWritePlan(current: surface, target: expectedFrame) != .none
+        {
+          // WindowServer can publish a position with the previous size just
+          // after AX setters return. Ask the app that acknowledged this write;
+          // its minimum size may also differ from the requested tile.
+          frame = await snapshot.windowFrameOffMain(key)
+          debugLog.log(
+            "Focus",
+            "post-layout geometry \(key.bundleId)#\(key.windowID) "
+              + "surface=\(String(describing: surface)) expected=\(expectedFrame) "
+              + "acknowledged=\(String(describing: frame))",
+          )
+        }
         guard !Task.isCancelled else { return }
         // Validate focus last. The frame read is cross-process IPC and focus
         // can change while it is suspended; checking before it could warp to

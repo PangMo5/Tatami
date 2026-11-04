@@ -305,7 +305,7 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 |`focusLeft` / `focusRight` / `focusUp` / `focusDown`|해당 방향의 타일로 포커스를 옮겨요. 가장자리에서는 빌려온 영역으로 넘어가요.|
 |`swapLeft` / `swapRight` / `swapUp` / `swapDown`|포커스한 타일을 해당 방향으로 교체해요.|
 |`resizeGrow` / `resizeShrink`|선택한 창의 상위 분할 방향에 따라 좌우 또는 위아래로 영역을 늘이거나 줄임|
-|`toggleOrientation`|포커스한 분할의 방향을 전환해요.|
+|`toggleOrientation`|포커스한 타일 창의 보이는 분할 방향을 바꿔요. 전체 화면 창의 저장된 위치는 유지해요. 타일 창이 하나뿐이면 바뀌지 않아요.|
 |`toggleFullscreen`|포커스한 창을 작업 공간 크기로 확대해요.|
 |`balance`|설정한 `autoBalance` 축을 적용해요. 자동 균등 배치가 꺼져 있으면 현재 창 순서로 표준 BSP 구조와 비율을 다시 만들어요.|
 |`cycleNextWindow` / `cyclePreviousWindow`|현재 Tatami 작업 공간 안에서 앱이나 창을 전환해요. Command-Tab처럼 관련 없는 앱을 포함하지 않고, Command-backtick처럼 한 앱에만 머물지도 않아요.|

@@ -17,6 +17,50 @@ struct WorkspaceLayoutFeatureTests {
   // MARK: Internal
 
   @Test(arguments: [false, true])
+  func `preview orientation targets the rendered split across a fullscreen sibling`(active: Bool) async throws {
+    let keys = [
+      WindowKey(pid: 1, windowID: 10, bundleId: "a"),
+      WindowKey(pid: 2, windowID: 20, bundleId: "b"),
+      WindowKey(pid: 3, windowID: 30, bundleId: "c"),
+    ]
+    let ws = Workspace(name: "W", apps: keys.map { AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId) })
+    let tree = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.6,
+      left: .branch(BSPBranch(split: .horizontal, ratio: 0.3, left: .leaf(keys[0]), right: .leaf(keys[1]))),
+      right: .leaf(keys[2]),
+    ))
+    var state = makeState(ws)
+    state.isActive = active
+    state.liveTree = tree
+    state.liveZoomed = [keys[0]]
+    state.layoutSnapshot = LayoutSnapshot(liveTree: tree, fullscreenZoomed: [keys[0]])
+    state.selectedTile = SelectedTile(path: [.left], bundleId: "b", liveKey: active ? keys[1] : nil, occurrence: 0)
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.layoutStore.save = { _, snapshot in saved.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.toggleOrientation)
+    if active {
+      await store.receive {
+        guard case .delegate(.activeLayoutEdited(let id, let op)) = $0 else { return false }
+        return id == ws.id && op == .toggleOrientation(branchPath: [])
+      }
+    }
+    await store.finish()
+
+    #expect(store.state.selectedTile == nil)
+    if active {
+      #expect(saved.value.isEmpty)
+    } else {
+      let changed = try #require(saved.value.last)
+      #expect(changed == LayoutSnapshot(liveTree: tree.togglingSplit(atBranchPath: []), fullscreenZoomed: [keys[0]]))
+    }
+  }
+
+  @Test(arguments: [false, true])
   func `cold unclassified window bounds saved preview without adding dialog tiles`(classified: Bool) async throws {
     let ws = Workspace(name: "Browser", apps: [AppAssignment(bundleIdentifier: "a", name: "Browser")])
     let key = WindowKey(pid: 1, windowID: 10, bundleId: "a")

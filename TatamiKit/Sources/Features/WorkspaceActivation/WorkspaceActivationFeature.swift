@@ -1274,6 +1274,7 @@ public struct WorkspaceActivationFeature {
       windowKey: WindowKey,
       workspaceId: Workspace.ID,
       shouldFocus: Bool,
+      expectedFrame: CGRect? = nil,
     )
     /// Focus the workspace active on the next (`+1`) / previous (`-1`)
     /// connected display, looping around.
@@ -3711,11 +3712,12 @@ public struct WorkspaceActivationFeature {
       case .focusBorrowedBlock(let workspaceId):
         return focusBorrowedBlock(workspaceId: workspaceId, state: &state)
 
-      case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus):
+      case .settleFocusAfterLayout(let key, let workspaceId, let shouldFocus, let expectedFrame):
         return settleFocusAfterLayout(
           key,
           workspaceId: workspaceId,
           shouldFocus: shouldFocus,
+          expectedFrame: expectedFrame,
           state: &state,
         )
 
@@ -5031,6 +5033,7 @@ public struct WorkspaceActivationFeature {
             windowKey: followUp.windowKey,
             workspaceId: followUp.workspaceId,
             shouldFocus: followUp.shouldFocus,
+            expectedFrame: frames[followUp.windowKey],
           )
         )
       }
@@ -6192,11 +6195,6 @@ public struct WorkspaceActivationFeature {
       "\(String(describing: op)) \(windowKey.bundleId)#\(windowKey.windowID)",
     )
 
-    // An explicit edit owns the current layout, including during startup.
-    state.pendingLayoutRestorations[workspaceId] = nil
-    state.layoutRestorationBindings[workspaceId] = nil
-    state.unresolvedFullscreenZoomSlots[workspaceId] = nil
-
     let settings = state.config.settings
     // The block's geometry: a composition sub-rect when composed, else the
     // workspace's full work area. (Display is re-derived in `flushLayout`.)
@@ -6239,7 +6237,15 @@ public struct WorkspaceActivationFeature {
       tree = tree.resizing(window: windowKey, delta: delta)
 
     case .toggleOrientation:
-      tree = tree.togglingSplit(at: windowKey)
+      let updated = tree.togglingSplit(
+        at: windowKey,
+        excluding: state.fullscreenZoomed[workspaceId] ?? [],
+      )
+      guard updated != tree else {
+        debugLog.log("BSP", "toggleOrientation: no visible split for \(windowKey.bundleId)#\(windowKey.windowID)")
+        return .none
+      }
+      tree = updated
       // Flipping the split axis rebuilds the focused window's frame from a
       // different geometry, not a nudge of the current one.
       warpFocused = true
@@ -6281,6 +6287,12 @@ public struct WorkspaceActivationFeature {
       hud = hudEffect(state, \.layout, "Layout Balanced", "equal.circle")
     }
 
+    // Only an accepted edit supersedes restoration. A fullscreen window or a
+    // lone visible tile has no split to flip and must keep its saved intent.
+    state.pendingLayoutRestorations[workspaceId] = nil
+    state.layoutRestorationBindings[workspaceId] = nil
+    state.unresolvedFullscreenZoomSlots[workspaceId] = nil
+    state.pendingCenterWarps[workspaceId] = nil
     state.tilingTrees[workspaceId] = tree
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
     let followUp = warpFocused
@@ -6291,7 +6303,7 @@ public struct WorkspaceActivationFeature {
       )
       : nil
 
-    return .merge(
+    return .concatenate(.cancel(id: CancelID.warp(workspaceId)), .merge(
       // A rapid sequence of tree edits can cancel an older same-app AX batch
       // only after that batch has already written one or more windows. Force
       // the newest complete frame set so it cannot inherit a mixed geometry,
@@ -6311,7 +6323,7 @@ public struct WorkspaceActivationFeature {
       ),
       refreshMarkers(state: state),
       hud,
-    )
+    ))
   }
 
 }

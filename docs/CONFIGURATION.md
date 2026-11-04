@@ -356,7 +356,7 @@ restores the host to full screen.
 | `focusLeft` / `focusRight` / `focusUp` / `focusDown` | Move focus to the tile in that direction (crosses into a borrowed block at the edge) |
 | `swapLeft` / `swapRight` / `swapUp` / `swapDown` | Swap the focused tile in that direction |
 | `resizeGrow` / `resizeShrink` | Grow or shrink the focused tile at its parent split, following either left/right or top/bottom orientation |
-| `toggleOrientation` | Toggle the focused split's orientation |
+| `toggleOrientation` | Toggle the focused tile's visible split. Fullscreen windows keep their saved positions; a lone tiled window has no split to change. |
 | `toggleFullscreen` | Zoom the focused window to fill the workspace |
 | `balance` | Apply the configured `autoBalance` axes. With Auto-balance off, rebuild the canonical BSP topology and ratios from the current window order. |
 | `cycleNextWindow` / `cyclePreviousWindow` | Switch apps or windows inside the visible Tatami workspace. Unlike Command-Tab, this excludes unrelated running apps; unlike Command-backtick, it can cross between apps. |

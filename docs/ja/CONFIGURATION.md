@@ -305,7 +305,7 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 |`focusLeft` / `focusRight` / `focusUp` / `focusDown`|指定方向のタイルを選びます。端では借りた領域へ移ります。|
 |`swapLeft` / `swapRight` / `swapUp` / `swapDown`|選んだタイルを指定方向に入れ替えます。|
 |`resizeGrow` / `resizeShrink`|選択中のウインドウを含む分割の向きに合わせ、左右または上下に領域を拡大・縮小|
-|`toggleOrientation`|選んだ分割の向きを切り替えます。|
+|`toggleOrientation`|フォーカス中のタイルの表示されている分割方向を切り替えます。全画面ウインドウの保存済み位置は維持します。タイルが1つだけの場合は変更しません。|
 |`toggleFullscreen`|選んだ窓をワークスペース全体に広げます。|
 |`balance`|設定した `autoBalance` の軸を適用します。自動均等化がオフなら、現在の順番から標準 BSP 構造と比率を再構築します。|
 |`cycleNextWindow` / `cyclePreviousWindow`|今のワークスペース内でアプリや窓を切り替えます。Command-Tab のように無関係なアプリは含まず、Command-backtick のように一つのアプリにも限定されません。|
