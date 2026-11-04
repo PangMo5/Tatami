@@ -24,6 +24,7 @@ Settings search and more consistent workspace layouts.
 - **Match layout previews to current windows:** Inactive previews omit obsolete app registrations and missing saved occurrences when current windows are known. Saved slots remain available for reopened windows, and restored proportions match activation.
 - **Change the visible split:** Toggle orientation from either tiled window when another window is fullscreen. Fullscreen windows retain their saved layout positions, and the layout editor follows the same rule.
 - **Center the pointer after layout changes:** Mouse Follows Focus checks the app's actual frame when the visible surface still reports the previous size, including windows with a minimum size. A newer layout command cancels an older pending pointer move.
+- **Expand remaining windows after closing:** Windows moving away from a screen edge no longer keep their previous size. Close-driven reflows verify every remaining tile, including windows belonging to other apps, and center the pointer using the updated frame.
 
 ## 1.14.2 (2026-09-17)
 

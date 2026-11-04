@@ -8271,6 +8271,112 @@ struct WorkspaceActivationFeatureTests {
   }
 
   @Test
+  func `closing another app repairs the surviving browsers delayed half height restore`() async throws {
+    let browser = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let closed = WindowKey(pid: 2, windowID: 201, bundleId: "app.safari")
+    let survivor = WindowKey(pid: 2, windowID: 202, bundleId: "app.safari")
+    let workspace = Workspace(name: "Browser", apps: [AppAssignment(bundleIdentifier: browser.bundleId, name: "Browser")])
+    let area = ScreenGeometry.workArea(for: Self.display)
+    let tree = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.5,
+      left: .branch(BSPBranch(split: .horizontal, ratio: 0.5, left: .leaf(closed), right: .leaf(browser))),
+      right: .leaf(survivor),
+    ))
+    let target = tree.removing(closed)?.frames(in: area, gap: 0) ?? [:]
+    let stale = try #require(tree.frames(in: area, gap: 0)[browser])
+    let frames = LockIsolated(tree.frames(in: area, gap: 0).reduce(into: [CGWindowID: CGRect]()) {
+      $0[$1.key.windowID] = $1.value
+    })
+    let applied = LockIsolated<[FrameApplication]>([])
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = tree
+      $0.lastObservedFocusedWindow = survivor
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.workArea = { _ in area }
+      $0.windowSnapshot.onScreenWindowFrames = { frames.value }
+      $0.windowTiler.apply = { request in
+        let count = applied.withValue { $0.append(request)
+          return $0.count
+        }
+        frames.withValue { current in
+          for (key, frame) in request.windowFrames { current[key.windowID] = frame }
+          // A successful AX setter does not prove presentation. Model the
+          // browser restoring its previous height after the first close write.
+          if count == 1 {
+            current[browser.windowID] = stale
+          }
+        }
+      }
+    }
+    store.exhaustivity = .off
+    await store.send(.syncAppWindowsResolved(
+      bundleId: survivor.bundleId,
+      resizableKeys: [survivor],
+      onScreenFrames: frames.value,
+    ))
+    await store.finish()
+    #expect(frames.value[browser.windowID] == target[browser])
+    #expect(applied.value.count == 2)
+    #expect(store.state.tilingTrees[workspace.id]?.windows == [browser, survivor])
+    #expect(store.state.pendingLayoutRestorations[workspace.id] != nil)
+  }
+
+  @Test(arguments: [false, true])
+  func `close MFF uses the expanded survivor frame when its visible size lags`(prune: Bool) async {
+    let closed = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let survivor = WindowKey(pid: 1, windowID: 102, bundleId: "app.browser")
+    let workspace = Workspace(name: "Browser", apps: [AppAssignment(bundleIdentifier: survivor.bundleId, name: "Browser")])
+    let area = ScreenGeometry.workArea(for: Self.display)
+    let oldFrame = CGRect(x: area.minX, y: area.minY + area.height / 2, width: area.width, height: area.height / 2)
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.$config.withLock {
+        $0.settings.layout.gapInner = 0
+        $0.settings.layout.gapOuter = 0
+        $0.settings.focus.mouseFollowsFocus = true
+      }
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = .branch(BSPBranch(
+        split: .horizontal,
+        ratio: 0.5,
+        left: .leaf(closed),
+        right: .leaf(survivor),
+      ))
+      $0.lastObservedFocusedWindow = survivor
+    }
+    let points = LockIsolated<[CGPoint]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.workArea = { _ in area }
+      $0.windowSnapshot.onScreenWindowIDs = { [survivor.windowID] }
+      $0.windowSnapshot.onScreenWindowFrames = { [survivor.windowID: area] }
+      $0.windowSnapshot.focusedWindowKey = { survivor }
+      $0.windowSnapshot.visibleWindowFrameAsync = { _ in .value(oldFrame) }
+      $0.windowSnapshot.windowFrameAsync = { _ in .value(area) }
+      $0.mouse.warp = { point in points.withValue { $0.append(point) } }
+    }
+    store.exhaustivity = .off
+    if prune {
+      await store.send(.pruneOffscreenWindows)
+    } else {
+      await store.send(.syncAppWindowsResolved(
+        bundleId: survivor.bundleId,
+        resizableKeys: [survivor],
+        onScreenFrames: [survivor.windowID: area],
+      ))
+    }
+    await store.finish()
+    #expect(points.value == [CGPoint(x: area.midX, y: area.midY)])
+  }
+
+  @Test
   func `hidden close prune retiles then warps focused survivor to live center`() async {
     let closed = WindowKey(pid: 1, windowID: 101, bundleId: "app.one")
     let survivor = WindowKey(pid: 1, windowID: 102, bundleId: "app.one")

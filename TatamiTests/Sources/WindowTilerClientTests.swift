@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import ApplicationServices
 import CoreGraphics
 import Dependencies
 import Foundation
@@ -10,6 +11,51 @@ import Testing
 // MARK: - WindowTilerClientTests
 
 struct WindowTilerClientTests {
+
+  @Test(arguments: [true, false], [true, false])
+  func `same display frame writes converge when the app clamps to its current screen edges`(
+    vertical: Bool,
+    grows: Bool,
+  ) {
+    let area = CGRect(x: 0, y: 0, width: 1000, height: 800)
+    let half = vertical
+      ? CGRect(x: 0, y: 400, width: 1000, height: 400)
+      : CGRect(x: 500, y: 0, width: 500, height: 800)
+    let target = grows ? area : half
+    var actual = grows ? half : area
+    let plan = WindowTilerClient.frameWritePlan(current: actual, target: target, crossesDisplays: false)
+    let outcome = plan.apply(
+      setPosition: {
+        actual.origin.x = min(target.minX, area.maxX - actual.width)
+        actual.origin.y = min(target.minY, area.maxY - actual.height)
+        return .success
+      },
+      setSize: {
+        actual.size.width = min(target.width, area.maxX - actual.minX)
+        actual.size.height = min(target.height, area.maxY - actual.minY)
+        return .success
+      },
+    )
+    #expect(outcome == "ok")
+    #expect(actual == target)
+  }
+
+  @Test(arguments: [1, 2])
+  func `cancelled frame writes stop before the next position or size mutation`(cancelAfter: Int) {
+    var writes = 0
+    let outcome = WindowTilerClient.FrameWritePlan.moveResizeAndMove.apply(
+      setPosition: { writes += 1
+        return .success
+      },
+      setSize: { writes += 1
+        return .success
+      },
+      isCancelled: { writes >= cancelAfter },
+    )
+    #expect(outcome == "cancelled")
+    #expect(writes == cancelAfter)
+  }
+
   @Test
   func `verified process identity reuses ownership without enumerating windows again`() {
     var cache = ApplicationProcessIdentifierCache<String>()
@@ -237,7 +283,7 @@ struct WindowTilerClientTests {
         current: current,
         target: CGRect(x: 400, y: 41, width: 600, height: 600),
         crossesDisplays: false,
-      ) == .moveAndResizeOnce
+      ) == .resizeAndMove
     )
     #expect(
       WindowTilerClient.frameWritePlan(
@@ -442,6 +488,7 @@ struct WindowTilerClientTests {
     #expect(writes.value == [staleTarget, latestTarget])
     #expect(visibleFrames.value[key.windowID] == latestTarget)
   }
+
 }
 
 private func receives<Value: Hashable & Sendable>(

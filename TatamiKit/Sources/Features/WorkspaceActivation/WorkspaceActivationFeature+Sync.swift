@@ -549,6 +549,7 @@ extension WorkspaceActivationFeature {
               target,
               workspaceId: workspaceId,
               shouldFocus: true,
+              expectedFrame: expectedPresentationFrames(for: [target], state: state)[target],
               state: &state,
             )
           }
@@ -559,6 +560,7 @@ extension WorkspaceActivationFeature {
           focused,
           workspaceId: workspaceId,
           shouldFocus: false,
+          expectedFrame: expectedPresentationFrames(for: [focused], state: state)[focused],
           state: &state,
         )
       }
@@ -1250,6 +1252,7 @@ extension WorkspaceActivationFeature {
           target,
           workspaceId: workspaceId,
           shouldFocus: true,
+          expectedFrame: expectedPresentationFrames(for: [target], state: state)[target],
           state: &state,
         )
       }
@@ -1271,6 +1274,7 @@ extension WorkspaceActivationFeature {
         focused,
         workspaceId: workspaceId,
         shouldFocus: false,
+        expectedFrame: expectedPresentationFrames(for: [focused], state: state)[focused],
         state: &state,
       )
     }
@@ -1299,7 +1303,10 @@ extension WorkspaceActivationFeature {
             // an authoritative membership transition, so always perform the
             // first AX write instead of trusting that transient preflight.
             forceAllFrames: !addedKeys.isEmpty,
-            monitorsPresentationChanges: isCompositionMember,
+            // Closing one app reshapes other apps too. Setter success is not
+            // presentation proof, so verify every surviving tile and keep
+            // observing app-owned restores after the close has completed.
+            monitorsPresentationChanges: isCompositionMember || !removedKeys.isEmpty,
             presentationRepairKeys: presentationRepairKeys,
           ),
           postLayoutFocusEffect,

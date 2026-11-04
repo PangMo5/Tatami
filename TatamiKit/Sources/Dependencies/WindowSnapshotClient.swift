@@ -877,12 +877,31 @@ extension WindowSnapshotClient {
     }
   }
 
-  func visibleWindowFrameOffMain(_ key: WindowKey) async -> CGRect? {
+  func visibleWindowFrameOffMain(_ key: WindowKey, expectedFrame: CGRect? = nil) async -> CGRect? {
     switch await visibleWindowFrameAsync(key) {
-    case .value(let frame): frame
+    case .value(let frame):
+      guard !Task.isCancelled else { return nil }
+      guard
+        let surface = frame,
+        let expectedFrame,
+        WindowTilerClient.frameWritePlan(current: surface, target: expectedFrame) != .none
+      else { return frame }
+      // A visible surface can still carry the previous size after AX setters
+      // return. Read the app's acknowledged geometry, including minimum sizes.
+      // Authoritative absence above must never revive an old AX-only surface.
+      let acknowledged = await windowFrameOffMain(key)
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log(
+        "Focus",
+        "post-layout geometry \(key.bundleId)#\(key.windowID) "
+          + "surface=\(surface) expected=\(expectedFrame) "
+          + "acknowledged=\(String(describing: acknowledged))",
+      )
+      return acknowledged
+
     // Lightweight dependency overrides supply the synchronous AX-shaped
     // endpoint. The live endpoint always returns .value, including absence.
-    case .unavailable: await windowFrameOffMain(key)
+    case .unavailable: return await windowFrameOffMain(key)
     }
   }
 
