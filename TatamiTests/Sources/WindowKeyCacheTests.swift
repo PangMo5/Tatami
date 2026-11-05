@@ -15,6 +15,53 @@ struct WindowKeyCacheTests {
   // MARK: Internal
 
   @Test
+  func `empty preview evidence excludes timeouts unclassified windows and stale scans`() {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let cold = WindowKey(pid: 1, windowID: 101, bundleId: "cold")
+      let discovery = WindowCapabilityDiscovery(unreachable: ["offline"], unclassifiedKeys: [cold])
+      let epoch = cache.invalidationGeneration(for: ["empty", "offline", "cold"])
+      let fresh = cache.storeAndResolve(discovery, bundleIds: ["empty", "offline", "cold"], ifUnchangedSince: epoch)
+      #expect(fresh.emptyBundleIds == ["empty"])
+      cache.invalidate(bundleId: "empty")
+      let stale = cache.storeAndResolve(discovery, bundleIds: ["empty", "offline", "cold"], ifUnchangedSince: epoch)
+      #expect(stale.emptyBundleIds.isEmpty)
+
+      let unknown = WindowKeyCache()
+      let beforeUnknownWindow = unknown.invalidationGeneration(for: ["empty"])
+      unknown.invalidate(windowIDs: [999])
+      let invalidated = unknown.storeAndResolve(
+        WindowCapabilityDiscovery(),
+        bundleIds: ["empty"],
+        ifUnchangedSince: beforeUnknownWindow,
+      )
+      #expect(invalidated.emptyBundleIds.isEmpty)
+    }
+  }
+
+  @Test(arguments: [false, true])
+  func `unclassified preview evidence never grants eligibility and respects invalidation`(bundleInvalidation: Bool) {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let key = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+      let epoch = cache.invalidationGeneration(for: [key.bundleId])
+      let discovery = WindowCapabilityDiscovery(retained: [key.windowID], unclassifiedKeys: [key])
+      let before = cache.storeAndResolve(discovery, bundleIds: [key.bundleId], ifUnchangedSince: epoch)
+      #expect(before.unclassifiedKeys == [key])
+      #expect(before.resizableKeys.isEmpty && before.movableKeys.isEmpty)
+      #expect(cache.cached(key.bundleId, requireResizable: true) == [])
+      #expect(cache.cached(key.bundleId, requireResizable: false) == [])
+      if bundleInvalidation {
+        cache.invalidate(bundleId: key.bundleId)
+      } else {
+        cache.invalidate(windowIDs: [key.windowID])
+      }
+      let stale = cache.storeAndResolve(discovery, bundleIds: [key.bundleId], ifUnchangedSince: epoch)
+      #expect(stale.unclassifiedKeys.isEmpty)
+    }
+  }
+
+  @Test
   func `authoritative invalidation removes stale windows from every cache variant`() {
     let ghostty = WindowKey(pid: 1, windowID: 101, bundleId: "com.mitchellh.ghostty")
     let alacritty = WindowKey(pid: 2, windowID: 202, bundleId: "org.alacritty")

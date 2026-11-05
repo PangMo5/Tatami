@@ -1,0 +1,182 @@
+{
+  "name" : "layout-memory",
+  "openingApps" : [
+    "Editor",
+    "Docs"
+  ],
+  "requires" : {
+    "displays" : 1
+  },
+  "setup" : [
+    {
+      "field" : "autoBalance",
+      "kind" : "configure",
+      "value" : "\"both\""
+    },
+    {
+      "display" : 0,
+      "kind" : "pointer",
+      "x" : 0.5,
+      "y" : 0.5
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Chat"
+    },
+    {
+      "apps" : [
+        "Chat"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Laptop",
+      "workspace" : "Write"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    }
+  ],
+  "steps" : [
+    {
+      "kind" : "chapter",
+      "text" : "記住配置"
+    },
+    {
+      "kind" : "caption",
+      "text" : "調整分割比例，為編輯器留出更多空間。"
+    },
+    {
+      "app" : "Editor",
+      "kind" : "activateApp"
+    },
+    {
+      "chord" : "ctrl + alt - =",
+      "kind" : "key",
+      "repeats" : 3
+    },
+    {
+      "kind" : "saveLayout",
+      "text" : "adjusted"
+    },
+    {
+      "app" : "Editor",
+      "kind" : "saveWindow"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "saveWindow"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1300
+    },
+    {
+      "kind" : "caption",
+      "text" : "切換到其他工作空間再回來，比例仍然保持不變。"
+    },
+    {
+      "chord" : "ctrl + alt + shift - 3",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Chat"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 900
+    },
+    {
+      "chord" : "ctrl + alt + shift - 1",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "assertLayout",
+      "text" : "adjusted"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1600
+    },
+    {
+      "kind" : "caption",
+      "text" : "重新開啟 App，仍會還原相同配置。"
+    },
+    {
+      "app" : "Editor",
+      "kind" : "activateApp"
+    },
+    {
+      "chord" : "cmd - q",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Docs"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "chord" : "ctrl + alt + shift - 3",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Chat"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 700
+    },
+    {
+      "chord" : "ctrl + alt + shift - 1",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Editor",
+        "Docs"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "app" : "Editor",
+      "kind" : "assertWindow"
+    },
+    {
+      "app" : "Docs",
+      "kind" : "assertWindow"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    }
+  ],
+  "summary" : "調整分割比例後，切換工作空間或重新開啟 App 仍會保留配置。",
+  "title" : "回到調整後的配置"
+}

@@ -321,6 +321,17 @@ extension WorkspaceActivationFeature {
     guard !workspaceIds.isEmpty else { return .none }
     var effects = [Effect<Action>]()
     for workspaceId in workspaceIds {
+      // Do not construct or persist a default tree before Borrow has loaded
+      // its saved intent. Observer installation can publish a window first.
+      let isHydrating = state.borrowHydrationsByDisplay.contains { display, request in
+        request.workspaceId == workspaceId
+          && state.borrowGenerationByDisplay[display] == request.generation
+          && state.compositionsByDisplay[display]?.borrowed.contains(where: { $0.workspace == workspaceId }) == true
+      }
+      if isHydrating {
+        state.pendingWindowSyncBundleIds.insert(bundleId)
+        continue
+      }
       effects.append(syncAppWindows(
         bundleId: bundleId,
         workspaceId: workspaceId,
@@ -538,6 +549,7 @@ extension WorkspaceActivationFeature {
               target,
               workspaceId: workspaceId,
               shouldFocus: true,
+              expectedFrame: expectedPresentationFrames(for: [target], state: state)[target],
               state: &state,
             )
           }
@@ -548,6 +560,7 @@ extension WorkspaceActivationFeature {
           focused,
           workspaceId: workspaceId,
           shouldFocus: false,
+          expectedFrame: expectedPresentationFrames(for: [focused], state: state)[focused],
           state: &state,
         )
       }
@@ -621,7 +634,7 @@ extension WorkspaceActivationFeature {
       "Suspend",
       "begin \(reason): preserve layouts for \(state.suspendedLayoutWindows.count) workspace(s)",
     )
-    return .none
+    return supersedePendingFocus(state: &state)
   }
 
   /// Clear one lifecycle reason and reconcile only after every overlapping
@@ -682,7 +695,7 @@ extension WorkspaceActivationFeature {
     let suspendedLayouts = state.suspendedLayoutWindows
     state.isRecoveringSystemLayout = false
     state.suspendedLayoutWindows = [:]
-    var effects = [Effect<Action>]()
+    var effects: [Effect<Action>] = [.send(.reconcileDisplacedAppWorkspaces)]
     for workspaceId in suspendedLayouts.keys {
       guard
         state.visibleWorkspaceIDs.contains(workspaceId),
@@ -784,7 +797,7 @@ extension WorkspaceActivationFeature {
     guard !hasOnScreenMembers else { return .none }
     if let borrowDisplay {
       debugLog.log("Borrow", "borrowed \(workspaceId) empty → dismiss")
-      return .send(.dismissBorrow(display: borrowDisplay))
+      return .send(.dismissBorrow(display: borrowDisplay, claimsApps: false))
     }
     return .none
   }
@@ -799,8 +812,7 @@ extension WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action> {
     guard
-      let workspace = state.config.activeProfile?
-        .workspaces[id: workspaceId]
+      let workspace = state.presentedWorkspace(workspaceId)
     else { return .none }
 
     let settings = state.config.settings
@@ -1027,9 +1039,10 @@ extension WorkspaceActivationFeature {
     // App shutdown delivers one destroy per window; capture before the first
     // removal and retain the template through staggered recreation.
     let currentKeys = tree?.windows ?? []
-    let membershipChanged = Set(replacementBaseline?.windows ?? []) != Set(currentKeys)
-    let removedDuringSync = Set(replacementBaseline?.windows ?? [])
-      .subtracting(currentKeys)
+    let previousKeySet = Set(replacementBaseline?.windows ?? [])
+    let currentKeySet = Set(currentKeys)
+    let membershipChanged = previousKeySet != currentKeySet
+    let removedDuringSync = previousKeySet.subtracting(currentKeySet)
     if !removedDuringSync.isEmpty, let replacementBaseline {
       rememberLayoutForRestoration(
         workspaceId: workspaceId,
@@ -1037,15 +1050,18 @@ extension WorkspaceActivationFeature {
         state: &state,
       )
     }
+    var restoredSavedMembership = false
     if let restoration = state.pendingLayoutRestorations[workspaceId] {
       let bindings = restoration.restorationBindings(
         keys: currentKeys,
         retaining: state.layoutRestorationBindings[workspaceId] ?? [:],
       )
-      let liveBindings = bindings.filter { Set(currentKeys).contains($0.value) }
+      let liveBindings = bindings.filter { currentKeySet.contains($0.value) }
       // Rehydrate only for changed membership. A no-op discovery must retain
       // the current ratios, including Auto-balance applied to a partial tree.
       if membershipChanged {
+        restoredSavedMembership = !currentKeySet.subtracting(previousKeySet).isEmpty
+          && currentKeySet.isSubset(of: Set(liveBindings.values))
         let restored = BSPNode.hydrate(template: restoration.tree, keyForSlot: liveBindings)
         tree = Self.mergeTree(
           existing: restored,
@@ -1077,7 +1093,9 @@ extension WorkspaceActivationFeature {
     // still the same logical slot. Compare against the replacement-normalized
     // baseline so neither reconciliation path silently re-equalizes the tree.
     let axis = settings.layout.autoBalance
-    let balanced = axis == .none || !membershipChanged
+    // A returning saved slot restores the user's proportions. Auto-balance
+    // still applies to genuinely new windows and ordinary removals.
+    let balanced = axis == .none || !membershipChanged || restoredSavedMembership
       ? tree
       : tree?.balanced(axis: axis)
     let oldWindows = Set(existing?.windows ?? [])
@@ -1234,6 +1252,7 @@ extension WorkspaceActivationFeature {
           target,
           workspaceId: workspaceId,
           shouldFocus: true,
+          expectedFrame: expectedPresentationFrames(for: [target], state: state)[target],
           state: &state,
         )
       }
@@ -1255,6 +1274,7 @@ extension WorkspaceActivationFeature {
         focused,
         workspaceId: workspaceId,
         shouldFocus: false,
+        expectedFrame: expectedPresentationFrames(for: [focused], state: state)[focused],
         state: &state,
       )
     }
@@ -1283,7 +1303,10 @@ extension WorkspaceActivationFeature {
             // an authoritative membership transition, so always perform the
             // first AX write instead of trusting that transient preflight.
             forceAllFrames: !addedKeys.isEmpty,
-            monitorsPresentationChanges: isCompositionMember,
+            // Closing one app reshapes other apps too. Setter success is not
+            // presentation proof, so verify every surviving tile and keep
+            // observing app-owned restores after the close has completed.
+            monitorsPresentationChanges: isCompositionMember || !removedKeys.isEmpty,
             presentationRepairKeys: presentationRepairKeys,
           ),
           postLayoutFocusEffect,

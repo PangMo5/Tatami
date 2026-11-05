@@ -133,6 +133,33 @@ struct BSPTreeTests {
   }
 
   @Test
+  func `orientation skips multiple fullscreen only ancestors and preserves their metadata`() {
+    let hidden = BSPNode.branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.3,
+      left: .leaf(1),
+      right: .branch(BSPBranch(split: .vertical, ratio: 0.7, left: .leaf(2), right: .leaf(3))),
+    ))
+    let tree = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.6, left: hidden, right: .leaf(4)))
+    let flipped = tree.togglingSplit(at: 3, excluding: [1, 2])
+    #expect(flipped == tree.togglingSplit(at: 4, excluding: [1, 2]))
+    guard case .branch(let root) = flipped else {
+      Issue.record("Expected a root split")
+      return
+    }
+    #expect(root.split == .horizontal)
+    #expect(root.ratio == 0.6)
+    #expect(root.left == hidden)
+    #expect(flipped.togglingSplit(at: 3, excluding: [1, 2]) == tree)
+  }
+
+  @Test(arguments: [1, 2, 3, 99])
+  func `orientation is unchanged when focus has no visible sibling`(focused: Int) throws {
+    let tree = try #require(BSPNode.build([1, 2, 3], in: CGRect(x: 0, y: 0, width: 1000, height: 800)))
+    #expect(tree.togglingSplit(at: focused, excluding: [1, 2]) == tree)
+  }
+
+  @Test
   func `resizing nudges nearest axis ancestor`() throws {
     let display = CGRect(x: 0, y: 0, width: 1000, height: 600)
     let tree = try #require(BSPNode.build([1, 2], in: display)) // vertical split, ratio 0.5

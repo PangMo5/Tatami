@@ -52,7 +52,7 @@ struct BSPLayoutEditingTests {
   @Test
   func `toggle orientation flips parent split`() throws {
     let tree = try #require(BSPNode.build([1, 2], in: wide))
-    let toggled = tree.applying(.toggleOrientation(leafPath: [.right]))
+    let toggled = tree.applying(.toggleOrientation(branchPath: []))
     let frames = toggled.frames(in: wide, gap: 0)
     // Was side-by-side (vertical); now stacked (horizontal).
     #expect(frames[1] == CGRect(x: 0, y: 0, width: 1000, height: 300))
@@ -62,7 +62,7 @@ struct BSPLayoutEditingTests {
   @Test
   func `toggle orientation at root leaf is no op`() {
     let tree = BSPNode<Int>.leaf(1)
-    #expect(tree.togglingSplit(atLeafPath: []) == tree)
+    #expect(tree.togglingSplit(atBranchPath: []) == tree)
   }
 
   @Test

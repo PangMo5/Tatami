@@ -16,6 +16,244 @@ struct WorkspaceLayoutFeatureTests {
 
   // MARK: Internal
 
+  @Test(arguments: [false, true])
+  func `windowless app preview follows auto-open without discarding saved proportions`(autoOpen: Bool) async throws {
+    let ws = Workspace(name: "Browser", apps: [
+      AppAssignment(bundleIdentifier: "a", name: "Browser", autoOpen: true),
+      AppAssignment(bundleIdentifier: "b", name: "Editor", autoOpen: autoOpen),
+    ])
+    let browser = WindowKey(pid: 1, windowID: 10, bundleId: "a")
+    let editor = WindowKey(pid: 2, windowID: 20, bundleId: "b")
+    let snapshot = LayoutSnapshot(
+      tree: .branch(BSPBranch(split: .vertical, ratio: 0.35, left: .leaf(slot("b")), right: .leaf(slot("a")))),
+      fullscreenZoomedSlots: [slot("a")],
+    )
+    var state = makeState(ws)
+    state.layoutSnapshot = snapshot
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.windowSnapshot.discoverCapabilitiesAsync = { _ in
+        .value(WindowCapabilitySnapshot(movableKeys: [browser], resizableKeys: [browser], emptyBundleIds: ["b"]))
+      }
+    }
+    store.exhaustivity = .off
+    await store.send(.loadWindowTitles(bundleIds: ["a", "b"]))
+    await store.receive(\.windowInfoLoaded)
+    await store.finish()
+    let projected = try #require(store.state.resolved)
+    #expect(projected.renderRegions(in: unit, hidden: []).tiles.isEmpty == !autoOpen)
+    #expect(store.state.layoutSnapshot == snapshot)
+
+    // An unavailable refresh contributes no new absence proof.
+    await store.send(.windowInfoLoaded(
+      workspaceId: ws.id,
+      generation: store.state.windowInfoRequestGeneration,
+      titles: [:],
+      present: [],
+      keys: [],
+    ))
+    #expect(store.state.emptyBundleIds.isEmpty)
+    let unknown = try #require(store.state.resolved)
+    #expect(unknown.renderRegions(in: unit, hidden: []).tiles.flatMap(\.bundleIds) == ["b"])
+    await store.send(.windowInfoLoaded(
+      workspaceId: ws.id,
+      generation: store.state.windowInfoRequestGeneration,
+      titles: [:],
+      present: ["a", "b"],
+      keys: [browser, editor],
+    ))
+    #expect(store.state.emptyBundleIds.isEmpty)
+    let reopened = try #require(store.state.resolved)
+    guard case .template(let restored, _) = reopened else {
+      Issue.record("Expected the restored inactive template")
+      return
+    }
+    #expect(restored == snapshot.tree)
+    #expect(store.state.layoutSnapshot == snapshot)
+  }
+
+  @Test(arguments: [false, true])
+  func `preview orientation targets the rendered split across a fullscreen sibling`(active: Bool) async throws {
+    let keys = [
+      WindowKey(pid: 1, windowID: 10, bundleId: "a"),
+      WindowKey(pid: 2, windowID: 20, bundleId: "b"),
+      WindowKey(pid: 3, windowID: 30, bundleId: "c"),
+    ]
+    let ws = Workspace(name: "W", apps: keys.map { AppAssignment(bundleIdentifier: $0.bundleId, name: $0.bundleId) })
+    let tree = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.6,
+      left: .branch(BSPBranch(split: .horizontal, ratio: 0.3, left: .leaf(keys[0]), right: .leaf(keys[1]))),
+      right: .leaf(keys[2]),
+    ))
+    var state = makeState(ws)
+    state.isActive = active
+    state.liveTree = tree
+    state.liveZoomed = [keys[0]]
+    state.layoutSnapshot = LayoutSnapshot(liveTree: tree, fullscreenZoomed: [keys[0]])
+    state.selectedTile = SelectedTile(path: [.left], bundleId: "b", liveKey: active ? keys[1] : nil, occurrence: 0)
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.layoutStore.save = { _, snapshot in saved.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.toggleOrientation)
+    if active {
+      await store.receive {
+        guard case .delegate(.activeLayoutEdited(let id, let op)) = $0 else { return false }
+        return id == ws.id && op == .toggleOrientation(branchPath: [])
+      }
+    }
+    await store.finish()
+
+    #expect(store.state.selectedTile == nil)
+    if active {
+      #expect(saved.value.isEmpty)
+    } else {
+      let changed = try #require(saved.value.last)
+      #expect(changed == LayoutSnapshot(liveTree: tree.togglingSplit(atBranchPath: []), fullscreenZoomed: [keys[0]]))
+    }
+  }
+
+  @Test(arguments: [false, true])
+  func `cold unclassified window bounds saved preview without adding dialog tiles`(classified: Bool) async throws {
+    let ws = Workspace(name: "Browser", apps: [AppAssignment(bundleIdentifier: "a", name: "Browser")])
+    let key = WindowKey(pid: 1, windowID: 10, bundleId: "a")
+    let dialog = WindowKey(pid: 1, windowID: 11, bundleId: "a")
+    var state = makeState(ws)
+    let snapshot = LayoutSnapshot(
+      tree: .branch(BSPBranch(split: .vertical, ratio: 0.3, left: .leaf(slot("a", 0)), right: .leaf(slot("a", 1)))),
+      fullscreenZoomedSlots: [slot("a", 0)],
+    )
+    state.layoutSnapshot = snapshot
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.windowSnapshot.discoverCapabilitiesAsync = { _ in
+        .value(WindowCapabilitySnapshot(
+          movableKeys: classified ? [key] : [],
+          resizableKeys: classified ? [key] : [],
+          unclassifiedKeys: classified ? [dialog] : [key],
+        ))
+      }
+    }
+    store.exhaustivity = .off
+    await store.send(.loadWindowTitles(bundleIds: ["a"]))
+    await store.receive(\.windowInfoLoaded)
+    await store.finish()
+    #expect(store.state.windowKeys == [key])
+    let projected = try #require(store.state.resolved)
+    #expect(projected.fullscreenItems().map(\.slot) == [slot("a", 0)])
+    #expect(projected.renderRegions(in: unit, hidden: []).tiles.isEmpty)
+    #expect(store.state.layoutSnapshot == snapshot)
+  }
+
+  @Test(arguments: [false, true])
+  func `inactive preview projects current windows without erasing saved restoration slots`(hasTitles: Bool) async throws {
+    let ws = Workspace(name: "Browser", apps: [AppAssignment(bundleIdentifier: "a", name: "Browser")])
+    let first = WindowKey(pid: 1, windowID: 10, bundleId: "a")
+    let second = WindowKey(pid: 1, windowID: 11, bundleId: "a")
+    let tree = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.4,
+      left: .leaf(slot("a", 0)),
+      right: .branch(BSPBranch(
+        split: .horizontal,
+        ratio: 0.3,
+        left: .leaf(slot("a", 1)),
+        right: .leaf(slot("removed-app")),
+      )),
+    ))
+    let snapshot = LayoutSnapshot(tree: tree, fullscreenZoomedSlots: [slot("a", 0)])
+    var state = makeState(ws)
+    state.layoutSnapshot = snapshot
+    state.windowInfoRequestGeneration = 1
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.windowSnapshot.discoverKeys = { _, _ in [first, second] }
+      $0.windowSnapshot.windowTitles = { _ in hasTitles ? [first: "First", second: "Second"] : [:] }
+    }
+    store.exhaustivity = .off
+    await store.send(.windowInfoLoaded(
+      workspaceId: ws.id,
+      generation: 1,
+      titles: hasTitles ? [first: "First"] : [:],
+      present: ["a"],
+      keys: [first],
+    ))
+    let projected = try #require(store.state.resolved)
+    #expect(projected.fullscreenItems().map(\.slot) == [slot("a", 0)])
+    #expect(projected.renderRegions(in: unit, hidden: []).tiles.isEmpty)
+    #expect(store.state.layoutSnapshot == snapshot)
+
+    // Reopening the second window restores its preview slot. Missing titles
+    // are not missing windows, and previewing never rewrites the saved layout.
+    await store.send(.loadWindowTitles(bundleIds: ["a"]))
+    await store.receive(\.windowInfoLoaded)
+    await store.finish()
+    let restored = try #require(store.state.resolved)
+    #expect(restored.renderRegions(in: unit, hidden: []).tiles.map(\.slot) == [slot("a", 1)])
+    #expect(store.state.layoutSnapshot == snapshot)
+  }
+
+  @Test
+  func `inactive preview retains the surviving second windows identity and zoom`() throws {
+    let ws = Workspace(name: "Browser", apps: [AppAssignment(bundleIdentifier: "a", name: "Browser")])
+    let first = WindowKey(pid: 1, windowID: 10, bundleId: "a")
+    let second = WindowKey(pid: 1, windowID: 11, bundleId: "a")
+    var state = makeState(ws)
+    state.layoutSnapshot = LayoutSnapshot(
+      tree: .branch(BSPBranch(split: .vertical, ratio: 0.3, left: .leaf(slot("a", 0)), right: .leaf(slot("a", 1)))),
+      fullscreenZoomedSlots: [slot("a", 0)],
+    )
+    state.liveTree = .branch(BSPBranch(split: .vertical, ratio: 0.3, left: .leaf(first), right: .leaf(second)))
+    state.windowKeys = [second]
+    state.windowTitles = [second: "Survivor"]
+    let resolved = try #require(state.resolved)
+    #expect(state.previewWindowBindings == [slot("a", 1): second])
+    #expect(resolved.fullscreenItems().isEmpty)
+    #expect(resolved.renderRegions(in: unit, hidden: []).tiles.map(\.slot) == [slot("a", 1)])
+  }
+
+  @Test(arguments: AutoBalanceMode.allCases)
+  func `inactive preview preserves restored proportions like activation`(balance: AutoBalanceMode) throws {
+    let ws = Workspace(name: "Work", apps: [
+      AppAssignment(bundleIdentifier: "a", name: "A"),
+      AppAssignment(bundleIdentifier: "b", name: "B"),
+    ])
+    var state = makeState(ws)
+    let tree = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.7, left: .leaf(slot("a")), right: .leaf(slot("b"))))
+    state.layoutSnapshot = LayoutSnapshot(tree: tree)
+    state.$config.withLock { $0.settings.layout.autoBalance = balance }
+    guard case .template(let actual, _) = try #require(state.resolved) else {
+      Issue.record("Expected an inactive template")
+      return
+    }
+    #expect(actual == tree)
+  }
+
+  @Test
+  func `inactive edits use the same projected tree as the preview`() async {
+    let ws = Workspace(name: "Work", apps: [
+      AppAssignment(bundleIdentifier: "a", name: "A"),
+      AppAssignment(bundleIdentifier: "b", name: "B"),
+    ])
+    var state = makeState(ws)
+    state.layoutSnapshot = LayoutSnapshot(tree: .branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.4,
+      left: .leaf(slot("a", 0)),
+      right: .branch(BSPBranch(split: .horizontal, ratio: 0.3, left: .leaf(slot("a", 1)), right: .leaf(slot("b")))),
+    )))
+    state.windowKeys = [WindowKey(pid: 1, windowID: 10, bundleId: "a"), WindowKey(pid: 2, windowID: 20, bundleId: "b")]
+    let saved = LockIsolated<[LayoutSnapshot]>([])
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.layoutStore.save = { _, snapshot in saved.withValue { $0.append(snapshot) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.dividerResized(trimmedBranchPath: [], ratio: 0.7))
+    await store.finish()
+    let expected = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.7, left: .leaf(slot("a")), right: .leaf(slot("b"))))
+    #expect(saved.value.last?.tree == expected)
+  }
+
   @Test
   func `inactive divider resize saves synthesized snapshot`() async {
     let ws = Workspace(

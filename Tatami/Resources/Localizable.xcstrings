@@ -35,6 +35,111 @@
         }
       }
     },
+    "Bring scratchpads to the pointer display": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bring scratchpads to the pointer display"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마우스가 있는 화면으로 임시 공간 가져오기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ポインタのある画面に一時スペースを移す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将暂存区移到指针所在显示器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將暫存區帶到游標所在顯示器"
+          }
+        }
+      }
+    },
+    "Clear Search": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Search"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검색 지우기"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索をクリア"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜索"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜尋"
+          }
+        }
+      }
+    },
+    "No settings found": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No settings found"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "찾는 설정이 없어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定が見つかりません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到設定"
+          }
+        }
+      }
+    },
     "Remove App": {
       "localizations": {
         "en": {
@@ -779,6 +884,76 @@
           "stringUnit": {
             "state": "translated",
             "value": "加入 App"
+          }
+        }
+      }
+    },
+    "Search Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Settings"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정 검색"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定を検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋設定"
+          }
+        }
+      }
+    },
+    "Summon a scratchpad here even when it is already open on another display.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summon a scratchpad here even when it is already open on another display."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 화면에 열려 있는 임시 공간도 마우스가 있는 화면으로 가져와요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の画面に開いている一時スペースも、ポインタのある画面に移します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即使暂存区已在其他显示器上打开，也会移到指针所在显示器。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即使暫存區已在其他顯示器開啟，也會帶到游標所在顯示器。"
           }
         }
       }
@@ -18185,31 +18360,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "포인터가 전체 화면 창을 지나가도 포커스를 옮기지 않아요."
+            "value": "같은 화면 안에서는 전체 화면 창으로 포커스를 옮기지 않아요. 다른 화면으로 마우스를 옮기면 포커스도 따라가요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ディスプレイ全体を覆うウインドウをポインタが通過しても、フォーカスを移しません。"
+            "value": "同じ画面内では全画面のウインドウにフォーカスを移しません。別の画面へポインタを動かすとフォーカスも移ります。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "指针经过铺满整个显示器的窗口时，不要将焦点移过去。"
+            "value": "在同一显示器内移动时，不聚焦全屏窗口。移到其他显示器时，焦点仍会跟随。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "游標經過填滿整個顯示器的視窗時，不要將焦點移過去。"
+            "value": "在同一顯示器內移動時，不聚焦全螢幕視窗。移到其他顯示器時，焦點仍會跟隨。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Don't shift focus to a window that fills the whole display as the cursor passes over it."
+            "value": "Skip full-screen windows while moving within one display. Moving to another display still changes focus."
           }
         }
       }
@@ -18865,31 +19040,31 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "창이 추가되거나 사라질 때마다 모든 분할 비율을 같게 맞춰요."
+            "value": "창을 추가하거나 제거하면 비율을 고르게 맞춰요. 저장된 자리로 돌아온 창은 기존 비율을 유지해요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ウインドウが追加または削除されるたびに、すべての分割比率を揃えます。"
+            "value": "ウインドウの追加・削除時に分割を均等にします。保存済みの位置に戻るウインドウは比率を維持します。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每次添加或移除窗口时，自动均衡所有分区。"
+            "value": "添加或移除窗口时均衡分割。返回已保存位置的窗口保留原有比例。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "每次加入或移除視窗時，自動平衡所有分割區。"
+            "value": "新增或移除視窗時平均調整分割。回到已儲存位置的視窗保留原有比例。"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Equalize every split whenever a window is added or removed."
+            "value": "Equalize when windows are added or removed. Returning saved windows keep their proportions."
           }
         }
       }
@@ -42355,6 +42530,244 @@
           "stringUnit": {
             "state": "translated",
             "value": "減少切換工作空間或聚焦視窗時的等待，在儲存設定和復原佈局期間也能更順暢地輸入。"
+          }
+        }
+      }
+    },
+    "Tatami 1.15 helps you find settings, keep your adjusted layouts, and bring the apps you need to the display where you are working.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.15 helps you find settings, keep your adjusted layouts, and bring the apps you need to the display where you are working."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.15에서는 설정을 쉽게 찾고 조절한 배치를 유지해요. 필요한 앱을 지금 작업하는 화면으로 가져올 수 있어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.15 では設定を探しやすくなり、調整した配置を保てます。必要なアプリを作業中の画面へ移せます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.15 让你更轻松地查找设置、保留调整后的布局，并将所需应用带到当前工作的显示器。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tatami 1.15 讓你更容易尋找設定、保留調整後的配置，並將需要的 App 帶到目前工作的顯示器。"
+          }
+        }
+      }
+    },
+    "Find Settings Faster": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find Settings Faster"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정을 빠르게 찾아요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定をすばやく探す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速查找设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快速尋找設定"
+          }
+        }
+      }
+    },
+    "Search by name, description, or shortcut. Select a result to reveal its setting and briefly highlight the matching control.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search by name, description, or shortcut. Select a result to reveal its setting and briefly highlight the matching control."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이름과 설명, 단축키로 설정을 검색해요. 결과를 누르면 해당 설정으로 이동하고 잠깐 강조해요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "名前、説明、ショートカットで設定を検索できます。結果を選ぶと該当する設定へ移動し、一瞬ハイライトします。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按名称、说明或快捷键搜索。选择结果即可跳转到对应设置，并短暂高亮显示。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "依名稱、說明或快速鍵搜尋。選取結果即可前往對應設定，並短暫醒目顯示。"
+          }
+        }
+      }
+    },
+    "Keep Your Layouts": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Your Layouts"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "조절한 배치를 유지해요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整した配置を保つ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留调整后的布局"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留調整後的配置"
+          }
+        }
+      }
+    },
+    "Your adjusted split ratios survive workspace switches and reopened windows. Layout previews follow the windows that are currently available.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your adjusted split ratios survive workspace switches and reopened windows. Layout previews follow the windows that are currently available."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 공간을 오가거나 창을 다시 열어도 조절한 비율을 유지해요. 배치 미리보기는 현재 사용할 수 있는 창에 맞춰 표시해요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークスペースを切り替えたりウインドウを開き直したりしても、調整した比率を保ちます。配置プレビューには現在使えるウインドウを反映します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切换工作区或重新打开窗口后，仍会保留调整后的分割比例。布局预览会反映当前可用的窗口。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切換工作空間或重新開啟視窗後，仍會保留調整後的分割比例。配置預覽會反映目前可用的視窗。"
+          }
+        }
+      }
+    },
+    "Continue on Another Display": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue on Another Display"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 화면에서도 이어서 작업해요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別の画面で作業を続ける"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在其他显示器继续工作"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在其他顯示器繼續工作"
+          }
+        }
+      }
+    },
+    "Bring an open scratchpad to the display under the pointer. When an app belongs to several workspaces, the workspace you select takes priority.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bring an open scratchpad to the display under the pointer. When an app belongs to several workspaces, the workspace you select takes priority."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "열려 있는 임시 공간을 마우스가 있는 화면으로 가져와요. 여러 작업 공간에 등록한 앱은 마지막으로 선택한 작업 공간에서 사용해요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開いている一時スペースをポインタのある画面へ移せます。複数のワークスペースに登録したアプリは、選んだワークスペースを優先します。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将已打开的暂存区带到指针所在的显示器。应用属于多个工作区时，优先使用你选择的工作区。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將已開啟的暫存區帶到游標所在的顯示器。App 屬於多個工作空間時，優先使用你選取的工作空間。"
           }
         }
       }

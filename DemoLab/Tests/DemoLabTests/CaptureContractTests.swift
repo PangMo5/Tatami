@@ -11,6 +11,29 @@ import Testing
 @Suite("Capture contract")
 struct CaptureContractTests {
   @Test
+  func `window readiness counts same-app windows and exact checks reject leftovers`() {
+    #expect(!CaptureGate.containsWindowSet(["Docs"], expected: ["Docs", "Docs"], exact: false))
+    #expect(CaptureGate.containsWindowSet(["Docs", "Docs", "Editor"], expected: ["Docs", "Docs"], exact: false))
+    #expect(!CaptureGate.containsWindowSet(["Docs", "Docs", "Editor"], expected: ["Docs", "Docs"], exact: true))
+    #expect(CaptureGate.containsWindowSet(["Docs", "Editor", "Docs"], expected: ["Editor", "Docs", "Docs"], exact: true))
+    #expect(CaptureGate.containsWindowSet([], expected: [], exact: true))
+  }
+
+  @Test
+  func `exact window readiness is opt-in for existing scene files`() throws {
+    for exact in [false, true] {
+      let data = Data("{\"kind\":\"waitWindows\",\"apps\":[\"Docs\",\"Docs\"]\(exact ? ",\"exact\":true" : "")}".utf8)
+      let step = try JSONDecoder().decode(SceneStep.self, from: data)
+      guard case .waitWindows(let apps, _, let decodedExact) = step else {
+        Issue.record("Expected a window readiness step")
+        return
+      }
+      #expect(apps == ["Docs", "Docs"])
+      #expect(decodedExact == exact)
+    }
+  }
+
+  @Test
   func `arrow events retain their hardware key identity without adding modifiers to letters`() {
     let modifiers: CGEventFlags = [.maskControl, .maskAlternate, .maskShift]
     let arrow = KeyDriver.eventFlags(for: 124, modifiers: modifiers)

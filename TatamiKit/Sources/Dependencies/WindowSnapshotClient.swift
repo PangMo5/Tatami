@@ -230,6 +230,7 @@ actor WindowDiscoveryCoordinator {
       merged.resizableKeys += discovery.resizableKeys
       merged.unreachable.formUnion(discovery.unreachable)
       merged.retained.formUnion(discovery.retained)
+      merged.unclassifiedKeys += discovery.unclassifiedKeys
     }
     if !merged.unreachable.isEmpty {
       merged.movableKeys.removeAll {
@@ -238,6 +239,7 @@ actor WindowDiscoveryCoordinator {
       merged.resizableKeys.removeAll {
         merged.unreachable.contains($0.bundleId)
       }
+      merged.unclassifiedKeys.removeAll { merged.unreachable.contains($0.bundleId) }
     }
     merged.retained.subtract(merged.movableKeys.map(\.windowID))
     return merged
@@ -620,6 +622,10 @@ enum WindowKeyCacheLookup: Equatable, Sendable {
 struct WindowCapabilitySnapshot: Equatable, Sendable {
   var movableKeys: [WindowKey]
   var resizableKeys: [WindowKey]
+  var unclassifiedKeys = [WindowKey]()
+  /// Fresh enumeration confirmed no usable window identity; timeouts and stale scans never
+  /// enter this set, even when there is no cached key to retain.
+  var emptyBundleIds = Set<String>()
 }
 
 // MARK: - WindowSnapshotClient
@@ -697,6 +703,11 @@ struct WindowSnapshotClient: Sendable {
   /// windows that have no entry in the BSP frame map.
   var windowFrame: @Sendable (_ key: WindowKey) -> CGRect? = { _ in nil }
   var windowFrameAsync:
+    @Sendable (_ key: WindowKey) async -> AsyncWindowSnapshot<CGRect?> = { _ in .unavailable }
+  /// Exact visible geometry for focus/MFF. A newly opened app can display its
+  /// window before it answers AX frame requests. WindowServer owns the visible
+  /// surface and does not wait on that app's run loop.
+  var visibleWindowFrameAsync:
     @Sendable (_ key: WindowKey) async -> AsyncWindowSnapshot<CGRect?> = { _ in .unavailable }
   /// Fresh geometry for every on-screen window from one WindowServer snapshot.
   /// This is local IPC rather than a per-app AX round trip.
@@ -866,6 +877,34 @@ extension WindowSnapshotClient {
       await MainActor.run {
         focusedWindowKey()
       }
+    }
+  }
+
+  func visibleWindowFrameOffMain(_ key: WindowKey, expectedFrame: CGRect? = nil) async -> CGRect? {
+    switch await visibleWindowFrameAsync(key) {
+    case .value(let frame):
+      guard !Task.isCancelled else { return nil }
+      guard
+        let surface = frame,
+        let expectedFrame,
+        WindowTilerClient.frameWritePlan(current: surface, target: expectedFrame) != .none
+      else { return frame }
+      // A visible surface can still carry the previous size after AX setters
+      // return. Read the app's acknowledged geometry, including minimum sizes.
+      // Authoritative absence above must never revive an old AX-only surface.
+      let acknowledged = await windowFrameOffMain(key)
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log(
+        "Focus",
+        "post-layout geometry \(key.bundleId)#\(key.windowID) "
+          + "surface=\(surface) expected=\(expectedFrame) "
+          + "acknowledged=\(String(describing: acknowledged))",
+      )
+      return acknowledged
+
+    // Lightweight dependency overrides supply the synchronous AX-shaped
+    // endpoint. The live endpoint always returns .value, including absence.
+    case .unavailable: return await windowFrameOffMain(key)
     }
   }
 
@@ -1065,6 +1104,14 @@ extension WindowSnapshotClient: DependencyKey {
       windowFrameAsync: { key in
         .value(await liveWindowFrameAsync(key))
       },
+      visibleWindowFrameAsync: { key in
+        let windows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        let frame = windows.first {
+          $0.id == key.windowID && $0.surface.ownerPID == key.pid && $0.alpha > 0
+            && $0.surface.frame.width > 1 && $0.surface.frame.height > 1
+        }?.surface.frame
+        return .value(frame)
+      },
       onScreenWindowFrames: {
         preconditionFailure("Live WindowServer reads require onScreenWindowFramesOffMain")
       },
@@ -1141,6 +1188,7 @@ extension WindowSnapshotClient: DependencyKey {
     focusedWindowKeyForAppAsync: { _, _ in .unavailable },
     windowFrame: { _ in nil },
     windowFrameAsync: { _ in .unavailable },
+    visibleWindowFrameAsync: { _ in .unavailable },
     onScreenWindowFrames: { [:] },
     onScreenWindowSurfaces: { [:] },
     onScreenWindowSurfacesAsync: { .unavailable },
@@ -1432,9 +1480,22 @@ final class WindowKeyCache {
       requireResizable: true,
       ifUnchangedSince: expectedInvalidationEpoch,
     )
+    let observedBundles = Set((discovery.movableKeys + discovery.resizableKeys + discovery.unclassifiedKeys
+        + movableKeys + resizableKeys).map(\.bundleId))
+    let emptyBundles = Set(bundleIds).subtracting(discovery.unreachable).subtracting(observedBundles).filter { bundleId in
+      guard let epoch = expectedInvalidationEpoch else { return true }
+      return invalidationGeneration(for: [bundleId]) <= epoch
+    }
     return WindowCapabilitySnapshot(
       movableKeys: movableKeys,
       resizableKeys: resizableKeys,
+      unclassifiedKeys: discovery.unclassifiedKeys.filter { key in
+        guard bundleIds.contains(key.bundleId), !discovery.unreachable.contains(key.bundleId) else { return false }
+        guard let epoch = expectedInvalidationEpoch else { return true }
+        return bundleInvalidationEpoch[key.bundleId, default: 0] <= epoch
+          && invalidationEpoch(for: key.windowID) <= epoch
+      },
+      emptyBundleIds: emptyBundles,
     )
   }
 

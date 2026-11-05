@@ -332,8 +332,50 @@ extension WindowTilerClient: DependencyKey {
     case none
     case resizeOnly
     case moveOnly
-    case moveAndResizeOnce
+    case resizeAndMove
+    case moveResizeAndMove
     case moveAndResizeTwice
+
+    // MARK: Internal
+
+    func apply(
+      setPosition: () -> AXError,
+      setSize: () -> AXError,
+      isCancelled: () -> Bool = { false },
+    ) -> String {
+      guard self != .none else { return "skipped-current" }
+      var positionError: AXError?
+      var sizeError: AXError?
+      for attribute in attributes {
+        guard !isCancelled() else { return "cancelled" }
+        switch attribute {
+        case .position: positionError = setPosition()
+        case .size: sizeError = setSize()
+        }
+      }
+      if positionError.map({ $0 != .success }) != true, sizeError.map({ $0 != .success }) != true {
+        return "ok"
+      }
+      return [
+        positionError.map { "pos=\($0.rawValue)" },
+        sizeError.map { "size=\($0.rawValue)" },
+      ].compactMap { $0 }.joined(separator: " ")
+    }
+
+    // MARK: Private
+
+    private enum Attribute { case position, size }
+
+    private var attributes: [Attribute] {
+      switch self {
+      case .none: []
+      case .resizeOnly: [.size]
+      case .moveOnly: [.position]
+      case .resizeAndMove: [.size, .position]
+      case .moveResizeAndMove: [.position, .size, .position]
+      case .moveAndResizeTwice: [.position, .size, .position, .size]
+      }
+    }
   }
 
   static let liveValue = WindowTilerClient { request in
@@ -366,7 +408,9 @@ extension WindowTilerClient: DependencyKey {
   /// A resize at the same origin never crosses displays, and a pure move
   /// cannot be clamped to a different size. Only a simultaneous move and
   /// resize (or an off-screen window without fresh geometry) needs the
-  /// repeated position/size pass used for cross-display convergence.
+  /// origin-aware ordering. Growing at an old bottom/right origin can be
+  /// clamped even on the same display; move first to make room, then restore
+  /// the position after the app applies its own size constraints.
   static func frameWritePlan(
     current: CGRect?,
     target: CGRect,
@@ -390,7 +434,10 @@ extension WindowTilerClient: DependencyKey {
     case (false, true):
       return .moveOnly
     case (false, false):
-      return crossesDisplays == false ? .moveAndResizeOnce : .moveAndResizeTwice
+      guard crossesDisplays == false else { return .moveAndResizeTwice }
+      let grows = target.width > current.width + tolerance
+        || target.height > current.height + tolerance
+      return grows ? .moveResizeAndMove : .resizeAndMove
     }
   }
 
@@ -574,55 +621,11 @@ extension WindowTilerClient: DependencyKey {
         .map { $0 != currentDisplay }
     }
 
-    switch frameWritePlan(
+    return frameWritePlan(
       current: currentFrame,
       target: frame,
       crossesDisplays: crossesDisplays,
-    ) {
-    case .none:
-      return "skipped-current"
-
-    case .resizeOnly:
-      guard !isCancelled() else { return "cancelled" }
-      let sizeError = setSize()
-      return sizeError == .success ? "ok" : "size=\(sizeError.rawValue)"
-
-    case .moveOnly:
-      guard !isCancelled() else { return "cancelled" }
-      let posError = setPosition()
-      return posError == .success ? "ok" : "pos=\(posError.rawValue)"
-
-    case .moveAndResizeOnce:
-      // Same-display geometry has no old-display clamp. Resize first so the
-      // final position write restores the exact origin if the target app
-      // adjusts its frame while honoring min/max-size constraints.
-      guard !isCancelled() else { return "cancelled" }
-      let sizeError = setSize()
-      guard !isCancelled() else { return "cancelled" }
-      let posError = setPosition()
-      if posError == .success, sizeError == .success {
-        return "ok"
-      }
-      return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
-
-    case .moveAndResizeTwice:
-      // Moving a window to a larger display can clamp its size to the current
-      // display before the position write lands. Repeat the pair only for this
-      // path; the second pass now runs against the target display.
-      // (yabai uses the same repeated set for cross-display convergence.)
-      guard !isCancelled() else { return "cancelled" }
-      _ = setPosition()
-      guard !isCancelled() else { return "cancelled" }
-      _ = setSize()
-      guard !isCancelled() else { return "cancelled" }
-      let posError = setPosition()
-      guard !isCancelled() else { return "cancelled" }
-      let sizeError = setSize()
-      if posError == .success, sizeError == .success {
-        return "ok"
-      }
-      return "pos=\(posError.rawValue) size=\(sizeError.rawValue)"
-    }
+    ).apply(setPosition: setPosition, setSize: setSize, isCancelled: isCancelled)
   }
 
   private static func displayID(containing point: CGPoint) -> CGDirectDisplayID? {
@@ -917,6 +920,9 @@ struct WindowCapabilityDiscovery: Sendable {
   var resizableKeys = [WindowKey]()
   var unreachable = Set<String>()
   var retained = Set<CGWindowID>()
+  /// Enumerated identities whose subrole is temporarily unclassified. These
+  /// bound saved preview occurrences without granting tiling eligibility.
+  var unclassifiedKeys = [WindowKey]()
 
   func discovery(requireResizable: Bool) -> WindowDiscovery {
     WindowDiscovery(
@@ -987,6 +993,7 @@ func discoverWindowCapabilities(
   var resizableKeys = [WindowKey]()
   var unreachable = Set<String>()
   var retainedIDs = Set<CGWindowID>()
+  var unclassifiedKeys = [WindowKey]()
   let attrs = [
     kAXMinimizedAttribute,
     kAXSubroleAttribute,
@@ -1108,6 +1115,7 @@ func discoverWindowCapabilities(
           // surfaces were rejected above and never receive this grace.
           if widProbe != 0 {
             retainedIDs.insert(widProbe)
+            unclassifiedKeys.append(WindowKey(pid: pid, windowID: widProbe, bundleId: bundleId))
           }
           reject(widProbe, "subrole=\(subrole)")
           continue
@@ -1177,6 +1185,7 @@ func discoverWindowCapabilities(
     resizableKeys: resizableKeys,
     unreachable: unreachable,
     retained: retainedIDs,
+    unclassifiedKeys: unclassifiedKeys,
   )
 }
 

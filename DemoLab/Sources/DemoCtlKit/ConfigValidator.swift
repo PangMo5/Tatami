@@ -330,6 +330,7 @@ public enum ConfigValidator {
         "cycleSameAppWindows",
         "includeSharedAppsInWindowSwitcher",
         "toggleBorrowOnRepeat",
+        "bringScratchpadToPointerDisplay",
         "borrowDefaultEdge",
         "borrowFraction",
       ]),

@@ -9,6 +9,115 @@ import Testing
 @testable import TatamiKit
 
 struct FocusFollowsMouseTests {
+  @Test(arguments: [true, false])
+  func `fullscreen exclusion is limited to the same display`(ignoreFullscreen: Bool) {
+    let display = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let context = FocusFollowsMouseDisplayContext(origin: CGPoint(x: 100, y: 100))
+
+    #expect(context.allowsFocus(
+      on: display,
+      at: CGPoint(x: 500, y: 400),
+      displays: [display],
+      frontBounds: [],
+      ignoreFullscreen: ignoreFullscreen,
+    ) == !ignoreFullscreen)
+  }
+
+  @Test(arguments: [
+    CGRect(x: 1_000, y: 0, width: 1_000, height: 800),
+    CGRect(x: -1_000, y: 0, width: 1_000, height: 800),
+    CGRect(x: 0, y: -800, width: 1_000, height: 800),
+  ])
+  func `crossing displays admits a fullscreen target with the exclusion on`(target: CGRect) {
+    let source = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let point = CGPoint(x: target.midX, y: target.midY)
+    var context = FocusFollowsMouseDisplayContext(origin: CGPoint(x: 500, y: 400))
+
+    #expect(context.allowsFocus(
+      on: target,
+      at: point,
+      displays: [target, source],
+      frontBounds: [],
+      ignoreFullscreen: true,
+    ))
+
+    context.origin = point
+    #expect(!context.allowsFocus(
+      on: target,
+      at: CGPoint(x: point.x + 10, y: point.y),
+      displays: [source, target],
+      frontBounds: [],
+      ignoreFullscreen: true,
+    ))
+  }
+
+  @Test
+  func `a display crossing survives a tile gap until its target is admitted`() {
+    let source = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let target = CGRect(x: 1_000, y: 0, width: 1_000, height: 800)
+    let tile = CGRect(x: 1_100, y: 100, width: 400, height: 400)
+    let context = FocusFollowsMouseDisplayContext(origin: CGPoint(x: 500, y: 400))
+
+    #expect(!context.allowsFocus(
+      on: target,
+      at: CGPoint(x: 1_090, y: 200),
+      displays: [source, target],
+      frontBounds: [tile],
+      ignoreFullscreen: true,
+    ))
+    #expect(context.allowsFocus(
+      on: target,
+      at: CGPoint(x: 1_800, y: 600),
+      displays: [source, target],
+      frontBounds: [tile],
+      ignoreFullscreen: true,
+    ))
+  }
+
+  @Test(arguments: [nil, CGPoint(x: -500, y: 100)])
+  func `unknown origin does not bypass fullscreen exclusion`(origin: CGPoint?) {
+    let display = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let context = FocusFollowsMouseDisplayContext(origin: origin)
+
+    #expect(!context.allowsFocus(
+      on: display,
+      at: CGPoint(x: 500, y: 400),
+      displays: [display],
+      frontBounds: [],
+      ignoreFullscreen: true,
+    ))
+    #expect(context.allowsFocus(
+      on: CGRect(x: 0, y: 0, width: 500, height: 800),
+      at: CGPoint(x: 100, y: 100),
+      displays: [display],
+      frontBounds: [],
+      ignoreFullscreen: true,
+    ))
+  }
+
+  @Test
+  func `first physical move after a warp uses the destination display as its origin`() {
+    let gate = ProgrammaticPointerWarpGate()
+    let destination = CGPoint(x: 500, y: 400)
+    gate.recordWarp(to: destination, timestamp: 200)
+    let point = CGPoint(x: 1_500, y: 400)
+    let evaluation = gate.evaluateMouseMove(at: point, timestamp: 201)
+    let context = FocusFollowsMouseDisplayContext(origin: evaluation.warpDestination)
+    let source = CGRect(x: 0, y: 0, width: 1_000, height: 800)
+    let target = CGRect(x: 1_000, y: 0, width: 1_000, height: 800)
+
+    #expect(evaluation.allowsFocus)
+    #expect(evaluation.warpDestination == destination)
+    #expect(gate.evaluateMouseMove(at: point, timestamp: 202).warpDestination == destination)
+    #expect(context.allowsFocus(
+      on: target,
+      at: point,
+      displays: [source, target],
+      frontBounds: [],
+      ignoreFullscreen: true,
+    ))
+  }
+
   @Test
   func `the final move is consumed without waiting for another event`() {
     var inputs = LatestFocusInputBuffer<Int>()

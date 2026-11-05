@@ -630,6 +630,7 @@ public final class RecorderController: @unchecked Sendable {
   private var recordedFrameCount = 0
   private var recordedDroppedCount = 0
   private var recordedDuration = 0.0
+  private var recordingActivity: any NSObjectProtocol?
 
   /// The only channel back to the caller. `democtl` launches the recorder
   /// detached through LaunchServices, so neither the exit code nor stderr ever
@@ -640,6 +641,12 @@ public final class RecorderController: @unchecked Sendable {
   }
 
   private func startRecording() async {
+    // The background recorder owns a fixed-rate media clock until finalization.
+    let activity = ProcessInfo.processInfo.beginActivity(
+      options: [.userInitiated, .latencyCritical],
+      reason: "Record display frames at a fixed cadence",
+    )
+    lock.withLock { recordingActivity = activity }
     // A result from an earlier run must never be mistaken for this one's: if
     // this process is killed before it writes its own, the caller has to find
     // nothing rather than somebody else's success.
@@ -926,6 +933,14 @@ public final class RecorderController: @unchecked Sendable {
     // to be on disk before the pidfile goes.
     writeResult(code)
     removePidfile()
+    let activity = lock.withLock {
+      let activity = recordingActivity
+      recordingActivity = nil
+      return activity
+    }
+    if let activity {
+      ProcessInfo.processInfo.endActivity(activity)
+    }
     fflush(stdout)
     exit(code.rawValue)
   }

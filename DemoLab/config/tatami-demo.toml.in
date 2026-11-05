@@ -100,6 +100,7 @@ switchToRecentWhenEmpty = false
 cycleSameAppWindows = false
 includeSharedAppsInWindowSwitcher = true
 toggleBorrowOnRepeat = true
+bringScratchpadToPointerDisplay = true
 # Required for a scriptable Borrow. See the note at the top of this file.
 borrowDefaultEdge = "@BORROW_EDGE@"
 borrowFraction = 0.34

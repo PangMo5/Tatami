@@ -1784,13 +1784,6 @@
     "zh-Hans": "聚焦窗口关闭且应用已无窗口时，按最近使用顺序，把焦点移到工作区中剩下的窗口。",
     "zh-Hant": "聚焦視窗關閉且 App 已無視窗時，依最近使用順序，把焦點移到工作空間中剩下的視窗。"
   },
-  "54b6fb91dbe84774": {
-    "en": "While focus-follows-mouse is on, don't shift focus to a window that fills the whole display (full-screen / maximized).",
-    "ko": "마우스에 따라 포커스를 옮길 때 화면 전체를 채운 창에는 전환하지 않아요.",
-    "ja": "マウスにフォーカスを追従させる際、画面全体を占める窓には移しません。",
-    "zh-Hans": "启用焦点跟随鼠标时，不切换到占满整个显示器的全屏或最大化窗口。",
-    "zh-Hant": "啟用焦點跟隨游標時，不切換到佔滿整部顯示器的全螢幕或最大化視窗。"
-  },
   "5a8ea812bc5d3d1a": {
     "en": "Modifier that temporarily suspends focus-follows-mouse: {0}, {1}, {2}, {3}, {4}.",
     "ko": "마우스에 따른 포커스 이동을 잠시 멈출 보조키예요. {0}, {1}, {2}, {3}, {4} 중에서 골라요.",
@@ -5053,5 +5046,208 @@
     "ja": "現在のプロファイルとワークスペースを確認してください。接続中のモニターが変わると、ディスプレイルールによってプロファイルが自動で切り替わることがあります。別のプロファイルに同じアプリがあっても、配置と全画面表示の状態はワークスペースごとに記憶されます。使う各プロファイルで配置を設定するか、意図しない切り替えならプロファイルのディスプレイルールを調整してください。",
     "zh-Hans": "请检查当前启用的配置方案和工作区。连接的显示器发生变化时，显示器规则可能会自动切换配置方案。即使另一个配置方案包含相同应用，每个工作区的布局和全屏状态仍分别保存。请在使用的各配置方案中设置布局，或调整显示器规则以避免意外切换。",
     "zh-Hant": "請檢查目前使用的設定組合和工作空間。連接的顯示器改變時，顯示器規則可能會自動切換設定組合。即使另一個設定組合包含相同 App，每個工作空間的配置和全螢幕狀態仍會分別儲存。請在使用的各設定組合中設定配置，或調整顯示器規則以避免意外切換。"
+  },
+  "c7234a8e46bdb45c": {
+    "en": "Settings search and more consistent workspace layouts.",
+    "ko": "설정 검색을 추가하고 작업 공간 배치를 더 안정적으로 유지해요.",
+    "ja": "設定の検索に対応し、ワークスペースの配置をより安定して維持します。",
+    "zh-Hans": "新增设置搜索，更稳定地保留工作区布局。",
+    "zh-Hant": "新增設定搜尋，讓工作空間配置維持得更穩定。"
+  },
+  "26087a1fbdb96831": {
+    "en": "**Search Settings:** Find settings by name, description, shortcut, or abbreviations such as FFM and MFF. Select a result to reveal and highlight its control.",
+    "ko": "**설정을 검색해요:** 이름, 설명, 단축키, FFM·MFF 같은 약어로 설정을 찾아요. 결과를 선택하면 해당 설정으로 이동해 강조해요.",
+    "ja": "**設定を検索:** 名前、説明、ショートカット、FFM・MFF などの略称で設定を探せます。結果を選ぶと、その設定に移動して強調表示します。",
+    "zh-Hans": "**搜索设置：** 按名称、说明、快捷键或 FFM、MFF 等缩写查找设置。选择结果后，定位并突出显示对应设置。",
+    "zh-Hant": "**搜尋設定：** 依名稱、說明、快速鍵或 FFM、MFF 等縮寫尋找設定。選取結果後，會前往並標示對應設定。"
+  },
+  "1d1502f893f04813": {
+    "en": "**Keep adjusted proportions:** Returning to a workspace and restoring saved windows preserve manual split ratios with Auto-balance enabled. Newly inserted windows still use Auto-balance.",
+    "ko": "**조절한 비율을 유지해요:** 자동 균등 배치를 켜도 작업 공간으로 돌아오거나 저장된 창을 복원할 때 직접 조절한 분할 비율을 유지해요. 새 창을 추가할 때는 자동 균등 배치를 적용해요.",
+    "ja": "**調整した比率を維持:** 自動均等配置が有効でも、ワークスペースに戻るときや保存済みのウインドウを復元するときは、手動で調整した分割比率を維持します。新しいウインドウの追加時には自動均等配置を適用します。",
+    "zh-Hans": "**保留调整后的比例：** 即使启用自动均衡，返回工作区或恢复已保存的窗口时，也会保留手动调整的分割比例。新增窗口仍使用自动均衡。",
+    "zh-Hant": "**保留調整後的比例：** 即使開啟自動平衡，返回工作空間或還原已儲存的視窗時，也會保留手動調整的分割比例。新增視窗仍會套用自動平衡。"
+  },
+  "3c12d0f48742c8dc": {
+    "en": "**Bring apps to the selected workspace:** Selecting a workspace takes priority over another display using the same registered app. Other windows stay in their workspace; an emptied display uses its existing workspace history to find a replacement.",
+    "ko": "**선택한 작업 공간으로 앱을 가져와요:** 같은 앱을 다른 화면에서 사용 중이어도 마지막으로 선택한 작업 공간을 우선해요. 이전 작업 공간의 다른 창은 유지하고, 화면이 비면 기존 작업 공간 이력에서 대신 표시할 공간을 찾아요.",
+    "ja": "**選んだワークスペースにアプリを移動:** 同じ登録アプリが別の画面で使われていても、最後に選んだワークスペースを優先します。ほかのウインドウは元のワークスペースに残り、画面が空になる場合は、その画面の履歴から代わりのワークスペースを探します。",
+    "zh-Hans": "**将应用移到所选工作区：** 即使同一已注册应用正在其他显示器上使用，也优先放到最后选择的工作区。其他窗口留在原工作区；显示器变空时，从该显示器的工作区历史中查找替代项。",
+    "zh-Hant": "**將 App 帶到所選工作空間：** 即使同一個已登錄 App 正在其他顯示器使用，也會優先放到最後選取的工作空間。其他視窗留在原工作空間；顯示器清空時，會從該顯示器的工作空間記錄尋找替代項目。"
+  },
+  "1838e330392598d8": {
+    "en": "**Bring scratchpads to the pointer display:** Summoning an open scratchpad on another display moves it here and restores its previous host. This option is on by default.",
+    "ko": "**마우스가 있는 화면으로 임시 공간을 가져와요:** 다른 화면에 열려 있는 임시 공간을 호출하면 현재 화면으로 옮기고 이전 화면의 원래 배치를 복원해요. 이 옵션은 기본으로 켜져 있어요.",
+    "ja": "**ポインタのある画面に一時スペースを移動:** 別の画面に開いている一時スペースを呼び出すと、ポインタのある画面へ移し、元のワークスペースの配置を戻します。この設定は初期状態で有効です。",
+    "zh-Hans": "**将暂存区移到指针所在显示器：** 调用已在其他显示器打开的暂存区时，会将其移到当前显示器，并恢复原工作区的布局。此选项默认开启。",
+    "zh-Hant": "**將暫存區帶到游標所在顯示器：** 呼叫已在其他顯示器開啟的暫存區時，會將它帶到目前顯示器，並還原原工作空間的配置。此選項預設開啟。"
+  },
+  "ae58d45028fdeebf": {
+    "en": "Re-entering a workspace or restoring saved windows keeps manually adjusted proportions, including when Auto-balance is enabled. Auto-balance still applies when new windows are inserted.",
+    "ko": "자동 균등 배치를 켜도 작업 공간에 다시 들어가거나 저장된 창을 복원할 때 직접 조절한 비율을 유지해요. 새 창을 추가할 때는 자동 균등 배치를 적용해요.",
+    "ja": "自動均等配置が有効でも、ワークスペースに戻るときや保存済みのウインドウを復元するときは、手動で調整した比率を維持します。新しいウインドウを追加するときには自動均等配置を適用します。",
+    "zh-Hans": "即使启用自动均衡，重新进入工作区或恢复已保存的窗口时，也会保留手动调整的比例。新增窗口时仍应用自动均衡。",
+    "zh-Hant": "即使開啟自動平衡，重新進入工作空間或還原已儲存的視窗時，也會保留手動調整的比例。新增視窗時仍會套用自動平衡。"
+  },
+  "23a563ee830c4eab": {
+    "en": "Move a scratchpad already borrowed on another display to the display under the pointer, restoring its previous host. Turn this off to keep the existing placement and show where it is open.",
+    "ko": "다른 화면에 빌려온 임시 공간을 마우스가 있는 화면으로 옮기고 이전 화면의 원래 배치를 복원해요. 끄면 현재 위치를 유지하고 어느 화면에 열려 있는지 알려줘요.",
+    "ja": "別の画面に借りている一時スペースをポインタのある画面へ移し、元のワークスペースの配置を戻します。オフにすると位置を変えず、開いている画面を表示します。",
+    "zh-Hans": "将在其他显示器借用的暂存区移到指针所在显示器，并恢复原工作区的布局。关闭后会保留当前位置，并提示其所在显示器。",
+    "zh-Hant": "將在其他顯示器借用的暫存區帶到游標所在顯示器，並還原原工作空間的配置。關閉後會保留目前位置，並提示它開在哪個顯示器。"
+  },
+  "a70ebf37e058e9c3": {
+    "en": "An app can be registered in several workspaces. Activating a workspace gives it priority for those apps even when they are visible on another display. Registration stays unchanged. Other windows remain in the previous workspace; if none remain, that display uses its existing workspace history to find a replacement. Automatic replacements do not take the apps back.",
+    "ko": "한 앱을 여러 작업 공간에 등록할 수 있어요. 다른 화면에 떠 있어도 마지막으로 활성화한 작업 공간이 해당 앱을 우선 사용해요. 등록 정보는 바뀌지 않아요. 이전 작업 공간의 다른 창은 유지하고, 아무 창도 남지 않으면 그 화면의 작업 공간 이력에서 대신 표시할 공간을 찾아요. 자동으로 대신 표시한 작업 공간이 앱을 다시 가져오지는 않아요.",
+    "ja": "同じアプリを複数のワークスペースに登録できます。別の画面に表示されていても、最後に有効にしたワークスペースを優先します。登録内容は変わりません。ほかのウインドウは元のワークスペースに残り、何も残らない場合は、その画面の履歴から代わりのワークスペースを探します。自動的に表示したワークスペースがアプリを取り戻すことはありません。",
+    "zh-Hans": "同一应用可以注册到多个工作区。即使应用显示在其他显示器上，也优先放到最后激活的工作区，注册信息保持不变。其他窗口留在原工作区；没有窗口剩余时，从该显示器的工作区历史中查找替代项。自动显示的替代工作区不会将应用抢回。",
+    "zh-Hant": "同一個 App 可以登錄到多個工作空間。即使 App 顯示在其他顯示器，也會優先放到最後啟用的工作空間，登錄資訊維持不變。其他視窗留在原工作空間；沒有視窗剩下時，會從該顯示器的工作空間記錄尋找替代項目。自動顯示的替代工作空間不會將 App 帶回。"
+  },
+  "8974e3d2b2ce4882": {
+    "en": "This release is in development.",
+    "ko": "출시를 준비하고 있어요.",
+    "ja": "このバージョンは開発中です。",
+    "zh-Hans": "此版本正在开发中。",
+    "zh-Hant": "此版本仍在開發中。"
+  },
+  "f21439a96ab246e5": {
+    "en": "**Follow focus across displays:** Mouse Follows Focus uses the visible window position even when an app has not yet published its accessibility frame, including freshly summoned scratchpads.",
+    "ko": "**다른 화면으로도 포커스를 따라가요:** 앱이 접근성 창 위치를 아직 제공하지 않아도 화면에 표시된 창을 기준으로 마우스가 포커스를 따라가요. 방금 불러온 임시 공간에서도 동작해요.",
+    "ja": "**別の画面でもフォーカスに追従:** アプリがアクセシビリティ経由のウインドウ位置をまだ提供していなくても、画面に表示された位置にマウスが追従します。呼び出した直後の一時スペースでも動作します。",
+    "zh-Hans": "**跨显示器跟随焦点：** 即使应用尚未通过辅助功能提供窗口位置，鼠标跟随焦点也会使用屏幕上的实际窗口位置，包括刚唤出的暂存区。",
+    "zh-Hant": "**跨顯示器跟隨焦點：** 即使 App 尚未透過輔助使用提供視窗位置，滑鼠跟隨焦點也會使用螢幕上的實際視窗位置，包括剛喚出的暫存區。"
+  },
+  "f0391c9692776727": {
+    "en": "**Selection priority:** Apps registered in several workspaces follow the workspace you explicitly select, even across displays. Other windows stay in their workspace; an emptied display uses its own history.",
+    "ko": "**선택한 작업 공간이 우선이에요:** 여러 작업 공간에 등록한 앱은 다른 화면에 있어도 직접 선택한 작업 공간으로 따라와요. 다른 창은 원래 작업 공간에 남고, 빈 화면은 해당 화면의 이력을 따라 전환해요.",
+    "ja": "**選択したワークスペースを優先:** 複数のワークスペースに登録したアプリは、別の画面にあっても明示的に選択したワークスペースに移ります。他のウインドウは元のワークスペースに残り、空になった画面はその画面の履歴から切り替わります。",
+    "zh-Hans": "**优先使用所选工作区：** 注册到多个工作区的应用会跟随你明确选择的工作区，即使它位于另一台显示器上。其他窗口留在原工作区；空出的显示器会按自身历史记录切换。",
+    "zh-Hant": "**優先使用所選工作空間：** 註冊到多個工作空間的 App 會跟隨你明確選取的工作空間，即使它位於另一部顯示器上。其他視窗留在原工作空間；空出的顯示器會依自身歷史記錄切換。"
+  },
+  "0362ac1f2d5618b1": {
+    "en": "**Summon here:** By default, calling an open scratchpad from another display moves its existing block to the pointer display and restores its previous host. Turn this off in Settings to keep its current placement.",
+    "ko": "**현재 화면으로 불러와요:** 다른 화면에 열린 임시 공간을 부르면 기존 영역을 마우스가 있는 화면으로 옮기고 이전 화면의 원래 배치를 복원해요. 설정에서 끄면 현재 위치를 유지해요.",
+    "ja": "**今の画面に呼び出す:** 別の画面に開いている一時スペースを呼び出すと、既存の領域をポインタのある画面に移し、元の画面のホストを復元します。設定でオフにすると現在の配置を維持します。",
+    "zh-Hans": "**在此唤出：** 默认情况下，从另一台显示器唤出已打开的暂存区，会将现有区域移到指针所在显示器，并恢复原显示器的主工作区。可在设置中关闭以保留当前位置。",
+    "zh-Hant": "**在此喚出：** 預設情況下，從另一部顯示器喚出已開啟的暫存區，會將現有區域移到游標所在顯示器，並還原原顯示器的主工作空間。可在設定中關閉以保留目前位置。"
+  },
+  "f8fd4c59c0580196": {
+    "en": "**Settings search:** Press Command-F in Settings to find a control by its name, description, configured shortcut, or abbreviations such as FFM and MFF. Select a result to reveal and highlight it.",
+    "ko": "**설정 검색:** 설정에서 Command-F를 눌러 이름, 설명, 지정한 단축키나 FFM·MFF 같은 약어로 항목을 찾아요. 결과를 선택하면 해당 항목으로 이동해 강조해요.",
+    "ja": "**設定を検索:** 設定で Command-F を押すと、名前、説明、設定済みのショートカット、FFM・MFF などの略語で項目を探せます。結果を選ぶと対象に移動して強調表示します。",
+    "zh-Hans": "**设置搜索：** 在设置中按 Command-F，通过名称、说明、已配置的快捷键或 FFM、MFF 等缩写查找控件。选择结果即可跳转并高亮显示。",
+    "zh-Hant": "**設定搜尋：** 在設定中按 Command-F，透過名稱、說明、已設定的快速鍵或 FFM、MFF 等縮寫尋找控制項。選取結果即可跳轉並醒目顯示。"
+  },
+  "baa06ea690e69ec3": {
+    "en": "Search Settings",
+    "ko": "설정 검색",
+    "ja": "設定を検索",
+    "zh-Hans": "搜索设置",
+    "zh-Hant": "搜尋設定"
+  },
+  "10e0c3ed49980a7b": {
+    "en": "Press Command-F while Settings is open, or use its search field. Search matches the current interface language, English setting names, descriptions, configured shortcut symbols, and aliases such as FFM and MFF. Multiple words must all match the same setting. Selecting a result opens its category, scrolls to the control, and highlights it. Clear the field or press Escape there to return to the category list.",
+    "ko": "설정을 연 상태에서 Command-F를 누르거나 검색창을 사용해요. 현재 화면 언어와 영어 설정 이름, 설명, 지정한 단축키 기호, FFM·MFF 같은 약어로 검색할 수 있어요. 여러 단어를 입력하면 모두 같은 설정 항목에 일치해야 해요. 결과를 선택하면 해당 분류를 열고 항목으로 스크롤해 강조해요. 검색창을 비우거나 검색창에서 Escape를 누르면 분류 목록으로 돌아가요.",
+    "ja": "設定を開いて Command-F を押すか、検索欄を使います。現在の表示言語、英語の設定名、説明、設定済みのショートカット記号、FFM・MFF などの略語で検索できます。複数の単語はすべて同じ設定項目に一致する必要があります。結果を選ぶとカテゴリを開き、対象までスクロールして強調表示します。検索欄を空にするか、その欄で Escape を押すとカテゴリ一覧に戻ります。",
+    "zh-Hans": "在设置中按 Command-F，或使用搜索框。可匹配当前界面语言、英文设置名称、说明、已配置的快捷键符号，以及 FFM、MFF 等别名。多个词必须全部匹配同一项设置。选择结果会打开对应分类、滚动到控件并高亮显示。清空搜索框或在框内按 Escape，即可返回分类列表。",
+    "zh-Hant": "在設定中按 Command-F，或使用搜尋欄。可比對目前介面語言、英文設定名稱、說明、已設定的快速鍵符號，以及 FFM、MFF 等別名。多個詞必須全部符合相同設定項目。選取結果會開啟對應分類、捲動至控制項並醒目顯示。清空搜尋欄或在欄內按 Escape，即可返回分類列表。"
+  },
+  "94f9f97be89f13e1": {
+    "en": "Search covers Settings controls and section names. It does not search workspace names, app assignments, hook contents, or arbitrary configuration values.",
+    "ko": "설정 항목과 섹션 이름을 검색해요. 작업 공간 이름, 앱 등록 목록, 훅 내용이나 임의의 설정값은 검색하지 않아요.",
+    "ja": "検索対象は設定項目とセクション名です。ワークスペース名、アプリの割り当て、フックの内容、任意の設定値は検索しません。",
+    "zh-Hans": "搜索范围是设置控件和分区名称，不包含工作区名称、应用分配、钩子内容或任意配置值。",
+    "zh-Hant": "搜尋範圍是設定控制項和區段名稱，不包含工作空間名稱、App 指派、掛鉤內容或任意設定值。"
+  },
+  "f30dce6174465a61": {
+    "en": "Equalize splits when genuinely new windows are inserted or existing windows are removed. Returning saved windows keep their restored proportions. One of {0}, {1}, {2}, {3}. (Legacy bool values still decode: {4} → {5}, {6} → {7}.)",
+    "ko": "새 창을 추가하거나 기존 창을 제거하면 분할 비율을 고르게 맞춰요. 저장된 자리로 돌아온 창은 복원한 비율을 유지해요. {0}, {1}, {2}, {3} 중에서 골라요. 예전 bool 값도 {4} → {5}, {6} → {7}로 읽을 수 있어요.",
+    "ja": "新しいウインドウの追加や既存ウインドウの削除時に分割を均等にします。保存済みの位置に戻るウインドウは復元した比率を維持します。{0}、{1}、{2}、{3} から選べます。従来の bool も {4} → {5}、{6} → {7} として読めます。",
+    "zh-Hans": "插入全新窗口或移除现有窗口时均衡分割。返回已保存位置的窗口保留恢复的比例。可选 {0}、{1}、{2}、{3}。旧 bool 仍可解析：{4} → {5}、{6} → {7}。",
+    "zh-Hant": "插入全新視窗或移除現有視窗時平均調整分割。回到已儲存位置的視窗保留還原的比例。可選 {0}、{1}、{2}、{3}。舊 bool 仍可解析：{4} → {5}、{6} → {7}。"
+  },
+  "aba1ab804e6f6a65": {
+    "en": "Borrow uses the same saved layout. Tatami loads that layout before accepting window notifications that could otherwise replace it with a new default layout. This preserves split directions, proportions, and fullscreen zoom when a borrowed workspace is opened after relaunch.",
+    "ko": "빌려오기에서도 같은 저장 배치를 사용해요. 새 기본 배치가 저장값을 덮어쓰지 않도록, 창 알림을 반영하기 전에 저장 배치를 먼저 읽어요. 앱을 다시 실행한 뒤 작업 공간을 빌려와도 분할 방향, 비율, 전체 화면 확대 상태를 유지해요.",
+    "ja": "借りる場合も同じ保存済みレイアウトを使います。新しい初期配置で上書きされないよう、ウインドウ通知を反映する前に保存済みレイアウトを読み込みます。再起動後にワークスペースを借りても、分割方向、比率、全画面拡大の状態を維持します。",
+    "zh-Hans": "借用也使用同一份已保存布局。Tatami 会先加载布局，再接受可能将其覆盖为默认布局的窗口通知。因此重新启动后借用工作区时，仍能保留分割方向、比例和全屏放大状态。",
+    "zh-Hant": "借用也使用同一份已儲存配置。Tatami 會先載入配置，再接受可能將其覆寫為預設配置的視窗通知。因此重新啟動後借用工作空間時，仍能保留分割方向、比例和全螢幕放大狀態。"
+  },
+  "aecc26ef11a4f842": {
+    "en": "{0} applies only to scratchpads borrowed on another display. It transfers the existing block instead of creating another copy. Ordinary workspaces already visible elsewhere stay there, and Tatami shows their location. Repeating a summon on the same display still follows {1}: return by default, or re-dock and focus when that option is off. Borrow requires a current host workspace on the destination display.",
+    "ko": "{0}는 다른 화면에 빌려온 임시 공간에만 적용해요. 복사본을 만들지 않고 기존 영역을 옮겨요. 다른 화면에 이미 보이는 일반 작업 공간은 그 자리에 두고 위치를 알려줘요. 같은 화면에서 다시 부르면 {1} 설정을 따라요. 기본값은 돌려보내기이며, 끄면 위치를 다시 정하고 포커스를 맞춰요. 목적지 화면에는 현재 호스트 작업 공간이 있어야 해요.",
+    "ja": "{0} は別の画面に借りている一時スペースだけに適用されます。複製を作らず既存の領域を移します。別画面に表示中の通常ワークスペースはその場に残し、場所を案内します。同じ画面で再度呼び出す場合は {1} に従います。既定では返却し、オフなら配置を変更してフォーカスします。移動先の画面には現在のホストワークスペースが必要です。",
+    "zh-Hans": "{0} 仅适用于已借用到其他显示器的暂存区。它会移动现有区域，而不会创建副本。已在其他位置显示的普通工作区会留在原处，Tatami 会提示其位置。同一显示器上的重复唤出仍由 {1} 决定：默认归还，关闭后重新停靠并聚焦。目标显示器上必须有当前主工作区。",
+    "zh-Hant": "{0} 僅適用於已借用到其他顯示器的暫存區。它會移動現有區域，而不會建立副本。已在其他位置顯示的一般工作空間會留在原處，Tatami 會提示其位置。同一顯示器上的重複喚出仍由 {1} 決定：預設歸還，關閉後重新停靠並聚焦。目標顯示器上必須有目前主工作空間。"
+  },
+  "93e1d45dfdf22cfc": {
+    "en": "Scratchpads auto-open their tiled apps; Always on Top and Leave As Is assignments do not join the borrowed block. A call made during a workspace activation waits for that activation to finish and keeps the display chosen at the time of the call. A newer selection supersedes pending focus, and sleep, screen lock, or native fullscreen prevents late results from moving focus.",
+    "ko": "임시 공간은 타일링 앱을 자동으로 열어요. 항상 위 또는 그대로 두기로 등록한 앱은 빌려온 영역에 포함하지 않아요. 작업 공간 전환 중에 부르면 전환이 끝날 때까지 기다리고, 호출 당시 선택한 화면을 유지해요. 더 최근의 선택은 대기 중인 포커스를 취소하고, 잠자기·화면 잠금·macOS 기본 전체 화면 중에는 늦게 도착한 결과가 포커스를 옮기지 않아요.",
+    "ja": "一時スペースはタイル表示のアプリを自動で開きます。「常に手前」や「そのまま」の割り当ては借りた領域に含まれません。ワークスペース切替中の呼び出しは完了を待ち、呼び出し時の画面を維持します。新しい選択は待機中のフォーカスを取り消し、スリープ、画面ロック、macOS 標準の全画面中は遅れて届いた結果でフォーカスを移しません。",
+    "zh-Hans": "暂存区会自动打开平铺应用；置顶和保持原样的应用不会加入借用区域。工作区激活期间的调用会等待激活结束，并保留调用时选择的显示器。较新的选择会取代待处理的焦点操作；睡眠、锁屏或 macOS 原生全屏期间，延迟结果不会移动焦点。",
+    "zh-Hant": "暫存區會自動開啟並排 App；置頂和維持原狀的 App 不會加入借用區域。工作空間啟用期間的呼叫會等待啟用結束，並保留呼叫時選取的顯示器。較新的選取會取代待處理的焦點操作；睡眠、鎖定畫面或 macOS 原生全螢幕期間，延遲結果不會移動焦點。"
+  },
+  "7839eb8e60ed890b": {
+    "en": "This priority applies to the app's registered windows, rather than assigning individual documents to different workspaces. Shared Apps are excluded and continue to join every workspace. Priority is tracked while Tatami is running; the app-owner claims themselves are not saved across relaunches. Saved workspace layouts and display history are persisted separately.",
+    "ko": "이 우선권은 앱의 등록된 창에 적용하며, 문서별로 서로 다른 작업 공간을 지정하는 기능은 아니에요. 공용 앱은 제외하며 계속 모든 작업 공간에 참여해요. 우선권은 Tatami 실행 중에 관리하고, 앱 소유권 자체는 앱을 다시 실행할 때 복원하지 않아요. 저장된 작업 공간 배치와 화면 이력은 별도로 유지해요.",
+    "ja": "この優先権は登録アプリのウインドウ単位に適用され、文書ごとに異なるワークスペースを指定する機能ではありません。共有アプリは対象外で、引き続きすべてのワークスペースに参加します。優先権は Tatami の実行中に管理され、アプリの所有先自体は再起動後に復元しません。ワークスペースの保存済み配置と画面の履歴は別に保持します。",
+    "zh-Hans": "此优先权作用于已注册应用的窗口，不用于将单个文档分配到不同工作区。共享应用不受影响，仍会加入每个工作区。优先权在 Tatami 运行期间跟踪，应用归属本身不会跨重启保存。已保存的工作区布局和显示器历史记录会单独持久化。",
+    "zh-Hant": "此優先權作用於已註冊 App 的視窗，不用於將個別文件指派到不同工作空間。共用 App 不受影響，仍會加入每個工作空間。優先權在 Tatami 執行期間追蹤，App 歸屬本身不會跨重新啟動儲存。已儲存的工作空間配置和顯示器歷史記錄會另外持續保存。"
+  },
+  "f56d843556ef10bc": {
+    "en": "**Match layout previews to current windows:** Inactive previews omit obsolete app registrations and missing saved occurrences when current windows are known. Saved slots remain available for reopened windows, and restored proportions match activation.",
+    "ko": "**미리보기도 현재 창에 맞춰 보여줘요:** 현재 창이 확인되면 비활성 작업 공간의 미리보기에서 예전 앱 등록과 현재 없는 저장된 창 자리를 제외해요. 다시 열린 창을 위한 복원 자리는 보관하고, 조절한 비율도 실제 활성화와 같게 보여줘요.",
+    "ja": "**プレビューも現在のウインドウに合わせる:** 現在のウインドウを確認できた場合、非アクティブなワークスペースのプレビューから古いアプリ登録と存在しない保存済みの位置を除外します。再び開くウインドウの復元位置は保持し、調整済みの比率も実際の切替時と一致させます。",
+    "zh-Hans": "**预览与当前窗口一致：** 确认当前窗口后，非活动工作区预览会排除已失效的应用注册和当前缺失的已保存窗口位置。重新打开窗口所需的位置仍会保留，已调整的比例也与实际激活时一致。",
+    "zh-Hant": "**預覽與目前視窗一致：** 確認目前視窗後，非作用中工作空間預覽會排除已失效的 App 註冊和目前缺少的已儲存視窗位置。重新開啟視窗所需的位置仍會保留，已調整的比例也與實際啟用時一致。"
+  },
+  "88bec4e09bc2570d": {
+    "en": "**Change the visible split:** Toggle orientation from either tiled window when another window is fullscreen. Fullscreen windows retain their saved layout positions, and the layout editor follows the same rule.",
+    "ko": "**보이는 창의 배치 방향을 바꿔요:** 다른 창이 전체 화면이어도 어느 타일 창에서든 방향을 바꿀 수 있어요. 전체 화면 창의 저장된 위치는 유지하고, 배치 편집기에도 같은 규칙을 적용해요.",
+    "ja": "**表示中の分割方向を変更:** 別のウインドウが全画面でも、どちらのタイルからでも分割方向を変更できます。全画面ウインドウの保存済み配置を維持し、配置エディタにも同じルールを適用します。",
+    "zh-Hans": "**调整可见窗口的分割方向：** 即使另一个窗口处于全屏状态，也能从任一平铺窗口切换分割方向。全屏窗口保留已保存的布局位置，布局编辑器也遵循相同规则。",
+    "zh-Hant": "**調整可見視窗的分割方向：** 即使其他視窗處於全螢幕，仍可從任一並排視窗切換分割方向。全螢幕視窗保留已儲存的配置位置，配置編輯器也採用相同規則。"
+  },
+  "5a462f34141f3304": {
+    "en": "**Center the pointer after layout changes:** Mouse Follows Focus checks the app's actual frame when the visible surface still reports the previous size, including windows with a minimum size. A newer layout command cancels an older pending pointer move.",
+    "ko": "**배치를 바꾼 뒤 포인터를 창 중앙에 맞춰요:** 화면에 이전 창 크기가 남아 있으면 앱의 실제 크기를 확인해요. 최소 크기가 있는 창에도 적용하고, 새 배치 명령을 실행하면 이전에 대기하던 포인터 이동은 취소해요.",
+    "ja": "**配置変更後もポインタを中央に:** 表示側に以前のサイズが残っている場合は、アプリの実際のウインドウ枠を確認します。最小サイズのあるウインドウにも対応し、新しい配置操作が来たら保留中の古いポインタ移動を取り消します。",
+    "zh-Hans": "**布局变化后将指针移至窗口中央：** 当屏幕仍报告旧尺寸时，鼠标跟随焦点会确认应用的实际窗口尺寸，也适用于有最小尺寸限制的窗口。新的布局命令会取消尚未完成的旧指针移动。",
+    "zh-Hant": "**配置變更後將游標移至視窗中央：** 畫面仍回報舊尺寸時，游標跟隨焦點會確認 App 的實際視窗尺寸，也適用於有最小尺寸限制的視窗。新的配置指令會取消尚未完成的舊游標移動。"
+  },
+  "ea0ae45d77b199e0": {
+    "en": "Toggle the focused tile's visible split. Fullscreen windows keep their saved positions; a lone tiled window has no split to change.",
+    "ko": "포커스한 타일 창의 보이는 분할 방향을 바꿔요. 전체 화면 창의 저장된 위치는 유지해요. 타일 창이 하나뿐이면 바뀌지 않아요.",
+    "ja": "フォーカス中のタイルの表示されている分割方向を切り替えます。全画面ウインドウの保存済み位置は維持します。タイルが1つだけの場合は変更しません。",
+    "zh-Hans": "切换聚焦平铺窗口的可见分割方向。全屏窗口保留已保存的位置；只有一个平铺窗口时不会改变。",
+    "zh-Hant": "切換目前並排視窗的可見分割方向。全螢幕視窗保留已儲存的位置；只有一個並排視窗時不會變更。"
+  },
+  "4a8928e27b6dc062": {
+    "en": "**Expand remaining windows after closing:** Windows moving away from a screen edge no longer keep their previous size. Close-driven reflows verify every remaining tile, including windows belonging to other apps, and center the pointer using the updated frame.",
+    "ko": "**창을 닫으면 남은 창이 빈자리를 채워요:** 화면 가장자리에서 이동하는 창이 이전 크기로 남는 문제를 고쳤어요. 다른 앱의 창까지 실제 배치를 확인하고, 갱신된 크기를 기준으로 포인터를 중앙에 맞춰요.",
+    "ja": "**ウインドウを閉じた後も残りの配置を更新:** 画面の端から移動するウインドウが以前のサイズのまま残る問題を修正しました。他のアプリも含めて残りのタイルの実際の配置を確認し、更新後のウインドウ枠を使ってポインタを中央に移動します。",
+    "zh-Hans": "**关闭窗口后让剩余窗口填补空位：** 修复窗口移离屏幕边缘后仍保留旧尺寸的问题。重新布局时会确认所有剩余平铺窗口的实际位置和大小，包括其他应用的窗口，并根据更新后的尺寸将指针移至中央。",
+    "zh-Hant": "**關閉視窗後讓其餘視窗填補空位：** 修正視窗移離螢幕邊緣後仍保留舊尺寸的問題。重新配置時會確認所有其餘並排視窗的實際位置與大小，包括其他 App 的視窗，並依更新後的尺寸將游標移至中央。"
+  },
+  "86b3330b8a2aeb3f": {
+    "en": "While focus-follows-mouse is on, skip full-screen or maximized windows within the same display. Moving to another display still changes focus.",
+    "ko": "같은 화면 안에서는 전체 화면이나 최대화한 창으로 포커스를 옮기지 않아요. 다른 화면으로 마우스를 옮기면 포커스도 따라가요.",
+    "ja": "同じ画面内では全画面や最大化したウインドウにフォーカスを移しません。別の画面へポインタを動かすとフォーカスも移ります。",
+    "zh-Hans": "在同一显示器内，不聚焦全屏或最大化窗口。移到其他显示器时，焦点仍会跟随。",
+    "zh-Hant": "在同一顯示器內，不聚焦全螢幕或最大化視窗。移到其他顯示器時，焦點仍會跟隨。"
+  },
+  "27f5f8c897310ee4": {
+    "en": "FFM and MFF work across displays without moving their workspaces. When {0} is on, only full-screen or maximized windows on the same display are excluded. Moving the pointer to another display still focuses its window. MFF uses the visible window's position, even if accessibility geometry is not ready. A missing or superseded window does not receive a cursor warp.",
+    "ko": "FFM과 MFF는 작업 공간을 옮기지 않고 화면 사이에서도 동작해요. {0}을 켜면 같은 화면 안의 전체 화면이나 최대화한 창만 제외해요. 다른 화면으로 마우스를 옮기면 그 창으로 포커스가 이동해요. MFF는 접근성 위치 정보가 아직 준비되지 않아도 실제 화면의 창 위치를 사용해요. 사라졌거나 더 이상 대상이 아닌 창으로는 마우스를 옮기지 않아요.",
+    "ja": "FFM と MFF はワークスペースを移動せず、画面をまたいで動作します。{0} がオンの場合、同じ画面内の全画面や最大化したウインドウだけを除外します。別の画面へポインタを動かすと、そのウインドウにフォーカスが移ります。MFF はアクセシビリティの位置情報が未準備でも、画面上のウインドウ位置を使います。消えたウインドウや古い対象にはポインタを移動しません。",
+    "zh-Hans": "FFM 和 MFF 可跨显示器工作，无需移动工作区。开启 {0} 后，仅排除同一显示器内的全屏或最大化窗口。将指针移到其他显示器时，仍会聚焦该窗口。即使辅助功能位置尚未就绪，MFF 也会使用屏幕上的实际窗口位置。窗口已消失或不再是当前目标时，不会移动指针。",
+    "zh-Hant": "FFM 和 MFF 可跨顯示器運作，無需移動工作空間。開啟 {0} 後，僅排除同一顯示器內的全螢幕或最大化視窗。將游標移到其他顯示器時，仍會聚焦該視窗。即使輔助使用位置尚未就緒，MFF 也會使用螢幕上的實際視窗位置。視窗已消失或不再是目前目標時，不會移動游標。"
+  },
+  "b7333535e67366b2": {
+    "en": "**Follow the pointer between displays:** Focus Follows Mouse focuses full-screen or maximized windows when crossing displays, even with the fullscreen exclusion on. The exclusion still applies within the same display.",
+    "ko": "**화면 사이에서도 마우스를 따라 포커스 이동:** 전체 화면 제외 설정을 켜도 다른 화면으로 마우스를 옮기면 전체 화면이나 최대화한 창에 포커스가 이동해요. 같은 화면 안에서는 계속 제외해요.",
+    "ja": "**画面をまたいでポインタにフォーカスを合わせる:** 全画面の除外設定がオンでも、別の画面へポインタを動かすと全画面や最大化したウインドウにフォーカスが移ります。同じ画面内では引き続き除外します。",
+    "zh-Hans": "**跨显示器跟随指针：** 即使开启全屏排除设置，将指针移到其他显示器时，焦点仍会跟随到全屏或最大化窗口。同一显示器内仍会排除这些窗口。",
+    "zh-Hant": "**跨顯示器跟隨游標：** 即使開啟全螢幕排除設定，將游標移到其他顯示器時，焦點仍會跟隨到全螢幕或最大化視窗。同一顯示器內仍會排除這些視窗。"
   }
 }

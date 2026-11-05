@@ -121,6 +121,13 @@ public final class SceneRunner {
 
   public var secondaryCapture: (output: URL, fps: Int)?
 
+  /// Preparation and recorded playback use separate timelines, but compare
+  /// against the same native geometry observed before the camera starts.
+  public func inheritCheckpoints(from preparation: SceneRunner) {
+    layouts = preparation.layouts
+    windowFrames = preparation.windowFrames
+  }
+
   public func prepare(_ scene: Scene, dryRun: Bool = false) throws {
     if !dryRun, let count = scene.requires?.displays, DisplayInfo.all().count < count {
       throw DemoCtlError.usage("scene requires \(count) displays")
@@ -133,7 +140,7 @@ public final class SceneRunner {
       if let names = scene.openingApps {
         try CaptureGate.requireOpening(names)
       }
-      try CaptureGate.requireCleanDesktop()
+      try CaptureGate.requireCleanDesktop(tatamiBundleIdentifier: client.install.bundleIdentifier)
     }
   }
 
@@ -163,6 +170,7 @@ public final class SceneRunner {
     }
 
     if !dryRun {
+      try CaptureGate.requireCleanDesktop(tatamiBundleIdentifier: client.install.bundleIdentifier)
       try applyOverlayMode()
     }
 
@@ -186,6 +194,9 @@ public final class SceneRunner {
       }
     }
 
+    if !dryRun {
+      try CaptureGate.requireCleanDesktop(tatamiBundleIdentifier: client.install.bundleIdentifier)
+    }
     log("")
     log("scene \(scene.name) complete")
   }
@@ -308,6 +319,11 @@ public final class SceneRunner {
         ) },
       ) else { throw DemoCtlError.usage("control geometry did not change: \(name)") }
 
+    case .expectControlVisible(let app, let id):
+      guard try Shell.wait(timeout: .seconds(4), until: {
+        try NativeInteractionDriver.isControlFullyVisible(bundleIdentifier: bundle(app), identifier: id)
+      }) else { throw DemoCtlError.usage("control is outside its visible viewport: \(app) / \(id)") }
+
     case .saveWindow(let app): windowFrames[app] = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
 
     case .restoreWindow(let app):
@@ -335,13 +351,38 @@ public final class SceneRunner {
       else { throw DemoCtlError.usage("window frame changed: \(app); expected \(expected); actual \(actual)") }
 
     case .expectPointer(let app):
-      let frame = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
-      guard
-        let point = CGEvent(source: nil)?.location,
-        frame.contains(point)
-      else { throw DemoCtlError.usage("pointer did not follow focus to \(app)") }
+      let identifier = try bundle(app)
+      // Borrow is accepted before its layout/focus transaction finishes.
+      // Observe the actual pointer/frame condition, as expectFront already
+      // does for focus, rather than asserting while that transaction is live.
+      guard try Shell.wait(timeout: .seconds(4), until: {
+        let frames = try CaptureGate.demoFrames().filter { $0.key.hasPrefix(identifier + ":") }
+        guard let point = CGEvent(source: nil)?.location else { return false }
+        return frames.values.contains { $0.contains(point) }
+      }) else { throw DemoCtlError.usage("pointer did not follow focus to \(app)") }
 
-    case .hover(let app, let id): try NativeInteractionDriver.hover(bundleIdentifier: bundle(app), identifier: id)
+    case .expectPointerCentered(let app):
+      let identifier = try bundle(app)
+      guard try Shell.wait(timeout: .seconds(4), until: {
+        guard
+          let frame = try? NativeInteractionDriver.focusedWindowFrame(bundleIdentifier: identifier),
+          let point = CGEvent(source: nil)?.location
+        else { return false }
+        let visible = try CaptureGate.demoFrames().filter { $0.key.hasPrefix(identifier + ":") }
+        guard visible.values.contains(where: { CaptureGate.matches(["focused": $0], ["focused": frame]) })
+        else { return false }
+        return abs(point.x - frame.midX) <= 6 && abs(point.y - frame.midY) <= 6
+      }) else { throw DemoCtlError.usage("pointer is not centered in the focused \(app) window") }
+
+    case .closeWindow(let app):
+      try NativeInteractionDriver.closeWindow(bundleIdentifier: bundle(app))
+
+    case .hover(let app, let id, let milliseconds):
+      try NativeInteractionDriver.hover(
+        bundleIdentifier: bundle(app),
+        identifier: id,
+        durationMilliseconds: milliseconds,
+      )
 
     case .dragWindow(let app, let target, let x, let y):
       try activate(app: app)
@@ -355,10 +396,11 @@ public final class SceneRunner {
     case .resizeWindow(let app, let dx, let dy):
       try activate(app: app)
       let frame = try NativeInteractionDriver.windowFrame(bundleIdentifier: bundle(app))
-      let point = CGPoint(x: frame.maxX - 1, y: frame.midY)
+      let point = CGPoint(x: frame.maxX - 1, y: dy == 0 ? frame.midY : frame.maxY - 1)
       try NativeInteractionDriver.drag(from: point, to: CGPoint(x: point.x + dx, y: point.y + dy))
 
     case .prepareSettings:
+      _ = try Shell.require(URL(fileURLWithPath: "/usr/bin/open"), ["-a", client.install.bundle.path])
       try activate(app: "Tatami")
       try NativeInteractionDriver.prepareSettingsWindow(bundleIdentifier: client.install.bundleIdentifier)
 
@@ -421,6 +463,12 @@ public final class SceneRunner {
       let id = try bundle(app)
       guard Shell.wait(timeout: .seconds(4), until: { NativeInteractionDriver.frontmostBundleIdentifier() == id })
       else { throw DemoCtlError.usage("focus did not reach \(app)") }
+
+    case .expectFocusedWindow(let app, let identifier):
+      let target = try bundle(app)
+      guard Shell.wait(timeout: .seconds(4), until: {
+        NativeInteractionDriver.isWindowFocused(bundleIdentifier: target, identifier: identifier)
+      }) else { throw DemoCtlError.usage("focus did not reach window \(app) / \(identifier)") }
 
     case .expectLayoutChanged(let name):
       guard let expected = layouts[name] else { throw DemoCtlError.usage("missing layout checkpoint") }
@@ -520,11 +568,18 @@ public final class SceneRunner {
     case .scroll(let name, let identifier, let pixels):
       try NativeInteractionDriver.scroll(bundleIdentifier: bundle(name), identifier: identifier, pixels: pixels)
 
-    case .waitWindows(let names, let milliseconds):
-      try CaptureGate.waitForApps(names, timeout: .milliseconds(milliseconds))
+    case .waitWindows(let names, let milliseconds, let exact):
+      try CaptureGate.waitForApps(names, timeout: .milliseconds(milliseconds), exact: exact)
 
     case .saveLayout(let name):
-      layouts[name] = try CaptureGate.demoFrames()
+      let frames = try CaptureGate.demoFrames()
+      layouts[name] = frames
+      let checkpoint: [String: Any] = [
+        "name": name,
+        "frames": frames.mapValues { [Double($0.minX), Double($0.minY), Double($0.width), Double($0.height)] },
+      ]
+      let data = try JSONSerialization.data(withJSONObject: checkpoint, options: .sortedKeys)
+      log("FRAME_CHECKPOINT " + String(decoding: data, as: UTF8.self))
 
     case .assertLayout(let name):
       guard let expected = layouts[name], !expected.isEmpty else {
@@ -735,6 +790,9 @@ public final class SceneRunner {
   }
 
   private func bundle(_ name: String) throws -> String {
+    if name == "Dock" {
+      return "com.apple.dock"
+    }
     if name == "Tatami" {
       return client.install.bundleIdentifier
     }

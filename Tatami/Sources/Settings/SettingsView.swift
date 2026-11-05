@@ -78,45 +78,59 @@ struct SettingsView: View {
 
   var body: some View {
     NavigationSplitView {
-      // `id: \.self` so the ForEach id type matches the selection type —
-      // macOS only wires the selection gesture when they line up.
-      List(selection: $pane) {
-        ForEach(Pane.allCases.filter { $0 != .hooks }, id: \.self) { pane in
-          Label(pane.title, systemImage: pane.icon)
-            .tag(pane)
-        }
-        Section("Advanced") {
-          Label(Pane.hooks.title, systemImage: Pane.hooks.icon)
-            .tag(Pane.hooks)
-        }
+      SettingsSidebar(
+        config: config,
+        pane: Binding(get: { pane }, set: { value in
+          guard pane != value else { return }
+          pane = value
+          selectedSearchItem = nil
+          searchNavigator.cancel()
+        }),
+        focusRequest: searchFocusRequest,
+        resetRequest: searchResetRequest,
+      ) { item in
+        guard let destination = Pane(rawValue: item.pane) else { return }
+        pane = destination
+        selectedSearchItem = item.id
+        searchNavigationID &+= 1
+        searchNavigator.select(item.id, request: searchNavigationID, reduceMotion: reduceMotion)
       }
-      .listStyle(.sidebar)
-      .navigationSplitViewColumnWidth(min: 180, ideal: 200)
     } detail: {
-      Form {
-        switch pane ?? .general {
-        case .general: generalPane
+      Group {
+        Form {
+          switch pane ?? .general {
+          case .general: generalPane
 
-        case .tiling: tilingPane
+          case .tiling: tilingPane
 
-        case .workspaces: workspacesPane
+          case .workspaces: workspacesPane
 
-        case .workspaceKeys: workspaceKeysPane
+          case .workspaceKeys: workspaceKeysPane
 
-        case .focusMouse: focusMousePane
+          case .focusMouse: focusMousePane
 
-        case .gestures: gesturesPane
+          case .gestures: gesturesPane
 
-        case .hooks:
-          HooksSettingsPane(
-            store: store.scope(state: \.hooks, action: \.hooks)
-          )
+          case .hooks:
+            HooksSettingsPane(
+              store: store.scope(state: \.hooks, action: \.hooks)
+            )
+            .settingsSearchTarget("hooks")
 
-        case .appearance: appearancePane
+          case .appearance: appearancePane
+          }
         }
+        .formStyle(.grouped)
+        .navigationTitle((pane ?? .general).title)
+        .environment(\.settingsSearchSelection, selectedSearchItem)
+        .environment(\.settingsSearchNavigator, searchNavigator)
       }
-      .formStyle(.grouped)
-      .navigationTitle((pane ?? .general).title)
+    }
+    .toolbar {
+      Button("Search Settings", systemImage: "magnifyingglass") {
+        searchFocusRequest &+= 1
+      }
+      .keyboardShortcut("f", modifiers: .command)
     }
     .persistentChangeAlert(
       $store.scope(state: \.overlayAwareApps.alert, action: \.overlayAwareApps.alert),
@@ -162,6 +176,7 @@ struct SettingsView: View {
       )
     }
     .frame(minWidth: 680, minHeight: 540)
+    .onDisappear { searchNavigator.cancel() }
     // All side effects (status reads, permission/CLI/update streams, the AX
     // change subscription) live in the reducer — the view just starts it.
     .task { await store.send(.task).finish() }
@@ -169,6 +184,9 @@ struct SettingsView: View {
     // derived shortcut). `initial` covers the tab already being open.
     .onChange(of: pendingSection, initial: true) { _, section in
       guard let section, let target = Pane(rawValue: section.rawValue) else { return }
+      searchResetRequest &+= 1
+      selectedSearchItem = nil
+      searchNavigator.cancel()
       pane = target
       onSectionConsumed()
     }
@@ -203,5 +221,11 @@ struct SettingsView: View {
   // MARK: Private
 
   @State private var pane: Pane? = .general
+  @State private var selectedSearchItem: String?
+  @State private var searchNavigationID: UInt64 = 0
+  @State private var searchFocusRequest: UInt64 = 0
+  @State private var searchResetRequest: UInt64 = 0
+  @State private var searchNavigator = SettingsSearchNavigator()
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
 }

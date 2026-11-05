@@ -16,7 +16,9 @@ extension SettingsView {
         Text("Launch at login")
         Text("Start Tatami automatically when you log in.")
       }
+      .settingsSearchTarget("general.launchAtLogin")
     }
+    .settingsSearchTarget("section.general.general")
 
     Section("Guided Setup") {
       HStack {
@@ -30,6 +32,7 @@ extension SettingsView {
         Button("Run Guided Setup…", action: onStartOnboarding)
       }
     }
+    .settingsSearchTarget("section.general.guided-setup")
 
     Section("Permissions") {
       HStack {
@@ -78,12 +81,14 @@ extension SettingsView {
         }
       }
     }
+    .settingsSearchTarget("section.general.permissions")
 
     Section("Updates") {
       Toggle(isOn: setting(\.general.checkForUpdatesAutomatically)) {
         Text("Check for updates automatically")
         Text("Periodically check for new Tatami releases.")
       }
+      .settingsSearchTarget("general.checkForUpdatesAutomatically")
       Picker(selection: setting(\.general.checkInterval)) {
         ForEach(UpdateCheckInterval.allCases) { interval in
           Text(interval.displayName).tag(interval)
@@ -91,6 +96,7 @@ extension SettingsView {
       } label: {
         Text("Check frequency")
       }
+      .settingsSearchTarget("general.checkInterval")
       .disabled(!config.settings.general.checkForUpdatesAutomatically)
       Button("Check for Updates…") {
         // Same as the menu bar item: Sparkle's own activation is conditional,
@@ -99,6 +105,7 @@ extension SettingsView {
         store.send(.checkForUpdatesTapped)
       }
     }
+    .settingsSearchTarget("section.general.updates")
 
     Section("Command Line") {
       HStack {
@@ -132,17 +139,20 @@ extension SettingsView {
       }
       .buttonStyle(.link)
     }
+    .settingsSearchTarget("section.general.command-line")
 
     ConfirmationSettingsSection(settings: Binding(
       get: { config.settings.confirmations },
       set: { value in $config.withLock { $0.settings.confirmations = value } },
     ))
+    .settingsSearchTarget("general.confirmations")
 
     Section("Debug") {
       Toggle(isOn: setting(\.general.debugLogging)) {
         Text("Debug logging")
         Text("Append diagnostic events to ~/.config/tatami/tatami.log. Off by default.")
       }
+      .settingsSearchTarget("general.debugLogging")
       if config.settings.general.debugLogging {
         HStack {
           Text("Log file")
@@ -156,6 +166,7 @@ extension SettingsView {
         }
       }
     }
+    .settingsSearchTarget("section.general.debug")
   }
 
   @ContentBuilder
@@ -169,6 +180,7 @@ extension SettingsView {
         Text("Auto-balance")
         Text("Equalize every split whenever a window is added or removed.")
       }
+      .settingsSearchTarget("layout.autoBalance")
       Picker(selection: setting(\.layout.splitType)) {
         ForEach(SplitTypePreference.allCases) { type in
           Text(type.displayName).tag(type)
@@ -177,6 +189,7 @@ extension SettingsView {
         Text("Split direction")
         Text("Default axis when a new window splits an existing tile.")
       }
+      .settingsSearchTarget("layout.splitType")
       Picker(selection: setting(\.layout.windowPlacement)) {
         ForEach(WindowPlacement.allCases) { place in
           Text(place.displayName).tag(place)
@@ -185,7 +198,9 @@ extension SettingsView {
         Text("New window placement")
         Text("Which side of the new split holds the inserted window.")
       }
+      .settingsSearchTarget("layout.windowPlacement")
     }
+    .settingsSearchTarget("section.tiling.layout")
 
     Section("Gaps") {
       CommitOnChangeStepper(
@@ -195,6 +210,7 @@ extension SettingsView {
         label: { "Inner gap: \($0) px" },
         commit: { v in $config.withLock { $0.settings.layout.gapInner = v } },
       )
+      .settingsSearchTarget("layout.gapInner")
       CommitOnChangeStepper(
         external: config.settings.layout.gapOuter,
         range: 0 ... 100,
@@ -202,34 +218,46 @@ extension SettingsView {
         label: { "Outer gap: \($0) px" },
         commit: { v in $config.withLock { $0.settings.layout.gapOuter = v } },
       )
+      .settingsSearchTarget("layout.gapOuter")
     }
+    .settingsSearchTarget("section.tiling.gaps")
 
     Section("Move & Resize") {
       shortcut("Swap left", .swapLeft, \.swapLeft)
+        .settingsSearchTarget("shortcuts.swapLeft")
       shortcut("Swap right", .swapRight, \.swapRight)
+        .settingsSearchTarget("shortcuts.swapRight")
       shortcut("Swap up", .swapUp, \.swapUp)
+        .settingsSearchTarget("shortcuts.swapUp")
       shortcut("Swap down", .swapDown, \.swapDown)
+        .settingsSearchTarget("shortcuts.swapDown")
       shortcut("Grow", .resizeGrow, \.resizeGrow)
+        .settingsSearchTarget("shortcuts.resizeGrow")
       shortcut("Shrink", .resizeShrink, \.resizeShrink)
+        .settingsSearchTarget("shortcuts.resizeShrink")
       shortcut(
         "Toggle orientation",
         .toggleOrientation,
         \.toggleOrientation,
         description: "Flip the split between the focused window and its neighbour (side-by-side ↔ stacked).",
       )
+      .settingsSearchTarget("shortcuts.toggleOrientation")
       shortcut(
         "Toggle fullscreen",
         .toggleFullscreen,
         \.toggleFullscreen,
         description: "Zoom the focused window to fill the workspace. Tatami can keep several windows zoomed at once.",
       )
+      .settingsSearchTarget("shortcuts.toggleFullscreen")
       shortcut(
         "Balance",
         .balance,
         \.balance,
         description: "Follow Auto-balance; Off rebuilds the BSP layout.",
       )
+      .settingsSearchTarget("shortcuts.balance")
     }
+    .settingsSearchTarget("section.tiling.move-resize")
 
     Section("Toggles") {
       shortcut(
@@ -238,19 +266,23 @@ extension SettingsView {
         \.toggleFloating,
         description: "Float the focused app in the active workspace (added here as floating if it wasn't assigned); toggle again to re-tile it.",
       )
+      .settingsSearchTarget("shortcuts.toggleFloating")
       shortcut(
         "Toggle shared floating",
         .toggleSharedFloating,
         \.toggleSharedFloating,
         description: "Float the focused app everywhere — joins Shared Apps as floating if it isn't shared yet. Toggling off flips it to shared tiled; leaving Shared Apps is the membership toggle in Workspaces.",
       )
+      .settingsSearchTarget("shortcuts.toggleSharedFloating")
       shortcut(
         "Toggle tiling (pause)",
         .toggleSpaceActivated,
         \.toggleSpaceActivated,
         description: "Pause or resume tiling for the active workspace. While paused, windows keep their current frames.",
       )
+      .settingsSearchTarget("shortcuts.toggleSpaceActivated")
     }
+    .settingsSearchTarget("section.tiling.toggles")
   }
 
   @ContentBuilder
@@ -262,27 +294,33 @@ extension SettingsView {
           "Keep the pointer attached to the window Tatami focuses. It moves after directional focus, app/window cycling, workspace changes, open/close refocus, or a Swap that relocates the focused tile. Floating and Ignore-mode cycle targets use their live window frame. Clicking a window preserves the click position."
         )
       }
+      .settingsSearchTarget("focus.mouseFollowsFocus")
       Toggle(isOn: setting(\.focus.mouseHidesOnFocus)) {
         Text("Hide cursor on focus")
         Text("Hide the cursor on a workspace switch until you move the mouse.")
       }
+      .settingsSearchTarget("focus.mouseHidesOnFocus")
       Toggle(isOn: setting(\.focus.refocusOnClose)) {
         Text("Refocus when a window closes")
         Text(
           "Move focus to a remaining window in the workspace when the focused one closes — so closing a chat window hands focus back to your editor instead of stranding it."
         )
       }
+      .settingsSearchTarget("focus.refocusOnClose")
     }
+    .settingsSearchTarget("section.focusMouse.focus")
 
     Section("Focus Follows Mouse (FFM)") {
       Toggle(isOn: setting(\.focus.focusFollowsMouse)) {
         Text("Focus follows mouse (FFM)")
         Text("When the pointer moves over a managed window, give that window keyboard focus.")
       }
+      .settingsSearchTarget("focus.focusFollowsMouse")
       Toggle(isOn: setting(\.focus.focusFollowsMouseIgnoreFullscreen)) {
         Text("Ignore full-screen windows")
         Text("Don't shift focus to a window that fills the whole display as the cursor passes over it.")
       }
+      .settingsSearchTarget("focus.focusFollowsMouseIgnoreFullscreen")
       .disabled(!config.settings.focus.focusFollowsMouse)
       Picker(selection: setting(\.focus.focusFollowsMouseDisableHotkey)) {
         ForEach(FocusFollowsMouseModifier.allCases, id: \.self) { modifier in
@@ -292,15 +330,22 @@ extension SettingsView {
         Text("Suspend with modifier")
         Text("Hold this key to temporarily pause focus-follows-mouse.")
       }
+      .settingsSearchTarget("focus.focusFollowsMouseDisableHotkey")
       .disabled(!config.settings.focus.focusFollowsMouse)
     }
+    .settingsSearchTarget("section.focusMouse.focus-follows-mouse-ffm")
 
     Section("Directional Focus") {
       shortcut("Focus left", .focusLeft, \.focusLeft)
+        .settingsSearchTarget("shortcuts.focusLeft")
       shortcut("Focus right", .focusRight, \.focusRight)
+        .settingsSearchTarget("shortcuts.focusRight")
       shortcut("Focus up", .focusUp, \.focusUp)
+        .settingsSearchTarget("shortcuts.focusUp")
       shortcut("Focus down", .focusDown, \.focusDown)
+        .settingsSearchTarget("shortcuts.focusDown")
     }
+    .settingsSearchTarget("section.focusMouse.directional-focus")
   }
 
   @ContentBuilder
@@ -310,31 +355,38 @@ extension SettingsView {
         Text("Loop around")
         Text("Wrap from the last workspace back to the first (and vice versa).")
       }
+      .settingsSearchTarget("switching.loop")
       Toggle(isOn: setting(\.switching.skipEmpty)) {
         Text("Skip empty workspaces")
         Text("Ignore workspaces with no running apps when cycling next/previous.")
       }
+      .settingsSearchTarget("switching.skipEmpty")
       Toggle(isOn: setting(\.switching.followAppFocus)) {
         Text("Follow app focus")
         Text("Switching to an app activates the workspace it belongs to.")
       }
+      .settingsSearchTarget("switching.followAppFocus")
       Toggle(isOn: setting(\.switching.cycleAcrossDisplays)) {
         Text("Cycle across all displays")
         Text("Next/previous workspace cycles through every display's workspaces instead of just the one under the cursor.")
       }
+      .settingsSearchTarget("switching.cycleAcrossDisplays")
       Toggle(isOn: setting(\.switching.recentAcrossDisplays)) {
         Text("Recent workspace crosses displays")
         Text(
           "Recent actions combine every display's workspace history into one global MRU. Off only uses the current display's recent workspace."
         )
       }
+      .settingsSearchTarget("switching.recentAcrossDisplays")
       Toggle(isOn: setting(\.switching.switchToRecentWhenEmpty)) {
         Text("Back to recent when empty")
         Text(
           "When the last window in the active workspace closes, switch to the recent workspace. Shared apps don't count — they join every workspace anyway."
         )
       }
+      .settingsSearchTarget("switching.switchToRecentWhenEmpty")
     }
+    .settingsSearchTarget("section.workspaces.workspace-switching")
 
     Section("Window Cycling") {
       Toggle(isOn: setting(\.switching.cycleSameAppWindows)) {
@@ -343,25 +395,30 @@ extension SettingsView {
           "Step through each window individually, including multiple windows of the same app. Off cycles app-by-app and recalls each app's most-recent window inside the visible Tatami context."
         )
       }
+      .settingsSearchTarget("switching.cycleSameAppWindows")
       Toggle(isOn: setting(\.switching.includeSharedAppsInWindowSwitcher)) {
         Text("Include Shared Apps")
         Text(
           "Keep Shared Apps in the app/window switcher. During Borrow, they join the host and borrowed tiled blocks."
         )
       }
+      .settingsSearchTarget("switching.includeSharedAppsInWindowSwitcher")
       shortcut(
         "Cycle next window",
         .cycleNextWindow,
         \.cycleNextWindow,
         description: "Move focus to the next app or window in the visible Tatami context, including Floating and Ignore-mode members. A borrowed tiled block joins its host's cycle until dismissed. Unlike ⌘Tab, unrelated running apps stay out; unlike ⌘`, Tatami can cross between apps. With “Cycle through every window” off, it steps app-by-app and recalls each app's most-recent window.",
       )
+      .settingsSearchTarget("shortcuts.cycleNextWindow")
       shortcut(
         "Cycle previous window",
         .cyclePreviousWindow,
         \.cyclePreviousWindow,
         description: "Move focus to the previous app or window in the visible Tatami context, including Floating and Ignore-mode members. A borrowed tiled block joins its host's cycle until dismissed. Unlike ⌘Tab, unrelated running apps stay out; unlike ⌘`, Tatami can cross between apps. With “Cycle through every window” off, it steps app-by-app and recalls each app's most-recent window.",
       )
+      .settingsSearchTarget("shortcuts.cyclePreviousWindow")
     }
+    .settingsSearchTarget("section.workspaces.window-cycling")
 
     Section("Move App & Displays") {
       shortcut(
@@ -370,43 +427,56 @@ extension SettingsView {
         \.moveToNextWorkspace,
         description: "Move the focused app to the next workspace and follow it there.",
       )
+      .settingsSearchTarget("shortcuts.moveToNextWorkspace")
       shortcut(
         "Move app to previous workspace",
         .moveFocusedAppToPreviousWorkspace,
         \.moveToPreviousWorkspace,
         description: "Move the focused app to the previous workspace and follow it there.",
       )
+      .settingsSearchTarget("shortcuts.moveToPreviousWorkspace")
       shortcut(
         "Focus next display",
         .focusNextDisplay,
         \.focusNextDisplay,
         description: "Focus the active workspace on the next display (loops around).",
       )
+      .settingsSearchTarget("shortcuts.focusNextDisplay")
       shortcut(
         "Focus previous display",
         .focusPreviousDisplay,
         \.focusPreviousDisplay,
         description: "Focus the active workspace on the previous display (loops around).",
       )
+      .settingsSearchTarget("shortcuts.focusPreviousDisplay")
       shortcut(
         "Toggle app in workspace",
         .toggleFocusedAppInActiveWorkspace,
         \.toggleFocusedAppInActiveWorkspace,
         description: "Add the focused app to the active workspace, or remove it if it's already assigned.",
       )
+      .settingsSearchTarget("shortcuts.toggleFocusedAppInActiveWorkspace")
       shortcut(
         "Toggle app in Shared Apps",
         .toggleAppInSharedApps,
         \.toggleAppInSharedApps,
         description: "Add the focused app to Shared Apps (tiled into every workspace), or remove it if it's already shared.",
       )
+      .settingsSearchTarget("shortcuts.toggleAppInSharedApps")
     }
+    .settingsSearchTarget("section.workspaces.move-app-displays")
 
     Section("Borrow") {
+      Toggle(isOn: setting(\.switching.bringScratchpadToPointerDisplay)) {
+        Text("Bring scratchpads to the pointer display")
+        Text("Summon a scratchpad here even when it is already open on another display.")
+      }
+      .settingsSearchTarget("switching.bringScratchpadToPointerDisplay")
       Toggle(isOn: setting(\.switching.toggleBorrowOnRepeat)) {
         Text("Dismiss when summoned again")
         Text("Calling the same workspace already borrowed on this display returns it and restores the host workspace.")
       }
+      .settingsSearchTarget("switching.toggleBorrowOnRepeat")
       Picker(
         selection: Binding(
           get: { config.settings.switching.borrowDefaultEdge },
@@ -445,7 +515,9 @@ extension SettingsView {
         \.dismissBorrow,
         description: "Return the borrowed workspace and restore the current one to full screen.",
       )
+      .settingsSearchTarget("shortcuts.dismissBorrow")
     }
+    .settingsSearchTarget("section.workspaces.borrow")
 
     Section {
       ForEach(store.overlayAwareApps.apps, id: \.bundleIdentifier) { app in
@@ -497,6 +569,7 @@ extension SettingsView {
         )
       }
     }
+    .settingsSearchTarget("section.workspaces.apps-with-floating-controls")
   }
 
   @ContentBuilder
@@ -507,16 +580,19 @@ extension SettingsView {
         \.keyEquivalentModifiers,
         description: "Held with a key equivalent to switch workspaces. Each workspace's key is set in its own settings; the built-in targets below cover recent / next / previous. Clear it to disable key-equivalent switching.",
       )
+      .settingsSearchTarget("shortcuts.keyEquivalentModifiers")
       modifierToggleRow(
         "Assign modifier",
         \.assignModifiers,
         description: "Held with a workspace's key equivalent to assign the focused app to it.",
       )
+      .settingsSearchTarget("shortcuts.assignModifiers")
       modifierToggleRow(
         "Borrow modifier",
         \.borrowModifiers,
         description: "Held with a workspace's key equivalent to borrow it into the current screen — then a direction key places it.",
       )
+      .settingsSearchTarget("shortcuts.borrowModifiers")
     } header: {
       Text("Modifiers")
     } footer: {
@@ -524,6 +600,7 @@ extension SettingsView {
         .font(.caption)
         .foregroundStyle(.secondary)
     }
+    .settingsSearchTarget("section.workspaceKeys.modifiers")
 
     Section {
       navTarget(
@@ -537,6 +614,7 @@ extension SettingsView {
         borrowAction: .borrowRecentWorkspace,
         borrowOverride: \.borrowRecentWorkspace,
       )
+      .settingsSearchTarget("shortcuts.recentWorkspaceKey")
       navTarget(
         "Next workspace",
         description: "The next workspace in the cycle.",
@@ -548,6 +626,7 @@ extension SettingsView {
         borrowAction: .borrowNextWorkspace,
         borrowOverride: \.borrowNextWorkspace,
       )
+      .settingsSearchTarget("shortcuts.nextWorkspaceKey")
       navTarget(
         "Previous workspace",
         description: "The previous workspace in the cycle.",
@@ -559,6 +638,7 @@ extension SettingsView {
         borrowAction: .borrowPreviousWorkspace,
         borrowOverride: \.borrowPreviousWorkspace,
       )
+      .settingsSearchTarget("shortcuts.previousWorkspaceKey")
     } header: {
       Text("Built-in Targets")
     } footer: {
@@ -568,6 +648,7 @@ extension SettingsView {
       .font(.caption)
       .foregroundStyle(.secondary)
     }
+    .settingsSearchTarget("section.workspaceKeys.built-in-targets")
   }
 
   @ContentBuilder
@@ -577,6 +658,7 @@ extension SettingsView {
         Text("Enable trackpad gestures")
         Text("Run a Tatami action when a configured three- or four-finger swipe is recognized.")
       }
+      .settingsSearchTarget("gestures.enabled")
 
       // `Gestures.sensitivity` owns the threshold ↔ sensitivity mapping
       // (inverse of the swipe distance: higher = shorter swipe). Buffered so
@@ -595,6 +677,7 @@ extension SettingsView {
       )
       .disabled(!config.settings.gestures.enabled)
     }
+    .settingsSearchTarget("section.gestures.trackpad")
 
     GestureBindingsSection(
       title: "Three-Finger Swipes",
@@ -618,32 +701,39 @@ extension SettingsView {
         Text("Show workspace icon")
         Text("Display the active workspace's icon in the menu bar.")
       }
+      .settingsSearchTarget("menuBar.showWorkspaceIcon")
       Toggle(isOn: setting(\.menuBar.showWorkspaceName)) {
         Text("Show workspace name")
         Text("Display the active workspace's name in the menu bar.")
       }
+      .settingsSearchTarget("menuBar.showWorkspaceName")
       Toggle(isOn: setting(\.menuBar.showProfileIcon)) {
         Text("Show profile icon")
         Text("Display the active profile's icon — only when you have more than one profile.")
       }
+      .settingsSearchTarget("menuBar.showProfileIcon")
       Toggle(isOn: setting(\.menuBar.showProfileName)) {
         Text("Show profile name")
         Text("Display the active profile's name — only when you have more than one profile.")
       }
+      .settingsSearchTarget("menuBar.showProfileName")
     } header: {
       Text("Menu Bar")
     } footer: {
       Text("What the menu bar item shows. With everything off it falls back to a single icon.")
         .font(.caption).foregroundStyle(.secondary)
     }
+    .settingsSearchTarget("section.appearance.menu-bar")
 
     Section("Overlay") {
       Toggle(isOn: setting(\.hud.enabled)) {
         Text("Show HUD")
         Text("Brief on-screen overlay confirming actions. The toggles below pick which.")
       }
+      .settingsSearchTarget("hud.enabled")
       Group {
         HUDPositionPicker(selection: setting(\.hud.position))
+          .settingsSearchTarget("hud.position")
         Picker(selection: setting(\.hud.size)) {
           ForEach(HUDSize.allCases) { size in
             Text(size.displayName).tag(size)
@@ -652,45 +742,55 @@ extension SettingsView {
           Text("Feedback size")
           Text("Adjust the overall size of action feedback.")
         }
+        .settingsSearchTarget("hud.size")
         .pickerStyle(.segmented)
         Toggle(isOn: setting(\.hud.workspaceSwitch)) {
           Text("Workspace switch")
           Text("The workspace's name when you switch to it.")
         }
+        .settingsSearchTarget("hud.workspaceSwitch")
         Toggle(isOn: setting(\.hud.windowCycle)) {
           Text("Window cycling")
           Text(
             "A compact app or window switcher while cycling. Use the shortcut or arrow keys, Return, Escape, modifier release, or the pointer."
           )
         }
+        .settingsSearchTarget("hud.windowCycle")
         Toggle(isOn: setting(\.hud.profileSwitch)) {
           Text("Profile switch")
           Text("The profile's name when you switch profiles (manual or auto).")
         }
+        .settingsSearchTarget("hud.profileSwitch")
         Toggle(isOn: setting(\.hud.floating)) {
           Text("Floating changes")
           Text("Floated / tiled — per-workspace and shared.")
         }
+        .settingsSearchTarget("hud.floating")
         Toggle(isOn: setting(\.hud.appMembership)) {
           Text("App membership")
           Text("App added to or removed from a workspace or Shared Apps.")
         }
+        .settingsSearchTarget("hud.appMembership")
         Toggle(isOn: setting(\.hud.tilingPaused)) {
           Text("Tiling pause")
           Text("Tiling paused / resumed.")
         }
+        .settingsSearchTarget("hud.tilingPaused")
         Toggle(isOn: setting(\.hud.fullscreen)) {
           Text("Fullscreen zoom")
           Text("A window zoomed to the workspace, or back.")
         }
+        .settingsSearchTarget("hud.fullscreen")
         Toggle(isOn: setting(\.hud.layout)) {
           Text("Layout commands")
           Text("Commands without a visual cue of their own (balance).")
         }
+        .settingsSearchTarget("hud.layout")
         Toggle(isOn: setting(\.hud.borrow)) {
           Text("Borrow")
           Text("Borrowing a workspace in beside another, or returning it.")
         }
+        .settingsSearchTarget("hud.borrow")
         CommitOnChangeStepper(
           external: config.settings.hud.durationMs,
           range: 300 ... 3000,
@@ -699,43 +799,51 @@ extension SettingsView {
           label: { "Duration: \($0) ms" },
           commit: { v in $config.withLock { $0.settings.hud.durationMs = v } },
         )
+        .settingsSearchTarget("hud.durationMs")
       }
       .disabled(!config.settings.hud.enabled)
       .padding(.leading, 12)
     }
+    .settingsSearchTarget("section.appearance.overlay")
 
     Section("Window Markers") {
       Toggle(isOn: setting(\.marker.fullscreenEnabled)) {
         Text("Mark fullscreen window")
         Text("Show a small color dot on the workspace's zoomed window.")
       }
+      .settingsSearchTarget("marker.fullscreenEnabled")
       ColorPicker(
         "Fullscreen color",
         selection: borderColorBinding(\.marker.fullscreenColorHex),
         supportsOpacity: false,
       )
+      .settingsSearchTarget("marker.fullscreenColorHex")
       .disabled(!config.settings.marker.fullscreenEnabled)
 
       Toggle(isOn: setting(\.marker.floatingEnabled)) {
         Text("Mark floating windows")
         Text("Show a small color dot on floating windows (per-workspace or shared), so a mirror reads as floating at a glance.")
       }
+      .settingsSearchTarget("marker.floatingEnabled")
       ColorPicker(
         "Floating color",
         selection: borderColorBinding(\.marker.floatingColorHex),
         supportsOpacity: false,
       )
+      .settingsSearchTarget("marker.floatingColorHex")
       .disabled(!config.settings.marker.floatingEnabled)
 
       Toggle(isOn: setting(\.marker.borrowEnabled)) {
         Text("Mark borrowed windows")
         Text("Badge the windows of a borrowed block with the borrowed workspace's icon, so what's on loan is clear at a glance.")
       }
+      .settingsSearchTarget("marker.borrowEnabled")
       ColorPicker(
         "Borrow color",
         selection: borderColorBinding(\.marker.borrowColorHex),
         supportsOpacity: false,
       )
+      .settingsSearchTarget("marker.borrowColorHex")
       .disabled(!config.settings.marker.borrowEnabled)
 
       CommitOnChangeStepper(
@@ -744,6 +852,7 @@ extension SettingsView {
         label: { "Dot size: \(Int($0)) pt" },
         commit: { v in $config.withLock { $0.settings.marker.size = v } },
       )
+      .settingsSearchTarget("marker.size")
 
       Picker(selection: setting(\.marker.corner)) {
         ForEach(MarkerCorner.allCases) { corner in
@@ -753,11 +862,14 @@ extension SettingsView {
         Text("Dot position")
         Text("Window corner where the dot is anchored.")
       }
+      .settingsSearchTarget("marker.corner")
       Toggle(isOn: setting(\.marker.hideOnHover)) {
         Text("Fade on hover")
         Text("Hide the dot while the cursor is over it.")
       }
+      .settingsSearchTarget("marker.hideOnHover")
     }
+    .settingsSearchTarget("section.appearance.window-markers")
   }
 
   /// One-line status describing where the CLI is (or would be) installed.

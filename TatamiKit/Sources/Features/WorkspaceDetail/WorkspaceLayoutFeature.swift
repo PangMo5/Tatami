@@ -78,9 +78,15 @@ public struct WorkspaceLayoutFeature {
     /// AX titles for the workspace's apps' live windows (disambiguates several
     /// windows of one app), even when the workspace isn't active.
     public var windowTitles = [WindowKey: String]()
+    /// Discovery membership is independent of titles: a live untitled window
+    /// must still count when projecting saved occurrences into the preview.
+    public var windowKeys = Set<WindowKey>()
     /// Bundle ids with a currently-discoverable window. A shared app absent here
     /// is hidden and wouldn't tile on switch, so the preview omits it.
     public var presentBundleIds = Set<String>()
+    /// Windowless bundles proved by the current accepted discovery. Unknown
+    /// results keep saved slots available rather than retaining stale absence.
+    public var emptyBundleIds = Set<String>()
     public var snapshotLoadedFor: Workspace.ID?
     public var windowInfoLoadedFor: Workspace.ID?
     public var windowInfoRequestGeneration: UInt64 = 0
@@ -89,6 +95,7 @@ public struct WorkspaceLayoutFeature {
     /// activation store lives in a sibling subtree).
     public var liveTree: BSPNode<WindowKey>?
     public var liveZoomed = Set<WindowKey>()
+    public var liveRestorationBindings = [SlotID: WindowKey]()
     public var isActive = false
 
     /// Tapped tile (drives toolbar orientation/fullscreen). Transient drag is
@@ -146,14 +153,15 @@ public struct WorkspaceLayoutFeature {
       return out
     }
 
-    /// Live window titles grouped by bundle id (sorted by window id) so the
-    /// view can label several windows of one app distinctly.
-    public var titlesByBundle: [String: [String]] {
-      var grouped = [String: [(CGWindowID, String)]]()
-      for (key, title) in windowTitles {
-        grouped[key.bundleId, default: []].append((key.windowID, title))
-      }
-      return grouped.mapValues { $0.sorted { $0.0 < $1.0 }.map(\.1) }
+    /// Use activation's retained slot identities, including a surviving second
+    /// window after the first closes. Titles and zoom must use this same map.
+    public var previewWindowBindings: [SlotID: WindowKey] {
+      let retained = liveRestorationBindings.isEmpty
+        ? slotToKey(liveTree?.windows ?? [])
+        : liveRestorationBindings
+      let bindings = layoutSnapshot?.restorationBindings(keys: Array(windowKeys), retaining: retained)
+        ?? slotToKey(Array(windowKeys))
+      return bindings.filter { windowKeys.contains($0.value) }
     }
 
     /// The single render + edit source of truth: the live tree when active,
@@ -170,6 +178,8 @@ public struct WorkspaceLayoutFeature {
         liveZoomed: liveZoomed,
         snapshot: layoutSnapshot,
         autoBalance: config.settings.layout.autoBalance,
+        availableSlots: Set(previewWindowBindings.keys),
+        emptyBundleIds: emptyBundleIds,
       )
     }
 
@@ -178,7 +188,12 @@ public struct WorkspaceLayoutFeature {
   public enum Action {
     case onAppear
     case startObservingAppActivity
-    case activationObserved(liveTree: BSPNode<WindowKey>?, liveZoomed: Set<WindowKey>, isActive: Bool)
+    case activationObserved(
+      liveTree: BSPNode<WindowKey>?,
+      liveZoomed: Set<WindowKey>,
+      isActive: Bool,
+      restorationBindings: [SlotID: WindowKey] = [:],
+    )
 
     // Selection
     case tileTapped(path: [BSPSide], bundleId: String, liveKey: WindowKey?, occurrence: Int?)
@@ -208,6 +223,8 @@ public struct WorkspaceLayoutFeature {
       generation: UInt64,
       titles: [WindowKey: String],
       present: Set<String>,
+      keys: Set<WindowKey> = [],
+      empty: Set<String> = [],
     )
     case appActivityTick
 
@@ -263,9 +280,10 @@ public struct WorkspaceLayoutFeature {
       case .appActivityTick:
         return .send(.loadWindowTitles(bundleIds: state.tiledBundleIds))
 
-      case .activationObserved(let liveTree, let liveZoomed, let isActive):
+      case .activationObserved(let liveTree, let liveZoomed, let isActive, let restorationBindings):
         state.liveTree = liveTree
         state.liveZoomed = liveZoomed
+        state.liveRestorationBindings = restorationBindings
         state.isActive = isActive
         return .none
 
@@ -280,14 +298,23 @@ public struct WorkspaceLayoutFeature {
         let workspaceId = state.workspaceId
         guard !bundleIds.isEmpty else {
           state.windowTitles = [:]
+          state.windowKeys = []
           state.presentBundleIds = []
+          state.emptyBundleIds = []
           state.windowInfoLoadedFor = workspaceId
           return .cancel(id: CancelID.windowInfoLoad)
         }
         // Discover live windows by bundle id — works even when this workspace
         // isn't active. The discovered set doubles as shared-app presence.
         return .run { [windowSnapshot] send in
-          let keys = await windowSnapshot.cachedKeysOffMain(bundleIds, true)
+          let capabilities = await windowSnapshot.discoverCapabilitiesOffMain(bundleIds)
+          let classifiedBundles = Set(capabilities.resizableKeys.map(\.bundleId))
+          // A cold hidden window can temporarily report AXDialog. Its
+          // enumerated identity can bound old saved occurrences, but it does
+          // not enter the runtime's eligible tiling/focus cache.
+          let keys = capabilities.resizableKeys + capabilities.unclassifiedKeys.filter {
+            !classifiedBundles.contains($0.bundleId)
+          }
           let titles = await windowSnapshot.windowTitlesOffMain(keys)
           let present = Set(keys.map(\.bundleId))
           await send(.windowInfoLoaded(
@@ -295,16 +322,20 @@ public struct WorkspaceLayoutFeature {
             generation: generation,
             titles: titles,
             present: present,
+            keys: Set(keys),
+            empty: capabilities.emptyBundleIds,
           ))
         }
         .cancellable(id: CancelID.windowInfoLoad, cancelInFlight: true)
 
-      case .windowInfoLoaded(let workspaceId, let generation, let titles, let present):
+      case .windowInfoLoaded(let workspaceId, let generation, let titles, let present, let keys, let empty):
         guard
           workspaceId == state.workspaceId,
           generation == state.windowInfoRequestGeneration
         else { return .none }
         state.windowTitles = titles
+        state.windowKeys = keys.union(titles.keys)
+        state.emptyBundleIds = empty.subtracting(state.windowKeys.map(\.bundleId))
         state.presentBundleIds = present
         state.windowInfoLoadedFor = workspaceId
         return .none
@@ -355,13 +386,14 @@ public struct WorkspaceLayoutFeature {
       case .toggleOrientation:
         guard
           let sel = state.selectedTile,
-          let full = state.resolved?.fullLeafPath(
-            trimmedLeafPath: sel.path,
+          !sel.path.isEmpty,
+          let full = state.resolved?.fullBranchPath(
+            trimmedBranchPath: Array(sel.path.dropLast()),
             hidden: state.hiddenSharedBundleIds,
           )
         else { return .none }
         state.selectedTile = nil
-        return route(.toggleOrientation(leafPath: full), state: &state)
+        return route(.toggleOrientation(branchPath: full), state: &state)
 
       case .toggleFullscreen(let bundleId, let liveKey, let occurrence, let zoomIn):
         state.selectedTile = nil
@@ -403,6 +435,8 @@ public struct WorkspaceLayoutFeature {
         workspace: workspace,
         sharedApps: state.config.sharedApps,
         presentBundleIds: state.presentBundleIds,
+        availableSlots: Set(state.previewWindowBindings.keys),
+        emptyBundleIds: state.emptyBundleIds,
       )
     else { return .none }
     // `SlotID` leaves are unique, so the op applies directly — a same-app swap
@@ -434,6 +468,8 @@ public struct WorkspaceLayoutFeature {
         workspace: workspace,
         sharedApps: state.config.sharedApps,
         presentBundleIds: state.presentBundleIds,
+        availableSlots: Set(state.previewWindowBindings.keys),
+        emptyBundleIds: state.emptyBundleIds,
       )
     else { return .none }
     var zoomed = Set(state.layoutSnapshot?.fullscreenZoomedSlots ?? [])

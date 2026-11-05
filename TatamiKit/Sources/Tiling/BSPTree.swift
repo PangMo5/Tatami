@@ -668,16 +668,18 @@ extension BSPNode {
     return warping(window, direction: direction)
   }
 
-  /// Flip the parent split axis of `window`. No-op if `window` is at
-  /// the root.
-  public func togglingSplit(at window: WindowID) -> BSPNode {
-    guard let path = pathTo(window: window), !path.isEmpty else { return self }
-    let parentPath = Array(path.dropLast())
-    return replacing(path: parentPath) { node in
-      guard case .branch(let b) = node else { return node }
-      let flipped: SplitAxis = b.split == .horizontal ? .vertical : .horizontal
-      return .branch(b.with(split: flipped))
+  /// Flip the nearest split that still separates visible tiles. Fullscreen
+  /// windows retain their saved positions but do not create visible splits.
+  public func togglingSplit(at window: WindowID, excluding excluded: Set<WindowID> = []) -> BSPNode {
+    guard !excluded.contains(window), let path = pathTo(window: window) else { return self }
+    for depth in path.indices.reversed() {
+      let parentPath = Array(path.prefix(depth))
+      guard case .branch(let branch) = subtree(at: parentPath) else { continue }
+      let sibling = path[depth] == .left ? branch.right : branch.left
+      guard sibling.windows.contains(where: { !excluded.contains($0) }) else { continue }
+      return togglingSplit(atBranchPath: parentPath)
     }
+    return self
   }
 }
 

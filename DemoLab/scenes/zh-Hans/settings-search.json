@@ -1,0 +1,84 @@
+{
+  "name" : "settings-search",
+  "requires" : {
+    "displays" : 1
+  },
+  "setup" : [
+    {
+      "kind" : "prepareSettings"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "gearshape",
+      "kind" : "click"
+    }
+  ],
+  "steps" : [
+    {
+      "kind" : "chapter",
+      "text" : "搜索设置"
+    },
+    {
+      "kind" : "caption",
+      "text" : "按名称、快捷键或 MFF 等缩写查找设置。"
+    },
+    {
+      "chord" : "cmd - f",
+      "kind" : "key"
+    },
+    {
+      "app" : "Tatami",
+      "kind" : "typeText",
+      "ms" : 100,
+      "text" : "MFF"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:settings-result-focus.mouseFollowsFocus",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:setting-focus.mouseFollowsFocus",
+      "kind" : "expectControlVisible"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    },
+    {
+      "kind" : "caption",
+      "text" : "选择结果，即可显示页面下方的对应设置。"
+    },
+    {
+      "chord" : "cmd - f",
+      "kind" : "key"
+    },
+    {
+      "chord" : "cmd - a",
+      "kind" : "key"
+    },
+    {
+      "app" : "Tatami",
+      "kind" : "typeText",
+      "ms" : 80,
+      "text" : "上一个工作区"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:settings-result-shortcuts.moveToPreviousWorkspace",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:setting-shortcuts.moveToPreviousWorkspace",
+      "kind" : "expectControlVisible"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2000
+    }
+  ],
+  "summary" : "搜索设置，直接跳转到对应选项。",
+  "title" : "找到所需设置"
+}

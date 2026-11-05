@@ -10,6 +10,21 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.15.0 (2026-11-05)
+
+Settings search and more consistent workspace layouts.
+
+- **Search Settings:** Find settings by name, description, shortcut, or abbreviations such as FFM and MFF. Select a result to reveal and highlight its control.
+- **Keep adjusted proportions:** Returning to a workspace and restoring saved windows preserve manual split ratios with Auto-balance enabled. Newly inserted windows still use Auto-balance.
+- **Bring apps to the selected workspace:** Selecting a workspace takes priority over another display using the same registered app. Other windows stay in their workspace; an emptied display uses its existing workspace history to find a replacement.
+- **Bring scratchpads to the pointer display:** Summoning an open scratchpad on another display moves it here and restores its previous host. This option is on by default.
+- **Follow the pointer between displays:** Focus Follows Mouse focuses full-screen or maximized windows when crossing displays, even with the fullscreen exclusion on. The exclusion still applies within the same display.
+- **Follow focus across displays:** Mouse Follows Focus uses the visible window position even when an app has not yet published its accessibility frame, including freshly summoned scratchpads.
+- **Match layout previews to current windows:** Inactive previews omit obsolete app registrations and missing saved occurrences when current windows are known. Saved slots remain available for reopened windows, and restored proportions match activation.
+- **Change the visible split:** Toggle orientation from either tiled window when another window is fullscreen. Fullscreen windows retain their saved layout positions, and the layout editor follows the same rule.
+- **Center the pointer after layout changes:** Mouse Follows Focus checks the app's actual frame when the visible surface still reports the previous size, including windows with a minimum size. A newer layout command cancels an older pending pointer move.
+- **Expand remaining windows after closing:** Windows moving away from a screen edge no longer keep their previous size. Close-driven reflows verify every remaining tile, including windows belonging to other apps, and center the pointer using the updated frame.
+
 ## 1.14.2 (2026-09-17)
 
 More reliable window focus and Guided Setup.

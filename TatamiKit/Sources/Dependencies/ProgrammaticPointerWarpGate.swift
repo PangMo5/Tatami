@@ -23,6 +23,7 @@ final class ProgrammaticPointerWarpGate: @unchecked Sendable {
   struct Evaluation: Equatable, Sendable {
     var generation: UInt64
     var allowsFocus: Bool
+    var warpDestination: CGPoint?
   }
 
   static let shared = ProgrammaticPointerWarpGate()
@@ -32,6 +33,7 @@ final class ProgrammaticPointerWarpGate: @unchecked Sendable {
     defer { lock.unlock() }
 
     generation &+= 1
+    lastWarpDestination = destination
     pendingWarp = PendingWarp(
       timestamp: timestamp,
       destination: destination,
@@ -46,13 +48,13 @@ final class ProgrammaticPointerWarpGate: @unchecked Sendable {
     defer { lock.unlock() }
 
     guard let pendingWarp else {
-      return Evaluation(generation: generation, allowsFocus: true)
+      return Evaluation(generation: generation, allowsFocus: true, warpDestination: lastWarpDestination)
     }
 
     // The event tap can deliver a move that was captured before the main
     // actor performed an MFF warp. Never let that stale target regain focus.
     guard timestamp > pendingWarp.timestamp else {
-      return Evaluation(generation: generation, allowsFocus: false)
+      return Evaluation(generation: generation, allowsFocus: false, warpDestination: lastWarpDestination)
     }
 
     // CGWarpMouseCursorPosition produces a mouseMoved event at (or within a
@@ -61,13 +63,13 @@ final class ProgrammaticPointerWarpGate: @unchecked Sendable {
     let dx = location.x - pendingWarp.destination.x
     let dy = location.y - pendingWarp.destination.y
     guard (dx * dx) + (dy * dy) > Self.destinationToleranceSquared else {
-      return Evaluation(generation: generation, allowsFocus: false)
+      return Evaluation(generation: generation, allowsFocus: false, warpDestination: lastWarpDestination)
     }
 
     // A newer event away from the destination can only be physical pointer
     // movement. Disarm without a timer so FFM responds on this very event.
     self.pendingWarp = nil
-    return Evaluation(generation: generation, allowsFocus: true)
+    return Evaluation(generation: generation, allowsFocus: true, warpDestination: lastWarpDestination)
   }
 
   func isCurrent(generation expectedGeneration: UInt64) -> Bool {
@@ -88,5 +90,6 @@ final class ProgrammaticPointerWarpGate: @unchecked Sendable {
   private let lock = NSLock()
   private var generation: UInt64 = 0
   private var pendingWarp: PendingWarp?
+  private var lastWarpDestination: CGPoint?
 
 }

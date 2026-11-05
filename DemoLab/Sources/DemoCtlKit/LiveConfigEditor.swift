@@ -54,6 +54,10 @@ public enum LiveConfigEditor {
       "borrowFraction": "switching",
       "mouseFollowsFocus": "focus",
       "focusFollowsMouse": "focus",
+      "focusFollowsMouseIgnoreFullscreen": "focus",
+      "bringScratchpadToPointerDisplay": "switching",
+      "toggleBorrowOnRepeat": "switching",
+      "autoBalance": "layout",
       "gapInner": "layout",
       "gapOuter": "layout",
     ]
@@ -62,8 +66,12 @@ public enum LiveConfigEditor {
       switch key {
       case "borrowDefaultEdge": ["remove", "\"top\"", "\"bottom\"", "\"left\"", "\"right\""].contains(value)
       case "borrowFraction": Double(value).map { (0.15...0.65).contains($0) } ?? false
+      case "autoBalance": ["\"none\"", "\"horizontal\"", "\"vertical\"", "\"both\""].contains(value)
       case "mouseFollowsFocus",
-           "focusFollowsMouse": ["true", "false"].contains(value)
+           "focusFollowsMouse",
+           "focusFollowsMouseIgnoreFullscreen",
+           "bringScratchpadToPointerDisplay",
+           "toggleBorrowOnRepeat": ["true", "false"].contains(value)
       default: Int(value).map { (0...40).contains($0) } ?? false
       }
     guard valid else { throw DemoCtlError.usage("invalid value for \(key): \(value)") }

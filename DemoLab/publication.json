@@ -179,6 +179,20 @@
       ]
     },
     {
+      "scene": "layout-memory",
+      "title": "Return to your adjusted layout",
+      "description": "Resize a split, switch workspaces, and reopen an app without losing the proportions.",
+      "section": "tiling",
+      "maxSeconds": 38,
+      "maxMB": 20,
+      "relatedSettings": [
+        {
+          "key": "settings.layout.autoBalance",
+          "anchor": "settingslayout"
+        }
+      ]
+    },
+    {
       "scene": "drag",
       "title": "Arrange it by hand",
       "description": "Drag one window onto another, resize an edge, and return to the saved arrangement.",
@@ -279,10 +293,10 @@
     {
       "scene": "scratchpad",
       "title": "Keep a reusable scratchpad",
-      "description": "Borrow the scratchpad again; its apps keep their contents.",
+      "description": "Keep a note’s contents and bring it to another display with the same shortcut.",
       "section": "borrow",
-      "maxSeconds": 25,
-      "maxMB": 16,
+      "maxSeconds": 45,
+      "maxMB": 24,
       "relatedSettings": [
         {
           "key": "profiles.workspaces.kind",
@@ -292,7 +306,9 @@
           "key": "profiles.workspaces.borrowEdge",
           "anchor": "profiles-and-workspaces"
         }
-      ]
+      ],
+      "presentation": "dual",
+      "posterCaptionIndex": 2
     },
     {
       "scene": "borrow-placement",
@@ -489,6 +505,23 @@
         {
           "key": "settings.gestures",
           "anchor": "settingsgestures"
+        }
+      ]
+    },
+    {
+      "scene": "settings-search",
+      "title": "Find the setting you need",
+      "description": "Search Settings, then jump straight to the matching control.",
+      "section": "guided-setup",
+      "maxSeconds": 30,
+      "maxMB": 20,
+      "seedOptions": [
+        "--keep-window"
+      ],
+      "relatedSettings": [
+        {
+          "key": "settings.focus",
+          "anchor": "settingsfocus"
         }
       ]
     },
