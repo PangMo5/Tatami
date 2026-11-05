@@ -170,10 +170,10 @@ Tatami 依 App 和視窗順序比對配置位置，而非文件名稱。如果 A
 |`mouseHidesOnFocus`|bool|`false`|切換工作空間時隱藏游標，直到滑鼠移動。|
 |`focusFollowsMouse`|bool|`false`|游標移動時聚焦其下方視窗。|
 |`refocusOnClose`|bool|`true`|聚焦視窗關閉且 App 已無視窗時，依最近使用順序，把焦點移到工作空間中剩下的視窗。|
-|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|啟用焦點跟隨游標時，不切換到佔滿整部顯示器的全螢幕或最大化視窗。|
+|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|在同一顯示器內，不聚焦全螢幕或最大化視窗。移到其他顯示器時，焦點仍會跟隨。|
 |`focusFollowsMouseDisableHotkey`|string|`"Alt"`|暫時停止焦點跟隨游標的輔助鍵：`None`、`Alt`、`Cmd`、`Ctrl`、`Shift`。|
 
-FFM 和 MFF 可跨顯示器運作，無需移動工作空間。FFM 預設排除其他顯示器上的最大化視窗；若要暫留以聚焦這些視窗，請關閉 `focusFollowsMouseIgnoreFullscreen`。即使輔助使用位置尚未就緒，MFF 也會使用螢幕上的實際視窗位置。視窗已消失或不再是目前目標時，不會移動游標。
+FFM 和 MFF 可跨顯示器運作，無需移動工作空間。開啟 `focusFollowsMouseIgnoreFullscreen` 後，僅排除同一顯示器內的全螢幕或最大化視窗。將游標移到其他顯示器時，仍會聚焦該視窗。即使輔助使用位置尚未就緒，MFF 也會使用螢幕上的實際視窗位置。視窗已消失或不再是目前目標時，不會移動游標。
 
 <a id="settingsswitching"></a>
 ## `[settings.switching]`

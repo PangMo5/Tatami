@@ -51,6 +51,7 @@ public enum ResolvedLayout: Equatable {
     snapshot: LayoutSnapshot?,
     autoBalance: AutoBalanceMode,
     availableSlots: Set<SlotID> = [],
+    emptyBundleIds: Set<String> = [],
   ) -> ResolvedLayout? {
     // Only the *currently active* workspace has an authoritative live tree.
     // A workspace that was active earlier keeps a stale tree in `tilingTrees`,
@@ -65,6 +66,7 @@ public enum ResolvedLayout: Equatable {
       sharedApps: sharedApps,
       presentBundleIds: presentBundleIds,
       availableSlots: availableSlots,
+      emptyBundleIds: emptyBundleIds,
     ), !template.windows.isEmpty else { return nil }
     // Activation preserves restored ratios. Balance only a fresh layout or
     // genuinely new slots, rather than changing the inactive preview on entry.

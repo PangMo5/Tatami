@@ -1,0 +1,182 @@
+{
+  "name": "layout-memory",
+  "title": "Return to your adjusted layout",
+  "summary": "Resize a split, switch workspaces, and reopen an app without losing the proportions.",
+  "requires": {
+    "displays": 1
+  },
+  "setup": [
+    {
+      "kind": "configure",
+      "field": "autoBalance",
+      "value": "\"both\""
+    },
+    {
+      "kind": "pointer",
+      "display": 0,
+      "x": 0.5,
+      "y": 0.5
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Chat",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ],
+      "exact": true
+    },
+    {
+      "kind": "activateWorkspace",
+      "workspace": "Write",
+      "profile": "Laptop"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ],
+      "exact": true
+    }
+  ],
+  "steps": [
+    {
+      "kind": "chapter",
+      "text": "LAYOUT MEMORY"
+    },
+    {
+      "kind": "caption",
+      "text": "Adjust the split to give your editor more room."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Editor"
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt - =",
+      "repeats": 3
+    },
+    {
+      "kind": "saveLayout",
+      "text": "adjusted"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Editor"
+    },
+    {
+      "kind": "saveWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1300
+    },
+    {
+      "kind": "caption",
+      "text": "Switch away and come back. Your proportions stay the same."
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ],
+      "exact": true
+    },
+    {
+      "kind": "beat",
+      "ms": 900
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ],
+      "exact": true
+    },
+    {
+      "kind": "assertLayout",
+      "text": "adjusted"
+    },
+    {
+      "kind": "beat",
+      "ms": 1600
+    },
+    {
+      "kind": "caption",
+      "text": "Reopen the app and return to the same arrangement."
+    },
+    {
+      "kind": "activateApp",
+      "app": "Editor"
+    },
+    {
+      "kind": "key",
+      "chord": "cmd - q"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Docs"
+      ],
+      "exact": true
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 3"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Chat"
+      ],
+      "exact": true
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + shift - 1"
+    },
+    {
+      "kind": "waitWindows",
+      "apps": [
+        "Editor",
+        "Docs"
+      ],
+      "exact": true
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Editor"
+    },
+    {
+      "kind": "assertWindow",
+      "app": "Docs"
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    }
+  ],
+  "openingApps": [
+    "Editor",
+    "Docs"
+  ]
+}

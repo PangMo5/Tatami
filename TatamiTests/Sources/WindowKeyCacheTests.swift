@@ -14,6 +14,31 @@ struct WindowKeyCacheTests {
 
   // MARK: Internal
 
+  @Test
+  func `empty preview evidence excludes timeouts unclassified windows and stale scans`() {
+    withNoopPublicationDependencies {
+      let cache = WindowKeyCache()
+      let cold = WindowKey(pid: 1, windowID: 101, bundleId: "cold")
+      let discovery = WindowCapabilityDiscovery(unreachable: ["offline"], unclassifiedKeys: [cold])
+      let epoch = cache.invalidationGeneration(for: ["empty", "offline", "cold"])
+      let fresh = cache.storeAndResolve(discovery, bundleIds: ["empty", "offline", "cold"], ifUnchangedSince: epoch)
+      #expect(fresh.emptyBundleIds == ["empty"])
+      cache.invalidate(bundleId: "empty")
+      let stale = cache.storeAndResolve(discovery, bundleIds: ["empty", "offline", "cold"], ifUnchangedSince: epoch)
+      #expect(stale.emptyBundleIds.isEmpty)
+
+      let unknown = WindowKeyCache()
+      let beforeUnknownWindow = unknown.invalidationGeneration(for: ["empty"])
+      unknown.invalidate(windowIDs: [999])
+      let invalidated = unknown.storeAndResolve(
+        WindowCapabilityDiscovery(),
+        bundleIds: ["empty"],
+        ifUnchangedSince: beforeUnknownWindow,
+      )
+      #expect(invalidated.emptyBundleIds.isEmpty)
+    }
+  }
+
   @Test(arguments: [false, true])
   func `unclassified preview evidence never grants eligibility and respects invalidation`(bundleInvalidation: Bool) {
     withNoopPublicationDependencies {

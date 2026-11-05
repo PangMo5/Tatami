@@ -1,149 +1,170 @@
 {
-  "name": "scratchpad",
-  "title": "随时调出的暂存区",
-  "summary": "再次借用时，应用中的内容仍然保留。",
-  "requires": {
-    "displays": 1
-  },
-  "setup": [
-    {
-      "kind": "clearOverlay"
-    },
-    {
-      "kind": "pointer",
-      "display": 0,
-      "x": 0.5,
-      "y": 0.5
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateWorkspace",
-      "workspace": "Design",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Canvas",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateApp",
-      "app": "Canvas"
-    },
-    {
-      "kind": "cli",
-      "args": [
-        "layout",
-        "balance"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1800
-    }
-  ],
-  "steps": [
-    {
-      "kind": "chapter",
-      "text": "暂存区"
-    },
-    {
-      "kind": "caption",
-      "text": "临时工作区只在借用时打开。"
-    },
-    {
-      "kind": "saveLayout",
-      "text": "home"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + cmd - n"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Notes"
-      ]
-    },
-    {
-      "kind": "click",
-      "app": "Notes",
-      "identifier": "notes.newTask"
-    },
-    {
-      "kind": "typeText",
-      "app": "Notes",
-      "text": "比较三种配色方向。",
-      "ms": 65
-    },
-    {
-      "kind": "key",
-      "chord": "return"
-    },
-    {
-      "kind": "expectStory",
-      "field": "lastTask",
-      "value": "比较三种配色方向。"
-    },
-    {
-      "kind": "beat",
-      "ms": 1000
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + cmd - /"
-    },
-    {
-      "kind": "assertLayout",
-      "text": "home"
-    },
-    {
-      "kind": "caption",
-      "text": "再次借用时，应用中的内容仍然保留。"
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + cmd - n"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Notes"
-      ]
-    },
-    {
-      "kind": "expectStory",
-      "field": "lastTask",
-      "value": "比较三种配色方向。"
-    },
-    {
-      "kind": "beat",
-      "ms": 1800
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + cmd - /"
-    },
-    {
-      "kind": "assertLayout",
-      "text": "home"
-    }
-  ],
-  "openingApps": [
+  "name" : "scratchpad",
+  "openingApps" : [
     "Canvas",
     "Docs"
-  ]
+  ],
+  "requires" : {
+    "displays" : 2
+  },
+  "setup" : [
+    {
+      "display" : 0,
+      "kind" : "pointer",
+      "x" : 0.5,
+      "y" : 0.5
+    },
+    {
+      "kind" : "activateWorkspace",
+      "profile" : "Desk",
+      "workspace" : "Design"
+    },
+    {
+      "apps" : [
+        "Canvas",
+        "Docs"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "saveLayout",
+      "text" : "hosts"
+    }
+  ],
+  "steps" : [
+    {
+      "kind" : "chapter",
+      "text" : "暂存区"
+    },
+    {
+      "kind" : "caption",
+      "text" : "临时工作区只在借用时打开。"
+    },
+    {
+      "chord" : "ctrl + alt + cmd - n",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Canvas",
+        "Docs",
+        "Notes"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "app" : "Notes",
+      "identifier" : "notes.newTask",
+      "kind" : "click"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "typeText",
+      "ms" : 45,
+      "text" : "比较三种配色方向。"
+    },
+    {
+      "chord" : "return",
+      "kind" : "key"
+    },
+    {
+      "field" : "lastTask",
+      "kind" : "expectStory",
+      "value" : "比较三种配色方向。"
+    },
+    {
+      "kind" : "caption",
+      "text" : "将指针移到其他显示器，再按同一快捷键。"
+    },
+    {
+      "app" : "Docs",
+      "identifier" : "docs.search",
+      "kind" : "hover",
+      "ms" : 1400
+    },
+    {
+      "kind" : "beat",
+      "ms" : 700
+    },
+    {
+      "chord" : "ctrl + alt + cmd - n",
+      "kind" : "key"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "expectPlacement",
+      "target" : "Docs",
+      "value" : "right"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "expectPointerCentered"
+    },
+    {
+      "kind" : "caption",
+      "text" : "同一便签移到这里，原工作区恢复之前的布局。"
+    },
+    {
+      "field" : "lastTask",
+      "kind" : "expectStory",
+      "value" : "比较三种配色方向。"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    },
+    {
+      "app" : "Canvas",
+      "identifier" : "canvas.sand",
+      "kind" : "hover",
+      "ms" : 1400
+    },
+    {
+      "kind" : "beat",
+      "ms" : 700
+    },
+    {
+      "chord" : "ctrl + alt + cmd - n",
+      "kind" : "key"
+    },
+    {
+      "app" : "Notes",
+      "kind" : "expectPlacement",
+      "target" : "Docs",
+      "value" : "left"
+    },
+    {
+      "field" : "lastTask",
+      "kind" : "expectStory",
+      "value" : "比较三种配色方向。"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    },
+    {
+      "chord" : "ctrl + alt + cmd - /",
+      "kind" : "key"
+    },
+    {
+      "apps" : [
+        "Canvas",
+        "Docs"
+      ],
+      "exact" : true,
+      "kind" : "waitWindows"
+    },
+    {
+      "kind" : "assertLayout",
+      "text" : "hosts"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1000
+    }
+  ],
+  "summary" : "使用同一快捷键，将保留内容的便签带到其他显示器。",
+  "title" : "随时调出的暂存区"
 }

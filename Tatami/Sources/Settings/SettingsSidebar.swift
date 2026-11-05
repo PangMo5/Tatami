@@ -80,6 +80,8 @@ struct SettingsSidebar: View {
           }
         }
         .listStyle(.sidebar)
+        // A new query must not inherit the previous results' scroll offset.
+        .id(searchText)
       }
     }
     .navigationSplitViewColumnWidth(min: 180, ideal: 230, max: 320)

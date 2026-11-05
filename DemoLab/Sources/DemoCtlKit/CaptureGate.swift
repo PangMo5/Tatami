@@ -13,8 +13,9 @@ public enum CaptureGate {
 
   // MARK: Public
 
-  public static func requireCleanDesktop() throws {
+  public static func requireCleanDesktop(tatamiBundleIdentifier: String? = nil) throws {
     var problems = [String]()
+    let fixtureBundles = Set(DemoCatalog.all.map(\.bundleIdentifier) + [DemoCatalog.overlayBundleIdentifier])
     for window in try windows() {
       let owner = window[kCGWindowOwnerName as String] as? String ?? ""
       let title = window[kCGWindowName as String] as? String ?? ""
@@ -43,9 +44,24 @@ public enum CaptureGate {
       if permission || systemDialog || updateDialog {
         problems.append("\(owner): \(title)")
       }
+      if
+        let tatamiBundleIdentifier,
+        window[kCGWindowLayer as String] as? Int == 0,
+        let pid = window[kCGWindowOwnerPID as String] as? Int32,
+        let app = NSRunningApplication(processIdentifier: pid),
+        app.activationPolicy == .regular,
+        app.bundleIdentifier != tatamiBundleIdentifier,
+        !fixtureBundles.contains(app.bundleIdentifier ?? ""),
+        let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+        let frame = CGRect(dictionaryRepresentation: bounds),
+        frame.width > 80,
+        frame.height > 80
+      {
+        problems.append("Unexpected application window \(owner): \(title)")
+      }
     }
     guard problems.isEmpty else {
-      throw DemoCtlError.usage("capture blocked by visible system UI: \(problems.joined(separator: "; ")). "
+      throw DemoCtlError.usage("capture blocked by visible windows: \(problems.joined(separator: "; ")). "
         + "Resolve it before recording. Recorder access does not prove Tatami has Screen Recording access.")
     }
   }
@@ -61,7 +77,7 @@ public enum CaptureGate {
     }
   }
 
-  public static func waitForApps(_ names: [String], timeout: Duration) throws {
+  public static func waitForApps(_ names: [String], timeout: Duration, exact: Bool = false) throws {
     let specs = try names.map { name -> DemoAppSpec in
       guard let spec = DemoCatalog.spec(named: name) else {
         throw DemoCtlError.usage("unknown opening app \(name)")
@@ -73,7 +89,11 @@ public enum CaptureGate {
     let ready = try Shell.wait(timeout: timeout, poll: .milliseconds(100)) {
       try requireCleanDesktop()
       let frames = try demoFrames()
-      let visible = specs.allSatisfy { spec in frames.keys.contains { $0.hasPrefix(spec.bundleIdentifier + ":") } }
+      let visible = containsWindowSet(
+        frames.keys.map { String($0.split(separator: ":")[0]) },
+        expected: specs.map(\.bundleIdentifier),
+        exact: exact,
+      )
       if !visible || !matches(frames, last) {
         stableSince = .now
       }
@@ -95,6 +115,14 @@ public enum CaptureGate {
   }
 
   // MARK: Internal
+
+  static func containsWindowSet(_ actual: [String], expected: [String], exact: Bool) -> Bool {
+    let actualCounts = Dictionary(grouping: actual, by: { $0 }).mapValues(\.count)
+    let expectedCounts = Dictionary(grouping: expected, by: { $0 }).mapValues(\.count)
+    return exact
+      ? actualCounts == expectedCounts
+      : expectedCounts.allSatisfy { actualCounts[$0.key, default: 0] >= $0.value }
+  }
 
   static func windows() throws -> [[String: Any]] {
     guard

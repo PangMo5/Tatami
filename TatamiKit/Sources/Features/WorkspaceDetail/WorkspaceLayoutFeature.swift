@@ -84,6 +84,9 @@ public struct WorkspaceLayoutFeature {
     /// Bundle ids with a currently-discoverable window. A shared app absent here
     /// is hidden and wouldn't tile on switch, so the preview omits it.
     public var presentBundleIds = Set<String>()
+    /// Windowless bundles proved by the current accepted discovery. Unknown
+    /// results keep saved slots available rather than retaining stale absence.
+    public var emptyBundleIds = Set<String>()
     public var snapshotLoadedFor: Workspace.ID?
     public var windowInfoLoadedFor: Workspace.ID?
     public var windowInfoRequestGeneration: UInt64 = 0
@@ -176,6 +179,7 @@ public struct WorkspaceLayoutFeature {
         snapshot: layoutSnapshot,
         autoBalance: config.settings.layout.autoBalance,
         availableSlots: Set(previewWindowBindings.keys),
+        emptyBundleIds: emptyBundleIds,
       )
     }
 
@@ -220,6 +224,7 @@ public struct WorkspaceLayoutFeature {
       titles: [WindowKey: String],
       present: Set<String>,
       keys: Set<WindowKey> = [],
+      empty: Set<String> = [],
     )
     case appActivityTick
 
@@ -295,6 +300,7 @@ public struct WorkspaceLayoutFeature {
           state.windowTitles = [:]
           state.windowKeys = []
           state.presentBundleIds = []
+          state.emptyBundleIds = []
           state.windowInfoLoadedFor = workspaceId
           return .cancel(id: CancelID.windowInfoLoad)
         }
@@ -317,17 +323,19 @@ public struct WorkspaceLayoutFeature {
             titles: titles,
             present: present,
             keys: Set(keys),
+            empty: capabilities.emptyBundleIds,
           ))
         }
         .cancellable(id: CancelID.windowInfoLoad, cancelInFlight: true)
 
-      case .windowInfoLoaded(let workspaceId, let generation, let titles, let present, let keys):
+      case .windowInfoLoaded(let workspaceId, let generation, let titles, let present, let keys, let empty):
         guard
           workspaceId == state.workspaceId,
           generation == state.windowInfoRequestGeneration
         else { return .none }
         state.windowTitles = titles
         state.windowKeys = keys.union(titles.keys)
+        state.emptyBundleIds = empty.subtracting(state.windowKeys.map(\.bundleId))
         state.presentBundleIds = present
         state.windowInfoLoadedFor = workspaceId
         return .none
@@ -428,6 +436,7 @@ public struct WorkspaceLayoutFeature {
         sharedApps: state.config.sharedApps,
         presentBundleIds: state.presentBundleIds,
         availableSlots: Set(state.previewWindowBindings.keys),
+        emptyBundleIds: state.emptyBundleIds,
       )
     else { return .none }
     // `SlotID` leaves are unique, so the op applies directly — a same-app swap
@@ -460,6 +469,7 @@ public struct WorkspaceLayoutFeature {
         sharedApps: state.config.sharedApps,
         presentBundleIds: state.presentBundleIds,
         availableSlots: Set(state.previewWindowBindings.keys),
+        emptyBundleIds: state.emptyBundleIds,
       )
     else { return .none }
     var zoomed = Set(state.layoutSnapshot?.fullscreenZoomedSlots ?? [])

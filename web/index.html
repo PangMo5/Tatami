@@ -179,9 +179,9 @@
     <h2>Tiled automatically, controlled precisely.</h2>
     <p class="sub">A binary-space-partitioning engine tiles each workspace's windows as you open them. It is fully native and needs no shell scripting.</p>
     <!-- DEMO-COLLECTION:tiling:START -->
-    <div class="demo-gallery" data-count="7" aria-label="Tiling and focus video collection" data-play-hint="Use the play control">
+    <div class="demo-gallery" data-count="8" aria-label="Tiling and focus video collection" data-play-hint="Use the play control">
       <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
-        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 7</span>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 8</span>
           <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
           <button type="button" class="demo-next" aria-label="Next video">›</button>
         </div>
@@ -200,6 +200,13 @@
           </video>
           <p class="demo-description">Swap windows, change a split, resize it, and balance the workspace.</p>
           <nav class="demo-settings" aria-label="Related settings"><span>Related settings</span><a href="./configuration.html#settingsshortcuts"><code>settings.shortcuts.resizeGrow</code></a><a href="./configuration.html#settingsshortcuts"><code>settings.shortcuts.balance</code></a><a href="./configuration.html#settingslayout"><code>settings.layout.autoBalance</code></a></nav>
+        </article><article class="demo-slide" id="demo-layout-memory" aria-labelledby="tab-layout-memory">
+          <video class="demo-video" controls muted playsinline preload="none" poster="layout-memory.jpg?v=594fbb90b99a" aria-label="Return to your adjusted layout" style="aspect-ratio: 16 / 10">
+            <source src="layout-memory.mp4?v=312a49b0c675" type="video/mp4" />
+            <a href="layout-memory.mp4?v=312a49b0c675">Watch Return to your adjusted layout</a>
+          </video>
+          <p class="demo-description">Resize a split, switch workspaces, and reopen an app without losing the proportions.</p>
+          <nav class="demo-settings" aria-label="Related settings"><span>Related settings</span><a href="./configuration.html#settingslayout"><code>settings.layout.autoBalance</code></a></nav>
         </article><article class="demo-slide" id="demo-drag" aria-labelledby="tab-drag">
           <video class="demo-video" controls muted playsinline preload="none" poster="drag.jpg?v=ef85317d9dc8" aria-label="Arrange it by hand" style="aspect-ratio: 16 / 10">
             <source src="drag.mp4?v=3e083062ef2f" type="video/mp4" />
@@ -242,6 +249,9 @@
         </button><button class="demo-tab" type="button" role="tab" id="tab-layouts" aria-controls="demo-layouts" aria-selected="false" tabindex="-1">
           <span class="demo-thumb"><img src="layouts.jpg?v=22aca7615c4a" loading="lazy" alt="" /><span class="demo-duration">0:13</span></span>
           <span class="demo-tab-title">Shape the layout from the keyboard</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-layout-memory" aria-controls="demo-layout-memory" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="layout-memory.jpg?v=594fbb90b99a" loading="lazy" alt="" /><span class="demo-duration">0:20</span></span>
+          <span class="demo-tab-title">Return to your adjusted layout</span>
         </button><button class="demo-tab" type="button" role="tab" id="tab-drag" aria-controls="demo-drag" aria-selected="false" tabindex="-1">
           <span class="demo-thumb"><img src="drag.jpg?v=ef85317d9dc8" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
           <span class="demo-tab-title">Arrange it by hand</span>
@@ -388,11 +398,11 @@
           <p class="demo-description">Borrow another workspace without leaving the current task.</p>
           <nav class="demo-settings" aria-label="Related settings"><span>Related settings</span><a href="./configuration.html#settingsshortcuts"><code>settings.shortcuts.borrowModifiers</code></a><a href="./configuration.html#settingsswitching"><code>settings.switching.borrowDefaultEdge</code></a></nav>
         </article><article class="demo-slide" id="demo-scratchpad" aria-labelledby="tab-scratchpad">
-          <video class="demo-video" controls muted playsinline preload="none" poster="scratchpad.jpg?v=5b0fed65bcc5" aria-label="Keep a reusable scratchpad" style="aspect-ratio: 16 / 10">
-            <source src="scratchpad.mp4?v=dd38dc5854ef" type="video/mp4" />
-            <a href="scratchpad.mp4?v=dd38dc5854ef">Watch Keep a reusable scratchpad</a>
+          <video class="demo-video" controls muted playsinline preload="none" poster="scratchpad.jpg?v=55fa9eae6cb2" aria-label="Keep a reusable scratchpad" style="aspect-ratio: 16 / 5">
+            <source src="scratchpad.mp4?v=1c7205fc40c9" type="video/mp4" />
+            <a href="scratchpad.mp4?v=1c7205fc40c9">Watch Keep a reusable scratchpad</a>
           </video>
-          <p class="demo-description">Borrow the scratchpad again; its apps keep their contents.</p>
+          <p class="demo-description">Keep a note’s contents and bring it to another display with the same shortcut.</p>
           <nav class="demo-settings" aria-label="Related settings"><span>Related settings</span><a href="./configuration.html#profiles-and-workspaces"><code>profiles.workspaces.kind</code></a><a href="./configuration.html#profiles-and-workspaces"><code>profiles.workspaces.borrowEdge</code></a></nav>
         </article><article class="demo-slide" id="demo-borrow-placement" aria-labelledby="tab-borrow-placement">
           <video class="demo-video" controls muted playsinline preload="none" poster="borrow-placement.jpg?v=10ced48dbd37" aria-label="Choose the edge and the context" style="aspect-ratio: 16 / 10">
@@ -406,7 +416,7 @@
           <span class="demo-thumb"><img src="borrow.jpg?v=acbed6691017" loading="lazy" alt="" /><span class="demo-duration">0:14</span></span>
           <span class="demo-tab-title">Bring a conversation alongside</span>
         </button><button class="demo-tab" type="button" role="tab" id="tab-scratchpad" aria-controls="demo-scratchpad" aria-selected="false" tabindex="-1">
-          <span class="demo-thumb"><img src="scratchpad.jpg?v=5b0fed65bcc5" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
+          <span class="demo-thumb"><img src="scratchpad.jpg?v=55fa9eae6cb2" loading="lazy" alt="" /><span class="demo-duration">0:29</span></span>
           <span class="demo-tab-title">Keep a reusable scratchpad</span>
         </button><button class="demo-tab" type="button" role="tab" id="tab-borrow-placement" aria-controls="demo-borrow-placement" aria-selected="false" tabindex="-1">
           <span class="demo-thumb"><img src="borrow-placement.jpg?v=10ced48dbd37" loading="lazy" alt="" /><span class="demo-duration">0:17</span></span>
@@ -507,9 +517,9 @@
     <h2>Learn Tatami by using it.</h2>
     <p class="sub">First launch turns this Mac's app metadata and displays into a draft, then teaches every major feature in order on a safe virtual display. Nothing moves and no configuration is written until you apply.</p>
     <!-- DEMO-COLLECTION:guided-setup:START -->
-    <div class="demo-gallery" data-count="2" aria-label="Guided Setup video collection" data-play-hint="Use the play control">
+    <div class="demo-gallery" data-count="3" aria-label="Guided Setup video collection" data-play-hint="Use the play control">
       <div class="demo-gallery-heading"><p class="eyebrow">Explore the workflow</p>
-        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 2</span>
+        <div class="demo-paging"><span class="demo-count" aria-live="polite">1 / 3</span>
           <button type="button" class="demo-prev" aria-label="Previous video">‹</button>
           <button type="button" class="demo-next" aria-label="Next video">›</button>
         </div>
@@ -521,6 +531,13 @@
           </video>
           <p class="demo-description">Preview gesture actions and practise real shortcuts without moving the live desktop. Physical trackpad input is not shown.</p>
           <nav class="demo-settings" aria-label="Related settings"><span>Related settings</span><a href="./configuration.html#settingsshortcuts"><code>settings.shortcuts</code></a><a href="./configuration.html#settingsgestures"><code>settings.gestures</code></a></nav>
+        </article><article class="demo-slide" id="demo-settings-search" aria-labelledby="tab-settings-search">
+          <video class="demo-video" controls muted playsinline preload="none" poster="settings-search.jpg?v=b2ea2990c56c" aria-label="Find the setting you need" style="aspect-ratio: 16 / 10">
+            <source src="settings-search.mp4?v=c938191502a3" type="video/mp4" />
+            <a href="settings-search.mp4?v=c938191502a3">Watch Find the setting you need</a>
+          </video>
+          <p class="demo-description">Search Settings, then jump straight to the matching control.</p>
+          <nav class="demo-settings" aria-label="Related settings"><span>Related settings</span><a href="./configuration.html#settingsfocus"><code>settings.focus</code></a></nav>
         </article><article class="demo-slide" id="demo-ai-draft" aria-labelledby="tab-ai-draft">
           <video class="demo-video" controls muted playsinline preload="none" poster="ai-draft.jpg?v=4a52ccd4f6ac" aria-label="Review a suggested setup" style="aspect-ratio: 16 / 10">
             <source src="ai-draft.mp4?v=1f04842ddd51" type="video/mp4" />
@@ -532,6 +549,9 @@
       <div class="demo-tabs" role="tablist" aria-label="Choose a Guided Setup demonstration"><button class="demo-tab" type="button" role="tab" id="tab-guided-setup" aria-controls="demo-guided-setup" aria-selected="true" tabindex="0">
           <span class="demo-thumb"><img src="guided-setup.jpg?v=6c0555cbbe07" loading="lazy" alt="" /><span class="demo-duration">0:29</span></span>
           <span class="demo-tab-title">Learn by doing</span>
+        </button><button class="demo-tab" type="button" role="tab" id="tab-settings-search" aria-controls="demo-settings-search" aria-selected="false" tabindex="-1">
+          <span class="demo-thumb"><img src="settings-search.jpg?v=b2ea2990c56c" loading="lazy" alt="" /><span class="demo-duration">0:18</span></span>
+          <span class="demo-tab-title">Find the setting you need</span>
         </button><button class="demo-tab" type="button" role="tab" id="tab-ai-draft" aria-controls="demo-ai-draft" aria-selected="false" tabindex="-1">
           <span class="demo-thumb"><img src="ai-draft.jpg?v=4a52ccd4f6ac" loading="lazy" alt="" /><span class="demo-duration">0:16</span></span>
           <span class="demo-tab-title">Review a suggested setup</span>

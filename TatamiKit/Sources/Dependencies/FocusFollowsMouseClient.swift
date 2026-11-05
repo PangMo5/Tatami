@@ -34,7 +34,7 @@ struct FocusFollowsMouseConfig: Sendable, Hashable {
 
   var enabled: Bool
   var disableModifier: FocusFollowsMouseModifier
-  /// Skip windows that fill the whole display (full-screen / maximized).
+  /// Skip full-display windows only while staying on the same display.
   var ignoreFullscreen: Bool
 }
 
@@ -132,11 +132,11 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   ) {
     guard config.enabled else { return }
     guard !MirrorWindowRegistry.shared.isNativeInputActive() else {
-      cancelPendingInput()
+      cancelPendingInput(at: location)
       return
     }
     if modifiersIndicateDisable(flags) {
-      cancelPendingInput()
+      cancelPendingInput(at: location)
       return
     }
 
@@ -151,6 +151,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       lastFocusedWindowID = 0
       focusTask?.cancel()
       focusTask = nil
+      displayContext.origin = warpEvaluation.warpDestination
     }
     guard warpEvaluation.allowsFocus else {
       if
@@ -171,6 +172,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     if windowUnderPointer != 0, windowUnderPointer == lastFocusedWindowID {
       // A quick departure and return must revoke the queued departure sample.
       pointerInputs.invalidate()
+      displayContext.origin = location
       return
     }
     let sample = PointerSample(location: location, warpGeneration: warpEvaluation.generation)
@@ -215,6 +217,9 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   /// change invalidates both the FFM window dedup and any queued focus hop.
   private var lastObservedWarpGeneration: UInt64 = 0
   private var lastLoggedSuppressedWarpGeneration: UInt64?
+  /// Keep the origin until a managed target is admitted. A border gap or
+  /// coalesced move must not consume the cross-display focus intent.
+  private var displayContext = FocusFollowsMouseDisplayContext()
   private let focusEventOrigin: FocusEventOriginClient
   private let managedWindows: ManagedWindowsClient
   private let overlayAwareness: OverlayAwarenessClient
@@ -230,16 +235,17 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     return ids.map(CGDisplayBounds)
   }
 
-  private func cancelPendingInput() {
+  private func cancelPendingInput(at location: CGPoint? = nil) {
     pointerInputs.invalidate()
     focusTask?.cancel()
     focusTask = nil
     lastFocusedWindowID = 0
+    displayContext.origin = location ?? CGEvent(source: nil)?.location
   }
 
   private func applyHitTest(_ sample: PointerSample, windows: [WindowServerWindow], displays: [CGRect]) {
     guard !MirrorWindowRegistry.shared.isNativeInputActive() else {
-      cancelPendingInput()
+      cancelPendingInput(at: sample.location)
       return
     }
     guard ProgrammaticPointerWarpGate.shared.isCurrent(generation: sample.warpGeneration) else { return }
@@ -249,6 +255,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
       lastFocusedWindowID = 0
       return
     }
+    displayContext.origin = location
     // Dedup on the window, not the app — moving between two windows of
     // the same app (e.g. two Ghostty windows) must still move focus.
     if info.windowID == lastFocusedWindowID {
@@ -441,31 +448,51 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     }
     guard let candidate else { return nil }
 
-    // The cursor's frontmost window fills its display (full-screen /
-    // maximized).
-    if let display = displays.first(where: { $0.contains(point) }), covers(candidate.bounds, display) {
-      // Opt-in: never hover-focus a full-screen window — you reach those by
-      // clicking, not by skimming the cursor across them.
-      if config.ignoreFullscreen {
-        return nil
-      }
-      // Otherwise, gap guard: only skip when the cursor is wedged in the
-      // spacing right next to a smaller window layered in front (a tile) — the
-      // full-screen window shows through there, so keep the current focus. A
-      // cursor far from every front tile is over the background's own open
-      // area and focuses normally.
-      let gapMargin: CGFloat = 24
-      let inTileGap = frontBounds.contains { bounds in
-        display.intersects(bounds)
-          && !covers(bounds, display)
-          && bounds.insetBy(dx: -gapMargin, dy: -gapMargin).contains(point)
-      }
-      if inTileGap {
-        return nil
-      }
-    }
-    return candidate
+    return displayContext.allowsFocus(
+      on: candidate.bounds,
+      at: point,
+      displays: displays,
+      frontBounds: frontBounds,
+      ignoreFullscreen: config.ignoreFullscreen,
+    ) ? candidate : nil
   }
+
+}
+
+// MARK: - FocusFollowsMouseDisplayContext
+
+struct FocusFollowsMouseDisplayContext: Sendable {
+
+  // MARK: Internal
+
+  var origin: CGPoint?
+
+  func allowsFocus(
+    on bounds: CGRect,
+    at point: CGPoint,
+    displays: [CGRect],
+    frontBounds: [CGRect],
+    ignoreFullscreen: Bool,
+  ) -> Bool {
+    guard let display = displays.first(where: { $0.contains(point) }), covers(bounds, display) else {
+      return true
+    }
+    let originDisplay = origin.flatMap { origin in displays.first { $0.contains(origin) } }
+    let crossedDisplay = originDisplay.map { $0 != display } ?? false
+    if ignoreFullscreen, !crossedDisplay {
+      return false
+    }
+    // A full-display background showing through a front tile's spacing must
+    // not steal focus, including while crossing into a different display.
+    let gapMargin: CGFloat = 24
+    return !frontBounds.contains { bounds in
+      display.intersects(bounds)
+        && !covers(bounds, display)
+        && bounds.insetBy(dx: -gapMargin, dy: -gapMargin).contains(point)
+    }
+  }
+
+  // MARK: Private
 
   /// True when `rect` fills at least 90% of `display` — i.e. a full-screen /
   /// maximized window rather than a tiled region.

@@ -195,10 +195,10 @@ launches its apps separately from macOS document restoration.
 | `mouseHidesOnFocus` | bool | `false` | Hide the cursor on a workspace switch until the mouse moves. |
 | `focusFollowsMouse` | bool | `false` | Focus whatever window sits under the cursor as it moves. |
 | `refocusOnClose` | bool | `true` | When the focused window closes and focus would be stranded on a now-windowless app, move focus to the most recently used remaining window in the workspace (falling back through recency). |
-| `focusFollowsMouseIgnoreFullscreen` | bool | `true` | While focus-follows-mouse is on, don't shift focus to a window that fills the whole display (full-screen / maximized). |
+| `focusFollowsMouseIgnoreFullscreen` | bool | `true` | While focus-follows-mouse is on, skip full-screen or maximized windows within the same display. Moving to another display still changes focus. |
 | `focusFollowsMouseDisableHotkey` | string | `"Alt"` | Modifier that temporarily suspends focus-follows-mouse: `None`, `Alt`, `Cmd`, `Ctrl`, `Shift`. |
 
-FFM and MFF work across displays without moving their workspaces. The default FFM exclusion also applies to maximized windows on another display; turn off `focusFollowsMouseIgnoreFullscreen` to focus those windows on hover. MFF uses the visible window's position, even if accessibility geometry is not ready. A missing or superseded window does not receive a cursor warp.
+FFM and MFF work across displays without moving their workspaces. When `focusFollowsMouseIgnoreFullscreen` is on, only full-screen or maximized windows on the same display are excluded. Moving the pointer to another display still focuses its window. MFF uses the visible window's position, even if accessibility geometry is not ready. A missing or superseded window does not receive a cursor warp.
 
 ## `[settings.switching]`
 

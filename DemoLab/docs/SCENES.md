@@ -19,6 +19,8 @@ Declare the apps that must be visible at frame zero in `openingApps`. The declar
 match ordinary visible windows, including intentional duplicate references.
 `autoopen` declares an empty array because its first action opens the workspace.
 The recording gate checks this after the geometry has settled for 400 ms.
+Geometry checkpoints saved during `setup` carry into the recorded steps, so
+rehearsal and recording assert against the same observed pre-roll layout.
 
 Warm up workspaces through Tatami before rolling. Do not combine pending
 Auto-open launches with manual relaunches of the same apps: that can create two
@@ -32,7 +34,7 @@ a reason to correct preparation, not to trim away the unexpected window later.
 | `click` | `app`, `identifier`, `activate?` | Resolve a native AX control; move the pointer and click. Set `activate: false` for nonactivating confirmation HUDs and first-click demonstrations. |
 | `expectEnabled` | `app`, `identifier`, `enabled` | Wait for a native control and verify its enabled state. Prefix a selector with `sheet:` to address a modal sheet rather than a same-named background control. |
 | `typeText` | `app`, `text`, `ms?` | Type one character at a time into the expected focused app. |
-| `hover` | `app`, `identifier` | Reveal a native control in its scroll viewport and move the pointer to it. |
+| `hover` | `app`, `identifier`, optional `ms` | Reveal a native control and move the real pointer to it. The default is 216 ms; use 1400 ms to make a cross-display path visible. Accepted durations are 1–5000 ms. |
 | `scroll` | `app`, `identifier`, `pixels` | Move to a native control and scroll. |
 | `key` | `chord`, `repeats?`, `holdMs?` | Press a real shortcut and generate its own keycast. |
 | `hold` | `modifiers`, `keys`, `gapMs?`, `releaseAfterMs?` | Hold the real modifier through a switcher interaction. |
@@ -73,12 +75,15 @@ not. The chat is a local fixture and has no network transport.
 | `expectValue` | `app`, `identifier`, `value` | Read the actual native input value back. |
 | `expectStory` | `field`, `value` | Verify saved headline, approval, comment, last task/message, checks or completed tasks. |
 | `expectFront` | `app` | Verify the actual focused app through Accessibility. |
+| `expectFocusedWindow` | `app`, `identifier` | Await the real AX focused window, distinguishing windows in the same app before sending the next input. |
 | `expectPointer` | `app` | Require the pointer inside the target window. |
+| `expectPointerCentered` | `app` | Require the pointer within 6 points of the focused window's center and matching visible WindowServer geometry. |
+| `closeWindow` | `app` | Click the identified window's real red close button. Make it visible before the step; this does not change fixture window counts through the app model. |
 | `expectCommand` | `text`, `code` | Verify an actual fixture Terminal process result. |
 | `expectHook` | `field`, `value` | Inspect the payload written by a real Tatami hook. |
 | `saveWindow` / `assertWindow` | `app` | Save and compare one window across changing workspace memberships. |
 | `saveControlFrame` / `expectControlMoved` | `app`, `identifier`, `text` | Verify that a native layout-editor operation changed its preview. |
-| `waitWindows` | `apps`, `timeoutMs?` | Wait for visible windows and stable geometry. |
+| `waitWindows` | `apps`, `timeoutMs?`, `exact?` | Wait for visible windows and stable geometry, counting repeated app names. Set `exact: true` to reject extra fixture windows. |
 | `waitWorkspace` | `workspace`, `timeoutMs?` | Observe the activation hook from the immediately preceding step. |
 | `waitProfile` | `profile`, `timeoutMs?` | Observe the profile hook. |
 | `saveLayout` | `text` | Save visible demo window IDs and bounds under a checkpoint name. |
@@ -89,6 +94,14 @@ not. The chat is a local fixture and has no network transport.
 
 Every step is surrounded by checks for permission/settings windows. Failure
 aborts the take and writes a failed manifest. The exporter refuses failed takes.
+Preparation and scene completion also reject unrelated regular application
+windows, keeping process metadata queries outside the interaction sequence.
+Native control resolution also waits for nonempty accessible bounds before
+input, because SwiftUI can expose a new control before its first layout pass.
+Prefix a selector with `window:` to limit dynamic control lookups to application
+windows without traversing unrelated menu-bar trees. Settings preparation opens
+the running isolated installation through LaunchServices before positioning it.
+Live Boolean settings include `toggleBorrowOnRepeat`.
 
 ## Narration
 

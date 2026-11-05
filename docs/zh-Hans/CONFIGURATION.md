@@ -170,10 +170,10 @@ Tatami 按应用和窗口顺序匹配布局位置，而不是按文稿名称。�
 |`mouseHidesOnFocus`|bool|`false`|切换工作区时隐藏指针，直到鼠标移动。|
 |`focusFollowsMouse`|bool|`false`|指针移动时聚焦其下方窗口。|
 |`refocusOnClose`|bool|`true`|聚焦窗口关闭且应用已无窗口时，按最近使用顺序，把焦点移到工作区中剩下的窗口。|
-|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|启用焦点跟随鼠标时，不切换到占满整个显示器的全屏或最大化窗口。|
+|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|在同一显示器内，不聚焦全屏或最大化窗口。移到其他显示器时，焦点仍会跟随。|
 |`focusFollowsMouseDisableHotkey`|string|`"Alt"`|临时暂停焦点跟随鼠标的修饰键：`None`、`Alt`、`Cmd`、`Ctrl`、`Shift`。|
 
-FFM 和 MFF 可跨显示器工作，无需移动工作区。FFM 默认排除其他显示器上的最大化窗口；如需悬停聚焦这些窗口，请关闭 `focusFollowsMouseIgnoreFullscreen`。即使辅助功能位置尚未就绪，MFF 也会使用屏幕上的实际窗口位置。窗口已消失或不再是当前目标时，不会移动指针。
+FFM 和 MFF 可跨显示器工作，无需移动工作区。开启 `focusFollowsMouseIgnoreFullscreen` 后，仅排除同一显示器内的全屏或最大化窗口。将指针移到其他显示器时，仍会聚焦该窗口。即使辅助功能位置尚未就绪，MFF 也会使用屏幕上的实际窗口位置。窗口已消失或不再是当前目标时，不会移动指针。
 
 <a id="settingsswitching"></a>
 ## `[settings.switching]`

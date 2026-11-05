@@ -74,6 +74,42 @@ struct SceneTests {
 
   // MARK: Internal
 
+  @Test(arguments: [216, 1_400])
+  func `visible pointer moves retain their requested duration`(milliseconds: Int) throws {
+    let input = "{\"name\":\"pointer\",\"title\":\"Visible pointer\",\"steps\":[{\"kind\":\"hover\",\"app\":\"Docs\",\"identifier\":\"docs.search\",\"ms\":\(milliseconds)}]}"
+    let scene = try JSONDecoder().decode(Scene.self, from: Data(input.utf8))
+    guard case .hover(let app, let identifier, let duration) = try #require(scene.steps.first) else {
+      Issue.record("Expected native pointer movement")
+      return
+    }
+    #expect(app == "Docs")
+    #expect(identifier == "docs.search")
+    #expect(duration == milliseconds)
+  }
+
+  @Test(arguments: ["expectPointerCentered", "closeWindow", "expectFocusedWindow"])
+  func `native center and close actions decode without substituting app state`(kind: String) throws {
+    let input = "{\"name\":\"native\",\"title\":\"Native checks\",\"steps\":[{\"kind\":\"\(kind)\",\"app\":\"Editor\",\"identifier\":\"editor-window\"}]}"
+    let scene = try JSONDecoder().decode(Scene.self, from: Data(input.utf8))
+    switch try #require(scene.steps.first) {
+    case .expectPointerCentered(let app):
+      #expect(kind == "expectPointerCentered")
+      #expect(app == "Editor")
+
+    case .closeWindow(let app):
+      #expect(kind == "closeWindow")
+      #expect(app == "Editor")
+
+    case .expectFocusedWindow(let app, let identifier):
+      #expect(kind == "expectFocusedWindow")
+      #expect(app == "Editor")
+      #expect(identifier == "editor-window")
+
+    default:
+      Issue.record("Expected an explicit native action")
+    }
+  }
+
   @Test
   func `every shipped scene decodes`() throws {
     let paths = try paths()

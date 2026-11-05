@@ -126,8 +126,8 @@ private struct WhatsNewView: View {
               .font(.title.weight(.semibold))
             Text(
               """
-              Tatami 1.14 makes workspace switching and window interaction more responsive, with confirmations that keep \
-              you in control of persistent changes.
+              Tatami 1.15 helps you find settings, keep your adjusted layouts, and bring the apps you need to the display \
+              where you are working.
               """
             )
             .font(.subheadline)
@@ -140,27 +140,27 @@ private struct WhatsNewView: View {
               .font(.headline)
 
             item(
-              icon: "bolt.fill",
-              title: "More Responsive Workspaces",
+              icon: "magnifyingglass",
+              title: "Find Settings Faster",
               detail: """
-                Less waiting when you switch workspaces or focus a window, with smoother input while Tatami saves \
-                configuration and restores layouts.
+                Search by name, description, or shortcut. Select a result to reveal its setting and briefly highlight \
+                the matching control.
                 """,
             )
             item(
-              icon: "checkmark.shield",
-              title: "Confirm Before Changes",
+              icon: "rectangle.split.2x1",
+              title: "Keep Your Layouts",
               detail: """
-                Review app moves, layout changes, deletions, and overwrites before they take effect. Keep confirmation \
-                on or off for each action.
+                Your adjusted split ratios survive workspace switches and reopened windows. Layout previews follow \
+                the windows that are currently available.
                 """,
             )
             item(
-              icon: "cursorarrow.click",
-              title: "More Reliable Always on Top",
+              icon: "display.2",
+              title: "Continue on Another Display",
               detail: """
-                Your first click or drag reaches the real window. Scroll background content without taking keyboard \
-                focus, and keep hovering consistent with Focus Follows Mouse.
+                Bring an open scratchpad to the display under the pointer. When an app belongs to several workspaces, \
+                the workspace you select takes priority.
                 """,
             )
           }

@@ -56,6 +56,7 @@ public enum LiveConfigEditor {
       "focusFollowsMouse": "focus",
       "focusFollowsMouseIgnoreFullscreen": "focus",
       "bringScratchpadToPointerDisplay": "switching",
+      "toggleBorrowOnRepeat": "switching",
       "autoBalance": "layout",
       "gapInner": "layout",
       "gapOuter": "layout",
@@ -69,7 +70,8 @@ public enum LiveConfigEditor {
       case "mouseFollowsFocus",
            "focusFollowsMouse",
            "focusFollowsMouseIgnoreFullscreen",
-           "bringScratchpadToPointerDisplay": ["true", "false"].contains(value)
+           "bringScratchpadToPointerDisplay",
+           "toggleBorrowOnRepeat": ["true", "false"].contains(value)
       default: Int(value).map { (0...40).contains($0) } ?? false
       }
     guard valid else { throw DemoCtlError.usage("invalid value for \(key): \(value)") }

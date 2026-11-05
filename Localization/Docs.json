@@ -1784,13 +1784,6 @@
     "zh-Hans": "聚焦窗口关闭且应用已无窗口时，按最近使用顺序，把焦点移到工作区中剩下的窗口。",
     "zh-Hant": "聚焦視窗關閉且 App 已無視窗時，依最近使用順序，把焦點移到工作空間中剩下的視窗。"
   },
-  "54b6fb91dbe84774": {
-    "en": "While focus-follows-mouse is on, don't shift focus to a window that fills the whole display (full-screen / maximized).",
-    "ko": "마우스에 따라 포커스를 옮길 때 화면 전체를 채운 창에는 전환하지 않아요.",
-    "ja": "マウスにフォーカスを追従させる際、画面全体を占める窓には移しません。",
-    "zh-Hans": "启用焦点跟随鼠标时，不切换到占满整个显示器的全屏或最大化窗口。",
-    "zh-Hant": "啟用焦點跟隨游標時，不切換到佔滿整部顯示器的全螢幕或最大化視窗。"
-  },
   "5a8ea812bc5d3d1a": {
     "en": "Modifier that temporarily suspends focus-follows-mouse: {0}, {1}, {2}, {3}, {4}.",
     "ko": "마우스에 따른 포커스 이동을 잠시 멈출 보조키예요. {0}, {1}, {2}, {3}, {4} 중에서 골라요.",
@@ -5180,13 +5173,6 @@
     "zh-Hans": "借用也使用同一份已保存布局。Tatami 会先加载布局，再接受可能将其覆盖为默认布局的窗口通知。因此重新启动后借用工作区时，仍能保留分割方向、比例和全屏放大状态。",
     "zh-Hant": "借用也使用同一份已儲存配置。Tatami 會先載入配置，再接受可能將其覆寫為預設配置的視窗通知。因此重新啟動後借用工作空間時，仍能保留分割方向、比例和全螢幕放大狀態。"
   },
-  "3e0a4962024e8410": {
-    "en": "FFM and MFF work across displays without moving their workspaces. The default FFM exclusion also applies to maximized windows on another display; turn off {0} to focus those windows on hover. MFF uses the visible window's position, even if accessibility geometry is not ready. A missing or superseded window does not receive a cursor warp.",
-    "ko": "FFM과 MFF는 작업 공간을 옮기지 않고 화면 사이에서도 동작해요. FFM의 기본 제외 설정은 다른 화면의 최대화 창에도 적용돼요. 마우스를 올려 해당 창에 포커스를 맞추려면 {0}을 꺼 주세요. MFF는 접근성 위치 정보가 아직 준비되지 않아도 실제 화면의 창 위치를 사용해요. 사라졌거나 더 이상 대상이 아닌 창으로는 마우스를 옮기지 않아요.",
-    "ja": "FFM と MFF はワークスペースを移動せず、画面をまたいで動作します。FFM の既定の除外設定は別画面の最大化ウインドウにも適用されます。ホバーでフォーカスするには {0} をオフにしてください。MFF はアクセシビリティの位置情報が未準備でも、画面上のウインドウ位置を使います。消えたウインドウや古い対象にはポインタを移動しません。",
-    "zh-Hans": "FFM 和 MFF 可跨显示器工作，无需移动工作区。FFM 默认排除其他显示器上的最大化窗口；如需悬停聚焦这些窗口，请关闭 {0}。即使辅助功能位置尚未就绪，MFF 也会使用屏幕上的实际窗口位置。窗口已消失或不再是当前目标时，不会移动指针。",
-    "zh-Hant": "FFM 和 MFF 可跨顯示器運作，無需移動工作空間。FFM 預設排除其他顯示器上的最大化視窗；若要暫留以聚焦這些視窗，請關閉 {0}。即使輔助使用位置尚未就緒，MFF 也會使用螢幕上的實際視窗位置。視窗已消失或不再是目前目標時，不會移動游標。"
-  },
   "aecc26ef11a4f842": {
     "en": "{0} applies only to scratchpads borrowed on another display. It transfers the existing block instead of creating another copy. Ordinary workspaces already visible elsewhere stay there, and Tatami shows their location. Repeating a summon on the same display still follows {1}: return by default, or re-dock and focus when that option is off. Borrow requires a current host workspace on the destination display.",
     "ko": "{0}는 다른 화면에 빌려온 임시 공간에만 적용해요. 복사본을 만들지 않고 기존 영역을 옮겨요. 다른 화면에 이미 보이는 일반 작업 공간은 그 자리에 두고 위치를 알려줘요. 같은 화면에서 다시 부르면 {1} 설정을 따라요. 기본값은 돌려보내기이며, 끄면 위치를 다시 정하고 포커스를 맞춰요. 목적지 화면에는 현재 호스트 작업 공간이 있어야 해요.",
@@ -5242,5 +5228,26 @@
     "ja": "**ウインドウを閉じた後も残りの配置を更新:** 画面の端から移動するウインドウが以前のサイズのまま残る問題を修正しました。他のアプリも含めて残りのタイルの実際の配置を確認し、更新後のウインドウ枠を使ってポインタを中央に移動します。",
     "zh-Hans": "**关闭窗口后让剩余窗口填补空位：** 修复窗口移离屏幕边缘后仍保留旧尺寸的问题。重新布局时会确认所有剩余平铺窗口的实际位置和大小，包括其他应用的窗口，并根据更新后的尺寸将指针移至中央。",
     "zh-Hant": "**關閉視窗後讓其餘視窗填補空位：** 修正視窗移離螢幕邊緣後仍保留舊尺寸的問題。重新配置時會確認所有其餘並排視窗的實際位置與大小，包括其他 App 的視窗，並依更新後的尺寸將游標移至中央。"
+  },
+  "86b3330b8a2aeb3f": {
+    "en": "While focus-follows-mouse is on, skip full-screen or maximized windows within the same display. Moving to another display still changes focus.",
+    "ko": "같은 화면 안에서는 전체 화면이나 최대화한 창으로 포커스를 옮기지 않아요. 다른 화면으로 마우스를 옮기면 포커스도 따라가요.",
+    "ja": "同じ画面内では全画面や最大化したウインドウにフォーカスを移しません。別の画面へポインタを動かすとフォーカスも移ります。",
+    "zh-Hans": "在同一显示器内，不聚焦全屏或最大化窗口。移到其他显示器时，焦点仍会跟随。",
+    "zh-Hant": "在同一顯示器內，不聚焦全螢幕或最大化視窗。移到其他顯示器時，焦點仍會跟隨。"
+  },
+  "27f5f8c897310ee4": {
+    "en": "FFM and MFF work across displays without moving their workspaces. When {0} is on, only full-screen or maximized windows on the same display are excluded. Moving the pointer to another display still focuses its window. MFF uses the visible window's position, even if accessibility geometry is not ready. A missing or superseded window does not receive a cursor warp.",
+    "ko": "FFM과 MFF는 작업 공간을 옮기지 않고 화면 사이에서도 동작해요. {0}을 켜면 같은 화면 안의 전체 화면이나 최대화한 창만 제외해요. 다른 화면으로 마우스를 옮기면 그 창으로 포커스가 이동해요. MFF는 접근성 위치 정보가 아직 준비되지 않아도 실제 화면의 창 위치를 사용해요. 사라졌거나 더 이상 대상이 아닌 창으로는 마우스를 옮기지 않아요.",
+    "ja": "FFM と MFF はワークスペースを移動せず、画面をまたいで動作します。{0} がオンの場合、同じ画面内の全画面や最大化したウインドウだけを除外します。別の画面へポインタを動かすと、そのウインドウにフォーカスが移ります。MFF はアクセシビリティの位置情報が未準備でも、画面上のウインドウ位置を使います。消えたウインドウや古い対象にはポインタを移動しません。",
+    "zh-Hans": "FFM 和 MFF 可跨显示器工作，无需移动工作区。开启 {0} 后，仅排除同一显示器内的全屏或最大化窗口。将指针移到其他显示器时，仍会聚焦该窗口。即使辅助功能位置尚未就绪，MFF 也会使用屏幕上的实际窗口位置。窗口已消失或不再是当前目标时，不会移动指针。",
+    "zh-Hant": "FFM 和 MFF 可跨顯示器運作，無需移動工作空間。開啟 {0} 後，僅排除同一顯示器內的全螢幕或最大化視窗。將游標移到其他顯示器時，仍會聚焦該視窗。即使輔助使用位置尚未就緒，MFF 也會使用螢幕上的實際視窗位置。視窗已消失或不再是目前目標時，不會移動游標。"
+  },
+  "b7333535e67366b2": {
+    "en": "**Follow the pointer between displays:** Focus Follows Mouse focuses full-screen or maximized windows when crossing displays, even with the fullscreen exclusion on. The exclusion still applies within the same display.",
+    "ko": "**화면 사이에서도 마우스를 따라 포커스 이동:** 전체 화면 제외 설정을 켜도 다른 화면으로 마우스를 옮기면 전체 화면이나 최대화한 창에 포커스가 이동해요. 같은 화면 안에서는 계속 제외해요.",
+    "ja": "**画面をまたいでポインタにフォーカスを合わせる:** 全画面の除外設定がオンでも、別の画面へポインタを動かすと全画面や最大化したウインドウにフォーカスが移ります。同じ画面内では引き続き除外します。",
+    "zh-Hans": "**跨显示器跟随指针：** 即使开启全屏排除设置，将指针移到其他显示器时，焦点仍会跟随到全屏或最大化窗口。同一显示器内仍会排除这些窗口。",
+    "zh-Hant": "**跨顯示器跟隨游標：** 即使開啟全螢幕排除設定，將游標移到其他顯示器時，焦點仍會跟隨到全螢幕或最大化視窗。同一顯示器內仍會排除這些視窗。"
   }
 }

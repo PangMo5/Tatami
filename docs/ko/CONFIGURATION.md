@@ -170,10 +170,10 @@ Tatami는 문서 이름 대신 앱과 창 순서로 자리를 연결해요. 앱�
 |`mouseHidesOnFocus`|bool|`false`|작업 공간을 바꾸면 마우스를 움직일 때까지 커서를 숨겨요.|
 |`focusFollowsMouse`|bool|`false`|커서가 움직이면 그 아래 창으로 포커스를 옮겨요.|
 |`refocusOnClose`|bool|`true`|포커스한 창을 닫아 앱에 창이 남지 않으면 같은 작업 공간에서 최근에 쓴 남은 창을 순서대로 찾아 포커스를 옮겨요.|
-|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|마우스에 따라 포커스를 옮길 때 화면 전체를 채운 창에는 전환하지 않아요.|
+|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|같은 화면 안에서는 전체 화면이나 최대화한 창으로 포커스를 옮기지 않아요. 다른 화면으로 마우스를 옮기면 포커스도 따라가요.|
 |`focusFollowsMouseDisableHotkey`|string|`"Alt"`|마우스에 따른 포커스 이동을 잠시 멈출 보조키예요. `None`, `Alt`, `Cmd`, `Ctrl`, `Shift` 중에서 골라요.|
 
-FFM과 MFF는 작업 공간을 옮기지 않고 화면 사이에서도 동작해요. FFM의 기본 제외 설정은 다른 화면의 최대화 창에도 적용돼요. 마우스를 올려 해당 창에 포커스를 맞추려면 `focusFollowsMouseIgnoreFullscreen`을 꺼 주세요. MFF는 접근성 위치 정보가 아직 준비되지 않아도 실제 화면의 창 위치를 사용해요. 사라졌거나 더 이상 대상이 아닌 창으로는 마우스를 옮기지 않아요.
+FFM과 MFF는 작업 공간을 옮기지 않고 화면 사이에서도 동작해요. `focusFollowsMouseIgnoreFullscreen`을 켜면 같은 화면 안의 전체 화면이나 최대화한 창만 제외해요. 다른 화면으로 마우스를 옮기면 그 창으로 포커스가 이동해요. MFF는 접근성 위치 정보가 아직 준비되지 않아도 실제 화면의 창 위치를 사용해요. 사라졌거나 더 이상 대상이 아닌 창으로는 마우스를 옮기지 않아요.
 
 <a id="settingsswitching"></a>
 ## `[settings.switching]`

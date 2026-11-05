@@ -279,8 +279,13 @@ public func previewLayoutTemplate(
   sharedApps: [SharedApp],
   presentBundleIds: Set<String>,
   availableSlots: Set<SlotID> = [],
+  emptyBundleIds: Set<String> = [],
 ) -> BSPNode<SlotID>? {
+  let absentNonOpeningApps = Set(workspace.apps.filter {
+    !$0.autoOpen && emptyBundleIds.contains($0.bundleIdentifier)
+  }.map(\.bundleIdentifier))
   let tiled = tiledLayoutBundleIds(workspace: workspace, sharedApps: sharedApps)
+    .filter { !absentNonOpeningApps.contains($0) }
   var tree = snapshot ?? BSPNode<SlotID>.synthesizedTemplate(tiledBundleIds: tiled)
   let allowed = Set(tiled)
   let observed = Set(availableSlots.map(\.bundleId))

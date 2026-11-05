@@ -623,6 +623,9 @@ struct WindowCapabilitySnapshot: Equatable, Sendable {
   var movableKeys: [WindowKey]
   var resizableKeys: [WindowKey]
   var unclassifiedKeys = [WindowKey]()
+  /// Fresh enumeration confirmed no usable window identity; timeouts and stale scans never
+  /// enter this set, even when there is no cached key to retain.
+  var emptyBundleIds = Set<String>()
 }
 
 // MARK: - WindowSnapshotClient
@@ -1477,6 +1480,12 @@ final class WindowKeyCache {
       requireResizable: true,
       ifUnchangedSince: expectedInvalidationEpoch,
     )
+    let observedBundles = Set((discovery.movableKeys + discovery.resizableKeys + discovery.unclassifiedKeys
+        + movableKeys + resizableKeys).map(\.bundleId))
+    let emptyBundles = Set(bundleIds).subtracting(discovery.unreachable).subtracting(observedBundles).filter { bundleId in
+      guard let epoch = expectedInvalidationEpoch else { return true }
+      return invalidationGeneration(for: [bundleId]) <= epoch
+    }
     return WindowCapabilitySnapshot(
       movableKeys: movableKeys,
       resizableKeys: resizableKeys,
@@ -1486,6 +1495,7 @@ final class WindowKeyCache {
         return bundleInvalidationEpoch[key.bundleId, default: 0] <= epoch
           && invalidationEpoch(for: key.windowID) <= epoch
       },
+      emptyBundleIds: emptyBundles,
     )
   }
 

@@ -1,14 +1,11 @@
 {
   "name": "scratchpad",
   "title": "Keep a reusable scratchpad",
-  "summary": "Borrow the scratchpad again; its apps keep their contents.",
+  "summary": "Keep a note’s contents and bring it to another display with the same shortcut.",
   "requires": {
-    "displays": 1
+    "displays": 2
   },
   "setup": [
-    {
-      "kind": "clearOverlay"
-    },
     {
       "kind": "pointer",
       "display": 0,
@@ -17,42 +14,20 @@
     },
     {
       "kind": "activateWorkspace",
-      "workspace": "Write",
-      "profile": "Laptop"
-    },
-    {
-      "kind": "waitWindows",
-      "apps": [
-        "Editor",
-        "Docs"
-      ]
-    },
-    {
-      "kind": "activateWorkspace",
       "workspace": "Design",
-      "profile": "Laptop"
+      "profile": "Desk"
     },
     {
       "kind": "waitWindows",
       "apps": [
         "Canvas",
         "Docs"
-      ]
+      ],
+      "exact": true
     },
     {
-      "kind": "activateApp",
-      "app": "Canvas"
-    },
-    {
-      "kind": "cli",
-      "args": [
-        "layout",
-        "balance"
-      ]
-    },
-    {
-      "kind": "beat",
-      "ms": 1800
+      "kind": "saveLayout",
+      "text": "hosts"
     }
   ],
   "steps": [
@@ -65,18 +40,17 @@
       "text": "A scratchpad opens only when you borrow it."
     },
     {
-      "kind": "saveLayout",
-      "text": "home"
-    },
-    {
       "kind": "key",
       "chord": "ctrl + alt + cmd - n"
     },
     {
       "kind": "waitWindows",
       "apps": [
+        "Canvas",
+        "Docs",
         "Notes"
-      ]
+      ],
+      "exact": true
     },
     {
       "kind": "click",
@@ -87,7 +61,7 @@
       "kind": "typeText",
       "app": "Notes",
       "text": "Compare the three color directions.",
-      "ms": 65
+      "ms": 45
     },
     {
       "kind": "key",
@@ -99,30 +73,65 @@
       "value": "Compare the three color directions."
     },
     {
-      "kind": "beat",
-      "ms": 1000
-    },
-    {
-      "kind": "key",
-      "chord": "ctrl + alt + cmd - /"
-    },
-    {
-      "kind": "assertLayout",
-      "text": "home"
-    },
-    {
       "kind": "caption",
-      "text": "Borrow the scratchpad again; its apps keep their contents."
+      "text": "Move the pointer to another display, then use the same shortcut."
+    },
+    {
+      "kind": "hover",
+      "app": "Docs",
+      "identifier": "docs.search",
+      "ms": 1400
+    },
+    {
+      "kind": "beat",
+      "ms": 700
     },
     {
       "kind": "key",
       "chord": "ctrl + alt + cmd - n"
     },
     {
-      "kind": "waitWindows",
-      "apps": [
-        "Notes"
-      ]
+      "kind": "expectPlacement",
+      "app": "Notes",
+      "target": "Docs",
+      "value": "right"
+    },
+    {
+      "kind": "expectPointerCentered",
+      "app": "Notes"
+    },
+    {
+      "kind": "caption",
+      "text": "The same note moves here. Its previous workspace regains the space."
+    },
+    {
+      "kind": "expectStory",
+      "field": "lastTask",
+      "value": "Compare the three color directions."
+    },
+    {
+      "kind": "beat",
+      "ms": 1800
+    },
+    {
+      "kind": "hover",
+      "app": "Canvas",
+      "identifier": "canvas.sand",
+      "ms": 1400
+    },
+    {
+      "kind": "beat",
+      "ms": 700
+    },
+    {
+      "kind": "key",
+      "chord": "ctrl + alt + cmd - n"
+    },
+    {
+      "kind": "expectPlacement",
+      "app": "Notes",
+      "target": "Docs",
+      "value": "left"
     },
     {
       "kind": "expectStory",
@@ -138,8 +147,20 @@
       "chord": "ctrl + alt + cmd - /"
     },
     {
+      "kind": "waitWindows",
+      "apps": [
+        "Canvas",
+        "Docs"
+      ],
+      "exact": true
+    },
+    {
       "kind": "assertLayout",
-      "text": "home"
+      "text": "hosts"
+    },
+    {
+      "kind": "beat",
+      "ms": 1000
     }
   ],
   "openingApps": [

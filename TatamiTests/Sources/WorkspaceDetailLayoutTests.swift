@@ -17,6 +17,61 @@ struct WorkspaceLayoutFeatureTests {
   // MARK: Internal
 
   @Test(arguments: [false, true])
+  func `windowless app preview follows auto-open without discarding saved proportions`(autoOpen: Bool) async throws {
+    let ws = Workspace(name: "Browser", apps: [
+      AppAssignment(bundleIdentifier: "a", name: "Browser", autoOpen: true),
+      AppAssignment(bundleIdentifier: "b", name: "Editor", autoOpen: autoOpen),
+    ])
+    let browser = WindowKey(pid: 1, windowID: 10, bundleId: "a")
+    let editor = WindowKey(pid: 2, windowID: 20, bundleId: "b")
+    let snapshot = LayoutSnapshot(
+      tree: .branch(BSPBranch(split: .vertical, ratio: 0.35, left: .leaf(slot("b")), right: .leaf(slot("a")))),
+      fullscreenZoomedSlots: [slot("a")],
+    )
+    var state = makeState(ws)
+    state.layoutSnapshot = snapshot
+    let store = TestStore(initialState: state) { WorkspaceLayoutFeature() } withDependencies: {
+      $0.windowSnapshot.discoverCapabilitiesAsync = { _ in
+        .value(WindowCapabilitySnapshot(movableKeys: [browser], resizableKeys: [browser], emptyBundleIds: ["b"]))
+      }
+    }
+    store.exhaustivity = .off
+    await store.send(.loadWindowTitles(bundleIds: ["a", "b"]))
+    await store.receive(\.windowInfoLoaded)
+    await store.finish()
+    let projected = try #require(store.state.resolved)
+    #expect(projected.renderRegions(in: unit, hidden: []).tiles.isEmpty == !autoOpen)
+    #expect(store.state.layoutSnapshot == snapshot)
+
+    // An unavailable refresh contributes no new absence proof.
+    await store.send(.windowInfoLoaded(
+      workspaceId: ws.id,
+      generation: store.state.windowInfoRequestGeneration,
+      titles: [:],
+      present: [],
+      keys: [],
+    ))
+    #expect(store.state.emptyBundleIds.isEmpty)
+    let unknown = try #require(store.state.resolved)
+    #expect(unknown.renderRegions(in: unit, hidden: []).tiles.flatMap(\.bundleIds) == ["b"])
+    await store.send(.windowInfoLoaded(
+      workspaceId: ws.id,
+      generation: store.state.windowInfoRequestGeneration,
+      titles: [:],
+      present: ["a", "b"],
+      keys: [browser, editor],
+    ))
+    #expect(store.state.emptyBundleIds.isEmpty)
+    let reopened = try #require(store.state.resolved)
+    guard case .template(let restored, _) = reopened else {
+      Issue.record("Expected the restored inactive template")
+      return
+    }
+    #expect(restored == snapshot.tree)
+    #expect(store.state.layoutSnapshot == snapshot)
+  }
+
+  @Test(arguments: [false, true])
   func `preview orientation targets the rendered split across a fullscreen sibling`(active: Bool) async throws {
     let keys = [
       WindowKey(pid: 1, windowID: 10, bundleId: "a"),

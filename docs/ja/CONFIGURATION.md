@@ -170,10 +170,10 @@ Tatami は書類名ではなく、アプリとウインドウの順序で配置�
 |`mouseHidesOnFocus`|bool|`false`|ワークスペースの切り替え後、マウスを動かすまでカーソルを隠します。|
 |`focusFollowsMouse`|bool|`false`|カーソルの移動に合わせ、その下のウインドウを選びます。|
 |`refocusOnClose`|bool|`true`|選んだウインドウを閉じてそのアプリに窓がなくなったら、同じワークスペースの残りから使用履歴順にフォーカスを移します。|
-|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|マウスにフォーカスを追従させる際、画面全体を占める窓には移しません。|
+|`focusFollowsMouseIgnoreFullscreen`|bool|`true`|同じ画面内では全画面や最大化したウインドウにフォーカスを移しません。別の画面へポインタを動かすとフォーカスも移ります。|
 |`focusFollowsMouseDisableHotkey`|string|`"Alt"`|FFM を一時停止する修飾キーです。`None`、`Alt`、`Cmd`、`Ctrl`、`Shift` から選びます。|
 
-FFM と MFF はワークスペースを移動せず、画面をまたいで動作します。FFM の既定の除外設定は別画面の最大化ウインドウにも適用されます。ホバーでフォーカスするには `focusFollowsMouseIgnoreFullscreen` をオフにしてください。MFF はアクセシビリティの位置情報が未準備でも、画面上のウインドウ位置を使います。消えたウインドウや古い対象にはポインタを移動しません。
+FFM と MFF はワークスペースを移動せず、画面をまたいで動作します。`focusFollowsMouseIgnoreFullscreen` がオンの場合、同じ画面内の全画面や最大化したウインドウだけを除外します。別の画面へポインタを動かすと、そのウインドウにフォーカスが移ります。MFF はアクセシビリティの位置情報が未準備でも、画面上のウインドウ位置を使います。消えたウインドウや古い対象にはポインタを移動しません。
 
 <a id="settingsswitching"></a>
 ## `[settings.switching]`

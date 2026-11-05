@@ -51,10 +51,13 @@ public enum SceneStep: Sendable {
   case restoreWindow(app: String)
   case assertWindow(app: String)
   case expectPointer(app: String)
-  case hover(app: String, identifier: String)
+  case expectPointerCentered(app: String)
+  case closeWindow(app: String)
+  case hover(app: String, identifier: String, milliseconds: Int = 216)
   case dragWindow(app: String, target: String, x: Double, y: Double)
   case resizeWindow(app: String, dx: Double, dy: Double)
   case expectFront(app: String)
+  case expectFocusedWindow(app: String, identifier: String)
   case expectLayoutChanged(name: String)
   case configure(key: String, value: String)
   case virtualDisplay(connected: Bool)
@@ -95,7 +98,7 @@ public enum SceneStep: Sendable {
   case keys(chord: String)
   case clearOverlay
   case activateApp(app: String)
-  case waitWindows(apps: [String], timeoutMilliseconds: Int)
+  case waitWindows(apps: [String], timeoutMilliseconds: Int, exact: Bool = false)
   case saveLayout(name: String)
   case assertLayout(name: String)
 
@@ -117,10 +120,13 @@ public enum SceneStep: Sendable {
     case .restoreWindow(let app): "restore window by dragging \(app)"
     case .assertWindow(let app): "verify window frame \(app)"
     case .expectPointer(let app): "verify pointer in \(app)"
-    case .hover(let app, let id): "hover \(app) / \(id)"
+    case .expectPointerCentered(let app): "verify pointer centered in the focused \(app) window"
+    case .closeWindow(let app): "click the native close button in \(app)"
+    case .hover(let app, let id, let milliseconds): "hover \(app) / \(id) over \(milliseconds) ms"
     case .dragWindow(let app, let target, _, _): "drag \(app) to \(target)"
     case .resizeWindow(let app, _, _): "resize \(app)"
     case .expectFront(let app): "verify focused app \(app)"
+    case .expectFocusedWindow(let app, let identifier): "verify focused window \(app) / \(identifier)"
     case .expectLayoutChanged(let name): "verify changed layout \(name)"
     case .configure(let key, let value): "configure \(key) = \(value)"
     case .virtualDisplay(let connected): connected ? "connect secondary display" : "disconnect secondary display"
@@ -213,6 +219,7 @@ extension SceneStep: Decodable {
       self = .waitWindows(
         apps: try container.decode([String].self, forKey: .apps),
         timeoutMilliseconds: try container.decodeIfPresent(Int.self, forKey: .timeoutMs) ?? 12000,
+        exact: try container.decodeIfPresent(Bool.self, forKey: .exact) ?? false,
       )
 
     case "saveLayout":
@@ -252,9 +259,14 @@ extension SceneStep: Decodable {
 
     case "expectPointer": self = .expectPointer(app: try container.decode(String.self, forKey: .app))
 
+    case "expectPointerCentered": self = .expectPointerCentered(app: try container.decode(String.self, forKey: .app))
+
+    case "closeWindow": self = .closeWindow(app: try container.decode(String.self, forKey: .app))
+
     case "hover": self = .hover(
         app: try container.decode(String.self, forKey: .app),
         identifier: try container.decode(String.self, forKey: .identifier),
+        milliseconds: try container.decodeIfPresent(Int.self, forKey: .ms) ?? 216,
       )
 
     case "dragWindow": self = .dragWindow(
@@ -271,6 +283,11 @@ extension SceneStep: Decodable {
       )
 
     case "expectFront": self = .expectFront(app: try container.decode(String.self, forKey: .app))
+
+    case "expectFocusedWindow": self = .expectFocusedWindow(
+        app: try container.decode(String.self, forKey: .app),
+        identifier: try container.decode(String.self, forKey: .identifier),
+      )
 
     case "expectLayoutChanged": self = .expectLayoutChanged(name: try container.decode(String.self, forKey: .text))
 
@@ -477,6 +494,7 @@ extension SceneStep: Decodable {
     case releaseAfterMs
     case timeoutMs
     case expectApps
+    case exact
     case settleMs
   }
 

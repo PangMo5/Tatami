@@ -759,8 +759,8 @@ extension AppSettings {
     public var focusFollowsMouse: Bool
     public var focusFollowsMouseDisableHotkey: FocusFollowsMouseModifier
     /// When `focusFollowsMouse` is on, don't shift focus to a window that
-    /// fills the whole display (a full-screen / maximized window) — you reach
-    /// those by clicking, not by skimming the cursor across them.
+    /// fills the whole display while staying on that display. Crossing into
+    /// another display still focuses its full-screen / maximized window.
     public var focusFollowsMouseIgnoreFullscreen: Bool
     /// When the focused window in a workspace closes (and focus would
     /// otherwise be stranded on a now-windowless app), move focus to a

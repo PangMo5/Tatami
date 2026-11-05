@@ -17,18 +17,21 @@ struct LiveSettingsTests {
     try LiveConfigEditor.update(file: file, key: "autoBalance", value: "\"both\"")
     try LiveConfigEditor.update(file: file, key: "bringScratchpadToPointerDisplay", value: "false")
     try LiveConfigEditor.update(file: file, key: "focusFollowsMouseIgnoreFullscreen", value: "false")
+    try LiveConfigEditor.update(file: file, key: "toggleBorrowOnRepeat", value: "false")
     let settings = try TomlLite.parse(String(contentsOf: file, encoding: .utf8))["settings"]
     #expect(settings?["layout"]?["autoBalance"] == .string("both"))
     #expect(settings?["layout"]?["gapInner"] == .integer(10))
     #expect(settings?["switching"]?["bringScratchpadToPointerDisplay"] == .bool(false))
     #expect(settings?["focus"]?["focusFollowsMouseIgnoreFullscreen"] == .bool(false))
     #expect(settings?["focus"]?["mouseFollowsFocus"] == .bool(true))
+    #expect(settings?["switching"]?["toggleBorrowOnRepeat"] == .bool(false))
   }
 
   @Test(arguments: [
     ("autoBalance", "\"invalid\""),
     ("bringScratchpadToPointerDisplay", "\"false\""),
     ("focusFollowsMouseIgnoreFullscreen", "1"),
+    ("toggleBorrowOnRepeat", "\"false\""),
   ])
   func `invalid live setting values leave the fixture unchanged`(key: String, value: String) throws {
     let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".toml")

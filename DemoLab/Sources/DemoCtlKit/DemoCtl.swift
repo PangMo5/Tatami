@@ -58,7 +58,12 @@ public enum DemoCtl {
         let paths = try resolvePaths()
         let name = arguments.first ?? "Tatami"
         let install = try resolveInstall(explicit: nil)
-        let bundle = name == "Tatami" ? install.bundleIdentifier : DemoCatalog.spec(named: name)?.bundleIdentifier
+        let bundle: String? =
+          switch name {
+          case "Tatami": install.bundleIdentifier
+          case "Dock": "com.apple.dock"
+          default: DemoCatalog.spec(named: name)?.bundleIdentifier
+          }
         guard let bundle else { throw DemoCtlError.usage("unknown app") }
         _ = paths
         print(try NativeInteractionDriver.snapshot(bundleIdentifier: bundle))
@@ -841,6 +846,7 @@ public enum DemoCtl {
       overlayMode: overlayMode,
       keycastHoldMilliseconds: keycastHold,
     )
+    runner.inheritCheckpoints(from: preparation)
 
     if scene.captureSecondary == true {
       runner.secondaryCapture = (output.deletingPathExtension().appendingPathExtension("secondary.mov"), fps)

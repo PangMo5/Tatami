@@ -1,0 +1,84 @@
+{
+  "name" : "settings-search",
+  "requires" : {
+    "displays" : 1
+  },
+  "setup" : [
+    {
+      "kind" : "prepareSettings"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "gearshape",
+      "kind" : "click"
+    }
+  ],
+  "steps" : [
+    {
+      "kind" : "chapter",
+      "text" : "설정 검색"
+    },
+    {
+      "kind" : "caption",
+      "text" : "이름과 단축키, MFF 같은 약어로 설정을 찾아요."
+    },
+    {
+      "chord" : "cmd - f",
+      "kind" : "key"
+    },
+    {
+      "app" : "Tatami",
+      "kind" : "typeText",
+      "ms" : 100,
+      "text" : "MFF"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:settings-result-focus.mouseFollowsFocus",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:setting-focus.mouseFollowsFocus",
+      "kind" : "expectControlVisible"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 1800
+    },
+    {
+      "kind" : "caption",
+      "text" : "결과를 누르면 아래쪽 설정도 바로 보여줘요."
+    },
+    {
+      "chord" : "cmd - f",
+      "kind" : "key"
+    },
+    {
+      "chord" : "cmd - a",
+      "kind" : "key"
+    },
+    {
+      "app" : "Tatami",
+      "kind" : "typeText",
+      "ms" : 80,
+      "text" : "이전 작업 공간"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:settings-result-shortcuts.moveToPreviousWorkspace",
+      "kind" : "click"
+    },
+    {
+      "app" : "Tatami",
+      "identifier" : "window:setting-shortcuts.moveToPreviousWorkspace",
+      "kind" : "expectControlVisible"
+    },
+    {
+      "kind" : "beat",
+      "ms" : 2000
+    }
+  ],
+  "summary" : "설정을 검색하고 해당 항목으로 바로 이동해요.",
+  "title" : "필요한 설정을 찾아요"
+}

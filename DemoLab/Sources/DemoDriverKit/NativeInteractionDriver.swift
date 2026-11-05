@@ -104,10 +104,13 @@ public enum NativeInteractionDriver {
     ))
   }
 
-  public static func hover(bundleIdentifier: String, identifier: String) throws {
+  public static func hover(bundleIdentifier: String, identifier: String, durationMilliseconds: Int = 216) throws {
+    guard (1...5_000).contains(durationMilliseconds) else {
+      throw InteractionError("pointer movement duration must be 1...5000 milliseconds")
+    }
     let target = try element(bundleIdentifier: bundleIdentifier, identifier: identifier)
     try reveal(target)
-    try move(to: center(of: target))
+    try move(to: center(of: target), durationMilliseconds: durationMilliseconds)
   }
 
   /// Read visibility without revealing or scrolling the control. An AX node
@@ -128,20 +131,36 @@ public enum NativeInteractionDriver {
   }
 
   public static func windowFrame(bundleIdentifier: String) throws -> CGRect {
-    if bundleIdentifier == "dev.PangMo5.Tatami" || bundleIdentifier == "dev.PangMo5.Tatami.debug" {
-      return try bounds(of: element(bundleIdentifier: bundleIdentifier, identifier: "main"))
-    }
-    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first
-    else { throw InteractionError("app is not running") }
-    let root = AXUIElementCreateApplication(app.processIdentifier)
+    try bounds(of: identifiedWindow(bundleIdentifier: bundleIdentifier))
+  }
+
+  public static func closeWindow(bundleIdentifier: String) throws {
+    let window = try identifiedWindow(bundleIdentifier: bundleIdentifier)
     guard
-      let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement],
-      // Hidden or occluded SwiftUI content may have no AX descendants. The
-      // fixture assigns identity to NSWindow itself at creation time.
-      let window = windows
-        .first(where: { (attribute($0, kAXIdentifierAttribute) as? String)?.hasPrefix(bundleIdentifier + ".window.") == true })
-    else { throw InteractionError("app has no identified demo window") }
-    return try bounds(of: window)
+      let raw = attribute(window, kAXCloseButtonAttribute),
+      CFGetTypeID(raw) == AXUIElementGetTypeID()
+    else { throw InteractionError("window has no native close button") }
+    try clickPoint(center(of: unsafeDowncast(raw, to: AXUIElement.self)))
+  }
+
+  public static func focusedWindowFrame(bundleIdentifier: String) throws -> CGRect {
+    guard
+      frontmostBundleIdentifier() == bundleIdentifier,
+      let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first,
+      let raw = attribute(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute),
+      CFGetTypeID(raw) == AXUIElementGetTypeID()
+    else { throw InteractionError("app has no focused window: \(bundleIdentifier)") }
+    return try bounds(of: unsafeDowncast(raw, to: AXUIElement.self))
+  }
+
+  public static func isWindowFocused(bundleIdentifier: String, identifier: String) -> Bool {
+    guard
+      frontmostBundleIdentifier() == bundleIdentifier,
+      let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first,
+      let raw = attribute(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedWindowAttribute),
+      CFGetTypeID(raw) == AXUIElementGetTypeID()
+    else { return false }
+    return attribute(unsafeDowncast(raw, to: AXUIElement.self), kAXIdentifierAttribute) as? String == identifier
   }
 
   public static func drag(from: CGPoint, to: CGPoint) throws {
@@ -246,6 +265,23 @@ public enum NativeInteractionDriver {
 
   // MARK: Private
 
+  private static func identifiedWindow(bundleIdentifier: String) throws -> AXUIElement {
+    if bundleIdentifier == "dev.PangMo5.Tatami" || bundleIdentifier == "dev.PangMo5.Tatami.debug" {
+      return try element(bundleIdentifier: bundleIdentifier, identifier: "main")
+    }
+    guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first
+    else { throw InteractionError("app is not running") }
+    let root = AXUIElementCreateApplication(app.processIdentifier)
+    guard
+      let windows = attribute(root, kAXWindowsAttribute) as? [AXUIElement],
+      // Hidden or occluded SwiftUI content may have no AX descendants. The
+      // fixture assigns identity to NSWindow itself at creation time.
+      let window = windows
+        .first(where: { (attribute($0, kAXIdentifierAttribute) as? String)?.hasPrefix(bundleIdentifier + ".window.") == true })
+    else { throw InteractionError("app has no identified demo window") }
+    return window
+  }
+
   private static func clickPoint(_ point: CGPoint) throws {
     try move(to: point)
     guard
@@ -320,13 +356,26 @@ public enum NativeInteractionDriver {
       throw InteractionError("app is not running: \(bundleIdentifier)")
     }
     let root = AXUIElementCreateApplication(app.processIdentifier)
+    let windowScoped = identifier.hasPrefix("window:")
+    let selector = windowScoped ? String(identifier.dropFirst(7)) : identifier
     let deadline = ContinuousClock.now.advanced(by: .seconds(4))
+    var foundWithoutBounds = false
     repeat {
-      if let found = search(root, identifier: identifier, depth: 0) {
-        return found
+      let roots = windowScoped ? (attribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? []) : [root]
+      if let found = roots.lazy.compactMap({ search($0, identifier: selector, depth: 0) }).first {
+        // SwiftUI can publish a new AX node before its first layout pass.
+        // Resolve it again until it has real geometry for native input.
+        if (try? bounds(of: found)) != nil {
+          return found
+        }
+        foundWithoutBounds = true
       }
       Thread.sleep(forTimeInterval: 0.08)
-    } while ContinuousClock.now < deadline
+    } while
+      ContinuousClock.now < deadline
+    if foundWithoutBounds {
+      throw InteractionError("native control has no rendered bounds: \(bundleIdentifier) / \(identifier)")
+    }
     throw InteractionError("native control not found: \(bundleIdentifier) / \(identifier)")
   }
 
@@ -403,17 +452,18 @@ public enum NativeInteractionDriver {
     return CGRect(origin: position, size: size)
   }
 
-  private static func move(to point: CGPoint) throws {
+  private static func move(to point: CGPoint, durationMilliseconds: Int = 216) throws {
     guard let start = CGEvent(source: nil)?.location else { throw DriverError.eventSourceUnavailable }
-    for step in 1...18 {
-      let t = Double(step) / 18
+    let steps = max(18, durationMilliseconds / 12)
+    for step in 1...steps {
+      let t = Double(step) / Double(steps)
       let eased = t * t * (3 - 2 * t)
       let next = CGPoint(x: start.x + (point.x - start.x) * eased, y: start.y + (point.y - start.y) * eased)
       guard let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: next, mouseButton: .left)
       else { throw DriverError.eventSourceUnavailable }
       event.flags = []
       event.post(tap: .cghidEventTap)
-      Thread.sleep(forTimeInterval: 0.012)
+      Thread.sleep(forTimeInterval: Double(durationMilliseconds) / Double(steps) / 1_000)
     }
   }
 
