@@ -14,7 +14,11 @@ For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep 
 ## Version control and development environment
 
 - Use Jujutsu (`jj`) for local history, changes, and bookmarks. Keep the colocated Git repository for GitHub interoperability; use `jj git fetch` and `jj git push` for remote operations.
-- Run development commands through `mise exec --` (or an activated mise shell). `.mise.toml` pins Tuist and SwiftFormat, and selects the Xcode version in `.xcode-version` without changing the system-wide selection.
+- Run development commands through `mise exec --` (or an activated mise shell). `.mise.toml` pins SwiftFormat and selects the Xcode version in `.xcode-version` without changing the system-wide selection.
+- `Package.swift` owns the app, libraries, CLI, and tests. Use `make build` / `make run` to package the app, and `make test` for Swift Testing. Keep bundle assembly and signing in `tatami-tools bundle-product`; no generated Xcode project is required.
+- Pass `--no-parallel` to the package test runner. Tests with blocking concurrency probes control their own interleavings and must not exhaust the shared cooperative executor by running the entire suite concurrently.
+- Keep `TatamiVersion.current` in `TatamiCLIProtocol/Sources/TatamiVersion.swift` as the shared product version for the app, CLI, website, and releases.
+- Keep the linked SDK distinct from the minimum supported OS. Packaging must verify every architecture's SDK/deployment metadata, embedded CLI Info.plist, runtime dependencies, signatures, and entitlements. SwiftPM build-tree paths must not remain in distributed binaries.
 - Keep `.swiftformat` aligned with Airbnb's Swift style configuration, preserving the repository's license header and Swift language mode. Run `make format` and `make lint` before submitting Swift changes.
 
 ## Performance and responsiveness

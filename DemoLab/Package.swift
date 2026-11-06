@@ -9,9 +9,8 @@ import PackageDescription
 ///
 /// Deliberately a *standalone* SwiftPM package with zero external dependencies:
 /// `swift build` works offline with only the Command Line Tools, and nothing
-/// here can reach the product's Tuist graph. Tuist resolves its root as the
-/// closest directory containing `Tuist/` or `.git/`, so a nested Tuist manifest
-/// would have shared the app's dependency resolution — this does not.
+/// here can reach the product's package graph. Keep this manifest independent
+/// so fixture apps and recording tools do not resolve product dependencies.
 let package = Package(
   name: "TatamiDemoLab",
   platforms: [.macOS(.v14)],

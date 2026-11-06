@@ -187,8 +187,7 @@ struct SiteBuilder {
 
   func build(output: URL, version: String?, selectedLocales: [String]) throws {
     try require(!selectedLocales.isEmpty && selectedLocales.allSatisfy(locales.contains), "Unsupported site locale")
-    let version = try version ?? matches(#"let appVersion = "([^"]+)""#, workspace.root.at("Project.swift").text(
-    )).first?[1] ?? ""
+    let version = try version ?? ProductBuilder(workspace: workspace).version
     try require(fullMatch(#"[0-9]+\.[0-9]+\.[0-9]+(?:[.-][A-Za-z0-9.-]+)?"#, version), "Invalid version")
     var manifests = [String: JSON]()
     var directories = [String: URL]()

@@ -8,7 +8,9 @@ on:
       - ".mise.toml"
       - ".swiftformat"
       - ".xcode-version"
-      - "scripts/development-env.sh"
+      - "scripts/**"
+      - "Tatami/Resources/**"
+      - "Tatami/Tatami.entitlements"
       - "Makefile"
       - ".github/workflows/swift.yml"
   workflow_dispatch:
@@ -42,14 +44,12 @@ jobs:
           xcrun swift --version
           xcrun --sdk macosx --show-sdk-version
       - uses: jdx/mise-action@v4
-      - name: Resolve dependencies and generate project
-        run: |
-          tuist install
-          tuist generate --no-open
+      - name: Resolve dependencies
+        run: swift package resolve
       - name: Test Tatami
-        run: |
-          tuist xcodebuild build -workspace Tatami.xcworkspace -scheme TatamiCLI -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
-          tuist xcodebuild test -workspace Tatami.xcworkspace -scheme Tatami -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+        run: swift test --no-parallel --disable-automatic-resolution
+      - name: Verify app packaging
+        run: swift run --package-path Tools tatami-tools bundle-product --unsigned
       - name: Test Demo Lab
         run: |
           swift run --package-path Tools tatami-tools bundle-apps

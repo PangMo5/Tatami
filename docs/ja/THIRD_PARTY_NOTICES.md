@@ -5,7 +5,7 @@
 <a id="third-party-notices"></a>
 # 外部ライブラリの告知
 
-Tatami アプリの依存関係のバージョンとリビジョンは、`Tuist/Package.resolved` に基づいています。
+Tatami アプリの依存関係のバージョンとリビジョンは、`Package.resolved` に基づいています。
 
 [アプリのライセンスと著作権表示の全文](../../THIRD_PARTY_NOTICES.md)は原文でご確認ください。このページでは概要の説明のみを翻訳しています。
 

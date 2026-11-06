@@ -1,6 +1,6 @@
 # Third-party notices
 
-Tatami's app dependency versions and revisions come from `Tuist/Package.resolved`.
+Tatami's app dependency versions and revisions come from `Package.resolved`.
 
 Read [the complete app license and copyright notices](THIRD_PARTY_NOTICES.md) in their original language. This page translates the explanatory overview only.
 

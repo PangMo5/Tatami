@@ -34,6 +34,7 @@ public struct ToolCLI: AsyncParsableCommand {
       InstallAssets.self,
       MergeReviewBundle.self,
       BundleApps.self,
+      BundleProduct.self,
       BuildVirtualDisplay.self,
       DemoControl.self,
       FocusSession.self,
@@ -350,6 +351,37 @@ struct MergeReviewBundle: AsyncParsableCommand {
       patch: URL(fileURLWithPath: patch),
       archive: URL(fileURLWithPath: archive),
     )
+  }
+}
+
+// MARK: - BundleProduct
+
+struct BundleProduct: AsyncParsableCommand {
+  static let configuration =
+    CommandConfiguration(abstract: "Build and package Tatami with SwiftPM and the Apple command-line tools.")
+
+  @OptionGroup var common: WorkspaceOptions
+  @Option(name: .customLong("configuration"))
+  var buildConfiguration = "debug"
+  @Option var arch = [String]()
+  @Option var output: String?
+  @Option var signingIdentity: String?
+  @Flag(help: "Use ad-hoc signatures without a developer certificate.")
+  var unsigned = false
+  @Flag var launch = false
+
+  mutating func run() async throws {
+    let builder = try ProductBuilder(workspace: common.workspace)
+    let bundle = try await builder.build(
+      configuration: buildConfiguration,
+      architectures: arch,
+      output: output.map { URL(fileURLWithPath: $0) },
+      identity: signingIdentity,
+      unsigned: unsigned,
+    )
+    if launch {
+      try await builder.launch(bundle)
+    }
   }
 }
 
