@@ -197,10 +197,11 @@ Xcode 27.2와 함께 제공되는 Swift 6.4 툴체인을 사용해요. 앱은 ma
 
 ```sh
 mise install
-mise exec -- tuist install
-mise exec -- tuist generate --no-open
-open Tatami.xcworkspace
+make run
+make test
 ```
+
+`make build`는 앱을 실행하지 않고 `.build/app/debug/Tatami.app`을 만들어요. 로컬 빌드는 Apple Development 인증서로 서명해 다시 빌드해도 권한을 유지해요. 특정 인증서를 선택하려면 `.mise.local.toml`에 `CODESIGN_IDENTITY`를 설정하세요. Xcode에서 `Package.swift`를 열면 패키지를 탐색할 수 있어요.
 
 <a id="configuration-and-automation"></a>
 ## 설정과 자동화
@@ -234,7 +235,7 @@ CLI는 프로필·작업 공간 관리, 훅 조회, 안정된 JSON 출력과 제
 <a id="tech-stack"></a>
 ## 기술 구성
 
-- **Tuist:** 프로젝트 생성
+- **Swift Package Manager:** 제품 빌드, 의존성, 테스트
 - **The Composable Architecture(TCA):** 앱 구조
 - **swift-sharing:** 기능 간 상태 공유
 - **swift-collections:** 타일링 핵심 경로의 순서 있는 집합·사전·데크

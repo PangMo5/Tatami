@@ -1,5 +1,4 @@
 [tools]
-"aqua:tuist/tuist" = "4.214.1"
 swiftformat = "0.64.5"
 "aqua:jj-vcs/jj" = "0.46.0"
 

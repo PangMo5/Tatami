@@ -197,10 +197,11 @@ brew install --cask pangmo5/tap/tatami
 
 ```sh
 mise install
-mise exec -- tuist install
-mise exec -- tuist generate --no-open
-open Tatami.xcworkspace
+make run
+make test
 ```
+
+`make build` 创建 `.build/app/debug/Tatami.app`，但不启动应用。本地 构建使用 Apple Development 证书签名，以在重新构建后保留权限。要选择特定 证书，请在 `.mise.local.toml` 中设置 `CODESIGN_IDENTITY`。在 Xcode 中打开 `Package.swift`，即可浏览软件包。
 
 <a id="configuration-and-automation"></a>
 ## 配置与自动化
@@ -234,7 +235,7 @@ CLI 按领域提供配置方案与工作区管理、钩子查询、稳定 JSON �
 <a id="tech-stack"></a>
 ## 技术栈
 
-- **Tuist：** 项目生成
+- **Swift Package Manager：** 产品构建、依赖项和测试
 - **The Composable Architecture（TCA）：** 应用架构
 - **swift-sharing：** 跨功能状态共享
 - **swift-collections：** 平铺关键路径中的有序集合、字典和双端队列

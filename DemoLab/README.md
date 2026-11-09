@@ -52,7 +52,7 @@ Host requirements: Xcode 27.2 with Swift 6.4, `tart`, `mpv` with libass/libx264,
 `ffprobe`. Run host commands from the repository root. The guest needs Xcode
 Command Line Tools. Source sync carries the compiled automation executable, so
 the guest does not download packages. The recorder remains an independent
-SwiftPM package outside Tatami's Tuist graph.
+SwiftPM package outside Tatami's product dependency graph.
 
 Automation uses `swift-subprocess`, ArgumentParser, SwiftSoup, Hummingbird,
 `swift-markdown`, `swift-cmark` and Swift Crypto. Foundation handles JSON and

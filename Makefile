@@ -1,30 +1,30 @@
-.PHONY: install generate build run test format lint clean bootstrap
+.PHONY: install build run test release extract-localizations format lint clean bootstrap
 
 install:
-	mise exec -- tuist install
+	mise exec -- swift package resolve
 
-generate:
-	mise exec -- tuist generate --no-open
-
-# `tuist build` is deprecated; the supported path is to generate, then drive
-# the generated project through the `tuist xcodebuild` wrapper.
-build: generate
-	mise exec -- tuist xcodebuild build -scheme Tatami -workspace Tatami.xcworkspace -configuration Debug -destination 'platform=macOS'
+build:
+	mise exec -- swift run --package-path Tools tatami-tools bundle-product
 
 # Build the Debug app and launch it — the dev inner loop. The Debug build is a
 # separate app ("Tatami Dev", bundle id dev.PangMo5.Tatami.debug, its own
-# DEV-badged icon), Apple Development-signed via Project.swift, so its
+# DEV-badged icon), Apple Development-signed by the packager, so its
 # Accessibility / Screen-Recording grant never collides with an installed
-# release. `killall` first avoids a stale duplicate instance.
-run: generate
-	-killall Tatami 2>/dev/null
-	mise exec -- tuist xcodebuild build -scheme Tatami -workspace Tatami.xcworkspace -configuration Debug -destination 'platform=macOS' -derivedDataPath DerivedData
-	open DerivedData/Build/Products/Debug/Tatami.app
+# release. The packager replaces the running window manager; isolated config and
+# socket overrides keep validation builds separate from the installed app.
+run:
+	mise exec -- swift run --package-path Tools tatami-tools bundle-product --launch
 
-# The Tatami scheme includes the Swift Testing suites. Generate once, then
-# test through the same Xcode wrapper used for builds.
-test: generate
-	mise exec -- tuist xcodebuild test -scheme Tatami -workspace Tatami.xcworkspace -destination 'platform=macOS'
+test:
+	mise exec -- swift test --no-parallel
+
+release:
+	mise exec -- swift run --package-path Tools tatami-tools bundle-product --configuration release --arch arm64 --arch x86_64
+
+# Keep each module's compiler output separate, including same-named Swift files.
+extract-localizations:
+	mkdir -p .build/localization/Tatami .build/localization/TatamiKit
+	TATAMI_LOCALIZATION_OUTPUT="$(CURDIR)/.build/localization" mise exec -- swift build --product TatamiApp
 
 format:
 	mise exec -- swiftformat .
@@ -33,7 +33,7 @@ lint:
 	mise exec -- swiftformat . --lint
 
 clean:
-	mise exec -- tuist clean
-	rm -rf Derived DerivedData
+	mise exec -- swift package clean
+	rm -rf .build/app .build/packaging .build/localization
 
-bootstrap: install generate
+bootstrap: install

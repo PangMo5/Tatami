@@ -5,12 +5,12 @@
 # Third-Party Notices
 
 The distributed Tatami app incorporates or is built with the dependencies listed
-below. Versions and revisions are taken from `Tuist/Package.resolved`. Each
+below. Versions and revisions are taken from `Package.resolved`. Each
 license notice is reproduced verbatim from that resolved checkout.
 
 Development automation has a separate dependency graph. See the
 [development tool notices](Tools/THIRD_PARTY_NOTICES.md) for the packages pinned
-in `Tools/Package.resolved`. Those packages are not added to the app's Tuist graph.
+in `Tools/Package.resolved`. Those packages are not added to the app's package graph.
 
 <!-- REUSE-IgnoreStart -->
 

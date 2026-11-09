@@ -5,7 +5,7 @@
 <a id="third-party-notices"></a>
 # 第三方声明
 
-Tatami 应用依赖项的版本和修订号以 `Tuist/Package.resolved` 为准。
+Tatami 应用依赖项的版本和修订号以 `Package.resolved` 为准。
 
 请阅读原文形式的[应用完整许可证和版权声明](../../THIRD_PARTY_NOTICES.md)。本页仅翻译概述说明。
 

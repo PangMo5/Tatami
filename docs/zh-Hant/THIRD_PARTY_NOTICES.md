@@ -5,7 +5,7 @@
 <a id="third-party-notices"></a>
 # 第三方聲明
 
-Tatami App 相依套件的版本與修訂版本以 `Tuist/Package.resolved` 為準。
+Tatami App 相依套件的版本與修訂版本以 `Package.resolved` 為準。
 
 請閱讀原文形式的[App 完整授權條款與著作權聲明](../../THIRD_PARTY_NOTICES.md)。本頁僅翻譯概述說明。
 

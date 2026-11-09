@@ -888,13 +888,6 @@
     "zh-Hans": "技术栈",
     "zh-Hant": "技術架構"
   },
-  "1358dff8f9775ee7": {
-    "en": "**Tuist:** Project generation",
-    "ko": "**Tuist:** 프로젝트 생성",
-    "ja": "**Tuist：** プロジェクト生成",
-    "zh-Hans": "**Tuist：** 项目生成",
-    "zh-Hant": "**Tuist：** 專案產生"
-  },
   "c583bd0bb181ffd8": {
     "en": "**The Composable Architecture (TCA):** App architecture",
     "ko": "**The Composable Architecture(TCA):** 앱 구조",
@@ -5249,5 +5242,19 @@
     "ja": "**画面をまたいでポインタにフォーカスを合わせる:** 全画面の除外設定がオンでも、別の画面へポインタを動かすと全画面や最大化したウインドウにフォーカスが移ります。同じ画面内では引き続き除外します。",
     "zh-Hans": "**跨显示器跟随指针：** 即使开启全屏排除设置，将指针移到其他显示器时，焦点仍会跟随到全屏或最大化窗口。同一显示器内仍会排除这些窗口。",
     "zh-Hant": "**跨顯示器跟隨游標：** 即使開啟全螢幕排除設定，將游標移到其他顯示器時，焦點仍會跟隨到全螢幕或最大化視窗。同一顯示器內仍會排除這些視窗。"
+  },
+  "b308e59c221ce410": {
+    "en": "**Swift Package Manager:** Product builds, dependencies, and tests",
+    "ko": "**Swift Package Manager:** 제품 빌드, 의존성, 테스트",
+    "ja": "**Swift Package Manager：** 製品のビルド、依存関係、テスト",
+    "zh-Hans": "**Swift Package Manager：** 产品构建、依赖项和测试",
+    "zh-Hant": "**Swift Package Manager：** 產品建置、相依套件與測試"
+  },
+  "72a447bd8b12b5b7": {
+    "en": "{0} creates {1} without launching it. Local builds use an Apple Development signing identity to preserve permission grants across rebuilds. Set {2} in {3} to select a specific certificate. Open {4} in Xcode to browse the package.",
+    "ko": "{0}는 앱을 실행하지 않고 {1}을 만들어요. 로컬 빌드는 Apple Development 인증서로 서명해 다시 빌드해도 권한을 유지해요. 특정 인증서를 선택하려면 {3}에 {2}를 설정하세요. Xcode에서 {4}를 열면 패키지를 탐색할 수 있어요.",
+    "ja": "{0} はアプリを起動せずに {1} を作成します。ローカル ビルドでは Apple Development 証明書で署名し、再ビルド後も権限を維持します。特定の 証明書を選ぶには {3} に {2} を設定してください。Xcode で {4} を開くと、パッケージのコードを確認できます。",
+    "zh-Hans": "{0} 创建 {1}，但不启动应用。本地 构建使用 Apple Development 证书签名，以在重新构建后保留权限。要选择特定 证书，请在 {3} 中设置 {2}。在 Xcode 中打开 {4}，即可浏览软件包。",
+    "zh-Hant": "{0} 會建立 {1}，但不啟動 App。本機 建置使用 Apple Development 憑證簽署，重新建置後仍可保留權限。若要選擇特定 憑證，請在 {3} 設定 {2}。在 Xcode 中開啟 {4}，即可瀏覽套件。"
   }
 }

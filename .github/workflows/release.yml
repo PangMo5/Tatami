@@ -19,8 +19,8 @@ jobs:
   release:
     runs-on: xcode-27
     env:
-      TUIST_DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
-      TUIST_SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+      DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+      SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
     steps:
       - uses: actions/checkout@v6
 
@@ -44,9 +44,9 @@ jobs:
         run: |
           set -euo pipefail
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          APP_VERSION="$(grep -E '^let appVersion' Project.swift | sed -E 's/.*"([^"]+)".*/\1/')"
+          APP_VERSION="$(sed -nE 's/.*public static let current = "([^"]+)"/\1/p' TatamiCLIProtocol/Sources/TatamiVersion.swift)"
           if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
-            echo "::error::Tag ($TAG_VERSION) does not match Project.swift appVersion ($APP_VERSION). Bump appVersion and retag." >&2
+            echo "::error::Tag ($TAG_VERSION) does not match TatamiVersion.current ($APP_VERSION). Bump the product version and retag." >&2
             exit 1
           fi
           echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
@@ -80,54 +80,14 @@ jobs:
           done < <(security list-keychains -d user | sed -E 's/^[[:space:]]*"//; s/"[[:space:]]*$//')
           security list-keychains -d user -s "$KEYCHAIN" "${EXISTING_KEYCHAINS[@]}"
 
-      - name: Generate Xcode project
+      - name: Build universal app (Developer ID, Release)
         env:
-          TUIST_BUILD_NUMBER: ${{ github.run_number }}
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          tuist install
-          tuist generate --no-open
-
-      - name: Archive (Developer ID, Release)
-        run: |
-          set -euo pipefail
-          xcodebuild archive \
-            -workspace Tatami.xcworkspace \
-            -scheme Tatami \
-            -configuration Release \
-            -destination 'generic/platform=macOS' \
-            -archivePath "$RUNNER_TEMP/Tatami.xcarchive" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="$TUIST_DEVELOPMENT_TEAM" \
-            ENABLE_HARDENED_RUNTIME=YES \
-            OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime"
-
-      - name: Export app
-        run: |
-          set -euo pipefail
-          cp -R "$RUNNER_TEMP/Tatami.xcarchive/Products/Applications/Tatami.app" "$RUNNER_TEMP/Tatami.app"
-
-      - name: Re-sign Sparkle nested helpers
-        run: |
-          set -euo pipefail
-          # xcodebuild re-signs Sparkle.framework itself but leaves its nested
-          # helper bundles/binaries (Updater.app, Autoupdate, XPCServices) with
-          # Sparkle's original signature, which notarization rejects. Re-sign
-          # them inside-out with our Developer ID, hardened runtime + timestamp.
-          APP="$RUNNER_TEMP/Tatami.app"
-          SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
-          sign() {
-            codesign --force --options runtime --timestamp \
-              --preserve-metadata=entitlements \
-              --sign "Developer ID Application" "$1"
-          }
-          sign "$SPARKLE/Versions/Current/XPCServices/Installer.xpc"
-          sign "$SPARKLE/Versions/Current/XPCServices/Downloader.xpc"
-          sign "$SPARKLE/Versions/Current/Autoupdate"
-          sign "$SPARKLE/Versions/Current/Updater.app"
-          sign "$SPARKLE"
-          sign "$APP"
-          codesign --verify --deep --strict --verbose=2 "$APP"
+          Tools/.build/release/tatami-tools bundle-product \
+            --configuration release --arch arm64 --arch x86_64 \
+            --signing-identity "Developer ID Application" \
+            --output "$RUNNER_TEMP/Tatami.app"
 
       - name: Create DMG
         run: |
@@ -182,7 +142,7 @@ jobs:
           SPARKLE_PRIVATE_ED_KEY: ${{ secrets.SPARKLE_PRIVATE_ED_KEY }}
         run: |
           set -euo pipefail
-          SPARKLE_BIN="$(find Tuist/.build -path '*/Sparkle/bin' -type d | head -1)"
+          SPARKLE_BIN="$PWD/.build/artifacts/sparkle/Sparkle/bin"
           mkdir -p "$RUNNER_TEMP/release"
           cp "$RUNNER_TEMP/Tatami-${{ steps.version.outputs.version }}.dmg" "$RUNNER_TEMP/release/"
           echo "$SPARKLE_PRIVATE_ED_KEY" > "$RUNNER_TEMP/sparkle_ed_private.key"

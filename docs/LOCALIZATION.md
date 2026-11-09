@@ -120,8 +120,9 @@ over a technical transliteration such as `플로팅`.
 ## Implementation rules
 
 - Put app and `TatamiKit` UI strings in
-  `Tatami/Resources/Localizable.xcstrings`. `TatamiKit` is a static framework,
-  so Tatami intentionally owns the runtime catalog in the main app bundle.
+  `Tatami/Resources/Localizable.xcstrings`. `TatamiKit` links statically into
+  Tatami, which owns the runtime catalog in the main app bundle. The product
+  packager compiles the catalog with `xcstringstool`.
 - Keep extracted English source keys stable. Store reviewed displayed English
   as explicit `en` localizations in the catalog, so UX copy can improve without
   renaming every Swift lookup key.
@@ -171,8 +172,8 @@ The same terminology and writing rules apply outside the app.
 
 ## Review checklist
 
-1. Build with `SWIFT_EMIT_LOC_STRINGS=YES`, then sync compiler-generated
-   `.stringsdata` into the catalog.
+1. Run `make extract-localizations`, then sync compiler-generated `.stringsdata`
+   from `.build/localization/Tatami/` and `.build/localization/TatamiKit/` into the catalog.
 2. Verify every supported locale has a translation for every translatable key.
 3. Verify each translation preserves the source placeholder set.
 4. Launch once per locale with the scheme's Application Language override.

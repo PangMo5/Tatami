@@ -213,10 +213,14 @@ Use Xcode 27.2 with its Swift 6.4 toolchain. The app runs on macOS
 
 ```sh
 mise install
-mise exec -- tuist install
-mise exec -- tuist generate --no-open
-open Tatami.xcworkspace
+make run
+make test
 ```
+
+`make build` creates `.build/app/debug/Tatami.app` without launching it. Local
+builds use an Apple Development signing identity to preserve permission grants
+across rebuilds. Set `CODESIGN_IDENTITY` in `.mise.local.toml` to select a specific
+certificate. Open `Package.swift` in Xcode to browse the package.
 
 ## Configuration and automation
 
@@ -261,7 +265,7 @@ Read the [full CLI reference](docs/CLI.md), or view its live web rendering on
 
 ## Tech stack
 
-- **Tuist:** Project generation
+- **Swift Package Manager:** Product builds, dependencies, and tests
 - **The Composable Architecture (TCA):** App architecture
 - **swift-sharing:** Cross-feature state sharing
 - **swift-collections:** Ordered sets, dictionaries, and deques on tiling hot paths
