@@ -148,6 +148,10 @@ public struct WorkspaceActivationFeature {
       case sessionInactive
       case systemSleep
       case displaysUnavailable
+      /// The user switched to a different (non-fullscreen) macOS Desktop. Its
+      /// windows vanish from the home Desktop's AX/WindowServer view without
+      /// closing, so membership must not be pruned until the user returns.
+      case otherDesktop
     }
 
     public struct DeferredBorrow: Equatable, Sendable {
@@ -286,6 +290,9 @@ public struct WorkspaceActivationFeature {
     /// Space bounces the user straight back to the Desktop. Set from the
     /// space-change observer.
     public var isInFullscreenSpace = false
+    /// The macOS Space Tatami tiles on, recorded at the first completed
+    /// activation. Visiting any other non-fullscreen Space suspends layout.
+    public var homeSpaceID: UInt64?
     /// Active lifecycle gates that make AX/WindowServer membership snapshots
     /// temporarily non-authoritative.
     public var layoutSuspensionReasons = Set<LayoutSuspensionReason>()
@@ -2269,7 +2276,24 @@ public struct WorkspaceActivationFeature {
         // user to the Desktop; returning from one catches the tree up below.
         let nowFullscreen = sls.isActiveSpaceFullscreen()
         state.isInFullscreenSpace = nowFullscreen
-        debugLog.log("Space", "active space changed: fullscreen=\(nowFullscreen)")
+        let activeSpace = sls.activeSpaceID()
+        debugLog.log(
+          "Space",
+          "active space changed: fullscreen=\(nowFullscreen) space=\(activeSpace.map(String.init) ?? "?") home=\(state.homeSpaceID.map(String.init) ?? "?")",
+        )
+        if
+          !nowFullscreen,
+          let activeSpace,
+          let home = state.homeSpaceID,
+          activeSpace != home
+        {
+          return beginLayoutSuspension(.otherDesktop, state: &state)
+        }
+        if state.layoutSuspensionReasons.contains(.otherDesktop), !nowFullscreen {
+          // Back on the home Desktop: ending the suspension re-sends
+          // `.activeSpaceChanged`, which then reconciles below.
+          return endLayoutSuspension(.otherDesktop, state: &state)
+        }
         return nowFullscreen ? supersedePendingFocus(state: &state) : .send(.reconcileAllTrackedApps)
 
       case .reconcileAllTrackedApps:
@@ -4692,6 +4716,9 @@ public struct WorkspaceActivationFeature {
 
       case .activationCompleted(let id, let display, let generation):
         guard state.activeActivationGeneration == generation else { return .none }
+        if state.homeSpaceID == nil, !state.isInFullscreenSpace {
+          state.homeSpaceID = sls.activeSpaceID()
+        }
         state.pendingAppClaims.remove(id)
         state.isActivating = false
         state.activatingWorkspaceID = nil
