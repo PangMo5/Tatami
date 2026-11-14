@@ -857,6 +857,70 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.fullscreenZoomed[workspace.id] == [window])
   }
 
+  @Test
+  func `visiting another macOS Desktop preserves the tiled layout`() async {
+    let a = WindowKey(pid: 42, windowID: 101, bundleId: "app.editor")
+    let b = WindowKey(pid: 43, windowID: 202, bundleId: "app.terminal")
+    let workspace = Workspace(name: "Code", apps: [
+      AppAssignment(bundleIdentifier: a.bundleId, name: "Editor"),
+      AppAssignment(bundleIdentifier: b.bundleId, name: "Terminal"),
+    ])
+    let tree = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.3, left: .leaf(a), right: .leaf(b)))
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.connectedDisplays = [Self.display]
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.tilingTrees[workspace.id] = tree
+      $0.homeSpaceID = 1
+    }
+    let activeSpace = LockIsolated<UInt64>(3)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.sls.isActiveSpaceFullscreen = { false }
+      $0.sls.activeSpaceID = { activeSpace.value }
+      $0.windowSnapshot.cachedKeys = { _, _ in [a, b] }
+      $0.windowSnapshot.onScreenWindowIDs = { [a.windowID, b.windowID] }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activeSpaceChanged)
+    #expect(store.state.layoutSuspensionReasons == [.otherDesktop])
+    #expect(store.state.suspendedLayoutWindows[workspace.id] == [a, b])
+
+    await store.send(.windowServerWindowEvent(.becameInvisible(a.windowID), snapshot: nil))
+    await store.send(.windowServerWindowEvent(.becameInvisible(b.windowID), snapshot: nil))
+    #expect(store.state.tilingTrees[workspace.id] == tree)
+
+    activeSpace.setValue(1)
+    await store.send(.activeSpaceChanged)
+    await store.finish()
+    #expect(!store.state.isLayoutSuspended)
+    #expect(store.state.tilingTrees[workspace.id]?.windows == [a, b])
+  }
+
+  @Test(arguments: [(true, UInt64?.some(1)), (false, UInt64?.none)])
+  func `a fullscreen Space or an unknown home Space does not suspend for another Desktop`(
+    fullscreen: Bool,
+    home: UInt64?,
+  ) async {
+    let workspace = Workspace(name: "Code")
+    let state = Self.makeState(workspaces: [workspace]) {
+      $0.focusedDisplay = Self.display
+      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
+      $0.homeSpaceID = home
+    }
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.sls.isActiveSpaceFullscreen = { fullscreen }
+      $0.sls.activeSpaceID = { 7 }
+    }
+    store.exhaustivity = .off
+
+    await store.send(.activeSpaceChanged)
+    await store.finish()
+    #expect(!store.state.layoutSuspensionReasons.contains(.otherDesktop))
+  }
+
   @Test(arguments: [false, true])
   func `keyboard switcher quick taps return to the last focused window`(byWindow: Bool) async {
     let a = WindowKey(pid: 1, windowID: 10, bundleId: "app.a")

@@ -57,6 +57,11 @@ struct SLSClient: Sendable {
   /// Defaults to `false` so a missing framework never disables tiling.
   var isActiveSpaceFullscreen: @Sendable () -> Bool = { false }
 
+  /// The active Space's id, or `nil` when SkyLight is unavailable. Used to
+  /// notice that the user switched to another macOS Desktop, where the tiled
+  /// windows are legitimately off-screen rather than closed.
+  var activeSpaceID: @Sendable () -> UInt64? = { nil }
+
   /// Standard-window CGWindowIDs the OS reports as ordered-in on `space`.
   /// Used as the source of truth instead of bruteforcing AX remote
   /// tokens.
@@ -94,6 +99,7 @@ extension SLSClient: DependencyKey {
     return SLSClient(
       spacesForWindow: { center.spaces(for: $0) },
       isActiveSpaceFullscreen: { center.isActiveSpaceFullscreen() },
+      activeSpaceID: { center.activeSpaceID() },
       windowList: { center.windowList(on: $0) },
       focusWindow: { pid, wid, ref in
         center.focusWindow(pid: pid, windowID: wid, axRef: ref)
@@ -104,7 +110,14 @@ extension SLSClient: DependencyKey {
     )
   }()
 
-  static let testValue = SLSClient()
+  /// `activeSpaceID` answers "unknown" unless a test opts in, which keeps the
+  /// other-Desktop suspension inert for tests that never model Spaces.
+  static let testValue: SLSClient = {
+    var client = SLSClient()
+    client.activeSpaceID = { nil }
+    return client
+  }()
+
   static let previewValue = testValue
 }
 
@@ -273,6 +286,12 @@ private final class SLSCenter: @unchecked Sendable {
     let sid = getActive(connectionID)
     guard sid != 0 else { return false }
     return getType(connectionID, sid) == kSLSSpaceTypeFullscreen
+  }
+
+  func activeSpaceID() -> UInt64? {
+    guard connectionID != 0, let getActive = symGetActiveSpace else { return nil }
+    let sid = getActive(connectionID)
+    return sid == 0 ? nil : sid
   }
 
   func windowAtPoint(_ point: CGPoint) -> CGWindowID? {
