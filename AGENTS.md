@@ -23,6 +23,8 @@ For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep 
 
 ## Performance and responsiveness
 
+- Manage one ordinary macOS Desktop per physical display. Preserve its workspace layouts while visiting another Desktop or native fullscreen, and keep unaffected displays operational. Only deliberate workspace selection may adopt a different Desktop; unknown Space observations never authorize destructive reconciliation.
+
 - Reserve the main thread for input, UI state, and AppKit presentation. Run potentially blocking AX/WindowServer IPC, file I/O, parsing, and image processing on appropriate workers.
 - Do not assume `async` or `Task` moves work off-main. Check actual isolation, synchronous calls, and locks that the main thread may wait for.
 - Preserve request ownership across suspension. Cancellation, app relaunches, window replacement, and workspace changes must prevent stale results from changing focus or presentation.

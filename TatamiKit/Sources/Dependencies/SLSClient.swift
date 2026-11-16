@@ -51,16 +51,9 @@ struct SLSClient: Sendable {
   /// than one Space; we use that to keep them out of the BSP tree.
   var spacesForWindow: @Sendable (CGWindowID) -> [UInt64] = { _ in [] }
 
-  /// Whether the active Space is a native macOS fullscreen Space. Tatami goes
-  /// dormant in one: re-tiling there would write frames to (or raise) Desktop
-  /// windows and bounce the user back out of fullscreen to the Desktop.
-  /// Defaults to `false` so a missing framework never disables tiling.
-  var isActiveSpaceFullscreen: @Sendable () -> Bool = { false }
-
-  /// The active Space's id, or `nil` when SkyLight is unavailable. Used to
-  /// notice that the user switched to another macOS Desktop, where the tiled
-  /// windows are legitimately off-screen rather than closed.
-  var activeSpaceID: @Sendable () -> UInt64? = { nil }
+  /// Per-display Space identity/type and the set of surviving user Desktops.
+  /// WindowServer IPC and decoding run on a worker, never on the UI actor.
+  var desktopSpaces: @Sendable () async -> DesktopSpaces? = { nil }
 
   /// Standard-window CGWindowIDs the OS reports as ordered-in on `space`.
   /// Used as the source of truth instead of bruteforcing AX remote
@@ -98,8 +91,7 @@ extension SLSClient: DependencyKey {
     let center = SLSCenter()
     return SLSClient(
       spacesForWindow: { center.spaces(for: $0) },
-      isActiveSpaceFullscreen: { center.isActiveSpaceFullscreen() },
-      activeSpaceID: { center.activeSpaceID() },
+      desktopSpaces: { await center.desktopSpaces() },
       windowList: { center.windowList(on: $0) },
       focusWindow: { pid, wid, ref in
         center.focusWindow(pid: pid, windowID: wid, axRef: ref)
@@ -110,11 +102,11 @@ extension SLSClient: DependencyKey {
     )
   }()
 
-  /// `activeSpaceID` answers "unknown" unless a test opts in, which keeps the
-  /// other-Desktop suspension inert for tests that never model Spaces.
   static let testValue: SLSClient = {
     var client = SLSClient()
-    client.activeSpaceID = { nil }
+    client.desktopSpaces = {
+      DesktopSpaces(displays: [.init(uuid: "Main", currentSpace: 1, isUserDesktop: true, userDesktops: [1])])
+    }
     return client
   }()
 
@@ -167,18 +159,14 @@ private typealias SLSRegisterConnectionNotifyProcFn =
   @convention(c) (Int32, SLSConnectionNotifyCallback, UInt32, UnsafeMutableRawPointer?) -> CGError
 private typealias SLSRequestNotificationsForWindowsFn =
   @convention(c) (Int32, UnsafePointer<UInt32>?, Int32) -> CGError
-private typealias SLSGetActiveSpaceFn = @convention(c) (Int32) -> UInt64
-private typealias SLSSpaceGetTypeFn = @convention(c) (Int32, UInt64) -> Int32
+private typealias SLSCopyManagedDisplaySpacesFn = @convention(c) (Int32) -> Unmanaged<CFArray>?
+private typealias SLSCopyActiveMenuBarDisplayIdentifierFn = @convention(c) (Int32) -> Unmanaged<CFString>?
 /// Process Manager pid→PSN. Deprecated and *unavailable* in Swift, so we bind
 /// it by symbol like the SLS entry points; the dylib still exports it (yabai
 /// relies on the same call). `_SLPSSetFrontProcessWithOptions` needs a PSN and
 /// has no pid-based entry point.
 private typealias GetProcessForPIDFn =
   @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
-
-/// `SLSSpaceGetType` value for a native macOS fullscreen Space. yabai uses
-/// the same number (`0` is a normal user Space, `2` is system).
-private let kSLSSpaceTypeFullscreen: Int32 = 4
 
 /// WindowServer lifecycle/visibility notifications. 804 is the eventual
 /// surface termination edge used by yabai on Sequoia/Tahoe. 815/816 are the
@@ -224,10 +212,10 @@ private final class SLSCenter: @unchecked Sendable {
       .map { unsafeBitCast($0, to: SLSRegisterConnectionNotifyProcFn.self) }
     symRequestNotifications = h.flatMap { dlsym($0, "SLSRequestNotificationsForWindows") }
       .map { unsafeBitCast($0, to: SLSRequestNotificationsForWindowsFn.self) }
-    symGetActiveSpace = h.flatMap { dlsym($0, "SLSGetActiveSpace") }
-      .map { unsafeBitCast($0, to: SLSGetActiveSpaceFn.self) }
-    symSpaceGetType = h.flatMap { dlsym($0, "SLSSpaceGetType") }
-      .map { unsafeBitCast($0, to: SLSSpaceGetTypeFn.self) }
+    symManagedDisplaySpaces = h.flatMap { dlsym($0, "SLSCopyManagedDisplaySpaces") }
+      .map { unsafeBitCast($0, to: SLSCopyManagedDisplaySpacesFn.self) }
+    symActiveMenuBarDisplay = h.flatMap { dlsym($0, "SLSCopyActiveMenuBarDisplayIdentifier") }
+      .map { unsafeBitCast($0, to: SLSCopyActiveMenuBarDisplayIdentifierFn.self) }
     // GetProcessForPID lives in ApplicationServices/CoreServices, not SkyLight;
     // resolve it from the global symbol table (already loaded via AppKit).
     symGetProcessForPID = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "GetProcessForPID")
@@ -273,25 +261,21 @@ private final class SLSCenter: @unchecked Sendable {
     return (raw as? [CGWindowID]) ?? []
   }
 
-  /// Whether the active Space is a native macOS fullscreen Space, via the
-  /// same `SLSGetActiveSpace` + `SLSSpaceGetType` pair yabai uses. Returns
-  /// `false` whenever the framework or symbols are unavailable, so a missing
-  /// SkyLight never reads as "always fullscreen" and silences tiling.
-  func isActiveSpaceFullscreen() -> Bool {
+  @concurrent
+  func desktopSpaces() async -> DesktopSpaces? {
     guard
       connectionID != 0,
-      let getActive = symGetActiveSpace,
-      let getType = symSpaceGetType
-    else { return false }
-    let sid = getActive(connectionID)
-    guard sid != 0 else { return false }
-    return getType(connectionID, sid) == kSLSSpaceTypeFullscreen
-  }
-
-  func activeSpaceID() -> UInt64? {
-    guard connectionID != 0, let getActive = symGetActiveSpace else { return nil }
-    let sid = getActive(connectionID)
-    return sid == 0 ? nil : sid
+      let copy = symManagedDisplaySpaces,
+      let rows = copy(connectionID)?.takeRetainedValue() as? [[String: Any]],
+      let snapshot = DesktopSpaces.decode(
+        rows,
+        focusedDisplayUUID: symActiveMenuBarDisplay?(connectionID)?.takeRetainedValue() as String?,
+      )
+    else {
+      logger.error("Cannot read per-display Spaces; preserving managed layouts until a valid observation")
+      return nil
+    }
+    return snapshot
   }
 
   func windowAtPoint(_ point: CGPoint) -> CGWindowID? {
@@ -391,8 +375,8 @@ private final class SLSCenter: @unchecked Sendable {
   private let symPostEventRecord: SLPSPostEventRecordToFn?
   private let symRegisterNotify: SLSRegisterConnectionNotifyProcFn?
   private let symRequestNotifications: SLSRequestNotificationsForWindowsFn?
-  private let symGetActiveSpace: SLSGetActiveSpaceFn?
-  private let symSpaceGetType: SLSSpaceGetTypeFn?
+  private let symManagedDisplaySpaces: SLSCopyManagedDisplaySpacesFn?
+  private let symActiveMenuBarDisplay: SLSCopyActiveMenuBarDisplayIdentifierFn?
   private let symGetProcessForPID: GetProcessForPIDFn?
 
   private let windowEventStream: AsyncStream<SLSWindowEvent>

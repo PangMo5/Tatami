@@ -825,7 +825,6 @@ struct WorkspaceActivationFeatureTests {
     }
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
       $0.floatingOverlay.setFloating = { _ in }
-      $0.sls.isActiveSpaceFullscreen = { false }
       $0.windowSnapshot.cachedKeys = { _, _ in [window] }
       $0.windowSnapshot.onScreenWindowIDs = { [window.windowID] }
     }
@@ -855,70 +854,6 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.activeWorkspacesByDisplay[Self.display] == workspace.id)
     #expect(store.state.tilingTrees[workspace.id]?.windows == [window])
     #expect(store.state.fullscreenZoomed[workspace.id] == [window])
-  }
-
-  @Test
-  func `visiting another macOS Desktop preserves the tiled layout`() async {
-    let a = WindowKey(pid: 42, windowID: 101, bundleId: "app.editor")
-    let b = WindowKey(pid: 43, windowID: 202, bundleId: "app.terminal")
-    let workspace = Workspace(name: "Code", apps: [
-      AppAssignment(bundleIdentifier: a.bundleId, name: "Editor"),
-      AppAssignment(bundleIdentifier: b.bundleId, name: "Terminal"),
-    ])
-    let tree = BSPNode.branch(BSPBranch(split: .vertical, ratio: 0.3, left: .leaf(a), right: .leaf(b)))
-    let state = Self.makeState(workspaces: [workspace]) {
-      $0.connectedDisplays = [Self.display]
-      $0.focusedDisplay = Self.display
-      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
-      $0.tilingTrees[workspace.id] = tree
-      $0.homeSpaceID = 1
-    }
-    let activeSpace = LockIsolated<UInt64>(3)
-    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
-      $0.floatingOverlay.setFloating = { _ in }
-      $0.sls.isActiveSpaceFullscreen = { false }
-      $0.sls.activeSpaceID = { activeSpace.value }
-      $0.windowSnapshot.cachedKeys = { _, _ in [a, b] }
-      $0.windowSnapshot.onScreenWindowIDs = { [a.windowID, b.windowID] }
-    }
-    store.exhaustivity = .off
-
-    await store.send(.activeSpaceChanged)
-    #expect(store.state.layoutSuspensionReasons == [.otherDesktop])
-    #expect(store.state.suspendedLayoutWindows[workspace.id] == [a, b])
-
-    await store.send(.windowServerWindowEvent(.becameInvisible(a.windowID), snapshot: nil))
-    await store.send(.windowServerWindowEvent(.becameInvisible(b.windowID), snapshot: nil))
-    #expect(store.state.tilingTrees[workspace.id] == tree)
-
-    activeSpace.setValue(1)
-    await store.send(.activeSpaceChanged)
-    await store.finish()
-    #expect(!store.state.isLayoutSuspended)
-    #expect(store.state.tilingTrees[workspace.id]?.windows == [a, b])
-  }
-
-  @Test(arguments: [(true, UInt64?.some(1)), (false, UInt64?.none)])
-  func `a fullscreen Space or an unknown home Space does not suspend for another Desktop`(
-    fullscreen: Bool,
-    home: UInt64?,
-  ) async {
-    let workspace = Workspace(name: "Code")
-    let state = Self.makeState(workspaces: [workspace]) {
-      $0.focusedDisplay = Self.display
-      $0.activeWorkspacesByDisplay[Self.display] = workspace.id
-      $0.homeSpaceID = home
-    }
-    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
-      $0.floatingOverlay.setFloating = { _ in }
-      $0.sls.isActiveSpaceFullscreen = { fullscreen }
-      $0.sls.activeSpaceID = { 7 }
-    }
-    store.exhaustivity = .off
-
-    await store.send(.activeSpaceChanged)
-    await store.finish()
-    #expect(!store.state.layoutSuspensionReasons.contains(.otherDesktop))
   }
 
   @Test(arguments: [false, true])
@@ -1987,7 +1922,7 @@ struct WorkspaceActivationFeatureTests {
       // not retarget the already-started command from A to B.
       pointerDisplay.setValue(displayB)
       await store.receive {
-        guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+        guard case .activationCompleted(let id, let display, _, _) = $0 else { return false }
         return id == target.id && display?.matches(liveDisplayA) == true
       }
       await store.finish()
@@ -2031,7 +1966,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.activateRecent())
     pointerDisplay.setValue(displayB)
     await store.receive {
-      guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let id, let display, _, _) = $0 else { return false }
       return id == recentA.id && display?.matches(liveDisplayA) == true
     }
     await store.finish()
@@ -2123,7 +2058,7 @@ struct WorkspaceActivationFeatureTests {
           && display?.matches(liveDisplayA) == true
       }
       await store.receive {
-        guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+        guard case .activationCompleted(let id, let display, _, _) = $0 else { return false }
         return id == targetA.id && display?.matches(liveDisplayA) == true
       }
       await store.finish()
@@ -3791,7 +3726,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: code.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == slack.id && display?.matches(displayB) == true
     }
     #expect(store.state.activeWorkspacesByDisplay[displayB] == slack.id)
@@ -5035,7 +4970,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
     }
     await store.finish()
@@ -5137,7 +5072,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: homeless.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == homeless.id && display == only
     }
     await store.finish()
@@ -5194,7 +5129,7 @@ struct WorkspaceActivationFeatureTests {
     // Browser is dynamic and the pointer is on A, so it leaves B.
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
     }
     await store.receive {
@@ -5354,7 +5289,6 @@ struct WorkspaceActivationFeatureTests {
       $0.floatingOverlay.setFloating = { _ in }
       $0.windowObserver.observe = { _ in }
       $0.profileSessionStore.saveWorkspaceState = { _, _ in }
-      $0.sls.isActiveSpaceFullscreen = { false }
       $0.focusManager.focusWindow = { _ in }
       $0.mouse.warp = { point in warps.withValue { $0.append(point) } }
     }
@@ -5395,7 +5329,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == browser.id && display == displayA
     }
     await store.finish()
@@ -5648,7 +5582,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activateRecent())
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == localRecent.id && display == displayA
     }
     await store.finish()
@@ -5877,7 +5811,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: workspace.id, setFocus: false))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _, _) = $0 else { return false }
       return workspaceId == workspace.id
     }
     await store.finish()
@@ -6346,7 +6280,7 @@ struct WorkspaceActivationFeatureTests {
       return assignment.workspace == live.id && assignment.display == liveDisplay
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceID, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceID, let display, _, _) = $0 else { return false }
       return workspaceID == live.id && display == liveDisplay
     }
     await store.finish()
@@ -6643,7 +6577,7 @@ struct WorkspaceActivationFeatureTests {
       return assignment.workspace == browser.id && assignment.display.matches(displayB)
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceID, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceID, let display, _, _) = $0 else { return false }
       return workspaceID == browser.id && display?.matches(displayB) == true
     }
     await store.receive {
@@ -7402,7 +7336,7 @@ struct WorkspaceActivationFeatureTests {
       return assignment.workspace == workspaceA.id && assignment.display == displayA
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == workspaceA.id && display == displayA
     }
     await store.receive(\.processDisplayRestores)
@@ -7411,7 +7345,7 @@ struct WorkspaceActivationFeatureTests {
       return assignment.workspace == workspaceB.id && assignment.display == displayB
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == workspaceB.id && display == displayB
     }
     await store.finish()
@@ -7463,7 +7397,7 @@ struct WorkspaceActivationFeatureTests {
       return assignment.workspace == frontmost.id && assignment.display == display
     }
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let owner, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let owner, _, _) = $0 else { return false }
       return workspaceId == frontmost.id && owner == display
     }
     await store.finish()
@@ -8124,6 +8058,10 @@ struct WorkspaceActivationFeatureTests {
       $0.windowSyncBundleIdsInFlight.insert(key.bundleId)
     }
     await store.receive(\.syncAppWindowsResolved) {
+      $0.desktops.observe(
+        DesktopSpaces(displays: [.init(uuid: "Main", currentSpace: 1, isUserDesktop: true, userDesktops: [1])]),
+        displays: $0.connectedDisplays.union($0.activeWorkspacesByDisplay.keys),
+      )
       $0.windowSyncBundleIdsInFlight.remove(key.bundleId)
       $0.insertionPoint[activeWorkspace.id] = key
       $0.tilingTrees[activeWorkspace.id] = .leaf(key)
@@ -8194,6 +8132,10 @@ struct WorkspaceActivationFeatureTests {
       $0.windowSyncBundleIdsInFlight.insert(bundleId)
     }
     await store.receive(\.syncAppWindowsResolved) {
+      $0.desktops.observe(
+        DesktopSpaces(displays: [.init(uuid: "Main", currentSpace: 1, isUserDesktop: true, userDesktops: [1])]),
+        displays: $0.connectedDisplays.union($0.activeWorkspacesByDisplay.keys),
+      )
       $0.windowSyncBundleIdsInFlight.remove(bundleId)
     }
     await store.finish()
@@ -8257,6 +8199,10 @@ struct WorkspaceActivationFeatureTests {
       $0.windowSyncBundleIdsInFlight.insert(stale.bundleId)
     }
     await store.receive(\.syncAppWindowsResolved) {
+      $0.desktops.observe(
+        DesktopSpaces(displays: [.init(uuid: "Main", currentSpace: 1, isUserDesktop: true, userDesktops: [1])]),
+        displays: $0.connectedDisplays.union($0.activeWorkspacesByDisplay.keys),
+      )
       $0.windowSyncBundleIdsInFlight.remove(stale.bundleId)
       $0.insertionPoint[workspace.id] = fresh
       $0.tilingTrees[workspace.id] = .leaf(fresh)
@@ -9619,7 +9565,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: other.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _, _) = $0 else { return false }
       return workspaceId == other.id
     }
     #expect(store.state.mruWindows[browser.id] == [work, personal])
@@ -9627,7 +9573,7 @@ struct WorkspaceActivationFeatureTests {
     liveFocus.withValue { $0 = nil }
     await store.send(.activate(workspaceId: browser.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _, _) = $0 else { return false }
       return workspaceId == browser.id
     }
     await store.finish()
@@ -9662,7 +9608,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: other.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _, _) = $0 else { return false }
       return workspaceId == other.id
     }
     await store.finish()
@@ -9700,7 +9646,7 @@ struct WorkspaceActivationFeatureTests {
     // workspace on B and must not be pulled back to the pointer monitor.
     await store.send(.activate(workspaceId: target.id, setFocus: false))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == target.id && display == displayB
     }
     await store.finish()
@@ -9739,7 +9685,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.activate(workspaceId: target.id, setFocus: true))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == target.id && display == displayA
     }
     await store.finish()
@@ -9780,7 +9726,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.dismissBorrow(display: displayB))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let display, _, _) = $0 else { return false }
       return workspaceId == host.id && display == displayB
     }
     await store.finish()
@@ -9841,7 +9787,7 @@ struct WorkspaceActivationFeatureTests {
 
     activationGate.continuation.yield()
     await store.receive {
-      guard case .activationCompleted(let workspaceId, _, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, _, _, _) = $0 else { return false }
       return workspaceId == borrowed.id
     }
     let targetsAfterCompletion = await markerIterator.next()
@@ -9884,7 +9830,7 @@ struct WorkspaceActivationFeatureTests {
 
     await store.send(.beginBorrowDirection(workspaceId: borrowed.id))
     await store.receive {
-      guard case .activationCompleted(let workspaceId, let owner, _) = $0 else { return false }
+      guard case .activationCompleted(let workspaceId, let owner, _, _) = $0 else { return false }
       return workspaceId == host.id && owner == display
     }
     await store.finish()
@@ -12507,7 +12453,7 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.pendingBorrowCompletionByDisplay[legacyDisplay] == nil)
     #expect(store.state.pendingCenterWarps[borrowed.id] == nil)
     await store.receive {
-      guard case .activationCompleted(let id, let display, _) = $0 else { return false }
+      guard case .activationCompleted(let id, let display, _, _) = $0 else { return false }
       return id == target.id && display?.matches(liveDisplay) == true
     }
     await store.finish()
@@ -12682,7 +12628,7 @@ struct WorkspaceActivationFeatureTests {
     // restore plan).
     await store.send(.displaysReconfigured([Self.display]))
     await store.receive {
-      guard case .floatingPresentationResolved(let keys) = $0 else { return false }
+      guard case .floatingPresentationResolved(let keys, _) = $0 else { return false }
       return keys.isEmpty
     }
     await store.finish()
@@ -13395,7 +13341,6 @@ struct WorkspaceActivationFeatureTests {
       }
       $0.windowTiler.apply = { _ in }
       $0.windowSnapshot.onScreenWindowFrames = { [:] }
-      $0.sls.isActiveSpaceFullscreen = { false }
       $0.floatingOverlay.retainOnly = { _ in }
     }
     store.exhaustivity = .off
@@ -13454,7 +13399,6 @@ struct WorkspaceActivationFeatureTests {
       $0.workspaceManager.activate = { _ in }
       $0.windowTiler.apply = { _ in }
       $0.windowSnapshot.onScreenWindowFrames = { [:] }
-      $0.sls.isActiveSpaceFullscreen = { false }
       $0.floatingOverlay.retainOnly = { _ in }
     }
     store.exhaustivity = .off
@@ -13619,7 +13563,7 @@ struct WorkspaceActivationFeatureTests {
     display: DisplayName,
   ) async {
     await store.receive {
-      guard case .activationCompleted(let receivedID, let receivedDisplay, _) = $0 else {
+      guard case .activationCompleted(let receivedID, let receivedDisplay, _, _) = $0 else {
         return false
       }
       return receivedID == workspaceID && receivedDisplay?.matches(display) == true

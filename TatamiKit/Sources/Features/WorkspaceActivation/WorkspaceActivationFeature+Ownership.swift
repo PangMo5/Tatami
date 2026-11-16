@@ -99,14 +99,16 @@ extension WorkspaceActivationFeature {
       !state.isActivating,
       !state.isLayoutSuspended,
       !state.isRecoveringSystemLayout,
-      !state.isInFullscreenSpace
+      !state.layoutWorkspaceIDs.isEmpty
     else { return .none }
     let sources = state.displacedAppWorkspaces
     debugLog.log("Ownership", "reconcile sources=\(sources) activating=\(state.isActivating)")
     let generation = state.appOwnershipGeneration
+    let desktopRevision = state.desktops.revision
     let profileID = state.config.activeProfile?.id
     var effects = [Effect<Action>]()
     for id in sources {
+      guard state.canManageWorkspace(id) else { continue }
       guard let display = state.displayShowing(id), let workspace = state.presentedWorkspace(id) else {
         state.displacedAppWorkspaces.remove(id)
         continue
@@ -131,6 +133,7 @@ extension WorkspaceActivationFeature {
           hasWindows: !keys.isEmpty,
           generation: generation,
           profileID: profileID,
+          desktopRevision: desktopRevision,
         ))
       })
     }

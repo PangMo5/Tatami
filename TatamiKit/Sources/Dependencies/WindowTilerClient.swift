@@ -596,7 +596,7 @@ extension WindowTilerClient: DependencyKey {
     // forced it out of fullscreen (`AXFullScreen = false`) before writing the
     // tiled frame — so the space-change reconcile that fires the instant the
     // user enters fullscreen bounced them straight back to the Desktop. Leave
-    // it alone; the `isInFullscreenSpace` gate keeps the reconcile dormant too.
+    // it alone; per-display Desktop ownership also gates reconciliation.
     guard !isCancelled() else { return "cancelled" }
     if isFullScreen(window) {
       return "skipped-fullscreen"

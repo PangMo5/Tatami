@@ -694,7 +694,7 @@ public struct AppFeature {
           await profileSessionStore.saveActiveProfileId(id)
         }
 
-      case .activation(.activationCompleted(let workspaceId, let display, let generation)):
+      case .activation(.activationCompleted(let workspaceId, let display, let generation, _)):
         guard
           state.activation.activeActivationGeneration == generation,
           state.config.hasEnabledHook(for: .workspaceActivated),

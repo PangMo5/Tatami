@@ -148,10 +148,6 @@ public struct WorkspaceActivationFeature {
       case sessionInactive
       case systemSleep
       case displaysUnavailable
-      /// The user switched to a different (non-fullscreen) macOS Desktop. Its
-      /// windows vanish from the home Desktop's AX/WindowServer view without
-      /// closing, so membership must not be pruned until the user returns.
-      case otherDesktop
     }
 
     public struct DeferredBorrow: Equatable, Sendable {
@@ -284,15 +280,10 @@ public struct WorkspaceActivationFeature {
     /// Runtime-only "pause tiling" flag. Workspace switching keeps
     /// running while tiling is paused; flipped by `togglePaused`.
     public var isTilingPaused = false
-    /// True while the active Space is a native macOS fullscreen Space. Every
-    /// layout side effect (reconcile, sync, prune, followAppFocus jump) is
-    /// gated on this — re-tiling or raising a Desktop window from a fullscreen
-    /// Space bounces the user straight back to the Desktop. Set from the
-    /// space-change observer.
-    public var isInFullscreenSpace = false
-    /// The macOS Space Tatami tiles on, recorded at the first completed
-    /// activation. Visiting any other non-fullscreen Space suspends layout.
-    public var homeSpaceID: UInt64?
+    /// Desktop ownership is per physical display, independent of profiles.
+    public var desktops = ManagedDesktops()
+    public var desktopAdoptionWorkspaceID: Workspace.ID?
+    public var deferredDesktopRestores = [DisplayName: DisplayAssignment]()
     /// Active lifecycle gates that make AX/WindowServer membership snapshots
     /// temporarily non-authoritative.
     public var layoutSuspensionReasons = Set<LayoutSuspensionReason>()
@@ -429,6 +420,17 @@ public struct WorkspaceActivationFeature {
       return ids
     }
 
+    var layoutWorkspaceIDs: Set<Workspace.ID> {
+      visibleWorkspaceIDs.filter { canManageWorkspace($0) }
+    }
+
+    var canFollowAppFocus: Bool {
+      if let uuid = desktops.snapshot?.focusedDisplayUUID, uuid != "Main" {
+        return desktops.isAvailable(on: DisplayName(uuid: uuid, name: ""))
+      }
+      return desktops.isAvailable(on: focusedDisplay)
+    }
+
     /// The Tatami-managed universe: every bundle id registered to a workspace
     /// in the active profile, plus shared apps. Borrow activations pass this to
     /// the hide pass so an unregistered floating app isn't swept away with the
@@ -440,6 +442,15 @@ public struct WorkspaceActivationFeature {
         for app in workspace.apps { ids.insert(app.bundleIdentifier) }
       }
       return ids
+    }
+
+    func canManageWorkspace(_ id: Workspace.ID) -> Bool {
+      desktops.isAvailable(on: displayShowing(id))
+    }
+
+    func canManageWindow(_ key: WindowKey) -> Bool {
+      workspaceOwning(key).map { canManageWorkspace($0) }
+        ?? desktops.isAvailable(on: focusedDisplay)
     }
 
     /// The display that owns a live workspace. Placement is derived from the
@@ -1110,7 +1121,7 @@ public struct WorkspaceActivationFeature {
     var visibleWorkspaceIDs: Set<UUID>
     var wasActivating: Bool
     var wasPaused = false
-    var wasFullscreen = false
+    var desktopRevision: UInt64 = 0
     var wasSuspended = false
     var wasRecovering = false
 
@@ -1120,7 +1131,7 @@ public struct WorkspaceActivationFeature {
         && visibleWorkspaceIDs == state.visibleWorkspaceIDs
         && wasActivating == state.isActivating
         && wasPaused == state.isTilingPaused
-        && wasFullscreen == state.isInFullscreenSpace
+        && desktopRevision == state.desktops.revision
         && wasSuspended == state.isLayoutSuspended
         && wasRecovering == state.isRecoveringSystemLayout
     }
@@ -1130,7 +1141,7 @@ public struct WorkspaceActivationFeature {
     case startObservingWindowEvents
     case windowServerSnapshotRequested(SLSWindowEvent)
     case windowServerWindowEvent(SLSWindowEvent, snapshot: WindowServerEventSnapshot? = nil)
-    case windowServerPruneResolved(Set<CGWindowID>, activationGeneration: UInt64)
+    case windowServerPruneResolved(Set<CGWindowID>, activationGeneration: UInt64, desktopRevision: UInt64? = nil)
     /// Connected displays changed — drop active/recent state for displays
     /// that are gone so multi-monitor tracking doesn't hold stale entries.
     case displaysReconfigured([DisplayName])
@@ -1359,6 +1370,7 @@ public struct WorkspaceActivationFeature {
       hasWindows: Bool,
       generation: UInt64,
       profileID: Profile.ID?,
+      desktopRevision: UInt64? = nil,
     )
     case bspResize(direction: BSPDirection, delta: CGFloat)
     case bspResizeFocused(delta: CGFloat)
@@ -1391,6 +1403,7 @@ public struct WorkspaceActivationFeature {
       bundleId: String,
       resizableKeys: [WindowKey]?,
       onScreenFrames: [CGWindowID: CGRect],
+      desktopObservation: DesktopObservation? = nil,
     )
     /// A worker-side live presence check completed for a tree that became
     /// empty. The reducer rechecks that it is still empty before switching or
@@ -1402,6 +1415,7 @@ public struct WorkspaceActivationFeature {
       borrowDisplay: DisplayName?,
       borrowGeneration: UInt64?,
       borrowComposition: Composition?,
+      desktopRevision: UInt64? = nil,
     )
     /// Drop active-workspace tree windows that are no longer on screen.
     /// Catches apps that *hide* their window on close (Electron apps like
@@ -1411,10 +1425,11 @@ public struct WorkspaceActivationFeature {
     /// Native-Space-change / "something on the system shifted":
     /// re-reconcile every tree-resident + registered app.
     case reconcileAllTrackedApps
-    /// A native-Space change: re-read whether the active Space is a native
-    /// fullscreen Space, set `isInFullscreenSpace`, and reconcile only when it
-    /// isn't (re-tiling into a fullscreen Space bounces to the Desktop).
+    /// Refresh per-display Desktop ownership without interpreting off-Space
+    /// windows as closed or interrupting unaffected monitors.
     case activeSpaceChanged
+    case desktopSpacesResolved(DesktopSpaces?, revision: UInt64)
+    case desktopSpacesObserved(DesktopSpaces?, revision: UInt64)
     /// Freeze destructive membership updates before WindowServer tears down
     /// surfaces for sleep or shutdown, then reconcile fresh identities on wake.
     case systemWillSuspend
@@ -1435,7 +1450,7 @@ public struct WorkspaceActivationFeature {
     /// A floating-window scan completed. The reducer commits the overlay from
     /// this exact result, then derives marker targets from current state so a
     /// marker-only refresh can never cancel the authoritative mirror update.
-    case floatingPresentationResolved([WindowKey])
+    case floatingPresentationResolved([WindowKey], desktopRevision: UInt64? = nil)
     /// Activation already resolved its floating windows. Rebuild only the
     /// marker targets from current reducer state, so a composition cleared
     /// during the switch cannot leave its old Borrow badge behind.
@@ -1503,6 +1518,7 @@ public struct WorkspaceActivationFeature {
       workspaceId: Workspace.ID,
       display: DisplayName?,
       generation: UInt64,
+      desktopObservation: DesktopObservation? = nil,
     )
     /// The whole activation effect ran out, post-layout tail included.
     /// `activationCompleted` fires early — as soon as the *visible* switch is
@@ -1752,7 +1768,7 @@ public struct WorkspaceActivationFeature {
           return .none
         }
         state.pendingDisplayGeometryReflow = false
-        guard !state.isTilingPaused, !state.isInFullscreenSpace else { return .none }
+        guard !state.isTilingPaused, !state.layoutWorkspaceIDs.isEmpty else { return .none }
         let workspaceIds = Array(Set(state.activeWorkspacesByDisplay.values))
         debugLog.log(
           "Display",
@@ -1769,12 +1785,12 @@ public struct WorkspaceActivationFeature {
       case .windowChanged(let event):
         switch event {
         case .windowFrameChanged(let key, let frame):
+          guard state.canManageWindow(key) else { return .none }
           guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
           guard state.presentationConvergenceWindows.contains(key) else { return .none }
           guard
             !state.isActivating,
             !state.isTilingPaused,
-            !state.isInFullscreenSpace,
             case .idle = state.drag
           else { return .none }
           debugLog.log(
@@ -1788,6 +1804,7 @@ public struct WorkspaceActivationFeature {
           )
 
         case .windowResized(let key, let frame):
+          guard state.canManageWindow(key) else { return .none }
           guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
           // Defer to drag-end: AX fires continuously during the drag, and
           // committing mid-drag re-tiles the siblings under the cursor.
@@ -1797,6 +1814,7 @@ public struct WorkspaceActivationFeature {
           return .none
 
         case .windowMoved(let key, _):
+          guard state.canManageWindow(key) else { return .none }
           guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
           // A top-left resize fires Moved and Resized interleaved; once a
           // resize is pending it stays the commit — a move event must not
@@ -2126,6 +2144,13 @@ public struct WorkspaceActivationFeature {
         {
           return .send(.systemLayoutBundleReconciled(bundleId: bundleId))
         }
+        if
+          state.isRecoveringSystemLayout,
+          state.pendingSystemLayoutBundleIds.contains(bundleId),
+          state.workspacesForSync(bundleId: bundleId).allSatisfy({ !state.canManageWorkspace($0) })
+        {
+          return .send(.systemLayoutBundleReconciled(bundleId: bundleId))
+        }
         if state.isActivating {
           state.pendingWindowSyncBundleIds.insert(bundleId)
           debugLog.log("Sync", "defer \(bundleId): activation in flight")
@@ -2133,9 +2158,16 @@ public struct WorkspaceActivationFeature {
         }
         return syncAppWindows(bundleId: bundleId, state: &state)
 
-      case .syncAppWindowsResolved(let bundleId, let resizableKeys, let onScreenFrames):
+      case .syncAppWindowsResolved(let bundleId, let resizableKeys, let onScreenFrames, let desktopObservation):
         state.windowSyncBundleIdsInFlight.remove(bundleId)
         let needsTrailingRefresh = state.dirtyWindowSyncBundleIds.remove(bundleId) != nil
+        if let desktopObservation, desktopObservation.revision != state.desktops.revision {
+          return requestWindowSync(bundleId)
+        }
+        let desktopUpdate = desktopObservation.map { updateDesktopSpaces($0.spaces, state: &state) } ?? .none
+        if desktopObservation?.isCoherent == false {
+          return .merge(desktopUpdate, requestWindowSync(bundleId))
+        }
         if state.isLayoutSuspended {
           return .none
         }
@@ -2147,7 +2179,7 @@ public struct WorkspaceActivationFeature {
         // briefly restore stale membership/layout before the trailing scan;
         // skip straight to the one dirty-bit refresh instead.
         if needsTrailingRefresh {
-          return requestWindowSync(bundleId)
+          return .merge(desktopUpdate, requestWindowSync(bundleId))
         }
         let sync = applySyncedAppWindows(
           bundleId: bundleId,
@@ -2158,12 +2190,13 @@ public struct WorkspaceActivationFeature {
         guard
           state.isRecoveringSystemLayout,
           state.pendingSystemLayoutBundleIds.contains(bundleId)
-        else { return sync }
+        else { return .merge(desktopUpdate, sync) }
         // Recovery suppresses every incremental snapshot save. The resolved
         // tree is already in reducer state, so complete this bundle without
         // waiting for presentation verification; the last completion performs
         // the one authoritative save.
         return .merge(
+          desktopUpdate,
           sync,
           .send(.systemLayoutBundleReconciled(bundleId: bundleId)),
         )
@@ -2181,7 +2214,12 @@ public struct WorkspaceActivationFeature {
         let borrowDisplay,
         let borrowGeneration,
         let borrowComposition,
+        let desktopRevision,
       ):
+        if let desktopRevision, desktopRevision != state.desktops.revision {
+          return .none
+        }
+        guard state.canManageWorkspace(workspaceId) else { return .none }
         return handleEmptyWorkspacePresenceResolution(
           workspaceId: workspaceId,
           hasOnScreenMembers: hasOnScreenMembers,
@@ -2192,7 +2230,10 @@ public struct WorkspaceActivationFeature {
           state: state,
         )
 
-      case .floatingPresentationResolved(let keys):
+      case .floatingPresentationResolved(let keys, let desktopRevision):
+        if let desktopRevision, desktopRevision != state.desktops.revision {
+          return .none
+        }
         let overlay = floatingOverlay
         return .merge(
           .run { _ in await overlay.setFloating(Set(keys)) }
@@ -2270,37 +2311,21 @@ public struct WorkspaceActivationFeature {
         return endLayoutSuspension(.sessionInactive, state: &state)
 
       case .activeSpaceChanged:
-        // Re-read whether we're in a native fullscreen Space. Every layout side
-        // effect (sync, prune, reconcile, followAppFocus jump) is gated on this
-        // flag — re-tiling into a fullscreen Space fights the OS and bounces the
-        // user to the Desktop; returning from one catches the tree up below.
-        let nowFullscreen = sls.isActiveSpaceFullscreen()
-        state.isInFullscreenSpace = nowFullscreen
-        let activeSpace = sls.activeSpaceID()
-        debugLog.log(
-          "Space",
-          "active space changed: fullscreen=\(nowFullscreen) space=\(activeSpace.map(String.init) ?? "?") home=\(state.homeSpaceID.map(String.init) ?? "?")",
-        )
-        if
-          !nowFullscreen,
-          let activeSpace,
-          let home = state.homeSpaceID,
-          activeSpace != home
-        {
-          return beginLayoutSuspension(.otherDesktop, state: &state)
-        }
-        if state.layoutSuspensionReasons.contains(.otherDesktop), !nowFullscreen {
-          // Back on the home Desktop: ending the suspension re-sends
-          // `.activeSpaceChanged`, which then reconciles below.
-          return endLayoutSuspension(.otherDesktop, state: &state)
-        }
-        return nowFullscreen ? supersedePendingFocus(state: &state) : .send(.reconcileAllTrackedApps)
+        return observeDesktopSpaces(state: &state)
+
+      case .desktopSpacesResolved(let snapshot, let revision):
+        guard revision == state.desktops.revision else { return .none }
+        return .merge(updateDesktopSpaces(snapshot, state: &state), .send(.reconcileAllTrackedApps))
+
+      case .desktopSpacesObserved(let snapshot, let revision):
+        guard revision == state.desktops.revision, !state.desktops.isRefreshing else { return .none }
+        return updateDesktopSpaces(snapshot, state: &state)
 
       case .reconcileAllTrackedApps:
         // Union of tree members + registered apps in every visible workspace:
         // wake/Space changes are global, not scoped to the cursor monitor.
         var bundleIds = Set<String>()
-        for workspaceId in state.visibleWorkspaceIDs {
+        for workspaceId in state.layoutWorkspaceIDs {
           for window in state.tilingTrees[workspaceId]?.windows ?? [] {
             bundleIds.insert(window.bundleId)
           }
@@ -2461,7 +2486,9 @@ public struct WorkspaceActivationFeature {
           // otherwise jump to its workspace and raise Desktop windows, bouncing
           // the user back out of the fullscreen Space (symptom: enter fullscreen
           // of a workspace-B app from A → lands on Desktop + switches to B).
-          !state.isInFullscreenSpace,
+          state.canFollowAppFocus,
+          state.desktops.isAvailable(on: interactionDisplay(state: state)),
+          state.desktops.isAvailable(on: deliberateActivationDisplay(for: owner, state: state)),
           // Jump only when the owner isn't already on screen anywhere.
           !activeWorkspaceIds.contains(owner.id)
         {
@@ -2500,9 +2527,6 @@ public struct WorkspaceActivationFeature {
         )
 
       case .windowServerSnapshotRequested(let event):
-        if case .becameVisible = event {
-          return .send(.windowServerWindowEvent(event))
-        }
         let context = WindowServerEventSnapshot(
           surfaces: [:],
           activationGeneration: state.activationGeneration,
@@ -2510,20 +2534,27 @@ public struct WorkspaceActivationFeature {
           visibleWorkspaceIDs: state.visibleWorkspaceIDs,
           wasActivating: state.isActivating,
           wasPaused: state.isTilingPaused,
-          wasFullscreen: state.isInFullscreenSpace,
+          desktopRevision: state.desktops.revision,
           wasSuspended: state.isLayoutSuspended,
           wasRecovering: state.isRecoveringSystemLayout,
         )
         if
-          state.isActivating || state.isTilingPaused || state.isInFullscreenSpace
+          state.isActivating || state.isTilingPaused || state.layoutWorkspaceIDs.isEmpty
           || state.isLayoutSuspended || state.isRecoveringSystemLayout
         {
           return .send(.windowServerWindowEvent(event, snapshot: context))
         }
-        return .run { [windowSnapshot] send in
+        return .run { [windowSnapshot, sls] send in
           var snapshot = context
+          let initialSpaces = await sls.desktopSpaces()
           let surfaces = await windowSnapshot.onScreenWindowSurfacesOffMain()
+          let spaces = await sls.desktopSpaces()
           guard !Task.isCancelled else { return }
+          await send(.desktopSpacesObserved(spaces, revision: context.desktopRevision))
+          guard initialSpaces?.displays == spaces?.displays else {
+            await send(.reconcileAllTrackedApps)
+            return
+          }
           snapshot.surfaces = surfaces
           await send(.windowServerWindowEvent(event, snapshot: snapshot))
         }
@@ -2604,6 +2635,9 @@ public struct WorkspaceActivationFeature {
           ?? state.lastObservedFocusedWindow.flatMap {
             $0.windowID == wid ? $0 : nil
           }
+        if let eventKey, !state.canManageWindow(eventKey) {
+          return .none
+        }
         if let eventKey {
           state.pendingWindowServerPresentationWindows.remove(eventKey)
         }
@@ -2619,7 +2653,7 @@ public struct WorkspaceActivationFeature {
         }
         if
           !state.isTilingPaused,
-          !state.isInFullscreenSpace,
+          !state.layoutWorkspaceIDs.isEmpty,
           let residentKey
         {
           state.windowServerHiddenWindows.insert(residentKey)
@@ -2632,7 +2666,7 @@ public struct WorkspaceActivationFeature {
           state.pendingWindowServerPrune = true
           return .none
         }
-        guard !state.isTilingPaused, !state.isInFullscreenSpace else {
+        guard !state.isTilingPaused, !state.layoutWorkspaceIDs.isEmpty else {
           return .none
         }
         // A native macOS tab switch orders a new layer-0 surface in for the
@@ -2667,7 +2701,10 @@ public struct WorkspaceActivationFeature {
         )
         return requestWindowSync(eventKey.bundleId)
 
-      case .windowServerWindowEvent(.becameVisible(let wid), _):
+      case .windowServerWindowEvent(.becameVisible(let wid), let snapshot):
+        if let snapshot, !snapshot.matches(state) {
+          return .send(.reconcileAllTrackedApps)
+        }
         guard let key = windowSnapshot.cachedWindowKey(wid) else {
           debugLog.log("SLS", "window visible wid=\(wid) — no cached owner")
           return .none
@@ -2692,18 +2729,29 @@ public struct WorkspaceActivationFeature {
           !state.isActivating,
           !state.isLayoutSuspended,
           !state.isRecoveringSystemLayout,
-          !state.isInFullscreenSpace,
+          !state.layoutWorkspaceIDs.isEmpty,
           !state.isTilingPaused
         else { return .none }
         let generation = state.activationGeneration
-        return .run { [windowSnapshot] send in
+        let revision = state.desktops.revision
+        return .run { [windowSnapshot, sls] send in
+          let initialSpaces = await sls.desktopSpaces()
           let onScreen = await windowSnapshot.onScreenWindowIDsOffMain()
+          let spaces = await sls.desktopSpaces()
           guard !Task.isCancelled else { return }
-          await send(.windowServerPruneResolved(onScreen, activationGeneration: generation))
+          await send(.desktopSpacesObserved(spaces, revision: revision))
+          guard initialSpaces?.displays == spaces?.displays else {
+            await send(.reconcileAllTrackedApps)
+            return
+          }
+          await send(.windowServerPruneResolved(onScreen, activationGeneration: generation, desktopRevision: revision))
         }
 
-      case .windowServerPruneResolved(let onScreen, let generation):
+      case .windowServerPruneResolved(let onScreen, let generation, let desktopRevision):
         guard generation == state.activationGeneration else { return .none }
+        if let desktopRevision, desktopRevision != state.desktops.revision {
+          return .none
+        }
         return pruneOffscreenWindows(onScreenWindowIDs: onScreen, state: &state)
 
       case .appTerminated(let bundleId, let pid):
@@ -2830,6 +2878,8 @@ public struct WorkspaceActivationFeature {
         return completeCLIActivation(error: error, state: &state)
 
       case .reactivateActiveProfile(let focus, let capturedInteractionDisplay):
+        state.deferredDesktopRestores = [:]
+        state.desktopAdoptionWorkspaceID = nil
         state.deferredBorrow = nil
         // A profile switch is authoritative over every workspace activation
         // from the outgoing profile, even when the new profile has no normal
@@ -3017,6 +3067,10 @@ public struct WorkspaceActivationFeature {
             plan[finalIndex].presentation = .workspaceCleanup(transaction)
           }
         }
+        state.desktopAdoptionWorkspaceID = focus ?? plan.last?.workspace
+        if let target = plan.last?.display {
+          state.desktops.adopt(target)
+        }
         state.pendingDisplayRestores = plan
         let hudEffect = hasFocusedChainPresentation
           ? Effect<Action>.none
@@ -3194,6 +3248,16 @@ public struct WorkspaceActivationFeature {
         return completeCLIActivationIfSettled(state: &state)
 
       case .activateFollowingAppFocus(let workspaceId, let interactionDisplay):
+        guard state.canFollowAppFocus, state.desktops.isAvailable(on: interactionDisplay ?? self.interactionDisplay(state: state))
+        else { return .none }
+        guard
+          let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+          state.desktops.isAvailable(on: deliberateActivationDisplay(
+            for: workspace,
+            interactionDisplay: interactionDisplay,
+            state: state,
+          ))
+        else { return .none }
         // App focus is user-originated and may select a chain member too. Its
         // companion restores never take focus; the originating workspace is
         // restored last so the already-established app focus remains final.
@@ -3204,6 +3268,7 @@ public struct WorkspaceActivationFeature {
             setFocus: false,
             interactionDisplayOverride: interactionDisplay,
             followsCursor: true,
+            adoptsDesktop: false,
             state: &state,
           ),
         )
@@ -3267,6 +3332,10 @@ public struct WorkspaceActivationFeature {
             ? Effect<Action>.none
             : .send(.processDisplayRestores)
           return .concatenate(completion, drain)
+        }
+        if !state.desktops.isAvailable(on: display), state.desktopAdoptionWorkspaceID != workspaceId {
+          state.deferredDesktopRestores[display] = assignment
+          return .send(.processDisplayRestores)
         }
         // A chain can leave the selected active host exactly where it already
         // is. Preserve that host's live Borrow/layout and transfer focus instead
@@ -3422,8 +3491,8 @@ public struct WorkspaceActivationFeature {
           state.activeActivationGeneration == nil,
           state.pendingDisplayRestores.isEmpty,
           !state.isLayoutSuspended,
-          !state.isInFullscreenSpace,
-          let request = state.deferredBorrow
+          let request = state.deferredBorrow,
+          state.desktops.isAvailable(on: request.display)
         else { return .none }
         state.deferredBorrow = nil
         guard state.config.activeProfile?.id == request.profileId else { return .none }
@@ -3444,7 +3513,7 @@ public struct WorkspaceActivationFeature {
       case .borrowLayoutSettled(let display, let workspaceId, let generation):
         guard
           !state.isLayoutSuspended,
-          !state.isInFullscreenSpace,
+          state.desktops.isAvailable(on: display),
           state.borrowGenerationByDisplay[display] == generation,
           state.compositionsByDisplay[display]?.borrowed.contains(where: { $0.workspace == workspaceId }) == true
         else { return .none }
@@ -3611,7 +3680,7 @@ public struct WorkspaceActivationFeature {
       case .flushCompositionAndFocus(let display, let workspaceId, let generation):
         guard
           !state.isLayoutSuspended,
-          !state.isInFullscreenSpace,
+          state.desktops.isAvailable(on: display),
           !state.isActivating,
           state.activeActivationGeneration == nil,
           state.borrowHydrationsByDisplay[display] == nil,
@@ -3660,7 +3729,7 @@ public struct WorkspaceActivationFeature {
       ):
         guard
           !state.isLayoutSuspended,
-          !state.isInFullscreenSpace,
+          state.desktops.isAvailable(on: display),
           state.borrowGenerationByDisplay[display] == generation,
           state.pendingBorrowCompletionByDisplay[display]
           == State.PendingBorrowCompletion(
@@ -4338,11 +4407,21 @@ public struct WorkspaceActivationFeature {
       case .reconcileDisplacedAppWorkspaces:
         return reconcileDisplacedAppWorkspaces(state: &state)
 
-      case .displacedAppWorkspaceResolved(let id, let display, let hasWindows, let generation, let profileID):
+      case .displacedAppWorkspaceResolved(
+        let id,
+        let display,
+        let hasWindows,
+        let generation,
+        let profileID,
+        let desktopRevision,
+      ):
+        if let desktopRevision, desktopRevision != state.desktops.revision {
+          return .none
+        }
         guard
           !state.isLayoutSuspended,
           !state.isRecoveringSystemLayout,
-          !state.isInFullscreenSpace,
+          state.desktops.isAvailable(on: display),
           generation == state.appOwnershipGeneration,
           profileID == state.config.activeProfile?.id,
           state.displayShowing(id)?.matches(display) == true
@@ -4354,6 +4433,7 @@ public struct WorkspaceActivationFeature {
         return .merge(refill, completeCLIActivationIfSettled(state: &state))
 
       case .bspFocusResolved(let key, let direction):
+        guard state.canManageWindow(key) else { return .none }
         guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
         guard
           let workspaceId = state.workspaceOwning(key) ?? state.primaryActiveWorkspaceID,
@@ -4488,6 +4568,7 @@ public struct WorkspaceActivationFeature {
         }
 
       case .bspOpResolved(let key, let op):
+        guard state.canManageWindow(key) else { return .none }
         return applyBSPOp(windowKey: key, op: op, state: &state)
 
       case .layoutEdited(let workspaceId, let op):
@@ -4679,7 +4760,6 @@ public struct WorkspaceActivationFeature {
         guard
           !state.isActivating,
           !state.isTilingPaused,
-          !state.isInFullscreenSpace,
           case .idle = state.drag
         else {
           state.dirtyPresentationSnapshotWindows.formUnion(keys)
@@ -4714,10 +4794,19 @@ public struct WorkspaceActivationFeature {
           trailing,
         )
 
-      case .activationCompleted(let id, let display, let generation):
+      case .activationCompleted(let id, let display, let generation, let desktopObservation):
         guard state.activeActivationGeneration == generation else { return .none }
-        if state.homeSpaceID == nil, !state.isInFullscreenSpace {
-          state.homeSpaceID = sls.activeSpaceID()
+        var desktopUpdate = Effect<Action>.none
+        if let desktopObservation {
+          state.desktops.revision &+= 1
+          desktopUpdate = updateDesktopSpaces(
+            desktopObservation.spaces,
+            adopting: state.desktopAdoptionWorkspaceID == id ? display : nil,
+            state: &state,
+          )
+        }
+        if state.desktopAdoptionWorkspaceID == id {
+          state.desktopAdoptionWorkspaceID = nil
         }
         state.pendingAppClaims.remove(id)
         state.isActivating = false
@@ -4815,6 +4904,7 @@ public struct WorkspaceActivationFeature {
         let activatedKeys = Set(state.tilingTrees[id]?.windows ?? [])
         return .merge(
           .cancel(id: CancelID.activationWatchdog),
+          desktopUpdate,
           persistWorkspaceSession,
           .run { [observer = windowObserver] _ in await observer.observe(observeIds) },
           // The unpaused path already pushed markers from the activation
@@ -4870,6 +4960,7 @@ public struct WorkspaceActivationFeature {
           state.isActivating,
           state.activeActivationGeneration == generation
         else { return .none }
+        state.desktopAdoptionWorkspaceID = nil
         state.isActivating = false
         state.activatingWorkspaceID = nil
         state.activatingDisplay = nil
@@ -5031,6 +5122,7 @@ public struct WorkspaceActivationFeature {
     preservesPointer: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
+    guard state.desktops.isAvailable(on: display) else { return .none }
     let monitoredKeys = monitorsPresentationChanges
       ? state.armPresentationMonitoring(
         Set(tree.windows),
@@ -5094,6 +5186,7 @@ public struct WorkspaceActivationFeature {
     presentationRepairKeys: Set<WindowKey> = [],
     preservesPointer: Bool = false,
   ) -> Effect<Action> {
+    guard state.canManageWorkspace(workspaceId) else { return .none }
     for (display, comp) in state.compositionsByDisplay
       where comp.host == workspaceId
       || comp.borrowed.contains(where: { $0.workspace == workspaceId })
@@ -5147,7 +5240,7 @@ public struct WorkspaceActivationFeature {
     guard !keys.isEmpty else { return [:] }
     let gap = CGFloat(state.config.settings.layout.gapInner)
     var expected = [WindowKey: CGRect]()
-    for workspaceId in state.visibleWorkspaceIDs {
+    for workspaceId in state.layoutWorkspaceIDs {
       guard
         let tree = state.tilingTrees[workspaceId],
         !keys.isDisjoint(with: tree.windows)
@@ -5179,12 +5272,11 @@ public struct WorkspaceActivationFeature {
     _ keys: Set<WindowKey>,
     state: inout State,
   ) -> Effect<Action> {
-    let candidates = keys.intersection(state.presentationConvergenceWindows)
+    let candidates = keys.intersection(state.presentationConvergenceWindows).filter { state.canManageWindow($0) }
     guard !candidates.isEmpty else { return .none }
     guard
       !state.isActivating,
       !state.isTilingPaused,
-      !state.isInFullscreenSpace,
       case .idle = state.drag
     else {
       state.dirtyPresentationSnapshotWindows.formUnion(candidates)
@@ -5227,11 +5319,10 @@ public struct WorkspaceActivationFeature {
       !keys.isEmpty,
       !state.isActivating,
       !state.isTilingPaused,
-      !state.isInFullscreenSpace,
       case .idle = state.drag
     else { return .none }
 
-    let visibleWindows = state.visibleWorkspaceIDs.reduce(into: Set<WindowKey>()) {
+    let visibleWindows = state.layoutWorkspaceIDs.reduce(into: Set<WindowKey>()) {
       $0.formUnion(state.tilingTrees[$1]?.windows ?? [])
     }
     let noLongerVisible = state.presentationConvergenceWindows

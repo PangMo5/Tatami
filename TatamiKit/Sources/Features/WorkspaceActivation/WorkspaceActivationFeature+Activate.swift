@@ -1778,8 +1778,23 @@ extension WorkspaceActivationFeature {
     interactionDisplayOverride: DisplayName? = nil,
     followsCursor: Bool = false,
     continuesCLIActivation: Bool = false,
+    adoptsDesktop: Bool = true,
     state: inout State,
   ) -> Effect<Action> {
+    let wasOnManagedDesktop = state.canManageWorkspace(workspaceId)
+    state.desktopAdoptionWorkspaceID = adoptsDesktop ? workspaceId : nil
+    if
+      adoptsDesktop,
+      let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
+      let display = targetDisplayOverride ?? deliberateActivationDisplay(
+        for: workspace,
+        interactionDisplay: interactionDisplayOverride,
+        state: state,
+      )
+    {
+      state.deferredDesktopRestores = state.deferredDesktopRestores.filter { !$0.key.matches(display) }
+      state.desktops.adopt(display)
+    }
     state.deferredBorrow = nil
     let transferredApps = claimWorkspaceApps(workspaceId, state: &state)
     // A deliberate switch supersedes any in-flight reconnect restore cascade.
@@ -1907,6 +1922,7 @@ extension WorkspaceActivationFeature {
     // An already-active host that activation would leave exactly where it is
     // is a display focus transfer. Re-activation would tear down its Borrow.
     if
+      wasOnManagedDesktop,
       state.activeActivationGeneration == nil,
       !transferredApps,
       setFocus,
@@ -1925,6 +1941,7 @@ extension WorkspaceActivationFeature {
       // run a real activation so the workspace is raised again.
       visibleFocusTarget(workspaceId, state: state) != nil
     {
+      state.desktopAdoptionWorkspaceID = nil
       let cleanup = makeWorkspaceCleanupTransaction(
         retainedWorkspaceIDs: [workspaceId],
         assignments: [DisplayAssignment(display: display, workspace: workspaceId)],
@@ -2203,6 +2220,7 @@ extension WorkspaceActivationFeature {
     preservesPointer: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
+    guard state.desktops.isAvailable(on: display) else { return .none }
     let settings = state.config.settings
     guard
       let display,
@@ -2380,6 +2398,7 @@ extension WorkspaceActivationFeature {
       let target = profile.workspaces[id: targetId],
       let display = displayOverride ?? interactionDisplay(state: state)
     else { return cancellation }
+    guard state.desktops.isAvailable(on: display) else { return cancellation }
     if
       let queued = state.deferredBorrow,
       queued.workspaceId == targetId,
@@ -2797,6 +2816,7 @@ extension WorkspaceActivationFeature {
     }
     state.isActivating = true
     state.activatingWorkspaceID = workspaceId
+    state.desktops.revision &+= 1
     state.activationGeneration &+= 1
     let activationGeneration = state.activationGeneration
     state.activeActivationGeneration = activationGeneration
@@ -3231,6 +3251,7 @@ extension WorkspaceActivationFeature {
             )
           },
           .run(priority: .high) { [
+            sls,
             mgr = workspaceManager,
             tiler = windowTiler,
             store = layoutStore,
@@ -3492,6 +3513,7 @@ extension WorkspaceActivationFeature {
                 workspaceId: workspaceId,
                 display: targetDisplay,
                 generation: activationGeneration,
+                desktopObservation: DesktopObservation(spaces: await sls.desktopSpaces(), revision: 0),
               ))
               guard !Task.isCancelled else { return }
               // Mirror floating windows onto always-on-top panels (the Topit /
@@ -3624,6 +3646,7 @@ extension WorkspaceActivationFeature {
                 workspaceId: workspaceId,
                 display: targetDisplay,
                 generation: activationGeneration,
+                desktopObservation: DesktopObservation(spaces: await sls.desktopSpaces(), revision: 0),
               ))
             }
             // Priority-skipped members on otherwise-unfilled displays are
