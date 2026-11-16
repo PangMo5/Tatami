@@ -23,7 +23,7 @@ For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep 
 
 ## Performance and responsiveness
 
-- Manage one ordinary macOS Desktop per physical display. Preserve its workspace layouts while visiting another Desktop or native fullscreen, and keep unaffected displays operational. Only deliberate workspace selection may adopt a different Desktop; unknown Space observations never authorize destructive reconciliation.
+- Manage one ordinary macOS Desktop per physical display. Preserve its workspace layouts while visiting another Desktop or native fullscreen, and keep unaffected displays operational. Reassign an existing Desktop binding only for deliberate workspace selection or after confirmed removal of its Desktop; unknown Space observations never authorize destructive reconciliation.
 - With separate native Spaces, route automatic app-focus activation using fresh native keyboard-focus display evidence. Explicit workspace commands keep their captured pointer placement; a pointer on another display must not redirect an app-focus activation.
 
 - Reserve the main thread for input, UI state, and AppKit presentation. Run potentially blocking AX/WindowServer IPC, file I/O, parsing, and image processing on appropriate workers.

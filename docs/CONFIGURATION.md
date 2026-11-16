@@ -202,6 +202,8 @@ FFM and MFF work across displays without moving their workspaces. When `focusFol
 
 ## `[settings.switching]`
 
+Each display uses the first ordinary macOS Desktop Tatami successfully observes for it in that app session. Visiting a different Desktop or native fullscreen pauses layout changes only for that display. A deliberate workspace activation can adopt the ordinary Desktop on which it completes. If the bound Desktop is deleted, Tatami adopts the current surviving ordinary Desktop after a valid observation. An unavailable Space observation preserves the existing layout and binding. These bindings are runtime-only and reset on relaunch.
+
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `loop` | bool | `true` | Wrap from the last workspace back to the first (and vice versa). |
