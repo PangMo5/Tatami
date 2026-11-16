@@ -178,11 +178,13 @@ FFM 和 MFF 可跨顯示器運作，無需移動工作空間。開啟 `focusFoll
 <a id="settingsswitching"></a>
 ## `[settings.switching]`
 
+每台顯示器使用 Tatami 在這次執行期間首次成功確認的一般 macOS 桌面。切換到其他桌面或 macOS 全螢幕時，只會暫停該顯示器上的配置調整。主動切換工作空間時，可以將切換完成所在的一般桌面設為新的對應桌面。如果原本對應的桌面被刪除，Tatami 會在確認有效狀態後使用目前仍存在的一般桌面。無法確認空間狀態時，保留原本的配置與桌面對應關係。這些對應關係只在這次執行期間有效，重新啟動 App 後會重新選擇。
+
 |鍵|型別|預設值|說明|
 | --- | --- | --- | --- |
 |`loop`|bool|`true`|從最後一個工作空間繼續切換至第一個，反之亦然。|
 |`skipEmpty`|bool|`false`|前後切換時略過沒有執行中 App 的工作空間。|
-|`followAppFocus`|bool|`true`|啟用 App 時切換到其所屬工作空間。|
+|`followAppFocus`|bool|`true`|啟用 App 時，切換到該 App 所屬的工作空間。每台顯示器使用獨立的 macOS 空間時，未固定顯示器的工作空間會跟隨 App 接收鍵盤輸入的顯示器；直接使用工作空間快速鍵時，仍使用游標所在的顯示器。|
 |`cycleAcrossDisplays`|bool|`false`|在所有顯示器間切換前後工作空間，而非僅游標所在螢幕。鍵名為相容而保留。|
 |`recentAcrossDisplays`|bool|`true`|所有顯示器共用最近工作空間記錄。目標已在其他顯示器可見時，直接在那裡聚焦，不移動它。設為 `false` 使用嚴格的逐顯示器記錄。|
 |`switchToRecentWhenEmpty`|bool|`false`|作用中工作空間最後一個視窗關閉，且沒有並排視窗或該工作空間專屬置頂視窗時，切換到最近工作空間。共用 App 不計入，因為它們加入所有工作空間。|

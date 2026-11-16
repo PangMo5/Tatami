@@ -5256,5 +5256,19 @@
     "ja": "{0} はアプリを起動せずに {1} を作成します。ローカル ビルドでは Apple Development 証明書で署名し、再ビルド後も権限を維持します。特定の 証明書を選ぶには {3} に {2} を設定してください。Xcode で {4} を開くと、パッケージのコードを確認できます。",
     "zh-Hans": "{0} 创建 {1}，但不启动应用。本地 构建使用 Apple Development 证书签名，以在重新构建后保留权限。要选择特定 证书，请在 {3} 中设置 {2}。在 Xcode 中打开 {4}，即可浏览软件包。",
     "zh-Hant": "{0} 會建立 {1}，但不啟動 App。本機 建置使用 Apple Development 憑證簽署，重新建置後仍可保留權限。若要選擇特定 憑證，請在 {3} 設定 {2}。在 Xcode 中開啟 {4}，即可瀏覽套件。"
+  },
+  "f4ed57bff1524b5c": {
+    "en": "Each display uses the first ordinary macOS Desktop Tatami successfully observes for it in that app session. Visiting a different Desktop or native fullscreen pauses layout changes only for that display. A deliberate workspace activation can adopt the ordinary Desktop on which it completes. If the bound Desktop is deleted, Tatami adopts the current surviving ordinary Desktop after a valid observation. An unavailable Space observation preserves the existing layout and binding. These bindings are runtime-only and reset on relaunch.",
+    "ko": "각 모니터는 Tatami가 이번 실행 중 처음 정상적으로 확인한 일반 macOS 데스크탑을 사용해요. 다른 데스크탑이나 macOS 전체화면으로 이동하면 해당 모니터의 배치 변경만 멈춰요. 작업 공간을 직접 활성화하면 활성화가 완료된 일반 데스크탑을 새 기준으로 사용할 수 있어요. 기준 데스크탑이 삭제되면 유효한 상태를 확인한 뒤 현재 남아 있는 일반 데스크탑을 사용해요. 스페이스 상태를 확인할 수 없으면 기존 배치와 데스크탑 지정을 유지해요. 데스크탑 지정은 실행 중에만 유지되며 앱을 다시 켜면 새로 정해요.",
+    "ja": "各ディスプレイでは、今回の起動中にTatamiが最初に正常に確認した通常のmacOSデスクトップを使います。別のデスクトップやmacOSのフルスクリーンに移動すると、そのディスプレイの配置変更だけを一時停止します。ワークスペースを明示的に切り替えると、切り替えが完了した通常のデスクトップを新しい基準にできます。指定されたデスクトップが削除された場合は、有効な状態を確認してから、現在表示されている残りの通常デスクトップを使います。スペースの状態を確認できない場合は、既存の配置とデスクトップの指定を維持します。この指定は起動中のみ有効で、アプリを再起動すると選び直します。",
+    "zh-Hans": "每台显示器使用 Tatami 在本次运行中首次成功确认的普通 macOS 桌面。切换到其他桌面或 macOS 全屏时，只会暂停该显示器上的布局调整。主动切换工作区时，可以将切换完成所在的普通桌面设为新的对应桌面。如果原来对应的桌面被删除，Tatami 会在确认有效状态后使用当前仍存在的普通桌面。无法确认空间状态时，保留原来的布局和桌面对应关系。这些对应关系只在本次运行期间有效，重新启动应用后会重新选择。",
+    "zh-Hant": "每台顯示器使用 Tatami 在這次執行期間首次成功確認的一般 macOS 桌面。切換到其他桌面或 macOS 全螢幕時，只會暫停該顯示器上的配置調整。主動切換工作空間時，可以將切換完成所在的一般桌面設為新的對應桌面。如果原本對應的桌面被刪除，Tatami 會在確認有效狀態後使用目前仍存在的一般桌面。無法確認空間狀態時，保留原本的配置與桌面對應關係。這些對應關係只在這次執行期間有效，重新啟動 App 後會重新選擇。"
+  },
+  "bad4ead360d5a9db": {
+    "en": "Activating an app switches to the workspace that owns it. With separate native Spaces, dynamic workspaces follow the app's keyboard-focus display; explicit workspace shortcuts still use the pointer display.",
+    "ko": "앱을 활성화하면 그 앱이 속한 작업 공간으로 이동해요. 모니터별로 macOS 스페이스를 사용할 때, 모니터를 고정하지 않은 작업 공간은 앱이 키보드 입력을 받는 모니터를 따라가요. 작업 공간 단축키를 직접 누르면 포인터가 있는 모니터를 사용해요.",
+    "ja": "アプリをアクティブにすると、そのアプリが属するワークスペースに切り替わります。ディスプレイごとに別のmacOSスペースを使う場合、ディスプレイを固定していないワークスペースは、アプリがキーボード入力を受け取るディスプレイに配置されます。ワークスペースのショートカットを直接使う場合は、引き続きポインタのあるディスプレイを使います。",
+    "zh-Hans": "激活应用时，切换到该应用所属的工作区。每台显示器使用独立的 macOS 空间时，未固定到显示器的工作区会跟随应用接收键盘输入的显示器；直接使用工作区快捷键时，仍使用指针所在的显示器。",
+    "zh-Hant": "啟用 App 時，切換到該 App 所屬的工作空間。每台顯示器使用獨立的 macOS 空間時，未固定顯示器的工作空間會跟隨 App 接收鍵盤輸入的顯示器；直接使用工作空間快速鍵時，仍使用游標所在的顯示器。"
   }
 }
