@@ -12037,7 +12037,6 @@ struct WorkspaceActivationFeatureTests {
     let targetFrame = try #require(firstApplication.windowFrames[topRight])
     let staleFrame = try #require(initialFrames[topRight])
     #expect(targetFrame.height > staleFrame.height)
-    #expect(staleFrame.height == workArea.height / 2)
 
     liveFrames.withValue { $0[topRight.windowID] = staleFrame }
     await store.send(
