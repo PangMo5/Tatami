@@ -2816,6 +2816,9 @@ extension WorkspaceActivationFeature {
     if state.isActivating {
       debugLog.log("Activate", "supersede in-flight activation → workspaceId=\(workspaceId)")
     }
+    // Starting a real activation supersedes the same workspace's deferred
+    // startup placement, regardless of which input selected it.
+    state.deferredDesktopRestores = state.deferredDesktopRestores.filter { $0.value.workspace != workspaceId }
     state.isActivating = true
     state.activatingWorkspaceID = workspaceId
     state.desktops.revision &+= 1

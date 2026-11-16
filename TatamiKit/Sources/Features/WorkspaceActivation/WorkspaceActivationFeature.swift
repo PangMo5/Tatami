@@ -745,6 +745,12 @@ public struct WorkspaceActivationFeature {
         return assignment
       }
 
+      var canonicalDeferredRestores = rekeyConnected(deferredDesktopRestores)
+      for display in canonicalDeferredRestores.keys {
+        canonicalDeferredRestores[display]?.display = display
+      }
+      deferredDesktopRestores = canonicalDeferredRestores
+
       connectedDisplays = liveConnected
       return (changed, newlyConnected, disconnectedBorrowedWorkspaceIDs)
     }

@@ -526,6 +526,64 @@ struct DesktopWorkspaceTests {
     #expect(store.state.deferredDesktopRestores[DesktopSpacesTests.left]?.workspace == deferred.id)
   }
 
+  @Test(arguments: [false, true])
+  func `deferred startup restores follow live display identity and end on disconnect`(disconnect: Bool) {
+    let restored = Workspace(name: "Deferred", apps: [AppAssignment(bundleIdentifier: "app.fullscreen", name: "Fullscreen")])
+    var state = Self.state([restored])
+    let renamed = DisplayName(uuid: "left", name: "Renamed")
+    state.deferredDesktopRestores[DesktopSpacesTests.left] = .init(display: DesktopSpacesTests.left, workspace: restored.id)
+    _ = state.reconcileDisplayTopology(liveDisplays: disconnect
+      ? [DesktopSpacesTests.right]
+      : [
+        renamed,
+        DesktopSpacesTests.right,
+      ])
+    if disconnect {
+      #expect(state.deferredDesktopRestores.isEmpty)
+      #expect(WorkspaceActivationFeature().retainedApps(onOtherDisplaysThan: DesktopSpacesTests.right, state: state).isEmpty)
+    } else {
+      #expect(state.deferredDesktopRestores[renamed]?.display.name == renamed.name)
+      #expect(state.deferredDesktopRestores[renamed]?.workspace == restored.id)
+    }
+  }
+
+  @Test
+  func `explicitly selecting a deferred dynamic workspace supersedes its old display restore`() async {
+    let deferred = Workspace(name: "Deferred")
+    let current = Workspace(name: "Current")
+    var state = Self.state([deferred, current])
+    state.activeWorkspacesByDisplay[DesktopSpacesTests.right] = current.id
+    state.deferredDesktopRestores[DesktopSpacesTests.left] = .init(display: DesktopSpacesTests.left, workspace: deferred.id)
+    state.desktops.observe(DesktopSpacesTests.spaces(left: 9, fullscreen: true), displays: state.connectedDisplays)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.current = { DesktopSpacesTests.right }
+      $0.sls.desktopSpaces = { DesktopSpacesTests.spaces(left: 9, fullscreen: true) }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.workspaceManager.activate = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: deferred.id, setFocus: true, interactionDisplay: DesktopSpacesTests.right))
+    await store.receive {
+      if case .activationCompleted = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .activationTailFinished = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == deferred.id)
+    #expect(store.state.deferredDesktopRestores.isEmpty)
+  }
+
   @Test
   func `Desktop changes remove only offscreen floating mirrors and reject stale presentation`() async {
     let leftKey = WindowKey(pid: 1, windowID: 101, bundleId: "app.left")
