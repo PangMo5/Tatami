@@ -5256,5 +5256,12 @@
     "ja": "{0} はアプリを起動せずに {1} を作成します。ローカル ビルドでは Apple Development 証明書で署名し、再ビルド後も権限を維持します。特定の 証明書を選ぶには {3} に {2} を設定してください。Xcode で {4} を開くと、パッケージのコードを確認できます。",
     "zh-Hans": "{0} 创建 {1}，但不启动应用。本地 构建使用 Apple Development 证书签名，以在重新构建后保留权限。要选择特定 证书，请在 {3} 中设置 {2}。在 Xcode 中打开 {4}，即可浏览软件包。",
     "zh-Hant": "{0} 會建立 {1}，但不啟動 App。本機 建置使用 Apple Development 憑證簽署，重新建置後仍可保留權限。若要選擇特定 憑證，請在 {3} 設定 {2}。在 Xcode 中開啟 {4}，即可瀏覽套件。"
+  },
+  "697fd236c6ce1ce1": {
+    "en": "On multiple displays, each shared tiled window has one physical display owner. Ownership uses the greatest overlap with full screen bounds, retaining the existing owner for ties. A live window stranded outside every screen after an arrangement or resolution change belongs to the nearest connected screen so normal tiling can recover it. Tiling still uses the smaller work area to leave room for the menu bar and Dock. A currently hidden window whose geometry is still inside an attached screen does not become a new tile merely because its frame is available. Unavailable placement geometry preserves existing membership.",
+    "ko": "모니터가 여러 개여도 공용 앱의 타일링 창은 각각 하나의 모니터에 배치해요. 창과 가장 넓게 겹치는 전체 화면 영역을 기준으로 정하고, 겹치는 면적이 같으면 기존 모니터를 유지해요. 배치나 해상도를 바꾼 뒤 창이 모든 화면 밖에 남으면 가장 가까운 연결된 모니터로 가져와 다시 타일링해요. 실제 타일링에는 메뉴 막대와 Dock을 제외한 작업 영역을 사용해요. 연결된 화면 안에 있는 숨긴 창은 위치 정보만으로 새 타일에 추가하지 않아요. 위치 정보를 확인할 수 없으면 기존 소속을 유지해요.",
+    "ja": "複数のディスプレイを使う場合も、共有アプリのタイル表示ウインドウはそれぞれ1台のディスプレイに配置します。画面全体の範囲との重なりが最も大きいディスプレイを選び、重なる面積が同じなら元のディスプレイを維持します。配置や解像度の変更後にウインドウがすべての画面の外に残った場合は、接続中の最も近いディスプレイに戻してタイル表示します。実際の配置には、メニューバーとDockの領域を除いた作業領域を使います。接続中の画面内に位置する非表示ウインドウは、位置情報があるだけでは新しいタイルに追加しません。位置情報を確認できない場合は、現在の所属を維持します。",
+    "zh-Hans": "使用多台显示器时，每个共享应用的平铺窗口都只归属一台显示器。Tatami 根据窗口与完整屏幕范围的重叠面积选择显示器；面积相同时，保留原来的归属。调整显示器排列或分辨率后，如果窗口留在所有屏幕之外，会将它归到最近的已连接显示器，以便重新平铺。实际平铺仍使用避开菜单栏和程序坞的可用区域。隐藏窗口的位置仍在已连接屏幕内时，不会仅因能读取位置就将其添加为新平铺窗口。无法获取位置信息时，保留原来的归属。",
+    "zh-Hant": "使用多台顯示器時，每個共用 App 的並排視窗都只屬於一台顯示器。Tatami 依照視窗與完整螢幕範圍的重疊面積選擇顯示器；面積相同時，保留原本的歸屬。調整顯示器排列或解析度後，若視窗留在所有螢幕之外，會將它歸到最近的已連接顯示器，讓並排配置能將它移回可用範圍。實際並排配置仍使用避開選單列與 Dock 的工作區域。隱藏視窗的位置仍在已連接螢幕內時，不會只因為能讀取位置就將它加入為新的並排視窗。無法取得位置資訊時，保留原本的歸屬。"
   }
 }

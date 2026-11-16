@@ -368,6 +368,8 @@ layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 
 置頂不需要關閉 SIP。Tatami 用 ScreenCaptureKit 把視窗鏡像到置頂面板，需要**螢幕錄製**權限（設定 → 一般 → 權限）。App 本身取得焦點時隱藏鏡像並停止擷取。`unmanaged` 不操作實際視窗，不需該權限。
 
+使用多台顯示器時，每個共用 App 的並排視窗都只屬於一台顯示器。Tatami 依照視窗與完整螢幕範圍的重疊面積選擇顯示器；面積相同時，保留原本的歸屬。調整顯示器排列或解析度後，若視窗留在所有螢幕之外，會將它歸到最近的已連接顯示器，讓並排配置能將它移回可用範圍。實際並排配置仍使用避開選單列與 Dock 的工作區域。隱藏視窗的位置仍在已連接螢幕內時，不會只因為能讀取位置就將它加入為新的並排視窗。無法取得位置資訊時，保留原本的歸屬。
+
 可在**工作空間 → 共用 App**中編輯並排、置頂或維持原狀。
 
 舊 `[[floatingApps]]` 設定在首次讀取時自動移轉，每項變為 `layout = "floating"` 的共用 App。1.4 之前的 `floating` bool 也會移轉：`true` → `floating`，否則為 `tiled`。
