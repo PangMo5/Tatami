@@ -628,6 +628,32 @@ struct WindowCapabilitySnapshot: Equatable, Sendable {
   var emptyBundleIds = Set<String>()
 }
 
+// MARK: - WindowPlacementSnapshot
+
+/// One WindowServer census keeps placement separate from current visibility.
+/// A live AX-discovered window can be off-screen after a monitor-layout change.
+struct WindowPlacementSnapshot: Equatable, Sendable {
+  init(frames: [WindowKey: CGRect], onScreenFrames: [CGWindowID: CGRect]) {
+    self.frames = frames
+    self.onScreenFrames = onScreenFrames
+  }
+
+  init(windows: [WindowServerWindow], keys: [WindowKey]) {
+    let byID = Dictionary(windows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    frames = Dictionary(keys.compactMap { key -> (WindowKey, CGRect)? in
+      guard let window = byID[key.windowID], window.surface.ownerPID == key.pid else { return nil }
+      return (key, window.surface.frame)
+    }, uniquingKeysWith: { first, _ in first })
+    onScreenFrames = Dictionary(
+      windows.filter(\.isOnScreen).map { ($0.id, $0.surface.frame) },
+      uniquingKeysWith: { first, _ in first },
+    )
+  }
+
+  var frames: [WindowKey: CGRect]
+  var onScreenFrames: [CGWindowID: CGRect]
+}
+
 // MARK: - WindowSnapshotClient
 
 /// Live window/app state behind a testable dependency boundary. The synchronous
@@ -712,6 +738,12 @@ struct WindowSnapshotClient: Sendable {
   /// Fresh geometry for every on-screen window from one WindowServer snapshot.
   /// This is local IPC rather than a per-app AX round trip.
   var onScreenWindowFrames: @Sendable () -> [CGWindowID: CGRect] = { [:] }
+  /// Placement for eligible identities, including off-screen windows, plus
+  /// independent on-screen evidence from the same worker-side census. nil is
+  /// an unavailable census, not an authoritative absence of windows.
+  var placementSnapshotAsync:
+    @Sendable ([WindowKey]) async -> AsyncWindowSnapshot<WindowPlacementSnapshot?> = { _ in .unavailable }
+
   /// The same local snapshot with owner/layer metadata. Visibility transitions
   /// use it to recognize a CGWindowID swap from the same physical native-tab
   /// group without waiting for a second AX event or a guessed delay.
@@ -745,6 +777,21 @@ struct WindowSnapshotClient: Sendable {
 }
 
 extension WindowSnapshotClient {
+  func placementSnapshotOffMain(_ keys: [WindowKey]) async -> WindowPlacementSnapshot? {
+    switch await placementSnapshotAsync(keys) {
+    case .value(let snapshot): return snapshot
+    case .unavailable:
+      // Existing dependency fixtures supply visible geometry only. This
+      // adapter is never used by the live client, whose failure is .value(nil).
+      let visible = await onScreenWindowFramesOffMain()
+      let frames = Dictionary(
+        keys.compactMap { key in visible[key.windowID].map { (key, $0) } },
+        uniquingKeysWith: { first, _ in first },
+      )
+      return WindowPlacementSnapshot(frames: frames, onScreenFrames: visible)
+    }
+  }
+
   func onScreenWindowSurfacesOffMain() async -> [CGWindowID: WindowServerSurface] {
     switch await onScreenWindowSurfacesAsync() {
     case .value(let surfaces): surfaces
@@ -1115,6 +1162,9 @@ extension WindowSnapshotClient: DependencyKey {
       onScreenWindowFrames: {
         preconditionFailure("Live WindowServer reads require onScreenWindowFramesOffMain")
       },
+      placementSnapshotAsync: { keys in
+        .value(await windowPlacementSnapshot(keys))
+      },
       onScreenWindowSurfaces: {
         preconditionFailure("Live WindowServer reads require onScreenWindowSurfacesOffMain")
       },
@@ -1190,6 +1240,7 @@ extension WindowSnapshotClient: DependencyKey {
     windowFrameAsync: { _ in .unavailable },
     visibleWindowFrameAsync: { _ in .unavailable },
     onScreenWindowFrames: { [:] },
+    placementSnapshotAsync: { _ in .unavailable },
     onScreenWindowSurfaces: { [:] },
     onScreenWindowSurfacesAsync: { .unavailable },
     frontmostApp: { nil },

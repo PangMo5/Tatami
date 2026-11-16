@@ -9,8 +9,8 @@ import Foundation
 // MARK: - DisplayClient
 
 /// Read-only view of the connected macOS displays. Tatami identifies
-/// displays by their localized name so reconnecting the same monitor
-/// keeps workspace assignments stable across `CGDirectDisplayID` resets.
+/// displays by stable UUID with a localized-name compatibility match, keeping
+/// assignments stable across `CGDirectDisplayID` resets.
 @DependencyClient
 struct DisplayClient: Sendable {
   var all: @Sendable () -> [DisplayName] = { [] }
@@ -18,6 +18,9 @@ struct DisplayClient: Sendable {
   /// AX work area (top-left origin, anchored to the primary screen) of
   /// the named display — the main screen when `nil`.
   var workArea: @Sendable (_ name: DisplayName?) -> CGRect = { _ in .zero }
+  /// Complete physical screen in the same AX/CG top-origin coordinates.
+  /// Ownership uses this frame, while layout uses the smaller work area.
+  var bounds: @Sendable (_ name: DisplayName?) -> CGRect = { _ in .zero }
   /// The *connected* screen matching `name` (UUID first, then name), if any.
   var connected: @Sendable (_ name: DisplayName) -> DisplayName?
   /// The primary display.
@@ -97,6 +100,9 @@ extension DisplayClient: DependencyKey {
     workArea: { name in
       MainActor.assumeIsolated { ScreenGeometry.workArea(for: name) }
     },
+    bounds: { name in
+      MainActor.assumeIsolated { ScreenGeometry.bounds(for: name) }
+    },
     connected: { name in
       MainActor.assumeIsolated { DisplayResolver.connectedScreen(for: name)?.displayName }
     },
@@ -142,6 +148,12 @@ extension DisplayClient: DependencyKey {
     all: { [DisplayName("Test Display")] },
     current: { DisplayName("Test Display") },
     workArea: { _ in CGRect(x: 0, y: 0, width: 1920, height: 1080) },
+    bounds: { name in
+      // Lightweight fixtures model no menu bar or Dock. Derive the physical
+      // frame from their overridden work area to keep one consistent graph.
+      @Dependency(\.displays) var displays
+      return displays.workArea(name)
+    },
     connected: { $0 },
     primary: { DisplayName("Test Display") },
     resolveOrPrimary: { $0 },
@@ -152,6 +164,12 @@ extension DisplayClient: DependencyKey {
     all: { [DisplayName("Built-in Retina Display"), DisplayName("External Monitor")] },
     current: { DisplayName("Built-in Retina Display") },
     workArea: { _ in CGRect(x: 0, y: 0, width: 1920, height: 1080) },
+    bounds: { name in
+      // Lightweight fixtures model no menu bar or Dock. Derive the physical
+      // frame from their overridden work area to keep one consistent graph.
+      @Dependency(\.displays) var displays
+      return displays.workArea(name)
+    },
     connected: { $0 },
     primary: { DisplayName("Built-in Retina Display") },
     resolveOrPrimary: { $0 },

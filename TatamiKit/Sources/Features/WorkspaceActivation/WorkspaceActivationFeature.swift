@@ -1384,6 +1384,8 @@ public struct WorkspaceActivationFeature {
       bundleId: String,
       resizableKeys: [WindowKey]?,
       onScreenFrames: [CGWindowID: CGRect],
+      placementFrames: [WindowKey: CGRect]? = nil,
+      geometryAvailable: Bool = true,
     )
     /// A worker-side live presence check completed for a tree that became
     /// empty. The reducer rechecks that it is still empty before switching or
@@ -2126,9 +2128,22 @@ public struct WorkspaceActivationFeature {
         }
         return syncAppWindows(bundleId: bundleId, state: &state)
 
-      case .syncAppWindowsResolved(let bundleId, let resizableKeys, let onScreenFrames):
+      case .syncAppWindowsResolved(
+        let bundleId,
+        let resizableKeys,
+        let onScreenFrames,
+        let placementFrames,
+        let geometryAvailable,
+      ):
         state.windowSyncBundleIdsInFlight.remove(bundleId)
         let needsTrailingRefresh = state.dirtyWindowSyncBundleIds.remove(bundleId) != nil
+        guard geometryAvailable else {
+          debugLog.log("Scope", "preserve \(bundleId): WindowServer placement census unavailable")
+          if state.isRecoveringSystemLayout, state.pendingSystemLayoutBundleIds.contains(bundleId) {
+            return .send(.systemLayoutBundleReconciled(bundleId: bundleId))
+          }
+          return .none
+        }
         if state.isLayoutSuspended {
           return .none
         }
@@ -2146,6 +2161,7 @@ public struct WorkspaceActivationFeature {
           bundleId: bundleId,
           resizableKeys: resizableKeys,
           onScreenFrames: onScreenFrames,
+          placementFrames: placementFrames,
           state: &state,
         )
         guard

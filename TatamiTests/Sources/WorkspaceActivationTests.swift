@@ -12588,7 +12588,8 @@ struct WorkspaceActivationFeatureTests {
       existingTargetKeys: [],
       protectedKeys: [protected],
       partitionSharedWindows: true,
-      targetWorkArea: areaA,
+      targetDisplay: "A",
+      displayBounds: ["A": areaA, "B": CGRect(x: 1000, y: 0, width: 1000, height: 800)],
       windowFrame: { frames[$0] },
     )
 

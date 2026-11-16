@@ -629,7 +629,8 @@ extension WorkspaceActivationFeature {
     guard let tree else { return [:] }
     // `targetRect` (a composition sub-rect) is already inset; only the
     // full-display path applies the outer gap.
-    let workArea = targetRect ?? ScreenGeometry.workArea(for: targetDisplay).insetBy(
+    @Dependency(\.displays) var displays
+    let workArea = targetRect ?? displays.workArea(targetDisplay).insetBy(
       dx: CGFloat(settings.layout.gapOuter),
       dy: CGFloat(settings.layout.gapOuter),
     )
@@ -2474,8 +2475,19 @@ extension WorkspaceActivationFeature {
   /// Nil means there is nothing to focus, so a focus transfer would be a
   /// silent no-op and the caller has to run a real activation instead.
   func visibleFocusTarget(_ workspaceId: Workspace.ID, state: State) -> WindowKey? {
-    (state.mruWindows[workspaceId] ?? []).first
-      ?? state.tilingTrees[workspaceId]?.windows.first
+    let treeWindows = state.tilingTrees[workspaceId]?.windows ?? []
+    let tiled = Set(treeWindows)
+    let workspaceApps = state.presentedWorkspace(workspaceId)?.apps ?? []
+    let untiled = Set(workspaceApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier)
+      + state.config.sharedApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier))
+    for key in state.mruWindows[workspaceId] ?? [] {
+      // An AX focus/MRU entry alone does not prove that a tiled window was
+      // admitted to this layout. Re-run activation to recover missing tiles.
+      if tiled.contains(key) || untiled.contains(key.bundleId) {
+        return key
+      }
+    }
+    return treeWindows.first
   }
 
   /// Transfer keyboard focus to a workspace that is already visible without
@@ -3076,6 +3088,7 @@ extension WorkspaceActivationFeature {
       }
     }
     let existingTargetKeys = Set(sessionTree?.windows ?? [])
+    let existingWindowOwners = Self.windowDisplayOwners(state: state)
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
     // A composition marker is an always-visible symbol badge. Clear it as soon
@@ -3346,17 +3359,33 @@ extension WorkspaceActivationFeature {
                 return results.sorted { $0.0 < $1.0 }.flatMap(\.1)
               }
               guard !Task.isCancelled else { return }
-              let onScreenFrames = await snapshot.onScreenWindowFramesOffMain()
+              let needsPlacement = partitionsSharedWindows && discovered.contains { sharedTiledBundleIds.contains($0.bundleId) }
+              let geometry = needsPlacement ? await snapshot.placementSnapshotOffMain(discovered) : nil
               let keys = await MainActor.run {
-                Self.scopedWindowKeys(
+                let bounds = Dictionary(displays.all().map { ($0, displays.bounds($0)) }, uniquingKeysWith: { first, _ in first })
+                let scoped = Self.scopedWindowKeys(
                   discovered,
                   sharedTiledBundleIds: sharedTiledBundleIds,
                   existingTargetKeys: existingTargetKeys,
                   protectedKeys: protectedWindowKeys,
                   partitionSharedWindows: partitionsSharedWindows,
-                  targetWorkArea: displays.workArea(targetDisplay),
-                  windowFrame: { onScreenFrames[$0.windowID] },
+                  targetDisplay: targetDisplay,
+                  displayBounds: bounds,
+                  existingOwners: existingWindowOwners,
+                  windowFrame: { geometry?.frames[$0] },
                 )
+                if needsPlacement, debugLog.isEnabled() {
+                  debugLog.log("Scope", Self.windowScopeDescription(
+                    keys: discovered,
+                    accepted: scoped,
+                    target: targetDisplay,
+                    bounds: bounds,
+                    owners: existingWindowOwners,
+                    existingTargetKeys: existingTargetKeys,
+                    geometry: geometry,
+                  ))
+                }
+                return scoped
               }
               mark("discover")
               let (tree, frames, restoredZoom, unresolvedZoomSlots, bindings) = await MainActor.run {
