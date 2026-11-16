@@ -43,7 +43,10 @@ extension WorkspaceActivationFeature {
         state.ownsApp($0.bundleId, in: id)
       }.map(\.bundleId))
     }
-    for assignment in state.pendingDisplayRestores where !assignment.display.matches(target) {
+    // A monitor launched into fullscreen has no active workspace yet. Its
+    // deferred assignment still owns apps while another monitor switches.
+    let awaitingRestores = state.pendingDisplayRestores + Array(state.deferredDesktopRestores.values)
+    for assignment in awaitingRestores where !assignment.display.matches(target) {
       bundles.formUnion(state.presentedWorkspace(assignment.workspace)?.apps.map(\.bundleIdentifier) ?? [])
     }
     return bundles

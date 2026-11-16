@@ -484,6 +484,49 @@ struct DesktopWorkspaceTests {
   }
 
   @Test
+  func `switching the ready monitor retains apps awaiting their fullscreen monitors first Desktop`() async {
+    let fullscreenApp = "app.fullscreen"
+    let deferred = Workspace(name: "Deferred", apps: [AppAssignment(bundleIdentifier: fullscreenApp, name: "Fullscreen")])
+    let current = Workspace(name: "Current")
+    var next = Workspace(name: "Next")
+    next.displayHint = DesktopSpacesTests.right
+    var state = Self.state([deferred, current, next])
+    state.activeWorkspacesByDisplay[DesktopSpacesTests.right] = current.id
+    state.deferredDesktopRestores[DesktopSpacesTests.left] = .init(display: DesktopSpacesTests.left, workspace: deferred.id)
+    state.desktops.observe(DesktopSpacesTests.spaces(left: 9, fullscreen: true), displays: state.connectedDisplays)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.current = { DesktopSpacesTests.right }
+      $0.sls.desktopSpaces = { DesktopSpacesTests.spaces(left: 9, fullscreen: true) }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activate(workspaceId: next.id, setFocus: true))
+    await store.receive {
+      if case .activationCompleted = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .activationTailFinished = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(requests.value.count == 1)
+    #expect(requests.value.first?.retainedBundleIds.contains(fullscreenApp) == true)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == next.id)
+    #expect(store.state.deferredDesktopRestores[DesktopSpacesTests.left]?.workspace == deferred.id)
+  }
+
+  @Test
   func `Desktop changes remove only offscreen floating mirrors and reject stale presentation`() async {
     let leftKey = WindowKey(pid: 1, windowID: 101, bundleId: "app.left")
     let rightKey = WindowKey(pid: 2, windowID: 201, bundleId: "app.right")
