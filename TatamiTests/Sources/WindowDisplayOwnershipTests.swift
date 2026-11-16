@@ -97,6 +97,36 @@ struct WindowDisplayOwnershipTests {
     }
     #expect(owners == [Self.portrait])
   }
+
+  @Test
+  func `hidden windows on another native Desktop do not become new shared tiles`() {
+    let key = WindowKey(pid: 7, windowID: 70, bundleId: "app.shared")
+    let frame = CGRect(x: -1600, y: 100, width: 600, height: 400)
+    let fresh = WorkspaceActivationFeature.scopedWindowKeys(
+      [key],
+      sharedTiledBundleIds: [key.bundleId],
+      existingTargetKeys: [],
+      protectedKeys: [],
+      partitionSharedWindows: true,
+      targetDisplay: Self.portrait,
+      displayBounds: Self.bounds,
+      onScreenWindowIDs: [],
+      windowFrame: { _ in frame },
+    )
+    #expect(fresh.isEmpty)
+    let retained = WorkspaceActivationFeature.scopedWindowKeys(
+      [key],
+      sharedTiledBundleIds: [key.bundleId],
+      existingTargetKeys: [key],
+      protectedKeys: [],
+      partitionSharedWindows: true,
+      targetDisplay: Self.portrait,
+      displayBounds: Self.bounds,
+      onScreenWindowIDs: [],
+      windowFrame: { _ in frame },
+    )
+    #expect(retained == [key])
+  }
 }
 
 // MARK: - PortraitWorkspaceRoutingTests
@@ -133,7 +163,7 @@ struct PortraitWorkspaceRoutingTests {
       $0.windowSnapshot.discoverKeys = { bundles, _ in bundles.contains(Self.shared.bundleId) ? [Self.shared] : [] }
       $0.windowSnapshot.placementSnapshotAsync = { _ in .value(WindowPlacementSnapshot(
         frames: [Self.shared: WindowDisplayOwnershipTests.stranded],
-        onScreenFrames: [:],
+        onScreenFrames: [Self.shared.windowID: WindowDisplayOwnershipTests.stranded],
       )) }
       $0.workspaceManager.activate = { request in activations.withValue { $0.append(request) } }
       $0.windowTiler.apply = { app in applications.withValue { $0.append(app) } }
@@ -203,7 +233,7 @@ struct PortraitWorkspaceRoutingTests {
       bundleId: Self.shared.bundleId,
       resizableKeys: [Self.shared],
       onScreenFrames: [:],
-      placementFrames: [Self.shared: WindowDisplayOwnershipTests.stranded],
+      placementFrames: [Self.shared: CGRect(x: -1600, y: 3000, width: 600, height: 400)],
     ))
     await store.receive {
       if case .layoutWriteFinished = $0 {

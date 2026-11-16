@@ -22,12 +22,25 @@ extension WorkspaceActivationFeature {
     targetDisplay: DisplayName?,
     displayBounds: [DisplayName: CGRect],
     existingOwners: [WindowKey: DisplayName] = [:],
+    onScreenWindowIDs: Set<CGWindowID>? = nil,
     windowFrame: (WindowKey) -> CGRect?,
   ) -> [WindowKey] {
     keys.filter { key in
       if partitionSharedWindows, sharedTiledBundleIds.contains(key.bundleId) {
         guard let frame = windowFrame(key), let targetDisplay else {
           return existingTargetKeys.contains(key)
+        }
+        if let onScreenWindowIDs, !onScreenWindowIDs.contains(key.windowID), !existingTargetKeys.contains(key) {
+          // Offscreen geometry inside an attached screen may belong to a
+          // hidden window or another native Desktop. It is not a new tile.
+          // Only a spatially stranded window needs nearest-screen recovery.
+          let intersectsScreen = displayBounds.values.contains { screen in
+            let overlap = frame.intersection(screen)
+            return !overlap.isNull && overlap.width > 0 && overlap.height > 0
+          }
+          if intersectsScreen {
+            return false
+          }
         }
         let preferred = existingOwners[key] ?? (existingTargetKeys.contains(key) ? targetDisplay : nil)
         guard let owner = WindowDisplayOwnership.owner(of: frame, displays: displayBounds, preferred: preferred)
@@ -967,6 +980,7 @@ extension WorkspaceActivationFeature {
       targetDisplay: targetDisplay,
       displayBounds: bounds,
       existingOwners: owners,
+      onScreenWindowIDs: Set(onScreenFrames.keys),
       windowFrame: { ownershipFrames[$0] },
     )
     if debugLog.isEnabled(), sharedTiledSet.contains(bundleId) {

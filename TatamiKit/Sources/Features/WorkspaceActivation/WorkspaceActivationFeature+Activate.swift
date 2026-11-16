@@ -3372,6 +3372,7 @@ extension WorkspaceActivationFeature {
                   targetDisplay: targetDisplay,
                   displayBounds: bounds,
                   existingOwners: existingWindowOwners,
+                  onScreenWindowIDs: geometry.map { Set($0.onScreenFrames.keys) },
                   windowFrame: { geometry?.frames[$0] },
                 )
                 if needsPlacement, debugLog.isEnabled() {

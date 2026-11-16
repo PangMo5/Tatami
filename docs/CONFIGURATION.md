@@ -433,7 +433,7 @@ onto its own always-on-top panels via ScreenCaptureKit, which needs the
 hides and capture stops whenever the always-on-top app itself has focus.
 `unmanaged` apps need no such permission because the real window is never touched.
 
-On multiple displays, each shared tiled window has one physical display owner. Ownership uses the greatest overlap with full screen bounds, retaining the existing owner for ties. A live window stranded outside every screen after an arrangement or resolution change belongs to the nearest connected screen so normal tiling can recover it. Tiling still uses the smaller work area to leave room for the menu bar and Dock. Unavailable placement geometry preserves existing membership.
+On multiple displays, each shared tiled window has one physical display owner. Ownership uses the greatest overlap with full screen bounds, retaining the existing owner for ties. A live window stranded outside every screen after an arrangement or resolution change belongs to the nearest connected screen so normal tiling can recover it. Tiling still uses the smaller work area to leave room for the menu bar and Dock. A currently hidden window whose geometry is still inside an attached screen does not become a new tile merely because its frame is available. Unavailable placement geometry preserves existing membership.
 
 Editable in the app under **Workspaces → Shared Apps** (Tiled / Always on Top / Leave As Is).
 
