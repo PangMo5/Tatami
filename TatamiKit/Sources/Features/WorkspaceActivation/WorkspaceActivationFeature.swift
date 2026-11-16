@@ -283,6 +283,8 @@ public struct WorkspaceActivationFeature {
     /// Desktop ownership is per physical display, independent of profiles.
     public var desktops = ManagedDesktops()
     public var desktopAdoptionWorkspaceID: Workspace.ID?
+    public var appFocusDesktopRequestID: UInt64 = 0
+    public var pendingAppFocusDesktopRequest: AppFocusDesktopRequest?
     public var deferredDesktopRestores = [DisplayName: DisplayAssignment]()
     /// Active lifecycle gates that make AX/WindowServer membership snapshots
     /// temporarily non-authoritative.
@@ -422,13 +424,6 @@ public struct WorkspaceActivationFeature {
 
     var layoutWorkspaceIDs: Set<Workspace.ID> {
       visibleWorkspaceIDs.filter { canManageWorkspace($0) }
-    }
-
-    var canFollowAppFocus: Bool {
-      if let uuid = desktops.snapshot?.focusedDisplayUUID, uuid != "Main" {
-        return desktops.isAvailable(on: DisplayName(uuid: uuid, name: ""))
-      }
-      return desktops.isAvailable(on: focusedDisplay)
     }
 
     /// The Tatami-managed universe: every bundle id registered to a workspace
@@ -1137,6 +1132,21 @@ public struct WorkspaceActivationFeature {
     }
   }
 
+  /// An app activation owns its frontmost process while a worker resolves the
+  /// native keyboard-focus display. Shared Spaces retain the captured input
+  /// display when WindowServer exposes only the shared Main graph.
+  public struct AppFocusDesktopRequest: Equatable, Sendable {
+    var id: UInt64
+    var workspaceID: Workspace.ID
+    var interactionDisplay: DisplayName?
+    var frontmostApp: FrontmostApp?
+    var activationGeneration: UInt64
+    var profileID: Profile.ID?
+    var desktopRevision: UInt64
+    var followAppFocus: Bool
+    var isReading = false
+  }
+
   public enum Action {
     case startObservingWindowEvents
     case windowServerSnapshotRequested(SLSWindowEvent)
@@ -1510,6 +1520,8 @@ public struct WorkspaceActivationFeature {
     /// this must not re-pick a focus target, but the cursor still follows it:
     /// landing on a workspace with two windows of that app otherwise gives no
     /// clue which one was raised.
+    case resumeFollowingAppFocus
+    case appFocusDesktopResolved(AppFocusDesktopRequest, DesktopSpaces?)
     case activateFollowingAppFocus(
       workspaceId: Workspace.ID,
       interactionDisplay: DisplayName? = nil,
@@ -2315,7 +2327,15 @@ public struct WorkspaceActivationFeature {
 
       case .desktopSpacesResolved(let snapshot, let revision):
         guard revision == state.desktops.revision else { return .none }
-        return .merge(updateDesktopSpaces(snapshot, state: &state), .send(.reconcileAllTrackedApps))
+        let update = updateDesktopSpaces(snapshot, state: &state)
+        if snapshot == nil {
+          state.pendingAppFocusDesktopRequest = nil
+        }
+        return .merge(
+          update,
+          .send(.reconcileAllTrackedApps),
+          state.pendingAppFocusDesktopRequest == nil ? .none : .send(.resumeFollowingAppFocus),
+        )
 
       case .desktopSpacesObserved(let snapshot, let revision):
         guard revision == state.desktops.revision, !state.desktops.isRefreshing else { return .none }
@@ -2486,28 +2506,16 @@ public struct WorkspaceActivationFeature {
           // otherwise jump to its workspace and raise Desktop windows, bouncing
           // the user back out of the fullscreen Space (symptom: enter fullscreen
           // of a workspace-B app from A → lands on Desktop + switches to B).
-          state.canFollowAppFocus,
-          state.desktops.isAvailable(on: interactionDisplay(state: state)),
-          state.desktops.isAvailable(on: deliberateActivationDisplay(for: owner, state: state)),
           // Jump only when the owner isn't already on screen anywhere.
           !activeWorkspaceIds.contains(owner.id)
         {
-          // The one path that switches workspaces without a hotkey — when a
-          // bounce-back is suspected, this line (or its absence) is the tell.
-          debugLog.log(
-            "Activate",
-            "followAppFocus jump: didActivate \(bundleId) → ws=\(owner.name)",
-          )
           let capturedInteractionDisplay = interactionDisplay(state: state)
           return .merge(
             markerEffect,
-            .concatenate(
-              .cancel(id: CancelID.workspaceChainCleanup),
-              .send(.activateFollowingAppFocus(
-                workspaceId: owner.id,
-                interactionDisplay: capturedInteractionDisplay,
-              )),
-            ),
+            .send(.activateFollowingAppFocus(
+              workspaceId: owner.id,
+              interactionDisplay: capturedInteractionDisplay,
+            )),
           )
         }
         // One focused-window resolution serves marker focus, insertion-
@@ -3248,30 +3256,24 @@ public struct WorkspaceActivationFeature {
         return completeCLIActivationIfSettled(state: &state)
 
       case .activateFollowingAppFocus(let workspaceId, let interactionDisplay):
-        guard state.canFollowAppFocus, state.desktops.isAvailable(on: interactionDisplay ?? self.interactionDisplay(state: state))
-        else { return .none }
-        guard
-          let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
-          state.desktops.isAvailable(on: deliberateActivationDisplay(
-            for: workspace,
-            interactionDisplay: interactionDisplay,
-            state: state,
-          ))
-        else { return .none }
-        // App focus is user-originated and may select a chain member too. Its
-        // companion restores never take focus; the originating workspace is
-        // restored last so the already-established app focus remains final.
-        return .concatenate(
-          .cancel(id: CancelID.workspaceChainCleanup),
-          deliberateActivation(
-            workspaceId: workspaceId,
-            setFocus: false,
-            interactionDisplayOverride: interactionDisplay,
-            followsCursor: true,
-            adoptsDesktop: false,
-            state: &state,
-          ),
+        state.appFocusDesktopRequestID &+= 1
+        state.pendingAppFocusDesktopRequest = AppFocusDesktopRequest(
+          id: state.appFocusDesktopRequestID,
+          workspaceID: workspaceId,
+          interactionDisplay: interactionDisplay ?? self.interactionDisplay(state: state),
+          frontmostApp: windowSnapshot.frontmostApp(),
+          activationGeneration: state.activationGeneration,
+          profileID: state.config.activeProfile?.id,
+          desktopRevision: state.desktops.revision,
+          followAppFocus: state.config.settings.switching.followAppFocus,
         )
+        return resumeFollowingAppFocus(state: &state)
+
+      case .resumeFollowingAppFocus:
+        return resumeFollowingAppFocus(state: &state)
+
+      case .appFocusDesktopResolved(let request, let spaces):
+        return completeFollowingAppFocus(request, spaces: spaces, state: &state)
 
       case .restoreDisplay(let assignment):
         let workspaceId = assignment.workspace
@@ -5010,6 +5012,7 @@ public struct WorkspaceActivationFeature {
   /// Cancellation identifiers for latest-wins effects and bounded safety work.
   enum CancelID: Hashable {
     case foregroundAdoption
+    case appFocusDesktop
     /// One visual surface has one frame writer. Normal workspace and borrow
     /// composition layouts on the same display share this id, so crossing the
     /// composition boundary also cancels the stale writer.

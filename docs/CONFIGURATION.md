@@ -206,7 +206,7 @@ FFM and MFF work across displays without moving their workspaces. When `focusFol
 | --- | --- | --- | --- |
 | `loop` | bool | `true` | Wrap from the last workspace back to the first (and vice versa). |
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when switching next/previous. |
-| `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
+| `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. With separate native Spaces, dynamic workspaces follow the app's keyboard-focus display; explicit workspace shortcuts still use the pointer display. |
 | `cycleAcrossDisplays` | bool | `false` | Switch next/previous workspace across every display instead of only the display under the cursor. The key name is retained for compatibility. |
 | `recentAcrossDisplays` | bool | `true` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. Set it to `false` for a strict per-display history. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific always-on-top window, switch to the recent workspace. Shared apps do not count because they join every workspace. |

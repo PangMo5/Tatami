@@ -197,6 +197,7 @@ struct DesktopWorkspaceTests {
     state.desktops.observe(DesktopSpacesTests.spaces(left: 3), displays: state.connectedDisplays)
     let requests = LockIsolated<[ActivationRequest]>([])
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.sls.desktopSpaces = { DesktopSpacesTests.spaces(left: 3) }
       $0.displays.current = { DesktopSpacesTests.left }
       $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
       $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 3, bundleId: "app.target", name: "Target") }
@@ -204,13 +205,20 @@ struct DesktopWorkspaceTests {
     store.exhaustivity = .off
     await store.send(.appActivated(bundleId: "app.target", pid: 3))
     await store.receive {
-      if case .windowChanged = $0 {
+      if case .appFocusDesktopResolved = $0 {
         true
       } else {
         false
       }
     }
     await store.send(.activateFollowingAppFocus(workspaceId: target.id, interactionDisplay: DesktopSpacesTests.left))
+    await store.receive {
+      if case .appFocusDesktopResolved = $0 {
+        true
+      } else {
+        false
+      }
+    }
     await store.finish()
     #expect(requests.value.isEmpty)
     #expect(store.state.activeWorkspace(on: DesktopSpacesTests.left) == current.id)
@@ -372,11 +380,23 @@ struct DesktopWorkspaceTests {
     state.desktops.observe(snapshot, displays: state.connectedDisplays)
     let requests = LockIsolated<[ActivationRequest]>([])
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.sls.desktopSpaces = {
+        var spaces = DesktopSpacesTests.spaces(left: 3)
+        spaces.focusedDisplayUUID = "right"
+        return spaces
+      }
       $0.displays.current = { DesktopSpacesTests.right }
       $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
     }
     store.exhaustivity = .off
     await store.send(.activateFollowingAppFocus(workspaceId: target.id, interactionDisplay: DesktopSpacesTests.right))
+    await store.receive {
+      if case .appFocusDesktopResolved = $0 {
+        true
+      } else {
+        false
+      }
+    }
     await store.finish()
     #expect(requests.value.isEmpty)
     #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 1)
@@ -534,6 +554,159 @@ struct DesktopWorkspaceTests {
     #expect(!store.state.desktops.isAvailable(on: DesktopSpacesTests.left))
   }
 
+  @Test(arguments: [false, true])
+  func `app focus on the ordinary monitor uses fresh native focus while the pointer remains over fullscreen`(pinned: Bool) async {
+    var (state, target, _) = Self.followState()
+    if !pinned {
+      target.displayHint = nil
+      state.$config.withLock { config in
+        config.profiles[0].workspaces[id: target.id]?.displayHint = nil
+      }
+    }
+    let originalA = state.activeWorkspacesByDisplay[DesktopSpacesTests.left]
+    var fresh = DesktopSpacesTests.spaces(left: 18, fullscreen: true)
+    fresh.focusedDisplayUUID = "right"
+    let freshSpaces = fresh
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.displays.current = { DesktopSpacesTests.left }
+      $0.sls.desktopSpaces = { freshSpaces }
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 99, bundleId: "app.follow", name: "Follow") }
+      $0.workspaceManager.activate = { request in activations.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.appActivated(bundleId: "app.follow", pid: 99))
+    await store.receive {
+      if case .activationCompleted = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .activationTailFinished = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(activations.value.map(\.targetDisplay) == [DesktopSpacesTests.right])
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == target.id)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.left) == originalA)
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 1)
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.right) == 2)
+  }
+
+  @Test(arguments: [String?.some("left"), nil])
+  func `cached ordinary focus cannot authorize fullscreen or unknown native origin`(origin: String?) async {
+    let (state, target, current) = Self.followState(cachedFocus: "right")
+    var fresh = DesktopSpacesTests.spaces(left: 18, fullscreen: true)
+    fresh.focusedDisplayUUID = origin
+    let freshSpaces = fresh
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.current = { DesktopSpacesTests.right }
+      $0.sls.desktopSpaces = { freshSpaces }
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 99, bundleId: "app.follow", name: "Follow") }
+      $0.workspaceManager.activate = { request in activations.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activateFollowingAppFocus(workspaceId: target.id))
+    await store.receive {
+      if case .appFocusDesktopResolved = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(activations.value.isEmpty)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == current.id)
+    #expect(store.state.pendingAppFocusDesktopRequest == nil)
+  }
+
+  @Test
+  func `native Space refresh preserves the pending app focus until fresh keyboard focus is available`() async {
+    var (state, target, _) = Self.followState()
+    state.desktops.isRefreshing = true
+    state.desktops.revision = 4
+    var fresh = DesktopSpacesTests.spaces(left: 18, fullscreen: true)
+    fresh.focusedDisplayUUID = "right"
+    let freshSpaces = fresh
+    let reads = LockIsolated(0)
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+      $0.displays.current = { DesktopSpacesTests.left }
+      $0.sls.desktopSpaces = { reads.withValue { $0 += 1 }
+        return freshSpaces
+      }
+      $0.windowSnapshot.frontmostApp = { FrontmostApp(pid: 99, bundleId: "app.follow", name: "Follow") }
+      $0.workspaceManager.activate = { request in activations.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activateFollowingAppFocus(workspaceId: target.id))
+    #expect(reads.value == 0)
+    #expect(store.state.pendingAppFocusDesktopRequest?.workspaceID == target.id)
+    await store.send(.desktopSpacesResolved(DesktopSpacesTests.spaces(left: 18, fullscreen: true), revision: 4))
+    await store.receive {
+      if case .activationCompleted = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.receive {
+      if case .activationTailFinished = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(activations.value.count == 1)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == target.id)
+    #expect(store.state.pendingAppFocusDesktopRequest == nil)
+  }
+
+  @Test
+  func `a different frontmost process supersedes a pending native focus read`() async {
+    let (state, target, current) = Self.followState()
+    let (stream, continuation) = AsyncStream<DesktopSpaces>.makeStream()
+    let frontmost = LockIsolated(FrontmostApp(pid: 99, bundleId: "app.follow", name: "Follow"))
+    let activations = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.current = { DesktopSpacesTests.right }
+      $0.sls.desktopSpaces = { var iterator = stream.makeAsyncIterator()
+        return await iterator.next()
+      }
+      $0.windowSnapshot.frontmostApp = { frontmost.value }
+      $0.workspaceManager.activate = { request in activations.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.activateFollowingAppFocus(workspaceId: target.id))
+    frontmost.setValue(FrontmostApp(pid: 100, bundleId: "app.other", name: "Other"))
+    continuation.yield(DesktopSpacesTests.spaces())
+    continuation.finish()
+    await store.receive {
+      if case .appFocusDesktopResolved = $0 {
+        true
+      } else {
+        false
+      }
+    }
+    await store.finish()
+    #expect(activations.value.isEmpty)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == current.id)
+    #expect(store.state.pendingAppFocusDesktopRequest == nil)
+  }
+
   // MARK: Private
 
   private static func state(_ workspaces: [Workspace]) -> WorkspaceActivationFeature.State {
@@ -544,6 +717,25 @@ struct DesktopWorkspaceTests {
     state.connectedDisplays = [DesktopSpacesTests.left, DesktopSpacesTests.right]
     state.focusedDisplay = DesktopSpacesTests.left
     return state
+  }
+
+  private static func followState(cachedFocus: String = "left") -> (
+    WorkspaceActivationFeature.State,
+    Workspace,
+    Workspace,
+  ) {
+    let a = Workspace(name: "A")
+    let b = Workspace(name: "B")
+    var target = Workspace(name: "Follow B", apps: [AppAssignment(bundleIdentifier: "app.follow", name: "Follow")])
+    target.displayHint = DesktopSpacesTests.right
+    var state = Self.state([a, b, target])
+    state.activeWorkspacesByDisplay = [DesktopSpacesTests.left: a.id, DesktopSpacesTests.right: b.id]
+    state.$config.withLock { $0.settings.switching.followAppFocus = true }
+    state.desktops.observe(DesktopSpacesTests.spaces(), displays: state.connectedDisplays)
+    var cached = DesktopSpacesTests.spaces(left: 18, fullscreen: true)
+    cached.focusedDisplayUUID = cachedFocus
+    state.desktops.observe(cached, displays: state.connectedDisplays)
+    return (state, target, b)
   }
 
 }

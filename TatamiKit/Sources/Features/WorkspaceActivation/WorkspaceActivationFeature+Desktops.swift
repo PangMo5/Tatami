@@ -5,6 +5,9 @@ import ComposableArchitecture
 import Foundation
 
 extension WorkspaceActivationFeature {
+
+  // MARK: Internal
+
   /// Space notifications precede or overlap AX/WindowServer visibility edges.
   /// While the read is pending, none of those snapshots authorizes pruning.
   func observeDesktopSpaces(state: inout State) -> Effect<Action> {
@@ -73,4 +76,115 @@ extension WorkspaceActivationFeature {
     }
     return .merge(effects)
   }
+
+  /// App activation belongs to the native keyboard-focus display. Explicit
+  /// workspace commands keep their captured pointer placement; an app event
+  /// must not move to a fullscreen monitor merely because the pointer is there.
+  func resumeFollowingAppFocus(state: inout State) -> Effect<Action> {
+    guard var request = state.pendingAppFocusDesktopRequest else { return .none }
+    guard isAppFocusDesktopRequestCurrent(request, state: state) else {
+      state.pendingAppFocusDesktopRequest = nil
+      return .cancel(id: CancelID.appFocusDesktop)
+    }
+    // A native Space transition owns the snapshot until its result arrives.
+    // Keep this input and resume from desktopSpacesResolved, without a timer
+    // or a speculative retry against the previous Space's cached focus.
+    guard !state.desktops.isRefreshing else { return .none }
+    if request.isReading, request.desktopRevision == state.desktops.revision {
+      return .none
+    }
+    state.appFocusDesktopRequestID &+= 1
+    request.id = state.appFocusDesktopRequestID
+    request.desktopRevision = state.desktops.revision
+    request.isReading = true
+    state.pendingAppFocusDesktopRequest = request
+    return .run { [sls, request] send in
+      let spaces = await sls.desktopSpaces()
+      guard !Task.isCancelled else { return }
+      await send(.appFocusDesktopResolved(request, spaces))
+    }
+    .cancellable(id: CancelID.appFocusDesktop, cancelInFlight: true)
+  }
+
+  func completeFollowingAppFocus(
+    _ request: AppFocusDesktopRequest,
+    spaces: DesktopSpaces?,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard state.pendingAppFocusDesktopRequest?.id == request.id else { return .none }
+    state.pendingAppFocusDesktopRequest?.isReading = false
+    guard isAppFocusDesktopRequestCurrent(request, state: state) else {
+      state.pendingAppFocusDesktopRequest = nil
+      return .none
+    }
+    guard request.desktopRevision == state.desktops.revision, !state.desktops.isRefreshing else {
+      return resumeFollowingAppFocus(state: &state)
+    }
+    state.pendingAppFocusDesktopRequest = nil
+    let update = updateDesktopSpaces(spaces, state: &state)
+    guard let spaces, let workspace = state.config.activeProfile?.workspaces[id: request.workspaceID]
+    else { return update }
+    let origin: DisplayName?
+    if let uuid = spaces.focusedDisplayUUID, uuid != "Main" {
+      let reference = DisplayName(uuid: uuid, name: "")
+      guard let display = state.connectedDisplays.first(where: { $0.uuid == uuid }) ?? displays.connected(reference)
+      else {
+        debugLog.log("Activate", "skip followAppFocus: focused display is not connected")
+        return update
+      }
+      origin = display
+    } else if spaces.displays.count == 1, spaces.displays.first?.uuid == "Main" {
+      // In shared-Spaces mode every monitor has the same native Desktop gate.
+      origin = request.interactionDisplay ?? state.focusedDisplay ?? state.desktops.homes.keys.first
+    } else {
+      debugLog.log("Activate", "skip followAppFocus: keyboard-focus display unavailable")
+      return update
+    }
+    let target = deliberateActivationDisplay(
+      for: workspace,
+      interactionDisplay: origin,
+      state: state,
+    )
+    guard state.desktops.isAvailable(on: origin), state.desktops.isAvailable(on: target)
+    else { return update }
+    debugLog.log("Activate", "followAppFocus jump: verified native focus → ws=\(workspace.name)")
+    return .merge(
+      update,
+      .concatenate(
+        .cancel(id: CancelID.workspaceChainCleanup),
+        deliberateActivation(
+          workspaceId: request.workspaceID,
+          setFocus: false,
+          interactionDisplayOverride: origin,
+          followsCursor: true,
+          adoptsDesktop: false,
+          state: &state,
+        ),
+      ),
+    )
+  }
+
+  // MARK: Private
+
+  private func isAppFocusDesktopRequestCurrent(_ request: AppFocusDesktopRequest, state: State) -> Bool {
+    guard
+      request.activationGeneration == state.activationGeneration,
+      request.profileID == state.config.activeProfile?.id,
+      request.followAppFocus == state.config.settings.switching.followAppFocus,
+      !state.isLayoutSuspended,
+      let workspace = state.config.activeProfile?.workspaces[id: request.workspaceID]
+    else { return false }
+    if let expected = request.frontmostApp {
+      guard
+        let current = windowSnapshot.frontmostApp(),
+        current.pid == expected.pid,
+        current.bundleId == expected.bundleId,
+        !overlayAwareness.isBackgroundedProcess(current.pid),
+        workspace.apps.contains(where: { $0.bundleIdentifier == current.bundleId }),
+        state.ownsApp(current.bundleId, in: workspace.id)
+      else { return false }
+    }
+    return true
+  }
+
 }
