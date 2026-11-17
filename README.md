@@ -19,8 +19,6 @@ keystroke or a configurable trackpad gesture, and tiles their windows
 automatically with a binary space partitioning (BSP) engine. No SIP changes and no shell
 scripting required.
 
-Tatami manages **one ordinary macOS Desktop per monitor**. Its workspaces switch apps and layouts inside that Desktop. You can still use other macOS Desktops and native fullscreen; explicitly calling a Tatami workspace returns its target monitor to the managed Desktop.
-
 ## See Tatami in action
 
 [![Make room for the whole workflow.](web/tour.jpg)](https://tatami.pangmo5.dev/#demo)
@@ -264,6 +262,9 @@ be running.
 
 Read the [full CLI reference](docs/CLI.md), or view its live web rendering on
 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/cli.html).
+
+> [!NOTE]
+> Tatami manages **one ordinary macOS Desktop per monitor**. Its workspaces switch apps and layouts inside that Desktop. You can still use other macOS Desktops and native fullscreen; explicitly calling a Tatami workspace returns its target monitor to the managed Desktop.
 
 ## Tech stack
 

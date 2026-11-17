@@ -13,8 +13,6 @@
 
 Tatami 把 App 整理到虛擬工作空間，透過快速鍵或自訂觸控式軌跡板手勢切換，並用二元空間分割（BSP）引擎自動並排視窗。不必修改 SIP，也不必撰寫 shell 指令稿。
 
-Tatami **在每台顯示器上管理一個一般 macOS 桌面**。工作空間在該桌面內切換 App 與配置。你仍可使用其他 macOS 桌面與全螢幕。直接呼叫 Tatami 工作空間時，目標顯示器會切回受管理的桌面。
-
 <a id="see-tatami-in-action"></a>
 ## 看看 Tatami 的實際操作
 
@@ -233,6 +231,9 @@ tatami layout balance
 CLI 依領域提供設定組合與工作空間管理、掛鉤查詢、穩定 JSON 輸出，以及與手勢相同的焦點、排列、App、並排、循環切換與借用操作。Tatami 必須正在執行。
 
 閱讀[完整 CLI 參考](CLI.md)，或在 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/zh-Hant/cli.html) 查看網頁版本。
+
+> [!NOTE]
+> Tatami **在每台顯示器上管理一個一般 macOS 桌面**。工作空間在該桌面內切換 App 與配置。你仍可使用其他 macOS 桌面與全螢幕。直接呼叫 Tatami 工作空間時，目標顯示器會切回受管理的桌面。
 
 <a id="tech-stack"></a>
 ## 技術架構
