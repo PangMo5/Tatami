@@ -11957,15 +11957,13 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.drag == .idle)
   }
 
-  @Test
-  func `drop converges every tile after the app restores an old frame`() async throws {
+  @Test(arguments: [800.0, 959.0])
+  func `drop converges every tile after the app restores an old frame`(height: Double) async throws {
     let left = WindowKey(pid: 1, windowID: 101, bundleId: "org.alacritty")
     let topRight = WindowKey(pid: 2, windowID: 201, bundleId: "com.mitchellh.ghostty")
     let bottomRight = WindowKey(pid: 2, windowID: 202, bundleId: topRight.bundleId)
     let workspace = Workspace(name: "Terminal")
-    let workArea = await MainActor.run {
-      ScreenGeometry.workArea(for: Self.display)
-    }
+    let workArea = CGRect(x: 0, y: 0, width: 1200, height: height)
     let initialTree = BSPNode.branch(
       BSPBranch(
         split: .vertical,
@@ -12597,7 +12595,8 @@ struct WorkspaceActivationFeatureTests {
       existingTargetKeys: [],
       protectedKeys: [protected],
       partitionSharedWindows: true,
-      targetWorkArea: areaA,
+      targetDisplay: "A",
+      displayBounds: ["A": areaA, "B": CGRect(x: 1000, y: 0, width: 1000, height: 800)],
       windowFrame: { frames[$0] },
     )
 

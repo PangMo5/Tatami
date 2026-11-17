@@ -10,28 +10,77 @@ extension WorkspaceActivationFeature {
 
   // MARK: Internal
 
-  /// Keep one physical window in one visible workspace. Shared tiled apps may
-  /// have windows on several monitors; their live frame decides which display's
-  /// tree owns each window. Non-shared keys already owned by another visible
-  /// display stay there instead of being duplicated into a second tree.
+  /// Assign each shared tile to exactly one physical display. Usable layout
+  /// areas cannot classify ownership: a window may straddle screens, cover a
+  /// Dock, or retain coordinates from a disconnected/rotated monitor.
   static func scopedWindowKeys(
     _ keys: [WindowKey],
     sharedTiledBundleIds: Set<String>,
     existingTargetKeys: Set<WindowKey>,
     protectedKeys: Set<WindowKey>,
     partitionSharedWindows: Bool,
-    targetWorkArea: CGRect,
+    targetDisplay: DisplayName?,
+    displayBounds: [DisplayName: CGRect],
+    existingOwners: [WindowKey: DisplayName] = [:],
+    onScreenWindowIDs: Set<CGWindowID>? = nil,
     windowFrame: (WindowKey) -> CGRect?,
   ) -> [WindowKey] {
     keys.filter { key in
       if partitionSharedWindows, sharedTiledBundleIds.contains(key.bundleId) {
-        guard let frame = windowFrame(key) else {
+        guard let frame = windowFrame(key), let targetDisplay else {
           return existingTargetKeys.contains(key)
         }
-        return targetWorkArea.contains(CGPoint(x: frame.midX, y: frame.midY))
+        if let onScreenWindowIDs, !onScreenWindowIDs.contains(key.windowID), !existingTargetKeys.contains(key) {
+          // Offscreen geometry inside an attached screen may belong to a
+          // hidden window or another native Desktop. It is not a new tile.
+          // Only a spatially stranded window needs nearest-screen recovery.
+          let intersectsScreen = displayBounds.values.contains { screen in
+            let overlap = frame.intersection(screen)
+            return !overlap.isNull && overlap.width > 0 && overlap.height > 0
+          }
+          if intersectsScreen {
+            return false
+          }
+        }
+        let preferred = existingOwners[key] ?? (existingTargetKeys.contains(key) ? targetDisplay : nil)
+        guard let owner = WindowDisplayOwnership.owner(of: frame, displays: displayBounds, preferred: preferred)
+        else { return existingTargetKeys.contains(key) }
+        return owner.matches(targetDisplay)
       }
       return !protectedKeys.contains(key)
     }
+  }
+
+  static func windowDisplayOwners(state: State) -> [WindowKey: DisplayName] {
+    var owners = [WindowKey: DisplayName]()
+    for id in state.visibleWorkspaceIDs.sorted(by: { $0.uuidString < $1.uuidString }) {
+      guard let display = state.displayShowing(id) else { continue }
+      for key in state.tilingTrees[id]?.windows ?? [] where owners[key] == nil { owners[key] = display }
+    }
+    return owners
+  }
+
+  static func windowScopeDescription(
+    keys: [WindowKey],
+    accepted: [WindowKey],
+    target: DisplayName?,
+    bounds: [DisplayName: CGRect],
+    owners: [WindowKey: DisplayName],
+    existingTargetKeys: Set<WindowKey>,
+    geometry: WindowPlacementSnapshot?,
+  ) -> String {
+    let screens = bounds.sorted { ($0.key.uuid ?? $0.key.name) < ($1.key.uuid ?? $1.key.name) }
+      .map { "\($0.key.uuid ?? "no-uuid")/\($0.key.name)=\($0.value)" }
+    let windows = keys.map { key in
+      let frame = geometry?.frames[key]
+      let preferred = owners[key] ?? (existingTargetKeys.contains(key) ? target : nil)
+      let owner = frame.flatMap { WindowDisplayOwnership.owner(of: $0, displays: bounds, preferred: preferred) }
+      return "\(key.bundleId)#\(key.windowID) frame=\(frame.map(String.init(describing:)) ?? "unavailable") "
+        + "onScreen=\(geometry?.onScreenFrames[key.windowID] != nil) owner=\(owner?.name ?? "unknown") "
+        + "scopeAccepted=\(accepted.contains(key)) priorMember=\(existingTargetKeys.contains(key))"
+    }
+    return "target=\(target?.uuid ?? "no-uuid")/\(target?.name ?? "nil") "
+      + "censusAvailable=\(geometry != nil) screens=\(screens) windows=\(windows)"
   }
 
   /// Pair old/new WindowServer identities from one app while preserving the
@@ -263,6 +312,8 @@ extension WorkspaceActivationFeature {
       }
     }
 
+    let needsPlacement = (state.connectedDisplays.count > 1 || state.activeWorkspacesByDisplay.count > 1)
+      && state.config.sharedApps.contains { $0.bundleIdentifier == bundleId && $0.layout == .tiled }
     let snapshot = windowSnapshot
     let discoverResizable = needsResizableDiscovery
     let populateMovableCache = needsMovableCache
@@ -287,12 +338,19 @@ extension WorkspaceActivationFeature {
         // Floating presentation owns its own all-visible-floats discovery.
         resizableKeys = nil
       }
-      let frames = await snapshot.onScreenWindowFramesOffMain()
+      let geometry: WindowPlacementSnapshot? =
+        if needsPlacement {
+          await snapshot.placementSnapshotOffMain(resizableKeys ?? [])
+        } else {
+          WindowPlacementSnapshot(frames: [:], onScreenFrames: await snapshot.onScreenWindowFramesOffMain())
+        }
       let desktopSpaces = await sls.desktopSpaces()
       await send(.syncAppWindowsResolved(
         bundleId: bundleId,
         resizableKeys: resizableKeys,
-        onScreenFrames: frames,
+        onScreenFrames: geometry?.onScreenFrames ?? [:],
+        placementFrames: geometry?.frames,
+        geometryAvailable: geometry != nil,
         desktopObservation: DesktopObservation(
           spaces: desktopSpaces,
           revision: desktopRevision,
@@ -309,6 +367,7 @@ extension WorkspaceActivationFeature {
     bundleId: String,
     resizableKeys: [WindowKey]?,
     onScreenFrames: [CGWindowID: CGRect],
+    placementFrames: [WindowKey: CGRect]? = nil,
     state: inout State,
   ) -> Effect<Action> {
     guard
@@ -337,6 +396,7 @@ extension WorkspaceActivationFeature {
         workspaceId: workspaceId,
         discovered: resizableKeys,
         onScreenFrames: onScreenFrames,
+        placementFrames: placementFrames,
         state: &state,
       ))
     }
@@ -803,6 +863,7 @@ extension WorkspaceActivationFeature {
     workspaceId: Workspace.ID,
     discovered: [WindowKey]?,
     onScreenFrames: [CGWindowID: CGRect],
+    placementFrames: [WindowKey: CGRect]?,
     state: inout State,
   ) -> Effect<Action> {
     guard
@@ -895,7 +956,11 @@ extension WorkspaceActivationFeature {
       }
     }
     let existingTargetKeys = Set(existing?.windows ?? [])
-    let targetWorkArea = displays.workArea(targetDisplay)
+    let bounds = Dictionary(displays.all().map { ($0, displays.bounds($0)) }, uniquingKeysWith: { first, _ in first })
+    let owners = Self.windowDisplayOwners(state: state)
+    let ownershipFrames = placementFrames ?? Dictionary((discovered ?? []).compactMap { key in
+      onScreenFrames[key.windowID].map { (key, $0) }
+    }, uniquingKeysWith: { first, _ in first })
     let interactiveDiscovered = discovered.filter {
       !overlayAwareness.isBackgroundedProcess($0.pid)
     }
@@ -906,14 +971,34 @@ extension WorkspaceActivationFeature {
       protectedKeys: protectedKeys,
       partitionSharedWindows: state.connectedDisplays.count > 1
         || state.activeWorkspacesByDisplay.count > 1,
-      targetWorkArea: targetWorkArea,
-      windowFrame: { onScreenFrames[$0.windowID] },
+      targetDisplay: targetDisplay,
+      displayBounds: bounds,
+      existingOwners: owners,
+      onScreenWindowIDs: Set(onScreenFrames.keys),
+      windowFrame: { ownershipFrames[$0] },
     )
+    if debugLog.isEnabled(), sharedTiledSet.contains(bundleId) {
+      debugLog.log("Scope", Self.windowScopeDescription(
+        keys: interactiveDiscovered,
+        accepted: scoped,
+        target: targetDisplay,
+        bounds: bounds,
+        owners: owners,
+        existingTargetKeys: existingTargetKeys,
+        geometry: WindowPlacementSnapshot(frames: ownershipFrames, onScreenFrames: onScreenFrames),
+      ))
+    }
     // SLS 816 is the exact visibility edge for a surface. AX can continue to
     // return that now-hidden element for one scan (Electron hide-on-close), so
     // do not let it reassert membership. A matching 815 removes the key from
     // this set before requesting its reconciliation.
     let current = scoped.filter { !state.windowServerHiddenWindows.contains($0) }
+    if debugLog.isEnabled(), current.count != scoped.count {
+      debugLog.log(
+        "Scope",
+        "ws=\(workspace.name) ordered-out surfaces excluded=\(scoped.filter { state.windowServerHiddenWindows.contains($0) }.map(\.windowID))",
+      )
+    }
     // The block's geometry — composition sub-rect when this is a borrowed/host
     // block, else the workspace's full work area. New windows insert into it.
     let (_, workArea) = tilingContext(for: workspaceId, state: state)

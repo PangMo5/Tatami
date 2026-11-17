@@ -690,6 +690,17 @@ extension DependencyValues {
 /// same convention as `kAXPositionAttribute`.
 enum ScreenGeometry {
   @MainActor
+  static func bounds(for name: DisplayName?) -> CGRect {
+    guard let screen = DisplayResolver.screenOrPrimary(for: name), let primary = DisplayResolver.primaryScreen()
+    else { return .zero }
+    return topOrigin(screen.frame, primaryHeight: primary.frame.height)
+  }
+
+  static func topOrigin(_ rect: CGRect, primaryHeight: CGFloat) -> CGRect {
+    CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+  }
+
+  @MainActor
   static func workArea(for name: DisplayName?) -> CGRect {
     // Resolve UUID → name → primary; the primary display also anchors the
     // AX (top-left) coordinate flip.
@@ -697,10 +708,7 @@ enum ScreenGeometry {
       let screen = DisplayResolver.screenOrPrimary(for: name),
       let primary = DisplayResolver.primaryScreen()
     else { return .zero }
-    let primaryHeight = primary.frame.height
-    let v = screen.visibleFrame
-    let axY = primaryHeight - v.origin.y - v.height
-    return CGRect(x: v.origin.x, y: axY, width: v.width, height: v.height)
+    return topOrigin(screen.visibleFrame, primaryHeight: primary.frame.height)
   }
 }
 
@@ -721,6 +729,7 @@ struct WindowServerWindow: Sendable {
   var surface: WindowServerSurface
   var title: String?
   var alpha: Double = 1
+  var isOnScreen = true
 }
 
 private let windowServerReadQueue = BlockingWorkQueue(label: "dev.PangMo5.Tatami.window-server-read")
@@ -729,10 +738,21 @@ func windowServerWindows(_ options: CGWindowListOption) async -> [WindowServerWi
   await windowServerReadQueue.run { readWindowServerWindows(options) }
 }
 
+func windowPlacementSnapshot(_ keys: [WindowKey]) async -> WindowPlacementSnapshot? {
+  await windowServerReadQueue.run {
+    guard let windows = readWindowServerWindowsIfAvailable([.optionAll, .excludeDesktopElements]) else { return nil }
+    return WindowPlacementSnapshot(windows: windows, keys: keys)
+  }
+}
+
 /// Synchronous core for the dedicated frame writer and snapshot workers only.
 func readWindowServerWindows(_ options: CGWindowListOption) -> [WindowServerWindow] {
+  readWindowServerWindowsIfAvailable(options) ?? []
+}
+
+private func readWindowServerWindowsIfAvailable(_ options: CGWindowListOption) -> [WindowServerWindow]? {
   precondition(!Thread.isMainThread, "WindowServer IPC must run on a worker")
-  let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+  guard let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
   return entries.compactMap { entry in
     guard
       let id = entry[kCGWindowNumber as String] as? CGWindowID,
@@ -753,6 +773,7 @@ func readWindowServerWindows(_ options: CGWindowListOption) -> [WindowServerWind
       ),
       title: entry[kCGWindowName as String] as? String,
       alpha: (entry[kCGWindowAlpha as String] as? Double) ?? 1,
+      isOnScreen: (entry[kCGWindowIsOnscreen as String] as? Bool) ?? false,
     )
   }
 }

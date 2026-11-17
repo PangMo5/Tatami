@@ -1450,6 +1450,8 @@ public struct WorkspaceActivationFeature {
       bundleId: String,
       resizableKeys: [WindowKey]?,
       onScreenFrames: [CGWindowID: CGRect],
+      placementFrames: [WindowKey: CGRect]? = nil,
+      geometryAvailable: Bool = true,
       desktopObservation: DesktopObservation? = nil,
     )
     /// A worker-side live presence check completed for a tree that became
@@ -2215,7 +2217,14 @@ public struct WorkspaceActivationFeature {
         }
         return syncAppWindows(bundleId: bundleId, state: &state)
 
-      case .syncAppWindowsResolved(let bundleId, let resizableKeys, let onScreenFrames, let desktopObservation):
+      case .syncAppWindowsResolved(
+        let bundleId,
+        let resizableKeys,
+        let onScreenFrames,
+        let placementFrames,
+        let geometryAvailable,
+        let desktopObservation,
+      ):
         state.windowSyncBundleIdsInFlight.remove(bundleId)
         let needsTrailingRefresh = state.dirtyWindowSyncBundleIds.remove(bundleId) != nil
         if let desktopObservation, desktopObservation.revision != state.desktops.revision {
@@ -2224,6 +2233,13 @@ public struct WorkspaceActivationFeature {
         let desktopUpdate = desktopObservation.map { updateDesktopSpaces($0.spaces, state: &state) } ?? .none
         if desktopObservation?.isCoherent == false {
           return .merge(desktopUpdate, requestWindowSync(bundleId))
+        }
+        guard geometryAvailable else {
+          debugLog.log("Scope", "preserve \(bundleId): WindowServer placement census unavailable")
+          if state.isRecoveringSystemLayout, state.pendingSystemLayoutBundleIds.contains(bundleId) {
+            return .merge(desktopUpdate, .send(.systemLayoutBundleReconciled(bundleId: bundleId)))
+          }
+          return desktopUpdate
         }
         if state.isLayoutSuspended {
           return .none
@@ -2242,6 +2258,7 @@ public struct WorkspaceActivationFeature {
           bundleId: bundleId,
           resizableKeys: resizableKeys,
           onScreenFrames: onScreenFrames,
+          placementFrames: placementFrames,
           state: &state,
         )
         guard
