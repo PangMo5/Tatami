@@ -71,6 +71,9 @@ extension WorkspaceActivationFeature {
     {
       effects.append(refreshFloatingPresentation(state: state, onlyVisibleWindows: true))
     }
+    if changedAvailability, Self.floatingBundleIds(state: state, workspaceIDs: state.visibleWorkspaceIDs).isEmpty {
+      effects.append(refreshMarkers(state: state))
+    }
     effects.append(resumeManagedDesktopPreparation(state: &state))
     return .merge(effects)
   }

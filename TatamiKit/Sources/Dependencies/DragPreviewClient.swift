@@ -30,6 +30,7 @@ struct DragPreviewClient: Sendable {
   /// Highlight `zone` of `targetRect` (AX top-left, primary-anchored coords).
   var show: @MainActor @Sendable (_ targetRect: CGRect, _ zone: DropZone) -> Void
   /// Remove the overlay.
+  var showEmpty: @MainActor @Sendable (_ rect: CGRect) -> Void
   var hide: @MainActor @Sendable () -> Void
 }
 
@@ -40,6 +41,7 @@ extension DragPreviewClient: DependencyKey {
     let controller = DragPreviewController()
     return DragPreviewClient(
       show: { rect, zone in controller.show(targetRect: rect, zone: zone) },
+      showEmpty: { rect in controller.show(targetRect: rect, zone: .swap, isEmpty: true) },
       hide: { controller.hide() },
     )
   }
@@ -47,7 +49,7 @@ extension DragPreviewClient: DependencyKey {
   // Macro-synthesized unimplemented endpoints: a test that reaches the
   // drag preview without stubbing it should fail, not silently no-op.
   static let testValue = DragPreviewClient()
-  static let previewValue = DragPreviewClient(show: { _, _ in }, hide: { })
+  static let previewValue = DragPreviewClient(show: { _, _ in }, showEmpty: { _ in }, hide: { })
 }
 
 extension DependencyValues {
@@ -64,13 +66,14 @@ private final class DragPreviewController {
 
   // MARK: Internal
 
-  func show(targetRect: CGRect, zone: DropZone) {
+  func show(targetRect: CGRect, zone: DropZone, isEmpty: Bool = false) {
     let panel = panel ?? makePanel()
     self.panel = panel
-    if lastZone != zone {
+    if lastZone != zone || lastEmpty != isEmpty {
+      lastEmpty = isEmpty
       lastZone = zone
       if let hosting = panel.contentView as? NSHostingView<DragPreviewView> {
-        hosting.rootView = DragPreviewView(isSwap: zone == .swap)
+        hosting.rootView = DragPreviewView(isSwap: zone == .swap && !isEmpty)
       }
     }
     let cocoa = AXWindowGeometry.flipToCocoa(Self.highlightRect(in: targetRect, zone: zone))
@@ -88,6 +91,7 @@ private final class DragPreviewController {
   // MARK: Private
 
   private var panel: NSPanel?
+  private var lastEmpty = false
   private var lastZone: DropZone?
 
   /// Sub-rect of the target tile to highlight: the whole tile for a swap,

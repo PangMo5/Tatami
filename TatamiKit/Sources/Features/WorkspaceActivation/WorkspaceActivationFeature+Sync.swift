@@ -22,6 +22,7 @@ extension WorkspaceActivationFeature {
     targetDisplay: DisplayName?,
     displayBounds: [DisplayName: CGRect],
     existingOwners: [WindowKey: DisplayName] = [:],
+    explicitOwners: [WindowKey: DisplayName] = [:],
     onScreenWindowIDs: Set<CGWindowID>? = nil,
     windowFrame: (WindowKey) -> CGRect?,
   ) -> [WindowKey] {
@@ -41,6 +42,12 @@ extension WorkspaceActivationFeature {
           if intersectsScreen {
             return false
           }
+        }
+        if
+          let explicit = explicitOwners[key],
+          displayBounds.keys.contains(where: { $0.matches(explicit) })
+        {
+          return explicit.matches(targetDisplay)
         }
         let preferred = existingOwners[key] ?? (existingTargetKeys.contains(key) ? targetDisplay : nil)
         guard let owner = WindowDisplayOwnership.owner(of: frame, displays: displayBounds, preferred: preferred)
@@ -66,6 +73,7 @@ extension WorkspaceActivationFeature {
     target: DisplayName?,
     bounds: [DisplayName: CGRect],
     owners: [WindowKey: DisplayName],
+    explicitOwners: [WindowKey: DisplayName] = [:],
     existingTargetKeys: Set<WindowKey>,
     geometry: WindowPlacementSnapshot?,
   ) -> String {
@@ -74,10 +82,11 @@ extension WorkspaceActivationFeature {
     let windows = keys.map { key in
       let frame = geometry?.frames[key]
       let preferred = owners[key] ?? (existingTargetKeys.contains(key) ? target : nil)
-      let owner = frame.flatMap { WindowDisplayOwnership.owner(of: $0, displays: bounds, preferred: preferred) }
+      let explicit = explicitOwners[key]
+      let owner = explicit ?? frame.flatMap { WindowDisplayOwnership.owner(of: $0, displays: bounds, preferred: preferred) }
       return "\(key.bundleId)#\(key.windowID) frame=\(frame.map(String.init(describing:)) ?? "unavailable") "
         + "onScreen=\(geometry?.onScreenFrames[key.windowID] != nil) owner=\(owner?.name ?? "unknown") "
-        + "scopeAccepted=\(accepted.contains(key)) priorMember=\(existingTargetKeys.contains(key))"
+        + "explicitOwner=\(explicit != nil) scopeAccepted=\(accepted.contains(key)) priorMember=\(existingTargetKeys.contains(key))"
     }
     return "target=\(target?.uuid ?? "no-uuid")/\(target?.name ?? "nil") "
       + "censusAvailable=\(geometry != nil) screens=\(screens) windows=\(windows)"
@@ -284,6 +293,13 @@ extension WorkspaceActivationFeature {
     // Bundle-only AX create/destroy notifications do not identify a window or
     // display. Reconcile every visible owner so a shared/multi-member app split
     // across monitors cannot leave a stale window in the background tree.
+    if
+      state.drag.windowKey?.bundleId == bundleId,
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout == .tiled })
+    {
+      state.pendingWindowSyncBundleIds.insert(bundleId)
+      return .none
+    }
     let workspaceIds = state.workspacesForSync(bundleId: bundleId).filter { state.canManageWorkspace($0) }
     guard !workspaceIds.isEmpty else {
       debugLog.log("Sync", "skip \(bundleId): no active workspace")
@@ -376,6 +392,13 @@ extension WorkspaceActivationFeature {
       !state.isActivating,
       !MacApp.isTatami(bundleId)
     else { return .none }
+    if
+      state.drag.windowKey?.bundleId == bundleId,
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout == .tiled })
+    {
+      state.pendingWindowSyncBundleIds.insert(bundleId)
+      return .none
+    }
     let workspaceIds = state.workspacesForSync(bundleId: bundleId).filter { state.canManageWorkspace($0) }
     guard !workspaceIds.isEmpty else { return .none }
     var effects = [Effect<Action>]()
@@ -547,8 +570,8 @@ extension WorkspaceActivationFeature {
       else { continue }
       let gone = tree.windows.filter {
         knownDestroyedWindowIDs.contains($0.windowID)
-          || knownInvisibleWindowIDs.contains($0.windowID)
-          || !onScreen.contains($0.windowID)
+          || ($0 != state.drag.windowKey && (knownInvisibleWindowIDs.contains($0.windowID)
+              || !onScreen.contains($0.windowID)))
       }
       guard !gone.isEmpty else { continue }
       // A visibility edge removes the tile but not the WindowServer identity:
@@ -974,6 +997,7 @@ extension WorkspaceActivationFeature {
       targetDisplay: targetDisplay,
       displayBounds: bounds,
       existingOwners: owners,
+      explicitOwners: state.sharedWindowDisplayOwners,
       onScreenWindowIDs: Set(onScreenFrames.keys),
       windowFrame: { ownershipFrames[$0] },
     )
@@ -984,6 +1008,7 @@ extension WorkspaceActivationFeature {
         target: targetDisplay,
         bounds: bounds,
         owners: owners,
+        explicitOwners: state.sharedWindowDisplayOwners,
         existingTargetKeys: existingTargetKeys,
         geometry: WindowPlacementSnapshot(frames: ownershipFrames, onScreenFrames: onScreenFrames),
       ))

@@ -252,16 +252,20 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 <a id="settingsmarker"></a>
 ## `[settings.marker]`
 
-角落的小圆点用于识别放大、置顶和借来的窗口。
+窗口角落的标记用于区分缩放、置顶、借用窗口和共享应用。共享应用标记独立显示在状态圆点旁。
+
+标记默认使用 Catppuccin Mocha 配色，并保留已保存的颜色。在设置 → 外观 → 窗口标记中选择“使用 Mocha 标记配色”，可为现有配置应用四种默认颜色。
 
 |键|类型|默认值|说明|
 | --- | --- | --- | --- |
 |`fullscreenEnabled`|bool|`true`|聚焦工作区全屏放大的窗口时显示圆点。|
-|`fullscreenColorHex`|string|`"#007AFF"`|全屏圆点颜色（`#RRGGBB`）。|
+|`fullscreenColorHex`|string|`"#89B4FA"`|全屏圆点颜色（`#RRGGBB`）。|
 |`floatingEnabled`|bool|`true`|置顶窗口始终显示圆点，便于一眼识别状态。|
-|`floatingColorHex`|string|`"#FF9500"`|置顶圆点颜色（`#RRGGBB`）。|
+|`floatingColorHex`|string|`"#FAB387"`|置顶圆点颜色（`#RRGGBB`）。|
 |`borrowEnabled`|bool|`true`|借用可见时，为每个借来的窗口显示工作区图标。|
-|`borrowColorHex`|string|`"#AF52DE"`|借用标记颜色（`#RRGGBB`）。|
+|`borrowColorHex`|string|`"#CBA6F7"`|借用标记颜色（`#RRGGBB`）。|
+|`sharedEnabled`|bool|`true`|单独显示共享应用标记。|
+|`sharedColorHex`|string|`"#94E2D5"`|共享应用标记颜色（`#RRGGBB`）。|
 |`size`|double|`14`|圆点直径，单位点。借用标记绘制得更大，确保符号清晰。|
 |`corner`|string|`"bottomTrailing"`|圆点所在窗口角落：`topLeading`、`topTrailing`、`bottomLeading`、`bottomTrailing`。|
 |`hideOnHover`|bool|`true`|指针停在圆点上方时淡化。|
@@ -375,6 +379,8 @@ layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 置顶不需要关闭 SIP。Tatami 用 ScreenCaptureKit 把窗口镜像到置顶面板，需要**屏幕录制**权限（设置 → 通用 → 权限）。应用本身获得焦点时隐藏镜像并停止捕获。`unmanaged` 不操作实际窗口，无需该权限。
 
 使用多台显示器时，每个共享应用的平铺窗口都只归属一台显示器。Tatami 根据窗口与完整屏幕范围的重叠面积选择显示器；面积相同时，保留原来的归属。调整显示器排列或分辨率后，如果窗口留在所有屏幕之外，会将它归到最近的已连接显示器，以便重新平铺。实际平铺仍使用避开菜单栏和程序坞的可用区域。隐藏窗口的位置仍在已连接屏幕内时，不会仅因能读取位置就将其添加为新平铺窗口。无法获取位置信息时，保留原来的归属。
+
+将共享应用的平铺窗口拖到其他显示器，可将它插入该显示器主工作区中某个平铺窗口的上、下、左或右侧。主工作区为空时，会成为第一个平铺窗口。借用区块不能作为目标。跨显示器拖放不会交换位置；同一树内拖到中央仍会交换。在窗口关闭或该显示器断开前，会保留选择的显示器归属，应用恢复旧位置也不会撤销移动。
 
 可在**工作区 → 共享应用**中编辑平铺、置顶或保持原样。
 

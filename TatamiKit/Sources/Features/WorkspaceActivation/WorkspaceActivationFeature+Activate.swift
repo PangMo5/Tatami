@@ -3116,6 +3116,7 @@ extension WorkspaceActivationFeature {
     }
     let existingTargetKeys = Set(sessionTree?.windows ?? [])
     let existingWindowOwners = Self.windowDisplayOwners(state: state)
+    let explicitSharedOwners = state.sharedWindowDisplayOwners
     let zoomed = state.fullscreenZoomed[workspace.id] ?? []
     let insertionPoint = state.insertionPoint[workspace.id]
     // A composition marker is an always-visible symbol badge. Clear it as soon
@@ -3400,6 +3401,7 @@ extension WorkspaceActivationFeature {
                   targetDisplay: targetDisplay,
                   displayBounds: bounds,
                   existingOwners: existingWindowOwners,
+                  explicitOwners: explicitSharedOwners,
                   onScreenWindowIDs: geometry.map { Set($0.onScreenFrames.keys) },
                   windowFrame: { geometry?.frames[$0] },
                 )
@@ -3410,6 +3412,7 @@ extension WorkspaceActivationFeature {
                     target: targetDisplay,
                     bounds: bounds,
                     owners: existingWindowOwners,
+                    explicitOwners: explicitSharedOwners,
                     existingTargetKeys: existingTargetKeys,
                     geometry: geometry,
                   ))

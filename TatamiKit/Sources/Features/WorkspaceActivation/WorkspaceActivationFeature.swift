@@ -87,6 +87,15 @@ public struct WorkspaceActivationFeature {
       public var zone: DropZone
     }
 
+    public struct SharedWindowDrop: Equatable, Sendable {
+      public var dragged: WindowKey
+      public var source: Workspace.ID
+      public var destination: Workspace.ID
+      public var display: DisplayName
+      public var target: WindowKey?
+      public var zone: DropZone?
+    }
+
     /// A direction-pick in progress. Capturing the pointer display together
     /// with the target keeps the eventual edge keystroke on the monitor where
     /// the user started the borrow, even if focus changes while the chord is
@@ -135,6 +144,7 @@ public struct WorkspaceActivationFeature {
       case resizing(PendingDrag)
       /// A move drag with a frozen drop decision (target tile + zone).
       case dropping(PendingDrop)
+      case transferring(SharedWindowDrop)
       /// A move drag with nothing committed yet — mouse-up re-tiles to
       /// snap the window back to its slot.
       case moving(WindowKey)
@@ -159,6 +169,9 @@ public struct WorkspaceActivationFeature {
 
     @Shared(.tatamiConfig) public var config
     public var activeWorkspacesByDisplay = [DisplayName: Workspace.ID]()
+    /// Explicit placements own the live window until it closes or its display
+    /// disconnects. App-restored frames cannot undo a completed user drop.
+    public var sharedWindowDisplayOwners = [WindowKey: DisplayName]()
     public var appWorkspaceOwners = [String: Workspace.ID]()
     public var pendingAppClaims = Set<Workspace.ID>()
     public var appOwnershipGeneration: UInt64 = 0
@@ -650,6 +663,9 @@ public struct WorkspaceActivationFeature {
     ) {
       let previousConnected = connectedDisplays
       let liveConnected = Set(liveDisplays)
+      sharedWindowDisplayOwners = sharedWindowDisplayOwners.filter { _, display in
+        liveDisplays.contains(where: { $0.matches(display) })
+      }
 
       let canonicalLiveDisplay: (DisplayName) -> DisplayName? = { display in
         if let exact = liveDisplays.first(where: { $0 == display }) {
@@ -939,6 +955,11 @@ public struct WorkspaceActivationFeature {
         var seen = Set<WindowKey>()
         windowSwitcherMRU[context] = windowSwitcherMRU[context]?.map { replacements[$0] ?? $0 }
           .filter { seen.insert($0).inserted }
+      }
+      for (old, new) in replacements {
+        if let owner = sharedWindowDisplayOwners.removeValue(forKey: old) {
+          sharedWindowDisplayOwners[new] = owner
+        }
       }
       guard !replacements.isEmpty, var mru = mruWindows[workspaceId] else { return }
       mru = mru.map { replacements[$0] ?? $0 }
@@ -1862,6 +1883,15 @@ public struct WorkspaceActivationFeature {
             state: &state,
           )
 
+        case .windowPointerDown(let id):
+          guard
+            let key = state.visibleWorkspaceIDs.flatMap({ state.tilingTrees[$0]?.windows ?? [] })
+              .first(where: { $0.windowID == id }),
+            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout == .tiled })
+          else { return .none }
+          state.drag = .moving(key)
+          return .none
+
         case .windowResized(let key, let frame):
           guard state.canManageWindow(key) else { return .none }
           guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
@@ -1875,34 +1905,13 @@ public struct WorkspaceActivationFeature {
         case .windowMoved(let key, _):
           guard state.canManageWindow(key) else { return .none }
           guard !overlayAwareness.isBackgroundedProcess(key.pid) else { return .none }
-          // A top-left resize fires Moved and Resized interleaved; once a
-          // resize is pending it stays the commit — a move event must not
-          // demote it to a drop/snap-back.
+          let decision = windowDragDecision(dragged: key, state: state)
           if case .resizing = state.drag {
-            return .none
+            guard case .transferring = decision.drag else { return .none }
           }
-          // Cursor-based drop preview: find the tile + region under the
-          // cursor and highlight it. Freeze the decision so the mouse-up
-          // commit lands exactly where the overlay showed.
-          let decision = dropDecision(dragged: key, state: state)
-          let nextDrag: State.DragState = decision.map {
-            .dropping(State.PendingDrop(dragged: key, target: $0.target, zone: $0.zone))
-          } ?? .moving(key)
-          // AX can emit dozens of identical move events while the cursor stays
-          // within one drop zone. The frozen commit decision and the preview are
-          // already correct, so don't enqueue another main-actor panel update.
-          guard nextDrag != state.drag else { return .none }
-          state.drag = nextDrag
-          let preview = dragPreview
-          return .run { _ in
-            guard !Task.isCancelled else { return }
-            if let decision {
-              await preview.show(decision.targetRect, decision.zone)
-            } else {
-              await preview.hide()
-            }
-          }
-          .cancellable(id: CancelID.dragPreview, cancelInFlight: true)
+          guard decision.drag != state.drag else { return .none }
+          state.drag = decision.drag
+          return dragPreviewEffect(rect: decision.rect, zone: decision.zone)
 
         case .windowDragEnded(
           let trackedWindowID,
@@ -1925,6 +1934,8 @@ public struct WorkspaceActivationFeature {
               drop.dragged
             case .moving(let key):
               key
+            case .transferring(let drop):
+              drop.dragged
             }
           if
             let interactionKey = completedKey ?? currentKey,
@@ -1953,7 +1964,9 @@ public struct WorkspaceActivationFeature {
             let completedKey,
             let completedFrame
           {
-            if currentKey == completedKey, state.drag != .idle {
+            if let transfer = sharedWindowDropDecision(dragged: completedKey, state: state) {
+              state.drag = .transferring(transfer.drop)
+            } else if currentKey == completedKey, state.drag != .idle {
               switch state.drag {
               case .resizing:
                 state.drag = .resizing(
@@ -1962,6 +1975,9 @@ public struct WorkspaceActivationFeature {
                     frame: completedFrame,
                   )
                 )
+
+              case .transferring:
+                state.drag = windowDragDecision(dragged: completedKey, state: state).drag
 
               case .dropping,
                    .moving:
@@ -2024,6 +2040,13 @@ public struct WorkspaceActivationFeature {
           }
           let preview = dragPreview
           let drag = state.drag
+          if
+            let key = drag.windowKey,
+            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout == .tiled }),
+            let owner = state.workspaceOwning(key).flatMap({ state.displayShowing($0) })
+          {
+            state.sharedWindowDisplayOwners[key] = owner
+          }
           state.drag = .idle
           var effects: [Effect<Action>] = [
             .run { _ in await preview.hide() }
@@ -2040,6 +2063,9 @@ public struct WorkspaceActivationFeature {
             )
             effects.append(syncTreeRatio(for: resize.key, frame: resize.frame, state: &state))
 
+          case .transferring(let drop):
+            effects.append(applySharedWindowDrop(drop, state: &state))
+
           case .dropping(let drop):
             debugLog.log(
               "Drag",
@@ -2054,7 +2080,10 @@ public struct WorkspaceActivationFeature {
             debugLog.log("Drag", "end without drop target — snap back")
             effects.append(retile(windowKey: key, state: &state))
           }
-          return .merge(effects)
+          let trailing = drag.windowKey.flatMap { key in
+            state.pendingWindowSyncBundleIds.remove(key.bundleId) != nil ? key.bundleId : nil
+          }
+          return .concatenate(.merge(effects), trailing.map(requestWindowSync) ?? .none)
 
         case .observationReady(let bundleId, let pid):
           let isBackgrounded = pid == 0
@@ -2841,6 +2870,9 @@ public struct WorkspaceActivationFeature {
         return pruneOffscreenWindows(onScreenWindowIDs: onScreen, state: &state)
 
       case .appTerminated(let bundleId, let pid):
+        state.sharedWindowDisplayOwners = state.sharedWindowDisplayOwners.filter { key, _ in
+          pid == 0 ? key.bundleId != bundleId : key.pid != pid
+        }
         if pid != 0 {
           overlayAwareness.clearBackgroundedProcess(pid)
           state.removeProcessFromWindowMRU(pid)

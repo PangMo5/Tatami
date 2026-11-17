@@ -54,6 +54,7 @@ public enum WindowChangeEvent: Sendable, Hashable {
   /// geometry lets the reducer recover a short drag whose AX callbacks were
   /// delayed or dropped, then flush it exactly at mouse-up without a time
   /// debounce.
+  case windowPointerDown(windowID: CGWindowID?)
   case windowDragEnded(
     trackedWindowID: CGWindowID?,
     key: WindowKey?,
@@ -398,16 +399,17 @@ extension WindowChangeEvent {
       .focus(bundleId: bundleId, pid: pid, key: key)
     case .windowTitleChanged(let bundleId):
       .title(bundleId)
-    case .windowDragEnded:
+    case .windowDragEnded,
+         .windowPointerDown:
       nil
     }
   }
 
   fileprivate var isCoalescingBarrier: Bool {
-    if case .windowDragEnded = self {
-      true
-    } else {
-      false
+    switch self {
+    case .windowDragEnded,
+         .windowPointerDown: true
+    default: false
     }
   }
 }
@@ -696,6 +698,7 @@ private final class WindowObserverCenter: @unchecked Sendable {
             windowID: windowID,
             location: location,
           )
+          eventSink.yield(.windowPointerDown(windowID: windowID))
 
         case .leftMouseUp:
           let session = WindowPointerDragTracker.shared.pointerUp(
