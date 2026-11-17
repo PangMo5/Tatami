@@ -1918,6 +1918,7 @@ public struct WorkspaceActivationFeature {
           let completedKey,
           let completedFrame,
           let pointerMoved,
+          let pointerLocation,
         ):
           // AX geometry callbacks can be delayed past a short drag while the
           // target app is CPU-starved. Recover from the authoritative
@@ -1961,10 +1962,26 @@ public struct WorkspaceActivationFeature {
 
           if
             pointerMoved,
+            completedFrame == nil,
+            let key = currentKey,
+            key.windowID == authoritativeWindowID,
+            let pointerLocation
+          {
+            if case .resizing = state.drag {
+              if let transfer = sharedWindowDropDecision(dragged: key, state: state, pointer: pointerLocation) {
+                state.drag = .transferring(transfer.drop)
+              }
+            } else {
+              state.drag = windowDragDecision(dragged: key, state: state, pointer: pointerLocation).drag
+            }
+          }
+
+          if
+            pointerMoved,
             let completedKey,
             let completedFrame
           {
-            if let transfer = sharedWindowDropDecision(dragged: completedKey, state: state) {
+            if let transfer = sharedWindowDropDecision(dragged: completedKey, state: state, pointer: pointerLocation) {
               state.drag = .transferring(transfer.drop)
             } else if currentKey == completedKey, state.drag != .idle {
               switch state.drag {
@@ -1977,13 +1994,14 @@ public struct WorkspaceActivationFeature {
                 )
 
               case .transferring:
-                state.drag = windowDragDecision(dragged: completedKey, state: state).drag
+                state.drag = windowDragDecision(dragged: completedKey, state: state, pointer: pointerLocation).drag
 
               case .dropping,
                    .moving:
                 state.drag = dropDecision(
                   dragged: completedKey,
                   state: state,
+                  pointer: pointerLocation,
                 ).map {
                   .dropping(
                     State.PendingDrop(
@@ -2025,6 +2043,7 @@ public struct WorkspaceActivationFeature {
                   state.drag = dropDecision(
                     dragged: completedKey,
                     state: state,
+                    pointer: pointerLocation,
                   ).map {
                     .dropping(
                       State.PendingDrop(
@@ -2080,7 +2099,7 @@ public struct WorkspaceActivationFeature {
             debugLog.log("Drag", "end without drop target — snap back")
             effects.append(retile(windowKey: key, state: &state))
           }
-          let trailing = drag.windowKey.flatMap { key in
+          let trailing = (completedKey ?? currentKey ?? drag.windowKey).flatMap { key in
             state.pendingWindowSyncBundleIds.remove(key.bundleId) != nil ? key.bundleId : nil
           }
           return .concatenate(.merge(effects), trailing.map(requestWindowSync) ?? .none)

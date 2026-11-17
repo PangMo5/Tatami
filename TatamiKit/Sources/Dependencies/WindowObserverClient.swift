@@ -60,6 +60,7 @@ public enum WindowChangeEvent: Sendable, Hashable {
     key: WindowKey?,
     frame: CGRect?,
     pointerMoved: Bool,
+    pointerLocation: CGPoint? = nil,
   )
   /// A window's AX title changed. Cosmetic for tiling (activation ignores it),
   /// but lets the layout preview refresh titles live while the app stays
@@ -1407,6 +1408,7 @@ struct WindowPointerDragCompletion: Sendable {
   var key: WindowKey?
   var frame: CGRect?
   var pointerMoved: Bool
+  var pointerLocation: CGPoint? = nil
 
   var event: WindowChangeEvent {
     .windowDragEnded(
@@ -1414,6 +1416,7 @@ struct WindowPointerDragCompletion: Sendable {
       key: key,
       frame: frame,
       pointerMoved: pointerMoved,
+      pointerLocation: pointerLocation,
     )
   }
 }
@@ -1477,6 +1480,7 @@ final class WindowPointerDragTracker: @unchecked Sendable {
         key: nil,
         frame: nil,
         pointerMoved: false,
+        pointerLocation: session.endLocation,
       )
     }
     let fallbackWindowID = session.windowID == nil
@@ -1490,6 +1494,7 @@ final class WindowPointerDragTracker: @unchecked Sendable {
       key: current?.key,
       frame: current?.frame,
       pointerMoved: true,
+      pointerLocation: session.endLocation,
     )
   }
 

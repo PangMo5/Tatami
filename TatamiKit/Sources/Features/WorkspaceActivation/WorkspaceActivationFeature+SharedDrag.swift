@@ -21,11 +21,15 @@ extension WorkspaceActivationFeature {
 
   // MARK: Internal
 
-  func windowDragDecision(dragged: WindowKey, state: State) -> (drag: State.DragState, rect: CGRect?, zone: DropZone?) {
-    if let transfer = sharedWindowDropDecision(dragged: dragged, state: state) {
+  func windowDragDecision(
+    dragged: WindowKey,
+    state: State,
+    pointer: CGPoint? = nil,
+  ) -> (drag: State.DragState, rect: CGRect?, zone: DropZone?) {
+    if let transfer = sharedWindowDropDecision(dragged: dragged, state: state, pointer: pointer) {
       return (.transferring(transfer.drop), transfer.rect, transfer.drop.zone)
     }
-    if let local = dropDecision(dragged: dragged, state: state) {
+    if let local = dropDecision(dragged: dragged, state: state, pointer: pointer) {
       return (.dropping(.init(dragged: dragged, target: local.target, zone: local.zone)), local.targetRect, local.zone)
     }
     return (.moving(dragged), nil, nil)
@@ -52,6 +56,7 @@ extension WorkspaceActivationFeature {
   func sharedWindowDropDecision(
     dragged: WindowKey,
     state: State,
+    pointer capturedPointer: CGPoint? = nil,
   ) -> (drop: State.SharedWindowDrop, rect: CGRect)? {
     guard
       !state.isActivating,
@@ -63,7 +68,7 @@ extension WorkspaceActivationFeature {
       let sourceDisplay = state.displayShowing(source),
       state.tilingTrees[source]?.windows.contains(dragged) == true
     else { return nil }
-    let pointer = mouse.axLocation()
+    let pointer = capturedPointer ?? mouse.axLocation()
     let candidates = state.connectedDisplays.filter { displays.bounds($0).contains(pointer) }
     guard
       candidates.count == 1,

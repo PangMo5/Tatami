@@ -179,6 +179,100 @@ struct SharedWindowDragTests {
     #expect(accepted.isEmpty)
   }
 
+  @Test
+  func `a click without movement releases deferred shared discovery`() async {
+    let (state, source, destination) = Self.state()
+    let spaces = state.desktops.snapshot
+    let reads = LockIsolated(0)
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.dragPreview.hide = { }
+      $0.sls.desktopSpaces = { spaces }
+      $0.displays.all = { [Self.a, Self.b] }
+      $0.displays.workArea = { Self.bounds[$0 ?? Self.a] ?? .zero }
+      $0.displays.bounds = { Self.bounds[$0 ?? Self.a] ?? .zero }
+      $0.windowSnapshot.discoverKeys = { _, _ in reads.withValue { $0 += 1 }
+        return [Self.moved]
+      }
+      $0.windowSnapshot.onScreenWindowFrames = { [
+        Self.moved.windowID: Self.bounds[Self.a]!,
+        Self.target.windowID: Self.bounds[Self.b]!,
+      ] }
+    }
+    store.exhaustivity = .off
+    await store.send(.windowChanged(.windowPointerDown(windowID: Self.moved.windowID)))
+    await store.send(.syncAppWindowsResolved(bundleId: Self.moved.bundleId, resizableKeys: [], onScreenFrames: [:]))
+    #expect(store.state.pendingWindowSyncBundleIds.contains(Self.moved.bundleId))
+    await store.send(.windowChanged(.windowDragEnded(
+      trackedWindowID: Self.moved.windowID,
+      key: nil,
+      frame: nil,
+      pointerMoved: false,
+    )))
+    await store.finish()
+    #expect(reads.value > 0)
+    #expect(!store.state.pendingWindowSyncBundleIds.contains(Self.moved.bundleId))
+    #expect(store.state.tilingTrees[source.id] == .leaf(Self.moved))
+    #expect(store.state.tilingTrees[destination.id] == .leaf(Self.target))
+  }
+
+  @Test
+  func `captured release coordinates survive a later cursor move`() throws {
+    let (state, _, destination) = Self.state()
+    let decision = withDependencies {
+      $0.mouse.axLocation = { CGPoint(x: 500, y: 400) }
+      $0.displays.bounds = { Self.bounds[$0 ?? Self.a] ?? .zero }
+      $0.displays.workArea = { Self.bounds[$0 ?? Self.a] ?? .zero }
+    } operation: {
+      WorkspaceActivationFeature().sharedWindowDropDecision(
+        dragged: Self.moved,
+        state: state,
+        pointer: CGPoint(x: 1500, y: 400),
+      )
+    }
+    #expect(try #require(decision).drop.destination == destination.id)
+  }
+
+  @Test
+  func `moving one shared window leaves its same app sibling on the source display`() throws {
+    var (state, source, destination) = Self.state()
+    let sibling = WindowKey(pid: Self.moved.pid, windowID: 11, bundleId: Self.moved.bundleId)
+    state.tilingTrees[source.id] = .branch(BSPBranch(
+      split: .horizontal,
+      ratio: 0.4,
+      left: .leaf(Self.moved),
+      right: .leaf(sibling),
+    ))
+    let decision = try #require(Self.decision(state, point: CGPoint(x: 1500, y: 400)))
+    Self.commit(decision.drop, state: &state)
+    #expect(state.tilingTrees[source.id] == .leaf(sibling))
+    #expect(state.tilingTrees[destination.id]?.windows.contains(Self.moved) == true)
+    #expect(state.sharedWindowDisplayOwners[sibling] == nil)
+  }
+
+  @Test(arguments: [true, false])
+  func `release point commits or cancels a preview even without a final frame`(moves: Bool) throws {
+    var (state, source, destination) = Self.state()
+    let oldPreview = try #require(Self.decision(state, point: CGPoint(x: 1500, y: 400)))
+    state.drag = .transferring(oldPreview.drop)
+    let released = moves ? CGPoint(x: 1500, y: 400) : CGPoint(x: 500, y: 400)
+    withDependencies {
+      $0.mouse.axLocation = { moves ? CGPoint(x: 500, y: 400) : CGPoint(x: 1500, y: 400) }
+      $0.displays.bounds = { Self.bounds[$0 ?? Self.a] ?? .zero }
+      $0.displays.workArea = { Self.bounds[$0 ?? Self.a] ?? .zero }
+    } operation: {
+      var reducer = WorkspaceActivationFeature().body
+      _ = reducer.reduce(into: &state, action: .windowChanged(.windowDragEnded(
+        trackedWindowID: Self.moved.windowID,
+        key: nil,
+        frame: nil,
+        pointerMoved: true,
+        pointerLocation: released,
+      )))
+    }
+    #expect(state.tilingTrees[source.id]?.windows.contains(Self.moved) == (moves ? nil : true))
+    #expect(state.tilingTrees[destination.id]?.windows.contains(Self.moved) == moves)
+  }
+
   // MARK: Private
 
   private static func decision(_ state: WorkspaceActivationFeature.State, point: CGPoint)
