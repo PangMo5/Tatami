@@ -29,18 +29,9 @@ struct AppRootView: View {
       }
     }
     .frame(minWidth: 800, minHeight: 600)
-    .task { store.send(.task) }
-    .onChange(of: store.onboarding.presentationRequest) { _, request in
-      if request > 0 {
-        openWindow(id: "onboarding")
-        NSApp.activate(ignoringOtherApps: true)
-      }
-    }
   }
 
   // MARK: Private
-
-  @Environment(\.openWindow) private var openWindow
 
   private var content: some View {
     TabView(selection: Binding(

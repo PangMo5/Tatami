@@ -43,7 +43,10 @@ extension WorkspaceActivationFeature {
         state.ownsApp($0.bundleId, in: id)
       }.map(\.bundleId))
     }
-    for assignment in state.pendingDisplayRestores where !assignment.display.matches(target) {
+    // A monitor launched into fullscreen has no active workspace yet. Its
+    // deferred assignment still owns apps while another monitor switches.
+    let awaitingRestores = state.pendingDisplayRestores + Array(state.deferredDesktopRestores.values)
+    for assignment in awaitingRestores where !assignment.display.matches(target) {
       bundles.formUnion(state.presentedWorkspace(assignment.workspace)?.apps.map(\.bundleIdentifier) ?? [])
     }
     return bundles
@@ -99,14 +102,16 @@ extension WorkspaceActivationFeature {
       !state.isActivating,
       !state.isLayoutSuspended,
       !state.isRecoveringSystemLayout,
-      !state.isInFullscreenSpace
+      !state.layoutWorkspaceIDs.isEmpty
     else { return .none }
     let sources = state.displacedAppWorkspaces
     debugLog.log("Ownership", "reconcile sources=\(sources) activating=\(state.isActivating)")
     let generation = state.appOwnershipGeneration
+    let desktopRevision = state.desktops.revision
     let profileID = state.config.activeProfile?.id
     var effects = [Effect<Action>]()
     for id in sources {
+      guard state.canManageWorkspace(id) else { continue }
       guard let display = state.displayShowing(id), let workspace = state.presentedWorkspace(id) else {
         state.displacedAppWorkspaces.remove(id)
         continue
@@ -131,6 +136,7 @@ extension WorkspaceActivationFeature {
           hasWindows: !keys.isEmpty,
           generation: generation,
           profileID: profileID,
+          desktopRevision: desktopRevision,
         ))
       })
     }

@@ -13,7 +13,7 @@ extension WorkspaceActivationFeature {
   /// The active workspace's floating apps + shared floating apps — the
   /// set whose live windows get mirror panels and marker dots.
   static func floatingBundleIds(state: State) -> [String] {
-    floatingBundleIds(state: state, workspaceIDs: state.visibleWorkspaceIDs)
+    floatingBundleIds(state: state, workspaceIDs: state.layoutWorkspaceIDs)
   }
 
   static func floatingBundleIds(
@@ -33,7 +33,7 @@ extension WorkspaceActivationFeature {
   /// window-cycle targets and (via the discovery cache) FFM hit-test
   /// windows.
   static func unmanagedBundleIds(state: State) -> [String] {
-    unmanagedBundleIds(state: state, workspaceIDs: state.visibleWorkspaceIDs)
+    unmanagedBundleIds(state: state, workspaceIDs: state.layoutWorkspaceIDs)
   }
 
   static func unmanagedBundleIds(
@@ -80,7 +80,8 @@ extension WorkspaceActivationFeature {
   static func borrowMarkerTargets(state: State) -> [WindowKey: String] {
     guard state.config.settings.marker.borrowEnabled else { return [:] }
     var out = [WindowKey: String]()
-    for comp in state.compositionsByDisplay.values {
+    for (display, comp) in state.compositionsByDisplay {
+      guard state.desktops.isAvailable(on: display) else { continue }
       for slot in comp.borrowed {
         guard let ws = state.config.activeProfile?.workspaces[id: slot.workspace]
         else { continue }
@@ -122,6 +123,7 @@ extension WorkspaceActivationFeature {
     skipIfCursorInside: Bool = false,
     clearsPendingCenter: Bool = false,
   ) -> Effect<Action> {
+    guard state.canManageWorkspace(workspaceId) else { return .none }
     guard state.config.settings.focus.mouseFollowsFocus else { return .none }
     let settings = state.config.settings
     let (display, rect) = tilingContext(for: workspaceId, state: state)
@@ -189,6 +191,7 @@ extension WorkspaceActivationFeature {
     borrowCompletion: BorrowPhase? = nil,
     state: inout State,
   ) -> Effect<Action> {
+    guard state.canManageWorkspace(workspaceId) else { return .none }
     let shouldWarp = state.config.settings.focus.mouseFollowsFocus
     guard shouldFocus || shouldWarp else {
       guard let phase = borrowCompletion else { return .none }
@@ -353,13 +356,21 @@ extension WorkspaceActivationFeature {
   /// the mirror overlay (replace set; empty tears every mirror down) and
   /// the marker dots — instead of two full AX scans back to back. Used
   /// whenever a floating app's windows change.
-  func refreshFloatingPresentation(state: State) -> Effect<Action> {
+  func refreshFloatingPresentation(state: State, onlyVisibleWindows: Bool = false) -> Effect<Action> {
+    let revision = state.desktops.revision
     let bundleIds = Self.floatingBundleIds(state: state)
     return .run { [snapshot = windowSnapshot] send in
       guard !Task.isCancelled else { return }
-      let keys = await snapshot.discoverKeysOffMain(bundleIds, false)
+      let keys = bundleIds.isEmpty ? [] : await snapshot.discoverKeysOffMain(bundleIds, false)
+      let visible: [WindowKey]
+      if onlyVisibleWindows {
+        let ids = await snapshot.onScreenWindowIDsOffMain()
+        visible = keys.filter { ids.contains($0.windowID) }
+      } else {
+        visible = keys
+      }
       guard !Task.isCancelled else { return }
-      await send(.floatingPresentationResolved(keys))
+      await send(.floatingPresentationResolved(visible, desktopRevision: revision))
     }
     .cancellable(id: CancelID.floatingDiscovery, cancelInFlight: true)
   }
@@ -370,7 +381,7 @@ extension WorkspaceActivationFeature {
   /// the category is disabled) — the marker inputs that need no discovery.
   private static func fullscreenMarkerKeys(state: State) -> Set<WindowKey> {
     guard state.config.settings.marker.fullscreenEnabled else { return [] }
-    return state.visibleWorkspaceIDs.reduce(into: Set<WindowKey>()) { keys, workspaceId in
+    return state.layoutWorkspaceIDs.reduce(into: Set<WindowKey>()) { keys, workspaceId in
       keys.formUnion(state.fullscreenZoomed[workspaceId] ?? [])
     }
   }
