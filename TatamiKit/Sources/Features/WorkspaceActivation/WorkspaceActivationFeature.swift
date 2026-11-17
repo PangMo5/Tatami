@@ -838,6 +838,12 @@ public struct WorkspaceActivationFeature {
       let treeOwners = orderedVisible.filter {
         tilingTrees[$0]?.windows.contains(where: { $0.bundleId == bundleId }) == true
       }
+      if config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId }) {
+        // Existing membership cannot enumerate future windows: a shared app
+        // can create its next window on any visible host display.
+        let hosts = Set(activeWorkspacesByDisplay.values).union(compositionsByDisplay.values.map(\.host))
+        return orderedVisible.filter { hosts.contains($0) || treeOwners.contains($0) }
+      }
       if !treeOwners.isEmpty {
         return treeOwners
       }

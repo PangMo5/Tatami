@@ -273,6 +273,34 @@ struct SharedWindowDragTests {
     #expect(state.tilingTrees[destination.id]?.windows.contains(Self.moved) == moves)
   }
 
+  @Test
+  func `new shared windows are discovered on hosts with no existing sibling`() async throws {
+    var (state, source, destination) = Self.state()
+    state.tilingTrees[source.id] = nil
+    state.tilingTrees[destination.id] = .leaf(Self.moved)
+    state.sharedWindowDisplayOwners[Self.moved] = Self.b
+    let fresh = WindowKey(pid: Self.moved.pid, windowID: 12, bundleId: Self.moved.bundleId)
+    let frames = [Self.moved.windowID: try #require(Self.bounds[Self.b]), fresh.windowID: try #require(Self.bounds[Self.a])]
+    #expect(Set(state.workspacesForSync(bundleId: Self.moved.bundleId)) == [source.id, destination.id])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.displays.all = { [Self.a, Self.b] }
+      $0.displays.bounds = { Self.bounds[$0 ?? Self.a] ?? .zero }
+      $0.displays.workArea = { Self.bounds[$0 ?? Self.a] ?? .zero }
+      $0.windowSnapshot.onScreenWindowFrames = { frames }
+      $0.windowTiler.apply = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.syncAppWindowsResolved(
+      bundleId: Self.moved.bundleId,
+      resizableKeys: [Self.moved, fresh],
+      onScreenFrames: frames,
+      placementFrames: [Self.moved: try #require(Self.bounds[Self.b]), fresh: try #require(Self.bounds[Self.a])],
+    ))
+    await store.finish()
+    #expect(store.state.tilingTrees[source.id] == .leaf(fresh))
+    #expect(store.state.tilingTrees[destination.id] == .leaf(Self.moved))
+  }
+
   // MARK: Private
 
   private static func decision(_ state: WorkspaceActivationFeature.State, point: CGPoint)
