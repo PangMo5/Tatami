@@ -21,10 +21,14 @@ For user-facing copy, follow [docs/LOCALIZATION.md](docs/LOCALIZATION.md). Keep 
 - Keep the linked SDK distinct from the minimum supported OS. Packaging must verify every architecture's SDK/deployment metadata, embedded CLI Info.plist, runtime dependencies, signatures, and entitlements. SwiftPM build-tree paths must not remain in distributed binaries.
 - Keep `.swiftformat` aligned with Airbnb's Swift style configuration, preserving the repository's license header and Swift language mode. Run `make format` and `make lint` before submitting Swift changes.
 
-## Performance and responsiveness
+## Workspaces and native Desktops
 
-- Manage one ordinary macOS Desktop per physical display. Preserve its workspace layouts while visiting another Desktop or native fullscreen, and keep unaffected displays operational. Reassign an existing Desktop binding only for deliberate workspace selection or after confirmed removal of its Desktop; unknown Space observations never authorize destructive reconciliation.
+- Manage one ordinary macOS Desktop per physical display. Tatami workspaces are app and layout contexts within that Desktop, not additional native Spaces.
+- Keep a surviving managed Desktop binding fixed. Visiting another Desktop or native fullscreen preserves that display's layouts and pauses its management; unaffected displays keep operating. Unknown Space observations never authorize destructive reconciliation.
+- Explicit workspace selection returns the target display and its requested apps to the managed Desktop before activation and tiling, leaving those apps' native fullscreen on that display when necessary. Preserve unrelated apps, other displays and windows assigned to all Desktops. Automatic/background events must not perform these native mutations.
 - With separate native Spaces, route automatic app-focus activation using fresh native keyboard-focus display evidence. Explicit workspace commands keep their captured pointer placement; a pointer on another display must not redirect an app-focus activation.
+
+## Performance and responsiveness
 
 - Reserve the main thread for input, UI state, and AppKit presentation. Run potentially blocking AX/WindowServer IPC, file I/O, parsing, and image processing on appropriate workers.
 - Do not assume `async` or `Task` moves work off-main. Check actual isolation, synchronous calls, and locks that the main thread may wait for.

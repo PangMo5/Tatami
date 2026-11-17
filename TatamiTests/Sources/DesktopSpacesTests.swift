@@ -147,6 +147,19 @@ struct DesktopSpacesTests {
     #expect(DesktopSpaces.decode([malformed], focusedDisplayUUID: nil) == nil)
   }
 
+  @Test(arguments: [
+    ([UInt64(3)], true),
+    ([UInt64(1)], false),
+    ([UInt64(2)], false),
+    ([UInt64(9)], false),
+    ([UInt64(1), 3], false),
+    ([], false),
+  ])
+  func `window assignment stays within one monitors ordinary Desktops`(spaces: [UInt64], moves: Bool) {
+    #expect(NativeWindowSpaces.needsMove(spaces, on: Self.spaces().displays[0], home: 1) == moves)
+    #expect(!NativeWindowSpaces.needsMove(spaces, on: Self.spaces().displays[0], home: 99))
+  }
+
   @Test
   func `SkyLight decoding rejects incomplete observations`() throws {
     let current: [String: Any] = ["id64": 1, "type": 0]
@@ -283,7 +296,7 @@ struct DesktopWorkspaceTests {
   }
 
   @Test
-  func `CLI activation on a visited Desktop reports unavailability without changing its workspace`() async {
+  func `failed native preparation reports a CLI error without changing its workspace`() async {
     let current = Workspace(name: "Current")
     var target = Workspace(name: "Target")
     target.displayHint = DesktopSpacesTests.left
@@ -298,6 +311,8 @@ struct DesktopWorkspaceTests {
     )
     let requests = LockIsolated<[ActivationRequest]>([])
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.sls.desktopSpaces = { DesktopSpacesTests.spaces(left: 3) }
+      $0.managedDesktop.prepare = { _ in .failed("The managed macOS Desktop is unavailable") }
       $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
     }
     store.exhaustivity = .off

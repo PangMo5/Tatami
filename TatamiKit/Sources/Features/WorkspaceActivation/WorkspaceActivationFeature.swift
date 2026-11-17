@@ -1180,6 +1180,7 @@ public struct WorkspaceActivationFeature {
     var continuesCLIActivation: Bool
     var cliRequestID: UUID?
     var requestedAtUptime: TimeInterval
+    var wasAway = false
     var isPreparing = false
   }
 
@@ -1474,7 +1475,13 @@ public struct WorkspaceActivationFeature {
     /// Refresh per-display Desktop ownership without interpreting off-Space
     /// windows as closed or interrupting unaffected monitors.
     case activeSpaceChanged
-    case managedDesktopPrepared(id: UUID, spaces: DesktopSpaces?, error: String?, cancelled: Bool)
+    case managedDesktopPrepared(
+      id: UUID,
+      spaces: DesktopSpaces?,
+      error: String?,
+      cancelled: Bool,
+      requiresReconciliation: Bool = true,
+    )
     case desktopSpacesResolved(DesktopSpaces?, revision: UInt64)
     case desktopSpacesObserved(DesktopSpaces?, revision: UInt64)
     /// Freeze destructive membership updates before WindowServer tears down
@@ -2363,8 +2370,15 @@ public struct WorkspaceActivationFeature {
       case .activeSpaceChanged:
         return observeDesktopSpaces(state: &state)
 
-      case .managedDesktopPrepared(let id, let spaces, let error, let cancelled):
-        return completeManagedDesktopPreparation(id: id, spaces: spaces, error: error, cancelled: cancelled, state: &state)
+      case .managedDesktopPrepared(let id, let spaces, let error, let cancelled, let requiresReconciliation):
+        return completeManagedDesktopPreparation(
+          id: id,
+          spaces: spaces,
+          error: error,
+          cancelled: cancelled,
+          requiresReconciliation: requiresReconciliation,
+          state: &state,
+        )
 
       case .desktopSpacesResolved(let snapshot, let revision):
         guard revision == state.desktops.revision else { return .none }

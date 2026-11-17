@@ -43,6 +43,12 @@ actor ManagedDesktopNavigator {
 
   private struct FullscreenCandidate: Sendable {
     var window: DesktopSpaces.FullscreenWindow
+    var identity: WindowIdentity
+  }
+
+  private struct WindowIdentity: Sendable {
+    var windowID: UInt32
+    var pid: Int32
     var bundleID: String
     var started: Date
   }
@@ -61,6 +67,7 @@ actor ManagedDesktopNavigator {
 
   private static let worker = BlockingWorkQueue(label: "dev.PangMo5.Tatami.native-desktop")
   private static let shortcuts = SymbolicDesktopShortcut()
+  private static let windowSpaces = NativeWindowSpaces()
 
   private var tail: Task<ManagedDesktopPreparationResult, Never>?
   private var tailID: UUID?
@@ -72,11 +79,12 @@ actor ManagedDesktopNavigator {
       .run { NativePreparationInputMonitor(since: request.requestedAtUptime, cancellation: cancellation) }
     let result = await withTaskCancellationHandler {
       do {
-        return ManagedDesktopPreparationResult.prepared(try await perform(
+        let outcome = try await perform(
           request,
           cancellation: cancellation,
           resources: resources,
-        ))
+        )
+        return ManagedDesktopPreparationResult.prepared(outcome.spaces, requiresReconciliation: outcome.changed)
       } catch is CancellationError {
         return .cancelled
       } catch {
@@ -87,6 +95,7 @@ actor ManagedDesktopNavigator {
     }
     // Cancellation does not skip system-setting restoration.
     let restorationError: String? = await worker.run {
+      resources.move = nil
       guard let lease = resources.lease else { return nil }
       do { try shortcuts.restore(lease)
         return nil
@@ -103,12 +112,13 @@ actor ManagedDesktopNavigator {
     _ request: ManagedDesktopPreparation,
     cancellation: NativePreparationCancellation,
     resources: NativePreparationResources,
-  ) async throws -> DesktopSpaces {
+  ) async throws -> (spaces: DesktopSpaces, changed: Bool) {
     @Dependency(\.sls) var sls
     // This is a deadline, not a presentation delay. Native readiness is tested
     // immediately and at display-frame intervals; no UI work runs on this wait.
     let deadline = ContinuousClock.now + .seconds(10)
     try check(cancellation, deadline: deadline)
+    var changed = false
     let initial = try await snapshot(sls)
     guard let initialDisplay = initial.space(on: request.display), initialDisplay.userDesktops.contains(request.home) else {
       throw Failure("The target monitor or its managed Desktop is unavailable")
@@ -123,21 +133,30 @@ actor ManagedDesktopNavigator {
         }
         guard request.bundleIDs.contains(bundleID) else { return nil }
         guard let started = application.launchDate else { throw Failure("The fullscreen process identity is unavailable") }
-        return FullscreenCandidate(window: window, bundleID: bundleID, started: started)
+        return FullscreenCandidate(window: window, identity: WindowIdentity(
+          windowID: window.windowID,
+          pid: window.pid,
+          bundleID: bundleID,
+          started: started,
+        ))
       }
-    }
-    let resolved = try await worker.runThrowing {
-      try resolveWindows(candidates, cancellation: cancellation, deadline: deadline)
     }
     for candidate in candidates {
       try check(cancellation, deadline: deadline)
-      let current = try await snapshot(sls)
+      let current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
       guard current.space(on: request.display)?.fullscreenWindows.contains(candidate.window) == true else { continue }
+      let resolved = try await worker.runThrowing {
+        try resolveWindows([candidate.identity], cancellation: cancellation, deadline: deadline)
+      }
       guard let window = resolved[candidate.window.windowID]
       else { throw Failure("The requested fullscreen window is unavailable") }
       try check(cancellation, deadline: deadline)
       try await worker.runThrowing {
-        guard !cancellation.isCancelled, identityMatches(candidate), windowID(window.element) == candidate.window.windowID else {
+        guard
+          !cancellation.isCancelled,
+          identityMatches(candidate.identity),
+          windowID(window.element) == candidate.window.windowID
+        else {
           throw CancellationError()
         }
         var settable = DarwinBoolean(false)
@@ -149,6 +168,7 @@ actor ManagedDesktopNavigator {
           throw Failure("The requested window could not leave native fullscreen")
         }
       }
+      changed = true
       try await waitForFullscreenExit(
         candidate,
         window: window,
@@ -158,7 +178,7 @@ actor ManagedDesktopNavigator {
         deadline: deadline,
       )
     }
-    var current = try await snapshot(sls)
+    var current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
     let remainingSnapshot = current
     let remaining = try await worker.runThrowing {
       try (remainingSnapshot.space(on: request.display)?.fullscreenWindows ?? []).contains { window in
@@ -172,10 +192,21 @@ actor ManagedDesktopNavigator {
       }
     }
     guard !remaining else { throw Failure("The requested fullscreen windows changed during activation") }
+    let movedWindows = try await returnWorkspaceWindows(
+      request,
+      snapshot: current,
+      sls: sls,
+      cancellation: cancellation,
+      resources: resources,
+      deadline: deadline,
+    )
+    changed = changed || movedWindows
+    current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
     guard let display = current.space(on: request.display), display.userDesktops.contains(request.home) else {
       throw Failure("The managed Desktop changed during activation")
     }
     if display.currentSpace != request.home {
+      changed = true
       // Preserve a user's held shortcut modifiers; post the native shortcut
       // only once their triggering chord has been released.
       while await worker.run({
@@ -187,7 +218,7 @@ actor ManagedDesktopNavigator {
       let selectionSnapshot = current
       let lease = try await worker.runThrowing { try shortcuts.acquire(home: request.home, snapshot: selectionSnapshot) }
       resources.lease = lease
-      current = try await snapshot(sls)
+      current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
       guard SymbolicDesktopShortcut.ordinaryOrder(in: current) == lease.ordinaryOrder else {
         throw Failure("Native Desktop order changed before the system shortcut was sent")
       }
@@ -208,12 +239,84 @@ actor ManagedDesktopNavigator {
     else {
       throw Failure("The managed Desktop was not reached")
     }
-    return current
+    return (current, changed)
+  }
+
+  private static func returnWorkspaceWindows(
+    _ request: ManagedDesktopPreparation,
+    snapshot: DesktopSpaces,
+    sls: SLSClient,
+    cancellation: NativePreparationCancellation,
+    resources: NativePreparationResources,
+    deadline: ContinuousClock.Instant,
+  ) async throws -> Bool {
+    guard let display = snapshot.space(on: request.display), display.userDesktops.contains(request.home) else {
+      throw Failure("The target monitor or its managed Desktop changed")
+    }
+    let candidates = try await worker.runThrowing {
+      guard let rows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
+        throw Failure("Workspace window placement is unavailable")
+      }
+      return try rows.compactMap { row -> WindowIdentity? in
+        try check(cancellation, deadline: deadline)
+        guard
+          (row[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+          (row[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 0 > 0,
+          let pid = (row[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+          let id = (row[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+          let app = NSRunningApplication(processIdentifier: pid),
+          let bundle = app.bundleIdentifier,
+          request.bundleIDs.contains(bundle),
+          let started = app.launchDate
+        else { return nil }
+        let spaces = try windowSpaces.spaces(for: id)
+        guard NativeWindowSpaces.needsMove(spaces, on: display, home: request.home) else { return nil }
+        return WindowIdentity(windowID: id, pid: pid, bundleID: bundle, started: started)
+      }
+    }
+    guard !candidates.isEmpty else { return false }
+    try check(cancellation, deadline: deadline)
+    try await worker.runThrowing {
+      guard !cancellation.isCancelled, candidates.allSatisfy(identityMatches) else { throw CancellationError() }
+      for candidate in candidates {
+        guard NativeWindowSpaces.needsMove(try windowSpaces.spaces(for: candidate.windowID), on: display, home: request.home)
+        else {
+          throw Failure("Workspace window placement changed before assignment")
+        }
+      }
+      resources.move = try windowSpaces.beginMove(candidates.map(\.windowID), to: request.home)
+    }
+    while true {
+      try check(cancellation, deadline: deadline)
+      let current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
+      guard current.space(on: request.display)?.userDesktops.contains(request.home) == true else {
+        throw Failure("The managed Desktop disappeared during window assignment")
+      }
+      let arrived = try await worker.runThrowing {
+        guard candidates.allSatisfy(identityMatches) else { throw Failure("The assigned window identity changed") }
+        return try candidates.allSatisfy { try windowSpaces.spaces(for: $0.windowID) == [request.home] }
+      }
+      if arrived {
+        return true
+      }
+      try await nextFrame(cancellation, deadline: deadline)
+    }
   }
 
   private static func snapshot(_ sls: SLSClient) async throws -> DesktopSpaces {
     guard let spaces = await sls.desktopSpaces() else { throw Failure("Native Desktop state is unavailable") }
     return spaces
+  }
+
+  /// A native fullscreen exit can briefly retain its Space row while removing
+  /// its window metadata. Wait for a coherent observation under the request's
+  /// deadline; never reinterpret that transition as an empty layout.
+  private static func readySnapshot(
+    _ sls: SLSClient,
+    cancellation: NativePreparationCancellation,
+    deadline: ContinuousClock.Instant,
+  ) async throws -> DesktopSpaces {
+    try await waitForSnapshot(sls, cancellation: cancellation, deadline: deadline) { _ in true }
   }
 
   private static func waitForSnapshot(
@@ -241,14 +344,14 @@ actor ManagedDesktopNavigator {
   ) async throws {
     while true {
       try check(cancellation, deadline: deadline)
-      let current = try await snapshot(sls)
+      let current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
       guard let row = current.space(on: display) else { throw Failure("The target monitor disconnected") }
       let exited = try await worker.runThrowing {
-        guard identityMatches(candidate) else { throw Failure("The fullscreen window identity changed") }
-        guard let fullscreen = attribute(window.element, "AXFullScreen") as? Bool else {
-          throw Failure("The fullscreen transition could not be verified")
-        }
-        return !fullscreen
+        guard identityMatches(candidate.identity) else { throw Failure("The fullscreen window identity changed") }
+        // AX and SLS can temporarily describe different stages of the native
+        // transition. Unknown AX state is not proof of a completed exit.
+        let element = findWindow(candidate.identity)?.element ?? window.element
+        return (attribute(element, "AXFullScreen") as? Bool) == false
       }
       if exited, !row.fullscreenWindows.contains(candidate.window) {
         return
@@ -267,29 +370,29 @@ actor ManagedDesktopNavigator {
     try await Task.sleep(for: .milliseconds(16))
   }
 
-  private static func identityMatches(_ candidate: FullscreenCandidate) -> Bool {
+  private static func identityMatches(_ candidate: WindowIdentity) -> Bool {
     guard
-      let application = NSRunningApplication(processIdentifier: candidate.window.pid),
+      let application = NSRunningApplication(processIdentifier: candidate.pid),
       !application.isTerminated,
       application.bundleIdentifier == candidate.bundleID,
       application.launchDate == candidate.started,
-      let rows = CGWindowListCopyWindowInfo(.optionIncludingWindow, candidate.window.windowID) as? [[String: Any]]
+      let rows = CGWindowListCopyWindowInfo(.optionIncludingWindow, candidate.windowID) as? [[String: Any]]
     else { return false }
     return rows.contains {
-      ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == candidate.window.windowID
-        && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == candidate.window.pid
+      ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == candidate.windowID
+        && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == candidate.pid
     }
   }
 
-  private static func findWindow(_ candidate: FullscreenCandidate) -> NativeAXWindow? {
+  private static func findWindow(_ candidate: WindowIdentity) -> NativeAXWindow? {
     guard identityMatches(candidate) else { return nil }
-    let app = AXUIElementCreateApplication(candidate.window.pid)
+    let app = AXUIElementCreateApplication(candidate.pid)
     AXUIElementSetMessagingTimeout(app, 1)
     var elements = attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []
     if let main = attribute(app, kAXMainWindowAttribute), CFGetTypeID(main) == AXUIElementGetTypeID() {
       elements.append(main as! AXUIElement)
     }
-    guard let element = elements.first(where: { windowID($0) == candidate.window.windowID }) else { return nil }
+    guard let element = elements.first(where: { windowID($0) == candidate.windowID }) else { return nil }
     AXUIElementSetMessagingTimeout(element, 1)
     return NativeAXWindow(element)
   }
@@ -299,7 +402,7 @@ actor ManagedDesktopNavigator {
   /// Space. The remote-token layout is also used by yabai and AltTab:
   /// https://github.com/asmvik/yabai/blob/b2dc8b4c892d74738a6e865d73048ed2dc3c9ed1/src/window_manager.c
   private static func resolveWindows(
-    _ candidates: [FullscreenCandidate],
+    _ candidates: [WindowIdentity],
     cancellation: NativePreparationCancellation,
     deadline: ContinuousClock.Instant,
   ) throws -> [UInt32: NativeAXWindow] {
@@ -307,15 +410,15 @@ actor ManagedDesktopNavigator {
     for candidate in candidates {
       try check(cancellation, deadline: deadline)
       if let window = findWindow(candidate) {
-        resolved[candidate.window.windowID] = window
+        resolved[candidate.windowID] = window
       }
     }
-    for group in Dictionary(grouping: candidates, by: { $0.window.pid }).values {
-      var missing = group.filter { resolved[$0.window.windowID] == nil }
+    for group in Dictionary(grouping: candidates, by: { $0.pid }).values {
+      var missing = group.filter { resolved[$0.windowID] == nil }
       guard !missing.isEmpty else { continue }
       guard missing.allSatisfy(identityMatches) else { throw Failure("The fullscreen process identity changed") }
       var token = Data(count: 20)
-      var pid = group[0].window.pid
+      var pid = group[0].pid
       var cocoa: UInt32 = 0x636f636f
       withUnsafeBytes(of: &pid) { token.replaceSubrange(0..<4, with: $0) }
       withUnsafeBytes(of: &cocoa) { token.replaceSubrange(8..<12, with: $0) }
@@ -328,7 +431,7 @@ actor ManagedDesktopNavigator {
         guard
           attribute(element, kAXRoleAttribute) as? String == kAXWindowRole,
           let id = windowID(element),
-          let match = missing.firstIndex(where: { $0.window.windowID == id }),
+          let match = missing.firstIndex(where: { $0.windowID == id }),
           identityMatches(missing[match])
         else { continue }
         resolved[id] = NativeAXWindow(element)
@@ -397,12 +500,19 @@ private final class NativePreparationResources: Sendable {
 
   // MARK: Internal
 
+  var move: NativeWindowMove? {
+    get { moveValue.withLock { $0 } }
+    set { moveValue.withLock { $0 = newValue } }
+  }
+
   var lease: SymbolicDesktopShortcut.Lease? {
     get { value.withLock { $0 } }
     set { value.withLock { $0 = newValue } }
   }
 
   // MARK: Private
+
+  private let moveValue = OSAllocatedUnfairLock<NativeWindowMove?>(initialState: nil)
 
   private let value = OSAllocatedUnfairLock<SymbolicDesktopShortcut.Lease?>(initialState: nil)
 

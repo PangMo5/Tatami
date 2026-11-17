@@ -19,7 +19,7 @@ struct ManagedDesktopPreparation: Equatable, Sendable {
 // MARK: - ManagedDesktopPreparationResult
 
 enum ManagedDesktopPreparationResult: Sendable {
-  case prepared(DesktopSpaces)
+  case prepared(DesktopSpaces, requiresReconciliation: Bool = true)
   case failed(String)
   case cancelled
 }
@@ -40,8 +40,14 @@ extension ManagedDesktopClient: DependencyKey {
     await ManagedDesktopNavigator.shared.prepare(request)
   })
 
+  /// Tests do not mutate system Spaces. They still need a coherent native
+  /// observation; transition and cancellation tests override prepare directly.
   static let testValue = ManagedDesktopClient(prepare: { _ in
-    .failed("The target monitor is not on its managed macOS Desktop, or its Space state is unavailable")
+    @Dependency(\.sls) var sls
+    guard let snapshot = await sls.desktopSpaces() else {
+      return .failed("The managed macOS Desktop is unavailable")
+    }
+    return .prepared(snapshot)
   })
 
   static let previewValue = testValue

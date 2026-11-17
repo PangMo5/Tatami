@@ -104,6 +104,39 @@ struct ManagedDesktopActivationTests {
     #expect(completions.value.isEmpty)
   }
 
+  @Test
+  func `a native check without mutations preserves the active workspace focus transfer`() throws {
+    let workspace = Workspace(name: "Current")
+    var state = Self.state([workspace])
+    state.desktops.observe(DesktopSpacesTests.spaces(), displays: state.connectedDisplays)
+    state.tilingTrees[workspace.id] = .leaf(WindowKey(pid: 1, windowID: 101, bundleId: "app.editor"))
+    let id = UUID()
+    state.pendingManagedDesktopActivation = .init(
+      id: id,
+      workspace: workspace,
+      profileID: try #require(state.config.activeProfile?.id),
+      display: DesktopSpacesTests.left,
+      setFocus: true,
+      interactionDisplay: DesktopSpacesTests.left,
+      followsCursor: false,
+      continuesCLIActivation: false,
+      cliRequestID: nil,
+      requestedAtUptime: ProcessInfo.processInfo.systemUptime,
+      isPreparing: true,
+    )
+    _ = WorkspaceActivationFeature().completeManagedDesktopPreparation(
+      id: id,
+      spaces: DesktopSpacesTests.spaces(),
+      error: nil,
+      cancelled: false,
+      requiresReconciliation: false,
+      state: &state,
+    )
+    #expect(!state.isActivating)
+    #expect(state.activeWorkspace(on: DesktopSpacesTests.left) == workspace.id)
+    #expect(state.pendingManagedDesktopActivation == nil)
+  }
+
   // MARK: Private
 
   private static func state(_ workspaces: [Workspace]) -> WorkspaceActivationFeature.State {

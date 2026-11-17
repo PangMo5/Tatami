@@ -42,10 +42,11 @@ extension WorkspaceActivationFeature {
     )
     let cancellation = cancelManagedDesktopPreparation(state: &state)
     guard !state.isLayoutSuspended else { return cancellation }
-    let hasFullscreen = target.flatMap { state.desktops.snapshot?.space(on: $0) }?.fullscreenWindows.isEmpty == false
+    let row = target.flatMap { state.desktops.snapshot?.space(on: $0) }
+    let hasOtherSpaces = row.map { !$0.fullscreenWindows.isEmpty || $0.userDesktops.count > 1 } ?? false
     guard
       let target,
-      !state.desktops.isAvailable(on: target) || hasFullscreen
+      !state.desktops.isAvailable(on: target) || hasOtherSpaces
     else {
       return .concatenate(cancellation, activateOnManagedDesktop(
         workspaceId: workspaceId,
@@ -84,6 +85,7 @@ extension WorkspaceActivationFeature {
       continuesCLIActivation: continuesCLIActivation,
       cliRequestID: continuesCLIActivation ? state.pendingCLIActivation?.id : nil,
       requestedAtUptime: ProcessInfo.processInfo.systemUptime,
+      wasAway: !state.desktops.isAvailable(on: target),
     )
     // A coherent native read owns the next phase. Existing in-flight reads
     // resume it through updateDesktopSpaces without a second polling loop.
@@ -105,6 +107,10 @@ extension WorkspaceActivationFeature {
         state: &state,
       )
     }
+    debugLog.log(
+      "Space",
+      "prepare workspace=\(request.workspace.name) display=\(request.display.name) home=\(home) request=\(request.id)",
+    )
     request.isPreparing = true
     state.pendingManagedDesktopActivation = request
     let capturedRequest = request
@@ -119,10 +125,18 @@ extension WorkspaceActivationFeature {
     return .run { [managedDesktop] send in
       let result = await managedDesktop.prepare(preparation)
       switch result {
-      case .prepared(let spaces):
-        await send(.managedDesktopPrepared(id: capturedRequest.id, spaces: spaces, error: nil, cancelled: false))
+      case .prepared(let spaces, let requiresReconciliation):
+        await send(.managedDesktopPrepared(
+          id: capturedRequest.id,
+          spaces: spaces,
+          error: nil,
+          cancelled: false,
+          requiresReconciliation: requiresReconciliation,
+        ))
+
       case .failed(let error):
         await send(.managedDesktopPrepared(id: capturedRequest.id, spaces: nil, error: error, cancelled: false))
+
       case .cancelled:
         await send(.managedDesktopPrepared(id: capturedRequest.id, spaces: nil, error: nil, cancelled: true))
       }
@@ -135,6 +149,7 @@ extension WorkspaceActivationFeature {
     spaces: DesktopSpaces?,
     error: String?,
     cancelled: Bool,
+    requiresReconciliation: Bool = true,
     state: inout State,
   ) -> Effect<Action> {
     guard let request = state.pendingManagedDesktopActivation, request.id == id else { return .none }
@@ -165,6 +180,7 @@ extension WorkspaceActivationFeature {
         )
       return .merge(update, completion, warning, observeDesktopSpaces(state: &state))
     }
+    debugLog.log("Space", "prepared workspace=\(request.workspace.name) display=\(request.display.name) request=\(request.id)")
     state.pendingAppFocusDesktopRequest = nil
     for bundle in request.workspace.apps.map(\.bundleIdentifier) { windowSnapshot.markBundleDirty(bundle) }
     return .concatenate(update, activateOnManagedDesktop(
@@ -174,7 +190,7 @@ extension WorkspaceActivationFeature {
       interactionDisplayOverride: request.interactionDisplay,
       followsCursor: request.followsCursor,
       continuesCLIActivation: request.continuesCLIActivation,
-      requiresReconciliation: true,
+      requiresReconciliation: request.wasAway || requiresReconciliation,
       state: &state,
     ))
   }
