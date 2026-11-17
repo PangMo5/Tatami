@@ -1772,15 +1772,34 @@ extension WorkspaceActivationFeature {
   /// completion tracking. Every reducer entry point must cancel the prior
   /// workspace-chain cleanup *before* running this effect; keeping that cancel
   /// inside a merge lets an old physical return race a newer activation.
-  func deliberateActivation(
+  func activateOnManagedDesktop(
     workspaceId: Workspace.ID,
     setFocus: Bool,
     targetDisplayOverride: DisplayName? = nil,
     interactionDisplayOverride: DisplayName? = nil,
     followsCursor: Bool = false,
     continuesCLIActivation: Bool = false,
+    requiresReconciliation: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
+    let targetDisplay = targetDisplayOverride ?? state.config.activeProfile?.workspaces[id: workspaceId].flatMap {
+      deliberateActivationDisplay(for: $0, interactionDisplay: interactionDisplayOverride, state: state)
+    }
+    guard state.desktops.isAvailable(on: targetDisplay) else {
+      debugLog.log("Activate", "skip workspace=\(workspaceId): target monitor is not on its managed Desktop")
+      guard continuesCLIActivation, let request = state.pendingCLIActivation else { return .none }
+      return .send(.failCLIActivation(
+        requestID: request.id,
+        error: "The target monitor is not on its managed macOS Desktop, or its Space state is unavailable",
+      ))
+    }
+    state.isWaitingForInitialDesktopObservation = false
+    state.appFocusDesktopRequestID &+= 1
+    state.pendingAppFocusDesktopRequest = nil
+    let wasOnManagedDesktop = !requiresReconciliation && state.canManageWorkspace(workspaceId)
+    if let display = targetDisplay {
+      state.deferredDesktopRestores = state.deferredDesktopRestores.filter { !$0.key.matches(display) }
+    }
     state.deferredBorrow = nil
     let transferredApps = claimWorkspaceApps(workspaceId, state: &state)
     // A deliberate switch supersedes any in-flight reconnect restore cascade.
@@ -1908,6 +1927,7 @@ extension WorkspaceActivationFeature {
     // An already-active host that activation would leave exactly where it is
     // is a display focus transfer. Re-activation would tear down its Borrow.
     if
+      wasOnManagedDesktop,
       state.activeActivationGeneration == nil,
       !transferredApps,
       setFocus,
@@ -2204,6 +2224,7 @@ extension WorkspaceActivationFeature {
     preservesPointer: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
+    guard state.desktops.isAvailable(on: display) else { return .none }
     let settings = state.config.settings
     guard
       let display,
@@ -2381,6 +2402,7 @@ extension WorkspaceActivationFeature {
       let target = profile.workspaces[id: targetId],
       let display = displayOverride ?? interactionDisplay(state: state)
     else { return cancellation }
+    guard state.desktops.isAvailable(on: display) else { return cancellation }
     if
       let queued = state.deferredBorrow,
       queued.workspaceId == targetId,
@@ -2807,8 +2829,12 @@ extension WorkspaceActivationFeature {
     if state.isActivating {
       debugLog.log("Activate", "supersede in-flight activation → workspaceId=\(workspaceId)")
     }
+    // Starting a real activation supersedes the same workspace's deferred
+    // startup placement, regardless of which input selected it.
+    state.deferredDesktopRestores = state.deferredDesktopRestores.filter { $0.value.workspace != workspaceId }
     state.isActivating = true
     state.activatingWorkspaceID = workspaceId
+    state.desktops.revision &+= 1
     state.activationGeneration &+= 1
     let activationGeneration = state.activationGeneration
     state.activeActivationGeneration = activationGeneration
@@ -2977,6 +3003,7 @@ extension WorkspaceActivationFeature {
       windowKeyToFocus: mruWindow,
       managedBundleIds: restoringHost ? state.managedBundleIds : [],
       retainedBundleIds: retainedApps(onOtherDisplaysThan: targetDisplay, state: state),
+      nativeFullscreenWindows: state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows) ?? [],
     )
     let warpMouse = (setFocus || followsCursor)
       && state.config.settings.focus.mouseFollowsFocus
@@ -3244,6 +3271,7 @@ extension WorkspaceActivationFeature {
             )
           },
           .run(priority: .high) { [
+            sls,
             mgr = workspaceManager,
             tiler = windowTiler,
             store = layoutStore,
@@ -3522,6 +3550,7 @@ extension WorkspaceActivationFeature {
                 workspaceId: workspaceId,
                 display: targetDisplay,
                 generation: activationGeneration,
+                desktopObservation: DesktopObservation(spaces: await sls.desktopSpaces(), revision: 0),
               ))
               guard !Task.isCancelled else { return }
               // Mirror floating windows onto always-on-top panels (the Topit /
@@ -3654,6 +3683,7 @@ extension WorkspaceActivationFeature {
                 workspaceId: workspaceId,
                 display: targetDisplay,
                 generation: activationGeneration,
+                desktopObservation: DesktopObservation(spaces: await sls.desktopSpaces(), revision: 0),
               ))
             }
             // Priority-skipped members on otherwise-unfilled displays are
@@ -3809,6 +3839,7 @@ extension WorkspaceActivationFeature {
       managedBundleIds: state.managedBundleIds,
       knownWindows: Set(existingBorrowedTree?.windows ?? []),
       retainedBundleIds: retainedApps(onOtherDisplaysThan: display, state: state),
+      nativeFullscreenWindows: state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows) ?? [],
     )
     let settings = state.config.settings
     let focusedForBorrowMerge = state.lastObservedFocusedWindow

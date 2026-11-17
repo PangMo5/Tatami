@@ -232,6 +232,9 @@ CLI는 프로필·작업 공간 관리, 훅 조회, 안정된 JSON 출력과 제
 
 [전체 CLI 안내](CLI.md)를 읽거나 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/ko/cli.html)에서 웹으로 확인할 수 있어요.
 
+> [!NOTE]
+> Tatami는 **모니터마다 일반 macOS 데스크탑 하나를 관리해요**. Tatami의 작업 공간은 그 데스크탑 안에서 앱과 배치를 전환해요. 다른 macOS 데스크탑이나 전체화면도 사용할 수 있어요. Tatami 작업 공간을 직접 호출하면 대상 모니터가 관리 중인 데스크탑으로 돌아와요.
+
 <a id="tech-stack"></a>
 ## 기술 구성
 

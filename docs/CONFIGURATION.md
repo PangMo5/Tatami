@@ -202,11 +202,17 @@ FFM and MFF work across displays without moving their workspaces. When `focusFol
 
 ## `[settings.switching]`
 
+Tatami manages **one ordinary macOS Desktop per monitor**. Its workspaces switch apps and layouts inside that Desktop. You can still use other macOS Desktops and native fullscreen; explicitly calling a Tatami workspace returns its target monitor to the managed Desktop.
+
+Tatami starts in the menu bar. Choose Settings from its menu to open the main window.
+
+Each display uses the first ordinary macOS Desktop Tatami successfully observes for it in that app session. Visiting another Desktop or native fullscreen preserves the layout and pauses management only for that display. Explicitly selecting a workspace returns its target display to the managed Desktop before activation. Its app windows and Shared Apps on other ordinary Desktops of that monitor also move to the managed Desktop. This includes windows that return to a different Desktop after leaving fullscreen. Windows assigned to all Desktops keep that assignment. Native fullscreen windows belonging to the requested workspace or Shared Apps on that display leave fullscreen; unrelated apps and other displays keep their fullscreen state. Automatic app focus and background restoration do not perform this return or exit fullscreen. If Tatami starts while a display is fullscreen, the first explicit workspace selection uses its first ordinary Desktop. A configured macOS Switch to Desktop shortcut is required for Desktop navigation; Tatami restores its original enabled state after use. If preparation fails, the workspace selection stops and reports the failure. Deleting the managed Desktop allows adoption of the current surviving ordinary Desktop after a valid observation. Unavailable Space observations preserve the layout and binding. Desktop bindings reset on relaunch.
+
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `loop` | bool | `true` | Wrap from the last workspace back to the first (and vice versa). |
 | `skipEmpty` | bool | `false` | Skip workspaces with no running app when switching next/previous. |
-| `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. |
+| `followAppFocus` | bool | `true` | Activating an app switches to the workspace that owns it. With separate native Spaces, dynamic workspaces follow the app's keyboard-focus display; explicit workspace shortcuts still use the pointer display. |
 | `cycleAcrossDisplays` | bool | `false` | Switch next/previous workspace across every display instead of only the display under the cursor. The key name is retained for compatibility. |
 | `recentAcrossDisplays` | bool | `true` | Use one global recent-workspace history across every display. If the target is already visible on another display, focus it there instead of moving it. Set it to `false` for a strict per-display history. |
 | `switchToRecentWhenEmpty` | bool | `false` | When the active workspace's last window closes with nothing tiled and no workspace-specific always-on-top window, switch to the recent workspace. Shared apps do not count because they join every workspace. |

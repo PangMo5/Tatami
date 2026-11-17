@@ -232,6 +232,9 @@ CLI 按领域提供配置方案与工作区管理、钩子查询、稳定 JSON �
 
 阅读[完整 CLI 参考](CLI.md)，或在 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/zh-Hans/cli.html) 查看网页版本。
 
+> [!NOTE]
+> Tatami **在每台显示器上管理一个普通 macOS 桌面**。工作区在该桌面内切换应用和布局。你仍可使用其他 macOS 桌面及全屏。直接调用 Tatami 工作区时，目标显示器会切回受管理的桌面。
+
 <a id="tech-stack"></a>
 ## 技术栈
 

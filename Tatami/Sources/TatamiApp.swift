@@ -23,12 +23,20 @@ struct TatamiApp: App {
   // MARK: Internal
 
   var body: some Scene {
+    MenuBarExtra {
+      MenuBarContentView(store: appStore)
+    } label: {
+      MenuBarLabel(store: appStore)
+    }
+    .menuBarExtraStyle(.menu)
+
     Window("Tatami", id: "main") {
       AppRootView(store: appStore)
         .regularWhileOpen(id: "main", coordinator: windowActivation)
     }
     .defaultSize(width: 1040, height: 720)
     .windowResizability(.contentMinSize)
+    .opensOnlyOnRequest()
     .commands {
       // Standard ⌘, opens the main Tatami window (the Workspaces / Settings /
       // About tab view).
@@ -45,13 +53,7 @@ struct TatamiApp: App {
     }
     .defaultSize(width: 1040, height: 720)
     .windowResizability(.contentMinSize)
-
-    MenuBarExtra {
-      MenuBarContentView(store: appStore)
-    } label: {
-      MenuBarLabel(store: appStore)
-    }
-    .menuBarExtraStyle(.menu)
+    .opensOnlyOnRequest()
   }
 
   // MARK: Private
@@ -80,6 +82,24 @@ struct TatamiApp: App {
     }
   }
 
+}
+
+// MARK: - Explicit window presentation
+
+extension Scene {
+  /// Settings and Guided Setup are requested by UI or the onboarding reducer;
+  /// they must not activate another native Space just because Tatami starts.
+  fileprivate func opensOnlyOnRequest() -> some Scene {
+    // SceneBuilder has no buildEither. Its public availability bridge keeps
+    // this OS-specific modifier branch behind one stable scene type.
+    var scene = SceneBuilder.buildLimitedAvailability(self)
+    if #available(macOS 15.0, *) {
+      scene = SceneBuilder.buildLimitedAvailability(
+        defaultLaunchBehavior(.suppressed).restorationBehavior(.disabled)
+      )
+    }
+    return SceneBuilder.buildOptional(scene)
+  }
 }
 
 // MARK: - WindowActivationCoordinator
@@ -180,6 +200,14 @@ private struct OpenSettingsButton: View {
 private final class ConfigTerminationDelegate: NSObject, NSApplicationDelegate {
 
   // MARK: Internal
+
+  func applicationShouldSaveSecureApplicationState(_: NSApplication) -> Bool {
+    false
+  }
+
+  func applicationShouldRestoreSecureApplicationState(_: NSApplication) -> Bool {
+    false
+  }
 
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     guard !isCheckingWrites else { return .terminateLater }

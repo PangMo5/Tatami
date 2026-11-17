@@ -267,13 +267,6 @@ extension WorkspaceActivationFeature {
       debugLog.log("Sync", "skip \(bundleId): tiling paused")
       return .none
     }
-    // Dormant in a native fullscreen Space: re-tiling would write frames to (or
-    // raise) Desktop windows and bounce the user out of fullscreen. The space-
-    // change observer reconciles once they return to a normal Space.
-    guard !state.isInFullscreenSpace else {
-      debugLog.log("Sync", "skip \(bundleId): native fullscreen space")
-      return .none
-    }
     if MacApp.isTatami(bundleId) {
       return .none
     }
@@ -291,7 +284,7 @@ extension WorkspaceActivationFeature {
     // Bundle-only AX create/destroy notifications do not identify a window or
     // display. Reconcile every visible owner so a shared/multi-member app split
     // across monitors cannot leave a stale window in the background tree.
-    let workspaceIds = state.workspacesForSync(bundleId: bundleId)
+    let workspaceIds = state.workspacesForSync(bundleId: bundleId).filter { state.canManageWorkspace($0) }
     guard !workspaceIds.isEmpty else {
       debugLog.log("Sync", "skip \(bundleId): no active workspace")
       return .none
@@ -325,7 +318,9 @@ extension WorkspaceActivationFeature {
     let discoverResizable = needsResizableDiscovery
     let populateMovableCache = needsMovableCache
     state.windowSyncBundleIdsInFlight.insert(bundleId)
-    return .run(priority: .high) { send in
+    let desktopRevision = state.desktops.revision
+    return .run(priority: .high) { [sls] send in
+      let initialSpaces = await sls.desktopSpaces()
       let resizableKeys: [WindowKey]?
       switch (discoverResizable, populateMovableCache) {
       case (true, true):
@@ -349,12 +344,18 @@ extension WorkspaceActivationFeature {
         } else {
           WindowPlacementSnapshot(frames: [:], onScreenFrames: await snapshot.onScreenWindowFramesOffMain())
         }
+      let desktopSpaces = await sls.desktopSpaces()
       await send(.syncAppWindowsResolved(
         bundleId: bundleId,
         resizableKeys: resizableKeys,
         onScreenFrames: geometry?.onScreenFrames ?? [:],
         placementFrames: geometry?.frames,
         geometryAvailable: geometry != nil,
+        desktopObservation: DesktopObservation(
+          spaces: desktopSpaces,
+          revision: desktopRevision,
+          isCoherent: initialSpaces?.displays == desktopSpaces?.displays,
+        ),
       ))
     }
   }
@@ -372,11 +373,10 @@ extension WorkspaceActivationFeature {
     guard
       !state.isLayoutSuspended,
       !state.isTilingPaused,
-      !state.isInFullscreenSpace,
       !state.isActivating,
       !MacApp.isTatami(bundleId)
     else { return .none }
-    let workspaceIds = state.workspacesForSync(bundleId: bundleId)
+    let workspaceIds = state.workspacesForSync(bundleId: bundleId).filter { state.canManageWorkspace($0) }
     guard !workspaceIds.isEmpty else { return .none }
     var effects = [Effect<Action>]()
     for workspaceId in workspaceIds {
@@ -426,7 +426,7 @@ extension WorkspaceActivationFeature {
     state: inout State,
   ) -> Effect<Action>? {
     guard
-      let workspaceId = state.visibleWorkspaceIDs.first(where: { workspaceId in
+      let workspaceId = state.layoutWorkspaceIDs.first(where: { workspaceId in
         state.tilingTrees[workspaceId]?.windows.contains(where: {
           $0.windowID == windowID
         }) == true
@@ -522,18 +522,9 @@ extension WorkspaceActivationFeature {
       debugLog.log("Prune", "skip: system layout suspended/recovering")
       return .none
     }
-    // In a native fullscreen Space the Desktop's windows are all off-screen, so
-    // the on-screen list reports them "gone". Pruning then would empty the tree
-    // and bounce the user out of fullscreen — stay put until they return (the
-    // space-change reconcile catches up on exit).
-    if state.isInFullscreenSpace {
-      debugLog.log("Prune", "skip: native fullscreen space")
-      return .none
-    }
-
     // WindowServer destruction is global. Pruning only the cursor display left
     // dead slots resident on background monitors until the user switched back.
-    let targetIds = Array(state.visibleWorkspaceIDs)
+    let targetIds = Array(state.layoutWorkspaceIDs)
     guard !targetIds.isEmpty else { return .none }
 
     let onScreen = onScreenWindowIDs ?? windowSnapshot.onScreenWindowIDs()
@@ -694,7 +685,10 @@ extension WorkspaceActivationFeature {
       "Suspend",
       "begin \(reason): preserve layouts for \(state.suspendedLayoutWindows.count) workspace(s)",
     )
-    return supersedePendingFocus(state: &state)
+    return .merge(
+      cancelManagedDesktopPreparation(error: "Activation was interrupted by system suspension", state: &state),
+      supersedePendingFocus(state: &state),
+    )
   }
 
   /// Clear one lifecycle reason and reconcile only after every overlapping
@@ -1426,6 +1420,7 @@ extension WorkspaceActivationFeature {
   /// prevents a transient empty tree from switching/collapsing, without
   /// blocking the reducer/main event loop on AX IPC.
   private func handleEmptied(workspaceId: Workspace.ID, state: State) -> Effect<Action> {
+    guard state.canManageWorkspace(workspaceId) else { return .none }
     guard
       !state.isActivating,
       state.tilingTrees[workspaceId]?.windows.isEmpty ?? true,
@@ -1446,6 +1441,7 @@ extension WorkspaceActivationFeature {
         composition: composition,
       )
     }
+    let desktopRevision = state.desktops.revision
     return .run { [snapshot = windowSnapshot] send in
       let onScreenKeys = onScreenIds.isEmpty
         ? []
@@ -1462,6 +1458,7 @@ extension WorkspaceActivationFeature {
         borrowDisplay: borrowedContext?.display,
         borrowGeneration: borrowedContext?.generation,
         borrowComposition: borrowedContext?.composition,
+        desktopRevision: desktopRevision,
       ))
     }
     .cancellable(

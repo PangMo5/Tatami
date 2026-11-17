@@ -73,9 +73,9 @@ public struct AppFeature {
 
     // MARK: Internal
 
-    /// `.task` is driven by the main window's `.task` modifier, which
-    /// re-fires every time the window is closed and reopened. Startup
-    /// must run once per process: the subscriptions below consume
+    /// `.task` is driven by the menu bar label, independently of auxiliary
+    /// windows. Defend against SwiftUI recreating that label: startup must
+    /// run once per process because the subscriptions below consume
     /// process-singleton `AsyncStream`s that support a single consumer.
     var didStartUp = false
     /// Records the process launch event even when no matching hook existed at
@@ -694,7 +694,7 @@ public struct AppFeature {
           await profileSessionStore.saveActiveProfileId(id)
         }
 
-      case .activation(.activationCompleted(let workspaceId, let display, let generation)):
+      case .activation(.activationCompleted(let workspaceId, let display, let generation, _)):
         guard
           state.activation.activeActivationGeneration == generation,
           state.config.hasEnabledHook(for: .workspaceActivated),

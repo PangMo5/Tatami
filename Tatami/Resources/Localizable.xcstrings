@@ -42771,6 +42771,76 @@
           }
         }
       }
+    },
+    "Couldn't Switch Workspace": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't Switch Workspace"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "작업 공간으로 이동하지 못했어요"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ワークスペースに切り替えられませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法切换工作区"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法切換工作空間"
+          }
+        }
+      }
+    },
+    "Return to this display's Tatami Desktop and try again. Check the log for details.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to this display's Tatami Desktop and try again. Check the log for details."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 모니터에서 Tatami가 관리하는 데스크탑으로 돌아가 다시 시도해 주세요. 자세한 원인은 로그에서 확인할 수 있어요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このディスプレイでTatamiが管理するデスクトップに戻り、もう一度お試しください。詳しい原因はログで確認できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请返回此显示器上由 Tatami 管理的桌面，然后重试。详细原因可在日志中查看。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請返回這台顯示器上由 Tatami 管理的桌面，然後再試一次。詳細原因可在記錄中查看。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

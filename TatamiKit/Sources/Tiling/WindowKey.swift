@@ -247,7 +247,7 @@ func focusWindowFollowingMouse(
 /// transfers the frontmost application even on a secondary display. Falls back
 /// to a best-effort `activate()` only if no AX window can be resolved.
 @MainActor
-public func focusAppFront(pid: pid_t) async {
+public func focusAppFront(pid: pid_t, excludingWindowIDs: Set<CGWindowID> = []) async {
   @Dependency(\.overlayAwareness) var overlayAwareness
   let isEligible: @Sendable () -> Bool = {
     !overlayAwareness.isBackgroundedProcess(pid)
@@ -263,6 +263,7 @@ public func focusAppFront(pid: pid_t) async {
   @Dependency(\.sls) var sls
   let result = await focusAppFrontOffMain(
     pid: pid,
+    excludingWindowIDs: excludingWindowIDs,
     sls: sls,
     request: request,
     isEligible: isEligible,
@@ -440,6 +441,7 @@ private func performFocusOffMain(
 
 private func focusAppFrontOffMain(
   pid: pid_t,
+  excludingWindowIDs: Set<CGWindowID>,
   sls: SLSClient,
   request: UInt64,
   isEligible: @escaping @Sendable () -> Bool,
@@ -451,6 +453,7 @@ private func focusAppFrontOffMain(
         continuation.resume(
           returning: focusAppFrontAX(
             pid: pid,
+            excludingWindowIDs: excludingWindowIDs,
             sls: sls,
             isCancelled: {
               cancellation.isCancelled
@@ -468,6 +471,7 @@ private func focusAppFrontOffMain(
 
 private func focusAppFrontAX(
   pid: pid_t,
+  excludingWindowIDs: Set<CGWindowID> = [],
   sls: SLSClient,
   isCancelled: @Sendable () -> Bool,
 ) -> FocusAXResult {
@@ -489,7 +493,8 @@ private func focusAppFrontAX(
       var windowID: CGWindowID = 0
       if
         _AXUIElementGetWindow(element, &windowID) == .success,
-        windowID != 0
+        windowID != 0,
+        !excludingWindowIDs.contains(windowID)
       {
         return focusResolvedWindowAX(
           pid: pid,
@@ -517,7 +522,8 @@ private func focusAppFrontAX(
       var windowID: CGWindowID = 0
       guard
         _AXUIElementGetWindow(element, &windowID) == .success,
-        windowID != 0
+        windowID != 0,
+        !excludingWindowIDs.contains(windowID)
       else { continue }
       return focusResolvedWindowAX(
         pid: pid,
@@ -530,7 +536,7 @@ private func focusAppFrontAX(
       )
     }
   }
-  return isCancelled() ? .cancelled : .activateApp
+  return isCancelled() || !excludingWindowIDs.isEmpty ? .cancelled : .activateApp
 }
 
 private func performFocusAX(

@@ -232,6 +232,9 @@ CLI 依領域提供設定組合與工作空間管理、掛鉤查詢、穩定 JSO
 
 閱讀[完整 CLI 參考](CLI.md)，或在 [tatami.pangmo5.dev](https://tatami.pangmo5.dev/zh-Hant/cli.html) 查看網頁版本。
 
+> [!NOTE]
+> Tatami **在每台顯示器上管理一個一般 macOS 桌面**。工作空間在該桌面內切換 App 與配置。你仍可使用其他 macOS 桌面與全螢幕。直接呼叫 Tatami 工作空間時，目標顯示器會切回受管理的桌面。
+
 <a id="tech-stack"></a>
 ## 技術架構
 
