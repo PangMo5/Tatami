@@ -284,6 +284,7 @@ public struct WorkspaceActivationFeature {
     public var desktops = ManagedDesktops()
     public var appFocusDesktopRequestID: UInt64 = 0
     public var pendingAppFocusDesktopRequest: AppFocusDesktopRequest?
+    public var pendingManagedDesktopActivation: ManagedDesktopActivation?
     public var deferredDesktopRestores = [DisplayName: DisplayAssignment]()
     /// Active lifecycle gates that make AX/WindowServer membership snapshots
     /// temporarily non-authoritative.
@@ -442,11 +443,24 @@ public struct WorkspaceActivationFeature {
     }
 
     func canManageWorkspace(_ id: Workspace.ID) -> Bool {
-      desktops.isAvailable(on: displayShowing(id))
+      if
+        let pending = pendingManagedDesktopActivation,
+        pending.workspace.id == id || displayShowing(id)?.matches(pending.display) == true
+      {
+        return false
+      }
+      return desktops.isAvailable(on: displayShowing(id))
     }
 
     func canManageWindow(_ key: WindowKey) -> Bool {
-      workspaceOwning(key).map { canManageWorkspace($0) }
+      if
+        let pending = pendingManagedDesktopActivation,
+        workspaceOwning(key) == nil,
+        focusedDisplay?.matches(pending.display) == true
+      {
+        return false
+      }
+      return workspaceOwning(key).map { canManageWorkspace($0) }
         ?? desktops.isAvailable(on: focusedDisplay)
     }
 
@@ -1155,6 +1169,20 @@ public struct WorkspaceActivationFeature {
     var isReading = false
   }
 
+  public struct ManagedDesktopActivation: Equatable, Sendable {
+    var id: UUID
+    var workspace: Workspace
+    var profileID: Profile.ID
+    var display: DisplayName
+    var setFocus: Bool
+    var interactionDisplay: DisplayName?
+    var followsCursor: Bool
+    var continuesCLIActivation: Bool
+    var cliRequestID: UUID?
+    var requestedAtUptime: TimeInterval
+    var isPreparing = false
+  }
+
   public enum Action {
     case startObservingWindowEvents
     case windowServerSnapshotRequested(SLSWindowEvent)
@@ -1446,6 +1474,7 @@ public struct WorkspaceActivationFeature {
     /// Refresh per-display Desktop ownership without interpreting off-Space
     /// windows as closed or interrupting unaffected monitors.
     case activeSpaceChanged
+    case managedDesktopPrepared(id: UUID, spaces: DesktopSpaces?, error: String?, cancelled: Bool)
     case desktopSpacesResolved(DesktopSpaces?, revision: UInt64)
     case desktopSpacesObserved(DesktopSpaces?, revision: UInt64)
     /// Freeze destructive membership updates before WindowServer tears down
@@ -2334,6 +2363,9 @@ public struct WorkspaceActivationFeature {
       case .activeSpaceChanged:
         return observeDesktopSpaces(state: &state)
 
+      case .managedDesktopPrepared(let id, let spaces, let error, let cancelled):
+        return completeManagedDesktopPreparation(id: id, spaces: spaces, error: error, cancelled: cancelled, state: &state)
+
       case .desktopSpacesResolved(let snapshot, let revision):
         guard revision == state.desktops.revision else { return .none }
         let update = updateDesktopSpaces(snapshot, state: &state)
@@ -2877,6 +2909,9 @@ public struct WorkspaceActivationFeature {
         return .send(.delegate(.startupProfileResolved(startupProfileId)))
 
       case .trackCLIActivation(let request, let joinCurrentActivation):
+        let managedCancellation = state.pendingManagedDesktopActivation?.cliRequestID != request.id
+          ? cancelManagedDesktopPreparation(state: &state)
+          : .none
         let previous = state.pendingCLIActivation
         state.pendingCLIActivation = request
         state.pendingCLIActivationBinding =
@@ -2891,16 +2926,23 @@ public struct WorkspaceActivationFeature {
           } else {
             nil
           }
-        guard let previous else { return .none }
-        return .run { _ in
+        guard let previous else { return managedCancellation }
+        return .merge(managedCancellation, .run { _ in
           previous.complete("Activation was superseded by a newer CLI command")
-        }
+        })
 
       case .failCLIActivation(let requestID, let error):
         guard state.pendingCLIActivation?.id == requestID else { return .none }
-        return completeCLIActivation(error: error, state: &state)
+        let cancellation = state.pendingManagedDesktopActivation?.cliRequestID == requestID
+          ? cancelManagedDesktopPreparation(state: &state)
+          : .none
+        return .merge(cancellation, completeCLIActivation(error: error, state: &state))
 
       case .reactivateActiveProfile(let focus, let capturedInteractionDisplay):
+        let managedCancellation = cancelManagedDesktopPreparation(
+          error: "Activation was superseded by a profile selection",
+          state: &state,
+        )
         state.isWaitingForInitialDesktopObservation = false
         state.deferredDesktopRestores = [:]
         state.deferredBorrow = nil
@@ -2919,6 +2961,7 @@ public struct WorkspaceActivationFeature {
         state.finalRestoreFollowsCursor = false
         state.suppressFocusedRestoreHUD = false
         let cancelOutgoingActivation = Effect<Action>.merge(
+          managedCancellation,
           .cancel(id: CancelID.activation),
           .cancel(id: CancelID.activationHUD),
           .cancel(id: CancelID.activationWatchdog),
@@ -3354,7 +3397,10 @@ public struct WorkspaceActivationFeature {
             : .send(.processDisplayRestores)
           return .concatenate(completion, drain)
         }
-        if !state.desktops.isAvailable(on: display) {
+        if
+          !state.desktops.isAvailable(on: display)
+          || state.pendingManagedDesktopActivation?.display.matches(display) == true
+        {
           state.deferredDesktopRestores[display] = assignment
           return .send(.processDisplayRestores)
         }
@@ -5025,6 +5071,7 @@ public struct WorkspaceActivationFeature {
 
   /// Cancellation identifiers for latest-wins effects and bounded safety work.
   enum CancelID: Hashable {
+    case managedDesktopActivation
     case foregroundAdoption
     case appFocusDesktop
     /// One visual surface has one frame writer. Normal workspace and borrow
@@ -5111,6 +5158,7 @@ public struct WorkspaceActivationFeature {
   @Dependency(\.borrowChord) var borrowChord
   @Dependency(\.uuid) var uuid
   @Dependency(\.sls) var sls
+  @Dependency(\.managedDesktop) var managedDesktop
 
   /// The named display's work area inset by the outer gap — the rect
   /// every tiling computation runs in.
@@ -5484,6 +5532,16 @@ public struct WorkspaceActivationFeature {
   /// macOS cannot currently resolve the pointer screen.
   func interactionDisplay(state: State) -> DisplayName? {
     displays.current() ?? state.focusedDisplay
+  }
+
+  func completeCLIActivation(
+    error: String?,
+    state: inout State,
+  ) -> Effect<Action> {
+    guard let request = state.pendingCLIActivation else { return .none }
+    state.pendingCLIActivation = nil
+    state.pendingCLIActivationBinding = nil
+    return .run { _ in request.complete(error) }
   }
 
   // MARK: Private
@@ -5878,16 +5936,6 @@ public struct WorkspaceActivationFeature {
     }
   }
 
-  private func completeCLIActivation(
-    error: String?,
-    state: inout State,
-  ) -> Effect<Action> {
-    guard let request = state.pendingCLIActivation else { return .none }
-    state.pendingCLIActivation = nil
-    state.pendingCLIActivationBinding = nil
-    return .run { _ in request.complete(error) }
-  }
-
   private func completeCLIActivationIfSettled(state: inout State) -> Effect<Action> {
     if let request = state.pendingCLIActivation {
       debugLog.log(
@@ -5900,6 +5948,7 @@ public struct WorkspaceActivationFeature {
     }
     guard
       let request = state.pendingCLIActivation,
+      state.pendingManagedDesktopActivation == nil,
       !state.isActivating,
       state.pendingDisplayRestores.isEmpty,
       // A source-presence check can still enqueue a background display refill.

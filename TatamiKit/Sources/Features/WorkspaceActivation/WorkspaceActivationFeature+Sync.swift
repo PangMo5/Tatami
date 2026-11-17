@@ -625,7 +625,10 @@ extension WorkspaceActivationFeature {
       "Suspend",
       "begin \(reason): preserve layouts for \(state.suspendedLayoutWindows.count) workspace(s)",
     )
-    return supersedePendingFocus(state: &state)
+    return .merge(
+      cancelManagedDesktopPreparation(error: "Activation was interrupted by system suspension", state: &state),
+      supersedePendingFocus(state: &state),
+    )
   }
 
   /// Clear one lifecycle reason and reconcile only after every overlapping

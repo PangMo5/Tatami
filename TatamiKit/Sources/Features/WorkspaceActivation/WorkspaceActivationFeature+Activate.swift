@@ -1771,13 +1771,14 @@ extension WorkspaceActivationFeature {
   /// completion tracking. Every reducer entry point must cancel the prior
   /// workspace-chain cleanup *before* running this effect; keeping that cancel
   /// inside a merge lets an old physical return race a newer activation.
-  func deliberateActivation(
+  func activateOnManagedDesktop(
     workspaceId: Workspace.ID,
     setFocus: Bool,
     targetDisplayOverride: DisplayName? = nil,
     interactionDisplayOverride: DisplayName? = nil,
     followsCursor: Bool = false,
     continuesCLIActivation: Bool = false,
+    requiresReconciliation: Bool = false,
     state: inout State,
   ) -> Effect<Action> {
     let targetDisplay = targetDisplayOverride ?? state.config.activeProfile?.workspaces[id: workspaceId].flatMap {
@@ -1794,7 +1795,7 @@ extension WorkspaceActivationFeature {
     state.isWaitingForInitialDesktopObservation = false
     state.appFocusDesktopRequestID &+= 1
     state.pendingAppFocusDesktopRequest = nil
-    let wasOnManagedDesktop = state.canManageWorkspace(workspaceId)
+    let wasOnManagedDesktop = !requiresReconciliation && state.canManageWorkspace(workspaceId)
     if let display = targetDisplay {
       state.deferredDesktopRestores = state.deferredDesktopRestores.filter { !$0.key.matches(display) }
     }
@@ -2990,6 +2991,7 @@ extension WorkspaceActivationFeature {
       windowKeyToFocus: mruWindow,
       managedBundleIds: restoringHost ? state.managedBundleIds : [],
       retainedBundleIds: retainedApps(onOtherDisplaysThan: targetDisplay, state: state),
+      nativeFullscreenWindows: state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows) ?? [],
     )
     let warpMouse = (setFocus || followsCursor)
       && state.config.settings.focus.mouseFollowsFocus
@@ -3807,6 +3809,7 @@ extension WorkspaceActivationFeature {
       managedBundleIds: state.managedBundleIds,
       knownWindows: Set(existingBorrowedTree?.windows ?? []),
       retainedBundleIds: retainedApps(onOtherDisplaysThan: display, state: state),
+      nativeFullscreenWindows: state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows) ?? [],
     )
     let settings = state.config.settings
     let focusedForBorrowMerge = state.lastObservedFocusedWindow

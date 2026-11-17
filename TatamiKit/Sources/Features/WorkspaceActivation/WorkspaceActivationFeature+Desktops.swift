@@ -35,6 +35,7 @@ extension WorkspaceActivationFeature {
       let available = state.desktops.isAvailable(on: display)
       if
         available,
+        state.pendingManagedDesktopActivation?.display.matches(display) != true,
         let restore = state.deferredDesktopRestores.removeValue(forKey: display),
         state.config.activeProfile?.workspaces[id: restore.workspace] != nil
       {
@@ -70,6 +71,7 @@ extension WorkspaceActivationFeature {
     {
       effects.append(refreshFloatingPresentation(state: state, onlyVisibleWindows: true))
     }
+    effects.append(resumeManagedDesktopPreparation(state: &state))
     return .merge(effects)
   }
 
@@ -78,6 +80,7 @@ extension WorkspaceActivationFeature {
   /// must not move to a fullscreen monitor merely because the pointer is there.
   func resumeFollowingAppFocus(state: inout State) -> Effect<Action> {
     guard var request = state.pendingAppFocusDesktopRequest else { return .none }
+    guard state.pendingManagedDesktopActivation == nil else { return .none }
     guard isAppFocusDesktopRequestCurrent(request, state: state) else {
       state.pendingAppFocusDesktopRequest = nil
       return .cancel(id: CancelID.appFocusDesktop)
@@ -153,6 +156,7 @@ extension WorkspaceActivationFeature {
           setFocus: false,
           interactionDisplayOverride: origin,
           followsCursor: true,
+          returnsToManagedDesktop: false,
           state: &state,
         ),
       ),

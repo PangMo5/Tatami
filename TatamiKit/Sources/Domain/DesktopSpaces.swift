@@ -11,11 +11,19 @@ public struct DesktopSpaces: Equatable, Sendable {
 
   // MARK: Public
 
+  public struct FullscreenWindow: Hashable, Sendable {
+    public var spaceID: UInt64
+    public var windowID: UInt32
+    public var pid: Int32
+  }
+
   public struct Display: Equatable, Sendable {
     public var uuid: String
     public var currentSpace: UInt64
     public var isUserDesktop: Bool
     public var userDesktops: Set<UInt64>
+    public var spaceOrder = [UInt64]()
+    public var fullscreenWindows = [FullscreenWindow]()
   }
 
   public var displays: [Display]
@@ -37,20 +45,44 @@ public struct DesktopSpaces: Equatable, Sendable {
         let spaces = row["Spaces"] as? [[String: Any]]
       else { return nil }
       var desktops = Set<UInt64>()
+      var order = [UInt64]()
+      var fullscreen = [FullscreenWindow]()
       for space in spaces {
         guard let sid = space["id64"] as? NSNumber, let kind = space["type"] as? NSNumber
         else { return nil }
-        guard sid.uint64Value != 0 else { return nil }
+        guard sid.uint64Value != 0, !order.contains(sid.uint64Value) else { return nil }
+        order.append(sid.uint64Value)
         if kind.intValue == 0 {
           desktops.insert(sid.uint64Value)
+        } else {
+          let firstWindow = fullscreen.count
+          let tiles = (space["TileLayoutManager"] as? [String: Any])?["TileSpaces"] as? [[String: Any]] ?? []
+          for row in [space] + tiles {
+            guard
+              let pid = row["pid"] as? NSNumber,
+              let wid = (row["fs_wid"] ?? row["TileWindowID"]) as? NSNumber,
+              pid.int32Value > 0,
+              wid.uint32Value != 0
+            else { continue }
+            let window = FullscreenWindow(spaceID: sid.uint64Value, windowID: wid.uint32Value, pid: pid.int32Value)
+            if !fullscreen.contains(window) {
+              fullscreen.append(window)
+            }
+          }
+          guard kind.intValue != 4 || fullscreen.count > firstWindow else { return nil }
         }
       }
-      guard type.intValue != 0 || desktops.contains(id.uint64Value) else { return nil }
+      guard
+        spaces.contains(where: { ($0["id64"] as? NSNumber) == id && ($0["type"] as? NSNumber) == type }),
+        type.intValue != 0 || desktops.contains(id.uint64Value)
+      else { return nil }
       displays.append(Display(
         uuid: uuid,
         currentSpace: id.uint64Value,
         isUserDesktop: type.intValue == 0,
         userDesktops: desktops,
+        spaceOrder: order,
+        fullscreenWindows: fullscreen,
       ))
     }
     guard !displays.isEmpty, Set(displays.map(\.uuid)).count == displays.count else { return nil }
@@ -109,6 +141,25 @@ public struct ManagedDesktops: Equatable, Sendable {
         adopt(display)
       }
     }
+  }
+
+  /// An explicit command can initialize a home while native fullscreen is
+  /// visible. Use an observed ordinary Desktop, never a fullscreen Space ID.
+  mutating func resolveHomeForExplicitActivation(on display: DisplayName) -> UInt64? {
+    guard !isRefreshing, !observationFailed, let space = snapshot?.space(on: display) else { return nil }
+    if let home = home(on: display), space.userDesktops.contains(home) {
+      return home
+    }
+    let home = space.isUserDesktop
+      ? space.currentSpace
+      : space.spaceOrder.first(where: { space.userDesktops.contains($0) })
+    guard let home else { return nil }
+    homes = homes.filter { !$0.key.matches(display) }
+    homes[display] = home
+    if snapshot?.displays.count == 1, snapshot?.displays.first?.uuid == "Main" {
+      for key in homes.keys { homes[key] = home }
+    }
+    return home
   }
 
   // MARK: Private

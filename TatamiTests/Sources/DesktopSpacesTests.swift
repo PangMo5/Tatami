@@ -15,8 +15,8 @@ struct DesktopSpacesTests {
 
   static func spaces(left: UInt64 = 1, fullscreen: Bool = false) -> DesktopSpaces {
     DesktopSpaces(displays: [
-      .init(uuid: "left", currentSpace: left, isUserDesktop: !fullscreen, userDesktops: [1, 3]),
-      .init(uuid: "right", currentSpace: 2, isUserDesktop: true, userDesktops: [2, 4]),
+      .init(uuid: "left", currentSpace: left, isUserDesktop: !fullscreen, userDesktops: [1, 3], spaceOrder: [1, 3]),
+      .init(uuid: "right", currentSpace: 2, isUserDesktop: true, userDesktops: [2, 4], spaceOrder: [2, 4]),
     ], focusedDisplayUUID: "left")
   }
 
@@ -97,6 +97,57 @@ struct DesktopSpacesTests {
   }
 
   @Test
+  func `explicit commands initialize an ordinary home without adopting fullscreen`() {
+    var desktops = ManagedDesktops()
+    desktops.observe(Self.spaces(left: 9, fullscreen: true), displays: [Self.left, Self.right])
+    #expect(desktops.resolveHomeForExplicitActivation(on: Self.left) == 1)
+    #expect(!desktops.isAvailable(on: Self.left))
+    desktops.observe(Self.spaces(left: 3), displays: [Self.left, Self.right])
+    #expect(desktops.resolveHomeForExplicitActivation(on: Self.left) == 1)
+  }
+
+  @Test
+  func `system Desktop ordinals follow global ordinary order and reject duplicate IDs`() {
+    var snapshot = Self.spaces()
+    snapshot.displays[0].spaceOrder = [3, 99, 1]
+    #expect(SymbolicDesktopShortcut.ordinaryOrder(in: snapshot) == [3, 1, 2, 4])
+    snapshot.displays[1].spaceOrder = []
+    #expect(SymbolicDesktopShortcut.ordinaryOrder(in: snapshot) == nil)
+    snapshot.displays[1].spaceOrder = [1, 2, 4]
+    snapshot.displays[1].userDesktops.insert(1)
+    #expect(SymbolicDesktopShortcut.ordinaryOrder(in: snapshot) == nil)
+  }
+
+  @Test
+  func `SkyLight preserves fullscreen identities including both split view tiles`() throws {
+    let home: [String: Any] = ["id64": 7, "type": 0]
+    let fullscreen: [String: Any] = [
+      "id64": 9,
+      "type": 4,
+      "pid": 100,
+      "fs_wid": 201,
+      "TileLayoutManager": ["TileSpaces": [
+        ["pid": 100, "fs_wid": 201],
+        ["pid": 101, "TileWindowID": 202],
+      ]],
+    ]
+    let row: [String: Any] = ["Display Identifier": "left", "Current Space": fullscreen, "Spaces": [home, fullscreen]]
+    let result = try #require(DesktopSpaces.decode([row], focusedDisplayUUID: nil))
+    #expect(result.displays[0].spaceOrder == [7, 9])
+    #expect(result.displays[0].fullscreenWindows == [
+      .init(spaceID: 9, windowID: 201, pid: 100),
+      .init(spaceID: 9, windowID: 202, pid: 101),
+    ])
+    var malformed = row
+    malformed["Spaces"] = [home, home, fullscreen]
+    #expect(DesktopSpaces.decode([malformed], focusedDisplayUUID: nil) == nil)
+    let incomplete: [String: Any] = ["id64": 9, "type": 4]
+    malformed["Current Space"] = incomplete
+    malformed["Spaces"] = [home, incomplete]
+    #expect(DesktopSpaces.decode([malformed], focusedDisplayUUID: nil) == nil)
+  }
+
+  @Test
   func `SkyLight decoding rejects incomplete observations`() throws {
     let current: [String: Any] = ["id64": 1, "type": 0]
     let row: [String: Any] = ["Display Identifier": "left", "Current Space": current, "Spaces": [current]]
@@ -107,6 +158,8 @@ struct DesktopSpacesTests {
     #expect(DesktopSpaces.decode([row, row], focusedDisplayUUID: nil) == nil)
     var malformed = row
     malformed["Current Space"] = ["id64": 0, "type": 0]
+    #expect(DesktopSpaces.decode([malformed], focusedDisplayUUID: nil) == nil)
+    malformed["Current Space"] = ["id64": 1, "type": 4]
     #expect(DesktopSpaces.decode([malformed], focusedDisplayUUID: nil) == nil)
     malformed["Current Space"] = ["id64": 1]
     #expect(DesktopSpaces.decode([malformed], focusedDisplayUUID: nil) == nil)

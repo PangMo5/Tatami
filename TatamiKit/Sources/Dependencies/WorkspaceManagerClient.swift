@@ -68,6 +68,7 @@ struct ActivationRequest: Sendable, Hashable {
     managedBundleIds: Set<String> = [],
     knownWindows: Set<WindowKey> = [],
     retainedBundleIds: Set<String> = [],
+    nativeFullscreenWindows: [DesktopSpaces.FullscreenWindow] = [],
   ) {
     self.workspace = workspace
     self.sharedApps = sharedApps
@@ -79,6 +80,7 @@ struct ActivationRequest: Sendable, Hashable {
     self.managedBundleIds = managedBundleIds
     self.knownWindows = knownWindows
     self.retainedBundleIds = retainedBundleIds
+    self.nativeFullscreenWindows = nativeFullscreenWindows
   }
 
   // MARK: Internal
@@ -114,6 +116,9 @@ struct ActivationRequest: Sendable, Hashable {
   /// Apps owned by another visible/planned display must survive this hide
   /// pass, including Leave As Is windows whose physical frame stayed here.
   var retainedBundleIds = Set<String>()
+  /// Remaining native fullscreen windows belong to unrelated apps or monitors.
+  /// Process-wide hiding or app-level focus must not disturb them.
+  var nativeFullscreenWindows = [DesktopSpaces.FullscreenWindow]()
 
 }
 
@@ -365,7 +370,8 @@ extension WorkspaceManagerClient: DependencyKey {
             if
               let mruKey = request.windowKeyToFocus,
               mruKey.bundleId == toFocus.bundleIdentifier,
-              processIDs[toFocus] == mruKey.pid
+              processIDs[toFocus] == mruKey.pid,
+              !request.nativeFullscreenWindows.contains(where: { $0.windowID == mruKey.windowID && $0.pid == mruKey.pid })
             {
               await focusWindow(
                 pid: mruKey.pid,
@@ -378,7 +384,10 @@ extension WorkspaceManagerClient: DependencyKey {
               // frontmost app on a secondary display, so a switch to e.g. a
               // Figma workspace there left keyboard focus (and window cycling)
               // on the previous display's workspace.
-              await focusAppFront(pid: pid)
+              await focusAppFront(
+                pid: pid,
+                excludingWindowIDs: Set(request.nativeFullscreenWindows.filter { $0.pid == pid }.map(\.windowID)),
+              )
             } else {
               // A pidless application can still support AppKit activation,
               // but cannot be addressed through Accessibility.
@@ -444,6 +453,7 @@ extension WorkspaceManagerClient: DependencyKey {
               continue
             }
             guard let pid = processIDs[app] else { continue }
+            guard !request.nativeFullscreenWindows.contains(where: { $0.pid == pid }) else { continue }
             if
               let pidsOnTargetDisplay,
               !pidsOnTargetDisplay.contains(pid)
