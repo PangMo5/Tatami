@@ -145,6 +145,7 @@ actor ManagedDesktopNavigator {
       try check(cancellation, deadline: deadline)
       let current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
       guard current.space(on: request.display)?.fullscreenWindows.contains(candidate.window) == true else { continue }
+      try await waitForWindowIdentity(candidate.identity, cancellation: cancellation, deadline: deadline)
       let resolved = try await worker.runThrowing {
         try resolveWindows([candidate.identity], cancellation: cancellation, deadline: deadline)
       }
@@ -347,7 +348,11 @@ actor ManagedDesktopNavigator {
       let current = try await readySnapshot(sls, cancellation: cancellation, deadline: deadline)
       guard let row = current.space(on: display) else { throw Failure("The target monitor disconnected") }
       let exited = try await worker.runThrowing {
-        guard identityMatches(candidate.identity) else { throw Failure("The fullscreen window identity changed") }
+        switch identityStatus(candidate.identity) {
+        case .changed: throw Failure("The fullscreen window identity changed")
+        case .unavailable: return false
+        case .current: break
+        }
         // AX and SLS can temporarily describe different stages of the native
         // transition. Unknown AX state is not proof of a completed exit.
         let element = findWindow(candidate.identity)?.element ?? window.element
@@ -371,16 +376,54 @@ actor ManagedDesktopNavigator {
   }
 
   private static func identityMatches(_ candidate: WindowIdentity) -> Bool {
-    guard
-      let application = NSRunningApplication(processIdentifier: candidate.pid),
-      !application.isTerminated,
-      application.bundleIdentifier == candidate.bundleID,
-      application.launchDate == candidate.started,
-      let rows = CGWindowListCopyWindowInfo(.optionIncludingWindow, candidate.windowID) as? [[String: Any]]
-    else { return false }
-    return rows.contains {
-      ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == candidate.windowID
-        && ($0[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == candidate.pid
+    identityStatus(candidate) == .current
+  }
+
+  private static func identityStatus(_ candidate: WindowIdentity) -> NativeWindowIdentityStatus {
+    let application = NSRunningApplication(processIdentifier: candidate.pid)
+    let bundleID = application?.bundleIdentifier
+    let launched = application?.launchDate
+    let terminated = application?.isTerminated
+    let processMatches: Bool? =
+      if terminated == true {
+        false
+      } else if let bundleID, let launched {
+        bundleID == candidate.bundleID && launched == candidate.started
+      } else {
+        nil
+      }
+    let rows = CGWindowListCopyWindowInfo(.optionIncludingWindow, candidate.windowID) as? [[String: Any]]
+    let row = rows?.first { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == candidate.windowID }
+    let ownerPID = (row?[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+    let status = NativeWindowIdentityStatus.observed(
+      processMatches: processMatches,
+      ownerPID: ownerPID,
+      expectedPID: candidate.pid,
+    )
+    if status == .changed {
+      @Dependency(\.debugLog) var debugLog
+      debugLog.log(
+        "Space",
+        "native identity changed window=\(candidate.windowID) expectedPID=\(candidate.pid) ownerPID=\(ownerPID.map(String.init) ?? "unavailable") "
+          +
+          "bundle=\(bundleID ?? "unavailable") terminated=\(terminated?.description ?? "unavailable") expectedStart=\(candidate.started.timeIntervalSince1970) actualStart=\(launched?.timeIntervalSince1970.description ?? "unavailable")",
+      )
+    }
+    return status
+  }
+
+  private static func waitForWindowIdentity(
+    _ candidate: WindowIdentity,
+    cancellation: NativePreparationCancellation,
+    deadline: ContinuousClock.Instant,
+  ) async throws {
+    while true {
+      try check(cancellation, deadline: deadline)
+      switch await worker.run({ identityStatus(candidate) }) {
+      case .current: return
+      case .changed: throw Failure("The requested window identity changed")
+      case .unavailable: try await nextFrame(cancellation, deadline: deadline)
+      }
     }
   }
 
@@ -570,3 +613,21 @@ private final class NativePreparationInputMonitor {
 
 @_silgen_name("_AXUIElementCreateWithRemoteToken")
 private func _AXUIElementCreateWithRemoteToken(_ token: CFData) -> Unmanaged<AXUIElement>?
+
+// MARK: - NativeWindowIdentityStatus
+
+/// Native fullscreen transitions can temporarily remove a live CGWindow row.
+/// Absence cannot prove replacement; a different process/owner can.
+enum NativeWindowIdentityStatus: Equatable, Sendable {
+  case current
+  case unavailable
+  case changed
+
+  static func observed(processMatches: Bool?, ownerPID: Int32?, expectedPID: Int32) -> Self {
+    if processMatches == false || ownerPID.map({ $0 != expectedPID }) == true {
+      return .changed
+    }
+    guard processMatches == true, ownerPID != nil else { return .unavailable }
+    return .current
+  }
+}

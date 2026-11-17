@@ -137,6 +137,23 @@ struct ManagedDesktopActivationTests {
     #expect(state.pendingManagedDesktopActivation == nil)
   }
 
+  @Test(arguments: [
+    (Bool?.some(true), Int32?.some(10), NativeWindowIdentityStatus.current),
+    (Bool?.some(true), Int32?.none, NativeWindowIdentityStatus.unavailable),
+    (Bool?.some(true), Int32?.some(20), NativeWindowIdentityStatus.changed),
+    (Bool?.some(false), Int32?.some(10), NativeWindowIdentityStatus.changed),
+    (Bool?.some(false), Int32?.none, NativeWindowIdentityStatus.changed),
+    (Bool?.none, Int32?.some(10), NativeWindowIdentityStatus.unavailable),
+    (Bool?.none, Int32?.some(20), NativeWindowIdentityStatus.changed),
+  ])
+  func `a transition gap cannot authorize replacement or reject a surviving process`(
+    processMatches: Bool?,
+    ownerPID: Int32?,
+    expected: NativeWindowIdentityStatus,
+  ) {
+    #expect(NativeWindowIdentityStatus.observed(processMatches: processMatches, ownerPID: ownerPID, expectedPID: 10) == expected)
+  }
+
   // MARK: Private
 
   private static func state(_ workspaces: [Workspace]) -> WorkspaceActivationFeature.State {
