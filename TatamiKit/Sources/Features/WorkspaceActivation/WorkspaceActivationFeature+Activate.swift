@@ -1778,25 +1778,25 @@ extension WorkspaceActivationFeature {
     interactionDisplayOverride: DisplayName? = nil,
     followsCursor: Bool = false,
     continuesCLIActivation: Bool = false,
-    adoptsDesktop: Bool = true,
     state: inout State,
   ) -> Effect<Action> {
+    let targetDisplay = targetDisplayOverride ?? state.config.activeProfile?.workspaces[id: workspaceId].flatMap {
+      deliberateActivationDisplay(for: $0, interactionDisplay: interactionDisplayOverride, state: state)
+    }
+    guard state.desktops.isAvailable(on: targetDisplay) else {
+      debugLog.log("Activate", "skip workspace=\(workspaceId): target monitor is not on its managed Desktop")
+      guard continuesCLIActivation, let request = state.pendingCLIActivation else { return .none }
+      return .send(.failCLIActivation(
+        requestID: request.id,
+        error: "The target monitor is not on its managed macOS Desktop, or its Space state is unavailable",
+      ))
+    }
     state.isWaitingForInitialDesktopObservation = false
     state.appFocusDesktopRequestID &+= 1
     state.pendingAppFocusDesktopRequest = nil
     let wasOnManagedDesktop = state.canManageWorkspace(workspaceId)
-    state.desktopAdoptionWorkspaceID = adoptsDesktop ? workspaceId : nil
-    if
-      adoptsDesktop,
-      let workspace = state.config.activeProfile?.workspaces[id: workspaceId],
-      let display = targetDisplayOverride ?? deliberateActivationDisplay(
-        for: workspace,
-        interactionDisplay: interactionDisplayOverride,
-        state: state,
-      )
-    {
+    if let display = targetDisplay {
       state.deferredDesktopRestores = state.deferredDesktopRestores.filter { !$0.key.matches(display) }
-      state.desktops.adopt(display)
     }
     state.deferredBorrow = nil
     let transferredApps = claimWorkspaceApps(workspaceId, state: &state)
@@ -1944,7 +1944,6 @@ extension WorkspaceActivationFeature {
       // run a real activation so the workspace is raised again.
       visibleFocusTarget(workspaceId, state: state) != nil
     {
-      state.desktopAdoptionWorkspaceID = nil
       let cleanup = makeWorkspaceCleanupTransaction(
         retainedWorkspaceIDs: [workspaceId],
         assignments: [DisplayAssignment(display: display, workspace: workspaceId)],

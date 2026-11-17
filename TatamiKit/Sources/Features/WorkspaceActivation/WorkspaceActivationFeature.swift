@@ -282,7 +282,6 @@ public struct WorkspaceActivationFeature {
     public var isTilingPaused = false
     /// Desktop ownership is per physical display, independent of profiles.
     public var desktops = ManagedDesktops()
-    public var desktopAdoptionWorkspaceID: Workspace.ID?
     public var appFocusDesktopRequestID: UInt64 = 0
     public var pendingAppFocusDesktopRequest: AppFocusDesktopRequest?
     public var deferredDesktopRestores = [DisplayName: DisplayAssignment]()
@@ -1694,6 +1693,7 @@ public struct WorkspaceActivationFeature {
         // in. (Empty `connectedDisplays` is the pre-startup state; seed it in
         // `activateInitial` so a first *unplug* isn't mistaken for a plug-in.)
         let newlyConnected = reconciliation.newlyConnected
+        let desktopObservation = observeDesktopSpaces(state: &state)
         for workspaceId in reconciliation.disconnectedBorrowedWorkspaceIDs {
           state.pendingCenterWarps[workspaceId] = nil
         }
@@ -1746,7 +1746,7 @@ public struct WorkspaceActivationFeature {
           refreshMarkers(state: state),
         )
         guard let profile = state.config.activeProfile else {
-          return .merge(autoSwitch, disconnectedPresentationCleanup)
+          return .merge(autoSwitch, disconnectedPresentationCleanup, desktopObservation)
         }
         let plan = Self.planDisplayRestore(
           connected: names,
@@ -1757,7 +1757,7 @@ public struct WorkspaceActivationFeature {
           workspaceMRU: state.workspaceMRU,
         )
         guard !plan.isEmpty else {
-          return .merge(autoSwitch, disconnectedPresentationCleanup)
+          return .merge(autoSwitch, disconnectedPresentationCleanup, desktopObservation)
         }
         debugLog.log(
           "Display",
@@ -1779,7 +1779,7 @@ public struct WorkspaceActivationFeature {
             size: state.config.settings.hud.size,
           )
           : .none
-        return .merge(autoSwitch, autoHUD, .send(.processDisplayRestores))
+        return .merge(autoSwitch, autoHUD, desktopObservation, .send(.processDisplayRestores))
 
       case .displayGeometryChanged:
         // Don't race an activation's authoritative show/hide + frame pass.
@@ -2903,7 +2903,6 @@ public struct WorkspaceActivationFeature {
       case .reactivateActiveProfile(let focus, let capturedInteractionDisplay):
         state.isWaitingForInitialDesktopObservation = false
         state.deferredDesktopRestores = [:]
-        state.desktopAdoptionWorkspaceID = nil
         state.deferredBorrow = nil
         // A profile switch is authoritative over every workspace activation
         // from the outgoing profile, even when the new profile has no normal
@@ -3091,10 +3090,6 @@ public struct WorkspaceActivationFeature {
             plan[finalIndex].presentation = .workspaceCleanup(transaction)
           }
         }
-        state.desktopAdoptionWorkspaceID = focus ?? plan.last?.workspace
-        if let target = plan.last?.display {
-          state.desktops.adopt(target)
-        }
         state.pendingDisplayRestores = plan
         let hudEffect = hasFocusedChainPresentation
           ? Effect<Action>.none
@@ -3253,6 +3248,10 @@ public struct WorkspaceActivationFeature {
         let requestID,
         let capturedInteractionDisplay,
       ):
+        guard
+          state.pendingCLIActivation?.id == requestID,
+          state.pendingCLIActivation?.target == .workspace(workspaceId)
+        else { return .none }
         return .concatenate(
           .cancel(id: CancelID.workspaceChainCleanup),
           deliberateActivation(
@@ -3355,7 +3354,7 @@ public struct WorkspaceActivationFeature {
             : .send(.processDisplayRestores)
           return .concatenate(completion, drain)
         }
-        if !state.desktops.isAvailable(on: display), state.desktopAdoptionWorkspaceID != workspaceId {
+        if !state.desktops.isAvailable(on: display) {
           state.deferredDesktopRestores[display] = assignment
           return .send(.processDisplayRestores)
         }
@@ -4823,12 +4822,8 @@ public struct WorkspaceActivationFeature {
           state.desktops.revision &+= 1
           desktopUpdate = updateDesktopSpaces(
             desktopObservation.spaces,
-            adopting: state.desktopAdoptionWorkspaceID == id ? display : nil,
             state: &state,
           )
-        }
-        if state.desktopAdoptionWorkspaceID == id {
-          state.desktopAdoptionWorkspaceID = nil
         }
         state.pendingAppClaims.remove(id)
         state.isActivating = false
@@ -4982,7 +4977,6 @@ public struct WorkspaceActivationFeature {
           state.isActivating,
           state.activeActivationGeneration == generation
         else { return .none }
-        state.desktopAdoptionWorkspaceID = nil
         state.isActivating = false
         state.activatingWorkspaceID = nil
         state.activatingDisplay = nil

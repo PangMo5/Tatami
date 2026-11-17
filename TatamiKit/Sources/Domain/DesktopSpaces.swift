@@ -111,7 +111,9 @@ public struct ManagedDesktops: Equatable, Sendable {
     }
   }
 
-  mutating func adopt(_ display: DisplayName) {
+  // MARK: Private
+
+  private mutating func adopt(_ display: DisplayName) {
     guard let space = snapshot?.space(on: display), space.isUserDesktop else { return }
     if snapshot?.displays.count == 1, snapshot?.displays.first?.uuid == "Main" {
       // macOS couples the displays when separate Spaces are disabled.

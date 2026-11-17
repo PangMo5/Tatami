@@ -38,7 +38,6 @@ struct DesktopSpacesTests {
     desktops.observe(Self.spaces(), displays: [Self.left, Self.right])
     desktops.observe(Self.spaces(left: 3), displays: [Self.left, Self.right])
     desktops.observe(nil, displays: [Self.left, Self.right])
-    desktops.adopt(Self.left)
     #expect(!desktops.isAvailable(on: Self.left))
     #expect(desktops.home(on: Self.left) == 1)
     desktops.observe(Self.spaces(left: 3), displays: [Self.left, Self.right])
@@ -89,7 +88,10 @@ struct DesktopSpacesTests {
     let next = DesktopSpaces(displays: [.init(uuid: "Main", currentSpace: 8, isUserDesktop: true, userDesktops: [7, 8])])
     desktops.observe(next, displays: [Self.left, Self.right])
     #expect(!desktops.isAvailable(on: Self.right))
-    desktops.adopt(Self.left)
+    desktops.observe(
+      DesktopSpaces(displays: [.init(uuid: "Main", currentSpace: 8, isUserDesktop: true, userDesktops: [8])]),
+      displays: [Self.left, Self.right],
+    )
     #expect(desktops.isAvailable(on: Self.left))
     #expect(desktops.isAvailable(on: Self.right))
   }
@@ -186,6 +188,98 @@ struct DesktopWorkspaceTests {
     #expect(requests.value.isEmpty)
     #expect(store.state.activeWorkspacesByDisplay.isEmpty)
     #expect(Set(store.state.deferredDesktopRestores.values.map(\.workspace)) == [left.id, right.id])
+  }
+
+  @Test
+  func `reconnecting the ordinary monitor refreshes Desktops while the other restore remains fullscreen`() async {
+    var left = Workspace(name: "Left")
+    left.displayHint = DesktopSpacesTests.left
+    var right = Workspace(name: "Right")
+    right.displayHint = DesktopSpacesTests.right
+    var state = Self.state([left, right])
+    state.connectedDisplays = [DesktopSpacesTests.left]
+    state.displayWorkspaceHistory = [DesktopSpacesTests.left: [left.id], DesktopSpacesTests.right: [right.id]]
+    var fresh = DesktopSpacesTests.spaces(left: 56, fullscreen: true)
+    fresh.displays[1].currentSpace = 60
+    fresh.displays[1].userDesktops = [60]
+    state.desktops.observe(DesktopSpaces(displays: [fresh.displays[0]]), displays: state.connectedDisplays)
+    state.deferredDesktopRestores[DesktopSpacesTests.left] = .init(display: DesktopSpacesTests.left, workspace: left.id)
+    let freshSpaces = fresh
+    let reads = LockIsolated(0)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [DesktopSpacesTests.left, DesktopSpacesTests.right] }
+      $0.sls.desktopSpaces = { reads.withValue { $0 += 1 }
+        return freshSpaces
+      }
+      $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.displaysReconfigured([DesktopSpacesTests.left, DesktopSpacesTests.right]))
+    await store.finish()
+    await store.skipReceivedActions(strict: false)
+    #expect(reads.value > 0)
+    #expect(requests.value.map(\.workspace.id) == [right.id])
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == right.id)
+    #expect(store.state.deferredDesktopRestores[DesktopSpacesTests.left]?.workspace == left.id)
+    #expect(!store.state.desktops.isAvailable(on: DesktopSpacesTests.left))
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.right) == 60)
+  }
+
+  @Test
+  func `CLI activation on a visited Desktop reports unavailability without changing its workspace`() async {
+    let current = Workspace(name: "Current")
+    var target = Workspace(name: "Target")
+    target.displayHint = DesktopSpacesTests.left
+    var state = Self.state([current, target])
+    state.activeWorkspacesByDisplay[DesktopSpacesTests.left] = current.id
+    state.desktops.observe(DesktopSpacesTests.spaces(), displays: state.connectedDisplays)
+    state.desktops.observe(DesktopSpacesTests.spaces(left: 3), displays: state.connectedDisplays)
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(target.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.trackCLIActivation(request, joinCurrentActivation: false))
+    await store.send(.activateFromCLI(workspaceId: target.id, requestID: request.id, interactionDisplay: DesktopSpacesTests.left))
+    await store.finish()
+    await store.skipReceivedActions(strict: false)
+    #expect(completions.value.count == 1)
+    #expect(completions.value.compactMap { $0 }.first?.contains("managed macOS Desktop") == true)
+    #expect(requests.value.isEmpty)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.left) == current.id)
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 1)
+    #expect(store.state.pendingCLIActivation == nil)
+  }
+
+  @Test
+  func `a stale unavailable CLI activation cannot fail a newer request`() async {
+    var target = Workspace(name: "Target")
+    target.displayHint = DesktopSpacesTests.left
+    let newer = Workspace(name: "Newer")
+    var state = Self.state([target, newer])
+    state.desktops.observe(DesktopSpacesTests.spaces(), displays: state.connectedDisplays)
+    state.desktops.observe(DesktopSpacesTests.spaces(left: 3), displays: state.connectedDisplays)
+    let completions = LockIsolated<[String?]>([])
+    let request = WorkspaceActivationFeature.CLIActivationRequest(
+      target: .workspace(newer.id),
+      complete: { error in completions.withValue { $0.append(error) } },
+    )
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
+    store.exhaustivity = .off
+    await store.send(.trackCLIActivation(request, joinCurrentActivation: false))
+    await store.send(.activateFromCLI(workspaceId: target.id, requestID: UUID(), interactionDisplay: DesktopSpacesTests.left))
+    await store.finish()
+    #expect(completions.value.isEmpty)
+    #expect(store.state.pendingCLIActivation?.id == request.id)
   }
 
   @Test(arguments: [false, true])
@@ -314,12 +408,11 @@ struct DesktopWorkspaceTests {
   }
 
   @Test
-  func `explicit activation adopts its completed Desktop and rejects obsolete completion`() async {
+  func `activation completion cannot rebind a surviving managed Desktop and rejects obsolete results`() async {
     let workspace = Workspace(name: "Code")
     var state = Self.state([workspace])
     state.activeWorkspacesByDisplay[DesktopSpacesTests.left] = workspace.id
     state.desktops.observe(DesktopSpacesTests.spaces(), displays: state.connectedDisplays)
-    state.desktopAdoptionWorkspaceID = workspace.id
     state.activeActivationGeneration = 7
     state.activationGeneration = 7
     let store = TestStore(initialState: state) { WorkspaceActivationFeature() }
@@ -338,9 +431,8 @@ struct DesktopWorkspaceTests {
       desktopObservation: .init(spaces: DesktopSpacesTests.spaces(left: 3), revision: 0),
     ))
     await store.finish()
-    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 3)
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 1)
     #expect(store.state.desktops.home(on: DesktopSpacesTests.right) == 2)
-    #expect(store.state.desktopAdoptionWorkspaceID == nil)
   }
 
   @Test
@@ -473,7 +565,7 @@ struct DesktopWorkspaceTests {
   }
 
   @Test
-  func `a deliberate workspace command can adopt the Desktop where activation finishes`() async {
+  func `a workspace command on a visited Desktop preserves the managed Desktop and current workspace`() async {
     let current = Workspace(name: "Current")
     let target = Workspace(name: "Target")
     var state = Self.state([current, target])
@@ -491,24 +583,10 @@ struct DesktopWorkspaceTests {
     }
     store.exhaustivity = .off
     await store.send(.activate(workspaceId: target.id, setFocus: true))
-    await store.receive {
-      if case .activationCompleted = $0 {
-        true
-      } else {
-        false
-      }
-    }
-    await store.receive {
-      if case .activationTailFinished = $0 {
-        true
-      } else {
-        false
-      }
-    }
     await store.finish()
-    #expect(requests.value.count == 1)
-    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.left) == target.id)
-    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 3)
+    #expect(requests.value.isEmpty)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.left) == current.id)
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == 1)
     #expect(store.state.desktops.home(on: DesktopSpacesTests.right) == 2)
   }
 

@@ -22,7 +22,6 @@ extension WorkspaceActivationFeature {
 
   func updateDesktopSpaces(
     _ snapshot: DesktopSpaces?,
-    adopting: DisplayName? = nil,
     state: inout State,
   ) -> Effect<Action> {
     guard !state.isLayoutSuspended else { return .none }
@@ -30,9 +29,6 @@ extension WorkspaceActivationFeature {
     previous.isRefreshing = false
     let displays = state.connectedDisplays.union(state.activeWorkspacesByDisplay.keys).union(state.compositionsByDisplay.keys)
     state.desktops.observe(snapshot, displays: displays)
-    if let adopting {
-      state.desktops.adopt(adopting)
-    }
     var effects = [Effect<Action>]()
     var changedAvailability = false
     for display in displays {
@@ -157,7 +153,6 @@ extension WorkspaceActivationFeature {
           setFocus: false,
           interactionDisplayOverride: origin,
           followsCursor: true,
-          adoptsDesktop: false,
           state: &state,
         ),
       ),
