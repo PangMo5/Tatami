@@ -118,6 +118,76 @@ struct DesktopWorkspaceTests {
 
   // MARK: Internal
 
+  @Test
+  func `startup observes native Desktops before restoring either monitor`() async {
+    var left = Workspace(name: "Left", apps: [AppAssignment(bundleIdentifier: "app.fullscreen", name: "Fullscreen")])
+    left.displayHint = DesktopSpacesTests.left
+    var right = Workspace(name: "Right")
+    right.displayHint = DesktopSpacesTests.right
+    let state = Self.state([left, right])
+    let snapshots = AsyncStream<DesktopSpaces?>.makeStream()
+    let observed = LockIsolated(false)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [DesktopSpacesTests.left, DesktopSpacesTests.right] }
+      $0.displays.current = { DesktopSpacesTests.right }
+      $0.sls.desktopSpaces = {
+        var iterator = snapshots.stream.makeAsyncIterator()
+        let value = await iterator.next() ?? nil
+        observed.setValue(true)
+        return value
+      }
+      $0.workspaceManager.activate = { request in
+        #expect(observed.value)
+        requests.withValue { $0.append(request) }
+      }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.activateInitial)
+    #expect(store.state.desktops.isRefreshing)
+    #expect(requests.value.isEmpty)
+    snapshots.continuation.yield(DesktopSpacesTests.spaces(left: 24, fullscreen: true))
+    snapshots.continuation.finish()
+    await store.finish()
+    await store.skipReceivedActions(strict: false)
+    #expect(requests.value.map(\.workspace.id) == [right.id])
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.left) == nil)
+    #expect(store.state.activeWorkspace(on: DesktopSpacesTests.right) == right.id)
+    #expect(store.state.deferredDesktopRestores[DesktopSpacesTests.left]?.workspace == left.id)
+    #expect(store.state.desktops.home(on: DesktopSpacesTests.left) == nil)
+  }
+
+  @Test
+  func `an unavailable initial Desktop observation defers restoration without retrying`() async {
+    var left = Workspace(name: "Left")
+    left.displayHint = DesktopSpacesTests.left
+    var right = Workspace(name: "Right")
+    right.displayHint = DesktopSpacesTests.right
+    let reads = LockIsolated(0)
+    let requests = LockIsolated<[ActivationRequest]>([])
+    let store = TestStore(initialState: Self.state([left, right])) { WorkspaceActivationFeature() } withDependencies: {
+      $0.continuousClock = TestClock()
+      $0.displays.all = { [DesktopSpacesTests.left, DesktopSpacesTests.right] }
+      $0.sls.desktopSpaces = { reads.withValue { $0 += 1 }
+        return nil
+      }
+      $0.workspaceManager.activate = { request in requests.withValue { $0.append(request) } }
+      $0.floatingOverlay.retainOnly = { _ in }
+      $0.floatingOverlay.setFloating = { _ in }
+    }
+    store.exhaustivity = .off
+    await store.send(.activateInitial)
+    await store.finish()
+    await store.skipReceivedActions(strict: false)
+    #expect(reads.value == 1)
+    #expect(requests.value.isEmpty)
+    #expect(store.state.activeWorkspacesByDisplay.isEmpty)
+    #expect(Set(store.state.deferredDesktopRestores.values.map(\.workspace)) == [left.id, right.id])
+  }
+
   @Test(arguments: [false, true])
   func `Desktop round trips preserve nested topology and zoom while another monitor reconciles`(fullscreen: Bool) async {
     let a = WindowKey(pid: 1, windowID: 101, bundleId: "app.editor")

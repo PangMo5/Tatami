@@ -343,7 +343,6 @@ public struct WorkspaceActivationFeature {
     /// Live bindings retained across partial restoration; a surviving second
     /// window must not become occurrence zero when the first disappears.
     public var layoutRestorationBindings = [Workspace.ID: [SlotID: WindowKey]]()
-
     /// Active composition per display — a host workspace plus borrowed
     /// blocks. Absent → that display shows its host alone (default behavior).
     public var compositionsByDisplay = [DisplayName: Composition]()
@@ -407,6 +406,10 @@ public struct WorkspaceActivationFeature {
       let originProfileID: Profile.ID?
       let activationGeneration: UInt64
     }
+
+    /// Startup restoration cannot authorize layout work before its first
+    /// native Desktop observation completes.
+    var isWaitingForInitialDesktopObservation = false
 
     var membershipRequestID: UUID?
     var pendingAssignment: PendingAssignment?
@@ -2334,6 +2337,11 @@ public struct WorkspaceActivationFeature {
       case .desktopSpacesResolved(let snapshot, let revision):
         guard revision == state.desktops.revision else { return .none }
         let update = updateDesktopSpaces(snapshot, state: &state)
+        let resumesInitialActivation = state.isWaitingForInitialDesktopObservation
+        state.isWaitingForInitialDesktopObservation = false
+        if resumesInitialActivation, snapshot == nil {
+          debugLog.log("Space", "initial Desktop observation unavailable; startup restoration deferred")
+        }
         if snapshot == nil {
           state.pendingAppFocusDesktopRequest = nil
         }
@@ -2341,6 +2349,7 @@ public struct WorkspaceActivationFeature {
           update,
           .send(.reconcileAllTrackedApps),
           state.pendingAppFocusDesktopRequest == nil ? .none : .send(.resumeFollowingAppFocus),
+          resumesInitialActivation ? .send(.activateInitial) : .none,
         )
 
       case .desktopSpacesObserved(let snapshot, let revision):
@@ -2892,6 +2901,7 @@ public struct WorkspaceActivationFeature {
         return completeCLIActivation(error: error, state: &state)
 
       case .reactivateActiveProfile(let focus, let capturedInteractionDisplay):
+        state.isWaitingForInitialDesktopObservation = false
         state.deferredDesktopRestores = [:]
         state.desktopAdoptionWorkspaceID = nil
         state.deferredBorrow = nil
@@ -3118,6 +3128,10 @@ public struct WorkspaceActivationFeature {
         // Scratchpads are borrow-only — never auto-activate one on launch.
         let candidates = profile.workspaces.filter { $0.kind != .scratchpad }
         guard !candidates.isEmpty else { return .none }
+        if state.desktops.isRefreshing || (state.desktops.snapshot == nil && !state.desktops.observationFailed) {
+          state.isWaitingForInitialDesktopObservation = true
+          return state.desktops.isRefreshing ? .none : observeDesktopSpaces(state: &state)
+        }
         let frontmost = windowSnapshot.frontmostApp()
         let frontBundle = frontmost.flatMap {
           overlayAwareness.isBackgroundedProcess($0.pid) ? nil : $0.bundleId

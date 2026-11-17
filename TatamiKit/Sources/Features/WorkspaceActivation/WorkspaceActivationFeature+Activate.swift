@@ -1781,6 +1781,7 @@ extension WorkspaceActivationFeature {
     adoptsDesktop: Bool = true,
     state: inout State,
   ) -> Effect<Action> {
+    state.isWaitingForInitialDesktopObservation = false
     state.appFocusDesktopRequestID &+= 1
     state.pendingAppFocusDesktopRequest = nil
     let wasOnManagedDesktop = state.canManageWorkspace(workspaceId)

@@ -22,9 +22,18 @@ struct MenuBarLabel: View {
     // NSImage instead, which the menu bar then tints and highlights like any
     // status item — so we can show any mix of profile / workspace icons+names.
     Image(nsImage: renderedLabel)
+      .task { store.send(.task) }
+      .onChange(of: store.onboarding.presentationRequest) { _, request in
+        if request > 0 {
+          openWindow(id: "onboarding")
+          NSApp.activate(ignoringOtherApps: true)
+        }
+      }
   }
 
   // MARK: Private
+
+  @Environment(\.openWindow) private var openWindow
 
   @MainActor
   private var renderedLabel: NSImage {
