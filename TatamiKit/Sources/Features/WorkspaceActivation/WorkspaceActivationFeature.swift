@@ -1206,6 +1206,7 @@ public struct WorkspaceActivationFeature {
   }
 
   public enum Action {
+    case markerSettingsChanged
     case startObservingWindowEvents
     case windowServerSnapshotRequested(SLSWindowEvent)
     case windowServerWindowEvent(SLSWindowEvent, snapshot: WindowServerEventSnapshot? = nil)
@@ -1679,6 +1680,9 @@ public struct WorkspaceActivationFeature {
       }
 
       switch action {
+      case .markerSettingsChanged:
+        return refreshMarkers(state: state)
+
       case .startObservingWindowEvents:
         return .merge(
           .run { [client = windowObserver] send in

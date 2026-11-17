@@ -73,6 +73,8 @@ public struct AppFeature {
 
     // MARK: Internal
 
+    var appliedMarkerSettings: AppSettings.Marker?
+
     /// `.task` is driven by the menu bar label, independently of auxiliary
     /// windows. Defend against SwiftUI recreating that label: startup must
     /// run once per process because the subscriptions below consume
@@ -398,6 +400,8 @@ public struct AppFeature {
         return .none
 
       case .settingsChanged(let settings):
+        let markerChanged = state.appliedMarkerSettings != settings.marker
+        state.appliedMarkerSettings = settings.marker
         // This registry is synchronous state. Commit it in reducer order so a
         // delayed effect from an older settings snapshot cannot restore a
         // removed allowlist entry.
@@ -408,6 +412,7 @@ public struct AppFeature {
           ignoreFullscreen: settings.focus.focusFollowsMouseIgnoreFullscreen,
         )
         return .merge(
+          markerChanged ? .send(.activation(.markerSettingsChanged)) : .none,
           .run { [client = focusFollowsMouse] _ in
             await client.configure(ffm)
           },
