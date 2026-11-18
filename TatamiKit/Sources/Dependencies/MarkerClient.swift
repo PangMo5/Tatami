@@ -114,7 +114,7 @@ extension MarkerClient: DependencyKey {
         }
       },
       repairNativeOrder: { windowID in
-        await MainActor.run { controller.repairNativeMarkerOrder(windowID: windowID) }
+        await MainActor.run { controller.repairNativeMarkerOrder(windowID: windowID, geometry: geometry) }
       },
     )
   }()
@@ -157,6 +157,15 @@ private struct MarkerGeometryUpdate: Sendable {
   var keys: Set<WindowKey>
 }
 
+// MARK: - MarkerNativeSnapshot
+
+/// WindowServer orders surfaces, but WindowManager may report Mission Control
+/// thumbnails under the original window IDs. These placements carry AX frames.
+private struct MarkerNativeSnapshot: Sendable {
+  var surfaces: [WindowKey: WindowServerSurface]
+  var order: [CGWindowID: Int]
+}
+
 // MARK: - MarkerGeometryCancellationFlag
 
 private final class MarkerGeometryCancellationFlag: @unchecked Sendable {
@@ -181,7 +190,7 @@ private final class MarkerGeometryCancellationFlag: @unchecked Sendable {
 // MARK: - MarkerGeometryWorker
 
 /// Owns every marker AX element, subscription, and geometry read on a
-/// dedicated serial run loop. `MarkerController` receives WindowServer surfaces
+/// dedicated serial run loop. `MarkerController` receives value snapshots
 /// only, so target changes, programmatic tiling callbacks, and focus refreshes
 /// never perform cross-process AX messaging on the main actor.
 private final class MarkerGeometryWorker: @unchecked Sendable {
@@ -206,7 +215,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   func updateTargets(
     _ keys: [WindowKey],
     generation: UInt64,
-  ) async -> [WindowKey: WindowServerSurface] {
+  ) async -> MarkerNativeSnapshot? {
     let cancellation = MarkerGeometryCancellationFlag()
     return await withTaskCancellationHandler {
       await perform {
@@ -227,7 +236,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   func snapshot(
     _ keys: [WindowKey],
     generation: UInt64,
-  ) async -> [WindowKey: WindowServerSurface] {
+  ) async -> MarkerNativeSnapshot? {
     let cancellation = MarkerGeometryCancellationFlag()
     let shouldRun = focusLock.withLock { () -> Bool in
       guard generation >= latestFocusSnapshotGeneration else { return false }
@@ -236,7 +245,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       currentFocusSnapshot = (generation, cancellation)
       return true
     }
-    guard shouldRun else { return [:] }
+    guard shouldRun else { return nil }
     let frames = await withTaskCancellationHandler {
       await perform {
         self.snapshotOnThread(
@@ -253,6 +262,12 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       }
     }
     return frames
+  }
+
+  func snapshotOrder(_ keys: Set<WindowKey>) async -> MarkerNativeSnapshot? {
+    await perform {
+      self.snapshotSurfaces(keys.intersection(self.targetKeys), isCancelled: { false })
+    }
   }
 
   // MARK: Fileprivate
@@ -280,6 +295,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   private var targetGeneration: UInt64 = 0
   private var targetKeys = Set<WindowKey>()
   private var elements = [WindowKey: AXUIElement]()
+  private var nativeFrames = [WindowKey: CGRect]()
   private var keyByWindowID = [CGWindowID: WindowKey]()
   private var observers = [pid_t: AXObserver]()
   private var subscribed = Set<WindowKey>()
@@ -338,8 +354,8 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     _ keys: Set<WindowKey>,
     generation: UInt64,
     isCancelled: @Sendable () -> Bool,
-  ) -> [WindowKey: WindowServerSurface] {
-    guard generation >= targetGeneration, !isCancelled() else { return [:] }
+  ) -> MarkerNativeSnapshot? {
+    guard generation >= targetGeneration, !isCancelled() else { return nil }
     targetGeneration = generation
     targetKeys = keys
     removeStaleElements()
@@ -351,8 +367,8 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   private func snapshotOnThread(
     _ keys: Set<WindowKey>,
     isCancelled: @Sendable () -> Bool,
-  ) -> [WindowKey: WindowServerSurface] {
-    guard !isCancelled() else { return [:] }
+  ) -> MarkerNativeSnapshot? {
+    guard !isCancelled() else { return nil }
     // A target may have been temporarily unreachable during its initial
     // reconcile. Focus is a useful retry signal; resolve only still-missing
     // current targets before taking the fresh frame snapshot.
@@ -456,15 +472,38 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
 
   private func snapshotSurfaces(
     _ keys: Set<WindowKey>,
+    forceFrameRead: Bool = false,
     isCancelled: @Sendable () -> Bool,
-  ) -> [WindowKey: WindowServerSurface] {
-    guard !keys.isEmpty, !isCancelled() else { return [:] }
-    let onScreen = Dictionary(uniqueKeysWithValues: readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
-      .filter { $0.alpha > 0 }.map { ($0.id, $0.surface) })
-    return Dictionary(uniqueKeysWithValues: keys.compactMap { key in
-      guard let surface = onScreen[key.windowID], surface.ownerPID == key.pid else { return nil }
-      return (key, surface)
-    })
+  ) -> MarkerNativeSnapshot? {
+    guard !keys.isEmpty else { return MarkerNativeSnapshot(surfaces: [:], order: [:]) }
+    guard
+      !isCancelled(),
+      let windows = readWindowServerWindowsIfAvailable([.optionOnScreenOnly, .excludeDesktopElements])
+    else { return nil }
+    let order = Dictionary(uniqueKeysWithValues: windows.enumerated().map { ($0.element.id, $0.offset) })
+    var surfaces = [WindowKey: WindowServerSurface]()
+    for key in keys {
+      guard !isCancelled() else { return nil }
+      guard
+        let index = order[key.windowID],
+        windows[index].surface.ownerPID == key.pid,
+        windows[index].alpha > 0
+      else { continue }
+      var surface = windows[index].surface
+      // A matching server frame needs no IPC. Otherwise ask the actual AX
+      // window, including when the server is showing a transformed thumbnail.
+      if forceFrameRead || nativeFrames[key] != surface.frame {
+        if let element = elements[key], let frame = AXWindowGeometry.frame(of: element), !frame.isEmpty {
+          nativeFrames[key] = frame
+        }
+      }
+      // A temporary AX failure during a transition cannot authorize a new
+      // marker location. Retain the last verified frame for this live key.
+      guard let frame = nativeFrames[key] else { continue }
+      surface.frame = frame
+      surfaces[key] = surface
+    }
+    return MarkerNativeSnapshot(surfaces: surfaces, order: order)
   }
 
   private func removeStaleElements() {
@@ -486,6 +525,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
         )
       }
       elements[key] = nil
+      nativeFrames[key] = nil
       keyByWindowID[key.windowID] = nil
       pendingGeometryKeys.remove(key)
     }
@@ -508,10 +548,12 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     let keys = pendingGeometryKeys
     pendingGeometryKeys.removeAll(keepingCapacity: true)
     isGeometryDeliveryInFlight = true
-    let surfaces = snapshotSurfaces(keys, isCancelled: { false })
+    let snapshot = snapshotSurfaces(keys, forceFrameRead: true, isCancelled: { false })
     let sink = sink
     Task { @MainActor [weak self] in
-      sink(MarkerGeometryUpdate(surfaces: surfaces, keys: keys))
+      if let snapshot {
+        sink(MarkerGeometryUpdate(surfaces: snapshot.surfaces, keys: keys))
+      }
       self?.enqueue { [weak self] in
         guard let self else { return }
         isGeometryDeliveryInFlight = false
@@ -612,14 +654,14 @@ private final class MarkerController {
   }
 
   func applyTargetSnapshot(
-    _ surfaces: [WindowKey: WindowServerSurface],
+    _ snapshot: MarkerNativeSnapshot?,
     generation: UInt64,
   ) {
-    guard generation == targetRefreshGeneration else { return }
+    guard generation == targetRefreshGeneration, let snapshot else { return }
     appliedTargetRefreshGeneration = generation
     applyFrames(
       MarkerGeometryUpdate(
-        surfaces: surfaces,
+        surfaces: snapshot.surfaces,
         keys: Set(panels.keys),
       )
     )
@@ -649,11 +691,11 @@ private final class MarkerController {
   }
 
   func applyFocusSnapshot(
-    _ surfaces: [WindowKey: WindowServerSurface],
+    _ snapshot: MarkerNativeSnapshot?,
     generation: UInt64,
   ) {
-    guard generation == focusRefreshGeneration else { return }
-    applyFrames(MarkerGeometryUpdate(surfaces: surfaces, keys: Set(panels.keys)))
+    guard generation == focusRefreshGeneration, let snapshot else { return }
+    applyFrames(MarkerGeometryUpdate(surfaces: snapshot.surfaces, keys: Set(panels.keys)))
   }
 
   func observeActiveSpaceChanges(_ refresh: @escaping @MainActor @Sendable () -> Void) {
@@ -671,7 +713,7 @@ private final class MarkerController {
     refresh(key, cursor: NSEvent.mouseLocation)
   }
 
-  func repairNativeMarkerOrder(windowID: CGWindowID?) {
+  func repairNativeMarkerOrder(windowID: CGWindowID?, geometry: MarkerGeometryWorker) {
     for (key, panel) in panels where panel.parent == nil && (windowID == nil || key.windowID == windowID) {
       pendingNativeOrderChecks[key] = panel.windowNumber
     }
@@ -686,10 +728,9 @@ private final class MarkerController {
         pendingNativeOrderChecks.removeAll(keepingCapacity: true)
         let generation = targetRefreshGeneration
         guard
-          let windows = await windowServerWindowsIfAvailable([.optionOnScreenOnly, .excludeDesktopElements]),
+          let snapshot = await geometry.snapshotOrder(Set(candidates.keys)),
           generation == targetRefreshGeneration
         else { continue }
-        let indexes = Dictionary(uniqueKeysWithValues: windows.enumerated().map { ($0.element.id, $0.offset) })
         let cursor = NSEvent.mouseLocation
         for (key, markerNumber) in candidates {
           guard
@@ -698,17 +739,15 @@ private final class MarkerController {
             panel.windowNumber == markerNumber
           else { continue }
           guard
-            let nativeIndex = indexes[key.windowID],
-            windows[nativeIndex].surface.ownerPID == key.pid,
-            windows[nativeIndex].alpha > 0
+            let nativeIndex = snapshot.order[key.windowID],
+            let surface = snapshot.surfaces[key]
           else {
             if nativeSurfaces.removeValue(forKey: key) != nil || panel.isVisible {
               refresh(key, cursor: cursor)
             }
             continue
           }
-          let surface = windows[nativeIndex].surface
-          let markerIndex = CGWindowID(exactly: markerNumber).flatMap { indexes[$0] }
+          let markerIndex = CGWindowID(exactly: markerNumber).flatMap { snapshot.order[$0] }
           // A registered marker may not have had an on-screen owner during
           // initial placement. The first visible snapshot can attach it.
           guard
