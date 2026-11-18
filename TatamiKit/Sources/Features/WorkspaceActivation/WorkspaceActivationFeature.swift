@@ -1701,11 +1701,17 @@ public struct WorkspaceActivationFeature {
               await send(.displaysReconfigured(names))
             }
           },
-          .run { [sls] send in
+          .run { [sls, marker] send in
             // WindowServer visibility edges catch hide-on-close windows that
             // emit no AX notification; termination remains the authoritative
             // cache tombstone.
             for await event in sls.windowEvents() {
+              // A clicked window can finish its native raise after mouse-up.
+              // On that visibility edge its tile membership is unchanged, so
+              // the normal window sync would leave the marker below it.
+              if case .becameVisible(let windowID) = event {
+                await marker.repairNativeOrder(windowID)
+              }
               await send(.windowServerSnapshotRequested(event))
             }
           },
@@ -2081,7 +2087,7 @@ public struct WorkspaceActivationFeature {
           var effects: [Effect<Action>] = [
             .run { _ in await preview.hide() }
               .cancellable(id: CancelID.dragPreview, cancelInFlight: true),
-            .run { _ in await markerClient.pointerReleased(authoritativeWindowID) },
+            .run { _ in await markerClient.repairNativeOrder(authoritativeWindowID) },
           ]
           switch drag {
           case .idle:

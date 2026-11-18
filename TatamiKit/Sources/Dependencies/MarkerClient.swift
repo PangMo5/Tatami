@@ -50,7 +50,7 @@ struct MarkerClient: Sendable {
   /// flow — cheaper and more responsive than polling AX every 50 ms.
   /// Pass `nil` to clear (no focused window).
   var setFocused: @Sendable (_ key: WindowKey?) async -> Void
-  var pointerReleased: @Sendable (_ windowID: CGWindowID?) async -> Void = { _ in }
+  var repairNativeOrder: @Sendable (_ windowID: CGWindowID?) async -> Void = { _ in }
 }
 
 // MARK: DependencyKey
@@ -113,7 +113,7 @@ extension MarkerClient: DependencyKey {
           )
         }
       },
-      pointerReleased: { windowID in
+      repairNativeOrder: { windowID in
         await MainActor.run { controller.repairNativeMarkerOrder(windowID: windowID) }
       },
     )
@@ -124,7 +124,7 @@ extension MarkerClient: DependencyKey {
   static let testValue = MarkerClient(
     setTargets: { _, _, _, _ in },
     setFocused: { _ in },
-    pointerReleased: { _ in },
+    repairNativeOrder: { _ in },
   )
   static let previewValue = testValue
 }
