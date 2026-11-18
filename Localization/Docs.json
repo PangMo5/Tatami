@@ -5326,5 +5326,54 @@
     "ja": "共有アプリバッジの色（{0}）。",
     "zh-Hans": "共享应用标记颜色（{0}）。",
     "zh-Hant": "共用 App 標記顏色（{0}）。"
+  },
+  "4c6e4c27e49e6b09": {
+    "en": "More reliable workspaces across displays, macOS Desktops, and Mission Control.",
+    "ko": "모니터와 macOS 데스크탑을 오갈 때 작업 공간이 안정적으로 유지되고, Mission Control에서 돌아와도 창 표시가 제자리에 보여요.",
+    "ja": "ディスプレイやmacOSのデスクトップを切り替えてもワークスペースが安定し、Mission Controlから戻ったときのマーカー表示も改善しました。",
+    "zh-Hans": "在显示器和 macOS 桌面之间切换时，工作区更稳定。Mission Control 返回后，窗口标记也能回到正确位置。",
+    "zh-Hant": "在顯示器和 macOS 桌面之間切換時，工作空間更穩定。從 Mission Control 返回後，視窗標記也會回到正確位置。"
+  },
+  "c9cb0cbd84ff531e": {
+    "en": "**Keep layouts across macOS Desktops.** Visiting another Desktop or entering native fullscreen preserves the layout on that display. Tatami continues managing the other displays.",
+    "ko": "**데스크탑을 오갈 때 배치를 유지해요.** 다른 데스크탑이나 macOS 전체 화면으로 이동해도 그 모니터의 배치를 보존해요. 다른 모니터는 계속 관리해요.",
+    "ja": "**macOSのデスクトップを切り替えても配置を保持。** 別のデスクトップやmacOSのフルスクリーンに移動しても、そのディスプレイの配置を保持します。ほかのディスプレイの管理は続きます。",
+    "zh-Hans": "**切换 macOS 桌面时保留布局。** 前往其他桌面或进入原生全屏时，会保留该显示器的布局。Tatami 继续管理其他显示器。",
+    "zh-Hant": "**切換 macOS 桌面時保留配置。** 前往其他桌面或進入原生全螢幕時，會保留該顯示器的配置。Tatami 繼續管理其他顯示器。"
+  },
+  "2c590b82b805998d": {
+    "en": "**Return to a workspace on its Desktop.** Selecting a workspace takes its display back to the Desktop Tatami manages. Tatami brings the workspace’s windows and Shared App windows on that display there, exiting their native fullscreen when needed.",
+    "ko": "**작업 공간을 부르면 관리 중인 데스크탑으로 돌아가요.** 작업 공간을 직접 선택하면 해당 모니터가 Tatami가 관리하는 데스크탑으로 돌아가요. 그 모니터의 작업 공간과 공용 앱 창도 모으며, 필요한 경우 macOS 전체 화면을 해제해요.",
+    "ja": "**ワークスペースを選んだディスプレイのデスクトップに戻る。** ワークスペースを選ぶと、対象ディスプレイはTatamiが管理するデスクトップに戻ります。そのディスプレイのワークスペースと共有アプリのウインドウも集め、必要に応じてmacOSのフルスクリーンを解除します。",
+    "zh-Hans": "**选择工作区即可返回其桌面。** 选择工作区后，该显示器会返回 Tatami 管理的桌面。Tatami 会把该显示器上的工作区窗口和共享应用窗口带回，必要时退出原生全屏。",
+    "zh-Hant": "**選擇工作空間即可返回其桌面。** 選擇工作空間後，該顯示器會返回 Tatami 管理的桌面。Tatami 會將該顯示器上的工作空間視窗與共用 App 視窗帶回，必要時退出原生全螢幕。"
+  },
+  "574782506c7eadcb": {
+    "en": "**Drag Shared App tiles between displays.** Drop a shared tiled window into the active workspace on another display. The preview shows where it will land, and an empty workspace accepts it as its first tile.",
+    "ko": "**공용 앱 타일을 다른 모니터로 옮겨요.** 타일링된 공용 창을 다른 모니터의 활성 작업 공간으로 드래그할 수 있어요. 놓일 자리를 미리 보여주고, 빈 작업 공간에서는 첫 타일로 들어가요.",
+    "ja": "**共有アプリのタイルを別のディスプレイへ移動。** タイル表示中の共有ウインドウを、別のディスプレイで表示中のワークスペースにドラッグできます。配置先がプレビューされ、空のワークスペースでは最初のタイルになります。",
+    "zh-Hans": "**在显示器之间拖动共享应用的平铺窗口。** 将共享窗口拖到另一台显示器的活动工作区。预览会显示落点，空工作区会将它作为第一个平铺窗口。",
+    "zh-Hant": "**在顯示器之間拖移共用 App 的並排視窗。** 將共用視窗拖到另一台顯示器的使用中工作空間。預覽會顯示放置位置，空的工作空間會將它當作第一個並排視窗。"
+  },
+  "217fbed728ca7216": {
+    "en": "**Recover windows after display changes.** Shared tiled windows that end up partly outside a portrait or rearranged display can rejoin its layout.",
+    "ko": "**모니터 배치가 바뀌어도 창을 되찾아요.** 세로 모니터나 위치를 바꾼 모니터 밖으로 일부 벗어난 공용 타일을 다시 배치해요.",
+    "ja": "**ディスプレイ構成を変更した後のウインドウを復元。** 縦長のディスプレイや配置を変更したディスプレイから一部はみ出た共有タイルを、レイアウトに戻せます。",
+    "zh-Hans": "**显示器调整后恢复窗口。** 部分落在竖屏或重新排列的显示器范围外的共享平铺窗口可以重新加入布局。",
+    "zh-Hant": "**調整顯示器後復原視窗。** 部分落在直向或重新排列的顯示器範圍外的共用並排視窗可以重新加入配置。"
+  },
+  "9bea0f3b110faddf": {
+    "en": "**See Shared App badges and window markers.** Shared windows get a separate badge. Markers stay with their windows through overlaps and Mission Control. Saved legacy defaults switch to Catppuccin Mocha and custom colors are carried forward.",
+    "ko": "**공용 앱 배지와 상태 표시를 확인해요.** 공용 창에는 별도 배지가 붙어요. 창이 겹치거나 Mission Control을 오가도 표시는 원래 창을 따라가요. 저장된 예전 기본색은 Catppuccin Mocha로 바뀌고, 직접 지정한 색은 이어서 사용해요.",
+    "ja": "**共有アプリのバッジとウインドウマーカー。** 共有ウインドウに専用のバッジを表示します。ウインドウが重なったときやMission Controlから戻ったときも、マーカーがウインドウに追従します。以前の標準色はCatppuccin Mochaに移行し、カスタム色は引き継ぎます。",
+    "zh-Hans": "**查看共享应用徽标和窗口标记。** 共享窗口有独立徽标。窗口重叠或退出 Mission Control 后，标记会跟随各自的窗口。已保存的旧默认色会改用 Catppuccin Mocha，自定义颜色会保留。",
+    "zh-Hant": "**查看共用 App 徽章和視窗標記。** 共用視窗有獨立徽章。視窗重疊或離開 Mission Control 後，標記會跟隨各自的視窗。已儲存的舊預設色會改用 Catppuccin Mocha，自訂顏色會保留。"
+  },
+  "1e1cd0af9bdaaf4c": {
+    "en": "**Build from source with Swift Package Manager.** Xcode 27.2 builds the app, CLI, and tests directly from the Swift package.",
+    "ko": "**Swift Package Manager로 소스에서 빌드해요.** Xcode 27.2에서 Swift 패키지로 앱과 CLI를 빌드하고 테스트할 수 있어요.",
+    "ja": "**Swift Package Managerでソースからビルド。** Xcode 27.2でSwiftパッケージからアプリとCLIをビルドし、テストを実行できます。",
+    "zh-Hans": "**使用 Swift Package Manager 从源码构建。** Xcode 27.2 可直接从 Swift 包构建应用和 CLI，并运行测试。",
+    "zh-Hant": "**使用 Swift Package Manager 從原始碼建置。** Xcode 27.2 可直接從 Swift 套件建置 App 和 CLI，並執行測試。"
   }
 }
