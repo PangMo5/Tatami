@@ -1,11 +1,44 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import CoreGraphics
 import Foundation
 import Testing
 @testable import TatamiKit
 
 struct SharedMarkerTests {
+
+  // MARK: Internal
+
+  @Test
+  func `a badge above the front window cannot expose its covered owner`() {
+    let firstFrame = CGRect(x: 0, y: 0, width: 240, height: 220)
+    let secondFrame = firstFrame.offsetBy(dx: 300, dy: 0)
+    let firstCorner = CGRect(x: 200, y: 180, width: 24, height: 24)
+    let secondCorner = firstCorner.offsetBy(dx: 300, dy: 0)
+    let firstOwner = Self.surface(10, firstFrame)
+    let secondOwner = Self.surface(11, secondFrame)
+    let badges = [Self.surface(90, firstCorner), Self.surface(91, secondCorner)]
+    // The first owner's body is partly visible but the badge's corner is not.
+    let cover = Self.surface(20, CGRect(x: 160, y: 140, width: 120, height: 100))
+    let hidden = MarkerWindowStack(badges + [cover, firstOwner, secondOwner])
+    #expect(!hidden.exposes(firstCorner, on: 10, ignoring: [90, 91]))
+    #expect(hidden.exposes(secondCorner, on: 11, ignoring: [90, 91]))
+    let uncovered = MarkerWindowStack(badges + [firstOwner, secondOwner, cover])
+    #expect(uncovered.exposes(firstCorner, on: 10, ignoring: [90, 91]))
+  }
+
+  @Test
+  func `a floating marker is authorized by the visible mirror rather than the covered native window`() {
+    let frame = CGRect(x: 0, y: 0, width: 240, height: 220)
+    let corner = CGRect(x: 200, y: 180, width: 24, height: 24)
+    let invisibleCover = Self.surface(30, frame, alpha: 0)
+    let stack = MarkerWindowStack([invisibleCover, Self.surface(40, frame), Self.surface(20, frame), Self.surface(10, frame)])
+    #expect(stack.exposes(corner, on: 40, ignoring: []))
+    #expect(!stack.exposes(corner, on: 10, ignoring: []))
+    #expect(!stack.exposes(corner, on: 90, ignoring: []))
+  }
+
   @Test
   func `a shared badge coexists with borrowed or zoom status without replacing it`() throws {
     let key = WindowKey(pid: 1, windowID: 10, bundleId: "app.shared")
@@ -105,4 +138,16 @@ struct SharedMarkerTests {
     #expect(defaults.fullscreenColorHex == MarkerPalette.fullscreen)
     #expect(defaults.borrowColorHex == MarkerPalette.borrowed)
   }
+
+  // MARK: Private
+
+  private static func surface(_ id: CGWindowID, _ frame: CGRect, alpha: Double = 1) -> WindowServerWindow {
+    WindowServerWindow(
+      id: id,
+      surface: WindowServerSurface(ownerPID: pid_t(id), layer: 0, frame: frame),
+      title: nil,
+      alpha: alpha,
+    )
+  }
+
 }

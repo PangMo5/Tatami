@@ -10,6 +10,12 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.15.2 (2026-11-18)
+
+Window markers stay with their visible windows.
+
+- **Hide markers at covered corners.** Shared App badges and other markers disappear when another window covers their corner and return when the corner is visible again.
+
 ## 1.15.1 (2026-11-18)
 
 More reliable workspaces across displays, macOS Desktops, and Mission Control.

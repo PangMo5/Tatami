@@ -5375,5 +5375,19 @@
     "ja": "**Swift Package Managerでソースからビルド。** Xcode 27.2でSwiftパッケージからアプリとCLIをビルドし、テストを実行できます。",
     "zh-Hans": "**使用 Swift Package Manager 从源码构建。** Xcode 27.2 可直接从 Swift 包构建应用和 CLI，并运行测试。",
     "zh-Hant": "**使用 Swift Package Manager 從原始碼建置。** Xcode 27.2 可直接從 Swift 套件建置 App 和 CLI，並執行測試。"
+  },
+  "d15f9a056b45db3f": {
+    "en": "Window markers stay with their visible windows.",
+    "ko": "창 표시가 실제로 보이는 창에만 떠요.",
+    "ja": "表示されているウインドウにだけマーカーが付きます。",
+    "zh-Hans": "窗口标记只显示在可见的窗口上。",
+    "zh-Hant": "視窗標記只顯示在可見的視窗上。"
+  },
+  "a91a61affd28f2e7": {
+    "en": "**Hide markers at covered corners.** Shared App badges and other markers disappear when another window covers their corner and return when the corner is visible again.",
+    "ko": "**창 모서리가 가려지면 표시도 숨겨요.** 다른 창이 모서리를 덮으면 공용 앱 배지와 상태 표시도 숨고, 모서리가 다시 보이면 표시가 돌아와요.",
+    "ja": "**隠れたコーナーのマーカーを非表示に。** 別のウインドウがコーナーを覆うと共有アプリのバッジと各種マーカーが隠れ、コーナーが見えるようになると再表示されます。",
+    "zh-Hans": "**隐藏被覆盖角落的标记。** 其他窗口遮住角落时，共享应用徽标和其他窗口标记会隐藏。角落重新可见后，标记会恢复。",
+    "zh-Hant": "**隱藏被遮住角落的標記。** 其他視窗遮住角落時，共用 App 徽章和其他視窗標記會隱藏。角落重新可見後，標記會恢復。"
   }
 }

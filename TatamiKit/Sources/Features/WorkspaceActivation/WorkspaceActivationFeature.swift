@@ -1691,8 +1691,16 @@ public struct WorkspaceActivationFeature {
 
       case .startObservingWindowEvents:
         return .merge(
-          .run { [client = windowObserver] send in
+          .run { [client = windowObserver, marker] send in
             for await event in client.events() {
+              switch event {
+              case .windowFrameChanged(let key, _),
+                   .windowMoved(let key, _),
+                   .windowResized(let key, _):
+                await marker.windowPresentationChanged(key.windowID)
+              default:
+                break
+              }
               await send(.windowChanged(event))
             }
           },
@@ -1706,10 +1714,9 @@ public struct WorkspaceActivationFeature {
             // emit no AX notification; termination remains the authoritative
             // cache tombstone.
             for await event in sls.windowEvents() {
-              // A clicked window can finish its native raise after mouse-up.
-              // On that visibility edge its tile membership is unchanged, so
-              // the normal window sync would leave the marker below it.
-              await marker.repairNativeOrder(event.windowID)
+              // A cover can expose or occlude another window's badge without
+              // changing either window's workspace membership.
+              await marker.windowPresentationChanged(event.windowID)
               await send(.windowServerSnapshotRequested(event))
             }
           },
@@ -2085,7 +2092,7 @@ public struct WorkspaceActivationFeature {
           var effects: [Effect<Action>] = [
             .run { _ in await preview.hide() }
               .cancellable(id: CancelID.dragPreview, cancelInFlight: true),
-            .run { _ in await markerClient.repairNativeOrder(authoritativeWindowID) },
+            .run { _ in await markerClient.windowPresentationChanged(authoritativeWindowID) },
           ]
           switch drag {
           case .idle:

@@ -3,5 +3,5 @@
 
 /// The marketing version shared by the app, CLI, packaging, and release tools.
 public enum TatamiVersion {
-  public static let current = "1.15.1"
+  public static let current = "1.15.2"
 }
