@@ -50,6 +50,7 @@ struct MarkerClient: Sendable {
   /// flow — cheaper and more responsive than polling AX every 50 ms.
   /// Pass `nil` to clear (no focused window).
   var setFocused: @Sendable (_ key: WindowKey?) async -> Void
+  var pointerReleased: @Sendable (_ windowID: CGWindowID?) async -> Void = { _ in }
 }
 
 // MARK: DependencyKey
@@ -71,7 +72,6 @@ extension MarkerClient: DependencyKey {
           controller?.applyFocusSnapshot(surfaces, generation: request.generation)
         }
       }
-      controller.observeMarkerOcclusionChanges()
     }
     return MarkerClient(
       setTargets: { targets, size, corner, hideOnHover in
@@ -113,6 +113,9 @@ extension MarkerClient: DependencyKey {
           )
         }
       },
+      pointerReleased: { windowID in
+        await MainActor.run { controller.repairNativeMarkerOrder(windowID: windowID) }
+      },
     )
   }()
 
@@ -121,6 +124,7 @@ extension MarkerClient: DependencyKey {
   static let testValue = MarkerClient(
     setTargets: { _, _, _, _ in },
     setFocused: { _ in },
+    pointerReleased: { _ in },
   )
   static let previewValue = testValue
 }
@@ -667,14 +671,44 @@ private final class MarkerController {
     refresh(key, cursor: NSEvent.mouseLocation)
   }
 
-  func observeMarkerOcclusionChanges() {
-    markerOcclusionObserver = NotificationCenter.default.addObserver(
-      forName: NSWindow.didChangeOcclusionStateNotification,
-      object: nil,
-      queue: .main,
-    ) { [weak self] notification in
-      guard let panel = notification.object as? NSPanel else { return }
-      MainActor.assumeIsolated { self?.checkNativeMarkerOrder(panel) }
+  func repairNativeMarkerOrder(windowID: CGWindowID?) {
+    for (key, panel) in panels where windowID == nil || key.windowID == windowID {
+      guard
+        panel.isVisible,
+        panel.parent == nil,
+        let markerID = CGWindowID(exactly: panel.windowNumber),
+        nativeSurfaces[key] != nil
+      else { continue }
+      pendingNativeOrderChecks[key] = markerID
+    }
+    guard !pendingNativeOrderChecks.isEmpty, nativeOrderCheckTask == nil else { return }
+    // Raising an already-focused window doesn't change its AX focus or frame.
+    // Repair only when the owner moved above its marker. Unrelated windows
+    // ordered above the owner continue to cover both surfaces.
+    nativeOrderCheckTask = Task { @MainActor [weak self] in
+      guard let self else { return }
+      while !pendingNativeOrderChecks.isEmpty {
+        let candidates = pendingNativeOrderChecks
+        pendingNativeOrderChecks.removeAll(keepingCapacity: true)
+        let windows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        let indexes = Dictionary(uniqueKeysWithValues: windows.enumerated().map { ($0.element.id, $0.offset) })
+        let cursor = NSEvent.mouseLocation
+        for (key, markerID) in candidates {
+          guard
+            let panel = panels[key],
+            panel.isVisible,
+            panel.parent == nil,
+            panel.windowNumber == Int(markerID),
+            let markerIndex = indexes[markerID],
+            let nativeIndex = indexes[key.windowID],
+            windows[nativeIndex].surface.ownerPID == key.pid,
+            nativeIndex < markerIndex
+          else { continue }
+          nativeSurfaces[key] = windows[nativeIndex].surface
+          refresh(key, cursor: cursor)
+        }
+      }
+      nativeOrderCheckTask = nil
     }
   }
 
@@ -709,7 +743,6 @@ private final class MarkerController {
   private var lastFrame = [WindowKey: NSRect]()
   private var nativeSurfaces = [WindowKey: WindowServerSurface]()
   private var activeSpaceObserver: any NSObjectProtocol?
-  private var markerOcclusionObserver: any NSObjectProtocol?
   private var pendingNativeOrderChecks = [WindowKey: CGWindowID]()
   private var nativeOrderCheckTask: Task<Void, Never>?
   /// Global mouse-moved monitor, installed only while a dot can be visible,
@@ -789,47 +822,6 @@ private final class MarkerController {
       panel.setFrame(cocoa, display: true, animate: false)
     }
     lastFrame[key] = cocoa
-  }
-
-  private func checkNativeMarkerOrder(_ panel: NSPanel) {
-    guard
-      panel.isVisible,
-      !panel.occlusionState.contains(.visible),
-      panel.parent == nil,
-      let markerID = CGWindowID(exactly: panel.windowNumber),
-      let key = panels.first(where: { $0.value === panel })?.key,
-      nativeSurfaces[key] != nil
-    else { return }
-    pendingNativeOrderChecks[key] = markerID
-    guard nativeOrderCheckTask == nil else { return }
-    // Raising an already-focused window doesn't change its AX focus or frame.
-    // Repair only when the owner moved above its marker. Unrelated windows
-    // ordered above the owner continue to cover both surfaces.
-    nativeOrderCheckTask = Task { @MainActor [weak self] in
-      guard let self else { return }
-      while !pendingNativeOrderChecks.isEmpty {
-        let candidates = pendingNativeOrderChecks
-        pendingNativeOrderChecks.removeAll(keepingCapacity: true)
-        let windows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
-        let indexes = Dictionary(uniqueKeysWithValues: windows.enumerated().map { ($0.element.id, $0.offset) })
-        let cursor = NSEvent.mouseLocation
-        for (key, markerID) in candidates {
-          guard
-            let panel = panels[key],
-            panel.isVisible,
-            panel.parent == nil,
-            panel.windowNumber == Int(markerID),
-            let markerIndex = indexes[markerID],
-            let nativeIndex = indexes[key.windowID],
-            windows[nativeIndex].surface.ownerPID == key.pid,
-            nativeIndex < markerIndex
-          else { continue }
-          nativeSurfaces[key] = windows[nativeIndex].surface
-          refresh(key, cursor: cursor)
-        }
-      }
-      nativeOrderCheckTask = nil
-    }
   }
 
   /// Visibility only, from the *cached* dot rect — no AX round trip. Used by

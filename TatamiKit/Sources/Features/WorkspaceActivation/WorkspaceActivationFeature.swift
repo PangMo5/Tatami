@@ -2068,6 +2068,7 @@ public struct WorkspaceActivationFeature {
             }
           }
           let preview = dragPreview
+          let markerClient = marker
           let drag = state.drag
           if
             let key = drag.windowKey,
@@ -2079,7 +2080,8 @@ public struct WorkspaceActivationFeature {
           state.drag = .idle
           var effects: [Effect<Action>] = [
             .run { _ in await preview.hide() }
-              .cancellable(id: CancelID.dragPreview, cancelInFlight: true)
+              .cancellable(id: CancelID.dragPreview, cancelInFlight: true),
+            .run { _ in await markerClient.pointerReleased(authoritativeWindowID) },
           ]
           switch drag {
           case .idle:
