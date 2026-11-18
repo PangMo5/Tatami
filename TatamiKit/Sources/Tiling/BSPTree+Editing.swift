@@ -328,7 +328,7 @@ extension DropZone {
   /// square is `.swap`; outside it four triangles fan to the edges. Coordinates
   /// are AX top-left (y grows downward), so the top triangle is the small-y
   /// one. Returns nil when the point is outside `rect`.
-  public static func quadrant(point: CGPoint, in rect: CGRect) -> DropZone? {
+  public static func quadrant(point: CGPoint, in rect: CGRect, allowsSwap: Bool = true) -> DropZone? {
     guard rect.contains(point) else { return nil }
     let wp = CGPoint(x: point.x - rect.origin.x, y: point.y - rect.origin.y)
     let centerRect = CGRect(
@@ -337,7 +337,7 @@ extension DropZone {
       width: 0.5 * rect.width,
       height: 0.5 * rect.height,
     )
-    if centerRect.contains(wp) {
+    if allowsSwap, centerRect.contains(wp) {
       return .swap
     }
     // Signed cross products against the rect's two diagonals classify the

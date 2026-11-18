@@ -154,6 +154,7 @@ extension WorkspaceActivationFeature {
   func dropDecision(
     dragged: WindowKey,
     state: State,
+    pointer: CGPoint? = nil,
   ) -> (target: WindowKey, targetRect: CGRect, zone: DropZone)? {
     // Resolve the dragged window's owning block; the drop target is searched
     // within that one tree, so a drop can't cross the workspace boundary.
@@ -174,7 +175,7 @@ extension WorkspaceActivationFeature {
     let settings = state.config.settings
     let (_, workArea) = tilingContext(for: workspaceId, state: state)
     // Cursor in AX top-left coords (matches `frames` / `workArea`).
-    let cursor = mouse.axLocation()
+    let cursor = pointer ?? mouse.axLocation()
 
     // Hit-test against the frames the user actually sees: fullscreen-zoomed
     // windows are trimmed (the rest reshape around them, exactly as

@@ -73,6 +73,8 @@ public struct AppFeature {
 
     // MARK: Internal
 
+    var appliedMarkerSettings: AppSettings.Marker?
+
     /// `.task` is driven by the menu bar label, independently of auxiliary
     /// windows. Defend against SwiftUI recreating that label: startup must
     /// run once per process because the subscriptions below consume
@@ -270,15 +272,18 @@ public struct AppFeature {
             // `Perceptions` is Perception's back-port of Swift's
             // `Observations` async sequence (Observation requires macOS 26);
             // observing only `.settings` re-emits just on settings changes.
+            // Shared publishes willSet before committing its value. Read on the
+            // writer's MainActor so an observation cannot consume the old value
+            // and then miss that same edit. Effect.run itself is nonisolated.
             .run { send in
-              for await settings in Perceptions({ sharedConfig.wrappedValue.settings }) {
+              for await settings in Perceptions({ @MainActor in sharedConfig.wrappedValue.settings }) {
                 await send(.settingsChanged(settings))
               }
             },
             // Apply the saved preferences before Sparkle starts its schedule,
             // then keep them synchronized with live settings changes.
             .run { [updater, sharedConfig] _ in
-              for await general in Perceptions({ sharedConfig.wrappedValue.settings.general }) {
+              for await general in Perceptions({ @MainActor in sharedConfig.wrappedValue.settings.general }) {
                 await updater.configure(
                   automaticallyChecks: general.checkForUpdatesAutomatically,
                   interval: general.checkInterval.seconds,
@@ -287,7 +292,7 @@ public struct AppFeature {
             },
             // Keep the login-item registration in sync with the setting.
             .run { [loginItem, sharedConfig] _ in
-              for await enabled in Perceptions({
+              for await enabled in Perceptions({ @MainActor in
                 sharedConfig.wrappedValue.settings.general.launchAtLogin
               }) {
                 loginItem.setEnabled(enabled)
@@ -296,7 +301,7 @@ public struct AppFeature {
             // Mirror the debug-log toggle into the writer so flipping it
             // in Settings opens/closes the log file immediately.
             .run { [debugLog, sharedConfig] _ in
-              for await enabled in Perceptions({
+              for await enabled in Perceptions({ @MainActor in
                 sharedConfig.wrappedValue.settings.general.debugLogging
               }) {
                 debugLog.setEnabled(enabled)
@@ -398,6 +403,14 @@ public struct AppFeature {
         return .none
 
       case .settingsChanged(let settings):
+        let markerChanged = state.appliedMarkerSettings != settings.marker
+        state.appliedMarkerSettings = settings.marker
+        if markerChanged {
+          debugLog.log(
+            "Marker",
+            "settings sharedEnabled=\(settings.marker.sharedEnabled) sharedColor=\(settings.marker.sharedColorHex)",
+          )
+        }
         // This registry is synchronous state. Commit it in reducer order so a
         // delayed effect from an older settings snapshot cannot restore a
         // removed allowlist entry.
@@ -408,6 +421,7 @@ public struct AppFeature {
           ignoreFullscreen: settings.focus.focusFollowsMouseIgnoreFullscreen,
         )
         return .merge(
+          markerChanged ? .send(.activation(.markerSettingsChanged)) : .none,
           .run { [client = focusFollowsMouse] _ in
             await client.configure(ffm)
           },

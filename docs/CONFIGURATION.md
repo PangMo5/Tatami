@@ -287,16 +287,20 @@ count, and the other directions and finger count remain unbound.
 
 ## `[settings.marker]`
 
-Small corner dots that identify zoomed, always-on-top, and borrowed windows.
+Corner markers identify zoomed, always-on-top, borrowed, and Shared App windows. The Shared App badge appears beside any status dot.
+
+Default marker colors use Catppuccin Mocha. Saved color choices are preserved. Choose Use Mocha Marker Colors in Settings → Appearance → Window Markers to apply all four defaults to an existing configuration.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `fullscreenEnabled` | bool | `true` | Dot on the workspace's fullscreen-zoomed window (shown while it's focused). |
-| `fullscreenColorHex` | string | `"#007AFF"` | Fullscreen dot color (`#RRGGBB`). |
+| `fullscreenColorHex` | string | `"#89B4FA"` | Fullscreen dot color (`#RRGGBB`). |
 | `floatingEnabled` | bool | `true` | Dot on always-on-top windows, always visible so their state is clear at a glance. |
-| `floatingColorHex` | string | `"#FF9500"` | Always-on-top dot color (`#RRGGBB`). |
+| `floatingColorHex` | string | `"#FAB387"` | Always-on-top dot color (`#RRGGBB`). |
 | `borrowEnabled` | bool | `true` | Badge each borrowed window with its workspace icon while the borrow is on screen. |
-| `borrowColorHex` | string | `"#AF52DE"` | Borrow badge color (`#RRGGBB`). |
+| `borrowColorHex` | string | `"#CBA6F7"` | Borrow badge color (`#RRGGBB`). |
+| `sharedEnabled` | bool | `true` | Show a separate Shared App badge. |
+| `sharedColorHex` | string | `"#94E2D5"` | Shared App badge color (`#RRGGBB`). |
 | `size` | double | `14` | Dot diameter in points. The borrow badge is drawn larger so its glyph stays legible. |
 | `corner` | string | `"bottomTrailing"` | Window corner the dot anchors to: `topLeading`, `topTrailing`, `bottomLeading`, `bottomTrailing`. |
 | `hideOnHover` | bool | `true` | Fade the dot while the cursor is over it. |
@@ -440,6 +444,8 @@ hides and capture stops whenever the always-on-top app itself has focus.
 `unmanaged` apps need no such permission because the real window is never touched.
 
 On multiple displays, each shared tiled window has one physical display owner. Ownership uses the greatest overlap with full screen bounds, retaining the existing owner for ties. A live window stranded outside every screen after an arrangement or resolution change belongs to the nearest connected screen so normal tiling can recover it. Tiling still uses the smaller work area to leave room for the menu bar and Dock. A currently hidden window whose geometry is still inside an attached screen does not become a new tile merely because its frame is available. Unavailable placement geometry preserves existing membership.
+
+Drag a shared tiled window to another monitor to insert it above, below, left, or right of a tile in that monitor's active host workspace. An empty host accepts it as the first tile. Borrowed blocks are not destinations. Cross-monitor drops never swap; center drops within the same tree still swap. The selected display owns that live window until it closes or that display disconnects, so an app restoring an old frame cannot undo the move.
 
 Editable in the app under **Workspaces → Shared Apps** (Tiled / Always on Top / Leave As Is).
 

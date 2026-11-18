@@ -252,16 +252,20 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 <a id="settingsmarker"></a>
 ## `[settings.marker]`
 
-角落的小圓點用來識別放大、置頂與借來的視窗。
+視窗角落的標記可區分縮放、置頂、借用視窗與共用 App。共用 App 標記會獨立顯示在狀態圓點旁。
+
+標記預設使用 Catppuccin Mocha 配色，並保留已儲存的顏色。在設定 → 外觀 → 視窗標記中選擇「使用 Mocha 標記配色」，即可為現有設定套用四種預設顏色。
 
 |鍵|型別|預設值|說明|
 | --- | --- | --- | --- |
 |`fullscreenEnabled`|bool|`true`|聚焦工作空間全螢幕放大的視窗時顯示圓點。|
-|`fullscreenColorHex`|string|`"#007AFF"`|全螢幕圓點顏色（`#RRGGBB`）。|
+|`fullscreenColorHex`|string|`"#89B4FA"`|全螢幕圓點顏色（`#RRGGBB`）。|
 |`floatingEnabled`|bool|`true`|置頂視窗始終顯示圓點，便於一眼辨識狀態。|
-|`floatingColorHex`|string|`"#FF9500"`|置頂圓點顏色（`#RRGGBB`）。|
+|`floatingColorHex`|string|`"#FAB387"`|置頂圓點顏色（`#RRGGBB`）。|
 |`borrowEnabled`|bool|`true`|借用可見時，為每個借來的視窗顯示工作空間圖像。|
-|`borrowColorHex`|string|`"#AF52DE"`|借用標記顏色（`#RRGGBB`）。|
+|`borrowColorHex`|string|`"#CBA6F7"`|借用標記顏色（`#RRGGBB`）。|
+|`sharedEnabled`|bool|`true`|獨立顯示共用 App 標記。|
+|`sharedColorHex`|string|`"#94E2D5"`|共用 App 標記顏色（`#RRGGBB`）。|
 |`size`|double|`14`|圓點直徑，單位點。借用標記繪製得更大，確保符號清楚。|
 |`corner`|string|`"bottomTrailing"`|圓點所在視窗角落：`topLeading`、`topTrailing`、`bottomLeading`、`bottomTrailing`。|
 |`hideOnHover`|bool|`true`|游標停在圓點上方時淡化。|
@@ -375,6 +379,8 @@ layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 置頂不需要關閉 SIP。Tatami 用 ScreenCaptureKit 把視窗鏡像到置頂面板，需要**螢幕錄製**權限（設定 → 一般 → 權限）。App 本身取得焦點時隱藏鏡像並停止擷取。`unmanaged` 不操作實際視窗，不需該權限。
 
 使用多台顯示器時，每個共用 App 的並排視窗都只屬於一台顯示器。Tatami 依照視窗與完整螢幕範圍的重疊面積選擇顯示器；面積相同時，保留原本的歸屬。調整顯示器排列或解析度後，若視窗留在所有螢幕之外，會將它歸到最近的已連接顯示器，讓並排配置能將它移回可用範圍。實際並排配置仍使用避開選單列與 Dock 的工作區域。隱藏視窗的位置仍在已連接螢幕內時，不會只因為能讀取位置就將它加入為新的並排視窗。無法取得位置資訊時，保留原本的歸屬。
+
+將共用 App 的並排視窗拖到其他顯示器，可將它插入該顯示器主要工作空間中某個視窗的上、下、左或右側。主要工作空間為空時，會成為第一個並排視窗。借用區塊不能作為目標。跨顯示器拖放不會交換位置；同一樹狀配置內拖到中央仍會交換。視窗關閉或該顯示器中斷連線前，會保留選擇的顯示器歸屬，App 還原舊位置也不會撤銷移動。
 
 可在**工作空間 → 共用 App**中編輯並排、置頂或維持原狀。
 

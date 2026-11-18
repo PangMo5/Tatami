@@ -304,11 +304,13 @@ extension AppSettings {
 
     public init(
       floatingEnabled: Bool = true,
-      floatingColorHex: String = "#FF9500",
+      floatingColorHex: String = MarkerPalette.floating,
       fullscreenEnabled: Bool = true,
-      fullscreenColorHex: String = "#007AFF",
+      fullscreenColorHex: String = MarkerPalette.fullscreen,
       borrowEnabled: Bool = true,
-      borrowColorHex: String = "#AF52DE",
+      borrowColorHex: String = MarkerPalette.borrowed,
+      sharedEnabled: Bool = true,
+      sharedColorHex: String = MarkerPalette.shared,
       size: Double = 14,
       corner: MarkerCorner = .bottomTrailing,
       hideOnHover: Bool = true,
@@ -319,6 +321,8 @@ extension AppSettings {
       self.fullscreenColorHex = fullscreenColorHex
       self.borrowEnabled = borrowEnabled
       self.borrowColorHex = borrowColorHex
+      self.sharedEnabled = sharedEnabled
+      self.sharedColorHex = sharedColorHex
       self.size = size
       self.corner = corner
       self.hideOnHover = hideOnHover
@@ -327,11 +331,13 @@ extension AppSettings {
     public init(from decoder: Decoder) throws {
       let c = try decoder.container(keyedBy: CodingKeys.self)
       floatingEnabled = c.decode(.floatingEnabled, default: true)
-      floatingColorHex = c.decode(.floatingColorHex, default: "#FF9500")
+      floatingColorHex = c.decode(.floatingColorHex, default: MarkerPalette.floating)
       fullscreenEnabled = c.decode(.fullscreenEnabled, default: true)
-      fullscreenColorHex = c.decode(.fullscreenColorHex, default: "#007AFF")
+      fullscreenColorHex = c.decode(.fullscreenColorHex, default: MarkerPalette.fullscreen)
       borrowEnabled = c.decode(.borrowEnabled, default: true)
-      borrowColorHex = c.decode(.borrowColorHex, default: "#AF52DE")
+      borrowColorHex = c.decode(.borrowColorHex, default: MarkerPalette.borrowed)
+      sharedEnabled = c.decode(.sharedEnabled, default: true)
+      sharedColorHex = c.decode(.sharedColorHex, default: MarkerPalette.shared)
       size = c.decode(.size, default: 14)
       corner = c.decode(.corner, default: .bottomTrailing)
       hideOnHover = c.decode(.hideOnHover, default: true)
@@ -352,6 +358,9 @@ extension AppSettings {
     public var borrowEnabled: Bool
     /// Borrow-marker badge color (`#RRGGBB` or `#RRGGBBAA`).
     public var borrowColorHex: String
+    /// Show a separate badge identifying Shared App windows.
+    public var sharedEnabled: Bool
+    public var sharedColorHex: String
     /// Dot diameter in points.
     public var size: Double
     /// Which window corner the dot is pinned to.
@@ -369,6 +378,8 @@ extension AppSettings {
       case fullscreenColorHex
       case borrowEnabled
       case borrowColorHex
+      case sharedEnabled
+      case sharedColorHex
       case size
       case corner
       case hideOnHover

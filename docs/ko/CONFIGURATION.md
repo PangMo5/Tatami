@@ -252,16 +252,20 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 <a id="settingsmarker"></a>
 ## `[settings.marker]`
 
-확대·항상 위·빌려온 창을 구분하는 작은 모서리 표시예요.
+창 모서리의 표시로 확대, 항상 위, 빌려옴, 공용 앱 상태를 구분해요. 공용 앱 배지는 기존 상태 dot 옆에 따로 표시해요.
+
+기본 표시 색상은 Catppuccin Mocha 팔레트를 사용해요. 저장된 색상은 그대로 유지해요. 기존 설정에도 기본색 네 가지를 적용하려면 설정 → 모양 → 창 표시에서 표시 색상을 Mocha로 맞추기를 선택하세요.
 
 |키|타입|기본값|설명|
 | --- | --- | --- | --- |
 |`fullscreenEnabled`|bool|`true`|작업 공간 크기로 확대한 창에 포커스가 있을 때 점을 표시해요.|
-|`fullscreenColorHex`|string|`"#007AFF"`|확대 표시의 색상(`#RRGGBB`)이에요.|
+|`fullscreenColorHex`|string|`"#89B4FA"`|확대 표시의 색상(`#RRGGBB`)이에요.|
 |`floatingEnabled`|bool|`true`|항상 위 창에는 상태를 바로 알 수 있도록 점을 계속 표시해요.|
-|`floatingColorHex`|string|`"#FF9500"`|항상 위 표시의 색상(`#RRGGBB`)이에요.|
+|`floatingColorHex`|string|`"#FAB387"`|항상 위 표시의 색상(`#RRGGBB`)이에요.|
 |`borrowEnabled`|bool|`true`|빌려온 창에 소속 작업 공간 아이콘을 표시해요.|
-|`borrowColorHex`|string|`"#AF52DE"`|빌려오기 표시의 색상(`#RRGGBB`)이에요.|
+|`borrowColorHex`|string|`"#CBA6F7"`|빌려오기 표시의 색상(`#RRGGBB`)이에요.|
+|`sharedEnabled`|bool|`true`|공용 앱 배지를 별도로 표시해요.|
+|`sharedColorHex`|string|`"#94E2D5"`|공용 앱 배지 색상(`#RRGGBB`).|
 |`size`|double|`14`|점의 지름을 포인트로 정해요. 빌려오기 표시는 아이콘이 잘 보이도록 더 크게 그려요.|
 |`corner`|string|`"bottomTrailing"`|점을 놓을 창 모서리예요. `topLeading`, `topTrailing`, `bottomLeading`, `bottomTrailing` 중에서 골라요.|
 |`hideOnHover`|bool|`true`|커서가 점 위에 있으면 흐리게 보여줘요.|
@@ -375,6 +379,8 @@ layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 SIP를 끄지 않아도 창을 항상 위에 둘 수 있어요. ScreenCaptureKit 미러를 별도 패널에 표시하므로 **화면 기록** 권한이 필요해요(설정 → 일반 → 권한). 앱 자체에 포커스가 있으면 미러를 숨기고 캡처를 멈춰요. `unmanaged` 앱은 실제 창을 건드리지 않아 이 권한이 필요하지 않아요.
 
 모니터가 여러 개여도 공용 앱의 타일링 창은 각각 하나의 모니터에 배치해요. 창과 가장 넓게 겹치는 전체 화면 영역을 기준으로 정하고, 겹치는 면적이 같으면 기존 모니터를 유지해요. 배치나 해상도를 바꾼 뒤 창이 모든 화면 밖에 남으면 가장 가까운 연결된 모니터로 가져와 다시 타일링해요. 실제 타일링에는 메뉴 막대와 Dock을 제외한 작업 영역을 사용해요. 연결된 화면 안에 있는 숨긴 창은 위치 정보만으로 새 타일에 추가하지 않아요. 위치 정보를 확인할 수 없으면 기존 소속을 유지해요.
+
+공용 타일링 창을 다른 모니터로 드래그하면 그 모니터의 기본 작업 공간에서 타일의 위·아래·왼쪽·오른쪽에 넣을 수 있어요. 기본 작업 공간이 비어 있으면 첫 타일로 들어가요. 빌려온 블록은 드롭 대상에서 제외해요. 모니터 간 이동은 자리 바꾸기를 하지 않고, 같은 트리 안의 가운데 드롭은 기존처럼 자리를 바꿔요. 창을 닫거나 해당 모니터를 분리할 때까지 선택한 모니터에 소속되므로, 앱이 예전 위치를 복원해도 이동이 취소되지 않아요.
 
 앱의 **작업 공간 → 공용 앱**에서 타일링·항상 위·그대로 두기를 편집할 수 있어요.
 

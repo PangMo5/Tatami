@@ -18,13 +18,15 @@ import SwiftUI
 /// the mark is what tells a mirrored window apart from a tiled one — while
 /// fullscreen-zoom dots only show on the focused window.
 struct MarkerTarget: Sendable, Equatable {
-  init(colorHex: String, alwaysVisible: Bool = false, symbol: String? = nil) {
+  init(colorHex: String?, alwaysVisible: Bool = false, symbol: String? = nil, sharedColorHex: String? = nil) {
     self.colorHex = colorHex
     self.alwaysVisible = alwaysVisible
     self.symbol = symbol
+    self.sharedColorHex = sharedColorHex
   }
 
-  var colorHex: String
+  var colorHex: String?
+  var sharedColorHex: String?
   var alwaysVisible: Bool
   /// SF Symbol drawn inside the marker badge instead of a plain dot — borrow
   /// markers use it to show the borrowed workspace's icon. nil = plain dot.
@@ -587,7 +589,13 @@ private final class MarkerController {
     // Add or update panels for each target.
     for (key, target) in targets {
       let markSize = target.symbol == nil ? size : size * symbolScale
-      let style = Style(hex: target.colorHex, size: markSize, symbol: target.symbol)
+      let style = Style(
+        hex: target.colorHex,
+        size: markSize,
+        symbol: target.symbol,
+        sharedHex: target.sharedColorHex,
+        sharedSize: size * 1.4,
+      )
       if panels[key] == nil {
         panels[key] = makePanel(style: style)
       } else if
@@ -596,6 +604,9 @@ private final class MarkerController {
       {
         hosting.rootView = makeView(style: style)
         lastFrame.removeValue(forKey: key)
+      }
+      if styles[key] != style {
+        primaryVisibility[key] = nil
       }
       styles[key] = style
     }
@@ -672,9 +683,17 @@ private final class MarkerController {
   // MARK: Private
 
   private struct Style: Equatable {
-    var hex: String
+    var hex: String?
     var size: Double
     var symbol: String?
+    var sharedHex: String?
+    var sharedSize: Double
+
+    var contentSize: CGSize {
+      let status = hex == nil ? 0 : size
+      let shared = sharedHex == nil ? 0 : sharedSize
+      return CGSize(width: status + shared + (status > 0 && shared > 0 ? 4 : 0), height: max(status, shared))
+    }
   }
 
   private struct Configuration: Equatable {
@@ -686,6 +705,7 @@ private final class MarkerController {
 
   private var panels = [WindowKey: NSPanel]()
   private var styles = [WindowKey: Style]()
+  private var primaryVisibility = [WindowKey: Bool]()
   /// Windows whose dot ignores the focus gate (floating windows).
   private var alwaysVisible = Set<WindowKey>()
   private var lastFrame = [WindowKey: NSRect]()
@@ -739,7 +759,7 @@ private final class MarkerController {
     cursor: NSPoint,
   ) {
     guard let style = styles[key], let panel = panels[key] else { return }
-    let cocoa = AXWindowGeometry.flipToCocoa(dotRect(in: windowFrame, size: CGFloat(style.size), corner: corner))
+    let cocoa = AXWindowGeometry.flipToCocoa(dotRect(in: windowFrame, size: style.contentSize, corner: corner))
     if lastFrame[key] != cocoa {
       if lastFrame[key] == nil {
         // First placement: land directly, no glide in from nowhere.
@@ -782,7 +802,16 @@ private final class MarkerController {
     // mark identifies the mirror at a glance. Matched on (pid, wid) so two
     // windows of the same app don't share a dot.
     let isFocused = focused.map { $0.pid == key.pid && $0.windowID == key.windowID } ?? false
-    let shown = isFocused || alwaysVisible.contains(key)
+    let primaryShown = isFocused || alwaysVisible.contains(key)
+    if
+      let style = styles[key],
+      primaryVisibility[key] != primaryShown,
+      let hosting = panel.contentView as? NSHostingView<MarkerView>
+    {
+      hosting.rootView = makeView(style: style, showsStatus: primaryShown)
+      primaryVisibility[key] = primaryShown
+    }
+    let shown = primaryShown || styles[key]?.sharedHex != nil
     // Hover fade: only react when the cursor sits over the dot's visible
     // circle, not the surrounding glow padding.
     let hovering = hideOnHover && cocoa.insetBy(dx: glowPadding, dy: glowPadding).contains(cursor)
@@ -799,6 +828,7 @@ private final class MarkerController {
     panels[key]?.orderOut(nil)
     panels.removeValue(forKey: key)
     styles.removeValue(forKey: key)
+    primaryVisibility.removeValue(forKey: key)
     lastFrame.removeValue(forKey: key)
   }
 
@@ -806,7 +836,7 @@ private final class MarkerController {
   /// be visible; remove it otherwise so an idle marker set costs nothing.
   private func refreshHoverMonitor() {
     let needed = hideOnHover && !panels.isEmpty
-      && (focused != nil || !alwaysVisible.isEmpty)
+      && (focused != nil || !alwaysVisible.isEmpty || styles.values.contains(where: { $0.sharedHex != nil }))
     if needed, hoverMonitor == nil {
       hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
         Task { @MainActor [weak self] in
@@ -826,9 +856,9 @@ private final class MarkerController {
   /// Place the panel near the chosen window corner in top-left CG coords.
   /// The panel is sized to include `glowPadding` so the colored shadow
   /// can bloom outside the dot without being clipped.
-  private func dotRect(in windowFrame: CGRect, size: CGFloat, corner: MarkerCorner) -> CGRect {
+  private func dotRect(in windowFrame: CGRect, size: CGSize, corner: MarkerCorner) -> CGRect {
     let pad = glowPadding
-    let panelSize = size + pad * 2
+    let panelSize = CGSize(width: size.width + pad * 2, height: size.height + pad * 2)
     let x: CGFloat
     let y: CGFloat
     switch corner {
@@ -837,18 +867,18 @@ private final class MarkerController {
       y = windowFrame.minY + inset - pad
 
     case .topTrailing:
-      x = windowFrame.maxX - inset - size - pad
+      x = windowFrame.maxX - inset - size.width - pad
       y = windowFrame.minY + inset - pad
 
     case .bottomLeading:
       x = windowFrame.minX + inset - pad
-      y = windowFrame.maxY - inset - size - pad
+      y = windowFrame.maxY - inset - size.height - pad
 
     case .bottomTrailing:
-      x = windowFrame.maxX - inset - size - pad
-      y = windowFrame.maxY - inset - size - pad
+      x = windowFrame.maxX - inset - size.width - pad
+      y = windowFrame.maxY - inset - size.height - pad
     }
-    return CGRect(x: x, y: y, width: panelSize, height: panelSize)
+    return CGRect(x: x, y: y, width: panelSize.width, height: panelSize.height)
   }
 
   private func makePanel(style: Style) -> NSPanel {
@@ -873,12 +903,15 @@ private final class MarkerController {
     return panel
   }
 
-  private func makeView(style: Style) -> MarkerView {
+  private func makeView(style: Style, showsStatus: Bool = true) -> MarkerView {
     MarkerView(
-      color: Color(hex: style.hex) ?? .blue,
+      color: style.hex.flatMap { Color(hex: $0) },
       size: CGFloat(style.size),
       padding: glowPadding,
       symbol: style.symbol,
+      sharedColor: style.sharedHex.flatMap { Color(hex: $0) },
+      sharedSize: CGFloat(style.sharedSize),
+      showsStatus: showsStatus,
     )
   }
 
@@ -890,29 +923,67 @@ private final class MarkerController {
 // MARK: - MarkerView
 
 private struct MarkerView: View {
-  let color: Color
+  let color: Color?
   let size: CGFloat
   let padding: CGFloat
+  var symbol: String?
+  var sharedColor: Color?
+  var sharedSize: CGFloat
+  var showsStatus: Bool
+
+  var body: some View {
+    HStack(spacing: 4) {
+      if let color {
+        MarkerBadge(color: color, size: size, symbol: symbol)
+          .opacity(showsStatus ? 1 : 0)
+      }
+      if let sharedColor {
+        MarkerBadge(color: sharedColor, size: sharedSize, symbol: "square.stack.fill")
+          .accessibilityLabel("Shared App")
+      }
+    }
+    .padding(padding)
+  }
+}
+
+// MARK: - MarkerBadge
+
+private struct MarkerBadge: View {
+
+  // MARK: Internal
+
+  let color: Color
+  let size: CGFloat
   var symbol: String?
 
   var body: some View {
     Circle()
       .fill(color)
-      .overlay(
-        Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5)
-      )
-      // A borrow marker carries the borrowed workspace's glyph inside the
-      // dot, turning the plain dot into an identifying badge.
+      .overlay(Circle().strokeBorder(Color.black.opacity(0.25), lineWidth: 0.75))
       .overlay {
         if let symbol {
           Image(systemName: symbol)
-            .font(.system(size: size * 0.62, weight: .semibold))
-            .foregroundStyle(.white)
+            .font(.system(size: size * 0.58, weight: .semibold))
+            .foregroundStyle(foreground)
         }
       }
+      .frame(width: size, height: size)
       .shadow(color: .black.opacity(0.18), radius: 1, y: 0.5)
-      .padding(padding)
   }
+
+  // MARK: Private
+
+  private var foreground: Color {
+    let rgb = NSColor(color).usingColorSpace(.sRGB)
+    func linear(_ value: CGFloat) -> Double {
+      let value = Double(value)
+      return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+    }
+    guard let rgb else { return .primary }
+    let luminance = 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
+    return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? .black : .white
+  }
+
 }
 
 extension Color {

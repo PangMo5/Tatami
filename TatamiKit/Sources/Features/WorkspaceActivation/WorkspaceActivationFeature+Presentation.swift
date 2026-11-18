@@ -57,6 +57,7 @@ extension WorkspaceActivationFeature {
     floatingKeys: [WindowKey],
     borrowed: [WindowKey: String],
     cfg: AppSettings.Marker,
+    sharedKeys: Set<WindowKey> = [],
   ) -> [WindowKey: MarkerTarget] {
     var targets = [WindowKey: MarkerTarget]()
     for key in fullscreenZoomed {
@@ -70,6 +71,11 @@ extension WorkspaceActivationFeature {
     // pushed last so a borrowed window wins over a stray floating/zoom mark.
     for (key, symbol) in borrowed {
       targets[key] = MarkerTarget(colorHex: cfg.borrowColorHex, alwaysVisible: true, symbol: symbol)
+    }
+    for key in sharedKeys where cfg.sharedEnabled {
+      var target = targets[key] ?? MarkerTarget(colorHex: nil)
+      target.sharedColorHex = cfg.sharedColorHex
+      targets[key] = target
     }
     return targets
   }
@@ -326,6 +332,12 @@ extension WorkspaceActivationFeature {
     let zoomedKeys = Self.fullscreenMarkerKeys(state: state)
     let floatingIds = cfg.floatingEnabled ? Self.floatingBundleIds(state: state) : []
     let borrowed = Self.borrowMarkerTargets(state: state)
+    let sharedIds = cfg.sharedEnabled ? Set(state.config.sharedApps.map(\.bundleIdentifier)) : []
+    let unmanagedSharedIds = state.config.sharedApps.filter { sharedIds.contains($0.bundleIdentifier) && $0.layout == .unmanaged }
+      .map(\.bundleIdentifier)
+    let nativeFullscreen = Set(state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows).map(\.windowID) ?? [])
+    let sharedTiles = Set(state.layoutWorkspaceIDs.filter(state.canManageWorkspace)
+      .flatMap { state.tilingTrees[$0]?.windows ?? [] }.filter { sharedIds.contains($0.bundleId) })
     return .run { [marker, snapshot = windowSnapshot] _ in
       guard !Task.isCancelled else { return }
       let floatingKeys: [WindowKey] =
@@ -336,6 +348,11 @@ extension WorkspaceActivationFeature {
             ? []
             : await snapshot.cachedKeysOffMain(floatingIds, false)
         }
+      let unmanagedShared = unmanagedSharedIds.isEmpty ? [] : await snapshot.cachedKeysOffMain(unmanagedSharedIds, false)
+      let sharedCached = unmanagedShared + floatingKeys.filter { sharedIds.contains($0.bundleId) }
+      let onScreen = sharedIds.isEmpty ? Set<CGWindowID>() : await snapshot.onScreenWindowIDsOffMain()
+      let sharedKeys = sharedTiles.union(sharedCached.filter { onScreen.contains($0.windowID) })
+        .filter { !nativeFullscreen.contains($0.windowID) }
       guard !Task.isCancelled else { return }
       await marker.setTargets(
         Self.markerTargets(
@@ -343,6 +360,7 @@ extension WorkspaceActivationFeature {
           floatingKeys: floatingKeys,
           borrowed: borrowed,
           cfg: cfg,
+          sharedKeys: sharedKeys,
         ),
         cfg.size,
         cfg.corner,
