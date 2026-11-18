@@ -10,6 +10,17 @@ an Install / Update section when publishing). Sparkle's in-app update dialog
 accumulates every patch in a release's minor series, so each section here only
 needs its own version's changes.
 
+## 1.15.1 (2026-11-18)
+
+More reliable workspaces across displays, macOS Desktops, and Mission Control.
+
+- **Keep layouts across macOS Desktops.** Visiting another Desktop or entering native fullscreen preserves the layout on that display. Tatami continues managing the other displays.
+- **Return to a workspace on its Desktop.** Selecting a workspace takes its display back to the Desktop Tatami manages. Tatami brings the workspace’s windows and Shared App windows on that display there, exiting their native fullscreen when needed.
+- **Drag Shared App tiles between displays.** Drop a shared tiled window into the active workspace on another display. The preview shows where it will land, and an empty workspace accepts it as its first tile.
+- **Recover windows after display changes.** Shared tiled windows that end up partly outside a portrait or rearranged display can rejoin its layout.
+- **See Shared App badges and window markers.** Shared windows get a separate badge. Markers stay with their windows through overlaps and Mission Control. Saved legacy defaults switch to Catppuccin Mocha and custom colors are carried forward.
+- **Build from source with Swift Package Manager.** Xcode 27.2 builds the app, CLI, and tests directly from the Swift package.
+
 ## 1.15.0 (2026-11-05)
 
 Settings search and more consistent workspace layouts.
