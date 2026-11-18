@@ -29,6 +29,20 @@ struct SharedMarkerTests {
   }
 
   @Test
+  func `higher layers are composited above the badge without hiding its exposed owner`() {
+    let frame = CGRect(x: 0, y: 0, width: 240, height: 220)
+    let corner = CGRect(x: 200, y: 180, width: 24, height: 24)
+    let dockCanvas = Self.surface(30, frame, layer: 20)
+    let owner = Self.surface(10, frame)
+    let clearCorner = MarkerWindowStack([dockCanvas, owner])
+    #expect(clearCorner.exposes(corner, on: 10, ignoring: []))
+
+    let cover = Self.surface(20, frame)
+    let coveredCorner = MarkerWindowStack([dockCanvas, cover, owner])
+    #expect(!coveredCorner.exposes(corner, on: 10, ignoring: []))
+  }
+
+  @Test
   func `a floating marker is authorized by the visible mirror rather than the covered native window`() {
     let frame = CGRect(x: 0, y: 0, width: 240, height: 220)
     let corner = CGRect(x: 200, y: 180, width: 24, height: 24)
@@ -141,10 +155,10 @@ struct SharedMarkerTests {
 
   // MARK: Private
 
-  private static func surface(_ id: CGWindowID, _ frame: CGRect, alpha: Double = 1) -> WindowServerWindow {
+  private static func surface(_ id: CGWindowID, _ frame: CGRect, layer: Int = 0, alpha: Double = 1) -> WindowServerWindow {
     WindowServerWindow(
       id: id,
-      surface: WindowServerSurface(ownerPID: pid_t(id), layer: 0, frame: frame),
+      surface: WindowServerSurface(ownerPID: pid_t(id), layer: layer, frame: frame),
       title: nil,
       alpha: alpha,
     )

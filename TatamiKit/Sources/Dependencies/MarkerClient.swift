@@ -174,8 +174,11 @@ struct MarkerWindowStack: Sendable {
       windows[rank].alpha > 0,
       windows[rank].surface.frame.contains(frame)
     else { return false }
+    let layer = windows[rank].surface.layer
+    // The compositor already places higher layers above both the owner and
+    // its badge. Their bounds can include clear areas, such as the Dock canvas.
     return !windows[..<rank].contains { window in
-      window.alpha > 0 && !markers.contains(window.id)
+      window.surface.layer == layer && window.alpha > 0 && !markers.contains(window.id)
         && !window.surface.frame.intersection(frame).isEmpty
     }
   }
@@ -962,12 +965,15 @@ private final class MarkerController {
     }
     let bounds: CGRect
     let sourceID: CGWindowID
+    let level: NSWindow.Level
     if let mirror, let mirrorID {
       bounds = AXWindowGeometry.flipToCG(mirror.frame)
       sourceID = mirrorID
+      level = mirror.level
     } else if let native = nativeSurfaces[key] {
       bounds = native.frame
       sourceID = key.windowID
+      level = NSWindow.Level(rawValue: native.layer)
     } else {
       panel.orderOut(nil)
       exposedKeys.remove(key)
@@ -983,16 +989,15 @@ private final class MarkerController {
       hideImmediately(panel)
     }
     place(panel, key: key, style: style, windowFrame: bounds)
+    let levelChanged = panel.level != level
+    if levelChanged {
+      panel.level = level
+    }
     if let mirror {
       if panel.parent == nil {
         mirror.addChildWindow(panel, ordered: .above)
       }
-    } else if let native = nativeSurfaces[key] {
-      let level = NSWindow.Level(rawValue: native.layer)
-      let levelChanged = panel.level != level
-      if levelChanged {
-        panel.level = level
-      }
+    } else {
       let markerRank = CGWindowID(exactly: panel.windowNumber).flatMap { stack.order[$0] }
       let ownerRank = stack.order[sourceID]
       if levelChanged || !panel.isVisible || (ownerRank.map { $0 < (markerRank ?? .max) } ?? false) {
