@@ -155,6 +155,7 @@ private struct MarkerFocusRefreshRequest: Sendable {
 private struct MarkerGeometryUpdate: Sendable {
   var surfaces: [WindowKey: WindowServerSurface]
   var keys: Set<WindowKey>
+  var targetGeneration: UInt64? = nil
 }
 
 // MARK: - MarkerNativeSnapshot
@@ -164,6 +165,7 @@ private struct MarkerGeometryUpdate: Sendable {
 private struct MarkerNativeSnapshot: Sendable {
   var surfaces: [WindowKey: WindowServerSurface]
   var order: [CGWindowID: Int]
+  var unsettledFrames = Set<WindowKey>()
 }
 
 // MARK: - MarkerGeometryCancellationFlag
@@ -303,6 +305,10 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   /// arriving behind it coalesce into the next shared WindowServer snapshot.
   private var pendingGeometryKeys = Set<WindowKey>()
   private var isGeometryDeliveryInFlight = false
+  private var overviewWindowIDs = Set<CGWindowID>()
+  private var overviewObserver: Timer?
+  private var nativeFrameMatches = Set<WindowKey>()
+  private var overviewAnimatedWindows = Set<WindowKey>()
 
   private let focusLock = NSLock()
   private var latestFocusSnapshotGeneration: UInt64 = 0
@@ -310,6 +316,25 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     generation: UInt64,
     cancellation: MarkerGeometryCancellationFlag,
   )?
+
+  private static func overviewWindowID(_ window: WindowServerWindow) -> CGWindowID? {
+    let application: String
+    switch window.surface.layer {
+    case 18: application = "com.apple.dock"
+    case 19: application = "com.apple.WindowManager"
+    default: return nil
+    }
+    guard
+      window.alpha > 0,
+      NSRunningApplication(processIdentifier: window.surface.ownerPID)?.bundleIdentifier == application
+    else { return nil }
+    return window.id
+  }
+
+  private static func framesAgree(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+    abs(lhs.minX - rhs.minX) <= 1 && abs(lhs.minY - rhs.minY) <= 1
+      && abs(lhs.width - rhs.width) <= 1 && abs(lhs.height - rhs.height) <= 1
+  }
 
   private func run() {
     let workerRunLoop = CFRunLoopGetCurrent()
@@ -475,13 +500,36 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     forceFrameRead: Bool = false,
     isCancelled: @Sendable () -> Bool,
   ) -> MarkerNativeSnapshot? {
-    guard !keys.isEmpty else { return MarkerNativeSnapshot(surfaces: [:], order: [:]) }
+    guard !keys.isEmpty else {
+      if targetKeys.isEmpty {
+        stopObservingOverview()
+      }
+      return MarkerNativeSnapshot(surfaces: [:], order: [:])
+    }
     guard
       !isCancelled(),
       let windows = readWindowServerWindowsIfAvailable([.optionOnScreenOnly, .excludeDesktopElements])
     else { return nil }
     let order = Dictionary(uniqueKeysWithValues: windows.enumerated().map { ($0.element.id, $0.offset) })
+    let overviewIDs = Set(windows.compactMap(Self.overviewWindowID))
+    if !overviewIDs.isEmpty {
+      for key in nativeFrameMatches.intersection(targetKeys) {
+        if
+          let index = order[key.windowID],
+          let frame = nativeFrames[key],
+          windows[index].surface.ownerPID == key.pid,
+          !Self.framesAgree(frame, windows[index].surface.frame)
+        {
+          overviewAnimatedWindows.insert(key)
+        }
+      }
+      observeOverview(overviewIDs)
+      // Mission Control owns this stack until its last surface is gone.
+      // Keep the placed panels transient and don't commit preview ordering.
+      return nil
+    }
     var surfaces = [WindowKey: WindowServerSurface]()
+    var unsettledFrames = Set<WindowKey>()
     for key in keys {
       guard !isCancelled() else { return nil }
       guard
@@ -500,10 +548,61 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       // A temporary AX failure during a transition cannot authorize a new
       // marker location. Retain the last verified frame for this live key.
       guard let frame = nativeFrames[key] else { continue }
+      if !Self.framesAgree(frame, surface.frame) {
+        unsettledFrames.insert(key)
+      }
       surface.frame = frame
       surfaces[key] = surface
     }
-    return MarkerNativeSnapshot(surfaces: surfaces, order: order)
+    if overviewObserver == nil {
+      nativeFrameMatches.subtract(keys)
+      nativeFrameMatches.formUnion(Set(surfaces.keys).subtracting(unsettledFrames))
+    }
+    return MarkerNativeSnapshot(surfaces: surfaces, order: order, unsettledFrames: unsettledFrames)
+  }
+
+  private func observeOverview(_ ids: Set<CGWindowID>) {
+    overviewWindowIDs = ids
+    guard overviewObserver == nil else { return }
+    // Sample only the observed system surfaces while the overview exists.
+    // AX focus and WindowServer visibility can both arrive during its exit
+    // animation, before the native stack is authoritative again.
+    let timer = Timer(timeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+      self?.reconcileAfterOverview()
+    }
+    overviewObserver = timer
+    RunLoop.current.add(timer, forMode: .common)
+  }
+
+  private func reconcileAfterOverview() {
+    guard !targetKeys.isEmpty else {
+      stopObservingOverview()
+      return
+    }
+    for id in overviewWindowIDs {
+      guard let rows = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]] else { return }
+      if rows.contains(where: { ($0[kCGWindowIsOnscreen as String] as? Bool) == true }) {
+        return
+      }
+    }
+    let keys = targetKeys
+    guard let snapshot = snapshotSurfaces(keys, isCancelled: { false }) else { return }
+    // The overview background can order out while its thumbnails are still
+    // being restored. Only wait for windows observed animating away from a
+    // previously matching native frame, and permit windows that left screen.
+    guard snapshot.unsettledFrames.isDisjoint(with: overviewAnimatedWindows) else { return }
+    stopObservingOverview()
+    nativeFrameMatches = Set(snapshot.surfaces.keys).subtracting(snapshot.unsettledFrames)
+    let update = MarkerGeometryUpdate(surfaces: snapshot.surfaces, keys: keys, targetGeneration: targetGeneration)
+    let sink = sink
+    Task { @MainActor in sink(update) }
+  }
+
+  private func stopObservingOverview() {
+    overviewObserver?.invalidate()
+    overviewObserver = nil
+    overviewWindowIDs.removeAll()
+    overviewAnimatedWindows.removeAll()
   }
 
   private func removeStaleElements() {
@@ -526,6 +625,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       }
       elements[key] = nil
       nativeFrames[key] = nil
+      nativeFrameMatches.remove(key)
       keyByWindowID[key.windowID] = nil
       pendingGeometryKeys.remove(key)
     }
@@ -668,6 +768,9 @@ private final class MarkerController {
   }
 
   func applyGeometryUpdate(_ update: MarkerGeometryUpdate) {
+    if let generation = update.targetGeneration, generation != targetRefreshGeneration {
+      return
+    }
     applyFrames(update)
   }
 
