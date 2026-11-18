@@ -5306,12 +5306,12 @@
     "zh-Hans": "将共享应用的平铺窗口拖到其他显示器，可将它插入该显示器主工作区中某个平铺窗口的上、下、左或右侧。主工作区为空时，会成为第一个平铺窗口。借用区块不能作为目标。跨显示器拖放不会交换位置；同一树内拖到中央仍会交换。在窗口关闭或该显示器断开前，会保留选择的显示器归属，应用恢复旧位置也不会撤销移动。",
     "zh-Hant": "將共用 App 的並排視窗拖到其他顯示器，可將它插入該顯示器主要工作空間中某個視窗的上、下、左或右側。主要工作空間為空時，會成為第一個並排視窗。借用區塊不能作為目標。跨顯示器拖放不會交換位置；同一樹狀配置內拖到中央仍會交換。視窗關閉或該顯示器中斷連線前，會保留選擇的顯示器歸屬，App 還原舊位置也不會撤銷移動。"
   },
-  "648fe30a180551a3": {
-    "en": "Default marker colors use Catppuccin Mocha. On upgrade, previously saved default colors switch to the new palette and other saved colors stay as they are. Choose Use Mocha Marker Colors in Settings → Appearance → Window Markers to apply all four defaults.",
-    "ko": "기본 표시 색상은 Catppuccin Mocha 팔레트를 사용해요. 업데이트하면 예전 기본색과 일치하는 색만 새 기본색으로 바뀌어요. 네 가지 색을 모두 기본색으로 맞추려면 설정 → 모양 → 창 표시에서 표시 색상을 Mocha로 맞추기를 선택하세요.",
-    "ja": "マーカーの標準色はCatppuccin Mochaです。アップデート時に、以前の標準色と一致する色だけが新しい標準色に変わります。4色すべてを標準色に戻すには、設定 → 外観 → ウインドウマーカーで「マーカーをMochaの配色にする」を選んでください。",
-    "zh-Hans": "标记默认使用 Catppuccin Mocha 配色。升级时，与旧默认色相同的颜色会更新为新默认色，其他已保存的颜色会保留。要应用全部四种默认色，请在设置 → 外观 → 窗口标记中选择“使用 Mocha 标记配色”。",
-    "zh-Hant": "標記預設使用 Catppuccin Mocha 配色。更新時，與舊預設色相同的顏色會更新為新預設色，其他已儲存的顏色會保留。若要套用全部四種預設色，請在設定 → 外觀 → 視窗標記中選擇「使用 Mocha 標記配色」。"
+  "4127bc893ecb3bc9": {
+    "en": "On upgrade, saved legacy default marker colors automatically switch to Catppuccin Mocha. Other saved colors stay as they are.",
+    "ko": "업데이트하면 예전 기본색과 일치하는 색만 Catppuccin Mocha 기본색으로 자동으로 바뀌어요. 그 외에 저장된 색은 유지해요.",
+    "ja": "アップデート時に、以前の標準色と一致するマーカーの色だけが自動でCatppuccin Mochaに変わります。ほかの保存済みの色は維持します。",
+    "zh-Hans": "升级时，与旧默认色相同的标记颜色会自动更新为 Catppuccin Mocha 配色，其他已保存的颜色会保留。",
+    "zh-Hant": "更新時，與舊預設色相同的標記顏色會自動更新為 Catppuccin Mocha 配色，其他已儲存的顏色會保留。"
   },
   "734f3b58388c649f": {
     "en": "Show a separate Shared App badge.",

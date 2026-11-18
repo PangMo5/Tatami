@@ -332,26 +332,21 @@ extension WorkspaceActivationFeature {
     let zoomedKeys = Self.fullscreenMarkerKeys(state: state)
     let floatingIds = cfg.floatingEnabled ? Self.floatingBundleIds(state: state) : []
     let borrowed = Self.borrowMarkerTargets(state: state)
-    let sharedIds = cfg.sharedEnabled ? Set(state.config.sharedApps.map(\.bundleIdentifier)) : []
-    let unmanagedSharedIds = state.config.sharedApps.filter { sharedIds.contains($0.bundleIdentifier) && $0.layout == .unmanaged }
-      .map(\.bundleIdentifier)
+    let sharedApps = cfg.sharedEnabled ? state.config.sharedApps : []
+    let sharedIds = Set(sharedApps.map(\.bundleIdentifier))
+    let sharedNonTiledIds = sharedApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier)
+    let cachedIds = Array(OrderedSet(sharedNonTiledIds + (resolvedFloatingKeys == nil ? floatingIds : [])))
     let nativeFullscreen = Set(state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows).map(\.windowID) ?? [])
     let sharedTiles = Set(state.layoutWorkspaceIDs.filter(state.canManageWorkspace)
       .flatMap { state.tilingTrees[$0]?.windows ?? [] }.filter { sharedIds.contains($0.bundleId) })
     return .run { [marker, snapshot = windowSnapshot] _ in
       guard !Task.isCancelled else { return }
-      let floatingKeys: [WindowKey] =
-        if let resolvedFloatingKeys {
-          resolvedFloatingKeys
-        } else {
-          floatingIds.isEmpty
-            ? []
-            : await snapshot.cachedKeysOffMain(floatingIds, false)
-        }
-      let unmanagedShared = unmanagedSharedIds.isEmpty ? [] : await snapshot.cachedKeysOffMain(unmanagedSharedIds, false)
-      let sharedCached = unmanagedShared + floatingKeys.filter { sharedIds.contains($0.bundleId) }
-      let onScreen = sharedIds.isEmpty ? Set<CGWindowID>() : await snapshot.onScreenWindowIDsOffMain()
-      let sharedKeys = sharedTiles.union(sharedCached.filter { onScreen.contains($0.windowID) })
+      let cached = cachedIds.isEmpty ? [] : await snapshot.cachedKeysOffMain(cachedIds, false)
+      let floatingKeys = cfg.floatingEnabled ? resolvedFloatingKeys ?? cached.filter { floatingIds.contains($0.bundleId) } : []
+      // Membership outlives visibility. The marker controller places each
+      // panel only while a fresh native or mirror surface exists.
+      let sharedKeys = sharedTiles.union(cached.filter { sharedIds.contains($0.bundleId) })
+        .union((resolvedFloatingKeys ?? []).filter { sharedIds.contains($0.bundleId) })
         .filter { !nativeFullscreen.contains($0.windowID) }
       guard !Task.isCancelled else { return }
       await marker.setTargets(

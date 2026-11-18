@@ -289,7 +289,7 @@ count, and the other directions and finger count remain unbound.
 
 Corner markers identify zoomed, always-on-top, borrowed, and Shared App windows. The Shared App badge appears beside any status dot.
 
-Default marker colors use Catppuccin Mocha. On upgrade, previously saved default colors switch to the new palette and other saved colors stay as they are. Choose Use Mocha Marker Colors in Settings → Appearance → Window Markers to apply all four defaults.
+On upgrade, saved legacy default marker colors automatically switch to Catppuccin Mocha. Other saved colors stay as they are.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |

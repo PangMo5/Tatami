@@ -735,7 +735,11 @@ struct WindowServerWindow: Sendable {
 private let windowServerReadQueue = BlockingWorkQueue(label: "dev.PangMo5.Tatami.window-server-read")
 
 func windowServerWindows(_ options: CGWindowListOption) async -> [WindowServerWindow] {
-  await windowServerReadQueue.run { readWindowServerWindows(options) }
+  await windowServerWindowsIfAvailable(options) ?? []
+}
+
+func windowServerWindowsIfAvailable(_ options: CGWindowListOption) async -> [WindowServerWindow]? {
+  await windowServerReadQueue.run { readWindowServerWindowsIfAvailable(options) }
 }
 
 func windowPlacementSnapshot(_ keys: [WindowKey]) async -> WindowPlacementSnapshot? {

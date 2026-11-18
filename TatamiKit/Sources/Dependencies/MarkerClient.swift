@@ -672,14 +672,8 @@ private final class MarkerController {
   }
 
   func repairNativeMarkerOrder(windowID: CGWindowID?) {
-    for (key, panel) in panels where windowID == nil || key.windowID == windowID {
-      guard
-        panel.isVisible,
-        panel.parent == nil,
-        let markerID = CGWindowID(exactly: panel.windowNumber),
-        nativeSurfaces[key] != nil
-      else { continue }
-      pendingNativeOrderChecks[key] = markerID
+    for (key, panel) in panels where panel.parent == nil && (windowID == nil || key.windowID == windowID) {
+      pendingNativeOrderChecks[key] = panel.windowNumber
     }
     guard !pendingNativeOrderChecks.isEmpty, nativeOrderCheckTask == nil else { return }
     // Raising an already-focused window doesn't change its AX focus or frame.
@@ -690,21 +684,38 @@ private final class MarkerController {
       while !pendingNativeOrderChecks.isEmpty {
         let candidates = pendingNativeOrderChecks
         pendingNativeOrderChecks.removeAll(keepingCapacity: true)
-        let windows = await windowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+        let generation = targetRefreshGeneration
+        guard
+          let windows = await windowServerWindowsIfAvailable([.optionOnScreenOnly, .excludeDesktopElements]),
+          generation == targetRefreshGeneration
+        else { continue }
         let indexes = Dictionary(uniqueKeysWithValues: windows.enumerated().map { ($0.element.id, $0.offset) })
         let cursor = NSEvent.mouseLocation
-        for (key, markerID) in candidates {
+        for (key, markerNumber) in candidates {
           guard
             let panel = panels[key],
-            panel.isVisible,
             panel.parent == nil,
-            panel.windowNumber == Int(markerID),
-            let markerIndex = indexes[markerID],
+            panel.windowNumber == markerNumber
+          else { continue }
+          guard
             let nativeIndex = indexes[key.windowID],
             windows[nativeIndex].surface.ownerPID == key.pid,
-            nativeIndex < markerIndex
+            windows[nativeIndex].alpha > 0
+          else {
+            if nativeSurfaces.removeValue(forKey: key) != nil || panel.isVisible {
+              refresh(key, cursor: cursor)
+            }
+            continue
+          }
+          let surface = windows[nativeIndex].surface
+          let markerIndex = CGWindowID(exactly: markerNumber).flatMap { indexes[$0] }
+          // A registered marker may not have had an on-screen owner during
+          // initial placement. The first visible snapshot can attach it.
+          guard
+            nativeSurfaces[key] != surface || !panel.isVisible
+            || markerIndex.map({ nativeIndex < $0 }) ?? true
           else { continue }
-          nativeSurfaces[key] = windows[nativeIndex].surface
+          nativeSurfaces[key] = surface
           refresh(key, cursor: cursor)
         }
       }
@@ -743,7 +754,7 @@ private final class MarkerController {
   private var lastFrame = [WindowKey: NSRect]()
   private var nativeSurfaces = [WindowKey: WindowServerSurface]()
   private var activeSpaceObserver: any NSObjectProtocol?
-  private var pendingNativeOrderChecks = [WindowKey: CGWindowID]()
+  private var pendingNativeOrderChecks = [WindowKey: Int]()
   private var nativeOrderCheckTask: Task<Void, Never>?
   /// Global mouse-moved monitor, installed only while a dot can be visible,
   /// so the hover-fade reacts without a polling timer. Hover needs the

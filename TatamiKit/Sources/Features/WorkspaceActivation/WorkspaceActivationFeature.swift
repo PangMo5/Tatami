@@ -1709,9 +1709,7 @@ public struct WorkspaceActivationFeature {
               // A clicked window can finish its native raise after mouse-up.
               // On that visibility edge its tile membership is unchanged, so
               // the normal window sync would leave the marker below it.
-              if case .becameVisible(let windowID) = event {
-                await marker.repairNativeOrder(windowID)
-              }
+              await marker.repairNativeOrder(event.windowID)
               await send(.windowServerSnapshotRequested(event))
             }
           },

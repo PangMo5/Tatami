@@ -859,16 +859,6 @@ extension SettingsView {
       .settingsSearchTarget("marker.sharedColorHex")
       .disabled(!config.settings.marker.sharedEnabled)
 
-      Button("Use Mocha Marker Colors") {
-        $config.withLock {
-          $0.settings.marker.floatingColorHex = MarkerPalette.floating
-          $0.settings.marker.fullscreenColorHex = MarkerPalette.fullscreen
-          $0.settings.marker.borrowColorHex = MarkerPalette.borrowed
-          $0.settings.marker.sharedColorHex = MarkerPalette.shared
-        }
-      }
-      .settingsSearchTarget("marker.mochaColors")
-
       CommitOnChangeStepper(
         external: config.settings.marker.size,
         range: 8 ... 28,

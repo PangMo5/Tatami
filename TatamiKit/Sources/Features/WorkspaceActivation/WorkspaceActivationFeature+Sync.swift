@@ -402,6 +402,14 @@ extension WorkspaceActivationFeature {
     let workspaceIds = state.workspacesForSync(bundleId: bundleId).filter { state.canManageWorkspace($0) }
     guard !workspaceIds.isEmpty else { return .none }
     var effects = [Effect<Action>]()
+    // Shared unmanaged windows have no tree changes to publish. Their fresh
+    // movable-window discovery is the membership change for the marker set.
+    if
+      state.config.settings.marker.sharedEnabled,
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout == .unmanaged })
+    {
+      effects.append(refreshMarkers(state: state))
+    }
     for workspaceId in workspaceIds {
       // Do not construct or persist a default tree before Borrow has loaded
       // its saved intent. Observer installation can publish a window first.

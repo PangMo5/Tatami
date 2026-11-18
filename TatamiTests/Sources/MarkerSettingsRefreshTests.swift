@@ -24,7 +24,6 @@ struct MarkerSettingsRefreshTests {
       $0.gestures.start = { _ in }
       $0.gestures.stop = { }
       $0.windowSnapshot.cachedKeys = { _, _ in [key] }
-      $0.windowSnapshot.onScreenWindowIDs = { [key.windowID] }
       $0.marker.setTargets = { value, _, _, _ in targets.withValue { $0.append(value) } }
     }
     store.exhaustivity = .off
@@ -44,5 +43,50 @@ struct MarkerSettingsRefreshTests {
     await store.send(.settingsChanged(store.state.config.settings))
     await store.finish()
     #expect(targets.value.last?[key]?.sharedColorHex == "#ABCDEF")
+  }
+
+  @Test
+  func `discovering a shared unmanaged window updates markers without changing the tree`() async throws {
+    let key = WindowKey(pid: 1, windowID: 10, bundleId: "app.shared")
+    let workspace = Workspace(name: "Work")
+    var state = WorkspaceActivationFeature.State()
+    state.$config.withLock {
+      $0.profiles = [Profile(name: "Default", workspaces: [workspace])]
+      $0.sharedApps = [SharedApp(bundleIdentifier: key.bundleId, name: "Shared", layout: .unmanaged)]
+    }
+    state.activeWorkspacesByDisplay = [DesktopSpacesTests.left: workspace.id]
+    let targets = LockIsolated<[[WindowKey: MarkerTarget]]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.cachedKeys = { _, _ in [key] }
+      $0.marker.setTargets = { value, _, _, _ in targets.withValue { $0.append(value) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.syncAppWindowsResolved(bundleId: key.bundleId, resizableKeys: nil, onScreenFrames: [:]))
+    await store.finish()
+    let target = try #require(targets.value.last?[key])
+    #expect(target.sharedColorHex == MarkerPalette.shared)
+    #expect(target.colorHex == nil)
+    #expect(store.state.tilingTrees[workspace.id] == nil)
+  }
+
+  @Test
+  func `a shared floating badge does not depend on the floating status dot setting`() async throws {
+    let key = WindowKey(pid: 1, windowID: 10, bundleId: "app.shared")
+    let state = WorkspaceActivationFeature.State()
+    state.$config.withLock {
+      $0.settings.marker.floatingEnabled = false
+      $0.sharedApps = [SharedApp(bundleIdentifier: key.bundleId, name: "Shared", layout: .floating)]
+    }
+    let targets = LockIsolated<[[WindowKey: MarkerTarget]]>([])
+    let store = TestStore(initialState: state) { WorkspaceActivationFeature() } withDependencies: {
+      $0.windowSnapshot.cachedKeys = { _, _ in [key] }
+      $0.marker.setTargets = { value, _, _, _ in targets.withValue { $0.append(value) } }
+    }
+    store.exhaustivity = .off
+    await store.send(.markerSettingsChanged)
+    await store.finish()
+    let target = try #require(targets.value.last?[key])
+    #expect(target.sharedColorHex == MarkerPalette.shared)
+    #expect(target.colorHex == nil)
   }
 }
