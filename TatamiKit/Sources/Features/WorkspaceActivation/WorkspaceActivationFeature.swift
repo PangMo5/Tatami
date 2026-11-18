@@ -1212,7 +1212,7 @@ public struct WorkspaceActivationFeature {
   }
 
   public enum Action {
-    case markerSettingsChanged
+    case refreshWindowMarkers
     case startObservingWindowEvents
     case windowServerSnapshotRequested(SLSWindowEvent)
     case windowServerWindowEvent(SLSWindowEvent, snapshot: WindowServerEventSnapshot? = nil)
@@ -1686,7 +1686,7 @@ public struct WorkspaceActivationFeature {
       }
 
       switch action {
-      case .markerSettingsChanged:
+      case .refreshWindowMarkers:
         return refreshMarkers(state: state)
 
       case .startObservingWindowEvents:
@@ -6590,11 +6590,16 @@ public struct WorkspaceActivationFeature {
       // only after that batch has already written one or more windows. Force
       // the newest complete frame set so it cannot inherit a mixed geometry,
       // and trigger MFF only after those writes finish.
-      flushLayout(
-        workspaceId: workspaceId,
-        state: &state,
-        forceAllFrames: true,
-        followUp: followUp,
+      .concatenate(
+        flushLayout(
+          workspaceId: workspaceId,
+          state: &state,
+          forceAllFrames: true,
+          followUp: followUp,
+        ),
+        // AX applies position and size separately. Read marker geometry only
+        // after the writer finishes, so a marker never keeps a half-written frame.
+        .send(.refreshWindowMarkers),
       ),
       persist(
         tree,
@@ -6603,7 +6608,6 @@ public struct WorkspaceActivationFeature {
         state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
         for: workspace,
       ),
-      refreshMarkers(state: state),
       hud,
     ))
   }

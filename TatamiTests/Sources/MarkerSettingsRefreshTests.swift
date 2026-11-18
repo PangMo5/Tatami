@@ -83,7 +83,7 @@ struct MarkerSettingsRefreshTests {
       $0.marker.setTargets = { value, _, _, _ in targets.withValue { $0.append(value) } }
     }
     store.exhaustivity = .off
-    await store.send(.markerSettingsChanged)
+    await store.send(.refreshWindowMarkers)
     await store.finish()
     let target = try #require(targets.value.last?[key])
     #expect(target.sharedColorHex == MarkerPalette.shared)
