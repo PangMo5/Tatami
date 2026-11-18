@@ -1,11 +1,58 @@
 // SPDX-FileCopyrightText: 2026 PangMo5 and contributors
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import CoreGraphics
 import Foundation
 import Testing
 @testable import TatamiKit
 
 struct SharedMarkerTests {
+
+  // MARK: Internal
+
+  @Test
+  func `a badge above the front window cannot expose its covered owner`() {
+    let firstFrame = CGRect(x: 0, y: 0, width: 240, height: 220)
+    let secondFrame = firstFrame.offsetBy(dx: 300, dy: 0)
+    let firstCorner = CGRect(x: 200, y: 180, width: 24, height: 24)
+    let secondCorner = firstCorner.offsetBy(dx: 300, dy: 0)
+    let firstOwner = Self.surface(10, firstFrame)
+    let secondOwner = Self.surface(11, secondFrame)
+    let badges = [Self.surface(90, firstCorner), Self.surface(91, secondCorner)]
+    // The first owner's body is partly visible but the badge's corner is not.
+    let cover = Self.surface(20, CGRect(x: 160, y: 140, width: 120, height: 100))
+    let hidden = MarkerWindowStack(badges + [cover, firstOwner, secondOwner])
+    #expect(hidden.exposure(of: firstCorner, on: 10, ignoring: [90, 91]) == .covered(.init(pid: 20, windowID: 20, bundleId: "")))
+    #expect(hidden.exposure(of: secondCorner, on: 11, ignoring: [90, 91]) == .exposed)
+    let uncovered = MarkerWindowStack(badges + [firstOwner, secondOwner, cover])
+    #expect(uncovered.exposure(of: firstCorner, on: 10, ignoring: [90, 91]) == .exposed)
+  }
+
+  @Test
+  func `higher layers are composited above the badge without hiding its exposed owner`() {
+    let frame = CGRect(x: 0, y: 0, width: 240, height: 220)
+    let corner = CGRect(x: 200, y: 180, width: 24, height: 24)
+    let dockCanvas = Self.surface(30, frame, layer: 20)
+    let owner = Self.surface(10, frame)
+    let clearCorner = MarkerWindowStack([dockCanvas, owner])
+    #expect(clearCorner.exposure(of: corner, on: 10, ignoring: []) == .exposed)
+
+    let cover = Self.surface(20, frame)
+    let coveredCorner = MarkerWindowStack([dockCanvas, cover, owner])
+    #expect(coveredCorner.exposure(of: corner, on: 10, ignoring: []) == .covered(.init(pid: 20, windowID: 20, bundleId: "")))
+  }
+
+  @Test
+  func `a floating marker is authorized by the visible mirror rather than the covered native window`() {
+    let frame = CGRect(x: 0, y: 0, width: 240, height: 220)
+    let corner = CGRect(x: 200, y: 180, width: 24, height: 24)
+    let invisibleCover = Self.surface(30, frame, alpha: 0)
+    let stack = MarkerWindowStack([invisibleCover, Self.surface(40, frame), Self.surface(20, frame), Self.surface(10, frame)])
+    #expect(stack.exposure(of: corner, on: 40, ignoring: []) == .exposed)
+    #expect(stack.exposure(of: corner, on: 10, ignoring: []) == .covered(.init(pid: 40, windowID: 40, bundleId: "")))
+    #expect(stack.exposure(of: corner, on: 90, ignoring: []) == .unavailable)
+  }
+
   @Test
   func `a shared badge coexists with borrowed or zoom status without replacing it`() throws {
     let key = WindowKey(pid: 1, windowID: 10, bundleId: "app.shared")
@@ -105,4 +152,16 @@ struct SharedMarkerTests {
     #expect(defaults.fullscreenColorHex == MarkerPalette.fullscreen)
     #expect(defaults.borrowColorHex == MarkerPalette.borrowed)
   }
+
+  // MARK: Private
+
+  private static func surface(_ id: CGWindowID, _ frame: CGRect, layer: Int = 0, alpha: Double = 1) -> WindowServerWindow {
+    WindowServerWindow(
+      id: id,
+      surface: WindowServerSurface(ownerPID: pid_t(id), layer: layer, frame: frame),
+      title: nil,
+      alpha: alpha,
+    )
+  }
+
 }
