@@ -22,10 +22,10 @@ struct SharedMarkerTests {
     // The first owner's body is partly visible but the badge's corner is not.
     let cover = Self.surface(20, CGRect(x: 160, y: 140, width: 120, height: 100))
     let hidden = MarkerWindowStack(badges + [cover, firstOwner, secondOwner])
-    #expect(!hidden.exposes(firstCorner, on: 10, ignoring: [90, 91]))
-    #expect(hidden.exposes(secondCorner, on: 11, ignoring: [90, 91]))
+    #expect(hidden.exposure(of: firstCorner, on: 10, ignoring: [90, 91]) == .covered(.init(pid: 20, windowID: 20, bundleId: "")))
+    #expect(hidden.exposure(of: secondCorner, on: 11, ignoring: [90, 91]) == .exposed)
     let uncovered = MarkerWindowStack(badges + [firstOwner, secondOwner, cover])
-    #expect(uncovered.exposes(firstCorner, on: 10, ignoring: [90, 91]))
+    #expect(uncovered.exposure(of: firstCorner, on: 10, ignoring: [90, 91]) == .exposed)
   }
 
   @Test
@@ -35,11 +35,11 @@ struct SharedMarkerTests {
     let dockCanvas = Self.surface(30, frame, layer: 20)
     let owner = Self.surface(10, frame)
     let clearCorner = MarkerWindowStack([dockCanvas, owner])
-    #expect(clearCorner.exposes(corner, on: 10, ignoring: []))
+    #expect(clearCorner.exposure(of: corner, on: 10, ignoring: []) == .exposed)
 
     let cover = Self.surface(20, frame)
     let coveredCorner = MarkerWindowStack([dockCanvas, cover, owner])
-    #expect(!coveredCorner.exposes(corner, on: 10, ignoring: []))
+    #expect(coveredCorner.exposure(of: corner, on: 10, ignoring: []) == .covered(.init(pid: 20, windowID: 20, bundleId: "")))
   }
 
   @Test
@@ -48,9 +48,9 @@ struct SharedMarkerTests {
     let corner = CGRect(x: 200, y: 180, width: 24, height: 24)
     let invisibleCover = Self.surface(30, frame, alpha: 0)
     let stack = MarkerWindowStack([invisibleCover, Self.surface(40, frame), Self.surface(20, frame), Self.surface(10, frame)])
-    #expect(stack.exposes(corner, on: 40, ignoring: []))
-    #expect(!stack.exposes(corner, on: 10, ignoring: []))
-    #expect(!stack.exposes(corner, on: 90, ignoring: []))
+    #expect(stack.exposure(of: corner, on: 40, ignoring: []) == .exposed)
+    #expect(stack.exposure(of: corner, on: 10, ignoring: []) == .covered(.init(pid: 40, windowID: 40, bundleId: "")))
+    #expect(stack.exposure(of: corner, on: 90, ignoring: []) == .unavailable)
   }
 
   @Test
