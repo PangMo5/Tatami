@@ -1561,7 +1561,8 @@ final class FloatingOverlayController {
       frame: frame,
       floatingPIDs: ignoringFloatingWindows ? Set(panels.keys.map(\.pid)) : [],
       sourceWindowIDs: nativeWindowIDsByPID[key.pid],
-      mirrorWindowIDs: Set(panels.values.map { CGWindowID($0.windowNumber) }),
+      mirrorWindowIDs: Set(panels.values.map { CGWindowID($0.windowNumber) })
+        .union(MirrorWindowRegistry.shared.markerWindowIDs()),
     )
   }
 

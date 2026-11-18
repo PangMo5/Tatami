@@ -1212,7 +1212,7 @@ public struct WorkspaceActivationFeature {
   }
 
   public enum Action {
-    case markerSettingsChanged
+    case refreshWindowMarkers
     case startObservingWindowEvents
     case windowServerSnapshotRequested(SLSWindowEvent)
     case windowServerWindowEvent(SLSWindowEvent, snapshot: WindowServerEventSnapshot? = nil)
@@ -1686,7 +1686,7 @@ public struct WorkspaceActivationFeature {
       }
 
       switch action {
-      case .markerSettingsChanged:
+      case .refreshWindowMarkers:
         return refreshMarkers(state: state)
 
       case .startObservingWindowEvents:
@@ -1701,11 +1701,15 @@ public struct WorkspaceActivationFeature {
               await send(.displaysReconfigured(names))
             }
           },
-          .run { [sls] send in
+          .run { [sls, marker] send in
             // WindowServer visibility edges catch hide-on-close windows that
             // emit no AX notification; termination remains the authoritative
             // cache tombstone.
             for await event in sls.windowEvents() {
+              // A clicked window can finish its native raise after mouse-up.
+              // On that visibility edge its tile membership is unchanged, so
+              // the normal window sync would leave the marker below it.
+              await marker.repairNativeOrder(event.windowID)
               await send(.windowServerSnapshotRequested(event))
             }
           },
@@ -2068,6 +2072,7 @@ public struct WorkspaceActivationFeature {
             }
           }
           let preview = dragPreview
+          let markerClient = marker
           let drag = state.drag
           if
             let key = drag.windowKey,
@@ -2079,7 +2084,8 @@ public struct WorkspaceActivationFeature {
           state.drag = .idle
           var effects: [Effect<Action>] = [
             .run { _ in await preview.hide() }
-              .cancellable(id: CancelID.dragPreview, cancelInFlight: true)
+              .cancellable(id: CancelID.dragPreview, cancelInFlight: true),
+            .run { _ in await markerClient.repairNativeOrder(authoritativeWindowID) },
           ]
           switch drag {
           case .idle:
@@ -6584,11 +6590,16 @@ public struct WorkspaceActivationFeature {
       // only after that batch has already written one or more windows. Force
       // the newest complete frame set so it cannot inherit a mixed geometry,
       // and trigger MFF only after those writes finish.
-      flushLayout(
-        workspaceId: workspaceId,
-        state: &state,
-        forceAllFrames: true,
-        followUp: followUp,
+      .concatenate(
+        flushLayout(
+          workspaceId: workspaceId,
+          state: &state,
+          forceAllFrames: true,
+          followUp: followUp,
+        ),
+        // AX applies position and size separately. Read marker geometry only
+        // after the writer finishes, so a marker never keeps a half-written frame.
+        .send(.refreshWindowMarkers),
       ),
       persist(
         tree,
@@ -6597,7 +6608,6 @@ public struct WorkspaceActivationFeature {
         state.unresolvedFullscreenZoomSlots[workspaceId] ?? [],
         for: workspace,
       ),
-      refreshMarkers(state: state),
       hud,
     ))
   }

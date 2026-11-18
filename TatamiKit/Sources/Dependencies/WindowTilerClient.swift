@@ -750,7 +750,7 @@ func readWindowServerWindows(_ options: CGWindowListOption) -> [WindowServerWind
   readWindowServerWindowsIfAvailable(options) ?? []
 }
 
-private func readWindowServerWindowsIfAvailable(_ options: CGWindowListOption) -> [WindowServerWindow]? {
+func readWindowServerWindowsIfAvailable(_ options: CGWindowListOption) -> [WindowServerWindow]? {
   precondition(!Thread.isMainThread, "WindowServer IPC must run on a worker")
   guard let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
   return entries.compactMap { entry in

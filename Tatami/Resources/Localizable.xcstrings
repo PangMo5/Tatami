@@ -42947,41 +42947,6 @@
         }
       }
     },
-    "Use Mocha Marker Colors": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use Mocha Marker Colors"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "표시 색상을 Mocha로 맞추기"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "マーカーをMochaの配色にする"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用 Mocha 标记配色"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用 Mocha 標記配色"
-          }
-        }
-      }
-    },
     "Shared App": {
       "extractionState": "manual",
       "localizations": {

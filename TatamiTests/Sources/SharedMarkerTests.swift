@@ -56,6 +56,41 @@ struct SharedMarkerTests {
   }
 
   @Test
+  func `stored legacy defaults migrate in TOML while other marker choices survive`() throws {
+    let config = try decodeTatamiConfig(Data("""
+      [settings.marker]
+      floatingColorHex = "#FF9500"
+      fullscreenColorHex = "#007aff"
+      borrowColorHex = "#AF52DE"
+      sharedColorHex = "#123456"
+      floatingEnabled = false
+      size = 8
+      corner = "bottomLeading"
+      """.utf8))
+    #expect(config.settings.marker.floatingColorHex == MarkerPalette.floating)
+    #expect(config.settings.marker.fullscreenColorHex == MarkerPalette.fullscreen)
+    #expect(config.settings.marker.borrowColorHex == MarkerPalette.borrowed)
+    #expect(config.settings.marker.sharedColorHex == "#123456")
+    #expect(!config.settings.marker.floatingEnabled)
+    #expect(config.settings.marker.size == 8)
+    #expect(config.settings.marker.corner == .bottomLeading)
+  }
+
+  @Test
+  func `a deliberate legacy color survives save and reload after migration`() throws {
+    var config = try decodeTatamiConfig(Data("""
+      [settings.marker]
+      floatingColorHex = "#FF9500"
+      fullscreenColorHex = "#123456"
+      """.utf8))
+    #expect(config.settings.marker.floatingColorHex == MarkerPalette.floating)
+    #expect(config.settings.marker.fullscreenColorHex == "#123456")
+    config.settings.marker.floatingColorHex = "#FF9500"
+    let reloaded = try decodeTatamiConfig(encodeTatamiConfig(config))
+    #expect(reloaded.settings.marker == config.settings.marker)
+  }
+
+  @Test
   func `Mocha defaults do not overwrite saved custom marker colors`() throws {
     let decoded = try JSONDecoder().decode(AppSettings.Marker.self, from: Data("""
       {"floatingColorHex":"#ABCDEF","fullscreenColorHex":"#123456","borrowColorHex":"#654321"}

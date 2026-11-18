@@ -212,6 +212,7 @@ struct MirrorInputHandoverTests {
     #expect(discarded == nil)
   }
 
+  @MainActor
   @Test
   func `unannotated mouse downs are admitted by published mirror geometry`() throws {
     let registry = MirrorWindowRegistry()
@@ -228,6 +229,7 @@ struct MirrorInputHandoverTests {
     #expect(!registry.mayContainMirror(at: event.location))
   }
 
+  @MainActor
   @Test
   func `moving a mirror replaces its input admission geometry`() {
     let registry = MirrorWindowRegistry()

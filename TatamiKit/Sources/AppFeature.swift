@@ -421,7 +421,7 @@ public struct AppFeature {
           ignoreFullscreen: settings.focus.focusFollowsMouseIgnoreFullscreen,
         )
         return .merge(
-          markerChanged ? .send(.activation(.markerSettingsChanged)) : .none,
+          markerChanged ? .send(.activation(.refreshWindowMarkers)) : .none,
           .run { [client = focusFollowsMouse] _ in
             await client.configure(ffm)
           },

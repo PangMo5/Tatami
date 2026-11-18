@@ -461,7 +461,6 @@ enum SettingsSearchCatalog {
       ),
       SettingsSearchItem(id: "marker.sharedEnabled", pane: "appearance", title: "Mark Shared Apps"),
       SettingsSearchItem(id: "marker.sharedColorHex", pane: "appearance", title: "Shared marker color"),
-      SettingsSearchItem(id: "marker.mochaColors", pane: "appearance", title: "Use Mocha Marker Colors"),
       SettingsSearchItem(id: "marker.fullscreenColorHex", pane: "appearance", title: "Fullscreen color"),
       SettingsSearchItem(
         id: "marker.floatingEnabled",

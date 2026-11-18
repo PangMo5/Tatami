@@ -326,6 +326,7 @@ extension AppSettings {
       self.size = size
       self.corner = corner
       self.hideOnHover = hideOnHover
+      paletteVersion = 1
     }
 
     public init(from decoder: Decoder) throws {
@@ -341,6 +342,21 @@ extension AppSettings {
       size = c.decode(.size, default: 14)
       corner = c.decode(.corner, default: .bottomTrailing)
       hideOnHover = c.decode(.hideOnHover, default: true)
+      let savedVersion = c.decode(.paletteVersion, default: 0)
+      if savedVersion < 1 {
+        // Older writers saved their defaults without recording whether a user
+        // chose them. Migrate each matching field and keep every other color.
+        if floatingColorHex.uppercased() == "#FF9500" {
+          floatingColorHex = MarkerPalette.floating
+        }
+        if fullscreenColorHex.uppercased() == "#007AFF" {
+          fullscreenColorHex = MarkerPalette.fullscreen
+        }
+        if borrowColorHex.uppercased() == "#AF52DE" {
+          borrowColorHex = MarkerPalette.borrowed
+        }
+      }
+      paletteVersion = max(1, savedVersion)
     }
 
     // MARK: Public
@@ -383,7 +399,11 @@ extension AppSettings {
       case size
       case corner
       case hideOnHover
+      case paletteVersion
     }
+
+    /// Preserve deliberate selections of a legacy color on subsequent saves.
+    private let paletteVersion: Int
 
   }
 }
