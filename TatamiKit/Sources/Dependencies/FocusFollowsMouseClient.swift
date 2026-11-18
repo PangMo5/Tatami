@@ -398,6 +398,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
   ) -> (pid: pid_t, windowID: CGWindowID, bounds: CGRect)? {
     // One lock acquisition for the mirror snapshot instead of one per entry.
     let mirrorTargets = MirrorWindowRegistry.shared.allTargets()
+    let markerIDs = MirrorWindowRegistry.shared.markerWindowIDs()
     // Single pass in front-to-back z-order (the list's natural order),
     // stopping at the first hit — materializing the full window array per
     // fire is unnecessary allocation churn.
@@ -405,7 +406,7 @@ private final class LiveFocusFollowsMouseController: @unchecked Sendable {
     // kept, for the full-screen gap guard below.
     var frontBounds = [CGRect]()
     var candidate: (pid: pid_t, windowID: CGWindowID, bounds: CGRect)?
-    for entry in windows {
+    for entry in windows where !markerIDs.contains(entry.id) {
       let pidNumber = entry.surface.ownerPID
       let windowNumber = entry.id
       let bounds = entry.surface.frame

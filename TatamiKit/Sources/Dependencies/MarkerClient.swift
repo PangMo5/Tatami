@@ -60,6 +60,18 @@ extension MarkerClient: DependencyKey {
     let geometry = MarkerGeometryWorker { [weak controller] update in
       controller?.applyGeometryUpdate(update)
     }
+    MainActor.assumeIsolated {
+      MirrorWindowRegistry.shared.setMarkerPresentationHandler { [weak controller] target in
+        controller?.mirrorPresentationChanged(target)
+      }
+      controller.observeActiveSpaceChanges { [weak controller] in
+        guard let request = controller?.preparePlacementRefresh() else { return }
+        Task { @MainActor in
+          let surfaces = await geometry.snapshot(request.keys, generation: request.generation)
+          controller?.applyFocusSnapshot(surfaces, generation: request.generation)
+        }
+      }
+    }
     return MarkerClient(
       setTargets: { targets, size, corner, hideOnHover in
         let request = await MainActor.run {
@@ -136,9 +148,8 @@ private struct MarkerFocusRefreshRequest: Sendable {
 // MARK: - MarkerGeometryUpdate
 
 private struct MarkerGeometryUpdate: Sendable {
-  var frames: [WindowKey: CGRect]
+  var surfaces: [WindowKey: WindowServerSurface]
   var keys: Set<WindowKey>
-  var replacesSnapshot: Bool
 }
 
 // MARK: - MarkerGeometryCancellationFlag
@@ -165,7 +176,7 @@ private final class MarkerGeometryCancellationFlag: @unchecked Sendable {
 // MARK: - MarkerGeometryWorker
 
 /// Owns every marker AX element, subscription, and geometry read on a
-/// dedicated serial run loop. `MarkerController` receives CGRect snapshots
+/// dedicated serial run loop. `MarkerController` receives WindowServer surfaces
 /// only, so target changes, programmatic tiling callbacks, and focus refreshes
 /// never perform cross-process AX messaging on the main actor.
 private final class MarkerGeometryWorker: @unchecked Sendable {
@@ -190,7 +201,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   func updateTargets(
     _ keys: [WindowKey],
     generation: UInt64,
-  ) async -> [WindowKey: CGRect] {
+  ) async -> [WindowKey: WindowServerSurface] {
     let cancellation = MarkerGeometryCancellationFlag()
     return await withTaskCancellationHandler {
       await perform {
@@ -211,7 +222,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   func snapshot(
     _ keys: [WindowKey],
     generation: UInt64,
-  ) async -> [WindowKey: CGRect] {
+  ) async -> [WindowKey: WindowServerSurface] {
     let cancellation = MarkerGeometryCancellationFlag()
     let shouldRun = focusLock.withLock { () -> Bool in
       guard generation >= latestFocusSnapshotGeneration else { return false }
@@ -248,14 +259,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       let key = keyByWindowID[windowID],
       targetKeys.contains(key)
     else { return }
-    AXUIElementSetMessagingTimeout(element, 0.25)
-    if let frame = AXWindowGeometry.frame(of: element) {
-      pendingGeometryFrames[key] = frame
-      pendingGeometryFailures.remove(key)
-    } else {
-      pendingGeometryFrames[key] = nil
-      pendingGeometryFailures.insert(key)
-    }
+    pendingGeometryKeys.insert(key)
     scheduleGeometryDeliveryIfNeeded()
   }
 
@@ -274,14 +278,9 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   private var keyByWindowID = [CGWindowID: WindowKey]()
   private var observers = [pid_t: AXObserver]()
   private var subscribed = Set<WindowKey>()
-  /// Key-wise latest geometry waiting for the UI. At most one MainActor
-  /// delivery task exists; callbacks arriving behind it overwrite their key's
-  /// pending frame instead of creating an unbounded task backlog.
-  private var pendingGeometryFrames = [WindowKey: CGRect]()
-  /// A failed final geometry read invalidates the old panel placement. Kept
-  /// separately so a later successful callback for the same key can replace
-  /// the failure before the coalesced batch reaches the main actor.
-  private var pendingGeometryFailures = Set<WindowKey>()
+  /// At most one MainActor delivery is outstanding. Geometry callbacks
+  /// arriving behind it coalesce into the next shared WindowServer snapshot.
+  private var pendingGeometryKeys = Set<WindowKey>()
   private var isGeometryDeliveryInFlight = false
 
   private let focusLock = NSLock()
@@ -334,27 +333,27 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     _ keys: Set<WindowKey>,
     generation: UInt64,
     isCancelled: @Sendable () -> Bool,
-  ) -> [WindowKey: CGRect] {
+  ) -> [WindowKey: WindowServerSurface] {
     guard generation >= targetGeneration, !isCancelled() else { return [:] }
     targetGeneration = generation
     targetKeys = keys
     removeStaleElements()
     resolveMissingElements(isCancelled: isCancelled)
     ensureSubscriptions(isCancelled: isCancelled)
-    return snapshotFrames(keys, isCancelled: isCancelled)
+    return snapshotSurfaces(keys, isCancelled: isCancelled)
   }
 
   private func snapshotOnThread(
     _ keys: Set<WindowKey>,
     isCancelled: @Sendable () -> Bool,
-  ) -> [WindowKey: CGRect] {
+  ) -> [WindowKey: WindowServerSurface] {
     guard !isCancelled() else { return [:] }
     // A target may have been temporarily unreachable during its initial
     // reconcile. Focus is a useful retry signal; resolve only still-missing
     // current targets before taking the fresh frame snapshot.
     resolveMissingElements(isCancelled: isCancelled)
     ensureSubscriptions(isCancelled: isCancelled)
-    return snapshotFrames(keys.intersection(targetKeys), isCancelled: isCancelled)
+    return snapshotSurfaces(keys.intersection(targetKeys), isCancelled: isCancelled)
   }
 
   private func resolveMissingElements(
@@ -450,20 +449,17 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
     return observer
   }
 
-  private func snapshotFrames(
+  private func snapshotSurfaces(
     _ keys: Set<WindowKey>,
     isCancelled: @Sendable () -> Bool,
-  ) -> [WindowKey: CGRect] {
-    var frames = [WindowKey: CGRect]()
-    for key in keys {
-      guard !isCancelled() else { break }
-      guard let element = elements[key] else { continue }
-      AXUIElementSetMessagingTimeout(element, 0.25)
-      if let frame = AXWindowGeometry.frame(of: element) {
-        frames[key] = frame
-      }
-    }
-    return frames
+  ) -> [WindowKey: WindowServerSurface] {
+    guard !keys.isEmpty, !isCancelled() else { return [:] }
+    let onScreen = Dictionary(uniqueKeysWithValues: readWindowServerWindows([.optionOnScreenOnly, .excludeDesktopElements])
+      .filter { $0.alpha > 0 }.map { ($0.id, $0.surface) })
+    return Dictionary(uniqueKeysWithValues: keys.compactMap { key in
+      guard let surface = onScreen[key.windowID], surface.ownerPID == key.pid else { return nil }
+      return (key, surface)
+    })
   }
 
   private func removeStaleElements() {
@@ -486,8 +482,7 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
       }
       elements[key] = nil
       keyByWindowID[key.windowID] = nil
-      pendingGeometryFrames[key] = nil
-      pendingGeometryFailures.remove(key)
+      pendingGeometryKeys.remove(key)
     }
     let activePIDs = Set(targetKeys.map(\.pid))
     for pid in Array(observers.keys) where !activePIDs.contains(pid) {
@@ -503,22 +498,15 @@ private final class MarkerGeometryWorker: @unchecked Sendable {
   private func scheduleGeometryDeliveryIfNeeded() {
     guard
       !isGeometryDeliveryInFlight,
-      !pendingGeometryFrames.isEmpty || !pendingGeometryFailures.isEmpty
+      !pendingGeometryKeys.isEmpty
     else { return }
-    let frames = pendingGeometryFrames
-    let failures = pendingGeometryFailures
-    pendingGeometryFrames.removeAll(keepingCapacity: true)
-    pendingGeometryFailures.removeAll(keepingCapacity: true)
+    let keys = pendingGeometryKeys
+    pendingGeometryKeys.removeAll(keepingCapacity: true)
     isGeometryDeliveryInFlight = true
+    let surfaces = snapshotSurfaces(keys, isCancelled: { false })
     let sink = sink
     Task { @MainActor [weak self] in
-      sink(
-        MarkerGeometryUpdate(
-          frames: frames,
-          keys: Set(frames.keys).union(failures),
-          replacesSnapshot: true,
-        )
-      )
+      sink(MarkerGeometryUpdate(surfaces: surfaces, keys: keys))
       self?.enqueue { [weak self] in
         guard let self else { return }
         isGeometryDeliveryInFlight = false
@@ -610,6 +598,7 @@ private final class MarkerController {
       }
       styles[key] = style
     }
+    MirrorWindowRegistry.shared.setMarkerWindows(Set(panels.values.compactMap { CGWindowID(exactly: $0.windowNumber) }))
     refreshHoverMonitor()
     return MarkerTargetRefreshRequest(
       generation: targetRefreshGeneration,
@@ -618,16 +607,15 @@ private final class MarkerController {
   }
 
   func applyTargetSnapshot(
-    _ frames: [WindowKey: CGRect],
+    _ surfaces: [WindowKey: WindowServerSurface],
     generation: UInt64,
   ) {
     guard generation == targetRefreshGeneration else { return }
     appliedTargetRefreshGeneration = generation
     applyFrames(
       MarkerGeometryUpdate(
-        frames: frames,
+        surfaces: surfaces,
         keys: Set(panels.keys),
-        replacesSnapshot: true,
       )
     )
   }
@@ -641,43 +629,41 @@ private final class MarkerController {
   /// worker; the generation prevents an older focus request from committing
   /// after a newer one.
   func prepareFocusedWindow(_ key: WindowKey?) -> MarkerFocusRefreshRequest? {
-    let next: (pid: pid_t, windowID: CGWindowID)? = key.map { ($0.pid, $0.windowID) }
-    if let new = next, let old = focused, new == old {
-      return nil
-    }
-    if next == nil, focused == nil {
-      return nil
-    }
-    focused = next
-    focusRefreshGeneration &+= 1
+    focused = key.map { ($0.pid, $0.windowID) }
     let cursor = NSEvent.mouseLocation
     for key in panels.keys {
       updateAlpha(for: key, cursor: cursor)
     }
-    guard !panels.isEmpty else { return nil }
-    return MarkerFocusRefreshRequest(
-      generation: focusRefreshGeneration,
-      keys: Array(panels.keys),
-    )
+    return preparePlacementRefresh()
   }
 
-  /// Commit only the newest worker snapshot. Missing frames preserve the
-  /// existing transient-failure behavior: hide the dot and allow the next
-  /// target/focus/geometry event to retry.
+  func preparePlacementRefresh() -> MarkerFocusRefreshRequest? {
+    guard !panels.isEmpty else { return nil }
+    focusRefreshGeneration &+= 1
+    return MarkerFocusRefreshRequest(generation: focusRefreshGeneration, keys: Array(panels.keys))
+  }
+
   func applyFocusSnapshot(
-    _ frames: [WindowKey: CGRect],
+    _ surfaces: [WindowKey: WindowServerSurface],
     generation: UInt64,
   ) {
     guard generation == focusRefreshGeneration else { return }
-    let cursor = NSEvent.mouseLocation
-    for key in Array(panels.keys) {
-      guard let frame = frames[key] else {
-        hideAfterFrameReadFailure(key)
-        continue
-      }
-      refresh(key, windowFrame: frame, cursor: cursor)
+    applyFrames(MarkerGeometryUpdate(surfaces: surfaces, keys: Set(panels.keys)))
+  }
+
+  func observeActiveSpaceChanges(_ refresh: @escaping @MainActor @Sendable () -> Void) {
+    activeSpaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+      forName: NSWorkspace.activeSpaceDidChangeNotification,
+      object: nil,
+      queue: .main,
+    ) { _ in
+      MainActor.assumeIsolated { refresh() }
     }
-    refreshHoverMonitor()
+  }
+
+  func mirrorPresentationChanged(_ target: MirrorWindowRegistry.Target) {
+    guard let key = panels.keys.first(where: { $0.pid == target.pid && $0.windowID == target.windowID }) else { return }
+    refresh(key, cursor: NSEvent.mouseLocation)
   }
 
   // MARK: Private
@@ -709,6 +695,8 @@ private final class MarkerController {
   /// Windows whose dot ignores the focus gate (floating windows).
   private var alwaysVisible = Set<WindowKey>()
   private var lastFrame = [WindowKey: NSRect]()
+  private var nativeSurfaces = [WindowKey: WindowServerSurface]()
+  private var activeSpaceObserver: any NSObjectProtocol?
   /// Global mouse-moved monitor, installed only while a dot can be visible,
   /// so the hover-fade reacts without a polling timer. Hover needs the
   /// cursor position — a mouse event — which SwiftUI `.onHover` can't give
@@ -742,55 +730,50 @@ private final class MarkerController {
   private func applyFrames(_ update: MarkerGeometryUpdate) {
     let cursor = NSEvent.mouseLocation
     for key in update.keys where panels[key] != nil {
-      guard let frame = update.frames[key] else {
-        if update.replacesSnapshot {
-          hideAfterFrameReadFailure(key)
-        }
-        continue
-      }
-      refresh(key, windowFrame: frame, cursor: cursor)
+      nativeSurfaces[key] = update.surfaces[key]
+      refresh(key, cursor: cursor)
     }
     refreshHoverMonitor()
   }
 
-  private func refresh(
-    _ key: WindowKey,
-    windowFrame: CGRect,
-    cursor: NSPoint,
-  ) {
+  private func refresh(_ key: WindowKey, cursor: NSPoint) {
     guard let style = styles[key], let panel = panels[key] else { return }
-    let cocoa = AXWindowGeometry.flipToCocoa(dotRect(in: windowFrame, size: style.contentSize, corner: corner))
-    if lastFrame[key] != cocoa {
-      if lastFrame[key] == nil {
-        // First placement: land directly, no glide in from nowhere.
-        panel.setFrame(cocoa, display: true, animate: false)
-      } else {
-        // AX geometry events arrive sparsely during a drag; a short
-        // ease-out glide between them reads as the dot following the
-        // window instead of teleporting event-to-event.
-        NSAnimationContext.runAnimationGroup { ctx in
-          ctx.duration = 0.12
-          ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-          panel.animator().setFrame(cocoa, display: true)
-        }
-      }
-      lastFrame[key] = cocoa
+    let mirror = MirrorWindowRegistry.shared.mirrorWindowID(for: .init(pid: key.pid, windowID: key.windowID))
+      .flatMap { NSApp.window(withWindowNumber: Int($0)) }
+      .flatMap { $0.isVisible && $0.alphaValue > 0 ? $0 : nil }
+    if panel.parent !== mirror {
+      panel.parent?.removeChildWindow(panel)
     }
-    if !panel.isVisible {
-      panel.orderFrontRegardless()
+    if let mirror {
+      let frame = AXWindowGeometry.flipToCG(mirror.frame)
+      place(panel, key: key, style: style, windowFrame: frame)
+      // A child follows its mirror across level changes, restacks and moves.
+      if panel.parent == nil {
+        mirror.addChildWindow(panel, ordered: .above)
+      }
+    } else if let native = nativeSurfaces[key] {
+      place(panel, key: key, style: style, windowFrame: native.frame)
+      let level = NSWindow.Level(rawValue: native.layer)
+      if panel.level != level {
+        panel.level = level
+      }
+      // Insert directly above the native window. Any surface that covers it
+      // also covers the marker, without focus polling or overlap heuristics.
+      panel.order(.above, relativeTo: Int(key.windowID))
+    } else {
+      panel.orderOut(nil)
+      lastFrame[key] = nil
+      return
     }
     updateAlpha(for: key, cursor: cursor)
   }
 
-  private func hideAfterFrameReadFailure(_ key: WindowKey) {
-    guard let panel = panels[key] else { return }
-    if panel.alphaValue > 0.01 {
-      panel.alphaValue = 0
+  private func place(_ panel: NSPanel, key: WindowKey, style: Style, windowFrame: CGRect) {
+    let cocoa = AXWindowGeometry.flipToCocoa(dotRect(in: windowFrame, size: style.contentSize, corner: corner))
+    if panel.frame != cocoa {
+      panel.setFrame(cocoa, display: true, animate: false)
     }
-    // A failed read invalidates the cached placement. Otherwise an identical
-    // subsequent `setTargets` sees a non-nil lastFrame and returns early
-    // forever, leaving the marker hidden even after AX recovers.
-    lastFrame.removeValue(forKey: key)
+    lastFrame[key] = cocoa
   }
 
   /// Visibility only, from the *cached* dot rect — no AX round trip. Used by
@@ -825,8 +808,11 @@ private final class MarkerController {
   }
 
   private func removeWindow(_ key: WindowKey) {
-    panels[key]?.orderOut(nil)
-    panels.removeValue(forKey: key)
+    if let panel = panels.removeValue(forKey: key) {
+      panel.parent?.removeChildWindow(panel)
+      panel.orderOut(nil)
+    }
+    nativeSurfaces[key] = nil
     styles.removeValue(forKey: key)
     primaryVisibility.removeValue(forKey: key)
     lastFrame.removeValue(forKey: key)
@@ -892,9 +878,7 @@ private final class MarkerController {
     panel.backgroundColor = .clear
     panel.hasShadow = false
     panel.ignoresMouseEvents = true
-    // One notch above the floating-mirror panels (also `.floating`), so a
-    // floating window's dot draws on top of its mirror instead of under it.
-    panel.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+    panel.alphaValue = 0
     // `.transient` makes macOS hide the panel during Exposé / Mission
     // Control / App Switcher overlays automatically — without it the
     // dots float on top of the scaled window thumbnails.

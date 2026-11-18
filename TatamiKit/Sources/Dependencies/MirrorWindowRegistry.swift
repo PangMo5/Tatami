@@ -28,11 +28,30 @@ final class MirrorWindowRegistry: Sendable {
   static let shared = MirrorWindowRegistry()
 
   /// Register (or, with `nil`, unregister) a mirror panel's window number.
+  @MainActor
   func set(mirror windowID: CGWindowID, target: Target?, frame: CGRect? = nil) {
     guard windowID != 0 else { return }
-    entries.withLock { entries in
+    let previous = entries.withLock { entries in
+      let previous = entries[windowID]?.target
       entries[windowID] = target.map { Entry(target: $0, frame: frame) }
+      return previous
     }
+    guard previous != target else { return }
+    if let previous {
+      markerPresentationHandler?(previous)
+    }
+    if let target {
+      markerPresentationHandler?(target)
+    }
+  }
+
+  func mirrorWindowID(for target: Target) -> CGWindowID? {
+    entries.withLock { $0.first(where: { $0.value.target == target })?.key }
+  }
+
+  @MainActor
+  func setMarkerPresentationHandler(_ handler: @escaping @MainActor (Target) -> Void) {
+    markerPresentationHandler = handler
   }
 
   /// Only a coarse admission gate. Actual occlusion/input ownership comes
@@ -99,6 +118,14 @@ final class MirrorWindowRegistry: Sendable {
     nativeInputActive.withLock { $0 }
   }
 
+  func setMarkerWindows(_ ids: Set<CGWindowID>) {
+    markers.withLock { $0 = ids }
+  }
+
+  func markerWindowIDs() -> Set<CGWindowID> {
+    markers.withLock { $0 }
+  }
+
   // MARK: Private
 
   private struct Entry: Sendable {
@@ -107,6 +134,10 @@ final class MirrorWindowRegistry: Sendable {
   }
 
   private let nativeInputActive = OSAllocatedUnfairLock(initialState: false)
+
+  @MainActor private var markerPresentationHandler: (@MainActor (Target) -> Void)?
+
+  private let markers = OSAllocatedUnfairLock(initialState: Set<CGWindowID>())
 
   private let entries = OSAllocatedUnfairLock<[CGWindowID: Entry]>(initialState: [:])
   private let willFocusHandler =
