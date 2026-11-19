@@ -5397,11 +5397,18 @@
     "zh-Hans": "支持开发",
     "zh-Hant": "贊助開發"
   },
-  "745645e026425d58": {
-    "en": "If you find Tatami useful, you can [buy me a coffee]({0}) to support its development.",
-    "ko": "Tatami가 도움이 됐다면 [커피 한 잔으로]({0}) 개발을 후원할 수 있어요.",
-    "ja": "Tatamiが役に立ったら、[コーヒー1杯分の応援]({0})で開発を支援できます。",
-    "zh-Hans": "如果 Tatami 对你有帮助，可以[请我喝杯咖啡]({0})，支持后续开发。",
-    "zh-Hant": "如果 Tatami 對你有幫助，歡迎[請我喝杯咖啡]({0})，支持後續開發。"
+  "7183e8bac51f6aa1": {
+    "en": "If you find Tatami useful, you can support its development with a coffee.",
+    "ko": "Tatami가 도움이 됐다면 커피 한 잔으로 개발을 후원할 수 있어요.",
+    "ja": "Tatamiが役に立ったら、コーヒー1杯分の応援で開発を支援できます。",
+    "zh-Hans": "如果 Tatami 对你有帮助，可以请我喝杯咖啡，支持后续开发。",
+    "zh-Hant": "如果 Tatami 對你有幫助，歡迎請我喝杯咖啡，支持後續開發。"
+  },
+  "cbcdb0b46d7cbfc8": {
+    "en": "Support development on Buy Me a Coffee",
+    "ko": "Buy Me a Coffee에서 개발 후원하기",
+    "ja": "Buy Me a Coffeeで開発を支援する",
+    "zh-Hans": "在 Buy Me a Coffee 上支持开发",
+    "zh-Hant": "前往 Buy Me a Coffee 贊助開發"
   }
 }

@@ -257,7 +257,9 @@ Tatami 受到 Wojciech Kulik 的 [FlashSpace]（虛擬工作空間切換概念�
 <a id="support-development"></a>
 ## 贊助開發
 
-如果 Tatami 對你有幫助，歡迎[請我喝杯咖啡](https://buymeacoffee.com/pangmo5)，支持後續開發。
+如果 Tatami 對你有幫助，歡迎請我喝杯咖啡，支持後續開發。
+
+<a href="https://buymeacoffee.com/pangmo5"><img src="https://pangmo5.dev/buy-me-a-coffee.png" alt="前往 Buy Me a Coffee 贊助開發" width="144"></a>
 
 <a id="license"></a>
 ## 授權條款
