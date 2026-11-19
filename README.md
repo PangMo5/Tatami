@@ -286,6 +286,10 @@ workspace-switching concept) and [yabai] by koekeishiya (the window-tiling
 model). See [NOTICE.md](NOTICE.md) for attribution and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency licenses.
 
+## Support development
+
+If you find Tatami useful, you can [buy me a coffee](https://buymeacoffee.com/pangmo5) to support its development.
+
 ## License
 
 [AGPL-3.0-only](LICENSE).

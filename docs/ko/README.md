@@ -254,6 +254,11 @@ CLI는 프로필·작업 공간 관리, 훅 조회, 안정된 JSON 출력과 제
 
 Tatami는 Wojciech Kulik의 [FlashSpace]에서 가상 작업 공간 전환 개념을, koekeishiya의 [yabai]에서 창 타일링 방식을 참고했어요. 출처는 [NOTICE.md](NOTICE.md), 의존성 라이선스는 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)에서 확인할 수 있어요.
 
+<a id="support-development"></a>
+## 개발 후원
+
+Tatami가 도움이 됐다면 [커피 한 잔으로](https://buymeacoffee.com/pangmo5) 개발을 후원할 수 있어요.
+
 <a id="license"></a>
 ## 라이선스
 

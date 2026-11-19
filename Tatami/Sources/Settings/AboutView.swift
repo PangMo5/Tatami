@@ -40,6 +40,7 @@ struct AboutView: View {
         Link("Source Code", destination: URL(string: "https://github.com/PangMo5/Tatami")!)
         Button("View Changelog…") { showChangelog = true }
           .buttonStyle(.link)
+        Link("Support Development", destination: URL(string: "https://buymeacoffee.com/pangmo5")!)
       }
 
       Section("Inspired by") {

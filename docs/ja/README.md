@@ -254,6 +254,11 @@ CLI はプロファイル・作業の管理、フックの確認、安定した 
 
 Tatami は Wojciech Kulik の [FlashSpace]（仮想作業の切り替え）と koekeishiya の [yabai]（タイル表示のモデル）を参考にしています。帰属は [NOTICE.md](NOTICE.md)、依存ライセンスは [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) を参照してください。
 
+<a id="support-development"></a>
+## 開発への支援
+
+Tatamiが役に立ったら、[コーヒー1杯分の応援](https://buymeacoffee.com/pangmo5)で開発を支援できます。
+
 <a id="license"></a>
 ## ライセンス
 
