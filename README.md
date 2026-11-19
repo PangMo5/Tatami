@@ -286,6 +286,12 @@ workspace-switching concept) and [yabai] by koekeishiya (the window-tiling
 model). See [NOTICE.md](NOTICE.md) for attribution and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependency licenses.
 
+## Support development
+
+If you find Tatami useful, you can support its development with a coffee.
+
+<a href="https://buymeacoffee.com/pangmo5"><img src="https://pangmo5.dev/buy-me-a-coffee.png" alt="Support development on Buy Me a Coffee" width="144"></a>
+
 ## License
 
 [AGPL-3.0-only](LICENSE).

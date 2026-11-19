@@ -254,6 +254,13 @@ CLI 按领域提供配置方案与工作区管理、钩子查询、稳定 JSON �
 
 Tatami 受到 Wojciech Kulik 的 [FlashSpace]（虚拟工作区切换概念）和 koekeishiya 的 [yabai]（窗口平铺模型）启发。署名见 [NOTICE.md](NOTICE.md)，依赖许可证见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
 
+<a id="support-development"></a>
+## 支持开发
+
+如果 Tatami 对你有帮助，可以请我喝杯咖啡，支持后续开发。
+
+<a href="https://buymeacoffee.com/pangmo5"><img src="https://pangmo5.dev/buy-me-a-coffee.png" alt="在 Buy Me a Coffee 上支持开发" width="144"></a>
+
 <a id="license"></a>
 ## 许可证
 

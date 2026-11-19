@@ -254,6 +254,13 @@ CLI 依領域提供設定組合與工作空間管理、掛鉤查詢、穩定 JSO
 
 Tatami 受到 Wojciech Kulik 的 [FlashSpace]（虛擬工作空間切換概念）與 koekeishiya 的 [yabai]（視窗並排模型）啟發。歸屬說明見 [NOTICE.md](NOTICE.md)，相依套件授權見 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)。
 
+<a id="support-development"></a>
+## 贊助開發
+
+如果 Tatami 對你有幫助，歡迎請我喝杯咖啡，支持後續開發。
+
+<a href="https://buymeacoffee.com/pangmo5"><img src="https://pangmo5.dev/buy-me-a-coffee.png" alt="前往 Buy Me a Coffee 贊助開發" width="144"></a>
+
 <a id="license"></a>
 ## 授權條款
 
