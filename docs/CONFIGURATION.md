@@ -412,7 +412,9 @@ workspace's key equivalent and with the recent / next / previous keys.
 ## `[[sharedApps]]`
 
 Apps listed here are part of **every** workspace. Each carries a `layout`:
-`tiled` (the default, tiles into each workspace's layout), `floating` (shown as
+`tiled` (the default, tiles into each workspace's layout), `stacked` (shown as
+**Tiled (Stacked)**; tiled, but a new window of the app joins the tile already
+holding one of its windows instead of splitting a new one), `floating` (shown as
 **Always on Top** in the app; untiled and kept above the tiles everywhere via a
 mirror), or `unmanaged` (shown as **Leave As Is**; left exactly where it is
 while remaining a member, but never tiled or mirrored). Each also has an
@@ -605,7 +607,7 @@ appToFocusBundleId = "app.zen-browser.zen"        # optional: focus this app on 
 bundleIdentifier = "app.zen-browser.zen"
 name = "Zen Browser"
 autoOpen = false                       # launch on activation if not running
-layout = "tiled"                       # "tiled" | "floating" | "unmanaged"
+layout = "tiled"                       # "tiled" | "stacked" | "floating" | "unmanaged"
 
 [[profiles.workspaces]]
 id = "00000000-0000-0000-0000-000000000011"
@@ -718,5 +720,5 @@ App assignment fields:
 | `bundleIdentifier` | string | The app's bundle ID. |
 | `name` | string | Display name. |
 | `autoOpen` | bool | Launch the app when the workspace activates and reopen it on re-entry if its window was closed. |
-| `layout` | string | `tiled` (**Tiled** in the app), `floating` (**Always on Top**; untiled and mirrored above the tiles), or `unmanaged` (**Leave As Is**; left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
+| `layout` | string | `tiled` (**Tiled** in the app), `stacked` (**Tiled (Stacked)**; tiled, with every window of the app kept in one tile), `floating` (**Always on Top**; untiled and mirrored above the tiles), or `unmanaged` (**Leave As Is**; left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
 | `iconPath` | string? | Cached path to the app's icon, written automatically. You don't set this by hand. |

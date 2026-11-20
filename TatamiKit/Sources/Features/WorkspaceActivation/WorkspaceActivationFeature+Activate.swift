@@ -2355,7 +2355,7 @@ extension WorkspaceActivationFeature {
     state: State,
   ) -> Effect<Action> {
     let sharedTiled = state.config.sharedApps.contains {
-      $0.bundleIdentifier == bundleId && $0.layout == .tiled
+      $0.bundleIdentifier == bundleId && $0.layout.isTiled
     }
     let keys = state.compositionsByDisplay.values.reduce(into: Set<WindowKey>()) {
       keys, composition in
@@ -2367,7 +2367,7 @@ extension WorkspaceActivationFeature {
         || sharedTiled
         || state.config.activeProfile?.workspaces[id: slot.workspace]?
         .apps.contains(where: {
-          $0.bundleIdentifier == bundleId && $0.layout == .tiled
+          $0.bundleIdentifier == bundleId && $0.layout.isTiled
         }) == true
       else { return }
       keys.formUnion(
@@ -2500,8 +2500,8 @@ extension WorkspaceActivationFeature {
     let treeWindows = state.tilingTrees[workspaceId]?.windows ?? []
     let tiled = Set(treeWindows)
     let workspaceApps = state.presentedWorkspace(workspaceId)?.apps ?? []
-    let untiled = Set(workspaceApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier)
-      + state.config.sharedApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier))
+    let untiled = Set(workspaceApps.filter { !$0.layout.isTiled }.map(\.bundleIdentifier)
+      + state.config.sharedApps.filter { !$0.layout.isTiled }.map(\.bundleIdentifier))
     for key in state.mruWindows[workspaceId] ?? [] {
       // An AX focus/MRU entry alone does not prove that a tiled window was
       // admitted to this layout. Re-run activation to recover missing tiles.
@@ -3038,6 +3038,7 @@ extension WorkspaceActivationFeature {
     )
 
     let settings = state.config.settings
+    let stackedBundleIds = stackedLayoutBundleIds(workspace: workspace, sharedApps: state.config.sharedApps)
     let workspaceChainVisibilityCleanups = workspaceChainCleanup.map {
       self.workspaceChainVisibilityCleanups($0, state: state)
     } ?? []
@@ -3054,8 +3055,8 @@ extension WorkspaceActivationFeature {
       ? (state.tilingTrees[workspace.id]?.windows.map(\.bundleId) ?? [])
       : []
     let bundleIds = Array(OrderedSet(
-      workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
-        + state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+      workspace.apps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
+        + state.config.sharedApps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
         + transientBundles
     ))
     // Floating apps (per-workspace + shared) are raised above the tiles after
@@ -3100,7 +3101,7 @@ extension WorkspaceActivationFeature {
       )
     }
     let sharedTiledBundleIds = Set(
-      state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+      state.config.sharedApps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
     )
     let partitionsSharedWindows = state.connectedDisplays.count > 1
       || state.activeWorkspacesByDisplay.count > 1
@@ -3451,6 +3452,7 @@ extension WorkspaceActivationFeature {
                   insertionPoint: insertionPoint,
                   workArea: workArea,
                   settings: settings,
+                  stackedBundleIds: stackedBundleIds,
                 )
                 let axis = settings.layout.autoBalance
                 let insertedWindows = !Set(keys).isSubset(of: Set(base?.windows ?? []))
@@ -3818,7 +3820,7 @@ extension WorkspaceActivationFeature {
     // Only tiled apps from the borrowed workspace participate; float / unmanaged
     // are ignored while borrowed. A scratchpad forces auto-open on all of them
     // (it only ever shows when borrowed, so its apps should come up then).
-    let tiledBorrowed = target.apps.filter { $0.layout == .tiled }
+    let tiledBorrowed = target.apps.filter { $0.layout.isTiled }
     let tiledBorrowedBundleIds = tiledBorrowed.map(\.bundleIdentifier)
     let borrowedApps: [AppAssignment] = target.kind == .scratchpad
       ? tiledBorrowed.map { var a = $0
@@ -3845,6 +3847,7 @@ extension WorkspaceActivationFeature {
       nativeFullscreenWindows: state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows) ?? [],
     )
     let settings = state.config.settings
+    let stackedBundleIds = stackedLayoutBundleIds(workspace: target, sharedApps: [])
     let focusedForBorrowMerge = state.lastObservedFocusedWindow
     debugLog.log("Borrow", "borrow \(target.name) → host=\(presentedHost.name) edge=\(edge)")
     let hud = hudEffect(
@@ -3931,6 +3934,7 @@ extension WorkspaceActivationFeature {
           insertionPoint: nil,
           workArea: workArea,
           settings: settings,
+          stackedBundleIds: stackedBundleIds,
         )
         let inserted = !Set(keys).isSubset(of: Set(base?.windows ?? []))
         let axis = settings.layout.autoBalance

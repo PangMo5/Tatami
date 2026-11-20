@@ -261,9 +261,19 @@ extension BSPNode where WindowID == SlotID {
 /// apps are excluded there. The preview view and the detail reducer both call
 /// this so their synthesized template (and thus edit-op paths) match.
 public func tiledLayoutBundleIds(workspace: Workspace, sharedApps: [SharedApp]) -> [String] {
-  let own = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+  let own = workspace.apps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
   guard workspace.kind != .scratchpad else { return own }
-  return own + sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+  return own + sharedApps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
+}
+
+/// Bundle ids whose new windows stack onto the app's existing tile in this
+/// workspace (`LayoutMode.stacked`), with the same shared-app rule as
+/// `tiledLayoutBundleIds`.
+public func stackedLayoutBundleIds(workspace: Workspace?, sharedApps: [SharedApp]) -> Set<String> {
+  guard let workspace else { return [] }
+  let own = workspace.apps.filter { $0.layout == .stacked }.map(\.bundleIdentifier)
+  guard workspace.kind != .scratchpad else { return Set(own) }
+  return Set(own + sharedApps.filter { $0.layout == .stacked }.map(\.bundleIdentifier))
 }
 
 /// The bundle-id template a workspace's inactive preview should render + edit:
@@ -304,7 +314,7 @@ public func previewLayoutTemplate(
   guard workspace.kind != .scratchpad else { return tree }
   let inTree = Set((tree?.windows ?? []).map(\.bundleId))
   let missing = sharedApps
-    .filter { $0.layout == .tiled }
+    .filter { $0.layout.isTiled }
     .map(\.bundleIdentifier)
     .filter { presentBundleIds.contains($0) && !inTree.contains($0) }
     .sorted()

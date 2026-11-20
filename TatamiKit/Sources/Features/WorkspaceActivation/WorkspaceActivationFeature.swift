@@ -900,14 +900,14 @@ public struct WorkspaceActivationFeature {
           $0.bundleIdentifier == bundleId
         } ?? []
       }
-      if visibleAssignments.contains(where: { $0.layout == .tiled }) {
+      if visibleAssignments.contains(where: { $0.layout.isTiled }) {
         return true
       }
 
       let sharedAssignments = config.sharedApps.filter {
         $0.bundleIdentifier == bundleId
       }
-      if sharedAssignments.contains(where: { $0.layout == .tiled }) {
+      if sharedAssignments.contains(where: { $0.layout.isTiled }) {
         return true
       }
 
@@ -1908,7 +1908,7 @@ public struct WorkspaceActivationFeature {
           guard
             let key = state.visibleWorkspaceIDs.flatMap({ state.tilingTrees[$0]?.windows ?? [] })
               .first(where: { $0.windowID == id }),
-            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout == .tiled })
+            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout.isTiled })
           else { return .none }
           state.drag = .moving(key)
           return .none
@@ -2083,7 +2083,7 @@ public struct WorkspaceActivationFeature {
           let drag = state.drag
           if
             let key = drag.windowKey,
-            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout == .tiled }),
+            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout.isTiled }),
             let owner = state.workspaceOwning(key).flatMap({ state.displayShowing($0) })
           {
             state.sharedWindowDisplayOwners[key] = owner
