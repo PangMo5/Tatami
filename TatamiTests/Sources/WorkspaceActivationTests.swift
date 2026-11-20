@@ -5755,6 +5755,59 @@ struct WorkspaceActivationFeatureTests {
     #expect(store.state.tilingTrees[workspace.id] == initial.resizing(window: second, delta: 0.2))
   }
 
+  @Test
+  func `a new window of a stacked app joins that app's tile`() throws {
+    let browser = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
+    let terminal = WindowKey(pid: 2, windowID: 202, bundleId: "app.terminal")
+    let secondBrowser = WindowKey(pid: 1, windowID: 103, bundleId: "app.browser")
+    let chat = WindowKey(pid: 3, windowID: 303, bundleId: "app.chat")
+    let existing = BSPNode.branch(BSPBranch(
+      split: .vertical,
+      ratio: 0.3,
+      left: .leaf(browser),
+      right: .leaf(terminal),
+    ))
+    let merged = try #require(WorkspaceActivationFeature.mergeTree(
+      existing: existing,
+      target: [browser, terminal, secondBrowser],
+      focused: { terminal },
+      insertionPoint: terminal,
+      workArea: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+      settings: AppSettings(),
+      stackedBundleIds: ["app.browser"],
+    ))
+    #expect(merged.leafCount == 2)
+    #expect(merged.pathTo(window: secondBrowser) == merged.pathTo(window: browser))
+    guard case .branch(let root) = merged, case .leaf(let stack) = root.left else {
+      Issue.record("expected the browser stack on the left")
+      return
+    }
+    #expect(root.ratio == 0.3)
+    #expect(stack.windowList == [browser, secondBrowser])
+
+    let withChat = try #require(WorkspaceActivationFeature.mergeTree(
+      existing: merged,
+      target: [browser, terminal, secondBrowser, chat],
+      focused: { terminal },
+      insertionPoint: terminal,
+      workArea: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+      settings: AppSettings(),
+      stackedBundleIds: ["app.browser"],
+    ))
+    #expect(withChat.leafCount == 3)
+
+    // Plain Tiled keeps splitting a new tile for each window.
+    let split = try #require(WorkspaceActivationFeature.mergeTree(
+      existing: existing,
+      target: [browser, terminal, secondBrowser],
+      focused: { terminal },
+      insertionPoint: terminal,
+      workArea: CGRect(x: 0, y: 0, width: 1_000, height: 800),
+      settings: AppSettings(),
+    ))
+    #expect(split.leafCount == 3)
+  }
+
   @Test(arguments: AutoBalanceMode.allCases)
   func `fresh activation initializes a missing layout from auto balance`(
     mode: AutoBalanceMode

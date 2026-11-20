@@ -169,6 +169,7 @@ extension WorkspaceActivationFeature {
     insertionPoint: WindowKey?,
     workArea: CGRect,
     settings: AppSettings,
+    stackedBundleIds: Set<String> = [],
   ) -> BSPNode<WindowKey>? {
     guard !target.isEmpty else { return nil }
     let targetSet = Set(target)
@@ -205,6 +206,13 @@ extension WorkspaceActivationFeature {
       var t: BSPNode<WindowKey>? = nil
       for key in newOnes {
         if let cur = t {
+          if
+            stackedBundleIds.contains(key.bundleId),
+            let stacked = cur.stacking(key, ontoLeafWith: { $0.bundleId == key.bundleId })
+          {
+            t = stacked
+            continue
+          }
           t = cur.inserting(
             key,
             near: nil,
@@ -221,6 +229,15 @@ extension WorkspaceActivationFeature {
 
     let focusedKey = focused()
     for id in newOnes {
+      // A `.stacked` app's new window joins the tile already holding one of
+      // its windows.
+      if
+        stackedBundleIds.contains(id.bundleId),
+        let stacked = tree?.stacking(id, ontoLeafWith: { $0.bundleId == id.bundleId })
+      {
+        tree = stacked
+        continue
+      }
       let anchor: WindowKey? = {
         if let insertionPoint, tree?.windows.contains(insertionPoint) == true {
           return insertionPoint
@@ -295,7 +312,7 @@ extension WorkspaceActivationFeature {
     // across monitors cannot leave a stale window in the background tree.
     if
       state.drag.windowKey?.bundleId == bundleId,
-      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout == .tiled })
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout.isTiled })
     {
       state.pendingWindowSyncBundleIds.insert(bundleId)
       return .none
@@ -329,7 +346,7 @@ extension WorkspaceActivationFeature {
     }
 
     let needsPlacement = (state.connectedDisplays.count > 1 || state.activeWorkspacesByDisplay.count > 1)
-      && state.config.sharedApps.contains { $0.bundleIdentifier == bundleId && $0.layout == .tiled }
+      && state.config.sharedApps.contains { $0.bundleIdentifier == bundleId && $0.layout.isTiled }
     let snapshot = windowSnapshot
     let discoverResizable = needsResizableDiscovery
     let populateMovableCache = needsMovableCache
@@ -394,7 +411,7 @@ extension WorkspaceActivationFeature {
     else { return .none }
     if
       state.drag.windowKey?.bundleId == bundleId,
-      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout == .tiled })
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == bundleId && $0.layout.isTiled })
     {
       state.pendingWindowSyncBundleIds.insert(bundleId)
       return .none
@@ -902,6 +919,7 @@ extension WorkspaceActivationFeature {
     else { return .none }
 
     let settings = state.config.settings
+    let stackedBundleIds = stackedLayoutBundleIds(workspace: workspace, sharedApps: state.config.sharedApps)
     let registeredSet = Set(workspace.apps.map(\.bundleIdentifier))
     // Floating = shown but never tiled (excluded from the tree): this
     // workspace's per-window floating apps + shared floating apps.
@@ -914,7 +932,7 @@ extension WorkspaceActivationFeature {
       .union(state.config.sharedApps.filter { $0.layout == .unmanaged }.map(\.bundleIdentifier))
     // Shared tiled apps tile into every workspace's layout.
     let sharedTiledSet = Set(
-      state.config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
+      state.config.sharedApps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
     )
     let managedInActiveProfile = state.managedBundleIds
     let existing = state.tilingTrees[workspaceId]
@@ -1123,6 +1141,15 @@ extension WorkspaceActivationFeature {
         if current.windows.contains(key) {
           continue
         }
+        // A `.stacked` app's new window joins the tile already holding one
+        // of its windows.
+        if
+          stackedBundleIds.contains(key.bundleId),
+          let stacked = current.stacking(key, ontoLeafWith: { $0.bundleId == key.bundleId })
+        {
+          tree = stacked
+          continue
+        }
         let present = Set(current.windows)
         let resolved = [anchor, focused]
           .compactMap { $0 }
@@ -1182,6 +1209,7 @@ extension WorkspaceActivationFeature {
           insertionPoint: insertionPointKey,
           workArea: workArea,
           settings: settings,
+          stackedBundleIds: stackedBundleIds,
         )
       }
       let zoomSlots = Set(restoration.fullscreenZoomedSlots)

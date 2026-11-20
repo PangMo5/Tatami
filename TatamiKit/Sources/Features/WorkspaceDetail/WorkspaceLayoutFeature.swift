@@ -121,7 +121,7 @@ public struct WorkspaceLayoutFeature {
     /// Tiled shared apps with no live window — omitted from the rendered tiles
     /// (kept in the template so edit paths still resolve).
     public var hiddenSharedBundleIds: Set<String> {
-      Set(config.sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier))
+      Set(config.sharedApps.filter { $0.layout.isTiled }.map(\.bundleIdentifier))
         .subtracting(presentBundleIds)
     }
 
@@ -130,7 +130,7 @@ public struct WorkspaceLayoutFeature {
     public var nonTiledApps: [NonTiledApp] {
       guard let workspace else { return [] }
       var out = [NonTiledApp]()
-      for app in workspace.apps where app.layout != .tiled {
+      for app in workspace.apps where !app.layout.isTiled {
         out.append(NonTiledApp(
           bundleId: app.bundleIdentifier,
           name: app.name,
@@ -140,7 +140,7 @@ public struct WorkspaceLayoutFeature {
         ))
       }
       if workspace.kind != .scratchpad {
-        for app in config.sharedApps where app.layout != .tiled {
+        for app in config.sharedApps where !app.layout.isTiled {
           out.append(NonTiledApp(
             bundleId: app.bundleIdentifier,
             name: app.name,

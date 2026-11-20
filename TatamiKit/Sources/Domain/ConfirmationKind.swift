@@ -134,10 +134,10 @@ public enum ConfirmationKind: String, CaseIterable, CodingKey, Identifiable, Sen
   static func layout(_ layout: LayoutMode, shared: Bool) -> Self {
     switch (layout, shared) {
     case (.floating, false): .floatWorkspaceApp
-    case (.tiled, false): .tileWorkspaceApp
+    case (.tiled, false), (.stacked, false): .tileWorkspaceApp
     case (.unmanaged, false): .unmanageWorkspaceApp
     case (.floating, true): .floatSharedApp
-    case (.tiled, true): .tileSharedApp
+    case (.tiled, true), (.stacked, true): .tileSharedApp
     case (.unmanaged, true): .unmanageSharedApp
     }
   }

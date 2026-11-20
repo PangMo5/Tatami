@@ -334,7 +334,7 @@ extension WorkspaceActivationFeature {
     let borrowed = Self.borrowMarkerTargets(state: state)
     let sharedApps = cfg.sharedEnabled ? state.config.sharedApps : []
     let sharedIds = Set(sharedApps.map(\.bundleIdentifier))
-    let sharedNonTiledIds = sharedApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier)
+    let sharedNonTiledIds = sharedApps.filter { !$0.layout.isTiled }.map(\.bundleIdentifier)
     let cachedIds = Array(OrderedSet(sharedNonTiledIds + (resolvedFloatingKeys == nil ? floatingIds : [])))
     let nativeFullscreen = Set(state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows).map(\.windowID) ?? [])
     let sharedTiles = Set(state.layoutWorkspaceIDs.filter(state.canManageWorkspace)

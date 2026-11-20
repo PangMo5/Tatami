@@ -436,6 +436,25 @@ extension BSPNode {
 // MARK: - Insertion
 
 extension BSPNode {
+  /// Push `window` onto the stack of the first leaf holding a window that
+  /// matches `sibling`, so it shares that tile instead of splitting one.
+  /// Returns `nil` when no leaf matches.
+  public func stacking(
+    _ window: WindowID,
+    ontoLeafWith sibling: (WindowID) -> Bool,
+  ) -> BSPNode? {
+    guard
+      let anchor = windows.first(where: { $0 != window && sibling($0) }),
+      let path = pathTo(window: anchor)
+    else { return nil }
+    return replacing(path: path) { node in
+      guard case .leaf(var leaf) = node else { return node }
+      leaf.windowList.append(window)
+      leaf.windowOrder.insert(window, at: 0)
+      return .leaf(leaf)
+    }
+  }
+
   /// Insert `window` into the tree. Selection rule:
   ///
   ///   1. an explicit `near` window — if it resolves to a leaf, that

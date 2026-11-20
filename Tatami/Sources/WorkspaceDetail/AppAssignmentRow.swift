@@ -133,6 +133,7 @@ extension LayoutMode {
   var assignmentSymbol: String {
     switch self {
     case .tiled: "rectangle.split.2x2"
+    case .stacked: "rectangle.stack"
     case .floating: "square.on.square"
     case .unmanaged: "rectangle.dashed"
     }
@@ -141,6 +142,7 @@ extension LayoutMode {
   var assignmentDescription: LocalizedStringResource {
     switch self {
     case .tiled: "Arrange windows automatically with the workspace layout."
+    case .stacked: "Keep the app’s windows together in one tile."
     case .floating: "Keep windows above the tiled layout."
     case .unmanaged: "Keep window positions and sizes unchanged."
     }

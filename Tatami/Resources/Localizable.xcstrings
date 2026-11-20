@@ -36922,6 +36922,74 @@
         }
       }
     },
+    "Tiled (Stacked)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiled (Stacked)"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "타일링 (겹쳐 두기)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "タイル表示（重ねる）"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "平铺（堆叠）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "並排（堆疊）"
+          }
+        }
+      }
+    },
+    "Keep the app’s windows together in one tile.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep the app’s windows together in one tile."
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "앱의 창을 타일 하나에 모아 둬요."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "アプリのウインドウを1つのタイルにまとめます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "将应用的窗口集中在一个平铺区域中。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "將 App 的視窗集中在一個並排區域中。"
+          }
+        }
+      }
+    },
     "Tiled": {
       "localizations": {
         "ko": {
