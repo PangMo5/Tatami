@@ -18,19 +18,27 @@ struct StackGroupsSection: View {
   let onRemove: (StackGroup.ID) -> Void
 
   var body: some View {
+    let stacksAllAssignedApps = stackAll?.wrappedValue == true
     let colors = StackGroupColors.colors(for: groups, scope: stackAll.map { _ in .workspace } ?? .shared)
     Section {
       if let stackAll {
-        Toggle("Stack All Assigned Apps", isOn: stackAll)
-          .accessibilityIdentifier("stack-all-assigned-apps")
+        Toggle(isOn: stackAll) {
+          Text("Stack All Assigned Apps")
+          if stacksAllAssignedApps, !groups.isEmpty {
+            Text("Turn off to use the stack groups below again.")
+          }
+        }
+        .accessibilityIdentifier("stack-all-assigned-apps")
       }
       ForEach(groups) { group in
         Button {
           editingGroup = group
         } label: {
           StackGroupRow(group: group, apps: apps, colorHex: colors[group.id])
+            .opacity(stacksAllAssignedApps ? 0.55 : 1)
         }
         .buttonStyle(.plain)
+        .disabled(stacksAllAssignedApps)
         .accessibilityIdentifier("stack-group-\(group.id)")
       }
     } header: {
@@ -44,13 +52,11 @@ struct StackGroupsSection: View {
             .labelStyle(.iconOnly)
         }
         .buttonStyle(.borderless)
-        .disabled(apps.isEmpty)
+        .disabled(stacksAllAssignedApps || apps.isEmpty)
         .accessibilityIdentifier("new-stack-group")
       }
     } footer: {
-      if stackAll?.wrappedValue == true {
-        Text("Your groups apply again when you turn this off.")
-      } else {
+      if !stacksAllAssignedApps {
         Text("Tiled windows in each group share one tile.")
       }
     }

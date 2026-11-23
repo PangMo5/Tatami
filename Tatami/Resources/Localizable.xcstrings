@@ -36922,36 +36922,36 @@
         }
       }
     },
-    "Your groups apply again when you turn this off.": {
+    "Turn off to use the stack groups below again.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your groups apply again when you turn this off."
+            "value": "Turn off to use the stack groups below again."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이 옵션을 끄면 만든 그룹이 다시 적용돼요."
+            "value": "끄면 아래 스택 그룹이 다시 적용돼요."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "オフにすると、作成したグループが再び適用されます。"
+            "value": "オフにすると、下のスタックグループが再び適用されます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "关闭后，将重新应用你创建的组。"
+            "value": "关闭后，将重新应用下方的堆叠组。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "關閉後會重新套用已建立的群組。"
+            "value": "關閉後會重新套用下方的堆疊群組。"
           }
         }
       }
