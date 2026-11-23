@@ -1994,13 +1994,6 @@
     "zh-Hans": "角落的小圆点用于识别放大、置顶和借来的窗口。",
     "zh-Hant": "角落的小圓點用來識別放大、置頂與借來的視窗。"
   },
-  "13072f709fad001c": {
-    "en": "Dot on the workspace's fullscreen-zoomed window (shown while it's focused).",
-    "ko": "작업 공간 크기로 확대한 창에 포커스가 있을 때 점을 표시해요.",
-    "ja": "ワークスペース全体に広げた窓が選ばれている間、点を表示します。",
-    "zh-Hans": "聚焦工作区全屏放大的窗口时显示圆点。",
-    "zh-Hant": "聚焦工作空間全螢幕放大的視窗時顯示圓點。"
-  },
   "4a9fcf78a1d17e4d": {
     "en": "Fullscreen dot color ({0}).",
     "ko": "확대 표시의 색상({0})이에요.",
@@ -5410,5 +5403,61 @@
     "ja": "Buy Me a Coffeeで開発を支援する",
     "zh-Hans": "在 Buy Me a Coffee 上支持开发",
     "zh-Hant": "前往 Buy Me a Coffee 贊助開發"
+  },
+  "1d39e5b0b1e25a09": {
+    "en": "Enable **Stack All Assigned Apps** to put every tiled app assigned to the workspace in one tile. Turn it off to use the workspace’s named groups again. Always on Top and Leave As Is keep their own behavior.",
+    "ko": "**등록 앱을 한 타일에 모으기**를 켜면 작업 공간에 등록한 모든 타일링 앱이 타일 하나를 공유해요. 끄면 작업 공간에 만든 스택 그룹을 다시 사용해요. 항상 위와 그대로 두기 설정은 계속 적용돼요.",
+    "ja": "**登録したアプリを1つのタイルにまとめる** をオンにすると、ワークスペースに登録したタイル表示のアプリが1つのタイルを共有します。オフにすると個別のグループに戻ります。常に手前とそのままの設定も引き続き適用されます。",
+    "zh-Hans": "开启**将已分配的应用堆叠在一起**后，工作区内已分配的平铺应用共用一个区块。关闭即可恢复使用工作区内自定的堆叠组。置顶和保持原样设置仍然生效。",
+    "zh-Hant": "開啟**將已指派的 App 疊在同一個區塊**後，工作空間中已指派的並排 App 會共用一個區塊。關閉即可回到自訂的群組。置頂與維持原狀的設定會繼續套用。"
+  },
+  "3e62c9d93114f2dd": {
+    "en": "Dragging within a workspace moves the entire stack tile. Dragging a shared window across displays moves only that window and joins the matching group on the destination when it exists.",
+    "ko": "작업 공간 안에서 드래그하면 스택 타일 전체가 움직여요. 공용 앱 창을 화면 사이로 드래그하면 선택한 창만 옮겨지고, 도착한 화면에 같은 그룹이 있으면 그 타일에 합류해요.",
+    "ja": "同じワークスペース内でドラッグするとタイル全体が移動します。別のディスプレイに共有アプリのウインドウをドラッグするとそのウインドウだけが移動し、移動先に該当するグループがあればそこに重なります。",
+    "zh-Hans": "在工作区内拖动会移动整个堆叠区块。将共享窗口拖到另一台显示器时，只移动选中的窗口。如果目标已有匹配的组，该窗口会加入其中。",
+    "zh-Hant": "在同一工作空間內拖曳會移動整個堆疊區塊。將共用視窗拖曳到另一台顯示器時，只會移動選取的視窗。目標若已有相符群組，視窗會加入該群組。"
+  },
+  "78dc03e27e2816db": {
+    "en": "Use {0} inside a workspace and {1} at the top level for shared groups. To group all assigned tiled apps, set {2} in the workspace.",
+    "ko": "작업 공간의 그룹에는 {0}을, 공용 그룹에는 최상위에 {1}을 사용하세요. 등록한 모든 타일링 앱을 모으려면 작업 공간에서 {2}을 설정하세요.",
+    "ja": "ワークスペースのグループに {0}、共有グループにトップレベルの {1} を使います。登録したタイル表示のアプリをすべてまとめるには、ワークスペースに {2} を設定します。",
+    "zh-Hans": "工作区的组使用 {0}，共享组在顶层使用 {1}。要组合所有已分配的平铺应用，请在工作区中设置 {2}。",
+    "zh-Hant": "工作空間的群組使用 {0}，共用群組則在最上層使用 {1}。若要將所有已指派的並排 App 疊在一起，請在工作空間中設定 {2}。"
+  },
+  "fe08d2ecc0dd22df": {
+    "en": "Show a badge on windows that share a tile in a stack group.",
+    "ko": "스택 그룹에서 같은 타일을 쓰는 창에 배지를 표시해요.",
+    "ja": "スタックグループで同じタイルを共有するウインドウにバッジを表示します。",
+    "zh-Hans": "为堆叠组中共用同一区块的窗口显示徽标。",
+    "zh-Hant": "為堆疊群組中共用並排區塊的視窗顯示標記。"
+  },
+  "a236696cde9f7b25": {
+    "en": "All-app stack color ({0}).",
+    "ko": "전체 앱 스택 색상({0}).",
+    "ja": "全アプリのスタック色（{0}）。",
+    "zh-Hans": "全应用堆叠颜色（{0}）。",
+    "zh-Hant": "全 App 堆疊顏色（{0}）。"
+  },
+  "5da492e44ac4fad3": {
+    "en": "Create **Stack Groups** in a workspace or under **Shared Apps**. Pick one or more apps. Their existing and new tiled windows share one tile in each workspace on each display. Removing a group separates only the tiles joined automatically. Named groups receive a stable color shown in the group list, on window badges, and in Window Switching.",
+    "ko": "작업 공간이나 **공용 앱** 설정에서 **스택 그룹**을 만들고 앱을 하나 이상 선택하세요. 선택한 앱의 기존 창과 새 타일링 창이 화면별 작업 공간에서 타일 하나를 공유해요. 그룹을 삭제하면 자동으로 합친 타일만 다시 나눠요. 이름 있는 그룹은 그룹 목록, 창 배지, 창 전환에 같은 색으로 표시돼요.",
+    "ja": "ワークスペースまたは **共有アプリ** で **スタックグループ** を作り、1つ以上のアプリを選びます。既存と新規のタイル表示ウインドウは、ディスプレイごとのワークスペースで1つのタイルを共有します。グループを削除すると、自動でまとめたタイルが分かれます。名前付きのグループは、グループ一覧、ウインドウバッジ、ウインドウ切り替えで同じ色になります。",
+    "zh-Hans": "在工作区或**共享应用**设置中创建**堆叠组**，并选择一个或多个应用。所选应用的现有和新建平铺窗口会在每台显示器的工作区中共用一个平铺区块。移除组时，仅拆分自动合并的区块。命名组会在组列表、窗口徽标和窗口切换中使用同一种颜色。",
+    "zh-Hant": "在工作空間或**共用 App** 設定中建立**堆疊群組**，並選取一或多個 App。所選 App 目前與新開啟的並排視窗會在各顯示器的工作空間中共用一個並排區塊。移除群組只會分開自動合併的區塊。命名群組在群組清單、視窗標記與視窗切換中會採用相同色彩。"
+  },
+  "2fc1fbd4cfba8695": {
+    "en": "Each app belongs to one group within a workspace or within Shared Apps. Expand **Apps in Other Groups** to move an app. The change takes effect when you save. When the on-device model is available, Apple Intelligence suggests an activity name using the selected apps’ names and bundle metadata.",
+    "ko": "앱은 같은 작업 공간이나 공용 앱 설정 안에서 그룹 하나에 속해요. 앱을 옮기려면 **다른 그룹에 있는 앱**을 펼치세요. 변경은 저장할 때 적용돼요. 기기에서 Apple Intelligence를 사용할 수 있으면 선택한 앱의 이름과 번들 정보를 바탕으로 작업 이름을 제안해요.",
+    "ja": "各アプリは、同じワークスペースまたは共有アプリ内で1つのグループに入ります。アプリを移動するには **ほかのグループのアプリ** を開きます。変更は保存時に適用されます。オンデバイスの Apple Intelligence を使用できる場合、選んだアプリの名前とバンドル情報を基に、作業内容に合った名前を提案します。",
+    "zh-Hans": "每个应用在同一个工作区或共享应用范围内只能加入一个组。展开**其他组中的应用**即可移动应用。更改在保存时生效。设备端 Apple 智能可用时，会根据所选应用的名称和软件包信息建议活动名称。",
+    "zh-Hant": "每個 App 在同一工作空間或共用 App 設定中只會屬於一個群組。展開**其他群組中的 App** 即可移動 App。變更會在儲存時套用。裝置端 Apple Intelligence 可用時，會根據選取的 App 名稱與套件資訊建議活動名稱。"
+  },
+  "d34d1f624a54cb23": {
+    "en": "Dot on a workspace-zoomed window when its marked corner is visible.",
+    "ko": "작업 공간 크기로 확대한 창의 표시 모서리가 보일 때 점을 표시해요.",
+    "ja": "ワークスペース全体に広げたウインドウのマーク位置が見えているときに点を表示します。",
+    "zh-Hans": "工作区放大窗口的标记角可见时显示圆点。",
+    "zh-Hant": "工作空間放大的視窗在標記角可見時會顯示圓點。"
   }
 }

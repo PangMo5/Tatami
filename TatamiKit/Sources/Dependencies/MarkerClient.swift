@@ -8,29 +8,49 @@ import DependenciesMacros
 import Foundation
 import SwiftUI
 
-// MARK: - MarkerTarget
+// MARK: - WindowMarker
 
-/// Draws a tiny colored dot on a configurable corner of selected windows
-/// (zoomed + floating) as a passive identifier. Fades out while the
-/// cursor hovers over it so it never blocks clicks.
-/// What to draw on one marked window: the dot color, plus whether the dot
-/// shows regardless of focus. Floating windows keep their dot up always —
-/// the mark is what tells a mirrored window apart from a tiled one — while
-/// fullscreen-zoom dots only show on the focused window.
-struct MarkerTarget: Sendable, Equatable {
-  init(colorHex: String?, alwaysVisible: Bool = false, symbol: String? = nil, sharedColorHex: String? = nil) {
-    self.colorHex = colorHex
-    self.alwaysVisible = alwaysVisible
-    self.symbol = symbol
-    self.sharedColorHex = sharedColorHex
+/// One independent state badge on a window. A window can have several badges.
+struct WindowMarker: Equatable, Sendable {
+  enum Kind: Hashable, Sendable {
+    case fullscreen
+    case floating
+    case borrowed
+    case shared
+    case stacked
+
+    // MARK: Internal
+
+    var title: LocalizedStringResource {
+      switch self {
+      case .fullscreen: "Fullscreen"
+      case .floating: "Floating"
+      case .borrowed: "Borrow"
+      case .shared: "Shared App"
+      case .stacked: "Stacked"
+      }
+    }
+
+    var scale: Double {
+      switch self {
+      case .fullscreen,
+           .floating: 1
+      case .borrowed: 2
+      case .shared,
+           .stacked: 1.4
+      }
+    }
   }
 
-  var colorHex: String?
-  var sharedColorHex: String?
-  var alwaysVisible: Bool
-  /// SF Symbol drawn inside the marker badge instead of a plain dot — borrow
-  /// markers use it to show the borrowed workspace's icon. nil = plain dot.
-  var symbol: String?
+  let kind: Kind
+  let colorHex: String
+  var symbol: String? = nil
+}
+
+// MARK: - MarkerTarget
+
+struct MarkerTarget: Equatable, Sendable {
+  var badges = [WindowMarker]()
 }
 
 // MARK: - MarkerClient
@@ -44,12 +64,8 @@ struct MarkerClient: Sendable {
     _ corner: MarkerCorner,
     _ hideOnHover: Bool,
   ) async -> Void
-  /// Tell the marker controller which window is currently frontmost so
-  /// it can render a dot only on that window. Pushed from the AX
-  /// observer's `windowFocused` events + the workspace app-activation
-  /// flow — cheaper and more responsive than polling AX every 50 ms.
-  /// Pass `nil` to clear (no focused window).
-  var setFocused: @Sendable (_ key: WindowKey?) async -> Void
+  /// Focus can change window order. Recheck which badge corners are exposed.
+  var focusChanged: @Sendable () async -> Void
   var windowPresentationChanged: @Sendable (_ windowID: CGWindowID?) async -> Void = { _ in }
 }
 
@@ -65,6 +81,9 @@ extension MarkerClient: DependencyKey {
       controller.observeCoveringWindows = geometry.updateCoveringWindows
       MirrorWindowRegistry.shared.setMarkerPresentationHandler { [weak controller] target in
         controller?.mirrorPresentationChanged(target, geometry: geometry)
+      }
+      controller.observeOwnWindowOcclusionChanges { [weak controller] in
+        controller?.windowPresentationChanged(windowID: nil, geometry: geometry)
       }
       controller.observeActiveSpaceChanges { [weak controller] in
         guard let request = controller?.preparePlacementRefresh() else { return }
@@ -97,9 +116,9 @@ extension MarkerClient: DependencyKey {
           )
         }
       },
-      setFocused: { key in
+      focusChanged: {
         let request = await MainActor.run {
-          controller.prepareFocusedWindow(key)
+          controller.preparePlacementRefresh()
         }
         guard let request else { return }
         let frames = await geometry.snapshot(
@@ -124,7 +143,7 @@ extension MarkerClient: DependencyKey {
   /// constructs the real `MarkerController` (NSPanels) on the test host.
   static let testValue = MarkerClient(
     setTargets: { _, _, _, _ in },
-    setFocused: { _ in },
+    focusChanged: { },
     windowPresentationChanged: { _ in },
   )
   static let previewValue = testValue
@@ -823,17 +842,9 @@ private final class MarkerController {
     for key in panels.keys.filter({ targets[$0] == nil }) {
       removeWindow(key)
     }
-    alwaysVisible = Set(targets.filter(\.value.alwaysVisible).keys)
     // Add or update panels for each target.
     for (key, target) in targets {
-      let markSize = target.symbol == nil ? size : size * symbolScale
-      let style = Style(
-        hex: target.colorHex,
-        size: markSize,
-        symbol: target.symbol,
-        sharedHex: target.sharedColorHex,
-        sharedSize: size * 1.4,
-      )
+      let style = Style(badges: target.badges, size: size)
       if panels[key] == nil {
         panels[key] = makePanel(style: style)
       } else if
@@ -842,9 +853,6 @@ private final class MarkerController {
       {
         hosting.rootView = makeView(style: style)
         lastFrame.removeValue(forKey: key)
-      }
-      if styles[key] != style {
-        primaryVisibility[key] = nil
       }
       styles[key] = style
     }
@@ -870,12 +878,6 @@ private final class MarkerController {
     applySnapshot(update.snapshot)
   }
 
-  /// Focus eligibility and exposure are applied together from a fresh stack.
-  func prepareFocusedWindow(_ key: WindowKey?) -> MarkerFocusRefreshRequest? {
-    focused = key.map { ($0.pid, $0.windowID) }
-    return preparePlacementRefresh()
-  }
-
   func preparePlacementRefresh() -> MarkerFocusRefreshRequest? {
     guard !panels.isEmpty else { return nil }
     focusRefreshGeneration &+= 1
@@ -896,6 +898,20 @@ private final class MarkerController {
       object: nil,
       queue: .main,
     ) { _ in
+      MainActor.assumeIsolated { refresh() }
+    }
+  }
+
+  func observeOwnWindowOcclusionChanges(_ refresh: @escaping @MainActor @Sendable () -> Void) {
+    ownWindowOcclusionObserver = NotificationCenter.default.addObserver(
+      forName: NSWindow.didChangeOcclusionStateNotification,
+      object: nil,
+      queue: .main,
+    ) { notification in
+      // A Settings window can uncover a badge without a managed window
+      // changing focus or geometry. Badge and mirror panels are not covers
+      // that should schedule a new snapshot of their own presentation.
+      guard notification.object is NSWindow, !(notification.object is NSPanel) else { return }
       MainActor.assumeIsolated { refresh() }
     }
   }
@@ -934,16 +950,15 @@ private final class MarkerController {
   // MARK: Private
 
   private struct Style: Equatable {
-    var hex: String?
+    var badges: [WindowMarker]
     var size: Double
-    var symbol: String?
-    var sharedHex: String?
-    var sharedSize: Double
 
     var contentSize: CGSize {
-      let status = hex == nil ? 0 : size
-      let shared = sharedHex == nil ? 0 : sharedSize
-      return CGSize(width: status + shared + (status > 0 && shared > 0 ? 4 : 0), height: max(status, shared))
+      let widths = badges.map { size * $0.kind.scale }
+      return CGSize(
+        width: widths.reduce(0, +) + Double(max(0, widths.count - 1)) * 4,
+        height: widths.max() ?? 0,
+      )
     }
   }
 
@@ -956,12 +971,10 @@ private final class MarkerController {
 
   private var panels = [WindowKey: NSPanel]()
   private var styles = [WindowKey: Style]()
-  private var primaryVisibility = [WindowKey: Bool]()
-  /// Windows whose dot ignores the focus gate (floating windows).
-  private var alwaysVisible = Set<WindowKey>()
   private var lastFrame = [WindowKey: NSRect]()
   private var nativeSurfaces = [WindowKey: WindowServerSurface]()
   private var activeSpaceObserver: any NSObjectProtocol?
+  private var ownWindowOcclusionObserver: any NSObjectProtocol?
   private var stackRefreshTask: Task<Void, Never>?
   private var needsStackRefresh = false
   private var stack = MarkerWindowStack([])
@@ -977,13 +990,7 @@ private final class MarkerController {
   private var hoverMonitor: Any?
 
   private var hideOnHover = true
-  /// A symbol marker is a badge, not a dot — render it this much larger than
-  /// the shared dot size so the glyph inside stays legible.
-  private let symbolScale = 2.0
   private var corner = MarkerCorner.bottomTrailing
-  /// Last focused window pushed in via `setFocused`. nil = no focus
-  /// (or unknown — markers stay hidden, which is the safe default).
-  private var focused: (pid: pid_t, windowID: CGWindowID)?
   /// Distance from the chosen window corner to the dot's edge.
   private let inset: CGFloat = 10
   /// Small panel padding so the dot's faint drop shadow isn't clipped
@@ -1094,29 +1101,14 @@ private final class MarkerController {
   /// the hover monitor so moving the cursor never triggers AX IPC.
   private func updateAlpha(for key: WindowKey, cursor: NSPoint) {
     guard let panel = panels[key], let cocoa = lastFrame[key] else { return }
-    // Focus gate: hide when this window isn't the user's current window —
-    // except always-visible marks (floating windows), which stay up so the
-    // mark identifies the mirror at a glance. Matched on (pid, wid) so two
-    // windows of the same app don't share a dot.
-    let isFocused = focused.map { $0.pid == key.pid && $0.windowID == key.windowID } ?? false
-    let primaryShown = isFocused || alwaysVisible.contains(key)
-    if
-      let style = styles[key],
-      primaryVisibility[key] != primaryShown,
-      let hosting = panel.contentView as? NSHostingView<MarkerView>
-    {
-      hosting.rootView = makeView(style: style, showsStatus: primaryShown)
-      primaryVisibility[key] = primaryShown
-    }
     guard exposedKeys.contains(key) else {
       hideImmediately(panel)
       return
     }
-    let shown = primaryShown || styles[key]?.sharedHex != nil
     // Hover fade: only react when the cursor sits over the dot's visible
     // circle, not the surrounding glow padding.
     let hovering = hideOnHover && cocoa.insetBy(dx: glowPadding, dy: glowPadding).contains(cursor)
-    let target: CGFloat = (shown && !hovering) ? 1 : 0
+    let target: CGFloat = hovering ? 0 : 1
     if abs(panel.alphaValue - target) > 0.01 {
       NSAnimationContext.runAnimationGroup { ctx in
         ctx.duration = 0.15
@@ -1133,15 +1125,13 @@ private final class MarkerController {
     nativeSurfaces[key] = nil
     exposedKeys.remove(key)
     styles.removeValue(forKey: key)
-    primaryVisibility.removeValue(forKey: key)
     lastFrame.removeValue(forKey: key)
   }
 
   /// Install the global mouse-moved monitor only while at least one dot can
   /// be visible; remove it otherwise so an idle marker set costs nothing.
   private func refreshHoverMonitor() {
-    let needed = hideOnHover && !panels.isEmpty
-      && (focused != nil || !alwaysVisible.isEmpty || styles.values.contains(where: { $0.sharedHex != nil }))
+    let needed = hideOnHover && !exposedKeys.isEmpty
     if needed, hoverMonitor == nil {
       hoverMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
         Task { @MainActor [weak self] in
@@ -1206,16 +1196,8 @@ private final class MarkerController {
     return panel
   }
 
-  private func makeView(style: Style, showsStatus: Bool = true) -> MarkerView {
-    MarkerView(
-      color: style.hex.flatMap { Color(hex: $0) },
-      size: CGFloat(style.size),
-      padding: glowPadding,
-      symbol: style.symbol,
-      sharedColor: style.sharedHex.flatMap { Color(hex: $0) },
-      sharedSize: CGFloat(style.sharedSize),
-      showsStatus: showsStatus,
-    )
+  private func makeView(style: Style) -> MarkerView {
+    MarkerView(badges: style.badges, size: CGFloat(style.size), padding: glowPadding)
   }
 
   /// AX/CG frames use top-left origin against the primary screen.
@@ -1226,23 +1208,17 @@ private final class MarkerController {
 // MARK: - MarkerView
 
 private struct MarkerView: View {
-  let color: Color?
+  let badges: [WindowMarker]
   let size: CGFloat
   let padding: CGFloat
-  var symbol: String?
-  var sharedColor: Color?
-  var sharedSize: CGFloat
-  var showsStatus: Bool
 
   var body: some View {
     HStack(spacing: 4) {
-      if let color {
-        MarkerBadge(color: color, size: size, symbol: symbol)
-          .opacity(showsStatus ? 1 : 0)
-      }
-      if let sharedColor {
-        MarkerBadge(color: sharedColor, size: sharedSize, symbol: "square.stack.fill")
-          .accessibilityLabel("Shared App")
+      ForEach(badges, id: \.kind) { badge in
+        if let color = Color(hex: badge.colorHex) {
+          MarkerBadge(color: color, size: size * CGFloat(badge.kind.scale), symbol: badge.symbol)
+            .accessibilityLabel(Text(badge.kind.title))
+        }
       }
     }
     .padding(padding)

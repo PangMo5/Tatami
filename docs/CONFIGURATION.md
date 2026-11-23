@@ -293,8 +293,10 @@ On upgrade, saved legacy default marker colors automatically switch to Catppucci
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `fullscreenEnabled` | bool | `true` | Dot on the workspace's fullscreen-zoomed window (shown while it's focused). |
+| `fullscreenEnabled` | bool | `true` | Dot on a workspace-zoomed window when its marked corner is visible. |
 | `fullscreenColorHex` | string | `"#89B4FA"` | Fullscreen dot color (`#RRGGBB`). |
+| `stackEnabled` | bool | `true` | Show a badge on windows that share a tile in a stack group. |
+| `stackColorHex` | string | `"#A6E3A1"` | All-app stack color (`#RRGGBB`). |
 | `floatingEnabled` | bool | `true` | Dot on always-on-top windows, always visible so their state is clear at a glance. |
 | `floatingColorHex` | string | `"#FAB387"` | Always-on-top dot color (`#RRGGBB`). |
 | `borrowEnabled` | bool | `true` | Badge each borrowed window with its workspace icon while the borrow is on screen. |
@@ -412,9 +414,7 @@ workspace's key equivalent and with the recent / next / previous keys.
 ## `[[sharedApps]]`
 
 Apps listed here are part of **every** workspace. Each carries a `layout`:
-`tiled` (the default, tiles into each workspace's layout), `stacked` (shown as
-**Tiled (Stacked)**; tiled, but a new window of the app joins the tile already
-holding one of its windows instead of splitting a new one), `floating` (shown as
+`tiled` (the default, tiles into each workspace's layout), `floating` (shown as
 **Always on Top** in the app; untiled and kept above the tiles everywhere via a
 mirror), or `unmanaged` (shown as **Leave As Is**; left exactly where it is
 while remaining a member, but never tiled or mirrored). Each also has an
@@ -450,6 +450,24 @@ On multiple displays, each shared tiled window has one physical display owner. O
 Drag a shared tiled window to another monitor to insert it above, below, left, or right of a tile in that monitor's active host workspace. An empty host accepts it as the first tile. Borrowed blocks are not destinations. Cross-monitor drops never swap; center drops within the same tree still swap. The selected display owns that live window until it closes or that display disconnects, so an app restoring an old frame cannot undo the move.
 
 Editable in the app under **Workspaces → Shared Apps** (Tiled / Always on Top / Leave As Is).
+
+Create **Stack Groups** in a workspace or under **Shared Apps**. Pick one or more apps. Their existing and new tiled windows share one tile in each workspace on each display. Removing a group separates only the tiles joined automatically. Named groups receive a stable color shown in the group list, on window badges, and in Window Switching.
+
+Each app belongs to one group within a workspace or within Shared Apps. Expand **Apps in Other Groups** to move an app. The change takes effect when you save. When the on-device model is available, Apple Intelligence suggests an activity name using the selected apps’ names and bundle metadata.
+
+Enable **Stack All Assigned Apps** to put every tiled app assigned to the workspace in one tile. Turn it off to use the workspace’s named groups again. Always on Top and Leave As Is keep their own behavior.
+
+Dragging within a workspace moves the entire stack tile. Dragging a shared window across displays moves only that window and joins the matching group on the destination when it exists.
+
+Use `[[profiles.workspaces.stackGroups]]` inside a workspace and `[[sharedStackGroups]]` at the top level for shared groups. To group all assigned tiled apps, set `stackAllAssignedApps = true` in the workspace.
+
+```toml
+[[sharedStackGroups]]
+id = "67CF7EF3-9976-4CD9-B5E3-2A42C0ABB955"
+name = "Reference"
+bundleIdentifiers = ["com.apple.Music", "com.example.Reader"]
+```
+
 
 Legacy configs with `[[floatingApps]]` migrate automatically on first load:
 each entry becomes a shared app with `layout = "floating"`. A pre-1.4 `floating`
@@ -607,7 +625,7 @@ appToFocusBundleId = "app.zen-browser.zen"        # optional: focus this app on 
 bundleIdentifier = "app.zen-browser.zen"
 name = "Zen Browser"
 autoOpen = false                       # launch on activation if not running
-layout = "tiled"                       # "tiled" | "stacked" | "floating" | "unmanaged"
+layout = "tiled"                       # "tiled" | "floating" | "unmanaged"
 
 [[profiles.workspaces]]
 id = "00000000-0000-0000-0000-000000000011"
@@ -720,5 +738,5 @@ App assignment fields:
 | `bundleIdentifier` | string | The app's bundle ID. |
 | `name` | string | Display name. |
 | `autoOpen` | bool | Launch the app when the workspace activates and reopen it on re-entry if its window was closed. |
-| `layout` | string | `tiled` (**Tiled** in the app), `stacked` (**Tiled (Stacked)**; tiled, with every window of the app kept in one tile), `floating` (**Always on Top**; untiled and mirrored above the tiles), or `unmanaged` (**Leave As Is**; left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
+| `layout` | string | `tiled` (**Tiled** in the app), `floating` (**Always on Top**; untiled and mirrored above the tiles), or `unmanaged` (**Leave As Is**; left in place and still a member, with no tiling, mirroring, or Screen Recording). Migrated from the pre-1.4 `floating` bool. |
 | `iconPath` | string? | Cached path to the app's icon, written automatically. You don't set this by hand. |

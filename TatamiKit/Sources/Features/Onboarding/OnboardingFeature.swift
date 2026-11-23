@@ -1994,7 +1994,7 @@ public struct OnboardingFeature {
   private func setDemoLayoutMode(_ mode: LayoutMode, state: inout State) {
     state.demoLayoutMode = mode
     switch mode {
-    case .tiled, .stacked: state.practices.insert(.tiledHandling)
+    case .tiled: state.practices.insert(.tiledHandling)
     case .floating: state.practices.insert(.floating)
     case .unmanaged: state.practices.insert(.ignore)
     }
@@ -2759,7 +2759,7 @@ public struct OnboardingFeature {
         return OnboardingDemoPoint(x: 0.81, y: 0.25)
       case .unmanaged:
         return OnboardingDemoPoint(x: 0.5, y: 0.9)
-      case .tiled, .stacked:
+      case .tiled:
         break
       }
     }
@@ -2770,7 +2770,7 @@ public struct OnboardingFeature {
       if
         block == .host,
         let primarySlot = state.demoPrimarySlot,
-        !state.demoLayoutMode.isTiled
+        state.demoLayoutMode != .tiled
       {
         tree.removing(primarySlot)
       } else {

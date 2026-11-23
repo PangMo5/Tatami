@@ -178,6 +178,26 @@ struct WorkspaceDetailView: View {
             }
           }
 
+          StackGroupsSection(
+            groups: workspace.stackGroups,
+            apps: store.apps.map(\.app),
+            appModes: Dictionary(
+              store.apps.map { ($0.bundleIdentifier, $0.layout) },
+              uniquingKeysWith: { first, _ in first },
+            ),
+            stackAll: Binding(
+              get: { workspace.stackAllAssignedApps },
+              set: { store.send(.stackAllAssignedAppsChanged($0)) },
+            ),
+            onSave: { group, moves in
+              store.send(.stackGroupSaved(group, movingFrom: moves))
+              return store.workspace?.stackGroups.contains {
+                $0.id == group.id && $0.name == group.name && $0.bundleIdentifiers == group.bundleIdentifiers
+              } == true
+            },
+            onRemove: { store.send(.stackGroupRemoved($0)) },
+          )
+
           Section {
             // Each action derives from the workspace key (its modifier in
             // Settings → Workspace Keys); the recorder beside it overrides that.

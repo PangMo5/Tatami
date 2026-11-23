@@ -62,7 +62,7 @@ extension WorkspaceActivationFeature {
       !state.isActivating,
       !state.isTilingPaused,
       !state.isLayoutSuspended,
-      state.config.sharedApps.contains(where: { $0.bundleIdentifier == dragged.bundleId && $0.layout.isTiled }),
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == dragged.bundleId && $0.layout == .tiled }),
       let source = state.workspaceOwning(dragged),
       state.canManageWorkspace(source),
       let sourceDisplay = state.displayShowing(source),
@@ -87,6 +87,16 @@ extension WorkspaceActivationFeature {
     let zoomed = state.fullscreenZoomed[destination] ?? []
     guard let visible = Self.treeTrimmingZoomed(tree, zoomed: zoomed) else { return nil }
     let frames = visible.frames(in: area, gap: CGFloat(state.config.settings.layout.gapInner))
+    if
+      let workspace = state.presentedWorkspace(destination),
+      let target = visible.automaticStackTarget(for: dragged, groupForWindow: state.windowGrouping(in: workspace).group(for:)),
+      let rect = frames[target]
+    {
+      return (
+        .init(dragged: dragged, source: source, destination: destination, display: display, target: target, zone: nil),
+        rect,
+      )
+    }
     guard
       let target = visible.windows.first(where: { frames[$0]?.contains(pointer) == true }),
       let rect = frames[target],
@@ -100,7 +110,7 @@ extension WorkspaceActivationFeature {
       drop.source != drop.destination,
       !state.isTilingPaused,
       !state.isLayoutSuspended,
-      state.config.sharedApps.contains(where: { $0.bundleIdentifier == drop.dragged.bundleId && $0.layout.isTiled }),
+      state.config.sharedApps.contains(where: { $0.bundleIdentifier == drop.dragged.bundleId && $0.layout == .tiled }),
       let sourceWorkspace = state.config.activeProfile?.workspaces[id: drop.source],
       let destinationWorkspace = state.config.activeProfile?.workspaces[id: drop.destination],
       state.activeWorkspace(on: drop.display) == drop.destination,
@@ -113,6 +123,16 @@ extension WorkspaceActivationFeature {
     else { return rejectedSharedWindowDrop(drop, state: &state) }
     let destination: BSPNode<WindowKey>
     if
+      let target = drop.target,
+      drop.zone == nil,
+      let tree = state.tilingTrees[drop.destination],
+      let workspace = state.presentedWorkspace(drop.destination),
+      let visible = Self.treeTrimmingZoomed(tree, zoomed: state.fullscreenZoomed[drop.destination] ?? []),
+      visible.automaticStackTarget(for: drop.dragged, groupForWindow: state.windowGrouping(in: workspace).group(for:)) == target,
+      let stacked = tree.stackingAutomatically(drop.dragged, on: target)
+    {
+      destination = stacked
+    } else if
       let target = drop.target,
       let zone = drop.zone,
       zone != .swap,
@@ -134,7 +154,7 @@ extension WorkspaceActivationFeature {
     } else if drop.target == nil, drop.zone == nil, state.tilingTrees[drop.destination] == nil {
       destination = .leaf(drop.dragged)
     } else {
-      return .none
+      return rejectedSharedWindowDrop(drop, state: &state)
     }
     let remaining = source.removing(drop.dragged)
     // Publish both memberships atomically before AX work can emit new frames.

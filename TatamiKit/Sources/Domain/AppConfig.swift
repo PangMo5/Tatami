@@ -25,9 +25,11 @@ public struct AppConfig: Hashable, Sendable, Codable {
     settings: AppSettings = AppSettings(),
     hooks: [HookDefinition] = [],
     activeProfileId: Profile.ID? = nil,
+    sharedStackGroups: [StackGroup] = [],
   ) {
     self.profiles = profiles
     self.sharedApps = sharedApps
+    self.sharedStackGroups = sharedStackGroups.assigningStackGroupColors()
     self.settings = settings
     self.hooks = hooks
     self.activeProfileId = activeProfileId
@@ -49,6 +51,9 @@ public struct AppConfig: Hashable, Sendable, Codable {
     hooks = c.contains(.hooks)
       ? try c.decode([HookDefinition].self, forKey: .hooks)
       : []
+    sharedStackGroups = try c.decodeIfPresent([StackGroup].self, forKey: .sharedStackGroups) ?? []
+    try StackGroup.validate(sharedStackGroups, codingPath: c.codingPath + [CodingKeys.sharedStackGroups])
+    sharedStackGroups = sharedStackGroups.assigningStackGroupColors()
     if c.contains(.sharedApps) {
       sharedApps = try c.decode([SharedApp].self, forKey: .sharedApps)
     } else if c.contains(.floatingApps) {
@@ -77,6 +82,7 @@ public struct AppConfig: Hashable, Sendable, Codable {
   /// Apps present in every workspace. Each carries a `floating` flag: tiled
   /// into each workspace's layout when `false`, untiled + on top when `true`.
   public var sharedApps: [SharedApp]
+  public var sharedStackGroups: [StackGroup]
   public var settings: AppSettings
   /// User-authored lifecycle commands. Invalid entries remain visible but are
   /// skipped by `HooksFeature` with a persistent diagnostic.
@@ -90,6 +96,9 @@ public struct AppConfig: Hashable, Sendable, Codable {
     var c = encoder.container(keyedBy: CodingKeys.self)
     try c.encode(profiles, forKey: .profiles)
     try c.encode(sharedApps, forKey: .sharedApps)
+    if !sharedStackGroups.isEmpty {
+      try c.encode(sharedStackGroups, forKey: .sharedStackGroups)
+    }
     try c.encode(settings, forKey: .settings)
     try c.encode(hooks, forKey: .hooks)
     // `activeProfileId` is intentionally not written — session state lives in
@@ -102,6 +111,7 @@ public struct AppConfig: Hashable, Sendable, Codable {
   private enum CodingKeys: String, CodingKey {
     case profiles
     case sharedApps
+    case sharedStackGroups
     case settings
     case hooks
     // DEPRECATED: legacy key, read once to migrate into `sharedApps`. The

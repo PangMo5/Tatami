@@ -98,6 +98,7 @@ public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
     preferredChild: BSPNode<WindowID>.Child? = nil,
     preferredSplit: BSPNode<WindowID>.SplitAxis? = nil,
     parentZoom: Bool = false,
+    automaticStackGroups: [[WindowID]]? = nil,
   ) {
     self.windowList = windowList
     self.windowOrder = windowOrder ?? windowList
@@ -105,6 +106,7 @@ public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
     self.preferredChild = preferredChild
     self.preferredSplit = preferredSplit
     self.parentZoom = parentZoom
+    self.automaticStackGroups = automaticStackGroups
   }
 
   // MARK: Public
@@ -116,6 +118,9 @@ public struct BSPLeaf<WindowID: Hashable & Sendable>: Hashable, Sendable {
   /// Focus order — `windowOrder[0]` is the most recently focused.
   /// Used for swap/warp tiebreaks and stack navigation.
   public var windowOrder: [WindowID]
+  /// Original tile memberships merged by automatic grouping, in layout order.
+  /// Manually stacked windows remain together in their original membership.
+  public var automaticStackGroups: [[WindowID]]?
   /// User-set insertion intent on this leaf. nil = no override.
   public var insertDirection: BSPNode<WindowID>.InsertDirection?
   /// Child-side override consumed on the next split of this leaf.
@@ -273,6 +278,9 @@ extension BSPNode where WindowID == WindowKey {
           preferredChild: slotLeaf.preferredChild,
           preferredSplit: slotLeaf.preferredSplit,
           parentZoom: slotLeaf.parentZoom,
+          automaticStackGroups: Self.nontrivialStackGroups(
+            slotLeaf.automaticStackGroups?.map { $0.compactMap { keyForSlot[$0] } }
+          ),
         )
         return .leaf(leaf)
 
@@ -315,6 +323,7 @@ extension BSPNode {
         preferredChild: leaf.preferredChild,
         preferredSplit: leaf.preferredSplit,
         parentZoom: leaf.parentZoom,
+        automaticStackGroups: leaf.automaticStackGroups?.map { $0.map(f) },
       ))
 
     case .branch(let branch):
@@ -436,25 +445,6 @@ extension BSPNode {
 // MARK: - Insertion
 
 extension BSPNode {
-  /// Push `window` onto the stack of the first leaf holding a window that
-  /// matches `sibling`, so it shares that tile instead of splitting one.
-  /// Returns `nil` when no leaf matches.
-  public func stacking(
-    _ window: WindowID,
-    ontoLeafWith sibling: (WindowID) -> Bool,
-  ) -> BSPNode? {
-    guard
-      let anchor = windows.first(where: { $0 != window && sibling($0) }),
-      let path = pathTo(window: anchor)
-    else { return nil }
-    return replacing(path: path) { node in
-      guard case .leaf(var leaf) = node else { return node }
-      leaf.windowList.append(window)
-      leaf.windowOrder.insert(window, at: 0)
-      return .leaf(leaf)
-    }
-  }
-
   /// Insert `window` into the tree. Selection rule:
   ///
   ///   1. an explicit `near` window — if it resolves to a leaf, that
@@ -495,6 +485,13 @@ extension BSPNode {
       if leaf.insertDirection == .stack {
         leaf.windowList.append(window)
         leaf.windowOrder.insert(window, at: 0)
+        if let index = leaf.automaticStackGroups?.firstIndex(where: { group in
+          anchor.map(group.contains) ?? false
+        }) {
+          leaf.automaticStackGroups?[index].append(window)
+        } else {
+          leaf.automaticStackGroups?[0].append(window)
+        }
         leaf.insertDirection = nil
         leaf.preferredChild = nil
         leaf.preferredSplit = nil
@@ -546,6 +543,9 @@ extension BSPNode {
       guard leaf.contains(window) else { return self }
       leaf.windowList.removeAll { $0 == window }
       leaf.windowOrder.removeAll { $0 == window }
+      leaf.automaticStackGroups = Self.nontrivialStackGroups(
+        leaf.automaticStackGroups?.map { $0.filter { $0 != window } }
+      )
       return leaf.windowList.isEmpty ? nil : .leaf(leaf)
 
     case .branch(let b):
@@ -573,6 +573,9 @@ extension BSPNode {
     case .leaf(var leaf):
       leaf.windowList.removeAll(where: windows.contains)
       leaf.windowOrder.removeAll(where: windows.contains)
+      leaf.automaticStackGroups = Self.nontrivialStackGroups(
+        leaf.automaticStackGroups?.map { $0.filter { !windows.contains($0) } }
+      )
       return leaf.windowList.isEmpty ? nil : .leaf(leaf)
 
     case .branch(let branch):
@@ -626,9 +629,11 @@ extension BSPNode {
       var newA = leafA
       newA.windowList = leafB.windowList
       newA.windowOrder = leafB.windowOrder
+      newA.automaticStackGroups = leafB.automaticStackGroups
       var newB = leafB
       newB.windowList = leafA.windowList
       newB.windowOrder = leafA.windowOrder
+      newB.automaticStackGroups = leafA.automaticStackGroups
       // Parent-zoom is locality-specific (it refers to the *position*
       // in the tree, not the window itself) — clear on the moved leaves
       // so a swap doesn't accidentally fullscreen the destination tile.

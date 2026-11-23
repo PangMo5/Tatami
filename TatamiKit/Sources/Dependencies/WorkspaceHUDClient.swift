@@ -21,25 +21,38 @@ public enum WindowSwitcherInteraction: Equatable, Sendable {
 // MARK: - WindowSwitcherIndicators
 
 public struct WindowSwitcherIndicators: Equatable, Sendable {
+
+  // MARK: Lifecycle
+
   public init(
     isFloating: Bool = false,
     isShared: Bool = false,
     isBorrowed: Bool = false,
     isFocused: Bool = false,
     isFullscreen: Bool = false,
+    stackColorHex: String? = nil,
   ) {
     self.isFloating = isFloating
     self.isShared = isShared
     self.isBorrowed = isBorrowed
     self.isFocused = isFocused
     self.isFullscreen = isFullscreen
+    self.stackColorHex = stackColorHex
   }
+
+  // MARK: Public
 
   public var isFloating: Bool
   public var isShared: Bool
   public var isBorrowed: Bool
   public var isFocused: Bool
   public var isFullscreen: Bool
+  public var stackColorHex: String?
+
+  public var isStacked: Bool {
+    stackColorHex != nil
+  }
+
 }
 
 // MARK: - ActionHUDRequest
@@ -2355,6 +2368,9 @@ private struct WindowSwitcherItemView: View {
     if item.indicators.isFullscreen {
       values.append(String(localized: "Fullscreen"))
     }
+    if item.indicators.isStacked {
+      values.append(String(localized: "Stacked"))
+    }
     return values.formatted()
   }
 
@@ -2373,6 +2389,15 @@ private struct WindowSwitcherAppIcon: View {
       .scaledToFit()
       .frame(width: 54, height: 54)
       .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
+      .overlay(alignment: .topLeading) {
+        if let hex = indicators.stackColorHex {
+          WindowSwitcherIndicatorGroup {
+            WindowSwitcherIndicatorSymbol(symbol: "rectangle.stack.fill", color: Color(hex: hex) ?? .green)
+          }
+          .offset(x: -3, y: -2)
+          .accessibilityHidden(true)
+        }
+      }
       .overlay(alignment: .topTrailing) {
         if indicators.isFocused {
           Circle()

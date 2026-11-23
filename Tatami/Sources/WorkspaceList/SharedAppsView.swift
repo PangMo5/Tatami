@@ -65,6 +65,22 @@ struct SharedAppsView: View {
         .font(.caption)
         .foregroundStyle(.secondary)
       }
+
+      StackGroupsSection(
+        groups: store.config.sharedStackGroups,
+        apps: store.apps.map(\.app),
+        appModes: Dictionary(
+          store.apps.map { ($0.bundleIdentifier, $0.layout) },
+          uniquingKeysWith: { first, _ in first },
+        ),
+        onSave: { group, moves in
+          store.send(.stackGroupSaved(group, movingFrom: moves))
+          return store.config.sharedStackGroups.contains {
+            $0.id == group.id && $0.name == group.name && $0.bundleIdentifiers == group.bundleIdentifiers
+          }
+        },
+        onRemove: { store.send(.stackGroupRemoved($0)) },
+      )
     }
     .formStyle(.grouped)
     .navigationTitle("Shared Apps")

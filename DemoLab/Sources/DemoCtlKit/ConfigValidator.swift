@@ -299,6 +299,10 @@ public enum ConfigValidator {
         "floatingColorHex",
         "fullscreenEnabled",
         "fullscreenColorHex",
+        "stackEnabled",
+        "stackColorHex",
+        "sharedEnabled",
+        "sharedColorHex",
         "borrowEnabled",
         "borrowColorHex",
         "size",
@@ -343,6 +347,8 @@ public enum ConfigValidator {
     ]
   )
 
+  private static let stackGroupSchema = TableSchema(keys: ["id", "name", "bundleIdentifiers", "colorSlot"])
+
   private static let workspaceSchema = TableSchema(
     keys: [
       "id",
@@ -357,8 +363,9 @@ public enum ConfigValidator {
       "borrowShortcut",
       "borrowEdge",
       "borrowFraction",
+      "stackAllAssignedApps",
     ],
-    tableArrays: ["apps": appSchema],
+    tableArrays: ["apps": appSchema, "stackGroups": stackGroupSchema],
   )
 
   private static let profileSchema = TableSchema(
@@ -392,6 +399,7 @@ public enum ConfigValidator {
     tableArrays: [
       "profiles": profileSchema,
       "sharedApps": appSchema,
+      "sharedStackGroups": stackGroupSchema,
       "hooks": TableSchema(keys: [
         "id",
         "event",

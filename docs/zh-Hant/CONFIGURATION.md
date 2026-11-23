@@ -258,8 +258,10 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 
 |鍵|型別|預設值|說明|
 | --- | --- | --- | --- |
-|`fullscreenEnabled`|bool|`true`|聚焦工作空間全螢幕放大的視窗時顯示圓點。|
+|`fullscreenEnabled`|bool|`true`|工作空間放大的視窗在標記角可見時會顯示圓點。|
 |`fullscreenColorHex`|string|`"#89B4FA"`|全螢幕圓點顏色（`#RRGGBB`）。|
+|`stackEnabled`|bool|`true`|為堆疊群組中共用並排區塊的視窗顯示標記。|
+|`stackColorHex`|string|`"#A6E3A1"`|全 App 堆疊顏色（`#RRGGBB`）。|
 |`floatingEnabled`|bool|`true`|置頂視窗始終顯示圓點，便於一眼辨識狀態。|
 |`floatingColorHex`|string|`"#FAB387"`|置頂圓點顏色（`#RRGGBB`）。|
 |`borrowEnabled`|bool|`true`|借用可見時，為每個借來的視窗顯示工作空間圖像。|
@@ -383,6 +385,24 @@ layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 將共用 App 的並排視窗拖到其他顯示器，可將它插入該顯示器主要工作空間中某個視窗的上、下、左或右側。主要工作空間為空時，會成為第一個並排視窗。借用區塊不能作為目標。跨顯示器拖放不會交換位置；同一樹狀配置內拖到中央仍會交換。視窗關閉或該顯示器中斷連線前，會保留選擇的顯示器歸屬，App 還原舊位置也不會撤銷移動。
 
 可在**工作空間 → 共用 App**中編輯並排、置頂或維持原狀。
+
+在工作空間或**共用 App** 設定中建立**堆疊群組**，並選取一或多個 App。所選 App 目前與新開啟的並排視窗會在各顯示器的工作空間中共用一個並排區塊。移除群組只會分開自動合併的區塊。命名群組在群組清單、視窗標記與視窗切換中會採用相同色彩。
+
+每個 App 在同一工作空間或共用 App 設定中只會屬於一個群組。展開**其他群組中的 App** 即可移動 App。變更會在儲存時套用。裝置端 Apple Intelligence 可用時，會根據選取的 App 名稱與套件資訊建議活動名稱。
+
+開啟**將已指派的 App 疊在同一個區塊**後，工作空間中已指派的並排 App 會共用一個區塊。關閉即可回到自訂的群組。置頂與維持原狀的設定會繼續套用。
+
+在同一工作空間內拖曳會移動整個堆疊區塊。將共用視窗拖曳到另一台顯示器時，只會移動選取的視窗。目標若已有相符群組，視窗會加入該群組。
+
+工作空間的群組使用 `[[profiles.workspaces.stackGroups]]`，共用群組則在最上層使用 `[[sharedStackGroups]]`。若要將所有已指派的並排 App 疊在一起，請在工作空間中設定 `stackAllAssignedApps = true`。
+
+```toml
+[[sharedStackGroups]]
+id = "67CF7EF3-9976-4CD9-B5E3-2A42C0ABB955"
+name = "Reference"
+bundleIdentifiers = ["com.apple.Music", "com.example.Reader"]
+```
+
 
 舊 `[[floatingApps]]` 設定在首次讀取時自動移轉，每項變為 `layout = "floating"` 的共用 App。1.4 之前的 `floating` bool 也會移轉：`true` → `floating`，否則為 `tiled`。
 
