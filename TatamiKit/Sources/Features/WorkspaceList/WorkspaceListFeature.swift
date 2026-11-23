@@ -823,7 +823,10 @@ public struct WorkspaceListFeature {
          .appToFocus,
          .displayHint,
          .borrowEdge,
-         .borrowFraction:
+         .borrowFraction,
+         .stackGroups,
+         .stackAllAssignedApps,
+         .appOrder:
       false
     }
   }

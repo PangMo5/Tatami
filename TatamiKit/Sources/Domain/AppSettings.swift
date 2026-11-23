@@ -311,6 +311,8 @@ extension AppSettings {
       borrowColorHex: String = MarkerPalette.borrowed,
       sharedEnabled: Bool = true,
       sharedColorHex: String = MarkerPalette.shared,
+      stackEnabled: Bool = true,
+      stackColorHex: String = MarkerPalette.stacked,
       size: Double = 14,
       corner: MarkerCorner = .bottomTrailing,
       hideOnHover: Bool = true,
@@ -323,6 +325,8 @@ extension AppSettings {
       self.borrowColorHex = borrowColorHex
       self.sharedEnabled = sharedEnabled
       self.sharedColorHex = sharedColorHex
+      self.stackEnabled = stackEnabled
+      self.stackColorHex = stackColorHex
       self.size = size
       self.corner = corner
       self.hideOnHover = hideOnHover
@@ -339,6 +343,8 @@ extension AppSettings {
       borrowColorHex = c.decode(.borrowColorHex, default: MarkerPalette.borrowed)
       sharedEnabled = c.decode(.sharedEnabled, default: true)
       sharedColorHex = c.decode(.sharedColorHex, default: MarkerPalette.shared)
+      stackEnabled = c.decode(.stackEnabled, default: true)
+      stackColorHex = c.decode(.stackColorHex, default: MarkerPalette.stacked)
       size = c.decode(.size, default: 14)
       corner = c.decode(.corner, default: .bottomTrailing)
       hideOnHover = c.decode(.hideOnHover, default: true)
@@ -377,6 +383,10 @@ extension AppSettings {
     /// Show a separate badge identifying Shared App windows.
     public var sharedEnabled: Bool
     public var sharedColorHex: String
+    /// Badge windows that currently share a tile through a stack group.
+    public var stackEnabled: Bool
+    /// Color for the workspace-wide stack of all assigned apps.
+    public var stackColorHex: String
     /// Dot diameter in points.
     public var size: Double
     /// Which window corner the dot is pinned to.
@@ -396,6 +406,8 @@ extension AppSettings {
       case borrowColorHex
       case sharedEnabled
       case sharedColorHex
+      case stackEnabled
+      case stackColorHex
       case size
       case corner
       case hideOnHover

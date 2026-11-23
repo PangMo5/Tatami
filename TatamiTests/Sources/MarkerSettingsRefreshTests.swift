@@ -29,20 +29,19 @@ struct MarkerSettingsRefreshTests {
     store.exhaustivity = .off
     await store.send(.settingsChanged(store.state.config.settings))
     await store.finish()
-    #expect(targets.value.last?[key]?.sharedColorHex == MarkerPalette.shared)
+    #expect(targets.value.last?[key]?.badges.first(where: { $0.kind == .shared })?.colorHex == MarkerPalette.shared)
     store.state.$config.withLock { $0.settings.marker.sharedEnabled = false }
     await store.send(.settingsChanged(store.state.config.settings))
     await store.finish()
     let disabled = try #require(targets.value.last?[key])
-    #expect(disabled.sharedColorHex == nil)
-    #expect(disabled.colorHex == MarkerPalette.floating)
+    #expect(disabled.badges == [WindowMarker(kind: .floating, colorHex: MarkerPalette.floating)])
     store.state.$config.withLock {
       $0.settings.marker.sharedEnabled = true
       $0.settings.marker.sharedColorHex = "#ABCDEF"
     }
     await store.send(.settingsChanged(store.state.config.settings))
     await store.finish()
-    #expect(targets.value.last?[key]?.sharedColorHex == "#ABCDEF")
+    #expect(targets.value.last?[key]?.badges.first(where: { $0.kind == .shared })?.colorHex == "#ABCDEF")
   }
 
   @Test
@@ -64,8 +63,7 @@ struct MarkerSettingsRefreshTests {
     await store.send(.syncAppWindowsResolved(bundleId: key.bundleId, resizableKeys: nil, onScreenFrames: [:]))
     await store.finish()
     let target = try #require(targets.value.last?[key])
-    #expect(target.sharedColorHex == MarkerPalette.shared)
-    #expect(target.colorHex == nil)
+    #expect(target.badges == [WindowMarker(kind: .shared, colorHex: MarkerPalette.shared, symbol: "person.2.fill")])
     #expect(store.state.tilingTrees[workspace.id] == nil)
   }
 
@@ -86,7 +84,6 @@ struct MarkerSettingsRefreshTests {
     await store.send(.refreshWindowMarkers)
     await store.finish()
     let target = try #require(targets.value.last?[key])
-    #expect(target.sharedColorHex == MarkerPalette.shared)
-    #expect(target.colorHex == nil)
+    #expect(target.badges == [WindowMarker(kind: .shared, colorHex: MarkerPalette.shared, symbol: "person.2.fill")])
   }
 }

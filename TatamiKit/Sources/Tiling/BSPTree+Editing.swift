@@ -93,10 +93,12 @@ extension BSPNode {
     var newA = leafA
     newA.windowList = leafB.windowList
     newA.windowOrder = leafB.windowOrder
+    newA.automaticStackGroups = leafB.automaticStackGroups
     newA.parentZoom = false
     var newB = leafB
     newB.windowList = leafA.windowList
     newB.windowOrder = leafA.windowOrder
+    newB.automaticStackGroups = leafA.automaticStackGroups
     newB.parentZoom = false
     // Two distinct leaves — neither path prefixes the other — so the sequential
     // replaces don't interfere.
@@ -115,6 +117,27 @@ extension BSPNode {
     child: Child,
   ) -> BSPNode {
     guard let targetPath = pathTo(window: target) else { return self }
+    if
+      let sourcePath = pathTo(window: source),
+      case .leaf(var stack) = subtree(at: sourcePath),
+      stack.automaticStackGroups != nil
+    {
+      guard
+        sourcePath != targetPath,
+        let remaining = removingAll(Set(stack.windowList)),
+        let destination = remaining.pathTo(window: target)
+      else { return self }
+      stack.parentZoom = false
+      return remaining.replacing(path: destination) { node in
+        let moved = BSPNode.leaf(stack)
+        return .branch(BSPBranch(
+          split: axis,
+          ratio: 0.5,
+          left: child == .first ? moved : node,
+          right: child == .first ? node : moved,
+        ))
+      }
+    }
     let seeded = replacing(path: targetPath) { node in
       guard case .leaf(var leaf) = node else { return node }
       leaf.preferredSplit = axis
@@ -150,6 +173,15 @@ extension BSPNode {
           listTokens.append(token)
           pools[id, default: []].append(token)
         }
+        var groupPools = pools
+        let groupTokens = leaf.automaticStackGroups?.map { group in
+          group.compactMap { id -> Int? in
+            guard var queue = groupPools[id], !queue.isEmpty else { return nil }
+            let token = queue.removeFirst()
+            groupPools[id] = queue
+            return token
+          }
+        }
         var orderTokens = [Int]()
         for id in leaf.windowOrder {
           guard var queue = pools[id], let token = queue.first else { continue }
@@ -167,6 +199,7 @@ extension BSPNode {
           preferredChild: leaf.preferredChild,
           preferredSplit: leaf.preferredSplit,
           parentZoom: leaf.parentZoom,
+          automaticStackGroups: BSPNode<Int>.nontrivialStackGroups(groupTokens),
         ))
 
       case .branch(let b):
@@ -261,19 +294,9 @@ extension BSPNode where WindowID == SlotID {
 /// apps are excluded there. The preview view and the detail reducer both call
 /// this so their synthesized template (and thus edit-op paths) match.
 public func tiledLayoutBundleIds(workspace: Workspace, sharedApps: [SharedApp]) -> [String] {
-  let own = workspace.apps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
+  let own = workspace.apps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
   guard workspace.kind != .scratchpad else { return own }
-  return own + sharedApps.filter { $0.layout.isTiled }.map(\.bundleIdentifier)
-}
-
-/// Bundle ids whose new windows stack onto the app's existing tile in this
-/// workspace (`LayoutMode.stacked`), with the same shared-app rule as
-/// `tiledLayoutBundleIds`.
-public func stackedLayoutBundleIds(workspace: Workspace?, sharedApps: [SharedApp]) -> Set<String> {
-  guard let workspace else { return [] }
-  let own = workspace.apps.filter { $0.layout == .stacked }.map(\.bundleIdentifier)
-  guard workspace.kind != .scratchpad else { return Set(own) }
-  return Set(own + sharedApps.filter { $0.layout == .stacked }.map(\.bundleIdentifier))
+  return own + sharedApps.filter { $0.layout == .tiled }.map(\.bundleIdentifier)
 }
 
 /// The bundle-id template a workspace's inactive preview should render + edit:
@@ -314,7 +337,7 @@ public func previewLayoutTemplate(
   guard workspace.kind != .scratchpad else { return tree }
   let inTree = Set((tree?.windows ?? []).map(\.bundleId))
   let missing = sharedApps
-    .filter { $0.layout.isTiled }
+    .filter { $0.layout == .tiled }
     .map(\.bundleIdentifier)
     .filter { presentBundleIds.contains($0) && !inTree.contains($0) }
     .sorted()

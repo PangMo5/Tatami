@@ -618,7 +618,10 @@ private struct DuplicationReviewSheet: View {
          .appToFocus,
          .displayHint,
          .borrowEdge,
-         .borrowFraction:
+         .borrowFraction,
+         .stackGroups,
+         .stackAllAssignedApps,
+         .appOrder:
       false
     }
   }

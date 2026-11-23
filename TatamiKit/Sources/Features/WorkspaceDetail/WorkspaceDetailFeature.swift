@@ -105,7 +105,11 @@ public struct WorkspaceDetailFeature {
     case appRemoveRequested(bundleIdentifier: String)
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
     case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
+    case stackGroupSaved(StackGroup, movingFrom: [String: StackGroup.ID])
+    case stackGroupRemoved(StackGroup.ID)
+    case stackGroupsApplied(Set<String>)
     case layoutApplied
+    case stackAllAssignedAppsChanged(Bool)
     case nameSubmitted(String, workspaceID: Workspace.ID? = nil)
     case symbolIconChanged(String?)
     case activateShortcutChanged(HotKey?)
@@ -271,6 +275,36 @@ public struct WorkspaceDetailFeature {
         }
         return .none
 
+      case .stackGroupSaved(let group, let sourceGroups):
+        let id = state.workspaceId
+        var affected = Set<String>()
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { workspace in
+            affected = workspace.stackGroups.save(
+              group,
+              movingFrom: sourceGroups,
+              availableBundleIds: Set(workspace.apps.map(\.bundleIdentifier)),
+            )
+          }
+        }
+        return affected.isEmpty ? .none : .send(.stackGroupsApplied(affected))
+
+      case .stackGroupRemoved(let groupId):
+        let id = state.workspaceId
+        var affected = Set<String>()
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { affected = $0.stackGroups.remove(id: groupId) }
+        }
+        return affected.isEmpty ? .none : .send(.stackGroupsApplied(affected))
+
+      case .stackAllAssignedAppsChanged(let enabled):
+        let id = state.workspaceId
+        guard let workspace = state.workspace, workspace.stackAllAssignedApps != enabled else { return .none }
+        state.$config.withLock { config in
+          config.mutateWorkspace(id) { $0.stackAllAssignedApps = enabled }
+        }
+        return .send(.stackGroupsApplied(Set(workspace.apps.map(\.bundleIdentifier))))
+
       case .layoutChanged(let bundleId, let layout):
         guard let app = state.apps.first(where: { $0.bundleIdentifier == bundleId }), app.layout != layout else { return .none }
         state.alert = AlertState {
@@ -300,7 +334,8 @@ public struct WorkspaceDetailFeature {
         // immediately when this workspace is active — handled in AppFeature.
         return .send(.layoutApplied)
 
-      case .layoutApplied:
+      case .layoutApplied,
+           .stackGroupsApplied:
         return .none
 
       case .alert:

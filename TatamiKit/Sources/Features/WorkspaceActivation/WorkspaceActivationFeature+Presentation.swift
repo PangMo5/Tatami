@@ -48,34 +48,35 @@ extension WorkspaceActivationFeature {
     return Array(OrderedSet(perWorkspace + shared))
   }
 
-  /// Marker targets: fullscreen-zoom dots (focus-gated) + floating dots
-  /// (always visible — the dot is what identifies a floating window / its
-  /// mirror at a glance). Callers pass only the keys whose categories are
-  /// enabled in `cfg`.
+  /// Compose each enabled status independently. Window exposure, not status
+  /// or keyboard focus, determines whether its complete badge strip is visible.
   static func markerTargets(
     fullscreenZoomed: Set<WindowKey>,
     floatingKeys: [WindowKey],
     borrowed: [WindowKey: String],
     cfg: AppSettings.Marker,
     sharedKeys: Set<WindowKey> = [],
+    stackedColors: [WindowKey: String] = [:],
   ) -> [WindowKey: MarkerTarget] {
     var targets = [WindowKey: MarkerTarget]()
     for key in fullscreenZoomed {
-      targets[key] = MarkerTarget(colorHex: cfg.fullscreenColorHex)
+      targets[key, default: MarkerTarget()].badges.append(.init(kind: .fullscreen, colorHex: cfg.fullscreenColorHex))
     }
-    for key in floatingKeys {
-      targets[key] = MarkerTarget(colorHex: cfg.floatingColorHex, alwaysVisible: true)
+    for key in Set(floatingKeys) {
+      targets[key, default: MarkerTarget()].badges.append(.init(kind: .floating, colorHex: cfg.floatingColorHex))
     }
-    // Borrowed windows badge with the borrowed workspace's icon — always
-    // visible (the point is to see what's on loan regardless of focus), and
-    // pushed last so a borrowed window wins over a stray floating/zoom mark.
     for (key, symbol) in borrowed {
-      targets[key] = MarkerTarget(colorHex: cfg.borrowColorHex, alwaysVisible: true, symbol: symbol)
+      targets[key, default: MarkerTarget()].badges.append(.init(kind: .borrowed, colorHex: cfg.borrowColorHex, symbol: symbol))
     }
     for key in sharedKeys where cfg.sharedEnabled {
-      var target = targets[key] ?? MarkerTarget(colorHex: nil)
-      target.sharedColorHex = cfg.sharedColorHex
-      targets[key] = target
+      targets[key, default: MarkerTarget()].badges.append(.init(
+        kind: .shared,
+        colorHex: cfg.sharedColorHex,
+        symbol: "person.2.fill",
+      ))
+    }
+    for (key, color) in stackedColors where cfg.stackEnabled {
+      targets[key, default: MarkerTarget()].badges.append(.init(kind: .stacked, colorHex: color, symbol: "rectangle.stack.fill"))
     }
     return targets
   }
@@ -98,6 +99,27 @@ extension WorkspaceActivationFeature {
       }
     }
     return out
+  }
+
+  static func stackedWindowColors(in workspaceIDs: Set<Workspace.ID>, state: State) -> [WindowKey: String] {
+    let shared = StackGroupColors.colors(for: state.config.sharedStackGroups, scope: .shared)
+    return workspaceIDs.reduce(into: [WindowKey: String]()) { colors, id in
+      guard let tree = state.tilingTrees[id], let workspace = state.presentedWorkspace(id) else { return }
+      var keys = Set<WindowKey>()
+      tree.collectAutomaticallyStackedWindows(into: &keys)
+      guard !keys.isEmpty else { return }
+
+      let grouping = state.windowGrouping(in: workspace)
+      let local = StackGroupColors.colors(for: workspace.stackGroups, scope: .workspace)
+      for key in keys {
+        switch grouping.group(for: key) {
+        case .workspace(let group): colors[key] = local[group]
+        case .shared(let group): colors[key] = shared[group]
+        case .allAssigned: colors[key] = state.config.settings.marker.stackColorHex
+        case nil: break
+        }
+      }
+    }
   }
 
   /// A newer explicit focus/workspace request owns input. Layout discovery may
@@ -334,9 +356,13 @@ extension WorkspaceActivationFeature {
     let borrowed = Self.borrowMarkerTargets(state: state)
     let sharedApps = cfg.sharedEnabled ? state.config.sharedApps : []
     let sharedIds = Set(sharedApps.map(\.bundleIdentifier))
-    let sharedNonTiledIds = sharedApps.filter { !$0.layout.isTiled }.map(\.bundleIdentifier)
+    let sharedNonTiledIds = sharedApps.filter { $0.layout != .tiled }.map(\.bundleIdentifier)
     let cachedIds = Array(OrderedSet(sharedNonTiledIds + (resolvedFloatingKeys == nil ? floatingIds : [])))
     let nativeFullscreen = Set(state.desktops.snapshot?.displays.flatMap(\.fullscreenWindows).map(\.windowID) ?? [])
+    let stackedColors = cfg.stackEnabled
+      ? Self.stackedWindowColors(in: state.layoutWorkspaceIDs, state: state)
+        .filter { !nativeFullscreen.contains($0.key.windowID) }
+      : [:]
     let sharedTiles = Set(state.layoutWorkspaceIDs.filter(state.canManageWorkspace)
       .flatMap { state.tilingTrees[$0]?.windows ?? [] }.filter { sharedIds.contains($0.bundleId) })
     return .run { [marker, snapshot = windowSnapshot] _ in
@@ -356,6 +382,7 @@ extension WorkspaceActivationFeature {
           borrowed: borrowed,
           cfg: cfg,
           sharedKeys: sharedKeys,
+          stackedColors: stackedColors,
         ),
         cfg.size,
         cfg.corner,

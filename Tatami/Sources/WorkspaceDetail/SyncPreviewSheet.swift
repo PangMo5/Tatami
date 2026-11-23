@@ -80,9 +80,10 @@ extension SyncChangeItem {
     let app: AppAssignment
     switch change.kind {
     case .add(let a):
+      let layoutDetail = String(localized: "Add · \(String(localized: a.layout.displayName))")
       (title, detail, tint, app) = (
         a.name,
-        String(localized: "Add · \(String(localized: a.layout.displayName))"),
+        a.autoOpen ? [layoutDetail, String(localized: "Auto-open on")].joined(separator: " · ") : layoutDetail,
         .green,
         a,
       )
@@ -154,6 +155,11 @@ extension SyncChangeItem {
     case .borrowEdge: symbol = "rectangle.righthalf.inset.filled"
 
     case .borrowFraction: symbol = "rectangle.split.2x1"
+
+    case .stackGroups,
+         .stackAllAssignedApps: symbol = "rectangle.stack.fill"
+
+    case .appOrder: symbol = "list.number"
 
     case .activateShortcut,
          .assignAppShortcut,

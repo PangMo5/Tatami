@@ -161,7 +161,8 @@ extension WorkspaceActivationFeature {
     guard
       let workspaceId = state.workspaceOwning(dragged) ?? state.primaryActiveWorkspaceID,
       let tree = state.tilingTrees[workspaceId],
-      tree.pathTo(window: dragged) != nil
+      let draggedPath = tree.pathTo(window: dragged),
+      case .leaf(let draggedTile) = tree.subtree(at: draggedPath)
     else { return nil }
 
     let zoomed = state.fullscreenZoomed[workspaceId] ?? []
@@ -185,7 +186,9 @@ extension WorkspaceActivationFeature {
     let allFrames = visible.frames(in: workArea, gap: CGFloat(settings.layout.gapInner))
     guard
       let target = allFrames.first(where: { other, rect in
-        other != dragged && rect.contains(cursor)
+        other != dragged
+          && (draggedTile.automaticStackGroups == nil || !draggedTile.contains(other))
+          && rect.contains(cursor)
       })?.key,
       let targetRect = allFrames[target]
     else { return nil }

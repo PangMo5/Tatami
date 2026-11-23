@@ -15,11 +15,6 @@ import Foundation
 public enum LayoutMode: String, Hashable, Sendable, Codable, CaseIterable {
   /// Tiled into the workspace's BSP layout (a frame is written).
   case tiled
-  /// Tiled like `.tiled`, except that a new window of the app joins the
-  /// stack of the tile already holding one of its windows instead of
-  /// splitting off a new tile, so the app keeps one slot however many
-  /// windows it opens.
-  case stacked
   /// Excluded from the tree, kept above the tiles via a ScreenCaptureKit
   /// mirror (requires Screen Recording).
   case floating
@@ -32,18 +27,8 @@ public enum LayoutMode: String, Hashable, Sendable, Codable, CaseIterable {
   public var displayName: LocalizedStringResource {
     switch self {
     case .tiled: "Tiled"
-    case .stacked: "Tiled (Stacked)"
     case .floating: "Floating"
     case .unmanaged: "Left untouched"
-    }
-  }
-
-  /// Whether the app's windows enter the workspace's BSP tree: `.tiled`
-  /// and `.stacked` differ only in where a new window is inserted.
-  public var isTiled: Bool {
-    switch self {
-    case .tiled, .stacked: true
-    case .floating, .unmanaged: false
     }
   }
 }

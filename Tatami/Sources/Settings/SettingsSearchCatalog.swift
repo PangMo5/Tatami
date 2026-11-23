@@ -459,6 +459,8 @@ enum SettingsSearchCatalog {
         title: "Mark fullscreen window",
         detail: "Show a small color dot on the workspace's zoomed window.",
       ),
+      SettingsSearchItem(id: "marker.stackEnabled", pane: "appearance", title: "Mark stacked windows"),
+      SettingsSearchItem(id: "marker.stackColorHex", pane: "appearance", title: "All-app stack color"),
       SettingsSearchItem(id: "marker.sharedEnabled", pane: "appearance", title: "Mark Shared Apps"),
       SettingsSearchItem(id: "marker.sharedColorHex", pane: "appearance", title: "Shared marker color"),
       SettingsSearchItem(id: "marker.fullscreenColorHex", pane: "appearance", title: "Fullscreen color"),

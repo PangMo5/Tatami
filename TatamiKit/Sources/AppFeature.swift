@@ -724,6 +724,13 @@ public struct AppFeature {
           display: display.map(HookInvocation.DisplaySnapshot.init),
         ))))
 
+      case .workspaceList(.detail(.stackGroupsApplied(let bundleIds))):
+        guard let id = state.workspaceList.detail?.workspaceId else { return .none }
+        return .send(.activation(.windowGroupingChanged(bundleIds: bundleIds, workspaceId: id)))
+
+      case .workspaceList(.shared(.stackGroupsApplied(let bundleIds))):
+        return .send(.activation(.windowGroupingChanged(bundleIds: bundleIds, workspaceId: nil)))
+
       case .workspaceList(.detail(.layoutApplied)),
            .workspaceList(.detail(.alert(.presented(.confirmAppRemoval)))):
         // Re-tile now if the edited workspace is the active one, so the window

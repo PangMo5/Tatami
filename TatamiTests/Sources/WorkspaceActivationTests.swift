@@ -1308,7 +1308,7 @@ struct WorkspaceActivationFeatureTests {
       $0.windowSnapshot.frontmostApp = {
         FrontmostApp(pid: notionWindow.pid, bundleId: notionWindow.bundleId, name: "Notion")
       }
-      $0.marker.setFocused = { _ in markerUpdates.withValue { $0 += 1 } }
+      $0.marker.focusChanged = { markerUpdates.withValue { $0 += 1 } }
     }
 
     await store.send(
@@ -1399,7 +1399,7 @@ struct WorkspaceActivationFeatureTests {
     } withDependencies: {
       $0.overlayAwareness.isBackgroundedBundle = { $0 == background.bundleId }
       $0.overlayAwareness.isBackgroundedProcess = { $0 == background.pid }
-      $0.marker.setFocused = { _ in markerUpdates.withValue { $0 += 1 } }
+      $0.marker.focusChanged = { markerUpdates.withValue { $0 += 1 } }
     }
     store.exhaustivity = .off
 
@@ -1483,7 +1483,7 @@ struct WorkspaceActivationFeatureTests {
           name: "Notion",
         )
       }
-      $0.marker.setFocused = { _ in markerUpdates.withValue { $0 += 1 } }
+      $0.marker.focusChanged = { markerUpdates.withValue { $0 += 1 } }
     }
 
     await store.send(
@@ -2250,9 +2250,11 @@ struct WorkspaceActivationFeatureTests {
     let appA1 = WindowKey(pid: 1, windowID: 101, bundleId: "app.a")
     let appA2 = WindowKey(pid: 1, windowID: 102, bundleId: "app.a")
     let appB = WindowKey(pid: 2, windowID: 201, bundleId: "app.b")
+    let group = StackGroup(name: "Shared stack", bundleIdentifiers: [appA1.bundleId])
     let workspace = Workspace(name: "Work")
     let state = Self.makeState(workspaces: [workspace]) {
       $0.$config.withLock {
+        $0.sharedStackGroups = [group]
         $0.sharedApps = [
           SharedApp(bundleIdentifier: appA1.bundleId, name: "A")
         ]
@@ -2263,14 +2265,10 @@ struct WorkspaceActivationFeatureTests {
         BSPBranch(
           split: .vertical,
           ratio: 0.5,
-          left: .branch(
-            BSPBranch(
-              split: .horizontal,
-              ratio: 0.5,
-              left: .leaf(appA1),
-              right: .leaf(appA2),
-            )
-          ),
+          left: .leaf(BSPLeaf(
+            windowList: [appA1, appA2],
+            automaticStackGroups: [[appA1], [appA2]],
+          )),
           right: .leaf(appB),
         )
       )
@@ -2303,6 +2301,8 @@ struct WorkspaceActivationFeatureTests {
     #expect(hudSelected.value == appB)
     #expect(hudByWindow.value == false)
     #expect(hudIndicators.value[appA1]?.isShared == true)
+    #expect(hudIndicators.value[appA1]?.stackColorHex == StackGroupColors.colors(for: [group], scope: .shared)[group.id])
+    #expect(hudIndicators.value[appB]?.isStacked == false)
     #expect(hudIndicators.value[appA1]?.isFocused == true)
     #expect(hudIndicators.value[appB]?.isFullscreen == true)
     #expect(hudIndicators.value[appB]?.isFocused == false)
@@ -5753,59 +5753,6 @@ struct WorkspaceActivationFeatureTests {
     await store.finish()
     #expect(store.state.pendingLayoutRestorations[workspace.id] == nil)
     #expect(store.state.tilingTrees[workspace.id] == initial.resizing(window: second, delta: 0.2))
-  }
-
-  @Test
-  func `a new window of a stacked app joins that app's tile`() throws {
-    let browser = WindowKey(pid: 1, windowID: 101, bundleId: "app.browser")
-    let terminal = WindowKey(pid: 2, windowID: 202, bundleId: "app.terminal")
-    let secondBrowser = WindowKey(pid: 1, windowID: 103, bundleId: "app.browser")
-    let chat = WindowKey(pid: 3, windowID: 303, bundleId: "app.chat")
-    let existing = BSPNode.branch(BSPBranch(
-      split: .vertical,
-      ratio: 0.3,
-      left: .leaf(browser),
-      right: .leaf(terminal),
-    ))
-    let merged = try #require(WorkspaceActivationFeature.mergeTree(
-      existing: existing,
-      target: [browser, terminal, secondBrowser],
-      focused: { terminal },
-      insertionPoint: terminal,
-      workArea: CGRect(x: 0, y: 0, width: 1_000, height: 800),
-      settings: AppSettings(),
-      stackedBundleIds: ["app.browser"],
-    ))
-    #expect(merged.leafCount == 2)
-    #expect(merged.pathTo(window: secondBrowser) == merged.pathTo(window: browser))
-    guard case .branch(let root) = merged, case .leaf(let stack) = root.left else {
-      Issue.record("expected the browser stack on the left")
-      return
-    }
-    #expect(root.ratio == 0.3)
-    #expect(stack.windowList == [browser, secondBrowser])
-
-    let withChat = try #require(WorkspaceActivationFeature.mergeTree(
-      existing: merged,
-      target: [browser, terminal, secondBrowser, chat],
-      focused: { terminal },
-      insertionPoint: terminal,
-      workArea: CGRect(x: 0, y: 0, width: 1_000, height: 800),
-      settings: AppSettings(),
-      stackedBundleIds: ["app.browser"],
-    ))
-    #expect(withChat.leafCount == 3)
-
-    // Plain Tiled keeps splitting a new tile for each window.
-    let split = try #require(WorkspaceActivationFeature.mergeTree(
-      existing: existing,
-      target: [browser, terminal, secondBrowser],
-      focused: { terminal },
-      insertionPoint: terminal,
-      workArea: CGRect(x: 0, y: 0, width: 1_000, height: 800),
-      settings: AppSettings(),
-    ))
-    #expect(split.leafCount == 3)
   }
 
   @Test(arguments: AutoBalanceMode.allCases)
@@ -9834,7 +9781,7 @@ struct WorkspaceActivationFeatureTests {
     await store.send(.activate(workspaceId: borrowed.id, setFocus: true))
 
     // The activation manager is still blocked. This replacement is what
-    // removes the old always-visible, symbol-sized Borrow badge immediately.
+    // removes the old Borrow badge immediately.
     let targetsBeforeCompletion = await markerIterator.next()
     #expect(targetsBeforeCompletion?[borrowedWindow] == nil)
 
@@ -9846,8 +9793,7 @@ struct WorkspaceActivationFeatureTests {
     let targetsAfterCompletion = await markerIterator.next()
     await store.finish()
 
-    #expect(targetsAfterCompletion?[borrowedWindow]?.symbol == nil)
-    #expect(targetsAfterCompletion?[borrowedWindow]?.alwaysVisible == false)
+    #expect(targetsAfterCompletion?[borrowedWindow]?.badges.map(\.kind) == [.fullscreen])
   }
 
   @Test

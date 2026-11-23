@@ -9,5 +9,6 @@ public enum MarkerPalette {
   public static let floating = "#FAB387" // Peach
   public static let fullscreen = "#89B4FA" // Blue
   public static let borrowed = "#CBA6F7" // Mauve
+  public static let stacked = "#A6E3A1" // Green
   public static let shared = "#94E2D5" // Teal
 }

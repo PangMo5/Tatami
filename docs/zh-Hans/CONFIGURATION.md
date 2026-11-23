@@ -258,8 +258,10 @@ down = "activateWorkspace:00000000-0000-0000-0000-000000000010"
 
 |键|类型|默认值|说明|
 | --- | --- | --- | --- |
-|`fullscreenEnabled`|bool|`true`|聚焦工作区全屏放大的窗口时显示圆点。|
+|`fullscreenEnabled`|bool|`true`|工作区放大窗口的标记角可见时显示圆点。|
 |`fullscreenColorHex`|string|`"#89B4FA"`|全屏圆点颜色（`#RRGGBB`）。|
+|`stackEnabled`|bool|`true`|为堆叠组中共用同一区块的窗口显示徽标。|
+|`stackColorHex`|string|`"#A6E3A1"`|全应用堆叠颜色（`#RRGGBB`）。|
 |`floatingEnabled`|bool|`true`|置顶窗口始终显示圆点，便于一眼识别状态。|
 |`floatingColorHex`|string|`"#FAB387"`|置顶圆点颜色（`#RRGGBB`）。|
 |`borrowEnabled`|bool|`true`|借用可见时，为每个借来的窗口显示工作区图标。|
@@ -383,6 +385,24 @@ layout = "unmanaged"     # left alone as a member, but never tiled or mirrored
 将共享应用的平铺窗口拖到其他显示器，可将它插入该显示器主工作区中某个平铺窗口的上、下、左或右侧。主工作区为空时，会成为第一个平铺窗口。借用区块不能作为目标。跨显示器拖放不会交换位置；同一树内拖到中央仍会交换。在窗口关闭或该显示器断开前，会保留选择的显示器归属，应用恢复旧位置也不会撤销移动。
 
 可在**工作区 → 共享应用**中编辑平铺、置顶或保持原样。
+
+在工作区或**共享应用**设置中创建**堆叠组**，并选择一个或多个应用。所选应用的现有和新建平铺窗口会在每台显示器的工作区中共用一个平铺区块。移除组时，仅拆分自动合并的区块。命名组会在组列表、窗口徽标和窗口切换中使用同一种颜色。
+
+每个应用在同一个工作区或共享应用范围内只能加入一个组。展开**其他组中的应用**即可移动应用。更改在保存时生效。设备端 Apple 智能可用时，会根据所选应用的名称和软件包信息建议活动名称。
+
+开启**将已分配的应用堆叠在一起**后，工作区内已分配的平铺应用共用一个区块。关闭即可恢复使用工作区内自定的堆叠组。置顶和保持原样设置仍然生效。
+
+在工作区内拖动会移动整个堆叠区块。将共享窗口拖到另一台显示器时，只移动选中的窗口。如果目标已有匹配的组，该窗口会加入其中。
+
+工作区的组使用 `[[profiles.workspaces.stackGroups]]`，共享组在顶层使用 `[[sharedStackGroups]]`。要组合所有已分配的平铺应用，请在工作区中设置 `stackAllAssignedApps = true`。
+
+```toml
+[[sharedStackGroups]]
+id = "67CF7EF3-9976-4CD9-B5E3-2A42C0ABB955"
+name = "Reference"
+bundleIdentifiers = ["com.apple.Music", "com.example.Reader"]
+```
+
 
 旧 `[[floatingApps]]` 配置在首次读取时自动迁移，每项变为 `layout = "floating"` 的共享应用。1.4 之前的 `floating` bool 也会迁移：`true` → `floating`，否则为 `tiled`。
 

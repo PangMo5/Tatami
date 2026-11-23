@@ -284,22 +284,12 @@ private func externalRecommendationPrompt(
 private func recommendationAppList(_ apps: [MacApp]) -> String {
   apps.lazy.map { app in
     var fields = [app.bundleIdentifier, app.name]
-    if let category = applicationCategory(for: app) {
+    if let category = app.applicationCategory {
       fields.append("system category: \(category)")
     }
     return fields.joined(separator: " | ")
   }
   .joined(separator: "\n")
-}
-
-private func applicationCategory(for app: MacApp) -> String? {
-  guard
-    let path = app.iconPath,
-    let bundle = Bundle(path: path),
-    let rawCategory = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String,
-    !rawCategory.isEmpty
-  else { return nil }
-  return rawCategory.replacing("public.app-category.", with: "")
 }
 
 private func displayEnvironmentDescription(

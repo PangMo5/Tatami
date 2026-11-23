@@ -43,6 +43,9 @@ public struct SharedAppsFeature {
     case chooseAppFileTapped
     case appRemoveRequested(bundleIdentifier: String)
     case layoutChanged(bundleIdentifier: String, layout: LayoutMode)
+    case stackGroupSaved(StackGroup, movingFrom: [String: StackGroup.ID])
+    case stackGroupRemoved(StackGroup.ID)
+    case stackGroupsApplied(Set<String>)
     case layoutApplied
     case autoOpenToggled(bundleIdentifier: String, isOn: Bool)
     case confirmationSuppressionChanged(Bool)
@@ -117,6 +120,20 @@ public struct SharedAppsFeature {
         }
         return .none
 
+      case .stackGroupSaved(let group, let sourceGroups):
+        let affected = state.$config.withLock { config in
+          config.sharedStackGroups.save(
+            group,
+            movingFrom: sourceGroups,
+            availableBundleIds: Set(config.sharedApps.map(\.bundleIdentifier)),
+          )
+        }
+        return affected.isEmpty ? .none : .send(.stackGroupsApplied(affected))
+
+      case .stackGroupRemoved(let id):
+        let affected = state.$config.withLock { $0.sharedStackGroups.remove(id: id) }
+        return affected.isEmpty ? .none : .send(.stackGroupsApplied(affected))
+
       case .layoutChanged(let bundleId, let layout):
         guard let app = state.apps.first(where: { $0.bundleIdentifier == bundleId }), app.layout != layout else { return .none }
         state.alert = AlertState {
@@ -144,7 +161,8 @@ public struct SharedAppsFeature {
         }
         return .send(.layoutApplied)
 
-      case .layoutApplied:
+      case .layoutApplied,
+           .stackGroupsApplied:
         return .none
 
       case .alert:

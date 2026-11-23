@@ -820,6 +820,19 @@ extension SettingsView {
       .settingsSearchTarget("marker.fullscreenColorHex")
       .disabled(!config.settings.marker.fullscreenEnabled)
 
+      Toggle(isOn: setting(\.marker.stackEnabled)) {
+        Text("Mark stacked windows")
+        Text("Show a badge on windows that share a tile in a stack group.")
+      }
+      .settingsSearchTarget("marker.stackEnabled")
+      ColorPicker(
+        "All-app stack color",
+        selection: borderColorBinding(\.marker.stackColorHex),
+        supportsOpacity: false,
+      )
+      .settingsSearchTarget("marker.stackColorHex")
+      .disabled(!config.settings.marker.stackEnabled)
+
       Toggle(isOn: setting(\.marker.floatingEnabled)) {
         Text("Mark floating windows")
         Text("Show a small color dot on floating windows (per-workspace or shared), so a mirror reads as floating at a glance.")

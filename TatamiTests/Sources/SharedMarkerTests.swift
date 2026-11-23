@@ -54,29 +54,62 @@ struct SharedMarkerTests {
   }
 
   @Test
-  func `a shared badge coexists with borrowed or zoom status without replacing it`() throws {
+  func `window marker states compose without replacing one another`() throws {
     let key = WindowKey(pid: 1, windowID: 10, bundleId: "app.shared")
     let config = AppSettings.Marker()
-    let borrowed = try #require(WorkspaceActivationFeature.markerTargets(
+    let target = try #require(WorkspaceActivationFeature.markerTargets(
       fullscreenZoomed: [key],
-      floatingKeys: [],
+      floatingKeys: [key, key],
       borrowed: [key: "book"],
       cfg: config,
       sharedKeys: [key],
+      stackedColors: [key: "#89B4FA"],
     )[key])
-    #expect(borrowed.colorHex == MarkerPalette.borrowed)
-    #expect(borrowed.symbol == "book")
-    #expect(borrowed.sharedColorHex == MarkerPalette.shared)
-    let zoomed = try #require(WorkspaceActivationFeature.markerTargets(
-      fullscreenZoomed: [key],
+    #expect(target.badges == [
+      WindowMarker(kind: .fullscreen, colorHex: MarkerPalette.fullscreen),
+      WindowMarker(kind: .floating, colorHex: MarkerPalette.floating),
+      WindowMarker(kind: .borrowed, colorHex: MarkerPalette.borrowed, symbol: "book"),
+      WindowMarker(kind: .shared, colorHex: MarkerPalette.shared, symbol: "person.2.fill"),
+      WindowMarker(kind: .stacked, colorHex: "#89B4FA", symbol: "rectangle.stack.fill"),
+    ])
+  }
+
+  @Test
+  func `automatic stacks mark only their actual members and coexist with other badges`() throws {
+    let first = WindowKey(pid: 1, windowID: 10, bundleId: "app.shared")
+    let second = WindowKey(pid: 2, windowID: 11, bundleId: "app.other")
+    var keys = Set<WindowKey>()
+    let automatic = try #require(BSPNode<WindowKey>.leaf(first).stackingAutomatically(second, on: first))
+    automatic.collectAutomaticallyStackedWindows(into: &keys)
+    #expect(keys == [first, second])
+
+    let manual = BSPNode<WindowKey>.leaf(BSPLeaf(windowList: [first, second]))
+    var manualKeys = Set<WindowKey>()
+    manual.collectAutomaticallyStackedWindows(into: &manualKeys)
+    #expect(manualKeys.isEmpty)
+
+    var config = AppSettings.Marker()
+    let badges = WorkspaceActivationFeature.markerTargets(
+      fullscreenZoomed: [first],
       floatingKeys: [],
       borrowed: [:],
       cfg: config,
-      sharedKeys: [key],
-    )[key])
-    #expect(!zoomed.alwaysVisible)
-    #expect(zoomed.colorHex == MarkerPalette.fullscreen)
-    #expect(zoomed.sharedColorHex == MarkerPalette.shared)
+      sharedKeys: [first],
+      stackedColors: [first: "#89B4FA", second: "#FAB387"],
+    )
+    #expect(badges[first]?.badges.map(\.kind) == [.fullscreen, .shared, .stacked])
+    #expect(badges[first]?.badges.last?.colorHex == "#89B4FA")
+    #expect(badges[second]?.badges == [
+      WindowMarker(kind: .stacked, colorHex: "#FAB387", symbol: "rectangle.stack.fill")
+    ])
+    config.stackEnabled = false
+    #expect(WorkspaceActivationFeature.markerTargets(
+      fullscreenZoomed: [],
+      floatingKeys: [],
+      borrowed: [:],
+      cfg: config,
+      stackedColors: [first: "#89B4FA", second: "#FAB387"],
+    ).isEmpty)
   }
 
   @Test
@@ -90,8 +123,9 @@ struct SharedMarkerTests {
       cfg: config,
       sharedKeys: [key],
     )[key])
-    #expect(shared.colorHex == nil)
-    #expect(shared.sharedColorHex == MarkerPalette.shared)
+    #expect(shared.badges == [
+      WindowMarker(kind: .shared, colorHex: MarkerPalette.shared, symbol: "person.2.fill")
+    ])
     config.sharedEnabled = false
     #expect(WorkspaceActivationFeature.markerTargets(
       fullscreenZoomed: [],

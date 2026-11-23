@@ -25,6 +25,9 @@ public struct MacApp: Hashable, Sendable, Codable {
 }
 
 extension MacApp {
+
+  // MARK: Public
+
   public static let finderBundleId = "com.apple.finder"
 
   public var isFinder: Bool {
@@ -38,4 +41,18 @@ extension MacApp {
   public static func isTatami(_ bundleId: String) -> Bool {
     bundleId == "dev.PangMo5.Tatami" || bundleId.hasPrefix("dev.PangMo5.Tatami.")
   }
+
+  // MARK: Internal
+
+  /// Launch Services category from the locally installed app bundle.
+  var applicationCategory: String? {
+    guard
+      let path = iconPath,
+      let bundle = Bundle(path: path),
+      let category = bundle.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String,
+      !category.isEmpty
+    else { return nil }
+    return category.replacing("public.app-category.", with: "")
+  }
+
 }

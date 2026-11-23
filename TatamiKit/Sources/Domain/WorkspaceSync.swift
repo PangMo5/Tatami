@@ -61,6 +61,9 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
   case activateShortcut(before: HotKey?, after: HotKey?)
   case assignAppShortcut(before: HotKey?, after: HotKey?)
   case borrowShortcut(before: HotKey?, after: HotKey?)
+  case stackGroups(before: [StackGroup], after: [StackGroup], beforeApps: [AppAssignment], afterApps: [AppAssignment])
+  case stackAllAssignedApps(before: Bool, after: Bool)
+  case appOrder(before: [String], after: [String], appNames: [String: String])
 
   // MARK: Public
 
@@ -76,6 +79,9 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     case .activateShortcut: "activateShortcut"
     case .assignAppShortcut: "assignAppShortcut"
     case .borrowShortcut: "borrowShortcut"
+    case .stackGroups: "stackGroups"
+    case .stackAllAssignedApps: "stackAllAssignedApps"
+    case .appOrder: "appOrder"
     }
   }
 
@@ -91,6 +97,9 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     case .activateShortcut: "Activate shortcut"
     case .assignAppShortcut: "Assign shortcut"
     case .borrowShortcut: "Borrow shortcut"
+    case .stackGroups: "Stack Groups"
+    case .stackAllAssignedApps: "Stack All Assigned Apps"
+    case .appOrder: "App order"
     }
   }
 
@@ -116,7 +125,10 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
          .appToFocus,
          .displayHint,
          .borrowEdge,
-         .borrowFraction:
+         .borrowFraction,
+         .stackGroups,
+         .stackAllAssignedApps,
+         .appOrder:
       nil
     }
   }
@@ -144,6 +156,30 @@ public enum WorkspaceFieldChange: Equatable, Identifiable, Sendable {
     case .borrowFraction(let b, let a):
       guard let v = pick(b, a) else { return String(localized: "Global") }
       return "\(Int((v * 100).rounded()))%"
+
+    case .stackGroups(let b, let a, let beforeApps, let afterApps):
+      let groups = pick(b, a)
+      if groups.isEmpty {
+        return String(localized: "None")
+      }
+      let assigned = pick(beforeApps, afterApps)
+      return groups.lazy.map { group in
+        let ids = Set(group.bundleIdentifiers)
+        let apps = assigned.filter { ids.contains($0.bundleIdentifier) }
+        let assignedIds = Set(apps.map(\.bundleIdentifier))
+        let unknown = group.bundleIdentifiers.filter { !assignedIds.contains($0) }
+        let members = (apps.map(\.name) + unknown).formatted(.list(type: .and))
+        if members.isEmpty || group.name == members {
+          return group.name
+        }
+        return String(localized: "\(group.name) (\(members))")
+      }.joined(separator: " · ")
+
+    case .stackAllAssignedApps(let b, let a):
+      return pick(b, a) ? String(localized: "On") : String(localized: "Off")
+
+    case .appOrder(let b, let a, let appNames):
+      return pick(b, a).lazy.map { appNames[$0] ?? $0 }.joined(separator: " · ")
 
     case .activateShortcut(let b, let a),
          .assignAppShortcut(let b, let a),
@@ -280,7 +316,8 @@ public enum WorkspaceSync {
 
       case .modify(_, let after):
         if let i = result.firstIndex(where: { $0.bundleIdentifier == after.bundleIdentifier }) {
-          result[i] = after
+          result[i].layout = after.layout
+          result[i].autoOpen = after.autoOpen
         }
       }
     }
@@ -321,6 +358,33 @@ public enum WorkspaceSync {
     if target.borrowShortcut != source.borrowShortcut {
       out.append(.borrowShortcut(before: target.borrowShortcut, after: source.borrowShortcut))
     }
+    let appNames = Dictionary(
+      (source.apps + target.apps).map { ($0.bundleIdentifier, $0.name) },
+      uniquingKeysWith: { first, _ in first },
+    )
+    let groupsMatch = source.stackGroups.count == target.stackGroups.count
+      && zip(source.stackGroups, target.stackGroups).allSatisfy { source, target in
+        source.name == target.name && Set(source.bundleIdentifiers) == Set(target.bundleIdentifiers)
+      }
+    if !groupsMatch {
+      out.append(.stackGroups(
+        before: target.stackGroups,
+        after: source.stackGroups,
+        beforeApps: target.apps,
+        afterApps: source.apps,
+      ))
+    }
+    if target.stackAllAssignedApps != source.stackAllAssignedApps {
+      out.append(.stackAllAssignedApps(before: target.stackAllAssignedApps, after: source.stackAllAssignedApps))
+    }
+    let sourceOrder = source.apps.map(\.bundleIdentifier)
+    let targetOrder = target.apps.map(\.bundleIdentifier)
+    let sourceIds = Set(sourceOrder)
+    let targetIds = Set(targetOrder)
+    let orderAfterAppChanges = targetOrder.filter(sourceIds.contains) + sourceOrder.filter { !targetIds.contains($0) }
+    if sourceOrder != orderAfterAppChanges {
+      out.append(.appOrder(before: targetOrder, after: sourceOrder, appNames: appNames))
+    }
     return out
   }
 
@@ -333,15 +397,43 @@ public enum WorkspaceSync {
     for change in changes where !excluded.contains(change.id) {
       switch change {
       case .icon(_, let after): workspace.symbolIconName = after
+
       case .keyEquivalent(_, let after): workspace.keyEquivalent = after
+
       case .kind(_, let after): workspace.kind = after
+
       case .appToFocus(_, let after): workspace.appToFocusBundleId = after
+
       case .displayHint(_, let after): workspace.displayHint = after
+
       case .borrowEdge(_, let after): workspace.borrowEdge = after
+
       case .borrowFraction(_, let after): workspace.borrowFraction = after
+
       case .activateShortcut(_, let after): workspace.activateShortcut = after
+
       case .assignAppShortcut(_, let after): workspace.assignAppShortcut = after
+
       case .borrowShortcut(_, let after): workspace.borrowShortcut = after
+
+      case .stackGroups(_, let after, _, _):
+        let available = Set(workspace.apps.map(\.bundleIdentifier))
+        workspace.stackGroups = after.compactMap { original in
+          var group = original
+          group.bundleIdentifiers = group.bundleIdentifiers.filter(available.contains)
+          return group.bundleIdentifiers.isEmpty ? nil : group
+        }
+
+      case .stackAllAssignedApps(_, let after):
+        workspace.stackAllAssignedApps = after
+
+      case .appOrder(_, let after, _):
+        let rank = Dictionary(after.enumerated().map { ($0.element, $0.offset) }, uniquingKeysWith: { first, _ in first })
+        let slots = workspace.apps.indices.filter { rank[workspace.apps[$0].bundleIdentifier] != nil }
+        let reordered = slots.map { workspace.apps[$0] }.sorted {
+          rank[$0.bundleIdentifier, default: .max] < rank[$1.bundleIdentifier, default: .max]
+        }
+        for (index, app) in zip(slots, reordered) { workspace.apps[index] = app }
       }
     }
   }

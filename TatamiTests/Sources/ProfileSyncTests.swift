@@ -14,11 +14,29 @@ struct ProfileSyncTests {
   @Test
   func `copy availability ignores identity names and app display metadata`() {
     var source = Workspace(name: "Source", apps: [app("a"), app("b")])
-    let target = Workspace(name: "Target", apps: [app("b"), app("a")])
+    let target = Workspace(name: "Target", apps: [app("a"), app("b")])
     source.apps[0].name = "Different display name"
     source.apps[0].iconPath = "/Applications/Example.app"
     #expect(source.id != target.id)
     #expect(!WorkspaceSync.hasChanges(from: source, to: target))
+  }
+
+  @Test
+  func `copy detects grouping settings and app order with independent selections`() {
+    let group = StackGroup(name: "Reading", bundleIdentifiers: ["b", "c"])
+    let source = Workspace(name: "Source", apps: [app("b"), app("a"), app("c")], stackGroups: [group], stackAllAssignedApps: true)
+    var target = Workspace(name: "Target", apps: [app("a"), app("b")])
+    let fields = WorkspaceSync.fieldChanges(from: source, to: target)
+    #expect(Set(fields.map(\.id)) == ["stackGroups", "stackAllAssignedApps", "appOrder"])
+    let changes = WorkspaceSync.appChanges(from: source.apps, to: target.apps)
+    target.apps = WorkspaceSync.apply(changes, to: target.apps, excluding: ["c"])
+    WorkspaceSync.apply(fields, to: &target, excluding: ["stackAllAssignedApps"])
+    #expect(target.apps.map(\.bundleIdentifier) == ["b", "a"])
+    #expect(target.stackGroups.map(\.bundleIdentifiers) == [["b"]])
+    #expect(!target.stackAllAssignedApps)
+    WorkspaceSync.apply(fields, to: &target, excluding: ["stackGroups", "appOrder"])
+    #expect(target.stackAllAssignedApps)
+    #expect(target.stackGroups.map(\.bundleIdentifiers) == [["b"]])
   }
 
   @Test(arguments: ["add", "remove", "layout", "autoOpen", "display", "key"])

@@ -43,6 +43,8 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     borrowEdge: BorrowEdge? = nil,
     borrowFraction: Double? = nil,
     apps: [AppAssignment] = [],
+    stackGroups: [StackGroup] = [],
+    stackAllAssignedApps: Bool = false,
   ) {
     self.id = id
     self.name = name
@@ -57,6 +59,8 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
     self.borrowEdge = borrowEdge
     self.borrowFraction = borrowFraction
     self.apps = apps
+    self.stackGroups = stackGroups.assigningStackGroupColors()
+    self.stackAllAssignedApps = stackAllAssignedApps
   }
 
   // MARK: Public
@@ -94,6 +98,8 @@ public struct Workspace: Identifiable, Hashable, Sendable, Codable {
   /// global default).
   public var borrowFraction: Double?
   public var apps: [AppAssignment]
+  public var stackGroups: [StackGroup]
+  public var stackAllAssignedApps: Bool
 
 }
 
@@ -116,6 +122,10 @@ extension Workspace {
     borrowEdge = try container.decodeIfPresent(BorrowEdge.self, forKey: .borrowEdge)
     borrowFraction = try container.decodeIfPresent(Double.self, forKey: .borrowFraction)
     apps = try container.decodeIfPresent([AppAssignment].self, forKey: .apps) ?? []
+    stackGroups = try container.decodeIfPresent([StackGroup].self, forKey: .stackGroups) ?? []
+    try StackGroup.validate(stackGroups, codingPath: container.codingPath + [CodingKeys.stackGroups])
+    stackGroups = stackGroups.assigningStackGroupColors()
+    stackAllAssignedApps = try container.decodeIfPresent(Bool.self, forKey: .stackAllAssignedApps) ?? false
   }
 
   // MARK: Private
@@ -134,6 +144,8 @@ extension Workspace {
     case borrowEdge
     case borrowFraction
     case apps
+    case stackGroups
+    case stackAllAssignedApps
   }
 
 }

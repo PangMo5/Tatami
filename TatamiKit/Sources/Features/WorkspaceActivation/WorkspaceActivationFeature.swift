@@ -900,14 +900,14 @@ public struct WorkspaceActivationFeature {
           $0.bundleIdentifier == bundleId
         } ?? []
       }
-      if visibleAssignments.contains(where: { $0.layout.isTiled }) {
+      if visibleAssignments.contains(where: { $0.layout == .tiled }) {
         return true
       }
 
       let sharedAssignments = config.sharedApps.filter {
         $0.bundleIdentifier == bundleId
       }
-      if sharedAssignments.contains(where: { $0.layout.isTiled }) {
+      if sharedAssignments.contains(where: { $0.layout == .tiled }) {
         return true
       }
 
@@ -1457,6 +1457,7 @@ public struct WorkspaceActivationFeature {
     case bspOpResolved(windowKey: WindowKey, op: BSPOp)
     /// GUI layout-preview edit for the *active* workspace: apply a structural
     /// op to its live tree, re-tile on screen, and persist per memory setting.
+    case windowGroupingChanged(bundleIds: Set<String>, workspaceId: Workspace.ID?)
     case layoutEdited(workspaceId: Workspace.ID, op: LayoutEditOp)
     case persistedLayoutRestorationUpdated(
       workspaceId: Workspace.ID,
@@ -1908,7 +1909,7 @@ public struct WorkspaceActivationFeature {
           guard
             let key = state.visibleWorkspaceIDs.flatMap({ state.tilingTrees[$0]?.windows ?? [] })
               .first(where: { $0.windowID == id }),
-            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout.isTiled })
+            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout == .tiled })
           else { return .none }
           state.drag = .moving(key)
           return .none
@@ -2083,7 +2084,7 @@ public struct WorkspaceActivationFeature {
           let drag = state.drag
           if
             let key = drag.windowKey,
-            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout.isTiled }),
+            state.config.sharedApps.contains(where: { $0.bundleIdentifier == key.bundleId && $0.layout == .tiled }),
             let owner = state.workspaceOwning(key).flatMap({ state.displayShowing($0) })
           {
             state.sharedWindowDisplayOwners[key] = owner
@@ -2233,10 +2234,8 @@ public struct WorkspaceActivationFeature {
               }
             }
           }
-          // Forward the focus change to the marker controller so it
-          // can render the dot only on the now-focused window.
+          // A focus change may raise a cover over another window's badge.
           let markerClient = marker
-          let focusedKey = key
           // A known key already has authoritative membership. Re-scanning its
           // whole app on every cmd-`/click focus was a synchronous AX pass that
           // could block for the full messaging timeout without changing the
@@ -2258,7 +2257,7 @@ public struct WorkspaceActivationFeature {
                 state: state,
               )
               : .none,
-            .run { _ in await markerClient.setFocused(focusedKey) },
+            .run { _ in await markerClient.focusChanged() },
           )
 
         case .windowTitleChanged:
@@ -2592,15 +2591,10 @@ public struct WorkspaceActivationFeature {
         if activationIsBackgrounded {
           return validateForegroundWorkWindow(bundleId: bundleId, pid: activationPID ?? pid, state: &state)
         }
-        // Refresh marker focus on every app activation. AX
-        // `kAXFocusedWindowChanged` is only fired for the apps we
-        // already observe, so a switch *into* a previously-unobserved
-        // app wouldn't otherwise wake the marker.
+        // A newly activated app can cover existing badge corners, even
+        // when its windows aren't watched by the workspace observer.
         let markerClient = marker
-        let markerEffect = Effect<Action>.run { [snapshot = windowSnapshot] _ in
-          let key = await snapshot.focusedWindowKeyOffMain()
-          await markerClient.setFocused(key)
-        }
+        let markerEffect = Effect<Action>.run { _ in await markerClient.focusChanged() }
         // NSWorkspace activation notifications can be delivered after a
         // subsequent host activation has already won (observed with KakaoTalk
         // auto-open during a fast Borrow → dismiss). Never switch workspaces
@@ -4743,6 +4737,9 @@ public struct WorkspaceActivationFeature {
         guard state.canManageWindow(key) else { return .none }
         return applyBSPOp(windowKey: key, op: op, state: &state)
 
+      case .windowGroupingChanged(let bundleIds, let workspaceId):
+        return applyWindowGrouping(bundleIds: bundleIds, workspaceId: workspaceId, state: &state)
+
       case .layoutEdited(let workspaceId, let op):
         // Only the active workspace has a live tree here; the inactive path
         // edits the on-disk snapshot in WorkspaceDetailFeature instead.
@@ -6109,6 +6106,11 @@ public struct WorkspaceActivationFeature {
     let fullscreenKeys = workspaceIds.reduce(into: Set<WindowKey>()) {
       $0.formUnion(state.fullscreenZoomed[$1] ?? [])
     }
+    let stackedColors = Self.stackedWindowColors(in: workspaceIds, state: state)
+    let stackedColorsByApp = Dictionary(
+      stackedColors.sorted { $0.key.windowID < $1.key.windowID }.map { ($0.key.bundleId, $0.value) },
+      uniquingKeysWith: { first, _ in first },
+    )
     let fullscreenBundleIds = Set(fullscreenKeys.map(\.bundleId))
     let borrowedBundleIds = borrowedWorkspaceIds.reduce(into: Set<String>()) {
       $0.formUnion(state.tilingTrees[$1]?.windows.map(\.bundleId) ?? [])
@@ -6140,6 +6142,7 @@ public struct WorkspaceActivationFeature {
                 : key.bundleId == focused.bundleId)
           } ?? false,
           isFullscreen: isFullscreen,
+          stackColorHex: cycle.byWindow ? stackedColors[key] : stackedColors[key] ?? stackedColorsByApp[key.bundleId],
         ),
       )
     })
